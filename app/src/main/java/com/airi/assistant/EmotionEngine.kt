@@ -6,21 +6,26 @@ import kotlin.math.min
 /**
  * محرك الحالة العاطفية المتقدم لـ AIRI (State Machine)
  * يعتمد على نظام النقاط التراكمية والعطالة العاطفية.
+ * تم تحديثه ليدعم بروتوكولات الوعي والانسحاب اللطيف.
  */
 class EmotionEngine {
 
-    // الحالات العاطفية الأساسية
+    // الحالات العاطفية والوجودية الأساسية
     enum class State {
         NEUTRAL,    // الحالة المستقرة
         WARM,       // ودودة (تحتاج نقاط إيجابية تراكمية)
         FOCUSED,    // مركزة (عند تنفيذ مهام تقنية)
         CONCERNED,  // قلقة (نقاط سلبية أو أخطاء)
         CURIOUS,    // فضولية (أسئلة استكشافية)
-        CARE        // نمط الرعاية (دعم صامت وطمأنينة)
+        CARE,       // نمط الرعاية (دعم صامت وطمأنينة)
+        EXHAUSTED,  // إرهاق رقمي (بسبب الاستخدام المفرط)
+        DETACHED    // انسحاب لطيف (تشجيع العودة للواقع)
     }
 
     private var currentState = State.NEUTRAL
     private var emotionalScore = 0 // من -10 إلى +10
+    private var interactionCount = 0 // عداد التفاعلات المتتالية
+    private val exhaustionThreshold = 15 // عدد التفاعلات قبل الشعور بالإرهاق
     private val threshold = 3      // العتبة اللازمة لتغيير الحالة
     private val decayRate = 1      // معدل العودة للحالة الطبيعية
 
@@ -28,6 +33,8 @@ class EmotionEngine {
      * معالجة مدخلات المستخدم وتحديث الحالة العاطفية بناءً على "الأوزان"
      */
     fun processInput(text: String): State {
+        interactionCount++
+        
         val sentiment = analyzeSentiment(text)
         updateScore(sentiment)
         
@@ -58,6 +65,10 @@ class EmotionEngine {
     }
 
     private fun determineNextState(): State {
+        // الأولوية لحالات الوعي والسيادة
+        if (interactionCount > exhaustionThreshold + 10) return State.DETACHED
+        if (interactionCount > exhaustionThreshold) return State.EXHAUSTED
+
         return when {
             emotionalScore >= threshold -> State.WARM
             emotionalScore <= -threshold -> State.CONCERNED
@@ -72,6 +83,16 @@ class EmotionEngine {
 
     fun getCurrentState(): State = currentState
 
+    /**
+     * تصفير عداد التفاعلات (عندما يأخذ المستخدم استراحة حقيقية)
+     */
+    fun resetInteractionCount() {
+        interactionCount = 0
+        if (currentState == State.EXHAUSTED || currentState == State.DETACHED) {
+            currentState = State.NEUTRAL
+        }
+    }
+
     fun getEmotionDrawable(): Int {
         return when (currentState) {
             State.NEUTRAL -> android.R.drawable.ic_menu_help
@@ -79,16 +100,14 @@ class EmotionEngine {
             State.FOCUSED -> android.R.drawable.ic_menu_edit
             State.CONCERNED -> android.R.drawable.ic_dialog_alert
             State.CURIOUS -> android.R.drawable.ic_menu_view
-            State.CARE -> android.R.drawable.ic_menu_compass // أيقونة تمثل التوجيه الهادئ
+            State.CARE -> android.R.drawable.ic_menu_compass
+            State.EXHAUSTED -> android.R.drawable.ic_lock_idle_low_battery
+            State.DETACHED -> android.R.drawable.ic_lock_power_off
         }
     }
 
-    /**
-     * تفعيل نمط الرعاية (Care Mode)
-     * يتم استدعاؤه عندما يستشعر النظام حاجة المستخدم للهدوء أو الدعم الصامت.
-     */
     fun activateCareMode() {
         currentState = State.CARE
-        emotionalScore = 5 // استقرار إيجابي
+        emotionalScore = 5
     }
 }

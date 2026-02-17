@@ -3,6 +3,7 @@ package com.airi.assistant
 import android.content.Context
 import android.util.Log
 import com.airi.assistant.core.*
+import com.airi.assistant.tools.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import org.json.JSONObject
@@ -10,6 +11,7 @@ import org.json.JSONObject
 /**
  * AIRI Core - The Central Event-Driven Bus.
  * Orchestrates communication between Senses (Accessibility, Voice) and Brain (LLM).
+ * Updated to include Tool Auto-Discovery Layer.
  */
 object AiriCore {
 
@@ -31,6 +33,7 @@ object AiriCore {
         data class UserInput(val text: String, val source: InputSource) : AiriEvent()
         data class ScreenContext(val data: String) : AiriEvent()
         data class UIRequest(val message: String) : AiriEvent()
+        object RefreshTools : AiriEvent()
     }
 
     fun init(context: Context) {
@@ -54,6 +57,9 @@ object AiriCore {
             controlManager,
             voiceManager
         )
+        
+        // اكتشاف الأدوات عند التشغيل
+        refreshTools()
         
         startEventLoop()
         isInitialized = true
@@ -81,6 +87,15 @@ object AiriCore {
             is AiriEvent.UserInput -> cognitiveLoop.processInput(event.text, event.source)
             is AiriEvent.ScreenContext -> updateScreenContext(event.data)
             is AiriEvent.UIRequest -> updateUI(event.message)
+            is AiriEvent.RefreshTools -> refreshTools()
+        }
+    }
+
+    private fun refreshTools() {
+        scope.launch(Dispatchers.IO) {
+            val discoveredTools = ToolScanner.scan(appContext)
+            ToolRegistry.register(discoveredTools)
+            Log.i("AIRI_CORE", "Tools refreshed: ${discoveredTools.size} tools found.")
         }
     }
 

@@ -1,7 +1,13 @@
 package com.airi.assistant.core
 
 import com.airi.assistant.MemoryManager
+import com.airi.assistant.planner.ExperienceStore
+import kotlinx.coroutines.runBlocking
 
+/**
+ * منشئ الأوامر (Prompt Builder)
+ * يقوم بصياغة السياق الكامل للـ LLM، مع دمج الخبرات السابقة (Self-Improving).
+ */
 class PromptBuilder(
     private val memoryManager: MemoryManager
 ) {
@@ -11,6 +17,7 @@ class PromptBuilder(
         val rules = buildOperatingRules()
         val schema = buildActionSchema()
         val context = buildContext(screenContext)
+        val experiences = buildExperienceContext(userInput)
         val user = "User Input: $userInput"
 
         return listOf(
@@ -18,6 +25,7 @@ class PromptBuilder(
             rules,
             schema,
             context,
+            experiences,
             user
         ).joinToString("\n\n")
     }
@@ -55,6 +63,7 @@ class PromptBuilder(
               "intent": "string",
               "confidence": float,
               "action": {
+                  "tool": "string (name of tool to use)",
                   "type": "OPEN_APP | CLICK | READ_SCREEN | SYSTEM_CMD | NONE",
                   "parameters": {}
               },
@@ -71,6 +80,23 @@ class PromptBuilder(
             
             Memory:
             $memoryContext
+        """.trimIndent()
+    }
+
+    /**
+     * دمج الخبرات السابقة ذات الصلة (Self-Improving Layer)
+     */
+    private fun buildExperienceContext(userInput: String): String {
+        val experiences = runBlocking { ExperienceStore.getBestExperiences(userInput, 2) }
+        if (experiences.isEmpty()) return ""
+
+        val expText = experiences.joinToString("\n---\n") { exp ->
+            "Goal: ${exp.goal}\nPlan: ${exp.plan}\nResult: ${exp.result}\nScore: ${exp.score}"
+        }
+
+        return """
+            Past Experiences (Learn from these):
+            $expText
         """.trimIndent()
     }
 }

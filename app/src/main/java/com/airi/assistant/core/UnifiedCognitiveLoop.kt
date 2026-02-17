@@ -4,12 +4,13 @@ import android.content.Context
 import android.util.Log
 import com.airi.assistant.*
 import com.airi.assistant.tools.*
+import com.airi.assistant.planner.*
 import kotlinx.coroutines.*
 import org.json.JSONObject
 
 /**
  * المحرك الإدراكي الموحد (Unified Cognitive Loop)
- * يربط الإدراك بالتفكير ثم التنفيذ، مع دمج طبقة الأدوات والسياسات.
+ * يربط الإدراك بالتفكير ثم التنفيذ، مع دمج طبقة الأدوات والسياسات والتعلم الذاتي.
  */
 class UnifiedCognitiveLoop(
     private val context: Context,
@@ -24,6 +25,7 @@ class UnifiedCognitiveLoop(
 
     fun processInput(text: String, source: InputSource) {
         scope.launch {
+            val startTime = System.currentTimeMillis()
             try {
                 // 1. Perception & Intent Routing (Fast Path)
                 val event = IntentEvent(text, source)
@@ -40,7 +42,7 @@ class UnifiedCognitiveLoop(
                 val response = llama.generateResponse(prompt)
                 
                 // 3. Planning & Policy Check
-                handleLLMResponse(response)
+                handleLLMResponse(text, response, startTime)
 
             } catch (e: Exception) {
                 Log.e("UCL", "Error in cognitive loop: ${e.message}")
@@ -66,7 +68,6 @@ class UnifiedCognitiveLoop(
                 IntentType.SYSTEM_COMMAND -> systemControl.executeCommand(action)
                 IntentType.APP_CONTROL -> systemControl.openApp(action)
                 IntentType.AUTOMATION -> {
-                    // محاولة مطابقة أداة تلقائياً للنوايا السريعة
                     val tool = ToolRegistry.findBestMatch(action)
                     if (tool != null) {
                         executeTool(tool, intent.extractedData)
@@ -77,7 +78,7 @@ class UnifiedCognitiveLoop(
         }
     }
 
-    private fun handleLLMResponse(jsonResponse: String) {
+    private fun handleLLMResponse(goal: String, jsonResponse: String, startTime: Long) {
         try {
             val json = JSONObject(jsonResponse)
             val mode = json.optString("mode")
@@ -86,7 +87,6 @@ class UnifiedCognitiveLoop(
             if (mode == "RESPONSE" || mode == "HYBRID") {
                 if (responseText.isNotEmpty()) {
                     voiceManager.speak(responseText)
-                    // إرسال تحديث للواجهة
                     scope.launch { AiriCore.send(AiriCore.AiriEvent.UIRequest(responseText)) }
                 }
             }
@@ -104,10 +104,9 @@ class UnifiedCognitiveLoop(
                             paramMap[key] = params.get(key)
                         }
                         
-                        // التحقق من السياسة قبل تنفيذ الأداة
                         val policyDecision = policyEngine.evaluate("TOOL_EXECUTION", toolName)
                         if (policyDecision.isAllowed) {
-                            executeTool(tool, paramMap)
+                            executeTool(tool, paramMap, goal, jsonResponse, startTime)
                         } else {
                             val msg = "Policy Denied: ${policyDecision.reason}"
                             voiceManager.speak(msg)
@@ -123,11 +122,17 @@ class UnifiedCognitiveLoop(
         }
     }
 
-    private fun executeTool(tool: ToolDefinition, params: Map<String, Any>) {
+    private fun executeTool(
+        tool: ToolDefinition, 
+        params: Map<String, Any>, 
+        goal: String? = null, 
+        plan: String? = null, 
+        startTime: Long = 0
+    ) {
         scope.launch(Dispatchers.IO) {
             Log.i("UCL", "Executing tool: ${tool.name}")
             val result = ToolExecutor.execute(tool, params)
-            Log.d("UCL", "Tool result: $result")
+            val timeTaken = if (startTime > 0) System.currentTimeMillis() - startTime else 0
             
             // تسجيل العملية في سجل الأثر
             auditManager.logDecision(
@@ -138,7 +143,12 @@ class UnifiedCognitiveLoop(
                 reason = "Tool executed successfully"
             )
             
-            // إرسال النتيجة للواجهة أو إعادتها للـ LLM للتحليل (Reflection)
+            // تسجيل الخبرة للتعلم الذاتي (Self-Improving)
+            if (goal != null && plan != null) {
+                val score = PlanScorer.score(result, 1, timeTaken)
+                ExecutionLogger.logEnd(goal, plan, tool.name, result, score)
+            }
+            
             scope.launch { AiriCore.send(AiriCore.AiriEvent.UIRequest("Tool Result: $result")) }
         }
     }

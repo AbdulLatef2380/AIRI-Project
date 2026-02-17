@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.airi.assistant.core.*
 import com.airi.assistant.tools.*
+import com.airi.assistant.planner.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import org.json.JSONObject
@@ -11,7 +12,7 @@ import org.json.JSONObject
 /**
  * AIRI Core - The Central Event-Driven Bus.
  * Orchestrates communication between Senses (Accessibility, Voice) and Brain (LLM).
- * Updated to include Tool Auto-Discovery Layer.
+ * Updated to include Tool Auto-Discovery and Self-Improving Planner.
  */
 object AiriCore {
 
@@ -39,6 +40,9 @@ object AiriCore {
     fun init(context: Context) {
         if (isInitialized) return
         appContext = context.applicationContext
+        
+        // تهيئة مخزن الخبرات (Self-Improving)
+        ExperienceStore.init(appContext)
         
         llama = LlamaNative(appContext)
         memoryManager = MemoryManager(appContext)

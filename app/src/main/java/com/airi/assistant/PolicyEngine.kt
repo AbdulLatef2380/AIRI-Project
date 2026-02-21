@@ -1,16 +1,19 @@
 package com.airi.assistant
 
+import com.airi.assistant.world.RiskEstimator
+import com.airi.assistant.world.WorldState
 import java.time.OffsetDateTime
 
 /**
  * AIRI Policy Engine - The Single Source of Truth for decision making.
  * Implements Fail-Closed, Versioning, and Cold Start protocols.
+ * Updated to include World Model Risk Estimation.
  */
 class PolicyEngine {
 
     companion object {
-        const val POLICY_VERSION = "1.0.3"
-        const val EFFECTIVE_FROM = "2026-01-15T00:00:00Z"
+        const val POLICY_VERSION = "1.0.4"
+        const val EFFECTIVE_FROM = "2026-02-19T00:00:00Z"
     }
 
     data class PolicyRule(
@@ -27,11 +30,13 @@ class PolicyEngine {
         val finalAction: String,
         val policyVersion: String = POLICY_VERSION,
         val timestamp: String = OffsetDateTime.now().toString(),
-        val constraints: Map<String, String> = emptyMap()
+        val constraints: Map<String, String> = emptyMap(),
+        val riskLevel: String = "UNKNOWN"
     )
 
+    private val riskEstimator = RiskEstimator()
+
     // Default policies (The "Constitution" of AIRI)
-    // Cold Start: If this list is empty, all actions will be DENIED by evaluate()
     private val policies = mutableListOf(
         PolicyRule(
             intent = "system",
@@ -62,30 +67,58 @@ class PolicyEngine {
     )
 
     /**
-     * Evaluates if an intent and action are allowed under current policies.
+     * Evaluates if an intent and action are allowed under current policies and world state.
      * Implements Fail-Closed: Any exception or missing rule results in DENY.
      */
-    fun evaluate(intent: String, action: String): EvaluationResult {
+    fun evaluate(intent: String, action: String, worldState: WorldState? = null): EvaluationResult {
         return try {
             val rule = policies.find { it.intent == intent && it.action == action }
             
+            // 1. Basic Policy Check
             if (rule == null) {
-                // Cold Start / Missing Rule: Default to DENY
-                EvaluationResult(
+                return EvaluationResult(
                     isAllowed = false,
                     reason = "No policy defined for this intent/action pair. Fail-Closed triggered.",
                     finalAction = action
                 )
-            } else {
-                EvaluationResult(
-                    isAllowed = rule.allow,
+            }
+
+            if (!rule.allow) {
+                return EvaluationResult(
+                    isAllowed = false,
                     reason = rule.reason,
                     finalAction = action,
                     constraints = rule.constraints
                 )
             }
+
+            // 2. World Model Risk Check (If state is provided)
+            var riskReason = ""
+            var riskLevel = "LOW"
+            if (worldState != null) {
+                val assessment = riskEstimator.estimate(action, worldState)
+                riskLevel = assessment.level.name
+                if (!assessment.canProceed) {
+                    return EvaluationResult(
+                        isAllowed = false,
+                        reason = "Risk Policy Violation: ${assessment.reason}",
+                        finalAction = action,
+                        riskLevel = riskLevel
+                    )
+                }
+                riskReason = assessment.reason
+            }
+
+            // 3. Final Approval
+            EvaluationResult(
+                isAllowed = true,
+                reason = if (riskReason.isNotEmpty()) "Allowed ($riskReason)" else rule.reason,
+                finalAction = action,
+                constraints = rule.constraints,
+                riskLevel = riskLevel
+            )
+
         } catch (e: Exception) {
-            // Fail-Closed: Any error during evaluation results in DENY
             EvaluationResult(
                 isAllowed = false,
                 reason = "Policy Engine Internal Error: ${e.message}. Fail-Closed triggered.",

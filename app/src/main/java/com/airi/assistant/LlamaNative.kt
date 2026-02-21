@@ -1,10 +1,16 @@
 package com.airi.assistant
 
-class LlamaNative {
+import android.content.Context
+
+class LlamaNative(private val context: Context) {
 
     companion object {
         init {
-            System.loadLibrary("airi_native")
+            try {
+                System.loadLibrary("airi_native")
+            } catch (e: UnsatisfiedLinkError) {
+                android.util.Log.e("LlamaNative", "Native library airi_native not found")
+            }
         }
     }
 

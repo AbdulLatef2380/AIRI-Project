@@ -45,4 +45,12 @@ class VoiceManager(private val context: Context, private val listener: VoiceList
         isListeningForWakeWord = false
         // إيقاف المحركات وتحرير الموارد
     }
+
+    /**
+     * تحويل النص إلى كلام (TTS)
+     */
+    fun speak(text: String) {
+        Log.i("VoiceManager", "AIRI تقول: $text")
+        // هنا سيتم دمج محرك TTS (مثل Google TTS أو محرك محلي)
+    }
 }

@@ -25,12 +25,12 @@ object ExecutionLogger {
     /**
      * تسجيل نهاية تنفيذ الخطة مع النتيجة
      */
-    fun logEnd(goal: String, plan: String, steps: String, result: String, score: Float) {
+    fun logEnd(goal: String, plan: String, steps: String, result: Any?, score: Float) {
         val record = ExecutionRecord(
             goal = goal,
             plan = plan,
             steps = steps,
-            result = result,
+            result = result?.toString() ?: "",
             score = score
         )
         

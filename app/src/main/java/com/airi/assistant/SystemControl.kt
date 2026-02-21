@@ -64,4 +64,26 @@ class SystemControlManager(private val context: Context) {
             android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK
         )
     }
+
+    /**
+     * تنفيذ أمر نظام عام بناءً على نص الأمر
+     */
+    fun executeCommand(command: String) {
+        Log.d("AIRI_CONTROL", "Executing system command: $command")
+        // منطق تنفيذ أوامر النظام (مثل الصوت، السطوع، إلخ)
+    }
+
+    /**
+     * فتح تطبيق بناءً على الاسم أو الحزمة
+     */
+    fun openApp(target: String) {
+        Log.d("AIRI_CONTROL", "Opening app: $target")
+        val intent = context.packageManager.getLaunchIntentForPackage(target)
+        if (intent != null) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } else {
+            Log.e("AIRI_CONTROL", "App not found: $target")
+        }
+    }
 }

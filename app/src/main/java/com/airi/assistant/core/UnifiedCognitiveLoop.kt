@@ -146,7 +146,7 @@ class UnifiedCognitiveLoop(
             // تسجيل الخبرة للتعلم الذاتي (Self-Improving)
             if (goal != null && plan != null) {
                 val score = PlanScorer.score(result, 1, timeTaken)
-                ExecutionLogger.logEnd(goal, plan, tool.name, result, score)
+                ExecutionLogger.logEnd(goal, plan, tool.name, result ?: "", score)
             }
             
             scope.launch { AiriCore.send(AiriCore.AiriEvent.UIRequest("Tool Result: $result")) }

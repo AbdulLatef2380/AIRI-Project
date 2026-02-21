@@ -30,10 +30,23 @@ object AiriCore {
     private lateinit var promptBuilder: PromptBuilder
     private lateinit var cognitiveLoop: UnifiedCognitiveLoop
 
+    private val voiceListener = object : VoiceManager.VoiceListener {
+        override fun onWakeWordDetected() {
+            Log.d("AIRI_CORE", "Wake word detected")
+        }
+        override fun onSpeechResult(text: String) {
+            scope.launch { send(AiriEvent.VoiceInput(text)) }
+        }
+        override fun onError(error: String) {
+            Log.e("AIRI_CORE", "Voice error: $error")
+        }
+    }
+
     sealed class AiriEvent {
         data class UserInput(val text: String, val source: InputSource) : AiriEvent()
         data class ScreenContext(val data: String) : AiriEvent()
         data class UIRequest(val message: String) : AiriEvent()
+        data class VoiceInput(val text: String) : AiriEvent()
         object RefreshTools : AiriEvent()
     }
 
@@ -49,7 +62,7 @@ object AiriCore {
         policyEngine = PolicyEngine()
         auditManager = AuditManager(appContext)
         controlManager = SystemControlManager(appContext)
-        voiceManager = VoiceManager(appContext)
+        voiceManager = VoiceManager(appContext, voiceListener)
         promptBuilder = PromptBuilder(memoryManager)
         
         cognitiveLoop = UnifiedCognitiveLoop(
@@ -89,6 +102,7 @@ object AiriCore {
     private fun handleEvent(event: AiriEvent) {
         when (event) {
             is AiriEvent.UserInput -> cognitiveLoop.processInput(event.text, event.source)
+            is AiriEvent.VoiceInput -> cognitiveLoop.processInput(event.text, InputSource.VOICE)
             is AiriEvent.ScreenContext -> updateScreenContext(event.data)
             is AiriEvent.UIRequest -> updateUI(event.message)
             is AiriEvent.RefreshTools -> refreshTools()

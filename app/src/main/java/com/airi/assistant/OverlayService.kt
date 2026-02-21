@@ -16,6 +16,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -24,6 +25,7 @@ class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private lateinit var overlayView: View
+    private lateinit var chatView: View
     private lateinit var params: WindowManager.LayoutParams
     private lateinit var avatarView: AvatarView
     private lateinit var emotionEngine: EmotionEngine
@@ -42,7 +44,7 @@ class OverlayService : Service() {
         override fun onReceive(context: Context?, intent: android.content.Intent?) {
             val message = intent?.getStringExtra("message") ?: ""
             if (message.isNotEmpty()) {
-                val chatHistory = overlayView.findViewById<android.widget.TextView>(R.id.chat_history)
+                val chatHistory = chatView.findViewById<TextView>(R.id.chat_history)
                 chatHistory.append("\nAIRI: $message")
             }
         }
@@ -65,25 +67,23 @@ class OverlayService : Service() {
             .build()
         startForeground(1, notification)
 
-        // 2. إعداد WindowManager والواجهة العائمة
+        // 3. إعداد WindowManager والواجهات
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         overlayView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null)
+        chatView = LayoutInflater.from(this).inflate(R.layout.chat_layout, null)
         
-        // Note: chat_layout elements are part of the overlay or separate views. 
-        // For simplicity, assuming they are accessible or handled via AiriCore.
-        
-        llama = LlamaNative()
+        llama = LlamaNative(this)
         memoryManager = MemoryManager(this)
         emotionEngine = EmotionEngine()
         controlManager = SystemControlManager(this)
         sensoryBudget = SensoryBudgetManager()
+        
         val airiAvatar = overlayView.findViewById<ImageView>(R.id.airi_avatar)
         avatarView = AvatarView(this, airiAvatar)
         avatarView.updateVisualState(EmotionEngine.State.NEUTRAL)
         
         val voiceManager = VoiceManager(this, object : VoiceManager.VoiceListener {
             override fun onWakeWordDetected() {
-                emotionEngine.processInput("؟")
                 emotionEngine.setEmotion(EmotionEngine.State.CURIOUS)
                 airiAvatar.setImageResource(emotionEngine.getEmotionDrawable())
             }
@@ -118,10 +118,8 @@ class OverlayService : Service() {
             y = 100
         }
 
-        // 3. إضافة ميزة السحب والنقر
-        val avatar = overlayView.findViewById<ImageView>(R.id.airi_avatar)
-        
-        avatar.setOnTouchListener(object : View.OnTouchListener {
+        // 4. إضافة ميزة السحب والنقر
+        airiAvatar.setOnTouchListener(object : View.OnTouchListener {
             private var initialX = 0
             private var initialY = 0
             private var initialTouchX = 0f
@@ -143,7 +141,6 @@ class OverlayService : Service() {
                         return true
                     }
                     MotionEvent.ACTION_UP -> {
-                        // Handle click if movement was minimal
                         if (Math.abs(event.rawX - initialTouchX) < 10 && Math.abs(event.rawY - initialTouchY) < 10) {
                             v.performClick()
                         }
@@ -154,31 +151,50 @@ class OverlayService : Service() {
             }
         })
 
-        avatar.setOnClickListener {
-            // Toggle chat visibility or open chat activity
-            Log.d("AIRI_OVERLAY", "Avatar clicked")
+        airiAvatar.setOnClickListener {
+            toggleChat()
         }
 
         windowManager.addView(overlayView, params)
     }
 
+    private fun toggleChat() {
+        if (chatView.visibility == View.VISIBLE) {
+            chatView.visibility = View.GONE
+            try { windowManager.removeView(chatView) } catch (e: Exception) {}
+        } else {
+            chatView.visibility = View.VISIBLE
+            val chatParams = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.CENTER
+            }
+            windowManager.addView(chatView, chatParams)
+            
+            // Setup send button
+            chatView.findViewById<View>(R.id.btn_send).setOnClickListener {
+                val input = chatView.findViewById<android.widget.EditText>(R.id.chat_input)
+                val text = input.text.toString()
+                if (text.isNotEmpty()) {
+                    processUserRequest(text)
+                    input.text.clear()
+                }
+            }
+        }
+    }
+
     private fun processUserRequest(text: String) {
-        // Update visual state
         val newState = emotionEngine.processInput(text)
         val airiAvatar = overlayView.findViewById<ImageView>(R.id.airi_avatar)
         airiAvatar.setImageResource(emotionEngine.getEmotionDrawable())
         avatarView.updateVisualState(newState)
 
-        // Send to core for processing
         MainScope().launch {
             AiriCore.send(AiriCore.AiriEvent.VoiceInput(text))
-        }
-    }
-
-    override fun onTrimMemory(level: Int) {
-        super.onTrimMemory(level)
-        if (level >= TRIM_MEMORY_RUNNING_LOW) {
-            Log.w("AIRI_OVERLAY", "Memory running low, trimming resources...")
         }
     }
 
@@ -190,7 +206,7 @@ class OverlayService : Service() {
                 NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+            manager?.createNotificationChannel(channel)
         }
     }
 
@@ -198,11 +214,13 @@ class OverlayService : Service() {
         super.onDestroy()
         try {
             unregisterReceiver(uiReceiver)
-        } catch (e: Exception) {
-            // Receiver not registered
-        }
+        } catch (e: Exception) {}
+        
         if (::overlayView.isInitialized) {
-            windowManager.removeView(overlayView)
+            try { windowManager.removeView(overlayView) } catch (e: Exception) {}
+        }
+        if (::chatView.isInitialized && chatView.parent != null) {
+            try { windowManager.removeView(chatView) } catch (e: Exception) {}
         }
     }
 }

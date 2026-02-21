@@ -15,7 +15,9 @@ class AiriAccessibilityService : AccessibilityService() {
 
     companion object {
         private var instance: AiriAccessibilityService? = null
-        fun getInstance(): AiriAccessibilityService? = instance
+        fun getInstance(): AiriAccessibilityService? {
+            return instance
+        }
     }
 
     override fun onServiceConnected() {
@@ -23,6 +25,11 @@ class AiriAccessibilityService : AccessibilityService() {
         instance = this
         guardianEngine = GuardianEngine(this)
         Log.d("AIRI_VISION", "العين الثالثة مفعلة وجاهزة.")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        instance = null
     }
 
     private var lastScreenHash: Int = 0

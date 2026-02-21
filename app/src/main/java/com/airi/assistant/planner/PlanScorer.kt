@@ -12,13 +12,14 @@ object PlanScorer {
     /**
      * تقييم جودة الخطة بناءً على النتيجة النهائية
      */
-    fun score(result: String, stepsCount: Int, timeTaken: Long): Float {
+    fun score(result: Any?, stepsCount: Int, timeTaken: Long): Float {
+        val resultStr = result?.toString() ?: ""
         var score = 0.0f
 
         // 1. تقييم النجاح (Success)
-        if (result.contains("Success", ignoreCase = true) || result.contains("OK", ignoreCase = true)) {
+        if (resultStr.contains("Success", ignoreCase = true) || resultStr.contains("OK", ignoreCase = true)) {
             score += 0.7f
-        } else if (result.contains("Error", ignoreCase = true) || result.contains("Fail", ignoreCase = true)) {
+        } else if (resultStr.contains("Error", ignoreCase = true) || resultStr.contains("Fail", ignoreCase = true)) {
             score += 0.1f
         }
 

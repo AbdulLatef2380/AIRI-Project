@@ -36,4 +36,8 @@ class MemoryManager(context: Context) {
         val messages = dao.getRecentMessages(limit).reversed()
         return messages.joinToString("\n") { "${it.sender}: ${it.content}" }
     }
+
+    suspend fun getRecentMessages(limit: Int = 10): List<ChatMessage> {
+        return dao.getRecentMessages(limit)
+    }
 }

@@ -83,6 +83,10 @@ class EmotionEngine {
 
     fun getCurrentState(): State = currentState
 
+    fun setEmotion(state: State) {
+        currentState = state
+    }
+
     /**
      * تصفير عداد التفاعلات (عندما يأخذ المستخدم استراحة حقيقية)
      */

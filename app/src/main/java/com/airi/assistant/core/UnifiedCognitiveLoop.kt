@@ -56,11 +56,9 @@ class UnifiedCognitiveLoop(
         val policyDecision = policyEngine.evaluate(intent.type.name, action)
         
         auditManager.logDecision(
-            intentId = java.util.UUID.randomUUID().toString(),
+            result = policyDecision,
             intent = intent.type.name,
-            action = action,
-            decision = policyDecision.isAllowed,
-            reason = policyDecision.reason
+            action = action
         )
 
         if (policyDecision.isAllowed) {
@@ -129,27 +127,28 @@ class UnifiedCognitiveLoop(
         plan: String? = null, 
         startTime: Long = 0
     ) {
-        scope.launch(Dispatchers.IO) {
-            Log.i("UCL", "Executing tool: ${tool.name}")
-            val result = ToolExecutor.execute(tool, params)
-            val timeTaken = if (startTime > 0) System.currentTimeMillis() - startTime else 0
-            
-            // تسجيل العملية في سجل الأثر
-            auditManager.logDecision(
-                intentId = java.util.UUID.randomUUID().toString(),
-                intent = "TOOL_EXECUTION",
-                action = tool.name,
-                decision = true,
-                reason = "Tool executed successfully"
-            )
-            
-            // تسجيل الخبرة للتعلم الذاتي (Self-Improving)
-            if (goal != null && plan != null) {
-                val score = PlanScorer.score(result, 1, timeTaken)
-                ExecutionLogger.logEnd(goal, plan, tool.name, result ?: "", score)
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                Log.i("UCL", "Executing tool: ${tool.name}")
+                val result = ToolExecutor.execute(tool, params)
+                val timeTaken = if (startTime > 0) System.currentTimeMillis() - startTime else 0
+                
+                // تسجيل العملية في سجل الأثر
+                val policyDecision = policyEngine.evaluate("TOOL_EXECUTION", tool.name)
+                auditManager.logDecision(
+                    result = policyDecision,
+                    intent = "TOOL_EXECUTION",
+                    action = tool.name
+                )
+                
+                // تسجيل الخبرة للتعلم الذاتي (Self-Improving)
+                if (goal != null && plan != null) {
+                    val score = PlanScorer.score(result, 1, timeTaken)
+                    ExecutionLogger.logEnd(goal, plan, tool.name, result ?: "", score)
+                }
+                
+                scope.launch { AiriCore.send(AiriCore.AiriEvent.UIRequest("Tool Result: $result")) }
             }
-            
-            scope.launch { AiriCore.send(AiriCore.AiriEvent.UIRequest("Tool Result: $result")) }
         }
     }
 }

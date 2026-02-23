@@ -73,7 +73,9 @@ class PromptBuilder(
     }
 
     private fun buildContext(screenContext: String?): String {
-        val memoryContext = memoryManager.getRecentMessages(5).joinToString("\n") { it.content }
+        val memoryContext = runBlocking { 
+            memoryManager.getRecentMessages(5).joinToString("\n") { it.content }
+        }
         return """
             Context:
             Screen: ${screenContext ?: "Unknown"}

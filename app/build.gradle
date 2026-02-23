@@ -2,6 +2,7 @@ plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'kotlin-kapt'
+    id 'kotlin-parcelize'
 }
 
 android {
@@ -45,6 +46,11 @@ android {
     buildFeatures {
         viewBinding true
     }
+    kapt {
+        arguments {
+            arg("room.schemaLocation", "$projectDir/schemas")
+        }
+    }
 }
 
 dependencies {
@@ -52,6 +58,7 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation project(':core')
     
     // Activity & Fragment KTX
     implementation 'androidx.activity:activity-ktx:1.7.2'
@@ -71,7 +78,7 @@ dependencies {
     implementation 'com.facebook.soloader:soloader:0.10.5'
     
     // Coroutines
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 
     // Networking for n8n Integration
     implementation 'com.squareup.okhttp3:okhttp:4.11.0'

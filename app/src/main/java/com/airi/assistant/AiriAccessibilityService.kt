@@ -4,12 +4,16 @@ import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
+import kotlinx.coroutines.*
 
 /**
  * "العين الثالثة" لـ AIRI.
  * خدمة الوصول المسؤولة عن فهم سياق الشاشة بشكل غير متطفل.
  */
-class AiriAccessibilityService : AccessibilityService() {
+class AiriAccessibilityService : AccessibilityService(), CoroutineScope {
+
+    private val job = SupervisorJob()
+    override val coroutineContext = Dispatchers.Main + job
 
     private lateinit var guardianEngine: GuardianEngine
 
@@ -30,6 +34,7 @@ class AiriAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         instance = null
+        job.cancel()
     }
 
     private var lastScreenHash: Int = 0
@@ -55,7 +60,7 @@ class AiriAccessibilityService : AccessibilityService() {
                 if (currentHash != lastScreenHash) {
                     lastScreenHash = currentHash
                     // إرسال السياق الجديد للناقل المركزي
-                    kotlinx.coroutines.MainScope().launch {
+                    launch {
                         AiriCore.send(AiriCore.AiriEvent.ScreenContext(currentContext))
                     }
                 }

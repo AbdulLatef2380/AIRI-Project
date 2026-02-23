@@ -1,6 +1,6 @@
 package com.airi.assistant.world
 
-import com.airi.assistant.emotion.EmotionalState
+import com.airi.assistant.EmotionEngine
 
 /**
  * ContextSnapshot - A comprehensive snapshot of the system context at a specific moment.
@@ -8,7 +8,7 @@ import com.airi.assistant.emotion.EmotionalState
  */
 data class ContextSnapshot(
     val worldState: WorldState,
-    val emotionalState: EmotionalState,
+    val emotionalState: EmotionEngine.State,
     val userIntent: String?,
     val activeTask: String?,
     val riskAssessment: RiskEstimator.RiskAssessment,
@@ -22,8 +22,7 @@ data class ContextSnapshot(
             [Context Snapshot @ $timestamp]
             - World: Battery ${worldState.batteryLevel}% (${if (worldState.isCharging) "Charging" else "Discharging"}), 
                      Network: ${worldState.networkType}, Memory: ${worldState.availableMemoryMB}MB
-            - Emotion: Valence ${emotionalState.valence}, Arousal ${emotionalState.arousal}, 
-                       Exhaustion ${emotionalState.exhaustion}
+            - Emotion: ${emotionalState.name}
             - Risk: ${riskAssessment.level} (${riskAssessment.reason})
             - Intent: ${userIntent ?: "None"}
             - Task: ${activeTask ?: "Idle"}

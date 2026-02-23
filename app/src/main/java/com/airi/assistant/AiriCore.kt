@@ -60,7 +60,7 @@ object AiriCore {
         llama = LlamaNative(appContext)
         memoryManager = MemoryManager(appContext)
         policyEngine = PolicyEngine()
-        auditManager = AuditManager(appContext)
+        auditManager = AuditManager
         controlManager = SystemControlManager(appContext)
         voiceManager = VoiceManager(appContext, voiceListener)
         promptBuilder = PromptBuilder(memoryManager)
@@ -110,10 +110,12 @@ object AiriCore {
     }
 
     private fun refreshTools() {
-        scope.launch(Dispatchers.IO) {
-            val discoveredTools = ToolScanner.scan(appContext)
-            ToolRegistry.register(discoveredTools)
-            Log.i("AIRI_CORE", "Tools refreshed: ${discoveredTools.size} tools found.")
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val discoveredTools = ToolScanner.scan(appContext)
+                ToolRegistry.register(discoveredTools)
+                Log.i("AIRI_CORE", "Tools refreshed: ${discoveredTools.size} tools found.")
+            }
         }
     }
 

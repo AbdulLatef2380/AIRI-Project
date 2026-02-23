@@ -23,6 +23,7 @@ enum class IntentType {
     APP_CONTROL,
     SCREEN_ANALYSIS,
     CONVERSATION,
+    AUTOMATION,
     UNKNOWN
 }
 

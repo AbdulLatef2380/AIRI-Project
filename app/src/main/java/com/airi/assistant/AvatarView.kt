@@ -25,10 +25,16 @@ class AvatarView(private val context: Context, private val imageView: ImageView)
             EmotionEngine.State.CONCERNED -> "#E57373" // أحمر قلق
             EmotionEngine.State.CURIOUS -> "#BA68C8"  // بنفسجي فضولي
             EmotionEngine.State.CARE -> "#81C784"     // أخضر مريح
+            EmotionEngine.State.EXHAUSTED -> "#9E9E9E" // رمادي غامق
+            EmotionEngine.State.DETACHED -> "#607D8B"  // أزرق رمادي
         }
         
         imageView.setColorFilter(Color.parseColor(color))
         startPulse(state)
+    }
+
+    fun setEmotion(state: EmotionEngine.State) {
+        updateVisualState(state)
     }
 
     /**

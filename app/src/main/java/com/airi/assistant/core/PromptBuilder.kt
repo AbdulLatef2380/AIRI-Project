@@ -7,20 +7,28 @@ import kotlinx.coroutines.runBlocking
 /**
  * منشئ الأوامر (Prompt Builder)
  * يقوم بصياغة السياق الكامل للـ LLM، مع دمج الخبرات السابقة (Self-Improving).
+ * تم تحديثه ليدعم إدارة ميزانية السياق (Context Budget) لمنع الانفجار المعرفي.
  */
 class PromptBuilder(
     private val memoryManager: MemoryManager
 ) {
 
+    companion object {
+        private const val MAX_CONTEXT_CHARS = 4000 // ميزانية تقريبية للسياق (Characters)
+        private const val MAX_MEMORY_MESSAGES = 10
+    }
+
     fun build(userInput: String, screenContext: String? = null): String {
         val systemIdentity = buildSystemIdentity()
         val rules = buildOperatingRules()
         val schema = buildActionSchema()
+        
+        // إدارة ميزانية السياق للذاكرة والخبرات
         val context = buildContext(screenContext)
         val experiences = buildExperienceContext(userInput)
         val user = "User Input: $userInput"
 
-        return listOf(
+        val fullPrompt = listOf(
             systemIdentity,
             rules,
             schema,
@@ -28,6 +36,8 @@ class PromptBuilder(
             experiences,
             user
         ).joinToString("\n\n")
+
+        return trimToBudget(fullPrompt)
     }
 
     private fun buildSystemIdentity(): String {
@@ -74,20 +84,19 @@ class PromptBuilder(
 
     private fun buildContext(screenContext: String?): String {
         val memoryContext = runBlocking { 
-            memoryManager.getRecentMessages(5).joinToString("\n") { it.content }
+            memoryManager.getRecentMessages(MAX_MEMORY_MESSAGES)
+                .joinToString("\n") { "${it.sender}: ${it.content}" }
         }
+        
         return """
             Context:
-            Screen: ${screenContext ?: "Unknown"}
+            Screen: ${screenContext?.take(500) ?: "Unknown"}
             
             Memory:
-            $memoryContext
+            ${truncateMemory(memoryContext, 1500)}
         """.trimIndent()
     }
 
-    /**
-     * دمج الخبرات السابقة ذات الصلة (Self-Improving Layer)
-     */
     private fun buildExperienceContext(userInput: String): String {
         val experiences = runBlocking { ExperienceStore.getBestExperiences(userInput, 2) }
         if (experiences.isEmpty()) return ""
@@ -98,7 +107,23 @@ class PromptBuilder(
 
         return """
             Past Experiences (Learn from these):
-            $expText
+            ${expText.take(1000)}
         """.trimIndent()
+    }
+
+    /**
+     * تقليم السياق لضمان عدم تجاوز حدود النموذج (Context Budget)
+     */
+    private fun trimToBudget(prompt: String): String {
+        if (prompt.length <= MAX_CONTEXT_CHARS) return prompt
+        
+        // إذا تجاوز الطول، نقوم بتقليم الأجزاء الأقل أهمية (مثل وسط الذاكرة)
+        // هنا نكتفي بالتقليم البسيط حالياً لضمان الاستقرار
+        return prompt.take(MAX_CONTEXT_CHARS)
+    }
+
+    private fun truncateMemory(memory: String, maxChars: Int): String {
+        if (memory.length <= maxChars) return memory
+        return "...[Older messages truncated]...\n" + memory.takeLast(maxChars)
     }
 }

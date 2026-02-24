@@ -10,7 +10,8 @@ import org.json.JSONObject
 
 /**
  * المحرك الإدراكي الموحد (Unified Cognitive Loop)
- * يربط الإدراك بالتفكير ثم التنفيذ، مع دمج طبقة الأدوات والسياسات والتعلم الذاتي.
+ * يعمل كـ Orchestrator يربط الإدراك بالتفكير ثم التنفيذ.
+ * تم تقليل المسؤوليات (God Object) لضمان قابلية التوسع.
  */
 class UnifiedCognitiveLoop(
     private val context: Context,
@@ -28,27 +29,41 @@ class UnifiedCognitiveLoop(
             val startTime = System.currentTimeMillis()
             try {
                 // 1. Perception & Intent Routing (Fast Path)
-                val event = IntentEvent(text, source)
-                val router = IntentRouter()
-                val fastIntent = router.route(event)
+                val intent = perceive(text, source)
 
-                if (fastIntent.confidence > 0.9f && fastIntent.type != IntentType.CONVERSATION) {
-                    executeFastPath(fastIntent)
+                if (intent.confidence > 0.9f && intent.type != IntentType.CONVERSATION) {
+                    executeFastPath(intent)
                     return@launch
                 }
 
                 // 2. Reasoning (Slow Path - LLM)
-                val prompt = promptBuilder.build(text)
-                val response = llama.generateResponse(prompt)
+                val response = reason(text)
                 
                 // 3. Planning & Policy Check
-                handleLLMResponse(text, response, startTime)
+                act(text, response, startTime)
 
             } catch (e: Exception) {
                 Log.e("UCL", "Error in cognitive loop: ${e.message}")
                 e.printStackTrace()
             }
         }
+    }
+
+    private fun perceive(text: String, source: InputSource): IntentResult {
+        val event = IntentEvent(text, source)
+        val router = IntentRouter()
+        return router.route(event)
+    }
+
+    private suspend fun reason(text: String): String {
+        val prompt = promptBuilder.build(text)
+        return withContext(Dispatchers.Default) {
+            llama.generateResponse(prompt)
+        }
+    }
+
+    private fun act(goal: String, response: String, startTime: Long) {
+        handleLLMResponse(goal, response, startTime)
     }
 
     private fun executeFastPath(intent: IntentResult) {

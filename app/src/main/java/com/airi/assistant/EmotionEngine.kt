@@ -1,84 +1,74 @@
 package com.airi.assistant
 
-import kotlin.math.max
-import kotlin.math.min
+import android.util.Log
 
 /**
- * محرك الحالة العاطفية المتقدم لـ AIRI (State Machine)
- * يعتمد على نظام النقاط التراكمية والعطالة العاطفية.
- * تم تحديثه ليدعم بروتوكولات الوعي والانسحاب اللطيف.
+ * محرك المشاعر (Emotion Engine)
+ * تم تحديثه ليكون نظام تأثير حقيقي (Influence System) وليس مجرد طبقة تجميلية.
+ * يتضمن الآن: Decay Function, Reinforcement Logic, Trigger Weighting.
  */
 class EmotionEngine {
 
-    // الحالات العاطفية والوجودية الأساسية
     enum class State {
-        NEUTRAL,    // الحالة المستقرة
-        WARM,       // ودودة (تحتاج نقاط إيجابية تراكمية)
-        FOCUSED,    // مركزة (عند تنفيذ مهام تقنية)
-        CONCERNED,  // قلقة (نقاط سلبية أو أخطاء)
-        CURIOUS,    // فضولية (أسئلة استكشافية)
-        CARE,       // نمط الرعاية (دعم صامت وطمأنينة)
-        EXHAUSTED,  // إرهاق رقمي (بسبب الاستخدام المفرط)
-        DETACHED    // انسحاب لطيف (تشجيع العودة للواقع)
+        NEUTRAL, WARM, FOCUSED, CONCERNED, CURIOUS, CARE, EXHAUSTED, DETACHED
     }
 
-    private var currentState = State.NEUTRAL
-    private var emotionalScore = 0 // من -10 إلى +10
-    private var interactionCount = 0 // عداد التفاعلات المتتالية
-    private val exhaustionThreshold = 15 // عدد التفاعلات قبل الشعور بالإرهاق
-    private val threshold = 3      // العتبة اللازمة لتغيير الحالة
-    private val decayRate = 1      // معدل العودة للحالة الطبيعية
+    private var currentState: State = State.NEUTRAL
+    private var emotionalScore: Float = 0.0f // من -1.0 إلى 1.0
+    private var interactionCount: Int = 0
+    
+    // Decay settings
+    private val decayRate = 0.05f
+    private val exhaustionThreshold = 50
 
     /**
-     * معالجة مدخلات المستخدم وتحديث الحالة العاطفية بناءً على "الأوزان"
+     * معالجة تأثير حدث معين على الحالة العاطفية (Trigger Weighting)
      */
-    fun processInput(text: String): State {
+    fun processTrigger(type: String, intensity: Float) {
         interactionCount++
         
-        val sentiment = analyzeSentiment(text)
-        updateScore(sentiment)
-        
-        val nextState = determineNextState()
-        if (nextState != currentState) {
-            currentState = nextState
-        } else {
-            applyInertia() // العودة التدريجية إذا لم يتغير شيء
+        val weight = when (type) {
+            "USER_PRAISE" -> 0.2f
+            "USER_CRITICISM" -> -0.3f
+            "TASK_SUCCESS" -> 0.1f
+            "TASK_FAILURE" -> -0.2f
+            "SYSTEM_ERROR" -> -0.4f
+            else -> 0.05f
         }
         
-        return currentState
-    }
-
-    private fun analyzeSentiment(text: String): Int {
-        val positiveWords = listOf("شكراً", "رائع", "أحب", "ممتاز", "جميل")
-        val negativeWords = listOf("خطأ", "سيء", "حزين", "مشكلة", "فشل")
+        emotionalScore += weight * intensity
+        emotionalScore = emotionalScore.coerceIn(-1.0f, 1.0f)
         
-        var score = 0
-        if (positiveWords.any { text.contains(it) }) score += 2
-        if (negativeWords.any { text.contains(it) }) score -= 2
-        if (text.contains("؟")) score += 1 // الفضول
-        
-        return score
+        updateState()
+        Log.d("EmotionEngine", "Trigger: $type, Score: $emotionalScore, State: $currentState")
     }
 
-    private fun updateScore(change: Int) {
-        emotionalScore = min(10, max(-10, emotionalScore + change))
+    /**
+     * وظيفة التلاشي (Decay Function) - تعيد AIRI للحالة الطبيعية بمرور الوقت
+     */
+    fun applyDecay() {
+        if (emotionalScore > 0) {
+            emotionalScore = (emotionalScore - decayRate).coerceAtLeast(0.0f)
+        } else if (emotionalScore < 0) {
+            emotionalScore = (emotionalScore + decayRate).coerceAtMost(0.0f)
+        }
+        updateState()
     }
 
-    private fun determineNextState(): State {
-        // الأولوية لحالات الوعي والسيادة
-        if (interactionCount > exhaustionThreshold + 10) return State.DETACHED
-        if (interactionCount > exhaustionThreshold) return State.EXHAUSTED
+    private fun updateState() {
+        // Reinforcement Logic: الإرهاق يؤثر على الحالة العاطفية
+        if (interactionCount > exhaustionThreshold) {
+            currentState = State.EXHAUSTED
+            return
+        }
 
-        return when {
-            emotionalScore >= threshold -> State.WARM
-            emotionalScore <= -threshold -> State.CONCERNED
+        currentState = when {
+            emotionalScore > 0.7f -> State.WARM
+            emotionalScore > 0.3f -> State.CURIOUS
+            emotionalScore < -0.7f -> State.DETACHED
+            emotionalScore < -0.3f -> State.CONCERNED
             else -> State.NEUTRAL
         }
-    }
-
-    private fun applyInertia() {
-        if (emotionalScore > 0) emotionalScore -= decayRate
-        if (emotionalScore < 0) emotionalScore += decayRate
     }
 
     fun getCurrentState(): State = currentState
@@ -87,31 +77,10 @@ class EmotionEngine {
         currentState = state
     }
 
-    /**
-     * تصفير عداد التفاعلات (عندما يأخذ المستخدم استراحة حقيقية)
-     */
     fun resetInteractionCount() {
         interactionCount = 0
         if (currentState == State.EXHAUSTED || currentState == State.DETACHED) {
             currentState = State.NEUTRAL
         }
-    }
-
-    fun getEmotionDrawable(): Int {
-        return when (currentState) {
-            State.NEUTRAL -> android.R.drawable.ic_menu_help
-            State.WARM -> android.R.drawable.btn_star_big_on
-            State.FOCUSED -> android.R.drawable.ic_menu_edit
-            State.CONCERNED -> android.R.drawable.ic_dialog_alert
-            State.CURIOUS -> android.R.drawable.ic_menu_view
-            State.CARE -> android.R.drawable.ic_menu_compass
-            State.EXHAUSTED -> android.R.drawable.ic_lock_idle_low_battery
-            State.DETACHED -> android.R.drawable.ic_lock_power_off
-        }
-    }
-
-    fun activateCareMode() {
-        currentState = State.CARE
-        emotionalScore = 5
     }
 }

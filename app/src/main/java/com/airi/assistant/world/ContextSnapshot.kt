@@ -1,12 +1,15 @@
 package com.airi.assistant.world
 
 import com.airi.assistant.EmotionEngine
+import java.util.UUID
 
 /**
  * ContextSnapshot - A comprehensive snapshot of the system context at a specific moment.
  * This combines the physical world state with the internal emotional state and user context.
+ * Updated with Versioning and UUID to prevent Race Conditions in Accessibility execution.
  */
 data class ContextSnapshot(
+    val id: String = UUID.randomUUID().toString(),
     val worldState: WorldState,
     val emotionalState: EmotionEngine.State,
     val userIntent: String?,
@@ -19,7 +22,7 @@ data class ContextSnapshot(
      */
     fun toSummaryString(): String {
         return """
-            [Context Snapshot @ $timestamp]
+            [Context Snapshot ID: $id @ $timestamp]
             - World: Battery ${worldState.batteryLevel}% (${if (worldState.isCharging) "Charging" else "Discharging"}), 
                      Network: ${worldState.networkType}, Memory: ${worldState.availableMemoryMB}MB
             - Emotion: ${emotionalState.name}

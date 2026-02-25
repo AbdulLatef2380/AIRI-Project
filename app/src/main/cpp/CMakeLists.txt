@@ -1,35 +1,46 @@
-cmake_minimum_required(VERSION 3.18.1)
-project("airi_assistant")
+cmake_minimum_required(VERSION 3.22.1)
 
-# إعداد مسارات llama.cpp
-set(LLAMA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/llama.cpp)
+project(airi_native LANGUAGES C CXX)
 
-# التحقق من وجود ملفات llama.cpp
-if(EXISTS "${LLAMA_DIR}/llama.cpp")
-    add_library(airi_native SHARED
-        airi_native.cpp
-        ${LLAMA_DIR}/llama.cpp
-        ${LLAMA_DIR}/ggml.c
-        ${LLAMA_DIR}/ggml-alloc.c
-        ${LLAMA_DIR}/ggml-backend.c
-        ${LLAMA_DIR}/ggml-quants.c
-    )
-    target_compile_definitions(airi_native PRIVATE USE_LLAMA=1)
-else()
-    # إذا لم تكن موجودة، قم ببناء مكتبة وهمية لتجنب فشل التجميع
-    add_library(airi_native SHARED
-        airi_native.cpp
-    )
-    message(WARNING "llama.cpp source files not found at ${LLAMA_DIR}. Building without llama.cpp support.")
-endif()
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-target_include_directories(airi_native PRIVATE
-    ${LLAMA_DIR}
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+# تحسينات أداء
+add_compile_options(
+        -O3
+        -fvisibility=hidden
+        -fdata-sections
+        -ffunction-sections
+        -fno-exceptions
+        -fno-rtti
 )
 
-find_library(log-lib log)
+# منع تحذيرات Android
+add_definitions(-DANDROID)
 
+# مسار llama.cpp
+set(LLAMA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/llama.cpp)
+
+# أضف llama كمشروع فرعي
+add_subdirectory(${LLAMA_DIR})
+
+# مكتبة AIRI Native
+add_library(airi_native SHARED
+        airi_native.cpp
+)
+
+# ربط المكتبات
 target_link_libraries(airi_native
-    ${log-lib}
-    android
+        llama
+        android
+        log
+)
+
+# تضمين الهيدرز
+target_include_directories(airi_native PRIVATE
+        ${LLAMA_DIR}
+        ${LLAMA_DIR}/include
 )

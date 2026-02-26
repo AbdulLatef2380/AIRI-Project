@@ -227,7 +227,6 @@ Java_com_airi_assistant_LlamaNative_generateResponse(
 
     llama_batch_free(batch);
 
-// llama_kv_cache_clear removed: not present in current llama.cpp API
-
-env->ReleaseStringUTFChars(prompt, input);
-return env->NewStringUTF(output.c_str());
+    env->ReleaseStringUTFChars(prompt, input);
+    return env->NewStringUTF(output.c_str());
+}

@@ -226,10 +226,8 @@ Java_com_airi_assistant_LlamaNative_generateResponse(
     }
 
     llama_batch_free(batch);
-    llama_kv_cache_clear(ctx);
-    // C-7 FIX: llama_reset_timings() has been removed from the public API entirely.
-    // The call is deleted. No replacement exists; timings are managed internally.
 
-    env->ReleaseStringUTFChars(prompt, input);
-    return env->NewStringUTF(output.c_str());
-}
+// llama_kv_cache_clear removed: not present in current llama.cpp API
+
+env->ReleaseStringUTFChars(prompt, input);
+return env->NewStringUTF(output.c_str());

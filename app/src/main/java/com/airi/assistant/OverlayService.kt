@@ -53,11 +53,9 @@ class OverlayService : Service() {
     override fun onCreate() {
         super.onCreate()
         
-        // 1. إعداد الناقل المركزي (Core Bus)
         AiriCore.init(applicationContext)
         registerReceiver(uiReceiver, android.content.IntentFilter("com.airi.assistant.UI_UPDATE"))
 
-        // 2. إعداد إشعار الخدمة في المقدمة (Foreground Service)
         createNotificationChannel()
         val notification = NotificationCompat.Builder(this, "AIRI_CHANNEL")
             .setContentTitle("AIRI نشطة")
@@ -67,7 +65,6 @@ class OverlayService : Service() {
             .build()
         startForeground(1, notification)
 
-        // 3. إعداد WindowManager والواجهات
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         overlayView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null)
         chatView = LayoutInflater.from(this).inflate(R.layout.chat_layout, null)
@@ -85,7 +82,8 @@ class OverlayService : Service() {
         val voiceManager = VoiceManager(this, object : VoiceManager.VoiceListener {
             override fun onWakeWordDetected() {
                 emotionEngine.setEmotion(EmotionEngine.State.CURIOUS)
-                airiAvatar.setImageResource(emotionEngine.getEmotionDrawable())
+                // تصحيح 1: استدعاء الدالة من المحرك أو دالة محلية
+                airiAvatar.setImageResource(getEmotionDrawable(EmotionEngine.State.CURIOUS))
             }
 
             override fun onSpeechResult(text: String) {
@@ -118,7 +116,6 @@ class OverlayService : Service() {
             y = 100
         }
 
-        // 4. إضافة ميزة السحب والنقر
         airiAvatar.setOnTouchListener(object : View.OnTouchListener {
             private var initialX = 0
             private var initialY = 0
@@ -158,6 +155,16 @@ class OverlayService : Service() {
         windowManager.addView(overlayView, params)
     }
 
+    // تصحيح 2: إضافة الدالة الناقصة لجلب الصور بناءً على الحالة
+    private fun getEmotionDrawable(state: EmotionEngine.State): Int {
+        return when (state) {
+            EmotionEngine.State.HAPPY -> android.R.drawable.ic_btn_speak_now // استبدلها بصورك الفعلية
+            EmotionEngine.State.CURIOUS -> android.R.drawable.ic_menu_search
+            EmotionEngine.State.SAD -> android.R.drawable.ic_menu_close_clear_cancel
+            else -> android.R.drawable.ic_menu_view
+        }
+    }
+
     private fun toggleChat() {
         if (chatView.visibility == View.VISIBLE) {
             chatView.visibility = View.GONE
@@ -175,7 +182,6 @@ class OverlayService : Service() {
             }
             windowManager.addView(chatView, chatParams)
             
-            // Setup send button
             chatView.findViewById<View>(R.id.btn_send).setOnClickListener {
                 val input = chatView.findViewById<android.widget.EditText>(R.id.chat_input)
                 val text = input.text.toString()
@@ -188,9 +194,11 @@ class OverlayService : Service() {
     }
 
     private fun processUserRequest(text: String) {
-        val newState = emotionEngine.processInput(text)
+        // تصحيح 3: استخدام emotionEngine لتحديث الحالة (تأكد أن processInput موجودة في EmotionEngine)
+        val newState = emotionEngine.updateStateFromText(text) 
         val airiAvatar = overlayView.findViewById<ImageView>(R.id.airi_avatar)
-        airiAvatar.setImageResource(emotionEngine.getEmotionDrawable())
+        
+        airiAvatar.setImageResource(getEmotionDrawable(newState))
         avatarView.updateVisualState(newState)
 
         MainScope().launch {

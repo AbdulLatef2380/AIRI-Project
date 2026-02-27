@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.ConnectivityManager
-import android.net.NetworkCapabilities // هذا السطر ضروري جداً
+import android.net.NetworkCapabilities
 import android.os.BatteryManager
 import android.util.Log
 
@@ -55,8 +55,8 @@ class WorldStateManager(private val context: Context) {
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
         
-        // التصحيح هنا: يجب كتابة اسم الكلاس قبل المتغير
-        return capabilities.hasCapability(NetworkCapabilities.NETWORK_CAPABILITY_INTERNET)
+        // استخدام المسار الكامل لضمان عدم حدوث Unresolved reference
+        return capabilities.hasCapability(android.net.NetworkCapabilities.NETWORK_CAPABILITY_INTERNET)
     }
 
     private fun getAvailableMemoryMB(): Long {
@@ -67,6 +67,7 @@ class WorldStateManager(private val context: Context) {
     }
 
     private fun getTopAppPackage(): String? {
+        // يتطلب صلاحيات USAGE_STATS في الإنتاج
         return null
     }
 }

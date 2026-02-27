@@ -5,10 +5,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
+import android.net.NetworkCapabilities // هذا السطر ضروري جداً
 import android.os.BatteryManager
 import android.util.Log
 
+/**
+ * WorldStateManager - Collects real-time device and environment data.
+ */
 class WorldStateManager(private val context: Context) {
 
     fun getCurrentState(): WorldState {
@@ -52,7 +55,7 @@ class WorldStateManager(private val context: Context) {
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
         
-        // تصحيح: استخدام اسم الكلاس للوصول للخاصية
+        // التصحيح هنا: يجب كتابة اسم الكلاس قبل المتغير
         return capabilities.hasCapability(NetworkCapabilities.NETWORK_CAPABILITY_INTERNET)
     }
 

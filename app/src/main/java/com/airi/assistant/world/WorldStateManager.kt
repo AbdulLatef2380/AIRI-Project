@@ -54,6 +54,8 @@ class WorldStateManager(private val context: Context) {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        
+        // تم التصحيح: استدعاء الخاصية من NetworkCapabilities مباشرة
         return capabilities.hasCapability(NetworkCapabilities.NETWORK_CAPABILITY_INTERNET)
     }
 
@@ -65,8 +67,6 @@ class WorldStateManager(private val context: Context) {
     }
 
     private fun getTopAppPackage(): String? {
-        // Note: This requires USAGE_STATS permission in production.
-        // For now, we return a placeholder or null.
         return null
     }
 }

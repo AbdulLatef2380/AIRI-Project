@@ -81,8 +81,10 @@ class OverlayService : Service() {
         
         val voiceManager = VoiceManager(this, object : VoiceManager.VoiceListener {
             override fun onWakeWordDetected() {
-                emotionEngine.setEmotion(EmotionEngine.State.CURIOUS)
-                airiAvatar.setImageResource(getEmotionResource(EmotionEngine.State.CURIOUS))
+                // تصحيح: استخدام Enum الصحيح والدالة الجديدة
+                val newState = EmotionEngine.State.CURIOUS
+                emotionEngine.setEmotion(newState)
+                airiAvatar.setImageResource(getEmotionResource(newState))
             }
 
             override fun onSpeechResult(text: String) {
@@ -149,7 +151,7 @@ class OverlayService : Service() {
         windowManager.addView(overlayView, params)
     }
 
-    // حل مشكلة getEmotionDrawable
+    // دالة مساعدة لربط المشاعر بملفات الـ Drawable
     private fun getEmotionResource(state: EmotionEngine.State): Int {
         return when (state) {
             EmotionEngine.State.HAPPY -> android.R.drawable.ic_btn_speak_now
@@ -187,14 +189,14 @@ class OverlayService : Service() {
         }
     }
 
-    // حل مشكلة processInput
     private fun processUserRequest(text: String) {
-        // نستخدم setEmotion أو أي دالة تحديث موجودة في EmotionEngine الخاص بك
-        emotionEngine.setEmotion(EmotionEngine.State.HAPPY) 
-        val airiAvatar = overlayView.findViewById<ImageView>(R.id.airi_avatar)
+        // تصحيح: استخدام setEmotion وتحديث الواجهة
+        val newState = EmotionEngine.State.HAPPY 
+        emotionEngine.setEmotion(newState)
         
-        airiAvatar.setImageResource(getEmotionResource(EmotionEngine.State.HAPPY))
-        avatarView.updateVisualState(EmotionEngine.State.HAPPY)
+        val airiAvatar = overlayView.findViewById<ImageView>(R.id.airi_avatar)
+        airiAvatar.setImageResource(getEmotionResource(newState))
+        avatarView.updateVisualState(newState)
 
         MainScope().launch {
             AiriCore.send(AiriCore.AiriEvent.VoiceInput(text))

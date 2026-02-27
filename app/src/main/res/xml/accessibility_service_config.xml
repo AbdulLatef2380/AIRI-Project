@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged|typeViewFocused"
+    android:accessibilityEventTypes="typeAllMask"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews|flagRetrieveInteractiveWindows"
+    android:notificationTimeout="100"
     android:canRetrieveWindowContent="true"
-    android:description="@string/accessibility_description" />
+    android:canRequestFilterKeyEvents="true"
+    android:description="مساعد AIRI الذكي - خدمة الوصول للتحكم والنظام"
+    android:canRequestOverlay="true"/>

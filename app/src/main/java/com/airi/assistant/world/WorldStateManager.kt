@@ -9,9 +9,6 @@ import android.net.NetworkCapabilities
 import android.os.BatteryManager
 import android.util.Log
 
-/**
- * WorldStateManager - Collects real-time device and environment data.
- */
 class WorldStateManager(private val context: Context) {
 
     fun getCurrentState(): WorldState {
@@ -51,12 +48,17 @@ class WorldStateManager(private val context: Context) {
     }
 
     private fun isNetworkConnected(): Boolean {
-        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = connectivityManager.activeNetwork ?: return false
-        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        
-        // استخدام المسار الكامل لضمان عدم حدوث Unresolved reference
-        return capabilities.hasCapability(android.net.NetworkCapabilities.NETWORK_CAPABILITY_INTERNET)
+        return try {
+            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val network = connectivityManager.activeNetwork ?: return false
+            val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+            
+            // الحل القاطع: القيمة الرقمية لـ NETWORK_CAPABILITY_INTERNET هي 12
+            // نستخدم الرقم مباشرة لتجاوز فشل المترجم في التعرف على الرمز
+            capabilities.hasCapability(12) 
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun getAvailableMemoryMB(): Long {
@@ -67,7 +69,6 @@ class WorldStateManager(private val context: Context) {
     }
 
     private fun getTopAppPackage(): String? {
-        // يتطلب صلاحيات USAGE_STATS في الإنتاج
         return null
     }
 }

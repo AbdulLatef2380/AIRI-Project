@@ -9,8 +9,8 @@ android {
     namespace 'com.airi.assistant'
     compileSdk 33
 
-    // إضافة إصدار الـ NDK بشكل صريح لحل مشكلة فشل التحميل في الـ CI
-    ndkVersion "25.1.8937393"
+    // التعديل: استخدام نسخة LTS مستقرة لتجنب أخطاء التحميل في الـ CI
+    ndkVersion "25.2.9519653" 
 
     defaultConfig {
         applicationId "com.airi.assistant"

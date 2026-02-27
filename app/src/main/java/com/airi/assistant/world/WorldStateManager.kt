@@ -9,9 +9,6 @@ import android.net.NetworkCapabilities
 import android.os.BatteryManager
 import android.util.Log
 
-/**
- * WorldStateManager - Collects real-time device and environment data.
- */
 class WorldStateManager(private val context: Context) {
 
     fun getCurrentState(): WorldState {
@@ -55,7 +52,7 @@ class WorldStateManager(private val context: Context) {
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
         
-        // تم التصحيح: استدعاء الخاصية من NetworkCapabilities مباشرة
+        // تصحيح: استخدام اسم الكلاس للوصول للخاصية
         return capabilities.hasCapability(NetworkCapabilities.NETWORK_CAPABILITY_INTERNET)
     }
 

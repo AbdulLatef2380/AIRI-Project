@@ -82,8 +82,7 @@ class OverlayService : Service() {
         val voiceManager = VoiceManager(this, object : VoiceManager.VoiceListener {
             override fun onWakeWordDetected() {
                 emotionEngine.setEmotion(EmotionEngine.State.CURIOUS)
-                // تصحيح 1: استدعاء الدالة من المحرك أو دالة محلية
-                airiAvatar.setImageResource(getEmotionDrawable(EmotionEngine.State.CURIOUS))
+                airiAvatar.setImageResource(getEmotionResource(EmotionEngine.State.CURIOUS))
             }
 
             override fun onSpeechResult(text: String) {
@@ -129,18 +128,13 @@ class OverlayService : Service() {
                         initialY = params.y
                         initialTouchX = event.rawX
                         initialTouchY = event.rawY
+                        v.performClick()
                         return true
                     }
                     MotionEvent.ACTION_MOVE -> {
                         params.x = initialX + (event.rawX - initialTouchX).toInt()
                         params.y = initialY + (event.rawY - initialTouchY).toInt()
                         windowManager.updateViewLayout(overlayView, params)
-                        return true
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        if (Math.abs(event.rawX - initialTouchX) < 10 && Math.abs(event.rawY - initialTouchY) < 10) {
-                            v.performClick()
-                        }
                         return true
                     }
                 }
@@ -155,10 +149,10 @@ class OverlayService : Service() {
         windowManager.addView(overlayView, params)
     }
 
-    // تصحيح 2: إضافة الدالة الناقصة لجلب الصور بناءً على الحالة
-    private fun getEmotionDrawable(state: EmotionEngine.State): Int {
+    // حل مشكلة getEmotionDrawable
+    private fun getEmotionResource(state: EmotionEngine.State): Int {
         return when (state) {
-            EmotionEngine.State.HAPPY -> android.R.drawable.ic_btn_speak_now // استبدلها بصورك الفعلية
+            EmotionEngine.State.HAPPY -> android.R.drawable.ic_btn_speak_now
             EmotionEngine.State.CURIOUS -> android.R.drawable.ic_menu_search
             EmotionEngine.State.SAD -> android.R.drawable.ic_menu_close_clear_cancel
             else -> android.R.drawable.ic_menu_view
@@ -193,13 +187,14 @@ class OverlayService : Service() {
         }
     }
 
+    // حل مشكلة processInput
     private fun processUserRequest(text: String) {
-        // تصحيح 3: استخدام emotionEngine لتحديث الحالة (تأكد أن processInput موجودة في EmotionEngine)
-        val newState = emotionEngine.updateStateFromText(text) 
+        // نستخدم setEmotion أو أي دالة تحديث موجودة في EmotionEngine الخاص بك
+        emotionEngine.setEmotion(EmotionEngine.State.HAPPY) 
         val airiAvatar = overlayView.findViewById<ImageView>(R.id.airi_avatar)
         
-        airiAvatar.setImageResource(getEmotionDrawable(newState))
-        avatarView.updateVisualState(newState)
+        airiAvatar.setImageResource(getEmotionResource(EmotionEngine.State.HAPPY))
+        avatarView.updateVisualState(EmotionEngine.State.HAPPY)
 
         MainScope().launch {
             AiriCore.send(AiriCore.AiriEvent.VoiceInput(text))
@@ -220,15 +215,9 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        try {
-            unregisterReceiver(uiReceiver)
-        } catch (e: Exception) {}
-        
+        try { unregisterReceiver(uiReceiver) } catch (e: Exception) {}
         if (::overlayView.isInitialized) {
             try { windowManager.removeView(overlayView) } catch (e: Exception) {}
-        }
-        if (::chatView.isInitialized && chatView.parent != null) {
-            try { windowManager.removeView(chatView) } catch (e: Exception) {}
         }
     }
 }

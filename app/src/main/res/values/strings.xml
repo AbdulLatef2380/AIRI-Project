@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AIRI</string>
-    <string name="accessibility_description">AIRI Accessibility Service</string>
+    <string name="accessibility_description">مساعد AIRI الذكي - خدمة الوصول للتحكم والنظام</string>
 </resources>

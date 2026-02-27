@@ -36,26 +36,45 @@ class SystemControlManager(private val context: Context) {
         Log.d("AIRI_CONTROL", "تنفيذ الأمر: ${command.action} على ${command.target}")
         
         when (command.action) {
-            ActionType.OPEN_APP -> openApp(command.target)
+            ActionType.OPEN_APP -> openApp(command.target) // تستدعي الدالة الموحدة بالأسفل
             ActionType.OPEN_URL -> openUrl(command.target)
             ActionType.NAVIGATE_BACK -> navigateBack()
-            // سيتم إضافة باقي الأوامر هنا
             else -> Log.w("AIRI_CONTROL", "أمر غير مدعوم حالياً.")
         }
     }
 
-    private fun openApp(packageName: String?) {
-        packageName?.let {
-            val intent = context.packageManager.getLaunchIntentForPackage(it)
-            intent?.let { i -> context.startActivity(i) }
+    /**
+     * دالة موحدة لفتح التطبيق بناءً على اسم الحزمة (Package Name).
+     */
+    fun openApp(packageName: String?) {
+        if (packageName.isNullOrEmpty()) {
+            Log.e("AIRI_CONTROL", "اسم الحزمة فارغ أو غير موجود.")
+            return
+        }
+
+        Log.d("AIRI_CONTROL", "محاولة فتح التطبيق: $packageName")
+        try {
+            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            } else {
+                Log.e("AIRI_CONTROL", "لم يتم العثور على تطبيق بالحزمة: $packageName")
+            }
+        } catch (e: Exception) {
+            Log.e("AIRI_CONTROL", "خطأ أثناء محاولة فتح التطبيق: ${e.message}")
         }
     }
 
     private fun openUrl(url: String?) {
         url?.let {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(it))
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(it))
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                Log.e("AIRI_CONTROL", "فشل فتح الرابط: ${e.message}")
+            }
         }
     }
 
@@ -66,24 +85,10 @@ class SystemControlManager(private val context: Context) {
     }
 
     /**
-     * تنفيذ أمر نظام عام بناءً على نص الأمر
+     * تنفيذ أمر نظام عام بناءً على نص الأمر.
      */
     fun executeCommand(command: String) {
         Log.d("AIRI_CONTROL", "Executing system command: $command")
-        // منطق تنفيذ أوامر النظام (مثل الصوت، السطوع، إلخ)
-    }
-
-    /**
-     * فتح تطبيق بناءً على الاسم أو الحزمة
-     */
-    fun openApp(target: String) {
-        Log.d("AIRI_CONTROL", "Opening app: $target")
-        val intent = context.packageManager.getLaunchIntentForPackage(target)
-        if (intent != null) {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-        } else {
-            Log.e("AIRI_CONTROL", "App not found: $target")
-        }
+        // سيتم إضافة المنطق الخاص بالصوت والسطوع لاحقاً
     }
 }

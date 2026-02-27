@@ -81,7 +81,7 @@ class OverlayService : Service() {
         
         val voiceManager = VoiceManager(this, object : VoiceManager.VoiceListener {
             override fun onWakeWordDetected() {
-                // تصحيح: استخدام Enum الصحيح والدالة الجديدة
+                // استخدام CURIOUS من ملفك
                 val newState = EmotionEngine.State.CURIOUS
                 emotionEngine.setEmotion(newState)
                 airiAvatar.setImageResource(getEmotionResource(newState))
@@ -151,12 +151,13 @@ class OverlayService : Service() {
         windowManager.addView(overlayView, params)
     }
 
-    // دالة مساعدة لربط المشاعر بملفات الـ Drawable
+    // مطابقة الموارد مع المشاعر الفعلية في EmotionEngine
     private fun getEmotionResource(state: EmotionEngine.State): Int {
         return when (state) {
-            EmotionEngine.State.HAPPY -> android.R.drawable.ic_btn_speak_now
+            EmotionEngine.State.WARM -> android.R.drawable.ic_btn_speak_now 
             EmotionEngine.State.CURIOUS -> android.R.drawable.ic_menu_search
-            EmotionEngine.State.SAD -> android.R.drawable.ic_menu_close_clear_cancel
+            EmotionEngine.State.CONCERNED -> android.R.drawable.ic_menu_close_clear_cancel
+            EmotionEngine.State.EXHAUSTED -> android.R.drawable.ic_lock_power_off
             else -> android.R.drawable.ic_menu_view
         }
     }
@@ -190,9 +191,9 @@ class OverlayService : Service() {
     }
 
     private fun processUserRequest(text: String) {
-        // تصحيح: استخدام setEmotion وتحديث الواجهة
-        val newState = EmotionEngine.State.HAPPY 
-        emotionEngine.setEmotion(newState)
+        // نستخدم processTrigger بدلاً من processInput لأنها الدالة الموجودة في ملفك
+        emotionEngine.processTrigger("USER_PRAISE", 0.5f) 
+        val newState = emotionEngine.getCurrentState()
         
         val airiAvatar = overlayView.findViewById<ImageView>(R.id.airi_avatar)
         airiAvatar.setImageResource(getEmotionResource(newState))

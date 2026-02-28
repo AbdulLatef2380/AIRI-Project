@@ -15,7 +15,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.airi.assistant.ModelDownloadService
+
 class MainActivity : AppCompatActivity() {
 
     private lateinit var downloader: ModelDownloadManager
@@ -23,7 +23,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         downloader = ModelDownloadManager(this)
         llamaManager = LlamaManager(this)
 
@@ -36,10 +36,44 @@ class MainActivity : AppCompatActivity() {
         val btnStart = Button(this).apply {
             text = "تفعيل AIRI"
             setOnClickListener {
-                if (downloader.isModelDownloaded()) {
-                    checkOverlayPermission()
-                } else {
+
+                if (!downloader.isModelDownloaded()) {
                     checkAndRequestPermissions()
+                    return@setOnClickListener
+                }
+
+                // ✅ هنا نهيئ النموذج فعلياً قبل أي Overlay
+                Toast.makeText(this@MainActivity, "جاري تحميل المحرك...", Toast.LENGTH_SHORT).show()
+
+                llamaManager.initializeModel { success ->
+
+                    if (success) {
+
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Model loaded successfully",
+                            Toast.LENGTH_LONG
+                        ).show()
+
+                        // 🔥 اختبار inference مباشر
+                        val reply = llamaManager.generate("Hello")
+                        Toast.makeText(
+                            this@MainActivity,
+                            "AI: $reply",
+                            Toast.LENGTH_LONG
+                        ).show()
+
+                        // بعد التأكد من نجاح المحرك نتحقق من إذن Overlay
+                        checkOverlayPermission()
+
+                    } else {
+
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Model load failed",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
             }
         }
@@ -47,10 +81,8 @@ class MainActivity : AppCompatActivity() {
         layout.addView(btnStart)
         setContentView(layout)
 
-        // طلب إذن الإشعارات فور الدخول لأندرويد 13+ لضمان ظهور شريط التحميل
         requestNotificationPermission()
-        
-        // فحص وجود النموذج
+
         if (!downloader.isModelDownloaded()) {
             showDownloadDialog()
         }
@@ -58,8 +90,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    101
+                )
             }
         }
     }
@@ -72,7 +112,11 @@ class MainActivity : AppCompatActivity() {
                 startLoadingService()
             }
             .setNegativeButton("ليس الآن") { _, _ ->
-                Toast.makeText(this, "لن تعمل ميزات الذكاء الاصطناعي بدون النموذج.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    this,
+                    "لن تعمل ميزات الذكاء الاصطناعي بدون النموذج.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
             .setCancelable(false)
             .show()
@@ -89,9 +133,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkAndRequestPermissions() {
-        // فحص إذن الإشعارات أولاً قبل بدء الخدمة
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
             requestNotificationPermission()
         } else {
             showDownloadDialog()
@@ -135,7 +182,11 @@ class MainActivity : AppCompatActivity() {
                 if (Settings.canDrawOverlays(this)) {
                     startAiriService()
                 } else {
-                    Toast.makeText(this, "يرجى منح إذن الظهور فوق التطبيقات", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        this,
+                        "يرجى منح إذن الظهور فوق التطبيقات",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
         }

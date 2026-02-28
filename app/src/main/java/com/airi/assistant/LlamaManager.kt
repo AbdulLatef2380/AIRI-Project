@@ -8,8 +8,8 @@ class LlamaManager(private val context: Context) {
     private var isLoaded = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    // دالة التحميل
     fun initializeModel(onReady: (Boolean) -> Unit) {
+        // نستخدم المسار القانوني وليس /sdcard/
         val modelFile = ModelDownloadManager(context).getModelFile()
         
         if (!modelFile.exists()) {
@@ -20,24 +20,18 @@ class LlamaManager(private val context: Context) {
         scope.launch {
             val result = LlamaNative.loadModel(modelFile.absolutePath)
             isLoaded = (result == "Success")
-            withContext(Dispatchers.Main) {
-                onReady(isLoaded)
-            }
+            withContext(Dispatchers.Main) { onReady(isLoaded) }
         }
     }
 
-    // دالة توليد النص
     fun generate(prompt: String, onResult: (String) -> Unit) {
         if (!isLoaded) {
-            onResult("المحرك غير جاهز")
+            onResult("المحرك غير مفعل")
             return
         }
-
         scope.launch {
             val response = LlamaNative.generateResponse(prompt)
-            withContext(Dispatchers.Main) {
-                onResult(response)
-            }
+            withContext(Dispatchers.Main) { onResult(response) }
         }
     }
 }

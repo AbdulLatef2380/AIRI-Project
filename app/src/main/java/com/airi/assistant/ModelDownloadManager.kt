@@ -1,90 +1,23 @@
-private fun startModelDownload() {
+class ModelDownloadManager(private val context: Context) {
 
-    val request = DownloadManager.Request(Uri.parse(modelUrl))
-        .setTitle("AIRI Model")
-        .setDescription("جاري تحميل ملف الذكاء الاصطناعي...")
-        .setNotificationVisibility(
-            DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
-        )
-        .setAllowedOverMetered(true)
-        .setAllowedOverRoaming(true)
-        .setDestinationInExternalFilesDir(
-            this,
-            null,
-            "models/$modelName"
-        )
+    private val modelName = "qwen2.5-1.5b-q4_k_m.gguf"
 
-    val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-    val downloadId = dm.enqueue(request)
+    private fun getModelsDir(): File {
+        val baseDir = context.getExternalFilesDir(null)
+            ?: throw IllegalStateException("External files dir not available")
 
-    val receiver = object : BroadcastReceiver() {
-        override fun onReceive(ctx: Context?, intent: Intent?) {
+        val modelsDir = File(baseDir, "models")
+        if (!modelsDir.exists()) modelsDir.mkdirs()
 
-            val id = intent?.getLongExtra(
-                DownloadManager.EXTRA_DOWNLOAD_ID,
-                -1
-            )
-
-            if (id == downloadId) {
-
-                val query = DownloadManager.Query()
-                    .setFilterById(downloadId)
-
-                val cursor = dm.query(query)
-
-                if (cursor.moveToFirst()) {
-
-                    val statusIndex =
-                        cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
-
-                    val status = cursor.getInt(statusIndex)
-
-                    if (status == DownloadManager.STATUS_SUCCESSFUL) {
-
-                        val modelFile = File(
-                            getExternalFilesDir(null),
-                            "models/$modelName"
-                        )
-
-                        if (modelFile.exists() &&
-                            modelFile.length() > 100L * 1024 * 1024
-                        ) {
-
-                            Log.d("AIRI_DEBUG", "Model ready at: ${modelFile.absolutePath}")
-
-                            Toast.makeText(
-                                applicationContext,
-                                "تم تحميل النموذج بنجاح!",
-                                Toast.LENGTH_LONG
-                            ).show()
-
-                        } else {
-                            Log.e("AIRI_DEBUG", "Model file corrupted or incomplete")
-                        }
-
-                    } else {
-                        Log.e("AIRI_DEBUG", "Download failed")
-                    }
-                }
-
-                cursor.close()
-                unregisterReceiver(this)
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-            }
-        }
+        return modelsDir
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        registerReceiver(
-            receiver,
-            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-            Context.RECEIVER_NOT_EXPORTED
-        )
-    } else {
-        registerReceiver(
-            receiver,
-            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-        )
+    fun getModelFile(): File {
+        return File(getModelsDir(), modelName)
+    }
+
+    fun isModelDownloaded(): Boolean {
+        val file = getModelFile()
+        return file.exists() && file.length() > 100L * 1024 * 1024
     }
 }

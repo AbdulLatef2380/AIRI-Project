@@ -15,8 +15,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.airi.assistant.services.ModelDownloadService
-
+import com.airi.assistant.ModelDownloadService
 class MainActivity : AppCompatActivity() {
 
     private lateinit var downloader: ModelDownloadManager

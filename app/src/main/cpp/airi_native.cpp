@@ -19,17 +19,23 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
     return JNI_VERSION_1_6;
 }
 
-static bool llama_progress_callback(float progress, void* user_data) {
+/**
+ * C-FIX: تم تغيير الاسم من llama_progress_callback إلى airi_progress_callback
+ * لتجنب التعارض مع التعريف الموجود في llama.h
+ */
+static bool airi_progress_callback(float progress, void* user_data) {
     if (g_vm && g_callback && g_onProgress) {
         JNIEnv* env;
         jint res = g_vm->GetEnv((void**)&env, JNI_VERSION_1_6);
         if (res == JNI_EDETACHED) {
             g_vm->AttachCurrentThread(&env, nullptr);
         }
+
         int percent = (int)(progress * 100);
+        // مناداة دالة onProgress في Kotlin
         env->CallVoidMethod(g_callback, g_onProgress, percent);
     }
-    return true;
+    return true; // استمرار التحميل
 }
 
 // --- [محرك الـ Llama] ---
@@ -52,24 +58,30 @@ static inline void batch_add_token(llama_batch& batch, llama_token token_id, lla
 
 extern "C" {
 
-// 1. الدالة الجديدة: تحميل مع Progress
+// 1. الدالة الجديدة: تحميل مع Progress حقيقي
 JNIEXPORT void JNICALL
 Java_com_airi_assistant_LlamaNative_loadModelWithProgress(JNIEnv* env, jobject thiz, jstring model_path, jobject callback) {
     std::lock_guard<std::mutex> lock(engineMutex);
     
+    // إنشاء مرجع عالمي للـ callback لضمان بقائه في الذاكرة أثناء التحميل
     g_callback = env->NewGlobalRef(callback);
     jclass callbackClass = env->GetObjectClass(callback);
     g_onProgress = env->GetMethodID(callbackClass, "onProgress", "(I)V");
 
     const char* path = env->GetStringUTFChars(model_path, nullptr);
 
+    // تنظيف الموارد القديمة
     if (ctx) { llama_free(ctx); ctx = nullptr; }
     if (model) { llama_model_free(model); model = nullptr; vocab = nullptr; }
 
     llama_backend_init();
+    
     llama_model_params model_params = llama_model_default_params();
     model_params.n_gpu_layers = 0; 
-    model_params.progress_callback = llama_progress_callback;
+    
+    // ربط الدالة المصلحة بالـ params
+    model_params.progress_callback = airi_progress_callback;
+    model_params.progress_callback_user_data = nullptr;
 
     model = llama_model_load_from_file(path, model_params);
 
@@ -80,11 +92,16 @@ Java_com_airi_assistant_LlamaNative_loadModelWithProgress(JNIEnv* env, jobject t
         ctx_params.n_threads = DEFAULT_N_THREADS;
         ctx = llama_init_from_model(model, ctx_params);
         LOGI("Model loaded successfully via Progress API");
+    } else {
+        LOGE("Model load failed via Progress API");
     }
 
     env->ReleaseStringUTFChars(model_path, path);
+    
+    // تنظيف المرجع العالمي بعد الانتهاء لمنع تسريب الذاكرة
     env->DeleteGlobalRef(g_callback);
     g_callback = nullptr;
+    g_onProgress = nullptr;
 }
 
 // 2. الدالة القديمة: تحميل صامت (للتوافق)
@@ -115,8 +132,12 @@ Java_com_airi_assistant_LlamaNative_generateResponse(JNIEnv* env, jobject, jstri
 
     const char* input = env->GetStringUTFChars(prompt, nullptr);
     std::vector<llama_token> tokens(strlen(input) + 1);
+    
     int n_tokens = llama_tokenize(vocab, input, strlen(input), tokens.data(), tokens.size(), true, false);
-    if (n_tokens < 0) { tokens.resize(-n_tokens); n_tokens = llama_tokenize(vocab, input, strlen(input), tokens.data(), tokens.size(), true, false); }
+    if (n_tokens < 0) { 
+        tokens.resize(-n_tokens); 
+        n_tokens = llama_tokenize(vocab, input, strlen(input), tokens.data(), tokens.size(), true, false); 
+    }
     tokens.resize(n_tokens);
 
     llama_batch batch = llama_batch_init(tokens.size(), 0, 1);
@@ -134,10 +155,17 @@ Java_com_airi_assistant_LlamaNative_generateResponse(JNIEnv* env, jobject, jstri
     for (int i = 0; i < 128; ++i) {
         auto n_vocab = llama_vocab_n_tokens(vocab);
         auto* logits = llama_get_logits_ith(ctx, batch.n_tokens - 1);
-        llama_token id = 0; float max_logit = logits[0];
-        for (llama_token v = 1; v < n_vocab; ++v) { if (logits[v] > max_logit) { max_logit = logits[v]; id = v; } }
+        
+        llama_token id = 0; 
+        float max_logit = logits[0];
+        for (llama_token v = 1; v < n_vocab; ++v) { 
+            if (logits[v] > max_logit) { 
+                max_logit = logits[v]; id = v; 
+            } 
+        }
 
         if (id == llama_vocab_eos(vocab)) break;
+        
         char buf[128];
         int n = llama_token_to_piece(vocab, id, buf, sizeof(buf), 0, false);
         if (n > 0) output.append(buf, n);

@@ -3,6 +3,7 @@ package com.airi.assistant
 import android.util.Log
 
 object LlamaNative {
+
     init {
         try {
             System.loadLibrary("airi_native")
@@ -12,7 +13,22 @@ object LlamaNative {
     }
 
     /**
-     * تحميل نموذج الذكاء الاصطناعي (GGUF)
+     * واجهة لاستقبال تحديثات التقدم من محرك C++
+     */
+    interface ProgressCallback {
+        fun onProgress(percent: Int)
+    }
+
+    /**
+     * تحميل النموذج مع متابعة نسبة التقدم (حقيقي)
+     */
+    external fun loadModelWithProgress(
+        modelPath: String,
+        callback: ProgressCallback
+    )
+
+    /**
+     * التحميل القديم (للتوافق أو الاختبار)
      */
     external fun loadModel(modelPath: String): String
 

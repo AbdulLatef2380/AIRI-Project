@@ -15,7 +15,8 @@ import java.io.File
 
 class ModelDownloadService : Service() {
     private val CHANNEL_ID = "model_download"
-    private val modelUrl = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+    // إضافة ?download=true لضمان التحميل المباشر من HuggingFace
+    private val modelUrl = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf?download=true"
     private val modelName = "qwen2.5-1.5b-q4_k_m.gguf"
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -35,38 +36,61 @@ class ModelDownloadService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .build()
-        startForeground(1, notification)
+        
+        try {
+            startForeground(1, notification)
+        } catch (e: Exception) {
+            Log.e("AIRI_DEBUG", "Error starting foreground: ${e.message}")
+        }
     }
 
     private fun startModelDownload() {
-        val dir = File(filesDir, "models")
-        if (!dir.exists()) dir.mkdirs()
-        val modelFile = File(dir, modelName)
-
+        // تم حذف أسطر File(dir) و modelFile لأن DownloadManager سيتولى ذلك
         val request = DownloadManager.Request(Uri.parse(modelUrl))
             .setTitle("AIRI Model")
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
-            .setDestinationUri(Uri.fromFile(modelFile))
+            .setDescription("جاري تحميل ملف الذكاء الاصطناعي...")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(true)
+            // استخدام المسار الخارجي المخصص للتطبيق لضمان صلاحيات الكتابة
+            .setDestinationInExternalFilesDir(
+                this,
+                null,
+                "models/$modelName"
+            )
 
         val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val downloadId = dm.enqueue(request)
 
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context?, intent: Intent?) {
-                if (intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) == downloadId) {
+                val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
+                if (id == downloadId) {
                     unregisterReceiver(this)
-                    Toast.makeText(applicationContext, "تم التجهيز!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(applicationContext, "تم تحميل النموذج بنجاح!", Toast.LENGTH_LONG).show()
+                    stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                 }
             }
         }
-        registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+
+        // تسجيل الـ Receiver مع مراعاة أمان أندرويد 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+        }
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "Download Service", NotificationManager.IMPORTANCE_LOW)
-            (getSystemService(NotificationManager::class.java)).createNotificationChannel(channel)
+            val channel = NotificationChannel(
+                CHANNEL_ID, 
+                "Download Service", 
+                NotificationManager.IMPORTANCE_LOW
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
         }
     }
 }

@@ -6,6 +6,24 @@
     android:background="@android:drawable/dialog_holo_dark_frame"
     android:padding="8dp">
 
+    <Button
+        android:id="@+id/btnLoadBrain"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="تحميل العقل (Model)"
+        android:backgroundTint="@android:color/holo_blue_dark"
+        android:textColor="@android:color/white" />
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="8dp"
+        android:max="100"
+        android:progress="0"
+        android:visibility="gone"
+        android:layout_marginBottom="8dp"/>
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/chat_recycler"
         android:layout_width="match_parent"

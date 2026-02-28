@@ -31,11 +31,14 @@ class OverlayService : Service() {
     private var isChatVisible = false
     private val screenWidth by lazy { resources.displayMetrics.widthPixels }
 
-    // المحركات
+    // المحركات والعناصر الجديدة
     private lateinit var llama: LlamaNative
     private lateinit var ttsManager: TextToSpeech
     private lateinit var speechRecognizer: SpeechRecognizer
     private lateinit var recognitionIntent: Intent
+    
+    private lateinit var btnLoadBrain: Button
+    private lateinit var progressBar: ProgressBar
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -45,7 +48,6 @@ class OverlayService : Service() {
         initViews()
         initSpeechToText()
         setupNotification()
-        // تم حذف setupStreamingListener لأنه يسبب أخطاء في البناء حالياً
     }
 
     private fun setupManagers() {
@@ -68,7 +70,13 @@ class OverlayService : Service() {
             override fun onResults(results: Bundle?) {
                 val data = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val spokenText = data?.get(0) ?: ""
-                if (spokenText.isNotEmpty()) sendToAIRI(spokenText)
+                if (spokenText.isNotEmpty()) {
+                    if (!ModelManager.isModelLoaded()) {
+                        Toast.makeText(this@OverlayService, "يجب تحميل العقل أولاً!", Toast.LENGTH_SHORT).show()
+                        return
+                    }
+                    sendToAIRI(spokenText)
+                }
             }
             override fun onReadyForSpeech(params: Bundle?) { 
                 Toast.makeText(this@OverlayService, "أنا أسمعك...", Toast.LENGTH_SHORT).show() 
@@ -120,35 +128,72 @@ class OverlayService : Service() {
     }
 
     private fun setupClickListeners() {
+        btnLoadBrain = chatView.findViewById(R.id.btnLoadBrain)
+        progressBar = chatView.findViewById(R.id.progressBar)
+
+        btnLoadBrain.setOnClickListener {
+            loadBrain()
+        }
+
         chatView.findViewById<View>(R.id.btn_send).setOnClickListener {
             val input = chatView.findViewById<EditText>(R.id.chat_input)
             val text = input.text.toString()
             if (text.isNotEmpty()) {
+                if (!ModelManager.isModelLoaded()) {
+                    Toast.makeText(this, "يجب تحميل العقل أولاً!", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
                 sendToAIRI(text)
                 input.text.clear()
             }
         }
+
         chatView.findViewById<View>(R.id.mic_button).setOnClickListener {
+            if (!ModelManager.isModelLoaded()) {
+                Toast.makeText(this, "يجب تحميل العقل أولاً!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             if (ttsManager.isSpeaking) ttsManager.stop()
             speechRecognizer.startListening(recognitionIntent)
         }
     }
 
-    // تم تعديل هذه الدالة لتستخدم الرد الكامل (Non-Streaming) لضمان الاستقرار
+    private fun loadBrain() {
+        progressBar.visibility = View.VISIBLE
+        btnLoadBrain.isEnabled = false
+        btnLoadBrain.text = "جاري التحميل..."
+
+        serviceScope.launch {
+            val modelPath = "/sdcard/Download/model.gguf" 
+            
+            val success = ModelManager.loadModel(modelPath) { progress ->
+                progressBar.progress = progress
+            }
+
+            withContext(Dispatchers.Main) {
+                progressBar.visibility = View.GONE
+                btnLoadBrain.isEnabled = true
+                if (success) {
+                    btnLoadBrain.text = "العقل جاهز ✅"
+                    btnLoadBrain.setBackgroundColor(android.graphics.Color.GREEN)
+                } else {
+                    btnLoadBrain.text = "فشل التحميل! حاول ثانية"
+                    btnLoadBrain.setBackgroundColor(android.graphics.Color.RED)
+                }
+            }
+        }
+    }
+
     private fun sendToAIRI(text: String) {
-        // إضافة رسالة المستخدم
         adapter.addMessage(ChatModel(text, isUser = true))
         
         serviceScope.launch(Dispatchers.Default) {
-            // جلب الرد من المحرك (الدالة المستقرة)
             val response = llama.generateResponse(text)
             
             withContext(Dispatchers.Main) {
-                // إضافة رد AIRI ونطقه
                 adapter.addMessage(ChatModel(response, isUser = false))
                 ttsManager.speak(response, TextToSpeech.QUEUE_FLUSH, null, "AIRI")
                 
-                // التمرير لآخر رسالة
                 val recyclerView = chatView.findViewById<RecyclerView>(R.id.chat_recycler)
                 recyclerView.smoothScrollToPosition(adapter.itemCount - 1)
             }

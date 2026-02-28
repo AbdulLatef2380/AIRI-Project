@@ -1,11 +1,14 @@
 package com.airi.assistant
 
 import android.content.Context
+import kotlinx.coroutines.*
 
 class LlamaManager(private val context: Context) {
 
     private val downloader = ModelDownloadManager(context)
     private var isLoaded = false
+
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     fun initializeModel(onReady: (Boolean) -> Unit) {
 
@@ -14,17 +17,33 @@ class LlamaManager(private val context: Context) {
             return
         }
 
-        val modelPath = downloader.getModelFile().absolutePath
+        scope.launch {
 
-        val result = LlamaNative.loadModel(modelPath)
+            val modelPath = downloader.getModelFile().absolutePath
+            val result = LlamaNative.loadModel(modelPath)
 
-        isLoaded = result == "Success"
+            isLoaded = result == "Success"
 
-        onReady(isLoaded)
+            withContext(Dispatchers.Main) {
+                onReady(isLoaded)
+            }
+        }
     }
 
-    fun generate(prompt: String): String {
-        if (!isLoaded) return "Model not loaded"
-        return LlamaNative.generateResponse(prompt)
+    fun generate(prompt: String, onResult: (String) -> Unit) {
+
+        if (!isLoaded) {
+            onResult("Model not loaded")
+            return
+        }
+
+        scope.launch {
+
+            val response = LlamaNative.generateResponse(prompt)
+
+            withContext(Dispatchers.Main) {
+                onResult(response)
+            }
+        }
     }
 }

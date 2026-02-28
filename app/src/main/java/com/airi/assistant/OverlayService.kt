@@ -1,226 +1,224 @@
 package com.airi.assistant
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.Service
-import android.content.Context
-import android.content.Intent
+import android.animation.ValueAnimator
+import android.app.*
+import android.content.*
 import android.graphics.PixelFormat
-import android.os.Build
-import android.os.IBinder
+import android.os.*
 import android.util.Log
-import android.view.Gravity
-import android.view.LayoutInflater
-import android.view.MotionEvent
-import android.view.View
-import android.view.WindowManager
-import android.widget.ImageView
-import android.widget.TextView
+import android.view.*
+import android.view.animation.DecelerateInterpolator
+import android.widget.*
 import androidx.core.app.NotificationCompat
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.launch
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.*
+import java.util.*
 
 class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
-    private lateinit var overlayView: View
+    private lateinit var bubbleParams: WindowManager.LayoutParams
+    private lateinit var chatParams: WindowManager.LayoutParams
+    
+    private lateinit var bubbleView: View
     private lateinit var chatView: View
-    private lateinit var params: WindowManager.LayoutParams
-    private lateinit var avatarView: AvatarView
-    private lateinit var emotionEngine: EmotionEngine
-    private lateinit var memoryManager: MemoryManager
-    private lateinit var sensoryBudget: SensoryBudgetManager
+    
+    private lateinit var adapter: ChatAdapter // ستحتاج لإنشاء كلاس ChatAdapter
+    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+    
+    private var isChatVisible = false
+    private val screenWidth by lazy { resources.displayMetrics.widthPixels }
+
+    // محركات AIRI
     private lateinit var llama: LlamaNative
-    private lateinit var controlManager: SystemControlManager
+    private lateinit var ttsManager: TextToSpeech // إضافة TTS
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        return START_STICKY
-    }
-
-    private val uiReceiver = object : android.content.BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: android.content.Intent?) {
-            val message = intent?.getStringExtra("message") ?: ""
-            if (message.isNotEmpty()) {
-                val chatHistory = chatView.findViewById<TextView>(R.id.chat_history)
-                chatHistory.append("\nAIRI: $message")
-            }
-        }
-    }
-
     override fun onCreate() {
         super.onCreate()
-        
-        AiriCore.init(applicationContext)
-        registerReceiver(uiReceiver, android.content.IntentFilter("com.airi.assistant.UI_UPDATE"))
+        setupManagers()
+        initViews()
+        setupNotification()
+        setupStreamingListener()
+    }
 
-        createNotificationChannel()
-        val notification = NotificationCompat.Builder(this, "AIRI_CHANNEL")
-            .setContentTitle("AIRI نشطة")
-            .setContentText("AIRI موجودة لمساعدتك")
-            .setSmallIcon(android.R.drawable.ic_menu_info_details)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
-        startForeground(1, notification)
-
+    private fun setupManagers() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        overlayView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null)
-        chatView = LayoutInflater.from(this).inflate(R.layout.chat_layout, null)
-        
         llama = LlamaNative(this)
-        memoryManager = MemoryManager(this)
-        emotionEngine = EmotionEngine()
-        controlManager = SystemControlManager(this)
-        sensoryBudget = SensoryBudgetManager()
-        
-        val airiAvatar = overlayView.findViewById<ImageView>(R.id.airi_avatar)
-        avatarView = AvatarView(this, airiAvatar)
-        avatarView.updateVisualState(EmotionEngine.State.NEUTRAL)
-        
-        val voiceManager = VoiceManager(this, object : VoiceManager.VoiceListener {
-            override fun onWakeWordDetected() {
-                // استخدام CURIOUS من ملفك
-                val newState = EmotionEngine.State.CURIOUS
-                emotionEngine.setEmotion(newState)
-                airiAvatar.setImageResource(getEmotionResource(newState))
-            }
-
-            override fun onSpeechResult(text: String) {
-                processUserRequest(text)
-            }
-
-            override fun onError(error: String) {
-                Log.e("AIRI_VOICE", error)
-            }
-        })
-        
-        voiceManager.startWakeWordDetection()
-
-        val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
+        // تهيئة TTS
+        ttsManager = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) ttsManager.language = Locale("ar")
         }
+    }
 
-        params = WindowManager.LayoutParams(
+    private fun initViews() {
+        // 1. إعداد الفقاعة (Bubble)
+        bubbleView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null)
+        bubbleParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            layoutType,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 100
-            y = 100
+            x = 0
+            y = 500
         }
 
+        // 2. إعداد لوحة الدردشة (Chat Panel)
+        chatView = LayoutInflater.from(this).inflate(R.layout.chat_layout, null)
+        chatParams = WindowManager.LayoutParams(
+            (screenWidth * 0.85).toInt(), // عرض 85% من الشاشة
+            (resources.displayMetrics.heightPixels * 0.6).toInt(), // طول 60%
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, // للسماح بالكتابة
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.CENTER
+            windowAnimations = android.R.style.Animation_Dialog // أنيميشن افتراضي سريع
+        }
+
+        setupRecyclerView()
+        setupClickListeners()
+        setupTouchListener()
+
+        windowManager.addView(bubbleView, bubbleParams)
+    }
+
+    private fun setupRecyclerView() {
+        val recyclerView = chatView.findViewById<RecyclerView>(R.id.chat_recycler)
+        adapter = ChatAdapter() // تأكد من بناء الـ Adapter الخاص بك
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        recyclerView.adapter = adapter
+    }
+
+    private fun setupTouchListener() {
+        val airiAvatar = bubbleView.findViewById<ImageView>(R.id.airi_avatar)
         airiAvatar.setOnTouchListener(object : View.OnTouchListener {
             private var initialX = 0
             private var initialY = 0
             private var initialTouchX = 0f
             private var initialTouchY = 0f
+            private var isMoving = false
 
             override fun onTouch(v: View, event: MotionEvent): Boolean {
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        initialX = params.x
-                        initialY = params.y
+                        initialX = bubbleParams.x
+                        initialY = bubbleParams.y
                         initialTouchX = event.rawX
                         initialTouchY = event.rawY
-                        v.performClick()
+                        isMoving = false
                         return true
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        params.x = initialX + (event.rawX - initialTouchX).toInt()
-                        params.y = initialY + (event.rawY - initialTouchY).toInt()
-                        windowManager.updateViewLayout(overlayView, params)
+                        val dx = (event.rawX - initialTouchX).toInt()
+                        val dy = (event.rawY - initialTouchY).toInt()
+                        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) isMoving = true
+                        
+                        bubbleParams.x = initialX + dx
+                        bubbleParams.y = initialY + dy
+                        windowManager.updateViewLayout(bubbleView, bubbleParams)
+                        return true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        if (!isMoving) {
+                            toggleChat()
+                        } else {
+                            snapToEdge()
+                        }
                         return true
                     }
                 }
                 return false
             }
         })
-
-        airiAvatar.setOnClickListener {
-            toggleChat()
-        }
-
-        windowManager.addView(overlayView, params)
     }
 
-    // مطابقة الموارد مع المشاعر الفعلية في EmotionEngine
-    private fun getEmotionResource(state: EmotionEngine.State): Int {
-        return when (state) {
-            EmotionEngine.State.WARM -> android.R.drawable.ic_btn_speak_now 
-            EmotionEngine.State.CURIOUS -> android.R.drawable.ic_menu_search
-            EmotionEngine.State.CONCERNED -> android.R.drawable.ic_menu_close_clear_cancel
-            EmotionEngine.State.EXHAUSTED -> android.R.drawable.ic_lock_power_off
-            else -> android.R.drawable.ic_menu_view
+    private fun snapToEdge() {
+        val targetX = if (bubbleParams.x + bubbleView.width / 2 < screenWidth / 2) 0 
+                      else screenWidth - bubbleView.width
+        
+        val animator = ValueAnimator.ofInt(bubbleParams.x, targetX)
+        animator.addUpdateListener {
+            bubbleParams.x = it.animatedValue as Int
+            try { windowManager.updateViewLayout(bubbleView, bubbleParams) } catch (e: Exception) {}
         }
+        animator.duration = 300
+        animator.interpolator = DecelerateInterpolator()
+        animator.start()
     }
 
     private fun toggleChat() {
-        if (chatView.visibility == View.VISIBLE) {
-            chatView.visibility = View.GONE
-            try { windowManager.removeView(chatView) } catch (e: Exception) {}
+        if (isChatVisible) {
+            windowManager.removeView(chatView)
         } else {
-            chatView.visibility = View.VISIBLE
-            val chatParams = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-                PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = Gravity.CENTER
-            }
+            snapToEdge() // الالتصاق بالحافة قبل فتح الشات
             windowManager.addView(chatView, chatParams)
-            
-            chatView.findViewById<View>(R.id.btn_send).setOnClickListener {
-                val input = chatView.findViewById<android.widget.EditText>(R.id.chat_input)
-                val text = input.text.toString()
-                if (text.isNotEmpty()) {
-                    processUserRequest(text)
-                    input.text.clear()
-                }
+        }
+        isChatVisible = !isChatVisible
+    }
+
+    private fun setupClickListeners() {
+        chatView.findViewById<View>(R.id.btn_send).setOnClickListener {
+            val input = chatView.findViewById<EditText>(R.id.chat_input)
+            val text = input.text.toString()
+            if (text.isNotEmpty()) {
+                sendToAIRI(text)
+                input.text.clear()
             }
         }
     }
 
-    private fun processUserRequest(text: String) {
-        // نستخدم processTrigger بدلاً من processInput لأنها الدالة الموجودة في ملفك
-        emotionEngine.processTrigger("USER_PRAISE", 0.5f) 
-        val newState = emotionEngine.getCurrentState()
-        
-        val airiAvatar = overlayView.findViewById<ImageView>(R.id.airi_avatar)
-        airiAvatar.setImageResource(getEmotionResource(newState))
-        avatarView.updateVisualState(newState)
+    private var currentAiResponse = StringBuilder()
 
-        MainScope().launch {
-            AiriCore.send(AiriCore.AiriEvent.VoiceInput(text))
+    private fun setupStreamingListener() {
+        // الاستماع للـ StreamingBus الذي صممناه سابقاً
+        StreamingBus.subscribe { token ->
+            serviceScope.launch(Dispatchers.Main) {
+                currentAiResponse.append(token)
+                adapter.updateLastMessage(currentAiResponse.toString())
+            }
+        }
+
+        StreamingBus.onCompleteListener {
+            serviceScope.launch(Dispatchers.Main) {
+                ttsManager.speak(currentAiResponse.toString(), TextToSpeech.QUEUE_FLUSH, null, "AIRI")
+            }
         }
     }
 
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "AIRI_CHANNEL",
-                "AIRI Service Channel",
-                NotificationManager.IMPORTANCE_LOW
-            )
-            val manager = getSystemService(NotificationManager::class.java)
-            manager?.createNotificationChannel(channel)
+    private fun sendToAIRI(text: String) {
+        adapter.addMessage(ChatModel(text, isUser = true))
+        currentAiResponse.clear()
+        adapter.addMessage(ChatModel("", isUser = false)) // رسالة فارغة لـ AIRI
+        
+        // تشغيل الاستدلال في الخلفية
+        serviceScope.launch(Dispatchers.Default) {
+            llama.generateResponseStream(text)
         }
+    }
+
+    private fun setupNotification() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel("AIRI_SERVICE", "AIRI Assistant", NotificationManager.IMPORTANCE_LOW)
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+        val notification = NotificationCompat.Builder(this, "AIRI_SERVICE")
+            .setContentTitle("AIRI Active")
+            .setSmallIcon(R.drawable.ic_airi_launcher)
+            .build()
+        startForeground(1, notification)
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        try { unregisterReceiver(uiReceiver) } catch (e: Exception) {}
-        if (::overlayView.isInitialized) {
-            try { windowManager.removeView(overlayView) } catch (e: Exception) {}
-        }
+        serviceScope.cancel()
+        ttsManager.stop()
+        ttsManager.shutdown()
+        try { windowManager.removeView(bubbleView) } catch (e: Exception) {}
     }
 }

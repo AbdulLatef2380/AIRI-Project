@@ -1,6 +1,8 @@
-
 package com.airi.assistant
+
+// هذا هو الاستدعاء الذي أشرت إليه وهو ضروري جداً
 import com.airi.core.model.ModelManager
+
 import android.animation.ValueAnimator
 import android.app.*
 import android.content.*
@@ -16,8 +18,8 @@ import android.widget.*
 import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-// تأكد من وجود هذه المكتبات بدقة
-import kotlinx.coroutines.* import java.util.*
+import kotlinx.coroutines.*
+import java.util.*
 
 class OverlayService : Service() {
 
@@ -28,13 +30,13 @@ class OverlayService : Service() {
     private lateinit var chatView: View
     private lateinit var adapter: ChatAdapter
     
-    // تعريف الـ Scope بشكل صحيح
+    // استخدام SupervisorJob لضمان استمرارية الخدمة
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
     private var isChatVisible = false
     private val screenWidth by lazy { resources.displayMetrics.widthPixels }
 
-    private lateinit var llama: LlamaNative
+    // ملاحظة: تم حذف "lateinit var llama" لأننا نستخدم LlamaNative كـ Object مباشر
     private lateinit var ttsManager: TextToSpeech
     private lateinit var speechRecognizer: SpeechRecognizer
     private lateinit var recognitionIntent: Intent
@@ -54,7 +56,8 @@ class OverlayService : Service() {
 
     private fun setupManagers() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        llama = LlamaNative(this)
+        
+        // تم حذف سطر llama = LlamaNative(this) لأننا نستخدم الـ Singleton Object
         ttsManager = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 ttsManager.language = Locale("ar")
@@ -137,8 +140,8 @@ class OverlayService : Service() {
         serviceScope.launch {
             val modelPath = "/sdcard/Download/model.gguf" 
             
-            // استدعاء ModelManager
-            val success = ModelManager.loadModel(modelPath) { progress ->
+            // تحديد النوع progress: Int لحل خطأ المترجم (Inference error)
+            val success = ModelManager.loadModel(modelPath) { progress: Int ->
                 progressBar.progress = progress
             }
 
@@ -159,11 +162,13 @@ class OverlayService : Service() {
     private fun sendToAIRI(text: String) {
         adapter.addMessage(ChatModel(text, isUser = true))
         serviceScope.launch(Dispatchers.Default) {
-            val response = llama.generateResponse(text)
+            // نستخدم LlamaNative مباشرة الآن
+            val response = LlamaNative.generateResponse(text)
             withContext(Dispatchers.Main) {
                 adapter.addMessage(ChatModel(response, isUser = false))
                 ttsManager.speak(response, TextToSpeech.QUEUE_FLUSH, null, "AIRI")
-                chatView.findViewById<RecyclerView>(R.id.chat_recycler).smoothScrollToPosition(adapter.itemCount - 1)
+                chatView.findViewById<RecyclerView>(R.id.chat_recycler)
+                    .smoothScrollToPosition(adapter.itemCount - 1)
             }
         }
     }
@@ -183,7 +188,7 @@ class OverlayService : Service() {
                 }
             }
             override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onError(error: Int) {}
+            override fun onError(error: Int) { Log.e("AIRI", "STT Error: $error") }
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}

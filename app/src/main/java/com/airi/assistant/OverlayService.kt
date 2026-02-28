@@ -36,7 +36,6 @@ class OverlayService : Service() {
     private lateinit var ttsManager: TextToSpeech
     private lateinit var speechRecognizer: SpeechRecognizer
     private lateinit var recognitionIntent: Intent
-    private var currentAiResponse = StringBuilder()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -44,16 +43,18 @@ class OverlayService : Service() {
         super.onCreate()
         setupManagers()
         initViews()
-        initSpeechToText() // تهيئة الميكروفون
+        initSpeechToText()
         setupNotification()
-        setupStreamingListener()
+        // تم حذف setupStreamingListener لأنه يسبب أخطاء في البناء حالياً
     }
 
     private fun setupManagers() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         llama = LlamaNative(this)
         ttsManager = TextToSpeech(this) { status ->
-            if (status == TextToSpeech.SUCCESS) ttsManager.language = Locale("ar")
+            if (status == TextToSpeech.SUCCESS) {
+                ttsManager.language = Locale("ar")
+            }
         }
     }
 
@@ -69,7 +70,9 @@ class OverlayService : Service() {
                 val spokenText = data?.get(0) ?: ""
                 if (spokenText.isNotEmpty()) sendToAIRI(spokenText)
             }
-            override fun onReadyForSpeech(params: Bundle?) { Toast.makeText(this@OverlayService, "أنا أسمعك...", Toast.LENGTH_SHORT).show() }
+            override fun onReadyForSpeech(params: Bundle?) { 
+                Toast.makeText(this@OverlayService, "أنا أسمعك...", Toast.LENGTH_SHORT).show() 
+            }
             override fun onError(error: Int) { Log.e("AIRI", "STT Error: $error") }
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
@@ -117,7 +120,6 @@ class OverlayService : Service() {
     }
 
     private fun setupClickListeners() {
-        // زر الإرسال النصي
         chatView.findViewById<View>(R.id.btn_send).setOnClickListener {
             val input = chatView.findViewById<EditText>(R.id.chat_input)
             val text = input.text.toString()
@@ -126,32 +128,29 @@ class OverlayService : Service() {
                 input.text.clear()
             }
         }
-        // زر الميكروفون
         chatView.findViewById<View>(R.id.mic_button).setOnClickListener {
             if (ttsManager.isSpeaking) ttsManager.stop()
             speechRecognizer.startListening(recognitionIntent)
         }
     }
 
+    // تم تعديل هذه الدالة لتستخدم الرد الكامل (Non-Streaming) لضمان الاستقرار
     private fun sendToAIRI(text: String) {
+        // إضافة رسالة المستخدم
         adapter.addMessage(ChatModel(text, isUser = true))
-        currentAiResponse.clear()
-        adapter.addMessage(ChatModel("", isUser = false))
+        
         serviceScope.launch(Dispatchers.Default) {
-            llama.generateResponseStream(text)
-        }
-    }
-
-    private fun setupStreamingListener() {
-        StreamingBus.subscribe { token ->
-            serviceScope.launch(Dispatchers.Main) {
-                currentAiResponse.append(token)
-                adapter.updateLastMessage(currentAiResponse.toString())
-            }
-        }
-        StreamingBus.onCompleteListener {
-            serviceScope.launch(Dispatchers.Main) {
-                ttsManager.speak(currentAiResponse.toString(), TextToSpeech.QUEUE_FLUSH, null, "AIRI")
+            // جلب الرد من المحرك (الدالة المستقرة)
+            val response = llama.generateResponse(text)
+            
+            withContext(Dispatchers.Main) {
+                // إضافة رد AIRI ونطقه
+                adapter.addMessage(ChatModel(response, isUser = false))
+                ttsManager.speak(response, TextToSpeech.QUEUE_FLUSH, null, "AIRI")
+                
+                // التمرير لآخر رسالة
+                val recyclerView = chatView.findViewById<RecyclerView>(R.id.chat_recycler)
+                recyclerView.smoothScrollToPosition(adapter.itemCount - 1)
             }
         }
     }
@@ -209,12 +208,17 @@ class OverlayService : Service() {
             val channel = NotificationChannel("AIRI_SERVICE", "AIRI Assistant", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
-        startForeground(1, NotificationCompat.Builder(this, "AIRI_SERVICE").setContentTitle("AIRI Active").setSmallIcon(android.R.drawable.ic_btn_speak_now).build())
+        val notification = NotificationCompat.Builder(this, "AIRI_SERVICE")
+            .setContentTitle("AIRI Active")
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .build()
+        startForeground(1, notification)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
+        ttsManager.stop()
         ttsManager.shutdown()
         speechRecognizer.destroy()
     }

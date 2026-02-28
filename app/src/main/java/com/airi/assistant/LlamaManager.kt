@@ -2,9 +2,15 @@ package com.airi.assistant
 
 import android.content.Context
 
+/**
+ * LlamaManager - يربط عملية تحميل الملفات بمحرك الذكاء الاصطناعي.
+ * تم التحديث: لم يعد يستخدم Constructor لـ LlamaNative لأنه أصبح Object.
+ */
 class LlamaManager(private val context: Context) {
 
-    private val native = LlamaNative(context)
+    // 1. قمنا بحذف السطر: private val native = LlamaNative(context)
+    // لأنه لا يمكن استدعاء الـ Object كـ Constructor.
+    
     private val downloader = ModelDownloadManager(context)
 
     fun initializeModel(onReady: () -> Unit) {
@@ -14,7 +20,10 @@ class LlamaManager(private val context: Context) {
         }
 
         val modelPath = downloader.getModelFile().absolutePath
-        native.loadModel(modelPath)
+        
+        // 2. الاستدعاء الآن يتم مباشرة عبر اسم الـ Object: LlamaNative
+        LlamaNative.loadModel(modelPath)
+        
         onReady()
     }
 }

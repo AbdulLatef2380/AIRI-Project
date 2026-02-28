@@ -1,7 +1,9 @@
 package com.airi.assistant
 
+import android.Manifest
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -11,6 +13,9 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.airi.assistant.services.ModelDownloadService
 
 class MainActivity : AppCompatActivity() {
 
@@ -20,11 +25,9 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // تعريف أدوات الإدارة
         downloader = ModelDownloadManager(this)
         llamaManager = LlamaManager(this)
 
-        // تصميم الواجهة برمجياً (كما كان لديك)
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -34,11 +37,10 @@ class MainActivity : AppCompatActivity() {
         val btnStart = Button(this).apply {
             text = "تفعيل AIRI"
             setOnClickListener {
-                // عند الضغط، نتأكد من النموذج أولاً ثم الصلاحيات
                 if (downloader.isModelDownloaded()) {
                     checkOverlayPermission()
                 } else {
-                    checkModel()
+                    checkAndRequestPermissions()
                 }
             }
         }
@@ -46,46 +48,54 @@ class MainActivity : AppCompatActivity() {
         layout.addView(btnStart)
         setContentView(layout)
 
-        // فحص النموذج تلقائياً عند فتح التطبيق
-        checkModel()
+        // طلب إذن الإشعارات فور الدخول لأندرويد 13+ لضمان ظهور شريط التحميل
+        requestNotificationPermission()
+        
+        // فحص وجود النموذج
+        if (!downloader.isModelDownloaded()) {
+            showDownloadDialog()
+        }
     }
 
-    private fun checkModel() {
-        if (!downloader.isModelDownloaded()) {
-            AlertDialog.Builder(this)
-                .setTitle("تحميل النموذج المطلوب")
-                .setMessage("تحتاج AIRI إلى تحميل ملف الذكاء الاصطناعي (حوالي 900MB). هل تود التحميل الآن؟")
-                .setPositiveButton("نعم") { _, _ ->
-                    Toast.makeText(this, "بدأ التحميل.. تابع الإشعارات", Toast.LENGTH_LONG).show()
-                    downloader.startDownload {
-                        // عند اكتمال التحميل، نقوم بتهيئة المحرك
-                        try {
-                            llamaManager.initializeModel {
-                                runOnUiThread {
-                                    Toast.makeText(this, "تم تجهيز AIRI بنجاح!", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        } catch (e: Exception) {
-                            runOnUiThread {
-                                Toast.makeText(this, "خطأ في التهيئة: ${e.message}", Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    }
-                }
-                .setNegativeButton("ليس الآن") { _, _ ->
-                    Toast.makeText(this, "لن تعمل ميزات الذكاء الاصطناعي بدون النموذج.", Toast.LENGTH_LONG).show()
-                }
-                .setCancelable(false)
-                .show()
-        } else {
-            // إذا كان الموديل موجوداً، نقوم بتهيئته فوراً في الخلفية
-            try {
-                llamaManager.initializeModel {
-                    // جاهز للعمل
-                }
-            } catch (e: Exception) {
-                // ربما هناك مشكلة في الملف أو المكتبة
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
             }
+        }
+    }
+
+    private fun showDownloadDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("تحميل النموذج المطلوب")
+            .setMessage("تحتاج AIRI إلى تحميل ملف الذكاء الاصطناعي (حوالي 900MB). هل تود التحميل الآن؟")
+            .setPositiveButton("نعم") { _, _ ->
+                startLoadingService()
+            }
+            .setNegativeButton("ليس الآن") { _, _ ->
+                Toast.makeText(this, "لن تعمل ميزات الذكاء الاصطناعي بدون النموذج.", Toast.LENGTH_LONG).show()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun startLoadingService() {
+        Toast.makeText(this, "بدأ التحميل.. تابع الإشعارات", Toast.LENGTH_LONG).show()
+        val intent = Intent(this, ModelDownloadService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
+    private fun checkAndRequestPermissions() {
+        // فحص إذن الإشعارات أولاً قبل بدء الخدمة
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestNotificationPermission()
+        } else {
+            showDownloadDialog()
         }
     }
 
@@ -96,7 +106,7 @@ class MainActivity : AppCompatActivity() {
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:$packageName")
                 )
-                startActivityForResult(intent, 101)
+                startActivityForResult(intent, 102)
             } else {
                 startAiriService()
             }
@@ -121,7 +131,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 101) {
+        if (requestCode == 102) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (Settings.canDrawOverlays(this)) {
                     startAiriService()

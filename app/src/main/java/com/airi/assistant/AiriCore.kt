@@ -11,8 +11,7 @@ import org.json.JSONObject
 
 /**
  * AIRI Core - The Central Event-Driven Bus.
- * Orchestrates communication between Senses (Accessibility, Voice) and Brain (LLM).
- * Updated to include Tool Auto-Discovery and Self-Improving Planner.
+ * تم تحديثه لإصلاح أخطاء الـ Singleton Object والـ Coroutines.
  */
 object AiriCore {
 
@@ -21,7 +20,8 @@ object AiriCore {
     
     private var isInitialized = false
     private lateinit var appContext: Context
-    private lateinit var llama: LlamaNative
+    
+    // ملاحظة: تم حذف lateinit var llama لأن LlamaNative أصبح Object مباشر
     private lateinit var memoryManager: MemoryManager
     private lateinit var policyEngine: PolicyEngine
     private lateinit var auditManager: AuditManager
@@ -54,10 +54,11 @@ object AiriCore {
         if (isInitialized) return
         appContext = context.applicationContext
         
-        // تهيئة مخزن الخبرات (Self-Improving)
+        // تهيئة مخزن الخبرات
         ExperienceStore.init(appContext)
         
-        llama = LlamaNative(appContext)
+        // تم حذف سطر llama = LlamaNative(appContext) لأنه Object وليس Class
+        
         memoryManager = MemoryManager(appContext)
         policyEngine = PolicyEngine()
         auditManager = AuditManager
@@ -68,16 +69,14 @@ object AiriCore {
         cognitiveLoop = UnifiedCognitiveLoop(
             appContext,
             promptBuilder,
-            llama,
+            LlamaNative, // نمرر الـ Object نفسه هنا
             policyEngine,
             auditManager,
             controlManager,
             voiceManager
         )
         
-        // اكتشاف الأدوات عند التشغيل
         refreshTools()
-        
         startEventLoop()
         isInitialized = true
         Log.d("AIRI_CORE", "Core Bus initialized and running.")
@@ -110,11 +109,16 @@ object AiriCore {
     }
 
     private fun refreshTools() {
+        // التأكد من استخدام scope.launch مع Dispatchers.IO بشكل صحيح
         scope.launch {
             withContext(Dispatchers.IO) {
-                val discoveredTools = ToolScanner.scan(appContext)
-                ToolRegistry.register(discoveredTools)
-                Log.i("AIRI_CORE", "Tools refreshed: ${discoveredTools.size} tools found.")
+                try {
+                    val discoveredTools = ToolScanner.scan(appContext)
+                    ToolRegistry.register(discoveredTools)
+                    Log.i("AIRI_CORE", "Tools refreshed: ${discoveredTools.size} tools found.")
+                } catch (e: Exception) {
+                    Log.e("AIRI_CORE", "Failed to refresh tools: ${e.message}")
+                }
             }
         }
     }

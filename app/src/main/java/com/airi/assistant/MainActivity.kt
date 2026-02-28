@@ -56,12 +56,13 @@ class MainActivity : AppCompatActivity() {
                         ).show()
 
                         // 🔥 اختبار inference مباشر
-                        val reply = llamaManager.generate("Hello")
-                        Toast.makeText(
-                            this@MainActivity,
-                            "AI: $reply",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        llamaManager.generate("Hello") { reply ->
+    Toast.makeText(
+        this@MainActivity,
+        "AI: $reply",
+        Toast.LENGTH_LONG
+    ).show()
+                        }
 
                         // بعد التأكد من نجاح المحرك نتحقق من إذن Overlay
                         checkOverlayPermission()

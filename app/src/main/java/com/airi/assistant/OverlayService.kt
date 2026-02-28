@@ -11,13 +11,12 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.view.*
-import android.view.animation.DecelerateInterpolator
 import android.widget.*
 import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import kotlinx.coroutines.*
-import java.util.*
+// تأكد من وجود هذه المكتبات بدقة
+import kotlinx.coroutines.* import java.util.*
 
 class OverlayService : Service() {
 
@@ -27,11 +26,13 @@ class OverlayService : Service() {
     private lateinit var bubbleView: View
     private lateinit var chatView: View
     private lateinit var adapter: ChatAdapter
-    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+    
+    // تعريف الـ Scope بشكل صحيح
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    
     private var isChatVisible = false
     private val screenWidth by lazy { resources.displayMetrics.widthPixels }
 
-    // المحركات والعناصر الجديدة
     private lateinit var llama: LlamaNative
     private lateinit var ttsManager: TextToSpeech
     private lateinit var speechRecognizer: SpeechRecognizer
@@ -58,37 +59,6 @@ class OverlayService : Service() {
                 ttsManager.language = Locale("ar")
             }
         }
-    }
-
-    private fun initSpeechToText() {
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
-        recognitionIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-SA")
-        }
-        speechRecognizer.setRecognitionListener(object : RecognitionListener {
-            override fun onResults(results: Bundle?) {
-                val data = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                val spokenText = data?.get(0) ?: ""
-                if (spokenText.isNotEmpty()) {
-                    if (!ModelManager.isModelLoaded()) {
-                        Toast.makeText(this@OverlayService, "يجب تحميل العقل أولاً!", Toast.LENGTH_SHORT).show()
-                        return
-                    }
-                    sendToAIRI(spokenText)
-                }
-            }
-            override fun onReadyForSpeech(params: Bundle?) { 
-                Toast.makeText(this@OverlayService, "أنا أسمعك...", Toast.LENGTH_SHORT).show() 
-            }
-            override fun onError(error: Int) { Log.e("AIRI", "STT Error: $error") }
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
-            override fun onPartialResults(partialResults: Bundle?) {}
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-        })
     }
 
     private fun initViews() {
@@ -166,6 +136,7 @@ class OverlayService : Service() {
         serviceScope.launch {
             val modelPath = "/sdcard/Download/model.gguf" 
             
+            // استدعاء ModelManager
             val success = ModelManager.loadModel(modelPath) { progress ->
                 progressBar.progress = progress
             }
@@ -177,7 +148,7 @@ class OverlayService : Service() {
                     btnLoadBrain.text = "العقل جاهز ✅"
                     btnLoadBrain.setBackgroundColor(android.graphics.Color.GREEN)
                 } else {
-                    btnLoadBrain.text = "فشل التحميل! حاول ثانية"
+                    btnLoadBrain.text = "فشل التحميل!"
                     btnLoadBrain.setBackgroundColor(android.graphics.Color.RED)
                 }
             }
@@ -186,18 +157,39 @@ class OverlayService : Service() {
 
     private fun sendToAIRI(text: String) {
         adapter.addMessage(ChatModel(text, isUser = true))
-        
         serviceScope.launch(Dispatchers.Default) {
             val response = llama.generateResponse(text)
-            
             withContext(Dispatchers.Main) {
                 adapter.addMessage(ChatModel(response, isUser = false))
                 ttsManager.speak(response, TextToSpeech.QUEUE_FLUSH, null, "AIRI")
-                
-                val recyclerView = chatView.findViewById<RecyclerView>(R.id.chat_recycler)
-                recyclerView.smoothScrollToPosition(adapter.itemCount - 1)
+                chatView.findViewById<RecyclerView>(R.id.chat_recycler).smoothScrollToPosition(adapter.itemCount - 1)
             }
         }
+    }
+
+    private fun initSpeechToText() {
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        recognitionIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-SA")
+        }
+        speechRecognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onResults(results: Bundle?) {
+                val data = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val spokenText = data?.get(0) ?: ""
+                if (spokenText.isNotEmpty()) {
+                    if (ModelManager.isModelLoaded()) sendToAIRI(spokenText)
+                }
+            }
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onError(error: Int) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
     }
 
     private fun setupTouchListener() {

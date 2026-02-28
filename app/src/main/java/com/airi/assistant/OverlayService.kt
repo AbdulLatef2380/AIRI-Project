@@ -1,5 +1,6 @@
-package com.airi.assistant
 
+package com.airi.assistant
+import com.airi.core.model.ModelManager
 import android.animation.ValueAnimator
 import android.app.*
 import android.content.*

@@ -1,8 +1,10 @@
 package com.airi.assistant.accessibility
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.airi.assistant.OverlayService
 
 class AIRIAccessibilityService : AccessibilityService() {
 
@@ -16,8 +18,26 @@ class AIRIAccessibilityService : AccessibilityService() {
         super.onDestroy()
     }
 
+    /**
+     * ✅ الخطوة الاحترافية: التفعيل الاستباقي (Proactive Trigger)
+     * يتم استدعاؤها عند أي تغيير في واجهة النظام أو التطبيقات
+     */
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // نعتمد على الاستخراج عند الطلب (On-Demand) لتقليل استهلاك البطارية
+        // نراقب فقط تغير حالة النافذة (فتح تطبيق جديد أو نشاط جديد) لتقليل الضغط
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            
+            // 1. استخراج السياق الجديد فوراً
+            val newContext = extractScreenContext()
+            
+            // 2. إبلاغ الـ OverlayService بوجود سياق جديد للبحث عن اقتراحات
+            val intent = Intent(this, OverlayService::class.java).apply {
+                action = "ACTION_SHOW_SUGGESTION"
+                putExtra("EXTRA_CONTEXT", newContext)
+            }
+            
+            // نرسل الإشارة للخدمة (تعمل في الخلفية)
+            startService(intent)
+        }
     }
 
     override fun onInterrupt() {}
@@ -55,32 +75,31 @@ class AIRIAccessibilityService : AccessibilityService() {
             [Screen Content: $truncatedText]
         """.trimIndent()
 
-        // تحديث الحامل بالسياق الجديد
+        // تحديث الحامل بالسياق الجديد ليكون متاحاً عند الطلب اليدوي أيضاً
         ScreenContextHolder.lastScreenText = finalContext
         return finalContext
     }
 
     /**
-     * دالة递归 (Recursive) للمرور على جميع عناصر الشاشة واستخراج النصوص
+     * دالة Recursive للمرور على جميع عناصر الشاشة واستخراج النصوص
      */
     private fun traverseNode(node: AccessibilityNodeInfo?, builder: StringBuilder) {
         if (node == null) return
 
-        // سحب النصوص الظاهرة
         node.text?.let {
             if (it.isNotBlank()) builder.append(it).append("\n")
         }
 
-        // سحب وصف المحتوى (مهم للأيقونات والأزرار بدون نص)
         node.contentDescription?.let {
             if (it.isNotBlank()) builder.append(it).append("\n")
         }
 
-        // الانتقال للأبناء
         for (i in 0 until node.childCount) {
             val child = node.getChild(i)
             if (child != null) {
                 traverseNode(child, builder)
+                // تنظيف الذاكرة بعد الاستخدام (مهم لمنع Leak في خدمات الوصول)
+                child.recycle()
             }
         }
     }

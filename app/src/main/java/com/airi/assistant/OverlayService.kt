@@ -162,25 +162,20 @@ class OverlayService : Service() {
         dialog.show()
     }
 
+    // ✅ تم تحديث هذه الدالة لالتقاط الشاشة مباشرة عبر triggerExtraction()
     private fun sendToAIRIWithContext(text: String) {
-        val service = ScreenContextHolder.serviceInstance
-        val rawScreenText = service?.extractScreenText() ?: ScreenContextHolder.lastScreenText
+        // 1. نضغط على "الجرس" ليقوم المساعد بقراءة الشاشة فوراً
+        val freshScreenContext = ScreenContextHolder.triggerExtraction()
 
-        // التحقق من أن نص الشاشة غير فارغ (لتنبيه المستخدم إذا كانت الخدمة غير مفعلة)
-        if (rawScreenText.isBlank()) {
-            Toast.makeText(this, "فعّل إذن الوصول للشاشة أولاً", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        // تحديد طول النص لحماية النموذج من الإدخال الطويل جداً
-        val trimmedScreen = rawScreenText.take(4000)
+        // 2. ندمج المعلومات الجديدة (اسم التطبيق + محتواه) مع سؤالك
         val enhancedPrompt = """
-            [Screen Context Mode]
-            User Screen Content: $trimmedScreen
-            User Question: $text
+            $freshScreenContext
+            
+            سؤال المستخدم: $text
         """.trimIndent()
 
-        adapter.addMessage(ChatModel("🔍 تحليل الشاشة: $text", true))
+        // 3. نرسلها للعقل (Llama)
+        adapter.addMessage(ChatModel("🔍 AIRI يحلل سياق التطبيق...", true))
         llamaManager.generate(enhancedPrompt) { response ->
             processResponse(response)
         }

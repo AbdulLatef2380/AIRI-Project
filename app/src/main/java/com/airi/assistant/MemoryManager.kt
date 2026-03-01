@@ -13,9 +13,9 @@ class MemoryManager(context: Context) {
     /**
      * حفظ رسالة جديدة في الذاكرة
      */
-    fun recordInteraction(sender: String, content: String, emotion: String? = null) {
+    fun recordInteraction(role: String, content: String, emotion: String? = null) {
         scope.launch {
-            dao.insertMessage(ChatMessage(sender = sender, content = content, emotionState = emotion))
+            dao.insertMessage(ChatMessage(role = role, content = content, emotionState = emotion))
         }
     }
 
@@ -34,7 +34,7 @@ class MemoryManager(context: Context) {
      */
     suspend fun getConversationContext(limit: Int = 10): String {
         val messages = dao.getRecentMessages(limit).reversed()
-        return messages.joinToString("\n") { "${it.sender}: ${it.content}" }
+        return messages.joinToString("\n") { "${it.role}: ${it.content}" }
     }
 
     suspend fun getRecentMessages(limit: Int = 10): List<ChatMessage> {

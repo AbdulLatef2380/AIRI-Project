@@ -4,9 +4,14 @@ object ScreenContextHolder {
 
     var lastScreenText: String = ""
 
-    var serviceInstance: AIRIAccessibilityService? = null
+    var lastContextHash: Int = 0
 
     fun triggerExtraction(): String {
-        return serviceInstance?.extractScreenContext() ?: "خدمة الوصول غير مفعلة"
+        return lastScreenText
+    }
+
+    fun reset() {
+        lastScreenText = ""
+        lastContextHash = 0
     }
 }

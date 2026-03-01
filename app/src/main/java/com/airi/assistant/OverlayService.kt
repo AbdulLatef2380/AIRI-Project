@@ -134,6 +134,33 @@ class OverlayService : Service() {
         }
     }
 
+    private fun showAiriMenu() {
+        val options = arrayOf("🧠 وضع عادي", "🔍 سؤال عن الشاشة", "📺 مشاركة مباشرة")
+        
+        val builder = AlertDialog.Builder(ContextThemeWrapper(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog))
+        builder.setTitle("اختر نمط AIRI")
+        builder.setItems(options) { _, which ->
+            when (which) {
+                0 -> { // وضع عادي
+                    if (!isChatVisible) toggleChat()
+                }
+                1 -> { // سؤال عن الشاشة
+                    isWaitingForScreenQuestion = true
+                    if (!isChatVisible) toggleChat()
+                    Toast.makeText(this, "AIRI ينظر للشاشة.. اسأل الآن", Toast.LENGTH_SHORT).show()
+                }
+                2 -> { // مشاركة مباشرة (للمستقبل)
+                    Toast.makeText(this, "ميزة المشاركة المباشرة قادمة قريباً!", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        
+        val dialog = builder.create()
+        // هذا السطر حاسم ليظهر الـ Dialog فوق التطبيقات الأخرى
+        dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        dialog.show()
+    }
+
     private fun sendToAIRIWithContext(text: String) {
         val screenText = ScreenContextHolder.lastScreenText
         val enhancedPrompt = """
@@ -166,18 +193,26 @@ class OverlayService : Service() {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         recognitionIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-SA")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US") // يفضل الإنجليزية للتعرف على Hi AIRI بدقة
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         }
 
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
             override fun onResults(results: Bundle?) {
-                val spokenText = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.get(0) ?: ""
-                if (spokenText.isNotBlank()) {
-                    if (spokenText.contains("شاشة") || spokenText.contains("حلل")) {
-                        sendToAIRIWithContext(spokenText)
-                    } else {
-                        sendToAIRI(spokenText)
-                    }
+                val spoken = results
+                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.get(0)
+                    ?.lowercase() ?: return
+
+                if (spoken.contains("hi airi") || spoken.contains("هاي ايري")) {
+                    showAiriMenu()
+                    return
+                }
+
+                if (spoken.contains("شاشة") || spoken.contains("حلل")) {
+                    sendToAIRIWithContext(spoken)
+                } else {
+                    sendToAIRI(spoken)
                 }
             }
             override fun onReadyForSpeech(params: Bundle?) {}
@@ -237,8 +272,11 @@ class OverlayService : Service() {
     }
 
     private fun toggleChat() {
-        if (isChatVisible) windowManager.removeView(chatView)
-        else windowManager.addView(chatView, chatParams)
+        if (isChatVisible) {
+            windowManager.removeView(chatView)
+        } else {
+            windowManager.addView(chatView, chatParams)
+        }
         isChatVisible = !isChatVisible
     }
 

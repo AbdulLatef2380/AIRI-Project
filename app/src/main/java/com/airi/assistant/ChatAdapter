@@ -5,8 +5,11 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.airi.assistant.accessibility.BehaviorEngine // ✅ استيراد المحرك الذكي
 
-class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ChatViewHolder>() {
+class ChatAdapter(
+    private val onSuggestionClick: (String) -> Unit = {} // كولباك لتنفيذ الأمر
+) : RecyclerView.Adapter<ChatAdapter.ChatViewHolder>() {
 
     private val messages = mutableListOf<ChatModel>()
 
@@ -21,7 +24,32 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ChatViewHolder>() {
     }
 
     override fun onBindViewHolder(holder: ChatViewHolder, position: Int) {
-        holder.textView.text = messages[position].text
+        val message = messages[position]
+        holder.textView.text = message.text
+
+        // 💡 منطق التعامل مع الاقتراحات
+        if (!message.isUser && message.text.contains("💡")) {
+            holder.itemView.setOnClickListener {
+                // 1. تنظيف النص من الإيموجي والبادئة للحصول على النية الصافية
+                val cleanText = message.text
+                    .replace("💡 اقتراح ذكي: ", "")
+                    .replace("💡 اقتراح: ", "")
+                    .trim()
+
+                // 2. 🔥 تسجيل الاستخدام في قاعدة البيانات (هنا AIRI يتعلم!)
+                BehaviorEngine.recordUsage(cleanText)
+
+                // 3. تنفيذ الإجراء (إرسال النص لـ Llama أو n8n)
+                onSuggestionClick(cleanText)
+            }
+            
+            // تمييز بصري بسيط (اختياري)
+            holder.itemView.alpha = 0.9f 
+        } else {
+            // رسالة عادية، لا تفعل شيئاً عند الضغط
+            holder.itemView.setOnClickListener(null)
+            holder.itemView.alpha = 1.0f
+        }
     }
 
     override fun getItemCount(): Int = messages.size
@@ -29,13 +57,6 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ChatViewHolder>() {
     fun addMessage(message: ChatModel) {
         messages.add(message)
         notifyItemInserted(messages.size - 1)
-    }
-
-    fun updateLastMessage(newText: String) {
-        if (messages.isNotEmpty()) {
-            messages.last().text = newText
-            notifyItemChanged(messages.size - 1)
-        }
     }
 
     class ChatViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {

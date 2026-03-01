@@ -7,7 +7,6 @@ class LlamaManager(private val context: Context) {
     private var isLoaded = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     
-    // ربط مدير الذاكرة الدائمة
     private val memoryManager = MemoryManager(context)
     private val chatHistory = mutableListOf<ChatMessage>()
     private val MAX_HISTORY = 10 
@@ -20,11 +19,9 @@ class LlamaManager(private val context: Context) {
         }
         
         scope.launch {
-            // 1. تحميل الموديل
             val result = LlamaNative.loadModel(modelFile.absolutePath)
             isLoaded = (result == "Success")
             
-            // 2. إذا نجح التحميل، استرجع آخر المحادثات من قاعدة البيانات للذاكرة المؤقتة
             if (isLoaded) {
                 val lastMessages = memoryManager.getRecentMessages(MAX_HISTORY)
                 chatHistory.clear()
@@ -41,7 +38,6 @@ class LlamaManager(private val context: Context) {
             return
         }
 
-        // حفظ سؤال المستخدم في قاعدة البيانات والذاكرة المؤقتة
         val userMsg = ChatMessage(role = "user", content = prompt)
         chatHistory.add(userMsg)
         memoryManager.recordInteraction(userMsg.role, userMsg.content)
@@ -50,12 +46,10 @@ class LlamaManager(private val context: Context) {
             val fullPrompt = buildChatPrompt()
             val response = LlamaNative.generateResponse(fullPrompt)
             
-            // حفظ رد AIRI في قاعدة البيانات والذاكرة المؤقتة
             val assistantMsg = ChatMessage(role = "assistant", content = response)
             chatHistory.add(assistantMsg)
             memoryManager.recordInteraction(assistantMsg.role, assistantMsg.content)
 
-            // الحفاظ على حجم الذاكرة المؤقتة
             if (chatHistory.size > MAX_HISTORY) {
                 chatHistory.removeAt(0)
                 chatHistory.removeAt(0)
@@ -67,15 +61,28 @@ class LlamaManager(private val context: Context) {
 
     private fun buildChatPrompt(): String {
         val sb = StringBuilder()
+        
+        // --- بداية التوجيه الاحترافي (System Prompt) ---
         sb.append("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n")
-        sb.append("أنت AIRI، مساعد ذكي ومرح. أجب بالعربية.")
+        sb.append("""
+            أنت AIRI، المساعد الذكي المتطور بنظام Android.
+            هويتك: ذكي، مرح، ومفيد جداً.
+            قواعد الرد:
+            1. أجب دائماً باللغة العربية (لهجة بيضاء مفهومة أو فصحى بسيطة).
+            2. اجعل ردودك قصيرة ومباشرة (إلا إذا طلب المستخدم تفاصيل).
+            3. استخدم الرموز التعبيرية (Emojis) بشكل لطيف لتظهر شخصيتك الودودة.
+            4. إذا لم تعرف الإجابة، قل ذلك بصدق ولا تخترع معلومات.
+            5. تذكر دائماً أنك جزء من مشروع AIRI المفتوح المصدر.
+        """.trimIndent())
         sb.append("<|eot_id|>\n")
+        // --- نهاية التوجيه ---
 
         for (msg in chatHistory) {
             sb.append("<|start_header_id|>${msg.role}<|end_header_id|>\n")
             sb.append(msg.content)
             sb.append("<|eot_id|>\n")
         }
+        
         sb.append("<|start_header_id|>assistant<|end_header_id|>\n")
         return sb.toString()
     }

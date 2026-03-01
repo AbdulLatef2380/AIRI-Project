@@ -6,9 +6,20 @@ import android.view.accessibility.AccessibilityEvent
 
 object ScreenContextHolder {
     var lastScreenText: String = ""
+    var serviceInstance: AIRIAccessibilityService? = null
 }
 
 class AIRIAccessibilityService : AccessibilityService() {
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        ScreenContextHolder.serviceInstance = this
+    }
+
+    override fun onDestroy() {
+        ScreenContextHolder.serviceInstance = null
+        super.onDestroy()
+    }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
 

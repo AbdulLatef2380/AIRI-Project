@@ -55,13 +55,11 @@ class AIRIAccessibilityService : AccessibilityService() {
         // 4. تحديث الهاش الأخير
         ScreenContextHolder.lastContextHash = refinedHash
 
-        // 5. طلب اقتراح ذكي من المحرك
-        val suggestion = SuggestionEngine.generateSuggestion(context)
-        
-        suggestion?.let { text ->
-            // تمرير الاقتراح عبر الجسر إلى الـ Overlay UI
-            OverlayBridge.showSuggestion(text, context)
-        }
+      val suggestions = SuggestionEngine.generateSuggestions(context)
+
+if (suggestions.isNotEmpty()) {
+    OverlayBridge.showSuggestion(suggestions.first(), context)
+}  
     }
 
     override fun onInterrupt() {}

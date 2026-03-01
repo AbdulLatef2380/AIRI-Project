@@ -2,26 +2,23 @@ package com.airi.assistant.accessibility
 
 object SuggestionEngine {
 
-    fun generateSuggestion(context: String): String? {
-        val ctx = context.lowercase()
-        val category = Regex("\\[App Category: (.*?)\\]").find(context)?.groupValues?.get(1) ?: ""
+    fun generateSuggestions(context: String): List<String> {
 
-        return when {
-            // حالة المتصفح
-            category.contains("متصفح ويب") -> "📄 هل تريد تلخيص هذه الصفحة؟"
+        val suggestions = mutableListOf<String>()
 
-            // حالة البرمجة والخطأ
-            category.contains("أدوات مبرمجين") && (ctx.contains("exception") || ctx.contains("error")) -> 
-                "🐞 هل أساعدك في حل هذا الخطأ البرمجي؟"
+        if (context.contains("متصفح ويب"))
+            suggestions.add("📄 تلخيص الصفحة الحالية")
 
-            // حالة المحادثات
-            category.contains("تطبيق محادثة") -> "✍️ هل أقترح عليك رداً ذكياً؟"
+        if (context.contains("أدوات مبرمجين") &&
+            context.contains("Exception"))
+            suggestions.add("🐞 تحليل الخطأ البرمجي")
 
-            // حالة الإعدادات والبطارية
-            category.contains("إعدادات") && (ctx.contains("battery") || ctx.contains("بطارية")) -> 
-                "🔋 هل تريد تحليل استهلاك البطارية؟"
+        if (context.contains("تطبيق محادثة"))
+            suggestions.add("✍️ اقتراح رد ذكي")
 
-            else -> null
-        }
+        if (context.contains("إعدادات النظام"))
+            suggestions.add("🔋 تحليل حالة النظام")
+
+        return BehaviorEngine.adjustSuggestionPriority(suggestions)
     }
 }

@@ -2,51 +2,58 @@ package com.airi.assistant.accessibility
 
 object ContextActionEngine {
 
-    // الـ Role الثابت لضمان شخصية AIRI
-    private const val SYSTEM_ROLE = "[System Role: You are AIRI, a highly capable contextual Android AI assistant. Always be concise, helpful, and aware of the screen data provided.]\n"
+    private const val SYSTEM_ROLE = "[System Role: You are AIRI, a contextual Android AI agent. Use the memory and screen data provided to give precise, human-like assistance.]\n"
 
     fun resolveActionPrompt(context: String, userQuery: String): String {
-        // 1. تحديد النية (Intent Detection)
+        // 1. استخراج اسم الحزمة من السياق للتحديث الذكي للذاكرة
+        val currentPackage = Regex("\\[App Package: (.*?)\\]").find(context)?.groupValues?.get(1) ?: "Unknown"
+
+        // 2. تحديد النية باستخدام الـ Scoring Engine
         val intent = IntentDetector.detectIntent(userQuery, context)
 
-        // 2. اختيار البرومبت المناسب بناءً على النية
+        // 3. تحديث الذاكرة قبل توليد البرومبت
+        SessionMemory.update(intent, context, userQuery, currentPackage)
+
+        // 4. اختيار الاستراتيجية
         val dynamicPrompt = when (intent) {
             IntentType.SUMMARIZE -> generateSummarizePrompt(context)
             IntentType.CODE_ANALYSIS -> generateCodeAnalysisPrompt(context, userQuery)
             IntentType.DEBUG_ERROR -> generateDebugPrompt(context, userQuery)
             IntentType.BATTERY_DIAGNOSIS -> generateBatteryPrompt(context)
-            else -> generateGeneralPrompt(context, userQuery)
+            IntentType.GENERAL -> generateGeneralPromptWithMemory(context, userQuery)
+            else -> generateGeneralPromptWithMemory(context, userQuery)
         }
 
-        // 3. دمج الـ Role مع البرومبت المختار
         return SYSTEM_ROLE + dynamicPrompt
     }
 
-    private fun generateSummarizePrompt(context: String) = """
-        $context
-        Task: قم بتلخيص المحتوى الظاهر على الشاشة. ركز على النقاط الجوهرية والنتائج النهائية.
-    """.trimIndent()
+    private fun generateGeneralPromptWithMemory(context: String, query: String): String {
+        // إذا كان السؤال قصيراً جداً، نفترض أنه متابعة (Follow-up)
+        val isFollowUp = query.length < 20 && SessionMemory.lastIntent != IntentType.GENERAL
 
-    private fun generateCodeAnalysisPrompt(context: String, query: String) = """
-        $context
-        Context: User is a developer looking at code.
-        Query: $query
-        Task: حلل الكود برمجياً، اشرح المنطق، واقترح تحسينات إذا لزم الأمر.
-    """.trimIndent()
+        return if (isFollowUp) {
+            """
+            [FOLLOW-UP MODE]
+            The user is continuing a previous task.
+            Last Intent: ${SessionMemory.lastIntent}
+            Previous Context: ${SessionMemory.lastContextSnapshot.take(500)}...
+            
+            Follow-up Question: $query
+            
+            Instruction: Provide a response that connects with the previous analysis.
+            """.trimIndent()
+        } else {
+            """
+            [CONTEXT AWARE MODE]
+            $context
+            User Query: $query
+            """.trimIndent()
+        }
+    }
 
-    private fun generateDebugPrompt(context: String, query: String) = """
-        $context
-        Task: المستخدم يواجه خطأ تقنياً. ابحث في محتوى الشاشة عن رسائل الخطأ (Error Messages) أو الـ StackTrace وقدم حلاً فورياً.
-    """.trimIndent()
-
-    private fun generateBatteryPrompt(context: String) = """
-        $context
-        Task: تحليل حالة البطارية. استخرج النسبة المئوية والتطبيقات المستهلكة من الشاشة وقدم نصيحة لتحسين عمر البطارية.
-    """.trimIndent()
-
-    private fun generateGeneralPrompt(context: String, query: String) = """
-        $context
-        User Question: $query
-        Task: أجب على سؤال المستخدم بناءً على السياق الموفر أعلاه.
-    """.trimIndent()
+    // (بقيت الدوال generateSummarizePrompt, etc. كما هي مع إضافة $context)
+    private fun generateSummarizePrompt(context: String) = "[TASK: Summarize this content]\n$context"
+    private fun generateDebugPrompt(context: String, query: String) = "[TASK: Debug/Fix Error]\n$context\nUser Query: $query"
+    private fun generateBatteryPrompt(context: String) = "[TASK: Analyze Battery usage]\n$context"
+    private fun generateCodeAnalysisPrompt(context: String, query: String) = "[TASK: Analyze Code]\n$context\nUser Query: $query"
 }

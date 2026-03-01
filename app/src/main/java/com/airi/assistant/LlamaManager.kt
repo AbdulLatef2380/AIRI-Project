@@ -4,11 +4,14 @@ import android.content.Context
 import kotlinx.coroutines.*
 import java.io.File
 
+
 class LlamaManager(private val context: Context) {
+
+
+{ntext) {t) {ivate val context: Context) {
     private var isLoaded = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     
-    // نستخدم القائمة من الكلاس الموحد
     private val chatHistory = mutableListOf<ChatMessage>()
     private val MAX_HISTORY = 10 
 

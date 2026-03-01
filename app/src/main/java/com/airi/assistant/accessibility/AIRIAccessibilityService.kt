@@ -10,7 +10,6 @@ import com.airi.assistant.accessibility.OverlayBridge
 class AIRIAccessibilityService : AccessibilityService() {
 
     private val handler = Handler(Looper.getMainLooper())
-    private var lastProcessedHash = 0
     private var debounceRunnable: Runnable? = null
 
     override fun onServiceConnected() {
@@ -19,43 +18,57 @@ class AIRIAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * ✅ المحرك الاستباقي مع Debounce و Hash Guard
+     * ✅ المحرك الاستباقي المطور مع Debounce Guard
      */
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        // نراقب تغير النافذة أو المحتوى
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
-            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
-            
-            // Debounce: انتظر 500ms قبل المعالجة (لتجنب التكرار أثناء السكرول)
-            debounceRunnable?.let { handler.removeCallbacks(it) }
-            debounceRunnable = Runnable {
-                processCurrentScreen()
-            }
-            handler.postDelayed(debounceRunnable!!, 500)
+        // تصفية الأحداث: نراقب فقط تغير النافذة أو محتوى العناصر
+        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+            event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+        ) return
+
+        // إزالة أي طلب معالجة معلق (Debounce)
+        debounceRunnable?.let { handler.removeCallbacks(it) }
+
+        // إنشاء طلب معالجة جديد يبدأ بعد 500 ملي ثانية من الثبات
+        debounceRunnable = Runnable {
+            processContextChange()
         }
+
+        handler.postDelayed(debounceRunnable!!, 500)
     }
 
-    private fun processCurrentScreen() {
+    /**
+     * ✅ معالجة التغيير في السياق باستخدام الذكاء الجوهري (Refined Hash)
+     */
+    private fun processContextChange() {
+        // 1. استخراج السياق الحالي
         val context = extractScreenContext()
-        val currentHash = context.hashCode()
+        
+        // 2. حساب الهاش الذكي (يركز على العناوين والكلمات المفتاحية فقط)
+        val refinedHash = ContextIntelligence.computeRefinedHash(context)
 
-        // 🛡️ Hash Guard: إذا لم يتغير المحتوى الفعلي، لا تفعل شيئاً
-        if (currentHash == lastProcessedHash) return
-        lastProcessedHash = currentHash
+        // 3. الحارس: إذا لم يتغير "جوهر" الشاشة، توقف هنا
+        if (refinedHash == ScreenContextHolder.lastContextHash) return
 
-        // 🔎 Suggestion Engine: طلب اقتراح ذكي
+        // 4. تحديث الهاش الأخير
+        ScreenContextHolder.lastContextHash = refinedHash
+
+        // 5. طلب اقتراح ذكي من المحرك
         val suggestion = SuggestionEngine.generateSuggestion(context)
         
         suggestion?.let { text ->
-            // تمرير الاقتراح عبر الجسر إلى الـ Overlay
+            // تمرير الاقتراح عبر الجسر إلى الـ Overlay UI
             OverlayBridge.showSuggestion(text, context)
         }
     }
 
     override fun onInterrupt() {}
 
+    /**
+     * استخراج نص الشاشة بالكامل مع مراعاة حدود الـ Tokens
+     */
     fun extractScreenContext(): String {
         val root = rootInActiveWindow ?: return "No Context"
         val builder = StringBuilder()
@@ -66,10 +79,12 @@ class AIRIAccessibilityService : AccessibilityService() {
         
         val packageName = root.packageName?.toString() ?: "Unknown"
         val category = ContextClassifier.getAppCategory(packageName)
+        val className = root.className?.toString() ?: "Unknown"
 
         val finalContext = """
             [App Category: $category]
             [App Package: $packageName]
+            [App Screen: $className]
             [Screen Content: $truncatedText]
         """.trimIndent()
 
@@ -79,10 +94,21 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     private fun traverseNode(node: AccessibilityNodeInfo?, builder: StringBuilder) {
         if (node == null) return
-        node.text?.let { if (it.isNotBlank()) builder.append(it).append("\n") }
-        node.contentDescription?.let { if (it.isNotBlank()) builder.append(it).append("\n") }
+        
+        node.text?.let { 
+            if (it.isNotBlank()) builder.append(it).append("\n") 
+        }
+        
+        node.contentDescription?.let { 
+            if (it.isNotBlank()) builder.append(it).append("\n") 
+        }
+        
         for (i in 0 until node.childCount) {
-            traverseNode(node.getChild(i), builder)
+            val child = node.getChild(i)
+            if (child != null) {
+                traverseNode(child, builder)
+                child.recycle() // تنظيف الذاكرة فوراً لمنع البطء
+            }
         }
     }
 

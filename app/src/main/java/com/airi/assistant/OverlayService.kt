@@ -13,6 +13,7 @@ import android.widget.*
 import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.airi.assistant.accessibility.ScreenContextHolder 
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -34,6 +35,7 @@ class OverlayService : Service() {
     
     private var isChatVisible = false
     private val screenWidth by lazy { resources.displayMetrics.widthPixels }
+    private var isWaitingForScreenQuestion = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -118,7 +120,11 @@ class OverlayService : Service() {
             val text = input.text.toString()
             if (text.isNotBlank()) {
                 input.text.clear()
-                sendToAIRI(text)
+                if (text.contains("شاشة") || text.contains("حلل") || isWaitingForScreenQuestion) {
+                    sendToAIRIWithContext(text)
+                } else {
+                    sendToAIRI(text)
+                }
             }
         }
 
@@ -128,13 +134,32 @@ class OverlayService : Service() {
         }
     }
 
+    private fun sendToAIRIWithContext(text: String) {
+        val screenText = ScreenContextHolder.lastScreenText
+        val enhancedPrompt = """
+            [Screen Context Mode]
+            User Screen Content: $screenText
+            User Question: $text
+        """.trimIndent()
+
+        adapter.addMessage(ChatModel("🔍 تحليل الشاشة: $text", true))
+        llamaManager.generate(enhancedPrompt) { response ->
+            processResponse(response)
+        }
+        isWaitingForScreenQuestion = false
+    }
+
     private fun sendToAIRI(text: String) {
         adapter.addMessage(ChatModel(text, true))
         llamaManager.generate(text) { response ->
-            adapter.addMessage(ChatModel(response, false))
-            ttsManager.speak(response, TextToSpeech.QUEUE_FLUSH, null, "AIRI")
-            chatView.findViewById<RecyclerView>(R.id.chat_recycler).smoothScrollToPosition(adapter.itemCount - 1)
+            processResponse(response)
         }
+    }
+
+    private fun processResponse(response: String) {
+        adapter.addMessage(ChatModel(response, false))
+        ttsManager.speak(response, TextToSpeech.QUEUE_FLUSH, null, "AIRI")
+        chatView.findViewById<RecyclerView>(R.id.chat_recycler).smoothScrollToPosition(adapter.itemCount - 1)
     }
 
     private fun initSpeechToText() {
@@ -147,7 +172,13 @@ class OverlayService : Service() {
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
             override fun onResults(results: Bundle?) {
                 val spokenText = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.get(0) ?: ""
-                if (spokenText.isNotBlank()) sendToAIRI(spokenText)
+                if (spokenText.isNotBlank()) {
+                    if (spokenText.contains("شاشة") || spokenText.contains("حلل")) {
+                        sendToAIRIWithContext(spokenText)
+                    } else {
+                        sendToAIRI(spokenText)
+                    }
+                }
             }
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
@@ -219,6 +250,7 @@ class OverlayService : Service() {
         val notification = NotificationCompat.Builder(this, "AIRI_SERVICE")
             .setContentTitle("AIRI Active")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
         startForeground(1, notification)
     }

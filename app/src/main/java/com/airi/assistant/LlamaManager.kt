@@ -2,12 +2,13 @@ package com.airi.assistant
 
 import android.content.Context
 import kotlinx.coroutines.*
-import java.io.File
 
 class LlamaManager(private val context: Context) {
     private var isLoaded = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     
+    // ربط مدير الذاكرة الدائمة
+    private val memoryManager = MemoryManager(context)
     private val chatHistory = mutableListOf<ChatMessage>()
     private val MAX_HISTORY = 10 
 
@@ -17,9 +18,19 @@ class LlamaManager(private val context: Context) {
             onReady(false)
             return
         }
+        
         scope.launch {
+            // 1. تحميل الموديل
             val result = LlamaNative.loadModel(modelFile.absolutePath)
             isLoaded = (result == "Success")
+            
+            // 2. إذا نجح التحميل، استرجع آخر المحادثات من قاعدة البيانات للذاكرة المؤقتة
+            if (isLoaded) {
+                val lastMessages = memoryManager.getRecentMessages(MAX_HISTORY)
+                chatHistory.clear()
+                chatHistory.addAll(lastMessages.reversed()) 
+            }
+
             withContext(Dispatchers.Main) { onReady(isLoaded) }
         }
     }
@@ -30,16 +41,21 @@ class LlamaManager(private val context: Context) {
             return
         }
 
-        // إضافة رسالة المستخدم للذاكرة
-        chatHistory.add(ChatMessage(role = "user", content = prompt))
+        // حفظ سؤال المستخدم في قاعدة البيانات والذاكرة المؤقتة
+        val userMsg = ChatMessage(role = "user", content = prompt)
+        chatHistory.add(userMsg)
+        memoryManager.recordInteraction(userMsg.role, userMsg.content)
 
         scope.launch {
             val fullPrompt = buildChatPrompt()
             val response = LlamaNative.generateResponse(fullPrompt)
             
-            // إضافة رد المساعد للذاكرة
-            chatHistory.add(ChatMessage(role = "assistant", content = response))
+            // حفظ رد AIRI في قاعدة البيانات والذاكرة المؤقتة
+            val assistantMsg = ChatMessage(role = "assistant", content = response)
+            chatHistory.add(assistantMsg)
+            memoryManager.recordInteraction(assistantMsg.role, assistantMsg.content)
 
+            // الحفاظ على حجم الذاكرة المؤقتة
             if (chatHistory.size > MAX_HISTORY) {
                 chatHistory.removeAt(0)
                 chatHistory.removeAt(0)

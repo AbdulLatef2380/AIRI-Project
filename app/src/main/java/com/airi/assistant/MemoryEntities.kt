@@ -2,21 +2,19 @@ package com.airi.assistant
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.Ignore
 
 @Entity(tableName = "episodic_memory")
 data class ChatMessage(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val role: String, // "user" أو "assistant"
+    val role: String,        // نستخدم role ليتوافق مع معايير Llama 3
     val content: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val emotionState: String? = null,
-    
-    // إضافة sender كخاصية ثانوية لضمان عدم تعطل الملفات القديمة
-    @androidx.room.Ignore
-    val sender: String = role 
+    val emotionState: String? = null
 ) {
-    // Constructor فارغ لـ Room إذا تطلب الأمر
-    constructor(role: String, content: String) : this(0, role, content, System.currentTimeMillis(), null)
+    // هذا السطر يضمن أن أي كود قديم يبحث عن 'sender' سيجد القيمة في 'role'
+    @Ignore
+    val sender: String = role
 }
 
 @Entity(tableName = "semantic_memory")

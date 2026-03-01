@@ -1,13 +1,8 @@
 package com.airi.assistant.accessibility
 
 import android.accessibilityservice.AccessibilityService
-import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityEvent
-
-object ScreenContextHolder {
-    var lastScreenText: String = ""
-    var serviceInstance: AIRIAccessibilityService? = null
-}
+import android.view.accessibility.AccessibilityNodeInfo
 
 class AIRIAccessibilityService : AccessibilityService() {
 
@@ -21,7 +16,10 @@ class AIRIAccessibilityService : AccessibilityService() {
         super.onDestroy()
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // لا نستخدم event-based extraction حالياً
+        // نستخدم On-Demand extraction فقط
+    }
 
     override fun onInterrupt() {}
 
@@ -42,11 +40,15 @@ class AIRIAccessibilityService : AccessibilityService() {
     private fun traverseNode(node: AccessibilityNodeInfo, builder: StringBuilder) {
 
         node.text?.let {
-            builder.append(it).append("\n")
+            if (it.isNotBlank()) {
+                builder.append(it).append("\n")
+            }
         }
 
         node.contentDescription?.let {
-            builder.append(it).append("\n")
+            if (it.isNotBlank()) {
+                builder.append(it).append("\n")
+            }
         }
 
         for (i in 0 until node.childCount) {

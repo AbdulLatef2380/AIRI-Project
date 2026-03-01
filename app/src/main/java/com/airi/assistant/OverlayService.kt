@@ -17,7 +17,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.airi.assistant.accessibility.ScreenContextHolder
 import com.airi.assistant.accessibility.ContextActionEngine
 import com.airi.assistant.accessibility.SuggestionEngine
-import com.airi.assistant.accessibility.OverlayBridge // ✅ استيراد الجسر
+import com.airi.assistant.accessibility.OverlayBridge
+import com.airi.assistant.accessibility.BehaviorMemory // ✅ استيراد ذاكرة السلوك
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -36,7 +37,7 @@ class OverlayService : Service() {
     private lateinit var ttsManager: TextToSpeech
     private lateinit var speechRecognizer: SpeechRecognizer
     private lateinit var recognitionIntent: Intent
-    private val mainHandler = Handler(Looper.getMainLooper()) // للتعامل مع تحديثات الواجهة
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private var isChatVisible = false
     private val screenWidth by lazy { resources.displayMetrics.widthPixels }
@@ -45,6 +46,7 @@ class OverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // استقبال السياق يدوياً عبر Intent إذا لزم الأمر
         if (intent?.action == "ACTION_SHOW_SUGGESTION") {
             val context = intent.getStringExtra("EXTRA_CONTEXT") ?: ""
             checkAndShowSuggestions(context)
@@ -60,7 +62,7 @@ class OverlayService : Service() {
         initSpeechToText()
         setupNotification()
 
-        // ✅ ربط الجسر لاستقبال الاقتراحات من خدمة الوصول
+        // ✅ ربط الجسر: استقبال الاقتراحات التلقائية من الـ Accessibility
         OverlayBridge.suggestionListener = { suggestionText, context ->
             mainHandler.post {
                 showSuggestionChip(suggestionText, context)
@@ -155,19 +157,30 @@ class OverlayService : Service() {
         }
     }
 
+    /**
+     * ✅ فحص السياق وطلب الاقتراحات (يُستخدم في الطلب اليدوي)
+     */
     private fun checkAndShowSuggestions(context: String) {
-        val suggestion = SuggestionEngine.generateSuggestion(context)
-        suggestion?.let { text ->
-            showSuggestionChip(text, context)
+        val suggestions = SuggestionEngine.generateSuggestions(context)
+        if (suggestions.isNotEmpty()) {
+            showSuggestionChip(suggestions.first(), context)
         }
     }
 
+    /**
+     * ✅ دالة عرض الاقتراح مع تفعيل التعلم السلوكي
+     */
     private fun showSuggestionChip(suggestionText: String, context: String) {
-        // عرض الاقتراح كرسالة تمييزية في الدردشة
+        // 1. تسجيل السلوك (AIRI يتعلم أنك مهتم بهذا النوع من الاقتراحات)
+        BehaviorMemory.recordAction(suggestionText)
+        
+        // 2. عرض الاقتراح في واجهة الدردشة
         adapter.addMessage(ChatModel("💡 اقتراح ذكي: $suggestionText", false))
         
-        // ملاحظة: لجعل هذا الاقتراح قابلاً للضغط، ستحتاج لتحديث ChatAdapter 
-        // ليدعم الـ Click Listeners في إصدار قادم. حالياً يظهر كإشعار نصي.
+        // 3. التمرير التلقائي لآخر رسالة
+        chatView.findViewById<RecyclerView>(R.id.chat_recycler).smoothScrollToPosition(adapter.itemCount - 1)
+        
+        Log.d("AIRI_SERVICE", "Suggestion Displayed & Recorded: $suggestionText")
     }
 
     private fun sendToAIRIWithContext(text: String) {
@@ -325,7 +338,7 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        OverlayBridge.suggestionListener = null // ✅ تنظيف الجسر لمنع تسريب الذاكرة
+        OverlayBridge.suggestionListener = null
         serviceScope.cancel()
         ttsManager.shutdown()
         speechRecognizer.destroy()

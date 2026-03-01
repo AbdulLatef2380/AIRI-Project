@@ -18,7 +18,8 @@ import com.airi.assistant.accessibility.ScreenContextHolder
 import com.airi.assistant.accessibility.ContextActionEngine
 import com.airi.assistant.accessibility.SuggestionEngine
 import com.airi.assistant.accessibility.OverlayBridge
-import com.airi.assistant.accessibility.BehaviorEngine // ✅ محرك السلوك المستند إلى Room
+import com.airi.assistant.accessibility.BehaviorEngine 
+import com.airi.assistant.accessibility.ContextEngine // ✅ استيراد محرك الذاكرة الزمنية
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -61,7 +62,6 @@ class OverlayService : Service() {
         initSpeechToText()
         setupNotification()
 
-        // ✅ استقبال الاقتراحات من جسر الـ Accessibility
         OverlayBridge.suggestionListener = { suggestionText, context ->
             mainHandler.post {
                 showSuggestionChip(suggestionText, context)
@@ -111,7 +111,6 @@ class OverlayService : Service() {
     private fun setupRecyclerView() {
         val recyclerView = chatView.findViewById<RecyclerView>(R.id.chat_recycler)
         
-        // 🔥 الربط الحقيقي: عند الضغط على اقتراح في الـ Adapter، نقوم بتنفيذ المهمة
         adapter = ChatAdapter { selectedAction ->
             mainHandler.post {
                 sendToAIRIWithContext(selectedAction)
@@ -166,39 +165,50 @@ class OverlayService : Service() {
     private fun checkAndShowSuggestions(context: String) {
         val suggestions = SuggestionEngine.generateSuggestions(context)
         if (suggestions.isNotEmpty()) {
-            // المرحلة التالية: استخدام BehaviorEngine.adjustSuggestionPriority(suggestions) هنا
             showSuggestionChip(suggestions.first(), context)
         }
     }
 
-    /**
-     * ✅ عرض الاقتراح كرسالة AI في المحادثة
-     */
     private fun showSuggestionChip(suggestionText: String, context: String) {
-        // نرسل الاقتراح للـ Adapter. 
-        // التسجيل الفعلي في BehaviorEngine يحدث داخل ChatAdapter عند الضغط فقط.
         adapter.addMessage(ChatModel("💡 اقتراح ذكي: $suggestionText", isUser = false))
-        
         chatView.findViewById<RecyclerView>(R.id.chat_recycler)
             .smoothScrollToPosition(adapter.itemCount - 1)
-        
-        Log.d("AIRI_SERVICE", "Suggestion Displayed: $suggestionText")
     }
 
+    /**
+     * ✅ المرحلة 7: استخدام ذاكرة السياق الزمني عند السؤال
+     */
     private fun sendToAIRIWithContext(text: String) {
-        val screenContext = ScreenContextHolder.triggerExtraction()
-        val finalPrompt = ContextActionEngine.resolveActionPrompt(screenContext, text)
+        // إضافة رسالة للمستخدم في الواجهة فوراً
+        val userDisplayMessage = if (isWaitingForScreenQuestion) text else "🔍 تحليل السياق: $text"
+        adapter.addMessage(ChatModel(userDisplayMessage, isUser = true))
 
-        val displayMessage = if (screenContext.contains("متصفح ويب")) {
-            "📄 جاري تلخيص المقال بناءً على المحتوى..."
-        } else {
-            "🔍 AIRI يحلل سياق التطبيق الحالي..."
-        }
-        
-        adapter.addMessage(ChatModel(displayMessage, isUser = true))
+        serviceScope.launch {
+            // 1. محاولة استرجاع آخر سياق من الذاكرة (آخر 5 دقائق)
+            val recent = ContextEngine.getRecentContext()
 
-        llamaManager.generate(finalPrompt) { response ->
-            processResponse(response)
+            // 2. بناء البرومبت بناءً على توفر الذاكرة
+            val finalPrompt = if (recent != null) {
+                """
+                [ذاكرة AIRI النشطة - سياق زمني]
+                المحتوى السابق الذي كان مفتوحاً في تطبيق (${recent.sourceApp}):
+                ${recent.screenText}
+                
+                سؤال المستخدم الحالي المرتبط بهذا السياق:
+                $text
+                """.trimIndent()
+            } else {
+                // في حال عدم وجود ذاكرة، نقوم باستخراج اللحظة الحالية كخطة بديلة
+                val currentScreen = ScreenContextHolder.triggerExtraction()
+                ContextActionEngine.resolveActionPrompt(currentScreen, text)
+            }
+
+            // 3. توليد الرد عبر Llama
+            llamaManager.generate(finalPrompt) { response ->
+                mainHandler.post {
+                    processResponse(response)
+                }
+            }
         }
         
         isWaitingForScreenQuestion = false
@@ -207,7 +217,9 @@ class OverlayService : Service() {
     private fun sendToAIRI(text: String) {
         adapter.addMessage(ChatModel(text, isUser = true))
         llamaManager.generate(text) { response ->
-            processResponse(response)
+            mainHandler.post {
+                processResponse(response)
+            }
         }
     }
 

@@ -1,12 +1,14 @@
 package com.airi.assistant.accessibility
 
 import android.content.Context
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import com.airi.assistant.data.*
+import com.airi.assistant.data.AppDatabase
+import kotlinx.coroutines.*
+import kotlin.coroutines.CoroutineContext
 
-object BehaviorEngine {
+object BehaviorEngine : CoroutineScope {
+
+    override val coroutineContext: CoroutineContext
+        get() = Dispatchers.IO + SupervisorJob()
 
     private var database: AppDatabase? = null
 
@@ -17,19 +19,39 @@ object BehaviorEngine {
     fun recordUsage(suggestion: String) {
         val db = database ?: return
 
-        CoroutineScope(Dispatchers.IO).launch {
-            db.usageStatsDao().incrementUsage(
-                suggestion,
-                System.currentTimeMillis()
-            )
+        launch {
+            val dao = db.usageStatsDao()
+            val existing = dao.getAll().find { it.suggestionText == suggestion }
+
+            if (existing == null) {
+                dao.insert(
+                    com.airi.assistant.data.UsageStatEntity(
+                        suggestionText = suggestion,
+                        usageCount = 1,
+                        lastUsedTimestamp = System.currentTimeMillis()
+                    )
+                )
+            } else {
+                dao.incrementUsage(
+                    suggestion,
+                    System.currentTimeMillis()
+                )
+            }
         }
     }
 
     fun adjustSuggestionPriority(suggestions: List<String>): List<String> {
         val db = database ?: return suggestions
 
-        // حالياً نعيدها كما هي
-        // المرحلة التالية: تحميل stats وترتيبها حسب usageCount
-        return suggestions
+        var ranked = suggestions
+
+        runBlocking {
+            val stats = db.usageStatsDao().getAll()
+            ranked = suggestions.sortedByDescending { suggestion ->
+                stats.find { it.suggestionText == suggestion }?.usageCount ?: 0
+            }
+        }
+
+        return ranked
     }
 }

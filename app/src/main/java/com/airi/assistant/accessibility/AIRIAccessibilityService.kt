@@ -1,122 +1,73 @@
 package com.airi.assistant.accessibility
 
 import android.accessibilityservice.AccessibilityService
-import android.os.Handler
-import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import com.airi.assistant.accessibility.OverlayBridge
+import android.util.Log
+import kotlinx.coroutines.*
 
 class AIRIAccessibilityService : AccessibilityService() {
 
-    private val handler = Handler(Looper.getMainLooper())
-    private var debounceRunnable: Runnable? = null
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    override fun onServiceConnected() {
-        super.onServiceConnected()
-        // ✅ ربط الخدمة بالحامل لتمكين الاستخراج اليدوي لاحقاً
-        ScreenContextHolder.serviceInstance = this
-    }
-
-    /**
-     * ✅ المحرك الاستباقي المطور مع Debounce Guard
-     */
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+
         if (event == null) return
 
-        // تصفية الأحداث: نراقب فقط تغير النافذة أو محتوى العناصر
-        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
-            event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-        ) return
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
 
-        // إزالة أي طلب معالجة معلق (Debounce)
-        debounceRunnable?.let { handler.removeCallbacks(it) }
+            val root = rootInActiveWindow ?: return
+            val screenText = extractText(root)
 
-        // إنشاء طلب معالجة جديد يبدأ بعد 500 ملي ثانية من الثبات (لمنع الضغط على الـ CPU)
-        debounceRunnable = Runnable {
-            processContextChange()
+            if (screenText.isBlank()) return
+
+            val sourceApp = event.packageName?.toString() ?: "unknown"
+
+            // 🔥 1️⃣ حفظ السياق
+            ContextEngine.saveContext(
+                screenText = screenText,
+                sourceApp = sourceApp,
+                detectedIntent = "AUTO_DETECT"
+            )
+
+            // 🔥 2️⃣ توليد اقتراحات ذكية
+            val suggestions = SuggestionEngine.generateSuggestions(screenText)
+
+            if (suggestions.isNotEmpty()) {
+                OverlayBridge.showSuggestion(
+                    suggestions.first(),
+                    screenText
+                )
+            }
+
+            Log.d("AIRI_CONTEXT", "Context captured from $sourceApp")
         }
-
-        handler.postDelayed(debounceRunnable!!, 500)
     }
 
-    /**
-     * ✅ معالجة التغيير في السياق باستخدام الذكاء الجوهري (Refined Hash)
-     */
-    private fun processContextChange() {
-        val context = extractScreenContext()
-        
-        // حساب الهاش الذكي المفلتر (من كلاس ContextIntelligence)
-        val refinedHash = ContextIntelligence.computeRefinedHash(context)
+    private fun extractText(node: AccessibilityNodeInfo?): String {
+        if (node == null) return ""
 
-        // 🛡️ الحارس: إذا لم يتغير "جوهر" الشاشة عن آخر مرة، لا تفعل شيئاً
-        if (refinedHash == ScreenContextHolder.lastContextHash) return
+        val builder = StringBuilder()
 
-        // تحديث الهاش في الحامل
-        ScreenContextHolder.lastContextHash = refinedHash
+        fun traverse(n: AccessibilityNodeInfo?) {
+            if (n == null) return
 
-        // طلب الاقتراحات من المحرك (الذي أصبح يعيد قائمة مرتبة سلوكياً)
-        val suggestions = SuggestionEngine.generateSuggestions(context)
+            n.text?.let { builder.append(it).append(" ") }
+            n.contentDescription?.let { builder.append(it).append(" ") }
 
-        if (suggestions.isNotEmpty()) {
-            // عرض الاقتراح الأعلى أولوية بناءً على خوارزمية السلوك
-            OverlayBridge.showSuggestion(suggestions.first(), context)
-        }  
+            for (i in 0 until n.childCount) {
+                traverse(n.getChild(i))
+            }
+        }
+
+        traverse(node)
+
+        return builder.toString()
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .take(2000) // منع التضخم
     }
 
     override fun onInterrupt() {}
-
-    /**
-     * استخراج نص الشاشة بالكامل مع مراعاة حدود الـ Tokens وتصنيف التطبيق
-     */
-    fun extractScreenContext(): String {
-        val root = rootInActiveWindow ?: return "No Context"
-        val builder = StringBuilder()
-        traverseNode(root, builder)
-        
-        val screenText = builder.toString().replace(Regex("\\s+"), " ").trim()
-        val truncatedText = if (screenText.length > 6000) screenText.take(6000) else screenText
-        
-        val packageName = root.packageName?.toString() ?: "Unknown"
-        val category = ContextClassifier.getAppCategory(packageName)
-        val className = root.className?.toString() ?: "Unknown"
-
-        val finalContext = """
-            [App Category: $category]
-            [App Package: $packageName]
-            [App Screen: $className]
-            [Screen Content: $truncatedText]
-        """.trimIndent()
-
-        // حفظ النص في الحامل للرجوع إليه عند الحاجة
-        ScreenContextHolder.lastScreenText = finalContext
-        return finalContext
-    }
-
-    private fun traverseNode(node: AccessibilityNodeInfo?, builder: StringBuilder) {
-        if (node == null) return
-        
-        node.text?.let { 
-            if (it.isNotBlank()) builder.append(it).append("\n") 
-        }
-        
-        node.contentDescription?.let { 
-            if (it.isNotBlank()) builder.append(it).append("\n") 
-        }
-        
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i)
-            if (child != null) {
-                traverseNode(child, builder)
-                child.recycle() // تنظيف العقدة فوراً لتحسين الأداء ومنع تسريب الذاكرة
-            }
-        }
-    }
-
-    override fun onDestroy() {
-        // ✅ تصفير المرجع لمنع Memory Leak
-        ScreenContextHolder.serviceInstance = null
-        handler.removeCallbacksAndMessages(null)
-        super.onDestroy()
-    }
 }

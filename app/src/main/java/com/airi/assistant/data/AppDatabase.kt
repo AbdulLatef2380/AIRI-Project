@@ -6,13 +6,16 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [UsageStatEntity::class, ContextCacheEntity::class],
-    version = 1
+    entities = [
+        UsageStatEntity::class, 
+        ContextCacheEntity::class // ✅ إضافة كيان ذاكرة السياق
+    ],
+    version = 2 // 🔥 تم رفع الإصدار من 1 إلى 2 بسبب تغيير الهيكلية
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun usageStatsDao(): UsageStatsDao
-    abstract fun contextCacheDao(): ContextCacheDao
+    abstract fun contextCacheDao(): ContextCacheDao // ✅ إضافة الـ DAO الخاص بالسياق
 
     companion object {
         @Volatile
@@ -24,7 +27,12 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "airi_database"
-                ).build()
+                )
+                /* * تفعيل الهجرة التدميرية: ستقوم بحذف البيانات القديمة وإنشاء الجداول الجديدة
+                 * لتجنب توقف التطبيق (Crash) بسبب اختلاف النسخ.
+                 */
+                .fallbackToDestructiveMigration() 
+                .build()
                 INSTANCE = instance
                 instance
             }

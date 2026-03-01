@@ -18,7 +18,7 @@ import com.airi.assistant.accessibility.ScreenContextHolder
 import com.airi.assistant.accessibility.ContextActionEngine
 import com.airi.assistant.accessibility.SuggestionEngine
 import com.airi.assistant.accessibility.OverlayBridge
-import com.airi.assistant.accessibility.BehaviorEngine // ✅ تم تحديث الاستيراد لمحرك السلوك الجديد
+import com.airi.assistant.accessibility.BehaviorEngine // ✅ محرك السلوك المستند إلى Room
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -61,7 +61,7 @@ class OverlayService : Service() {
         initSpeechToText()
         setupNotification()
 
-        // ✅ ربط الجسر: استقبال الاقتراحات التلقائية
+        // ✅ استقبال الاقتراحات من جسر الـ Accessibility
         OverlayBridge.suggestionListener = { suggestionText, context ->
             mainHandler.post {
                 showSuggestionChip(suggestionText, context)
@@ -110,7 +110,14 @@ class OverlayService : Service() {
 
     private fun setupRecyclerView() {
         val recyclerView = chatView.findViewById<RecyclerView>(R.id.chat_recycler)
-        adapter = ChatAdapter()
+        
+        // 🔥 الربط الحقيقي: عند الضغط على اقتراح في الـ Adapter، نقوم بتنفيذ المهمة
+        adapter = ChatAdapter { selectedAction ->
+            mainHandler.post {
+                sendToAIRIWithContext(selectedAction)
+            }
+        }
+        
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerView.adapter = adapter
     }
@@ -159,23 +166,23 @@ class OverlayService : Service() {
     private fun checkAndShowSuggestions(context: String) {
         val suggestions = SuggestionEngine.generateSuggestions(context)
         if (suggestions.isNotEmpty()) {
+            // المرحلة التالية: استخدام BehaviorEngine.adjustSuggestionPriority(suggestions) هنا
             showSuggestionChip(suggestions.first(), context)
         }
     }
 
     /**
-     * ✅ دالة عرض الاقتراح
-     * تم تنظيفها من منطق الحفظ التلقائي لضمان جودة بيانات التعلم
+     * ✅ عرض الاقتراح كرسالة AI في المحادثة
      */
     private fun showSuggestionChip(suggestionText: String, context: String) {
         // نرسل الاقتراح للـ Adapter. 
-        // عملية التسجيل في BehaviorEngine ستتم داخل الـ Adapter عند الضغط الفعلي فقط.
+        // التسجيل الفعلي في BehaviorEngine يحدث داخل ChatAdapter عند الضغط فقط.
         adapter.addMessage(ChatModel("💡 اقتراح ذكي: $suggestionText", isUser = false))
         
         chatView.findViewById<RecyclerView>(R.id.chat_recycler)
             .smoothScrollToPosition(adapter.itemCount - 1)
         
-        Log.d("AIRI_SERVICE", "Suggestion Displayed: $suggestionText (Waiting for user interaction to record)")
+        Log.d("AIRI_SERVICE", "Suggestion Displayed: $suggestionText")
     }
 
     private fun sendToAIRIWithContext(text: String) {
@@ -231,7 +238,6 @@ class OverlayService : Service() {
                 }
             }
             override fun onError(error: Int) { Log.e("AIRI", "STT Error: $error") }
-            // باقي دوال اللسنر فارغة
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}

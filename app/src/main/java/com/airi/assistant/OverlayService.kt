@@ -15,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.airi.assistant.accessibility.ScreenContextHolder
+import com.airi.assistant.accessibility.ContextActionEngine // ✅ استيراد المحرك الذكي
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -28,7 +29,6 @@ class OverlayService : Service() {
     private lateinit var adapter: ChatAdapter
 
     private lateinit var llamaManager: LlamaManager
-    // استخدام Dispatchers.Default بدلاً من Main لمنع تجميد الواجهة
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private lateinit var ttsManager: TextToSpeech
@@ -123,6 +123,7 @@ class OverlayService : Service() {
             val text = input.text.toString()
             if (text.isNotBlank()) {
                 input.text.clear()
+                // إذا كان النص يحتوي على كلمات مفتاحية أو كنا ننتظر سؤالاً عن الشاشة
                 if (text.contains("شاشة") || text.contains("حلل") || isWaitingForScreenQuestion) {
                     sendToAIRIWithContext(text)
                 } else {
@@ -155,30 +156,36 @@ class OverlayService : Service() {
         }
 
         val dialog = builder.create()
-        // التحقق من الإذن قبل تعيين النوع (لتجنب الأعطال على Android 14+)
         if (Settings.canDrawOverlays(this)) {
             dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
         }
         dialog.show()
     }
 
-    // ✅ تم تحديث هذه الدالة لالتقاط الشاشة مباشرة عبر triggerExtraction()
+    /**
+     * ✅ تحديث الدالة لتعمل كمحرك يعتمد على ContextActionEngine
+     */
     private fun sendToAIRIWithContext(text: String) {
-        // 1. نضغط على "الجرس" ليقوم المساعد بقراءة الشاشة فوراً
-        val freshScreenContext = ScreenContextHolder.triggerExtraction()
+        // 1. استخراج السياق اللحظي (المقلم والمصنف)
+        val screenContext = ScreenContextHolder.triggerExtraction()
 
-        // 2. ندمج المعلومات الجديدة (اسم التطبيق + محتواه) مع سؤالك
-        val enhancedPrompt = """
-            $freshScreenContext
-            
-            سؤال المستخدم: $text
-        """.trimIndent()
+        // 2. طلب "البرومبت الذكي" من المحرك (Decision Making)
+        val finalPrompt = ContextActionEngine.resolveActionPrompt(screenContext, text)
 
-        // 3. نرسلها للعقل (Llama)
-        adapter.addMessage(ChatModel("🔍 AIRI يحلل سياق التطبيق...", true))
-        llamaManager.generate(enhancedPrompt) { response ->
+        // 3. تحديث واجهة المستخدم برسالة ذكية بناءً على نوع التطبيق
+        val displayMessage = if (screenContext.contains("متصفح ويب")) {
+            "📄 جاري تلخيص المقال بناءً على المحتوى..."
+        } else {
+            "🔍 AIRI يحلل سياق التطبيق الحالي..."
+        }
+        
+        adapter.addMessage(ChatModel(displayMessage, true))
+
+        // 4. الإرسال للموديل (Llama)
+        llamaManager.generate(finalPrompt) { response ->
             processResponse(response)
         }
+        
         isWaitingForScreenQuestion = false
     }
 
@@ -199,7 +206,7 @@ class OverlayService : Service() {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         recognitionIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US") // يفضل الإنجليزية للتعرف على Hi AIRI بدقة
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
         }
 
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
@@ -209,7 +216,6 @@ class OverlayService : Service() {
                     ?.get(0)
                     ?.lowercase() ?: return
 
-                // تحسين دقة Wake Word باستخدام startsWith
                 if (spoken.startsWith("hi airi") || spoken.contains("هاي ايري")) {
                     showAiriMenu()
                     return

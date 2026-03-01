@@ -15,7 +15,8 @@ import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.airi.assistant.accessibility.ScreenContextHolder
-import com.airi.assistant.accessibility.ContextActionEngine // ✅ استيراد المحرك الذكي
+import com.airi.assistant.accessibility.ContextActionEngine
+import com.airi.assistant.accessibility.SuggestionEngine // ✅ استيراد محرك الاقتراحات
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -40,6 +41,15 @@ class OverlayService : Service() {
     private var isWaitingForScreenQuestion = false
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // استقبال السياق من AccessibilityService للاقتراح التلقائي
+        if (intent?.action == "ACTION_SHOW_SUGGESTION") {
+            val context = intent.getStringExtra("EXTRA_CONTEXT") ?: ""
+            checkAndShowSuggestions(context)
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -123,7 +133,6 @@ class OverlayService : Service() {
             val text = input.text.toString()
             if (text.isNotBlank()) {
                 input.text.clear()
-                // إذا كان النص يحتوي على كلمات مفتاحية أو كنا ننتظر سؤالاً عن الشاشة
                 if (text.contains("شاشة") || text.contains("حلل") || isWaitingForScreenQuestion) {
                     sendToAIRIWithContext(text)
                 } else {
@@ -138,41 +147,32 @@ class OverlayService : Service() {
         }
     }
 
-    private fun showAiriMenu() {
-        val options = arrayOf("🧠 وضع عادي", "🔍 سؤال عن الشاشة", "📺 مشاركة مباشرة")
-
-        val builder = AlertDialog.Builder(ContextThemeWrapper(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog))
-        builder.setTitle("اختر نمط AIRI")
-        builder.setItems(options) { _, which ->
-            when (which) {
-                0 -> if (!isChatVisible) toggleChat()
-                1 -> {
-                    isWaitingForScreenQuestion = true
-                    if (!isChatVisible) toggleChat()
-                    Toast.makeText(this, "AIRI ينظر للشاشة.. اسأل الآن", Toast.LENGTH_SHORT).show()
-                }
-                2 -> Toast.makeText(this, "ميزة المشاركة المباشرة قادمة قريباً!", Toast.LENGTH_SHORT).show()
-            }
+    /**
+     * ✅ فحص السياق وعرض اقتراح ذكي إذا لزم الأمر
+     */
+    private fun checkAndShowSuggestions(context: String) {
+        val suggestion = SuggestionEngine.generateSuggestion(context)
+        suggestion?.let { text ->
+            // نعرض الاقتراح كرسالة من AIRI في الواجهة
+            showSuggestionChip(text, context)
         }
-
-        val dialog = builder.create()
-        if (Settings.canDrawOverlays(this)) {
-            dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
-        }
-        dialog.show()
     }
 
     /**
-     * ✅ تحديث الدالة لتعمل كمحرك يعتمد على ContextActionEngine
+     * ✅ عرض الاقتراح وتنفيذه تلقائياً عند الرغبة (يمكن تطويرها لاحقاً لزر تفاعلي)
      */
-    private fun sendToAIRIWithContext(text: String) {
-        // 1. استخراج السياق اللحظي (المقلم والمصنف)
-        val screenContext = ScreenContextHolder.triggerExtraction()
+    private fun showSuggestionChip(suggestionText: String, context: String) {
+        // إضافة رسالة الاقتراح للدردشة
+        adapter.addMessage(ChatModel("💡 اقتراح: $suggestionText", false))
+        
+        // إذا أردت التنفيذ التلقائي فور ظهور الاقتراح (اختياري)
+        // أو يمكنك الانتظار حتى يطلب المستخدم ذلك
+    }
 
-        // 2. طلب "البرومبت الذكي" من المحرك (Decision Making)
+    private fun sendToAIRIWithContext(text: String) {
+        val screenContext = ScreenContextHolder.triggerExtraction()
         val finalPrompt = ContextActionEngine.resolveActionPrompt(screenContext, text)
 
-        // 3. تحديث واجهة المستخدم برسالة ذكية بناءً على نوع التطبيق
         val displayMessage = if (screenContext.contains("متصفح ويب")) {
             "📄 جاري تلخيص المقال بناءً على المحتوى..."
         } else {
@@ -181,7 +181,6 @@ class OverlayService : Service() {
         
         adapter.addMessage(ChatModel(displayMessage, true))
 
-        // 4. الإرسال للموديل (Llama)
         llamaManager.generate(finalPrompt) { response ->
             processResponse(response)
         }
@@ -202,6 +201,8 @@ class OverlayService : Service() {
         chatView.findViewById<RecyclerView>(R.id.chat_recycler).smoothScrollToPosition(adapter.itemCount - 1)
     }
 
+    // ... (باقي الدوال: initSpeechToText, setupTouchListener, toggleChat, إلخ تبقى كما هي)
+    
     private fun initSpeechToText() {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         recognitionIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -211,32 +212,23 @@ class OverlayService : Service() {
 
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
             override fun onResults(results: Bundle?) {
-                val spoken = results
-                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    ?.get(0)
-                    ?.lowercase() ?: return
-
+                val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.get(0)?.lowercase() ?: return
                 if (spoken.startsWith("hi airi") || spoken.contains("هاي ايري")) {
                     showAiriMenu()
                     return
                 }
-
                 if (spoken.contains("شاشة") || spoken.contains("حلل")) {
                     sendToAIRIWithContext(spoken)
                 } else {
                     sendToAIRI(spoken)
                 }
             }
-
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
-            override fun onError(error: Int) {
-                Log.e("AIRI", "STT Error: $error")
-            }
-
+            override fun onError(error: Int) { Log.e("AIRI", "STT Error: $error") }
             override fun onPartialResults(p0: Bundle?) {}
             override fun onEvent(p0: Int, p1: Bundle?) {}
         })
@@ -311,6 +303,25 @@ class OverlayService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
         startForeground(1, notification)
+    }
+
+    private fun showAiriMenu() {
+        val options = arrayOf("🧠 وضع عادي", "🔍 سؤال عن الشاشة", "📺 مشاركة مباشرة")
+        val builder = AlertDialog.Builder(ContextThemeWrapper(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog))
+        builder.setTitle("اختر نمط AIRI")
+        builder.setItems(options) { _, which ->
+            when (which) {
+                0 -> if (!isChatVisible) toggleChat()
+                1 -> {
+                    isWaitingForScreenQuestion = true
+                    if (!isChatVisible) toggleChat()
+                }
+                2 -> Toast.makeText(this, "قريباً!", Toast.LENGTH_SHORT).show()
+            }
+        }
+        val dialog = builder.create()
+        if (Settings.canDrawOverlays(this)) { dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY) }
+        dialog.show()
     }
 
     override fun onDestroy() {

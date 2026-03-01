@@ -18,7 +18,7 @@ import com.airi.assistant.accessibility.ScreenContextHolder
 import com.airi.assistant.accessibility.ContextActionEngine
 import com.airi.assistant.accessibility.SuggestionEngine
 import com.airi.assistant.accessibility.OverlayBridge
-import com.airi.assistant.accessibility.BehaviorMemory // ✅ استيراد ذاكرة السلوك
+import com.airi.assistant.accessibility.BehaviorEngine // ✅ تم تحديث الاستيراد لمحرك السلوك الجديد
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -46,7 +46,6 @@ class OverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // استقبال السياق يدوياً عبر Intent إذا لزم الأمر
         if (intent?.action == "ACTION_SHOW_SUGGESTION") {
             val context = intent.getStringExtra("EXTRA_CONTEXT") ?: ""
             checkAndShowSuggestions(context)
@@ -62,7 +61,7 @@ class OverlayService : Service() {
         initSpeechToText()
         setupNotification()
 
-        // ✅ ربط الجسر: استقبال الاقتراحات التلقائية من الـ Accessibility
+        // ✅ ربط الجسر: استقبال الاقتراحات التلقائية
         OverlayBridge.suggestionListener = { suggestionText, context ->
             mainHandler.post {
                 showSuggestionChip(suggestionText, context)
@@ -157,9 +156,6 @@ class OverlayService : Service() {
         }
     }
 
-    /**
-     * ✅ فحص السياق وطلب الاقتراحات (يُستخدم في الطلب اليدوي)
-     */
     private fun checkAndShowSuggestions(context: String) {
         val suggestions = SuggestionEngine.generateSuggestions(context)
         if (suggestions.isNotEmpty()) {
@@ -168,19 +164,18 @@ class OverlayService : Service() {
     }
 
     /**
-     * ✅ دالة عرض الاقتراح مع تفعيل التعلم السلوكي
+     * ✅ دالة عرض الاقتراح
+     * تم تنظيفها من منطق الحفظ التلقائي لضمان جودة بيانات التعلم
      */
     private fun showSuggestionChip(suggestionText: String, context: String) {
-        // 1. تسجيل السلوك (AIRI يتعلم أنك مهتم بهذا النوع من الاقتراحات)
-        BehaviorMemory.recordAction(suggestionText)
+        // نرسل الاقتراح للـ Adapter. 
+        // عملية التسجيل في BehaviorEngine ستتم داخل الـ Adapter عند الضغط الفعلي فقط.
+        adapter.addMessage(ChatModel("💡 اقتراح ذكي: $suggestionText", isUser = false))
         
-        // 2. عرض الاقتراح في واجهة الدردشة
-        adapter.addMessage(ChatModel("💡 اقتراح ذكي: $suggestionText", false))
+        chatView.findViewById<RecyclerView>(R.id.chat_recycler)
+            .smoothScrollToPosition(adapter.itemCount - 1)
         
-        // 3. التمرير التلقائي لآخر رسالة
-        chatView.findViewById<RecyclerView>(R.id.chat_recycler).smoothScrollToPosition(adapter.itemCount - 1)
-        
-        Log.d("AIRI_SERVICE", "Suggestion Displayed & Recorded: $suggestionText")
+        Log.d("AIRI_SERVICE", "Suggestion Displayed: $suggestionText (Waiting for user interaction to record)")
     }
 
     private fun sendToAIRIWithContext(text: String) {
@@ -193,7 +188,7 @@ class OverlayService : Service() {
             "🔍 AIRI يحلل سياق التطبيق الحالي..."
         }
         
-        adapter.addMessage(ChatModel(displayMessage, true))
+        adapter.addMessage(ChatModel(displayMessage, isUser = true))
 
         llamaManager.generate(finalPrompt) { response ->
             processResponse(response)
@@ -203,14 +198,14 @@ class OverlayService : Service() {
     }
 
     private fun sendToAIRI(text: String) {
-        adapter.addMessage(ChatModel(text, true))
+        adapter.addMessage(ChatModel(text, isUser = true))
         llamaManager.generate(text) { response ->
             processResponse(response)
         }
     }
 
     private fun processResponse(response: String) {
-        adapter.addMessage(ChatModel(response, false))
+        adapter.addMessage(ChatModel(response, isUser = false))
         ttsManager.speak(response, TextToSpeech.QUEUE_FLUSH, null, "AIRI")
         chatView.findViewById<RecyclerView>(R.id.chat_recycler).smoothScrollToPosition(adapter.itemCount - 1)
     }
@@ -235,12 +230,13 @@ class OverlayService : Service() {
                     sendToAIRI(spoken)
                 }
             }
+            override fun onError(error: Int) { Log.e("AIRI", "STT Error: $error") }
+            // باقي دوال اللسنر فارغة
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
-            override fun onError(error: Int) { Log.e("AIRI", "STT Error: $error") }
             override fun onPartialResults(p0: Bundle?) {}
             override fun onEvent(p0: Int, p1: Bundle?) {}
         })

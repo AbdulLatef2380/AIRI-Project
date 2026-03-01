@@ -5,6 +5,7 @@ import android.app.*
 import android.content.*
 import android.graphics.PixelFormat
 import android.os.*
+import android.provider.Settings
 import android.speech.*
 import android.speech.tts.TextToSpeech
 import android.util.Log
@@ -13,7 +14,7 @@ import android.widget.*
 import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.airi.assistant.accessibility.ScreenContextHolder 
+import com.airi.assistant.accessibility.ScreenContextHolder
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -25,14 +26,15 @@ class OverlayService : Service() {
     private lateinit var bubbleView: View
     private lateinit var chatView: View
     private lateinit var adapter: ChatAdapter
-    
+
     private lateinit var llamaManager: LlamaManager
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    // استخدام Dispatchers.Default بدلاً من Main لمنع تجميد الواجهة
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private lateinit var ttsManager: TextToSpeech
     private lateinit var speechRecognizer: SpeechRecognizer
     private lateinit var recognitionIntent: Intent
-    
+
     private var isChatVisible = false
     private val screenWidth by lazy { resources.displayMetrics.widthPixels }
     private var isWaitingForScreenQuestion = false
@@ -69,7 +71,8 @@ class OverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 0; y = 500
+            x = 0
+            y = 500
         }
 
         chatParams = WindowManager.LayoutParams(
@@ -136,36 +139,44 @@ class OverlayService : Service() {
 
     private fun showAiriMenu() {
         val options = arrayOf("🧠 وضع عادي", "🔍 سؤال عن الشاشة", "📺 مشاركة مباشرة")
-        
+
         val builder = AlertDialog.Builder(ContextThemeWrapper(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog))
         builder.setTitle("اختر نمط AIRI")
         builder.setItems(options) { _, which ->
             when (which) {
-                0 -> { // وضع عادي
-                    if (!isChatVisible) toggleChat()
-                }
-                1 -> { // سؤال عن الشاشة
+                0 -> if (!isChatVisible) toggleChat()
+                1 -> {
                     isWaitingForScreenQuestion = true
                     if (!isChatVisible) toggleChat()
                     Toast.makeText(this, "AIRI ينظر للشاشة.. اسأل الآن", Toast.LENGTH_SHORT).show()
                 }
-                2 -> { // مشاركة مباشرة (للمستقبل)
-                    Toast.makeText(this, "ميزة المشاركة المباشرة قادمة قريباً!", Toast.LENGTH_SHORT).show()
-                }
+                2 -> Toast.makeText(this, "ميزة المشاركة المباشرة قادمة قريباً!", Toast.LENGTH_SHORT).show()
             }
         }
-        
+
         val dialog = builder.create()
-        // هذا السطر حاسم ليظهر الـ Dialog فوق التطبيقات الأخرى
-        dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        // التحقق من الإذن قبل تعيين النوع (لتجنب الأعطال على Android 14+)
+        if (Settings.canDrawOverlays(this)) {
+            dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        }
         dialog.show()
     }
 
     private fun sendToAIRIWithContext(text: String) {
-        val screenText = ScreenContextHolder.lastScreenText
+        val service = ScreenContextHolder.serviceInstance
+        val rawScreenText = service?.extractScreenText() ?: ScreenContextHolder.lastScreenText
+
+        // التحقق من أن نص الشاشة غير فارغ (لتنبيه المستخدم إذا كانت الخدمة غير مفعلة)
+        if (rawScreenText.isBlank()) {
+            Toast.makeText(this, "فعّل إذن الوصول للشاشة أولاً", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // تحديد طول النص لحماية النموذج من الإدخال الطويل جداً
+        val trimmedScreen = rawScreenText.take(4000)
         val enhancedPrompt = """
             [Screen Context Mode]
-            User Screen Content: $screenText
+            User Screen Content: $trimmedScreen
             User Question: $text
         """.trimIndent()
 
@@ -194,7 +205,6 @@ class OverlayService : Service() {
         recognitionIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US") // يفضل الإنجليزية للتعرف على Hi AIRI بدقة
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         }
 
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
@@ -204,7 +214,8 @@ class OverlayService : Service() {
                     ?.get(0)
                     ?.lowercase() ?: return
 
-                if (spoken.contains("hi airi") || spoken.contains("هاي ايري")) {
+                // تحسين دقة Wake Word باستخدام startsWith
+                if (spoken.startsWith("hi airi") || spoken.contains("هاي ايري")) {
                     showAiriMenu()
                     return
                 }
@@ -215,12 +226,16 @@ class OverlayService : Service() {
                     sendToAIRI(spoken)
                 }
             }
+
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
-            override fun onError(error: Int) { Log.e("AIRI", "STT Error: $error") }
+            override fun onError(error: Int) {
+                Log.e("AIRI", "STT Error: $error")
+            }
+
             override fun onPartialResults(p0: Bundle?) {}
             override fun onEvent(p0: Int, p1: Bundle?) {}
         })
@@ -229,15 +244,19 @@ class OverlayService : Service() {
     private fun setupTouchListener() {
         val avatar = bubbleView.findViewById<ImageView>(R.id.airi_avatar)
         avatar.setOnTouchListener(object : View.OnTouchListener {
-            private var initialX = 0; private var initialY = 0
-            private var initialTouchX = 0f; private var initialTouchY = 0f
+            private var initialX = 0
+            private var initialY = 0
+            private var initialTouchX = 0f
+            private var initialTouchY = 0f
             private var isMoving = false
 
             override fun onTouch(v: View, event: MotionEvent): Boolean {
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        initialX = bubbleParams.x; initialY = bubbleParams.y
-                        initialTouchX = event.rawX; initialTouchY = event.rawY
+                        initialX = bubbleParams.x
+                        initialY = bubbleParams.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
                         isMoving = false
                         return true
                     }

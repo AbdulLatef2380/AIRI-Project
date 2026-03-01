@@ -9,7 +9,7 @@ android {
     namespace 'com.airi.assistant'
     compileSdk 33
 
-    // التعديل: استخدام نسخة LTS مستقرة لتجنب أخطاء التحميل في الـ CI
+    // استخدام نسخة LTS مستقرة لتجنب أخطاء التحميل في الـ CI
     ndkVersion "25.2.9519653" 
 
     defaultConfig {
@@ -60,7 +60,9 @@ android {
         viewBinding true
     }
 
+    // إعدادات kapt لمعالجة أخطاء Room وتوليد الـ Schemas
     kapt {
+        correctErrorTypes = true
         arguments {
             arg("room.schemaLocation", "$projectDir/schemas")
         }
@@ -82,8 +84,8 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.1'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.1'
     
-    // Room Database
-    def room_version = "2.5.2"
+    // 🔥 Room Database (Updated to 2.6.1)
+    def room_version = "2.6.1"
     implementation "androidx.room:room-runtime:$room_version"
     implementation "androidx.room:room-ktx:$room_version"
     kapt "androidx.room:room-compiler:$room_version"

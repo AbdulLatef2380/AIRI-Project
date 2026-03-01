@@ -14,6 +14,7 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        // ✅ ربط الخدمة بالحامل لتمكين الاستخراج اليدوي لاحقاً
         ScreenContextHolder.serviceInstance = this
     }
 
@@ -31,7 +32,7 @@ class AIRIAccessibilityService : AccessibilityService() {
         // إزالة أي طلب معالجة معلق (Debounce)
         debounceRunnable?.let { handler.removeCallbacks(it) }
 
-        // إنشاء طلب معالجة جديد يبدأ بعد 500 ملي ثانية من الثبات
+        // إنشاء طلب معالجة جديد يبدأ بعد 500 ملي ثانية من الثبات (لمنع الضغط على الـ CPU)
         debounceRunnable = Runnable {
             processContextChange()
         }
@@ -43,29 +44,30 @@ class AIRIAccessibilityService : AccessibilityService() {
      * ✅ معالجة التغيير في السياق باستخدام الذكاء الجوهري (Refined Hash)
      */
     private fun processContextChange() {
-        // 1. استخراج السياق الحالي
         val context = extractScreenContext()
         
-        // 2. حساب الهاش الذكي (يركز على العناوين والكلمات المفتاحية فقط)
+        // حساب الهاش الذكي المفلتر (من كلاس ContextIntelligence)
         val refinedHash = ContextIntelligence.computeRefinedHash(context)
 
-        // 3. الحارس: إذا لم يتغير "جوهر" الشاشة، توقف هنا
+        // 🛡️ الحارس: إذا لم يتغير "جوهر" الشاشة عن آخر مرة، لا تفعل شيئاً
         if (refinedHash == ScreenContextHolder.lastContextHash) return
 
-        // 4. تحديث الهاش الأخير
+        // تحديث الهاش في الحامل
         ScreenContextHolder.lastContextHash = refinedHash
 
-      val suggestions = SuggestionEngine.generateSuggestions(context)
+        // طلب الاقتراحات من المحرك (الذي أصبح يعيد قائمة مرتبة سلوكياً)
+        val suggestions = SuggestionEngine.generateSuggestions(context)
 
-if (suggestions.isNotEmpty()) {
-    OverlayBridge.showSuggestion(suggestions.first(), context)
-}  
+        if (suggestions.isNotEmpty()) {
+            // عرض الاقتراح الأعلى أولوية بناءً على خوارزمية السلوك
+            OverlayBridge.showSuggestion(suggestions.first(), context)
+        }  
     }
 
     override fun onInterrupt() {}
 
     /**
-     * استخراج نص الشاشة بالكامل مع مراعاة حدود الـ Tokens
+     * استخراج نص الشاشة بالكامل مع مراعاة حدود الـ Tokens وتصنيف التطبيق
      */
     fun extractScreenContext(): String {
         val root = rootInActiveWindow ?: return "No Context"
@@ -86,6 +88,7 @@ if (suggestions.isNotEmpty()) {
             [Screen Content: $truncatedText]
         """.trimIndent()
 
+        // حفظ النص في الحامل للرجوع إليه عند الحاجة
         ScreenContextHolder.lastScreenText = finalContext
         return finalContext
     }
@@ -105,12 +108,13 @@ if (suggestions.isNotEmpty()) {
             val child = node.getChild(i)
             if (child != null) {
                 traverseNode(child, builder)
-                child.recycle() // تنظيف الذاكرة فوراً لمنع البطء
+                child.recycle() // تنظيف العقدة فوراً لتحسين الأداء ومنع تسريب الذاكرة
             }
         }
     }
 
     override fun onDestroy() {
+        // ✅ تصفير المرجع لمنع Memory Leak
         ScreenContextHolder.serviceInstance = null
         handler.removeCallbacksAndMessages(null)
         super.onDestroy()

@@ -17,44 +17,52 @@ class AIRIAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // لا نستخدم event-based extraction حالياً
-        // نستخدم On-Demand extraction فقط
+        // نعتمد على الاستخراج عند الطلب (On-Demand)
     }
 
     override fun onInterrupt() {}
 
-    fun extractScreenText(): String {
-        val root = rootInActiveWindow ?: return ""
+    // الدالة الجديدة والمطورة
+    fun extractScreenContext(): String {
+        val root = rootInActiveWindow ?: return "No active window context found."
 
         val builder = StringBuilder()
         traverseNode(root, builder)
 
-        val cleanText = builder.toString()
+        val screenText = builder.toString()
             .replace(Regex("\\s+"), " ")
             .trim()
 
-        ScreenContextHolder.lastScreenText = cleanText
-        return cleanText
+        val packageName = root.packageName?.toString() ?: "Unknown"
+        val className = root.className?.toString() ?: "Unknown"
+        
+        // استخدام المصنف الذكي (Classifier)
+        val category = ContextClassifier.getAppCategory(packageName)
+
+        val finalContext = """
+            [App Category: $category]
+            [App Package: $packageName]
+            [App Screen: $className]
+            [Screen Content: $screenText]
+        """.trimIndent()
+
+        ScreenContextHolder.lastScreenText = finalContext
+        return finalContext
     }
 
-    private fun traverseNode(node: AccessibilityNodeInfo, builder: StringBuilder) {
+    private fun traverseNode(node: AccessibilityNodeInfo?, builder: StringBuilder) {
+        if (node == null) return
 
         node.text?.let {
-            if (it.isNotBlank()) {
-                builder.append(it).append("\n")
-            }
+            if (it.isNotBlank()) builder.append(it).append("\n")
         }
 
         node.contentDescription?.let {
-            if (it.isNotBlank()) {
-                builder.append(it).append("\n")
-            }
+            if (it.isNotBlank()) builder.append(it).append("\n")
         }
 
         for (i in 0 until node.childCount) {
-            node.getChild(i)?.let {
-                traverseNode(it, builder)
-            }
+            traverseNode(node.getChild(i), builder)
         }
     }
 }

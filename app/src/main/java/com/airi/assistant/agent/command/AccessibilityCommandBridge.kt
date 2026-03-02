@@ -2,11 +2,12 @@ package com.airi.assistant.agent.command
 
 import android.accessibilityservice.AccessibilityService
 import com.airi.assistant.accessibility.ScreenContextHolder
-import com.airi.assistant.agent.context.ContextProvider // 🔥 استيراد موفر السياق
+import com.airi.assistant.agent.context.ContextProvider
 import com.airi.assistant.agent.node.NodeActionExecutor
 import com.airi.assistant.agent.node.NodeScanner
 import com.airi.assistant.agent.node.SemanticRanker
 import com.airi.assistant.agent.reinforcement.ReinforcementMemory
+import com.airi.assistant.agent.validation.TemporalValidator // 🔥 استيراد المدقق الزمني
 
 object AccessibilityCommandBridge {
 
@@ -35,9 +36,10 @@ object AccessibilityCommandBridge {
     }
 
     /**
-     * 🔥 التنفيذ الاحترافي: إدخال نص ذكي مع وعي كامل بالسياق والتعلم التكيفي
+     * 🔥 التنفيذ الفائق: إدخال نص + تحقق من تغير الحالة (Outcome Verification)
+     * ملاحظة: تم تحويل الدالة إلى suspend لدعم الانتظار الزمني للتحقق.
      */
-    fun typeText(text: String): CommandResult {
+    suspend fun typeText(text: String): CommandResult {
 
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
@@ -45,46 +47,50 @@ object AccessibilityCommandBridge {
         val root = service.rootInActiveWindow
             ?: return CommandResult(false, "No active window")
 
-        // 1️⃣ استخراج سياق التطبيق والشاشة الحالية (مثال: com.whatsapp_ChatActivity)
         val context = ContextProvider.getAppContext(service)
-
-        // 2️⃣ مسح الشاشة لجمع العقد
         val nodes = NodeScanner.collectAllNodes(root)
 
-        // 3️⃣ اختيار أفضل حقل إدخال بناءً على السياق الحالي
+        // 1️⃣ اختيار حقل الإدخال
         val editable = SemanticRanker.rankEditableNodes(nodes, context)
-            ?: return CommandResult(false, "No suitable editable field found in context: $context")
+            ?: return CommandResult(false, "No suitable field found")
 
         val editableKey = "editable_${editable.hintText ?: editable.viewIdResourceName}"
 
-        // 4️⃣ محاولة إدخال النص وتسجيل النتيجة في ذاكرة السياق
-        val typed = NodeActionExecutor.typeText(editable, text)
+        // 2️⃣ تنفيذ الكتابة والتحقق من تغير الواجهة (هل ظهر النص فعلاً؟)
+        NodeActionExecutor.typeText(editable, text)
         
-        if (typed) {
+        val typingConfirmed = TemporalValidator.validateAction(service)
+        if (typingConfirmed) {
             ReinforcementMemory.recordSuccess(context, editableKey)
         } else {
             ReinforcementMemory.recordFailure(context, editableKey)
-            return CommandResult(false, "Failed to type in $context")
+            // إذا لم يتغير شيء بعد الكتابة، قد يكون الحقل محمياً أو معطلاً
+            return CommandResult(false, "UI state didn't change after typing")
         }
 
-        // 5️⃣ البحث الدلالي عن زر الإجراء بناءً على السياق الحالي
+        // 3️⃣ البحث عن زر الإجراء (إرسال/بحث)
         val button = SemanticRanker.rankActionButton(
             nodes,
             listOf("send", "search", "ok", "submit", "إرسال", "بحث", "تم"),
             context
         )
 
-        // 6️⃣ محاولة الضغط على الزر وتسجيل الخبرة المكتسبة لهذا التطبيق تحديداً
+        // 4️⃣ الضغط على الزر والتحقق من النتيجة النهائية (هل تم إرسال الرسالة/تغيرت الصفحة؟)
         button?.let {
             val buttonKey = "button_${it.text ?: it.contentDescription ?: it.viewIdResourceName}"
-            val clicked = NodeActionExecutor.click(it)
             
-            if (clicked) {
-                // ✅ تعلم أن هذا الزر ناجح في هذا السياق
+            NodeActionExecutor.click(it)
+
+            // الانتظار والتحقق من حدوث تغيير هيكلي في الشاشة
+            val actionConfirmed = TemporalValidator.validateAction(service)
+            
+            if (actionConfirmed) {
+                // ✅ تغيير حقيقي تم رصده (الرسالة أرسلت أو الصفحة تغيرت)
                 ReinforcementMemory.recordSuccess(context, buttonKey)
             } else {
-                // ❌ تعلم أن هذا الزر فشل في هذا السياق (تجنبه مستقبلاً)
+                // ❌ ضغطنا الزر ولكن لم يحدث شيء (ربما الزر وهمي أو يتطلب ضغطة مطولة)
                 ReinforcementMemory.recordFailure(context, buttonKey)
+                return CommandResult(false, "Action executed but UI state remains identical")
             }
         }
 

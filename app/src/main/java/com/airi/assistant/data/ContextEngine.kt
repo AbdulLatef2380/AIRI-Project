@@ -1,5 +1,4 @@
-package com.airi.assistant.accessibility
-
+package com.airi.assistant.data
 import android.content.Context
 import com.airi.assistant.data.AppDatabase
 import com.airi.assistant.data.ContextCacheEntity

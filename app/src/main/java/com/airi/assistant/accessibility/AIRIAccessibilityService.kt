@@ -12,14 +12,18 @@ import com.airi.assistant.data.ContextEngine
 import com.airi.assistant.overlay.OverlayBridge
 import com.airi.assistant.adaptive.AdaptiveDecisionEngine
 import com.airi.assistant.adaptive.InteractionTracker
+import com.airi.assistant.agent.chain.TaskChainer // 🔥 استيراد المحرك التسلسلي
+import com.airi.assistant.agent.chain.AgentGoal   // 🔥 استيراد هيكل الأهداف
 
 class AIRIAccessibilityService : AccessibilityService() {
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // 🔥 استخدام Dispatchers.Main لأن الأوامر تتعامل مع الـ Accessibility Nodes مباشرة
+    // استخدام SupervisorJob لضمان استمرارية الخدمة حتى لو فشلت مهمة واحدة
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        // ربط الخدمة بـ Holder لتمكينه من سحب السياق يدوياً
+        // ربط الخدمة بـ Holder لتمكينه من سحب السياق يدوياً من أي مكان في التطبيق
         ScreenContextHolder.serviceInstance = this 
         Log.d("AIRI_ACC", "Service Connected & Linked to Holder")
     }
@@ -27,6 +31,7 @@ class AIRIAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
+        // مراقبة تغير النوافذ والمحتوى لتحليل "النية" (Intent)
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
 
@@ -37,10 +42,11 @@ class AIRIAccessibilityService : AccessibilityService() {
 
             val sourceApp = event.packageName?.toString() ?: "unknown"
             
-            // تحديث الذاكرة المؤقتة السريعة
+            // تحديث الذاكرة المؤقتة للسياق
             ScreenContextHolder.lastScreenText = screenText
 
-            serviceScope.launch {
+            // تشغيل المعالجة في الخلفية
+            serviceScope.launch(Dispatchers.Default) {
                 val detectedIntent = IntentDetector.detectIntent(screenText)
 
                 ContextEngine.saveContext(
@@ -49,17 +55,33 @@ class AIRIAccessibilityService : AccessibilityService() {
                     detectedIntent = detectedIntent
                 )
 
+                // قرار العرض: هل نظهر اقتراح للمستخدم؟
                 if (AdaptiveDecisionEngine.shouldDisplay(sourceApp, detectedIntent)) {
                     val suggestions = SuggestionEngine.generateSuggestions(screenText)
 
                     if (suggestions.isNotEmpty()) {
                         InteractionTracker.recordShown(sourceApp, detectedIntent)
+                        
                         withContext(Dispatchers.Main) {
+                            // عرض الاقتراح على الواجهة (Overlay)
                             OverlayBridge.showSuggestion(suggestions.first(), screenText)
                         }
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * 🔥 دالة المحرك الذاتي (The Autonomous Trigger)
+     * تُستدعى لتنفيذ سلسلة من المهام المعقدة بشكل غير متزامن وبدون تجميد النظام
+     */
+    fun executeAutonomousGoal(goal: AgentGoal) {
+        serviceScope.launch {
+            Log.d("AIRI_AGENT", "🚀 Starting Autonomous Task: ${goal.goalId}")
+            
+            // استدعاء الـ Chainer الذي بنيناه لإدارة المهام والتحقق من النتائج زمنياً
+            TaskChainer.executeGoal(goal)
         }
     }
 
@@ -96,6 +118,7 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // إلغاء كافة العمليات المعلقة لمنع تسريب الذاكرة (Memory Leaks)
         serviceScope.cancel()
     }
 }

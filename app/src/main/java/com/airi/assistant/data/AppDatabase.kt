@@ -8,14 +8,16 @@ import androidx.room.RoomDatabase
 @Database(
     entities = [
         UsageStatEntity::class, 
-        ContextCacheEntity::class // ✅ إضافة كيان ذاكرة السياق
+        ContextCacheEntity::class,
+        BehaviorStatsEntity::class // 🔥 المكون الجديد: ذاكرة السلوك والتعلم
     ],
-    version = 2 // 🔥 تم رفع الإصدار من 1 إلى 2 بسبب تغيير الهيكلية
+    version = 3 // 🚀 تم الرفع من 2 إلى 3 لاستيعاب الجدول الجديد
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun usageStatsDao(): UsageStatsDao
-    abstract fun contextCacheDao(): ContextCacheDao // ✅ إضافة الـ DAO الخاص بالسياق
+    abstract fun contextCacheDao(): ContextCacheDao
+    abstract fun behaviorStatsDao(): BehaviorStatsDao // 🧠 محرك التعلم المعزز
 
     companion object {
         @Volatile
@@ -28,8 +30,9 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "airi_database"
                 )
-                /* * تفعيل الهجرة التدميرية: ستقوم بحذف البيانات القديمة وإنشاء الجداول الجديدة
-                 * لتجنب توقف التطبيق (Crash) بسبب اختلاف النسخ.
+                /* * تفعيل الهجرة التدميرية: 
+                 * بما أننا في مرحلة التطوير، سيقوم Room بحذف قاعدة البيانات 
+                 * وإعادة إنشائها لتجنب الـ Crash بسبب تغيير الـ Schema.
                  */
                 .fallbackToDestructiveMigration() 
                 .build()

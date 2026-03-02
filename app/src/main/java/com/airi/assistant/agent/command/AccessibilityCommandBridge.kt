@@ -3,13 +3,13 @@ package com.airi.assistant.agent.command
 import android.accessibilityservice.AccessibilityService
 import com.airi.assistant.accessibility.ScreenContextHolder
 import com.airi.assistant.agent.node.NodeActionExecutor
-import com.airi.assistant.agent.node.NodeMatcher
 import com.airi.assistant.agent.node.NodeScanner
+import com.airi.assistant.agent.node.SemanticRanker // 🔥 استيراد المحرك الدلالي الجديد
 
 object AccessibilityCommandBridge {
 
     /**
-     * تنفيذ العودة لشاشة الهوم
+     * تنفيذ العودة لشاشة الهوم (Home)
      */
     fun launchApp(): CommandResult {
         val service = ScreenContextHolder.serviceInstance
@@ -24,7 +24,7 @@ object AccessibilityCommandBridge {
     }
 
     /**
-     * تنفيذ زر الرجوع للنظام
+     * تنفيذ حركة "الرجوع" (Back)
      */
     fun performBack(): CommandResult {
         val service = ScreenContextHolder.serviceInstance
@@ -39,38 +39,36 @@ object AccessibilityCommandBridge {
     }
 
     /**
-     * 🔥 المنطق الذكي لإدخال النصوص والتفاعل التلقائي
+     * 🔥 المنطق المتقدم: إدخال نص ذكي مع اختيار أفضل العناصر دلالياً
      */
     fun typeText(text: String): CommandResult {
 
-        // 1. التحقق من اتصال الخدمة
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
-        // 2. الحصول على شجرة الواجهة الحالية
         val root = service.rootInActiveWindow
             ?: return CommandResult(false, "No active window")
 
-        // 3. مسح الشاشة بالكامل وجمع العقد (Nodes)
+        // 1. مسح الشاشة وجمع كل العقد المتاحة
         val nodes = NodeScanner.collectAllNodes(root)
 
-        // 4. البحث عن أول حقل قابل للكتابة (EditText)
-        val editable = NodeMatcher.findEditableNode(nodes)
-            ?: return CommandResult(false, "No editable field found")
+        // 2. استخدام الـ SemanticRanker لاختيار أفضل حقل إدخال (بدل أول حقل فقط)
+        val editable = SemanticRanker.rankEditableNodes(nodes)
+            ?: return CommandResult(false, "No suitable editable field found")
 
-        // 5. محاولة إدخال النص داخل الحقل المكتشف
+        // 3. تنفيذ كتابة النص
         val typed = NodeActionExecutor.typeText(editable, text)
-
         if (!typed)
-            return CommandResult(false, "Failed to type text")
+            return CommandResult(false, "Failed to type")
 
-        // 6. ذكاء إضافي: البحث التلقائي عن زر إرسال أو بحث بعد الكتابة
-        val sendButton = NodeMatcher.findButtonByText(nodes, "send")
-            ?: NodeMatcher.findButtonByText(nodes, "search")
-            ?: NodeMatcher.findButtonByText(nodes, "إرسال") // دعم العربية
+        // 4. البحث الدلالي عن أفضل زر "إجراء" (Action Button) بناءً على ترتيب النقاط (Scores)
+        val button = SemanticRanker.rankActionButton(
+            nodes,
+            listOf("send", "search", "ok", "submit", "إرسال", "بحث", "تم") // دعم الكلمات الأساسية
+        )
 
-        // 7. إذا وجدنا زر مناسب، نقوم بالضغط عليه تلقائياً لإتمام المهمة
-        sendButton?.let {
+        // 5. إذا وجد الرانكر زرًا ملائمًا (بدرجة ثقة مقبولة)، يتم الضغط عليه
+        button?.let {
             NodeActionExecutor.click(it)
         }
 

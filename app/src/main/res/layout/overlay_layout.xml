@@ -11,4 +11,13 @@
         android:padding="8dp"
         android:src="@android:drawable/ic_menu_help"
         android:elevation="8dp" />
+
+    <ImageButton
+        android:id="@+id/btn_close_chat"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="top|end"
+        android:background="@android:drawable/presence_offline"
+        android:src="@android:drawable/ic_menu_close_clear_cancel"
+        android:visibility="gone" /> 
 </FrameLayout>

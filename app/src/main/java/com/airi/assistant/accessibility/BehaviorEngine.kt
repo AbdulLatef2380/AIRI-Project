@@ -2,6 +2,7 @@ package com.airi.assistant.accessibility
 
 import android.content.Context
 import com.airi.assistant.data.AppDatabase
+import com.airi.assistant.data.UsageStatEntity // تأكد من استيراد الـ Entity
 import kotlinx.coroutines.*
 import kotlin.coroutines.CoroutineContext
 
@@ -21,12 +22,13 @@ object BehaviorEngine : CoroutineScope {
 
         launch {
             val dao = db.usageStatsDao()
-            val existing = dao.getAll().find { it.suggestionText == suggestion }
+            // ✅ تم التغيير من suggestionText إلى featureName
+            val existing = dao.getAll().find { it.featureName == suggestion }
 
             if (existing == null) {
                 dao.insert(
-                    com.airi.assistant.data.UsageStatEntity(
-                        suggestionText = suggestion,
+                    UsageStatEntity(
+                        featureName = suggestion, // ✅ تم التعديل هنا أيضاً
                         usageCount = 1,
                         lastUsedTimestamp = System.currentTimeMillis()
                     )
@@ -48,7 +50,8 @@ object BehaviorEngine : CoroutineScope {
         runBlocking {
             val stats = db.usageStatsDao().getAll()
             ranked = suggestions.sortedByDescending { suggestion ->
-                stats.find { it.suggestionText == suggestion }?.usageCount ?: 0
+                // ✅ تم التغيير من suggestionText إلى featureName
+                stats.find { it.featureName == suggestion }?.usageCount ?: 0
             }
         }
 

@@ -70,36 +70,40 @@ android {
 }
 
 dependencies {
+    // 🏗️ Core & Project Links
+    implementation project(":core")
+    
+    // 🧱 AndroidX Essentials
     implementation 'androidx.core:core-ktx:1.10.1'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation project(':core')
     
-    // Activity & Fragment KTX
+    // ⚡ Activity & Fragment KTX (للسياق والتعامل السلس مع الدورات الحياتية)
     implementation 'androidx.activity:activity-ktx:1.7.2'
     implementation 'androidx.fragment:fragment-ktx:1.6.0'
     
-    // Lifecycle & ViewModel
+    // 🔄 Lifecycle & ViewModel
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.1'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.1'
     
-    // 🛠️ Room Database (Downgraded to 2.5.2 for SDK 33 Compatibility)
+    // 🗄️ Room Database (مستقر لـ SDK 33)
     def room_version = "2.5.2"
     implementation "androidx.room:room-runtime:$room_version"
     implementation "androidx.room:room-ktx:$room_version"
     kapt "androidx.room:room-compiler:$room_version"
     
-    // SoLoader for Native Libraries
+    // ⚙️ SoLoader for Native Libraries (ضروري لـ llama.cpp)
     implementation 'com.facebook.soloader:soloader:0.10.5'
     
-    // Coroutines
+    // 🧵 Coroutines (العمود الفقري للـ Agent غير المتزامن)
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 
-    // Networking for n8n Integration
+    // 🌐 Networking & Integration (للاتصال بـ n8n أو APIs خارجية)
     implementation 'com.squareup.okhttp3:okhttp:4.11.0'
     implementation 'com.google.code.gson:gson:2.10.1'
 
+    // 🧪 Testing
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'

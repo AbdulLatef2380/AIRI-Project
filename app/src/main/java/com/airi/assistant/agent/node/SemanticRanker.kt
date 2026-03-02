@@ -1,20 +1,21 @@
 package com.airi.assistant.agent.node
 
 import android.view.accessibility.AccessibilityNodeInfo
-import com.airi.assistant.agent.reinforcement.AdaptivePolicy // 🔥 استيراد سياسة التكيف
+import com.airi.assistant.agent.reinforcement.AdaptivePolicy
 
 object SemanticRanker {
 
     /**
-     * اختيار أفضل حقل إدخال بناءً على النقاط + التاريخ التكيفي
+     * اختيار أفضل حقل إدخال مع مراعاة السياق الحالي (التطبيق + الشاشة)
      */
     fun rankEditableNodes(
-        nodes: List<AccessibilityNodeInfo>
+        nodes: List<AccessibilityNodeInfo>,
+        context: String // 🔥 تمرير السياق
     ): AccessibilityNodeInfo? {
         return nodes
             .filter { it.className?.contains("EditText") == true && it.isEditable }
             .map { node ->
-                node to calculateEditableScore(node)
+                node to calculateEditableScore(node, context)
             }
             .sortedByDescending { it.second }
             .firstOrNull()
@@ -22,15 +23,16 @@ object SemanticRanker {
     }
 
     /**
-     * اختيار أفضل زر إجراء بناءً على النقاط + التاريخ التكيفي
+     * اختيار أفضل زر إجراء مع مراعاة السياق الحالي (التطبيق + الشاشة)
      */
     fun rankActionButton(
         nodes: List<AccessibilityNodeInfo>,
-        keywords: List<String>
+        keywords: List<String>,
+        context: String // 🔥 تمرير السياق
     ): AccessibilityNodeInfo? {
         return nodes
             .map { node ->
-                node to calculateButtonScore(node, keywords)
+                node to calculateButtonScore(node, keywords, context)
             }
             .sortedByDescending { it.second }
             .firstOrNull { it.second > 0 }
@@ -38,10 +40,11 @@ object SemanticRanker {
     }
 
     /**
-     * حساب نقاط حقول الإدخال مع دمج الـ Reinforcement
+     * حساب نقاط حقول الإدخال بناءً على السمات الفيزيائية + الذاكرة السياقية
      */
     private fun calculateEditableScore(
-        node: AccessibilityNodeInfo
+        node: AccessibilityNodeInfo,
+        context: String
     ): Int {
         var score = 0
 
@@ -53,37 +56,39 @@ object SemanticRanker {
         if (hint.contains("message")) score += 5
         if (hint.contains("search")) score += 4
 
-        // 🔥 تطبيق التعديل التكيفي بناءً على نجاح/فشل هذا الحقل سابقاً
         val key = "editable_${hint}_${node.viewIdResourceName}"
-        return AdaptivePolicy.adjustScore(score, key)
+        
+        // تعديل النتيجة بناءً على سياق التطبيق الحالي
+        return AdaptivePolicy.adjustScore(score, context, key)
     }
 
     /**
-     * حساب نقاط الأزرار مع دمج الـ Reinforcement
+     * حساب نقاط الأزرار بناءً على الكلمات المفتاحية + الذاكرة السياقية
      */
     private fun calculateButtonScore(
         node: AccessibilityNodeInfo,
-        keywords: List<String>
+        keywords: List<String>,
+        context: String
     ): Int {
         var score = 0
 
         val text = node.text?.toString()?.lowercase() ?: ""
         val desc = node.contentDescription?.toString()?.lowercase() ?: ""
 
-        // 1. البحث عن الكلمات المفتاحية
+        // 1. فحص الكلمات المفتاحية دلالياً
         for (k in keywords) {
             if (text.contains(k.lowercase())) score += 10
             if (desc.contains(k.lowercase())) score += 8
         }
 
-        // 2. تقييم الحالة الفيزيائية للعقدة
+        // 2. فحص الخصائص التفاعلية
         if (node.isClickable) score += 3
         if (node.isVisibleToUser) score += 2
 
-        // 3. 🔥 تطبيق الذكاء التكيفي (Reinforcement Adjustment)
-        // المفتاح يدمج النص والوصف لتمييز الزر بدقة
+        // 3. مفتاح العقدة الفريد للتعلم
         val key = "button_${text}_${desc}"
 
-        return AdaptivePolicy.adjustScore(score, key)
+        // 4. 🔥 القفزة النوعية: تعديل النقاط بناءً على خبرة AIRI في هذا "السياق" تحديداً
+        return AdaptivePolicy.adjustScore(score, context, key)
     }
 }

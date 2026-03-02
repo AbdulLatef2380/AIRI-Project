@@ -14,8 +14,6 @@ import com.airi.assistant.data.ContextEngine
 import com.airi.assistant.overlay.OverlayBridge
 import com.airi.assistant.adaptive.AdaptiveDecisionEngine
 import com.airi.assistant.adaptive.InteractionTracker
-import com.airi.assistant.agent.chain.TaskChainer // 🔥 استيراد المحرك التسلسلي
-import com.airi.assistant.agent.chain.AgentGoal   // 🔥 استيراد هيكل الأهداف
 
 class AIRIAccessibilityService : AccessibilityService() {
 

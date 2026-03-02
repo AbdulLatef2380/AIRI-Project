@@ -7,18 +7,20 @@ import android.util.Log
 import android.content.Intent
 import kotlinx.coroutines.*
 
+import com.airi.assistant.ai.IntentDetector
+import com.airi.assistant.data.ContextEngine
+import com.airi.assistant.overlay.OverlayBridge
+
 class AIRIAccessibilityService : AccessibilityService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // ✅ دالة التوصيل: ربط الخدمة بالحامل (Holder) فور تشغيلها
     override fun onServiceConnected() {
         super.onServiceConnected()
         ScreenContextHolder.serviceInstance = this
         Log.d("AIRI_ACC", "Service Connected & Linked to Holder")
     }
 
-    // ✅ دالة الفصل: مسح المرجع لمنع تسريب الذاكرة (Memory Leak)
     override fun onUnbind(intent: Intent?): Boolean {
         ScreenContextHolder.reset()
         return super.onUnbind(intent)
@@ -27,7 +29,6 @@ class AIRIAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        // التركيز على أحداث تغيير الشاشة والمحتوى
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
 
@@ -38,17 +39,20 @@ class AIRIAccessibilityService : AccessibilityService() {
 
             val sourceApp = event.packageName?.toString() ?: "unknown"
 
-            // حفظ النص في الـ Holder للوصول السريع
+            // حفظ النص السريع
             ScreenContextHolder.lastScreenText = screenText
 
-            // 🔥 1️⃣ حفظ السياق في الذاكرة الدائمة (ContextEngine)
+            // 🔥 1️⃣ تحليل النية الحقيقية
+            val detectedIntent = IntentDetector.detectIntent(screenText)
+
+            // 🔥 2️⃣ حفظ السياق مع النية
             ContextEngine.saveContext(
                 screenText = screenText,
                 sourceApp = sourceApp,
-                detectedIntent = "AUTO_DETECT"
+                detectedIntent = detectedIntent
             )
 
-            // 🔥 2️⃣ توليد اقتراحات ذكية
+            // 🔥 3️⃣ توليد اقتراحات بناءً على النص
             val suggestions = SuggestionEngine.generateSuggestions(screenText)
 
             if (suggestions.isNotEmpty()) {
@@ -57,11 +61,13 @@ class AIRIAccessibilityService : AccessibilityService() {
                     screenText
                 )
             }
+
+            Log.d("AIRI_CONTEXT", "Intent: $detectedIntent | App: $sourceApp")
         }
     }
 
     /**
-     * ✅ الدالة التي يحتاجها ScreenContextHolder لاستخراج النص "عند الطلب"
+     * يستخدمه ScreenContextHolder عند الطلب
      */
     fun extractScreenContext(): String {
         val root = rootInActiveWindow ?: return ScreenContextHolder.lastScreenText
@@ -89,7 +95,7 @@ class AIRIAccessibilityService : AccessibilityService() {
         return builder.toString()
             .replace(Regex("\\s+"), " ")
             .trim()
-            .take(2000) // منع التضخم
+            .take(2000)
     }
 
     override fun onInterrupt() {}

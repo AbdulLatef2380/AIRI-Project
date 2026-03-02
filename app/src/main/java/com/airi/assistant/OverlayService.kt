@@ -19,7 +19,7 @@ import com.airi.assistant.accessibility.ContextActionEngine
 import com.airi.assistant.accessibility.SuggestionEngine
 import com.airi.assistant.accessibility.OverlayBridge
 import com.airi.assistant.accessibility.BehaviorEngine 
-import com.airi.assistant.accessibility.ContextEngine // ✅ استيراد محرك الذاكرة الزمنية
+import com.airi.assistant.data.ContextEngine
 import kotlinx.coroutines.*
 import java.util.*
 

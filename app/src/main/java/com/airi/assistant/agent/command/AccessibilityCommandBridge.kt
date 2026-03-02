@@ -4,7 +4,8 @@ import android.accessibilityservice.AccessibilityService
 import com.airi.assistant.accessibility.ScreenContextHolder
 import com.airi.assistant.agent.node.NodeActionExecutor
 import com.airi.assistant.agent.node.NodeScanner
-import com.airi.assistant.agent.node.SemanticRanker // 🔥 استيراد المحرك الدلالي الجديد
+import com.airi.assistant.agent.node.SemanticRanker
+import com.airi.assistant.agent.reinforcement.ReinforcementMemory // 🔥 استيراد الذاكرة التعزيزية
 
 object AccessibilityCommandBridge {
 
@@ -39,7 +40,7 @@ object AccessibilityCommandBridge {
     }
 
     /**
-     * 🔥 المنطق المتقدم: إدخال نص ذكي مع اختيار أفضل العناصر دلالياً
+     * 🔥 المنطق المتقدم: إدخال نص مع تسجيل النتائج في الذاكرة لتعلم الأنماط
      */
     fun typeText(text: String): CommandResult {
 
@@ -49,27 +50,45 @@ object AccessibilityCommandBridge {
         val root = service.rootInActiveWindow
             ?: return CommandResult(false, "No active window")
 
-        // 1. مسح الشاشة وجمع كل العقد المتاحة
+        // 1. مسح الشاشة بالكامل
         val nodes = NodeScanner.collectAllNodes(root)
 
-        // 2. استخدام الـ SemanticRanker لاختيار أفضل حقل إدخال (بدل أول حقل فقط)
+        // 2. اختيار أفضل حقل إدخال (Ranking)
         val editable = SemanticRanker.rankEditableNodes(nodes)
             ?: return CommandResult(false, "No suitable editable field found")
 
-        // 3. تنفيذ كتابة النص
-        val typed = NodeActionExecutor.typeText(editable, text)
-        if (!typed)
-            return CommandResult(false, "Failed to type")
+        val editableKey = "editable_${editable.hintText ?: editable.viewIdResourceName}"
 
-        // 4. البحث الدلالي عن أفضل زر "إجراء" (Action Button) بناءً على ترتيب النقاط (Scores)
+        // 3. محاولة إدخال النص
+        val typed = NodeActionExecutor.typeText(editable, text)
+        
+        if (typed) {
+            // ✅ سجل نجاح الكتابة في هذا الحقل
+            ReinforcementMemory.recordSuccess(editableKey)
+        } else {
+            // ❌ سجل فشل الكتابة
+            ReinforcementMemory.recordFailure(editableKey)
+            return CommandResult(false, "Failed to type")
+        }
+
+        // 4. البحث الدلالي عن زر الإجراء (Action Button)
         val button = SemanticRanker.rankActionButton(
             nodes,
-            listOf("send", "search", "ok", "submit", "إرسال", "بحث", "تم") // دعم الكلمات الأساسية
+            listOf("send", "search", "ok", "submit", "إرسال", "بحث", "تم")
         )
 
-        // 5. إذا وجد الرانكر زرًا ملائمًا (بدرجة ثقة مقبولة)، يتم الضغط عليه
+        // 5. محاولة الضغط على الزر وتسجيل النتيجة
         button?.let {
-            NodeActionExecutor.click(it)
+            val buttonKey = "button_${it.text ?: it.contentDescription}"
+            val clicked = NodeActionExecutor.click(it)
+            
+            if (clicked) {
+                // ✅ سجل نجاح الضغط على هذا الزر
+                ReinforcementMemory.recordSuccess(buttonKey)
+            } else {
+                // ❌ سجل فشل التفاعل مع هذا الزر
+                ReinforcementMemory.recordFailure(buttonKey)
+            }
         }
 
         return CommandResult(true)

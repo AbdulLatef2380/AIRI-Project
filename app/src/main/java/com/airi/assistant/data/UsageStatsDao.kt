@@ -11,6 +11,6 @@ interface UsageStatsDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(stat: UsageStatEntity)
 
-    @Query("UPDATE usage_stats SET usageCount = usageCount + 1, lastUsedTimestamp = :time WHERE suggestionText = :text")
-    suspend fun incrementUsage(text: String, time: Long)
+    @Query("UPDATE usage_stats SET usageCount = usageCount + 1, lastUsedTimestamp = :time WHERE featureName = :name")
+    suspend fun incrementUsage(name: String, time: Long)
 }

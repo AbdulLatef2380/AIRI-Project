@@ -8,7 +8,6 @@ import android.content.Intent
 import kotlinx.coroutines.*
 import com.airi.core.chain.AgentGoal
 import com.airi.core.chain.TaskChainer
-import com.airi.core.chain.chain
 import com.airi.assistant.ai.IntentDetector
 import com.airi.assistant.data.ContextEngine
 import com.airi.assistant.overlay.OverlayBridge
@@ -17,35 +16,27 @@ import com.airi.assistant.adaptive.InteractionTracker
 
 class AIRIAccessibilityService : AccessibilityService() {
 
-    // 🔥 استخدام Dispatchers.Main لأن الأوامر تتعامل مع الـ Accessibility Nodes مباشرة
-    // استخدام SupervisorJob لضمان استمرارية الخدمة حتى لو فشلت مهمة واحدة
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        // ربط الخدمة بـ Holder لتمكينه من سحب السياق يدوياً من أي مكان في التطبيق
-        ScreenContextHolder.serviceInstance = this 
+        ScreenContextHolder.serviceInstance = this
         Log.d("AIRI_ACC", "Service Connected & Linked to Holder")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        // مراقبة تغير النوافذ والمحتوى لتحليل "النية" (Intent)
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
 
             val root = rootInActiveWindow ?: return
             val screenText = extractText(root)
-
             if (screenText.isBlank()) return
 
             val sourceApp = event.packageName?.toString() ?: "unknown"
-            
-            // تحديث الذاكرة المؤقتة للسياق
             ScreenContextHolder.lastScreenText = screenText
 
-            // تشغيل المعالجة في الخلفية
             serviceScope.launch(Dispatchers.Default) {
                 val detectedIntent = IntentDetector.detectIntent(screenText)
 
@@ -55,16 +46,17 @@ class AIRIAccessibilityService : AccessibilityService() {
                     detectedIntent = detectedIntent
                 )
 
-                // قرار العرض: هل نظهر اقتراح للمستخدم؟
                 if (AdaptiveDecisionEngine.shouldDisplay(sourceApp, detectedIntent)) {
                     val suggestions = SuggestionEngine.generateSuggestions(screenText)
 
                     if (suggestions.isNotEmpty()) {
                         InteractionTracker.recordShown(sourceApp, detectedIntent)
-                        
+
                         withContext(Dispatchers.Main) {
-                            // عرض الاقتراح على الواجهة (Overlay)
-                            OverlayBridge.showSuggestion(suggestions.first(), screenText)
+                            OverlayBridge.showSuggestion(
+                                suggestions.first(),
+                                screenText
+                            )
                         }
                     }
                 }
@@ -73,15 +65,21 @@ class AIRIAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * 🔥 دالة المحرك الذاتي (The Autonomous Trigger)
-     * تُستدعى لتنفيذ سلسلة من المهام المعقدة بشكل غير متزامن وبدون تجميد النظام
+     * 🔥 Autonomous Execution Entry Point
      */
     fun executeAutonomousGoal(goal: AgentGoal) {
         serviceScope.launch {
-            Log.d("AIRI_AGENT", "🚀 Starting Autonomous Task: ${goal.goalId}")
-            
-            // استدعاء الـ Chainer الذي بنيناه لإدارة المهام والتحقق من النتائج زمنياً
-            TaskChainer.executeGoal(goal)
+            Log.d("AIRI_AGENT", "🚀 Starting Autonomous Task: ${goal.id}")
+
+            val chainer = TaskChainer()
+            chainer.addGoal(goal)
+
+            chainer.execute { executingGoal ->
+                Log.d("AIRI_AGENT", "⚙ Executing goal: ${executingGoal.id}")
+
+                // 🔥 هنا مستقبلاً سنربط StateMachine + ExecutionEngine
+                // حالياً مجرد logging لضمان البناء السليم
+            }
         }
     }
 
@@ -106,7 +104,10 @@ class AIRIAccessibilityService : AccessibilityService() {
         }
 
         traverse(node)
-        return builder.toString().replace(Regex("\\s+"), " ").trim().take(2000)
+        return builder.toString()
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .take(2000)
     }
 
     override fun onInterrupt() {}
@@ -118,7 +119,6 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // إلغاء كافة العمليات المعلقة لمنع تسريب الذاكرة (Memory Leaks)
         serviceScope.cancel()
     }
 }

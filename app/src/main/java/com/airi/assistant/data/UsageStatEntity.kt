@@ -7,6 +7,6 @@ import androidx.room.PrimaryKey
 data class UsageStatEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val featureName: String,
-    val useCount: Int,
+    val usageCount: Int, // ✅ تم التعديل من useCount إلى usageCount
     val lastUsedTimestamp: Long
 )

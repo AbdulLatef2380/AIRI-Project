@@ -2,7 +2,7 @@ package com.airi.assistant.agent.command
 
 object CommandRouter {
 
-    fun execute(step: String): CommandResult {
+    suspend fun execute(step: String): CommandResult {
 
         return when (step) {
 

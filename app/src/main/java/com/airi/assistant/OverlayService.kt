@@ -20,6 +20,7 @@ import com.airi.assistant.accessibility.SuggestionEngine
 import com.airi.assistant.accessibility.OverlayBridge
 import com.airi.assistant.accessibility.BehaviorEngine 
 import com.airi.assistant.data.ContextEngine
+import com.airi.assistant.adaptive.InteractionTracker // 🔥 إضافة المتعقب
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -62,6 +63,7 @@ class OverlayService : Service() {
         initSpeechToText()
         setupNotification()
 
+        // استلام الاقتراحات من الـ Bridge
         OverlayBridge.suggestionListener = { suggestionText, context ->
             mainHandler.post {
                 showSuggestionChip(suggestionText, context)
@@ -113,6 +115,8 @@ class OverlayService : Service() {
         
         adapter = ChatAdapter { selectedAction ->
             mainHandler.post {
+                // 🔥 تسجيل قبول الاقتراح (Accepted) لتعزيز التعلم
+                recordInteraction(isAccepted = true)
                 sendToAIRIWithContext(selectedAction)
             }
         }
@@ -160,6 +164,12 @@ class OverlayService : Service() {
             if (ttsManager.isSpeaking) ttsManager.stop()
             speechRecognizer.startListening(recognitionIntent)
         }
+
+        // إغلاق الواجهة (تعتبر عملية تجاهل Dismissed)
+        chatView.findViewById<View>(R.id.btn_close_chat)?.setOnClickListener {
+            recordInteraction(isAccepted = false)
+            toggleChat()
+        }
     }
 
     private fun checkAndShowSuggestions(context: String) {
@@ -173,21 +183,35 @@ class OverlayService : Service() {
         adapter.addMessage(ChatModel("💡 اقتراح ذكي: $suggestionText", isUser = false))
         chatView.findViewById<RecyclerView>(R.id.chat_recycler)
             .smoothScrollToPosition(adapter.itemCount - 1)
+        
+        // ملاحظة: تم تسجيل الـ Shown مسبقاً في الـ AccessibilityService
     }
 
     /**
-     * ✅ المرحلة 7: استخدام ذاكرة السياق الزمني عند السؤال
+     * 🔥 وظيفة تسجيل التفاعل بناءً على السياق الحالي
      */
+    private fun recordInteraction(isAccepted: Boolean) {
+        serviceScope.launch {
+            val recent = ContextEngine.getRecentContext()
+            if (recent != null) {
+                if (isAccepted) {
+                    InteractionTracker.recordAccepted(recent.sourceApp, recent.detectedIntent)
+                    Log.d("AIRI_ADAPTIVE", "Accepted recorded for ${recent.sourceApp}")
+                } else {
+                    InteractionTracker.recordDismissed(recent.sourceApp, recent.detectedIntent)
+                    Log.d("AIRI_ADAPTIVE", "Dismissed recorded for ${recent.sourceApp}")
+                }
+            }
+        }
+    }
+
     private fun sendToAIRIWithContext(text: String) {
-        // إضافة رسالة للمستخدم في الواجهة فوراً
         val userDisplayMessage = if (isWaitingForScreenQuestion) text else "🔍 تحليل السياق: $text"
         adapter.addMessage(ChatModel(userDisplayMessage, isUser = true))
 
         serviceScope.launch {
-            // 1. محاولة استرجاع آخر سياق من الذاكرة (آخر 5 دقائق)
             val recent = ContextEngine.getRecentContext()
 
-            // 2. بناء البرومبت بناءً على توفر الذاكرة
             val finalPrompt = if (recent != null) {
                 """
                 [ذاكرة AIRI النشطة - سياق زمني]
@@ -198,12 +222,10 @@ class OverlayService : Service() {
                 $text
                 """.trimIndent()
             } else {
-                // في حال عدم وجود ذاكرة، نقوم باستخراج اللحظة الحالية كخطة بديلة
                 val currentScreen = ScreenContextHolder.triggerExtraction()
                 ContextActionEngine.resolveActionPrompt(currentScreen, text)
             }
 
-            // 3. توليد الرد عبر Llama
             llamaManager.generate(finalPrompt) { response ->
                 mainHandler.post {
                     processResponse(response)
@@ -312,6 +334,8 @@ class OverlayService : Service() {
     private fun toggleChat() {
         if (isChatVisible) {
             windowManager.removeView(chatView)
+            // إذا أغلق المستخدم الواجهة دون اختيار الاقتراح، نعتبره Dismissed
+            recordInteraction(isAccepted = false)
         } else {
             windowManager.addView(chatView, chatParams)
         }

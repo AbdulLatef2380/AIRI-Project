@@ -2,16 +2,14 @@ package com.airi.assistant.agent.command
 
 import android.accessibilityservice.AccessibilityService
 import com.airi.assistant.accessibility.ScreenContextHolder
+import com.airi.assistant.agent.context.ContextProvider // 🔥 استيراد موفر السياق
 import com.airi.assistant.agent.node.NodeActionExecutor
 import com.airi.assistant.agent.node.NodeScanner
 import com.airi.assistant.agent.node.SemanticRanker
-import com.airi.assistant.agent.reinforcement.ReinforcementMemory // 🔥 استيراد الذاكرة التعزيزية
+import com.airi.assistant.agent.reinforcement.ReinforcementMemory
 
 object AccessibilityCommandBridge {
 
-    /**
-     * تنفيذ العودة لشاشة الهوم (Home)
-     */
     fun launchApp(): CommandResult {
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
@@ -24,9 +22,6 @@ object AccessibilityCommandBridge {
         }
     }
 
-    /**
-     * تنفيذ حركة "الرجوع" (Back)
-     */
     fun performBack(): CommandResult {
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
@@ -40,7 +35,7 @@ object AccessibilityCommandBridge {
     }
 
     /**
-     * 🔥 المنطق المتقدم: إدخال نص مع تسجيل النتائج في الذاكرة لتعلم الأنماط
+     * 🔥 التنفيذ الاحترافي: إدخال نص ذكي مع وعي كامل بالسياق والتعلم التكيفي
      */
     fun typeText(text: String): CommandResult {
 
@@ -50,44 +45,46 @@ object AccessibilityCommandBridge {
         val root = service.rootInActiveWindow
             ?: return CommandResult(false, "No active window")
 
-        // 1. مسح الشاشة بالكامل
+        // 1️⃣ استخراج سياق التطبيق والشاشة الحالية (مثال: com.whatsapp_ChatActivity)
+        val context = ContextProvider.getAppContext(service)
+
+        // 2️⃣ مسح الشاشة لجمع العقد
         val nodes = NodeScanner.collectAllNodes(root)
 
-        // 2. اختيار أفضل حقل إدخال (Ranking)
-        val editable = SemanticRanker.rankEditableNodes(nodes)
-            ?: return CommandResult(false, "No suitable editable field found")
+        // 3️⃣ اختيار أفضل حقل إدخال بناءً على السياق الحالي
+        val editable = SemanticRanker.rankEditableNodes(nodes, context)
+            ?: return CommandResult(false, "No suitable editable field found in context: $context")
 
         val editableKey = "editable_${editable.hintText ?: editable.viewIdResourceName}"
 
-        // 3. محاولة إدخال النص
+        // 4️⃣ محاولة إدخال النص وتسجيل النتيجة في ذاكرة السياق
         val typed = NodeActionExecutor.typeText(editable, text)
         
         if (typed) {
-            // ✅ سجل نجاح الكتابة في هذا الحقل
-            ReinforcementMemory.recordSuccess(editableKey)
+            ReinforcementMemory.recordSuccess(context, editableKey)
         } else {
-            // ❌ سجل فشل الكتابة
-            ReinforcementMemory.recordFailure(editableKey)
-            return CommandResult(false, "Failed to type")
+            ReinforcementMemory.recordFailure(context, editableKey)
+            return CommandResult(false, "Failed to type in $context")
         }
 
-        // 4. البحث الدلالي عن زر الإجراء (Action Button)
+        // 5️⃣ البحث الدلالي عن زر الإجراء بناءً على السياق الحالي
         val button = SemanticRanker.rankActionButton(
             nodes,
-            listOf("send", "search", "ok", "submit", "إرسال", "بحث", "تم")
+            listOf("send", "search", "ok", "submit", "إرسال", "بحث", "تم"),
+            context
         )
 
-        // 5. محاولة الضغط على الزر وتسجيل النتيجة
+        // 6️⃣ محاولة الضغط على الزر وتسجيل الخبرة المكتسبة لهذا التطبيق تحديداً
         button?.let {
-            val buttonKey = "button_${it.text ?: it.contentDescription}"
+            val buttonKey = "button_${it.text ?: it.contentDescription ?: it.viewIdResourceName}"
             val clicked = NodeActionExecutor.click(it)
             
             if (clicked) {
-                // ✅ سجل نجاح الضغط على هذا الزر
-                ReinforcementMemory.recordSuccess(buttonKey)
+                // ✅ تعلم أن هذا الزر ناجح في هذا السياق
+                ReinforcementMemory.recordSuccess(context, buttonKey)
             } else {
-                // ❌ سجل فشل التفاعل مع هذا الزر
-                ReinforcementMemory.recordFailure(buttonKey)
+                // ❌ تعلم أن هذا الزر فشل في هذا السياق (تجنبه مستقبلاً)
+                ReinforcementMemory.recordFailure(context, buttonKey)
             }
         }
 

@@ -2,7 +2,7 @@ package com.airi.assistant
 
 import android.app.Application
 import com.airi.assistant.accessibility.BehaviorEngine
-import com.airi.assistant.accessibility.ContextEngine // ✅ استيراد محرك سياق الذاكرة
+import com.airi.assistant.data.ContextEngine
 
 class AIRIApplication : Application() {
 

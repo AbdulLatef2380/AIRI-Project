@@ -8,28 +8,20 @@ import com.airi.core.chain.PlanStep
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import kotlin.coroutines.resume
-
-// 1️⃣ تعريف الـ DTO (وعاء البيانات الخام للفحص)
-data class PlanDto(
-    val goal_id: String,
-    val description: String,
-    val steps: List<StepDto>
-)
-data class StepDto(val action: String, val text: String = "")
+import com.airi.assistant.brain.PlanDto
+import com.airi.assistant.brain.StepDto
 
 class AiriBrainController(
     private val llamaManager: LlamaManager,
-    private val goalExecutor: GoalExecutor 
+    private val goalExecutor: GoalExecutor
 ) {
 
     suspend fun handle(input: BrainInput): BrainOutput = coroutineScope {
-        
         val screenContext = if (input.includeScreenContext) {
             ScreenContextHolder.serviceInstance?.extractScreenContext() ?: ""
         } else ""
 
         if (input.text.contains("نفذ") || input.text.contains("افتح") || input.text.contains("اضغط")) {
-            
             val planPrompt = """
                 أنت محرك تخطيط أندرويد. أعد الرد JSON فقط.
                 {
@@ -48,21 +40,16 @@ class AiriBrainController(
             }
 
             val cleanedJson = cleanRawJson(rawResponse)
-            
-            // 2️⃣ الإصلاح هنا: استخراج الـ DTO أولاً
-            val planDto = parseToDto(cleanedJson) 
+            val planDto = parseToDto(cleanedJson)
 
-            // 3️⃣ الفحص يتم على الـ DTO (حل مشكلة Type Mismatch)
             if (planDto == null || !PlanValidator.isValid(planDto)) {
                 return@coroutineScope BrainOutput("⚠ الخطة مرفوضة: إما تالفة أو غير آمنة")
             }
 
-            // 4️⃣ الـ Guardian Check يتم أيضاً على الـ DTO
             if (planDto.description.contains("حذف") || planDto.description.contains("إعادة ضبط")) {
                 return@coroutineScope BrainOutput("⚠ أمر حساس يتطلب تأكيداً يدوياً")
             }
 
-            // 5️⃣ الآن فقط نحول الـ DTO الموثوق إلى AgentGoal (الكائن التنفيذي)
             val goal = buildGoalFromDto(planDto)
 
             val success = withTimeoutOrNull(15000) {
@@ -76,7 +63,6 @@ class AiriBrainController(
             }
         }
 
-        // مسار المحادثة الطبيعي
         val response = suspendCancellableCoroutine<String> { cont ->
             llamaManager.generate(buildPrompt(input.text, screenContext)) { result ->
                 if (cont.isActive) cont.resume(result)
@@ -85,7 +71,6 @@ class AiriBrainController(
         return@coroutineScope BrainOutput(responseText = response)
     }
 
-    // دالة التحليل تعيد PlanDto حصراً للفحص
     private fun parseToDto(json: String): PlanDto? {
         return try {
             val obj = JSONObject(json)
@@ -96,13 +81,12 @@ class AiriBrainController(
                 stepsList.add(StepDto(s.getString("action"), s.optString("text", "")))
             }
             PlanDto(obj.getString("goal_id"), obj.getString("description"), stepsList)
-        } catch (e: Exception) { 
+        } catch (e: Exception) {
             Log.e("AIRI_BRAIN", "JSON Parsing Error: ${e.message}")
-            null 
+            null
         }
     }
 
-    // دالة بناء الهدف النهائي من الـ DTO
     private fun buildGoalFromDto(dto: PlanDto): AgentGoal {
         val steps = dto.steps.map {
             when (it.action) {
@@ -121,6 +105,6 @@ class AiriBrainController(
         return if (start != -1 && end != -1) raw.substring(start, end + 1) else ""
     }
 
-    private fun buildPrompt(text: String, context: String) = 
+    private fun buildPrompt(text: String, context: String) =
         if (context.isNotBlank()) "Context:\n$context\nUser: $text" else text
 }

@@ -9,47 +9,37 @@ import kotlinx.coroutines.*
 import org.json.JSONObject
 import kotlin.coroutines.resume
 
+// تعريف وسيط للبيانات الخام القادمة من JSON (يتوافق مع Validator)
+data class PlanDto(
+    val goal_id: String,
+    val description: String,
+    val steps: List<StepDto>
+)
+data class StepDto(val action: String, val text: String = "")
+
 class AiriBrainController(
     private val llamaManager: LlamaManager,
     private val goalExecutor: GoalExecutor 
 ) {
 
-    /**
-     * المعالج المركزي: المايسترو الذي يدير طبقات الحماية والتنفيذ
-     */
     suspend fun handle(input: BrainInput): BrainOutput = coroutineScope {
         
         val screenContext = if (input.includeScreenContext) {
             ScreenContextHolder.serviceInstance?.extractScreenContext() ?: ""
         } else ""
 
-        // المسار التنفيذي: (افتح، اضغط، نفذ...)
         if (input.text.contains("نفذ") || input.text.contains("افتح") || input.text.contains("اضغط")) {
             
-            // 🔥 الـ Prompt الصارم جداً لمنع الهلوسة والالتزام بالصيغة
             val planPrompt = """
-                أنت محرك تخطيط لنظام أندرويد.
-                أعد الرد بصيغة JSON فقط.
-                ممنوع أي نص إضافي.
-                ممنوع استخدام markdown (```json).
-                ممنوع تقديم أي شرح أو ملاحظات.
-
-                الصيغة المطلوبة:
+                أنت محرك تخطيط لنظام أندرويد. أعد الرد بصيغة JSON فقط.
+                ممنوع أي نص إضافي أو markdown.
                 {
-                  "goal_id": "تعريف_فريد",
-                  "description": "وصف دقيق باللغة العربية",
-                  "steps": [
-                    { "action": "click", "text": "نص_الزر" },
-                    { "action": "scroll" },
-                    { "action": "wait", "text": "نص_العنصر" }
-                  ]
+                  "goal_id": "task_id",
+                  "description": "وصف المهمة",
+                  "steps": [ { "action": "click", "text": "زر" } ]
                 }
-
-                السياق الحالي للشاشة:
-                $screenContext
-
-                الأمر المطلوب:
-                ${input.text}
+                سياق الشاشة: $screenContext
+                الأمر: ${input.text}
             """.trimIndent()
 
             val rawResponse = suspendCancellableCoroutine<String> { cont ->
@@ -58,42 +48,39 @@ class AiriBrainController(
                 }
             }
 
-            // 1️⃣ JSON Guard: منع الهلوسة النصية
-            val trimmedResponse = rawResponse.trim()
-            if (!trimmedResponse.startsWith("{")) {
-                Log.e("AIRI_GUARD", "Hallucination detected: Not a JSON start")
-                return@coroutineScope BrainOutput("⚠ الرد غير صالح (ليس JSON). يرجى المحاولة بصياغة أوضح.")
+            // 1️⃣ تنظيف الرد
+            val cleanedJson = cleanRawJson(rawResponse)
+            if (!cleanedJson.startsWith("{")) {
+                return@coroutineScope BrainOutput("⚠ الرد غير صالح (ليس JSON)")
             }
 
-            // تنظيف النص (في حال أضاف LLM وسوم markdown رغم المنع)
-            val cleanedJson = cleanRawJson(trimmedResponse)
-            
-            // 2️⃣ Plan Validation: فحص هيكلية الخطوات وسلامتها
-            val goal = parsePlan(cleanedJson)
-            if (goal == null || !PlanValidator.isValid(goal)) {
-                return@coroutineScope BrainOutput("⚠ الخطة غير آمنة أو غير مكتملة وتم رفضها.")
+            // 2️⃣ تحويل إلى DTO وفحصه (حل المشكلة رقم 3)
+            val planDto = parseToDto(cleanedJson)
+            if (planDto == null || !PlanValidator.isValid(planDto)) {
+                return@coroutineScope BrainOutput("⚠ الخطة غير آمنة أو تالفة وتم رفضها")
             }
 
-            // 3️⃣ Guardian Check: صمام الأمان الأخير للأوامر الحساسة
-            if (goal.description.contains("حذف") || goal.description.contains("إعادة ضبط") || 
-                goal.description.contains("مسح") || goal.description.contains("فرمتة")) {
-                return@coroutineScope BrainOutput("⚠ هذا الأمر حساس جداً ويتطلب تأكيداً يدوياً.")
+            // 3️⃣ التحقق من الأوامر الحساسة (Guardian Check)
+            if (planDto.description.contains("حذف") || planDto.description.contains("إعادة ضبط")) {
+                return@coroutineScope BrainOutput("⚠ هذا الأمر حساس ويحتاج تأكيد يدوي")
             }
 
-            // 4️⃣ Timeout Execution: التنفيذ مع مراقبة الوقت (Closed-Loop)
+            // 4️⃣ تحويل الـ DTO الموثوق إلى AgentGoal للتنفيذ
+            val goal = buildGoalFromDto(planDto)
+
+            // 5️⃣ التنفيذ مع Timeout
             val success = withTimeoutOrNull(15000) {
                 goalExecutor.executeGoal(goal)
-            } ?: return@coroutineScope BrainOutput("⏳ انتهى الوقت المحدد أثناء محاولة التنفيذ.")
+            } ?: return@coroutineScope BrainOutput("⏳ انتهى الوقت أثناء التنفيذ")
 
-            // 5️⃣ Feedback result: إرسال النتيجة النهائية
             return@coroutineScope if (success) {
                 BrainOutput("✅ تم التنفيذ بنجاح: ${goal.description}", goal.id)
             } else {
-                BrainOutput("❌ فشل التنفيذ الميداني. ربما تغيرت واجهة التطبيق.", goal.id)
+                BrainOutput("❌ فشل التنفيذ ميدانياً", goal.id)
             }
         }
 
-        // المسار الافتراضي: محادثة عادية
+        // المسار الافتراضي للمحادثة
         val response = suspendCancellableCoroutine<String> { cont ->
             llamaManager.generate(buildPrompt(input.text, screenContext)) { result ->
                 if (cont.isActive) cont.resume(result)
@@ -102,21 +89,29 @@ class AiriBrainController(
         return@coroutineScope BrainOutput(responseText = response)
     }
 
-    private fun parsePlan(json: String): AgentGoal? {
+    private fun parseToDto(json: String): PlanDto? {
         return try {
             val obj = JSONObject(json)
-            val steps = mutableListOf<PlanStep>()
             val stepsArray = obj.getJSONArray("steps")
+            val stepsList = mutableListOf<StepDto>()
             for (i in 0 until stepsArray.length()) {
-                val stepObj = stepsArray.getJSONObject(i)
-                when (stepObj.getString("action")) {
-                    "click" -> steps.add(PlanStep.Click(stepObj.getString("text")))
-                    "scroll" -> steps.add(PlanStep.ScrollForward())
-                    "wait" -> steps.add(PlanStep.WaitFor(stepObj.optString("text", "")))
-                }
+                val s = stepsArray.getJSONObject(i)
+                stepsList.add(StepDto(s.getString("action"), s.optString("text", "")))
             }
-            AgentGoal(obj.getString("goal_id"), obj.getString("description"), steps)
+            PlanDto(obj.getString("goal_id"), obj.getString("description"), stepsList)
         } catch (e: Exception) { null }
+    }
+
+    private fun buildGoalFromDto(dto: PlanDto): AgentGoal {
+        val steps = dto.steps.map {
+            when (it.action) {
+                "click" -> PlanStep.Click(it.text)
+                "scroll" -> PlanStep.ScrollForward()
+                "wait" -> PlanStep.WaitFor(it.text)
+                else -> PlanStep.Click(it.text)
+            }
+        }
+        return AgentGoal(dto.goal_id, dto.description, steps)
     }
 
     private fun cleanRawJson(raw: String): String {

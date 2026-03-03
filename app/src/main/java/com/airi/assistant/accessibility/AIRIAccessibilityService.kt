@@ -73,45 +73,54 @@ class AIRIAccessibilityService : AccessibilityService() {
         }
     }
 
-    /**
-     * 🔥 نقطة الدخول للتنفيذ الذاتي (Autonomous Execution)
-     * تم التحديث لدعم المرونة (Resilience) عبر RetryPolicy و FailureStrategy
-     */
-    fun executeAutonomousGoal(goal: AgentGoal) {
-        serviceScope.launch {
-            Log.d("AIRI_AGENT", "🚀 Starting Autonomous Task: ${goal.id}")
+   fun executeAutonomousGoal(goal: AgentGoal) {
+    serviceScope.launch {
 
-            // إعداد المحرك بسياسة مخصصة: محاولتان مع تأخير 700ms بينهما
-            val chainer = TaskChainer(
-                retryPolicy = RetryPolicy(
-                    maxAttempts = 2,
-                    delayBetweenAttempts = 700
-                )
+        val chainer = TaskChainer(
+            retryPolicy = RetryPolicy(
+                maxAttempts = 3,
+                delayBetweenAttempts = 600
             )
+        )
 
-            chainer.addGoal(goal)
+        chainer.addGoal(goal)
 
-            chainer.execute(
-                executor = { executingGoal ->
-                    Log.d("AIRI_AGENT", "Executing: ${executingGoal.id}")
-                    // هنا سيتم ربط الـ NodeActionExecutor لاحقاً للتفاعل الفعلي
-                },
-                verifierProvider = { verifyingGoal ->
-                    // منطق التحقق: هل سياق الشاشة يحتوي على وصف الهدف؟
-                    suspend {
-                        val context = extractScreenContext()
-                        context.contains(verifyingGoal.description, ignoreCase = true)
+        chainer.execute(
+            executor = { executingGoal, strategy ->
+
+                when (strategy) {
+
+                    AdaptiveStrategy.DirectAction -> {
+                        Log.d("AIRI_AGENT", "DirectAction: ${executingGoal.id}")
                     }
-                },
-                // في حالة فشل كافة المحاولات، يتم إيقاف السلسلة بالكامل (Abort)
-                failureStrategyProvider = { FailureStrategy.ABORT }
-            )
-        }
-    }
 
-    /**
-     * سحب النص الكامل من الشاشة الحالية
-     */
+                    AdaptiveStrategy.ScrollAndRetry -> {
+                        Log.d("AIRI_AGENT", "ScrollAndRetry: ${executingGoal.id}")
+                    }
+
+                    AdaptiveStrategy.WaitAndRecheck -> {
+                        Log.d("AIRI_AGENT", "WaitAndRecheck: ${executingGoal.id}")
+                    }
+
+                    AdaptiveStrategy.FallbackPath -> {
+                        Log.d("AIRI_AGENT", "FallbackPath: ${executingGoal.id}")
+                    }
+                }
+            },
+            contextProvider = {
+                extractScreenContext()
+            },
+            verifierProvider = { verifyingGoal ->
+                suspend {
+                    val context = extractScreenContext()
+                    context.contains(verifyingGoal.description, ignoreCase = true)
+                }
+            },
+            failureStrategyProvider = { FailureStrategy.ABORT }
+        )
+    }
+   } 
+    
     fun extractScreenContext(): String {
         val root = rootInActiveWindow ?: return ScreenContextHolder.lastScreenText
         return extractText(root)

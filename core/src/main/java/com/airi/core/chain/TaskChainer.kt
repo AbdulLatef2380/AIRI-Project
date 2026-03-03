@@ -2,7 +2,9 @@ package com.airi.core.chain
 
 import kotlinx.coroutines.*
 
-class TaskChainer {
+class TaskChainer(
+    private val retryPolicy: RetryPolicy = RetryPolicy()
+) {
 
     private val goals = mutableListOf<AgentGoal>()
 
@@ -12,21 +14,39 @@ class TaskChainer {
 
     suspend fun execute(
         executor: suspend (AgentGoal) -> Unit,
-        verifierProvider: (AgentGoal) -> (suspend () -> Boolean)
+        verifierProvider: (AgentGoal) -> (suspend () -> Boolean),
+        failureStrategyProvider: (AgentGoal) -> FailureStrategy = { FailureStrategy.RETRY }
     ) {
 
         for (goal in goals) {
 
-            executor(goal)
+            var attempt = 0
+            var success = false
 
-            val verifier = TemporalVerifier()
+            while (attempt < retryPolicy.maxAttempts && !success) {
 
-            val result = verifier.verify(
-                expectedCondition = verifierProvider(goal)
-            )
+                executor(goal)
 
-            if (result.state != GoalExecutionState.SUCCESS) {
-                break
+                val verifier = TemporalVerifier()
+
+                val result = verifier.verify(
+                    expectedCondition = verifierProvider(goal)
+                )
+
+                if (result.state == GoalExecutionState.SUCCESS) {
+                    success = true
+                } else {
+                    attempt++
+                    delay(retryPolicy.delayBetweenAttempts)
+                }
+            }
+
+            if (!success) {
+                when (failureStrategyProvider(goal)) {
+                    FailureStrategy.RETRY -> continue
+                    FailureStrategy.SKIP -> continue
+                    FailureStrategy.ABORT -> break
+                }
             }
         }
     }

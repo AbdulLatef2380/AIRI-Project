@@ -23,7 +23,6 @@ class AiriBrainController(
         if (isExecutionIntent(input.text)) {
 
             val rawResponse = requestPlan(input.text, screenContext)
-
             val cleanedJson = cleanRawJson(rawResponse)
 
             if (!cleanedJson.trim().startsWith("{")) {
@@ -36,10 +35,6 @@ class AiriBrainController(
                 return@coroutineScope BrainOutput("⚠ الخطة مرفوضة أو تالفة")
             }
 
-            if (isSensitive(planDto.description)) {
-                return@coroutineScope BrainOutput("⚠ أمر حساس يحتاج تأكيد")
-            }
-
             val goal = buildGoalFromDto(planDto)
 
             val success = withTimeoutOrNull(15000) {
@@ -47,7 +42,7 @@ class AiriBrainController(
             } ?: return@coroutineScope BrainOutput("⏳ انتهى الوقت أثناء التنفيذ")
 
             return@coroutineScope if (success) {
-                BrainOutput("✅ تم التنفيذ: ${goal.description}", goal)
+                BrainOutput("✅ تم التنفيذ", goal)
             } else {
                 BrainOutput("❌ فشل التنفيذ", goal)
             }
@@ -63,21 +58,14 @@ class AiriBrainController(
                text.contains("اضغط")
     }
 
-    private fun isSensitive(description: String): Boolean {
-        return description.contains("حذف") ||
-               description.contains("إعادة ضبط")
-    }
-
     private suspend fun requestPlan(text: String, context: String): String {
         val prompt = """
             أعد الرد JSON فقط.
             ممنوع أي نص إضافي.
             ممنوع markdown.
             {
-              "goal_id": "task_1",
-              "description": "وصف المهمة",
               "steps": [
-                { "action": "click", "text": "نص" }
+                { "id": "1", "action": "click" }
               ]
             }
             السياق: $context
@@ -106,45 +94,38 @@ class AiriBrainController(
     private fun parseToDto(json: String): PlanDto? {
         return try {
             val obj = JSONObject(json)
-            val goalId = obj.getString("goal_id")
-            val description = obj.getString("description")
-
             val stepsArray = obj.getJSONArray("steps")
-            val steps = mutableListOf<StepDto>()
+            val stepsList = mutableListOf<StepDto>()
 
             for (i in 0 until stepsArray.length()) {
                 val s = stepsArray.getJSONObject(i)
-                steps.add(
-                    StepDto(
-                        action = s.getString("action"),
-                        text = s.optString("text", "")
-                    )
-                )
+                val id = s.optString("id", i.toString())
+                val action = s.getString("action")
+                stepsList.add(StepDto(id, action))
             }
 
-            PlanDto(goalId, description, steps)
+            PlanDto(stepsList)
 
         } catch (e: Exception) {
-            Log.e("AIRI_BRAIN", "JSON Parse Error: ${e.message}")
+            Log.e("AIRI_BRAIN", "JSON Parsing Error: ${e.message}")
             null
         }
     }
 
     private fun buildGoalFromDto(dto: PlanDto): AgentGoal {
-        val steps = dto.steps.map {
-            when (it.action) {
-                "click" -> PlanStep.Click(it.text)
+        val steps = dto.steps.map { step ->
+            when (step.action) {
+                "click" -> PlanStep.Click(step.id)
                 "scroll" -> PlanStep.ScrollForward()
-                "wait" -> PlanStep.WaitFor(it.text)
-                else -> PlanStep.Click(it.text)
+                "wait" -> PlanStep.WaitFor(step.id)
+                else -> PlanStep.Click(step.id)
             }
         }
 
-        return AgentGoal(
-            id = dto.goal_id,
-            description = dto.description,
-            steps = steps
-        )
+        val goalId = "goal_${System.currentTimeMillis()}"
+        val description = "منفذة عبر AIRI"
+
+        return AgentGoal(goalId, description, steps)
     }
 
     private fun cleanRawJson(raw: String): String {

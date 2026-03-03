@@ -10,6 +10,8 @@ import kotlinx.coroutines.*
 // استيراد المكونات من مكتبة core ومن حزم المساعد
 import com.airi.core.chain.AgentGoal
 import com.airi.core.chain.TaskChainer
+import com.airi.core.chain.RetryPolicy        // 🔥 إضافة الاستيراد الجديد
+import com.airi.core.chain.FailureStrategy    // 🔥 إضافة الاستيراد الجديد
 import com.airi.assistant.ai.IntentDetector
 import com.airi.assistant.data.ContextEngine
 import com.airi.assistant.overlay.OverlayBridge
@@ -73,27 +75,36 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     /**
      * 🔥 نقطة الدخول للتنفيذ الذاتي (Autonomous Execution)
-     * تستخدم نظام الـ Chaining الجديد مع VerifierProvider للتحقق من النتائج
+     * تم التحديث لدعم المرونة (Resilience) عبر RetryPolicy و FailureStrategy
      */
     fun executeAutonomousGoal(goal: AgentGoal) {
         serviceScope.launch {
             Log.d("AIRI_AGENT", "🚀 Starting Autonomous Task: ${goal.id}")
 
-            val chainer = TaskChainer()
+            // إعداد المحرك بسياسة مخصصة: محاولتان مع تأخير 700ms بينهما
+            val chainer = TaskChainer(
+                retryPolicy = RetryPolicy(
+                    maxAttempts = 2,
+                    delayBetweenAttempts = 700
+                )
+            )
+
             chainer.addGoal(goal)
 
             chainer.execute(
                 executor = { executingGoal ->
                     Log.d("AIRI_AGENT", "Executing: ${executingGoal.id}")
-                    // TODO: هنا يتم ربط الـ ExecutionEngine لتنفيذ النقرات أو الكتابة فعلياً
+                    // هنا سيتم ربط الـ NodeActionExecutor لاحقاً للتفاعل الفعلي
                 },
                 verifierProvider = { verifyingGoal ->
-                    // توفير منطق التحقق: هل تغير سياق الشاشة ليطابق وصف الهدف؟
+                    // منطق التحقق: هل سياق الشاشة يحتوي على وصف الهدف؟
                     suspend {
-                        val currentContext = extractScreenContext()
-                        currentContext.contains(verifyingGoal.description, ignoreCase = true)
+                        val context = extractScreenContext()
+                        context.contains(verifyingGoal.description, ignoreCase = true)
                     }
-                }
+                },
+                // في حالة فشل كافة المحاولات، يتم إيقاف السلسلة بالكامل (Abort)
+                failureStrategyProvider = { FailureStrategy.ABORT }
             )
         }
     }

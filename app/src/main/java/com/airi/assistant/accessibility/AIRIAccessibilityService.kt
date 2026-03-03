@@ -1,4 +1,4 @@
-P com.airi.assistant.accessibility
+package com.airi.assistant.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
@@ -10,9 +10,6 @@ import kotlinx.coroutines.*
 import com.airi.core.chain.*
 import com.airi.assistant.ai.IntentDetector
 import com.airi.assistant.data.ContextEngine
-import com.airi.assistant.overlay.OverlayBridge
-import com.airi.assistant.adaptive.AdaptiveDecisionEngine
-import com.airi.assistant.adaptive.InteractionTracker
 import com.airi.assistant.brain.GoalExecutor
 
 class AIRIAccessibilityService : AccessibilityService(), GoalExecutor {
@@ -25,63 +22,50 @@ class AIRIAccessibilityService : AccessibilityService(), GoalExecutor {
         Log.d("AIRI_ACC", "Service Connected as GoalExecutor")
     }
 
-    // --- 🏗️ تنفيذ واجهة GoalExecutor (الآن Suspend) ---
+    // --- 🏗️ تنفيذ واجهة GoalExecutor ---
 
     override suspend fun executeGoal(goal: AgentGoal): Boolean {
         Log.d("AIRI_ACC", "📥 Brain Goal Received: ${goal.description}")
         return executeAutonomousGoal(goal)
     }
 
-    // --- 🧠 المحرك التنفيذي (تعيد Boolean للدماغ) ---
+    // --- 🧠 المحرك التنفيذي التسلسلي (Professional Logic) ---
 
     private suspend fun executeAutonomousGoal(goal: AgentGoal): Boolean = withContext(Dispatchers.Main) {
-        Log.d("AIRI_AGENT", "🚀 Starting Autonomous Run: ${goal.id}")
+        Log.d("AIRI_AGENT", "🚀 Starting Execution Loop for Goal: ${goal.id}")
 
-        val chainer = TaskChainer(
-            retryPolicy = RetryPolicy(maxAttempts = 3, delayBetweenAttempts = 1000)
-        )
-        chainer.addGoal(goal)
+        for ((index, step) in goal.steps.withIndex()) {
+            Log.d("AIRI_AGENT", "Executing Step ${index + 1}/${goal.steps.size}: $step")
 
-        // تنفيذ الخطة وانتظار النتيجة النهائية
-        val finalResult = chainer.execute(
-            executor = { executingGoal, strategy ->
-                var success = true
-                for (step in executingGoal.steps) {
-                    val stepResult = when (step) {
-                        is PlanStep.Click -> {
-                            if (strategy == AdaptiveStrategy.ScrollAndRetry) {
-                                performScrollForward()
-                                delay(600)
-                            }
-                            performClickByText(step.text)
-                        }
-                        is PlanStep.ScrollForward -> performScrollForward()
-                        is PlanStep.WaitFor -> waitForElement(step.text, step.timeout)
-                    }
+            // تنفيذ الخطوة الحالية
+            val stepSuccess = executeStep(step)
 
-                    if (!stepResult) {
-                        success = false
-                        break
-                    }
-                    delay(500) // وقت استقرار الواجهة
-                }
-                success
-            },
-            contextProvider = { extractScreenContext() },
-            verifierProvider = { verifyingGoal ->
-                suspend {
-                    // التحقق: هل الوصف موجود في السياق بعد التنفيذ؟
-                    extractScreenContext().contains(verifyingGoal.description, ignoreCase = true)
-                }
-            },
-            failureStrategyProvider = { FailureStrategy.RETRY }
-        )
+            if (!stepSuccess) {
+                Log.e("AIRI_AGENT", "❌ Step Failed: $step. Aborting entire goal.")
+                return@withContext false // فشل الخطة كاملة
+            }
 
-        Log.d("AIRI_AGENT", "🏁 Final Execution Success: $finalResult")
-        return@withContext finalResult
+            // انتظار بسيط لاستقرار الواجهة (UI Settling Time)
+            delay(600)
+        }
+
+        Log.d("AIRI_AGENT", "✅ All steps completed successfully for: ${goal.description}")
+        return@withContext true
     }
 
-    // --- 🛠️ دوال الأفعال الفيزيائية (نفس الكود السابق مع تنظيف الذاكرة) ---
+    /**
+     * مُوزع المهام (Step Dispatcher)
+     */
+    private suspend fun executeStep(step: PlanStep): Boolean {
+        return when (step) {
+            is PlanStep.Click -> performClickByText(step.text)
+            is PlanStep.ScrollForward -> performScrollForward()
+            is PlanStep.WaitFor -> waitForElement(step.text, step.timeout)
+            else -> false
+        }
+    }
+
+    // --- 🛠️ دوال الأفعال الفيزيائية (Physical Actions) ---
 
     private fun performClickByText(text: String): Boolean {
         val root = rootInActiveWindow ?: return false
@@ -95,7 +79,10 @@ class AIRIAccessibilityService : AccessibilityService(), GoalExecutor {
                     while (current != null) {
                         if (current.isClickable) {
                             isClicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                            if (isClicked) break
+                            if (isClicked) {
+                                Log.d("AIRI_ACC", "Click Success on: $text")
+                                break
+                            }
                         }
                         val parent = current.parent
                         if (current != node) current.recycle()
@@ -132,33 +119,16 @@ class AIRIAccessibilityService : AccessibilityService(), GoalExecutor {
     private suspend fun waitForElement(text: String, timeout: Long): Boolean {
         val start = System.currentTimeMillis()
         while (System.currentTimeMillis() - start < timeout) {
-            if (extractScreenContext().contains(text, ignoreCase = true)) return true
+            if (extractScreenContext().contains(text, ignoreCase = true)) {
+                Log.d("AIRI_ACC", "Element found: $text")
+                return true
+            }
             delay(300)
         }
         return false
     }
 
-    // --- 📡 تحليل السياق (نفس الكود السابق) ---
-
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
-
-            val root = rootInActiveWindow ?: return
-            val screenText = extractText(root)
-            root.recycle()
-
-            if (screenText.isBlank()) return
-            val sourceApp = event.packageName?.toString() ?: "unknown"
-            ScreenContextHolder.lastScreenText = screenText
-
-            serviceScope.launch(Dispatchers.Default) {
-                val intent = IntentDetector.detectIntent(screenText)
-                ContextEngine.saveContext(screenText, sourceApp, intent)
-            }
-        }
-    }
+    // --- 📡 تحليل السياق واستخراج النصوص ---
 
     fun extractScreenContext(): String {
         val root = rootInActiveWindow ?: return ScreenContextHolder.lastScreenText
@@ -182,6 +152,17 @@ class AIRIAccessibilityService : AccessibilityService(), GoalExecutor {
         }
         traverse(node)
         return sb.toString().replace(Regex("\\s+"), " ").trim().take(2000)
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // إدارة السياق التلقائي
+        if (event == null) return
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+            val root = rootInActiveWindow ?: return
+            ScreenContextHolder.lastScreenText = extractText(root)
+            root.recycle()
+        }
     }
 
     override fun onInterrupt() {}

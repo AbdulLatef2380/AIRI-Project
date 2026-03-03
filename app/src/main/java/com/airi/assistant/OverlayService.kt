@@ -21,7 +21,7 @@ import com.airi.assistant.brain.BrainInput
 import com.airi.assistant.brain.InputSource
 import com.airi.assistant.brain.GoalExecutor
 import com.airi.assistant.accessibility.OverlayBridge
-import com.airi.core.chain.AgentGoal // 🔥 استيراد مهم
+import com.airi.core.chain.AgentGoal
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -35,7 +35,7 @@ class OverlayService : Service() {
     private lateinit var adapter: ChatAdapter
 
     private lateinit var llamaManager: LlamaManager
-    private var brain: AiriBrainController? = null 
+    private var brain: AiriBrainController? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private lateinit var ttsManager: TextToSpeech
@@ -52,7 +52,7 @@ class OverlayService : Service() {
     override fun onCreate() {
         super.onCreate()
         llamaManager = LlamaManager(this)
-        
+
         initializeBrain()
         setupManagers()
         initViews()
@@ -64,18 +64,13 @@ class OverlayService : Service() {
         }
     }
 
-    /**
-     * 🔥 الربط مع المحرك التنفيذي (Accessibility Service)
-     */
     private fun initializeBrain() {
-        // نحاول الحصول على الخدمة الحقيقية أولاً
         val realExecutor = ScreenContextHolder.serviceInstance as? GoalExecutor
-        
+
         if (realExecutor != null) {
             brain = AiriBrainController(llamaManager, realExecutor)
             Log.d("AIRI_OVERLAY", "✅ Brain connected to Real GoalExecutor")
         } else {
-            // 🔥 الحل للمشكلة: تعريف Executor محلي متوافق مع النوع الجديد (suspend & Boolean)
             Log.e("AIRI_OVERLAY", "⚠️ Accessibility not connected. Using Local Fallback.")
             val fallbackExecutor = object : GoalExecutor {
                 override suspend fun executeGoal(goal: AgentGoal): Boolean {
@@ -86,7 +81,13 @@ class OverlayService : Service() {
         }
     }
 
-    // --- (بقية الدوال setupManagers, initViews, setupRecyclerView تبقى كما هي) ---
+    private suspend fun executeAutonomousGoal(goal: AgentGoal): Boolean {
+        withContext(Dispatchers.Main) {
+            Toast.makeText(this@OverlayService, "محاولة تنفيذ: ${goal.description}", Toast.LENGTH_SHORT).show()
+        }
+        delay(1000)
+        return false
+    }
 
     private fun setupManagers() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -147,7 +148,7 @@ class OverlayService : Service() {
                 progressBar.visibility = View.GONE
                 btnLoadBrain.isEnabled = true
                 btnLoadBrain.text = if (success) "العقل جاهز ✅" else "خطأ في التحميل"
-                initializeBrain() 
+                initializeBrain()
             }
         }
 

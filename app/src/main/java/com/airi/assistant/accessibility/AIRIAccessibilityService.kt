@@ -22,7 +22,7 @@ class AIRIAccessibilityService : AccessibilityService(), GoalExecutor {
         Log.d("AIRI_ACC", "Service Connected as GoalExecutor")
     }
 
-    // --- 🏗️ تنفيذ واجهة GoalExecutor ---
+    // --- 🏗️ تنفيذ واجهة GoalExecutor (مُصحح) ---
 
     override suspend fun executeGoal(goal: AgentGoal): Boolean {
         Log.d("AIRI_ACC", "📥 Brain Goal Received: ${goal.description}")

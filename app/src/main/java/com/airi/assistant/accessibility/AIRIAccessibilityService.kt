@@ -21,20 +21,115 @@ import com.airi.assistant.adaptive.InteractionTracker
 
 class AIRIAccessibilityService : AccessibilityService() {
 
-    // إدارة العمليات غير المتزامنة على الخيط الرئيسي لضمان سلامة الوصول لعناصر الواجهة
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        // ربط الخدمة بالمخزن السحابي للسياق لتمكين الوصول إليها من أي مكان
         ScreenContextHolder.serviceInstance = this
         Log.d("AIRI_ACC", "Service Connected & Linked to Holder")
     }
 
+    // --- 🛠️ دوال التنفيذ الفعلي (Physical Actions) ---
+
+    private fun performClickByText(text: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val nodes = root.findAccessibilityNodeInfosByText(text)
+        if (nodes.isNullOrEmpty()) return false
+
+        for (node in nodes) {
+            // محاولة الضغط على العنصر نفسه أو البحث في الآباء إذا لم يكن قابلاً للضغط
+            var current: AccessibilityNodeInfo? = node
+            while (current != null) {
+                if (current.isClickable) {
+                    val success = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    if (success) {
+                        node.recycle()
+                        return true
+                    }
+                }
+                current = current.parent
+            }
+            node.recycle()
+        }
+        return false
+    }
+
+    private fun performScrollForward(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        // محاولة البحث عن عنصر قابل للتمرير في الشجرة
+        fun findAndScroll(node: AccessibilityNodeInfo): Boolean {
+            if (node.isScrollable) {
+                return node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+            }
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i) ?: continue
+                if (findAndScroll(child)) return true
+            }
+            return false
+        }
+        return findAndScroll(root)
+    }
+
+    // --- 🧠 محرك التنفيذ الذاتي (Autonomous Engine) ---
+
+    fun executeAutonomousGoal(goal: AgentGoal) {
+        serviceScope.launch {
+            Log.d("AIRI_AGENT", "🚀 Starting Autonomous Task: ${goal.id}")
+
+            val chainer = TaskChainer(
+                retryPolicy = RetryPolicy(
+                    maxAttempts = 3,
+                    delayBetweenAttempts = 600
+                )
+            )
+
+            chainer.addGoal(goal)
+
+            chainer.execute(
+                executor = { executingGoal, strategy ->
+                    when (strategy) {
+                        AdaptiveStrategy.DirectAction -> {
+                            val success = performClickByText(executingGoal.description)
+                            Log.d("AIRI_AGENT", "DirectAction (Click) result: $success for ${executingGoal.id}")
+                        }
+
+                        AdaptiveStrategy.ScrollAndRetry -> {
+                            val success = performScrollForward()
+                            Log.d("AIRI_AGENT", "ScrollAndRetry result: $success")
+                            delay(400) // انتظار استقرار الواجهة بعد السكرول
+                        }
+
+                        AdaptiveStrategy.WaitAndRecheck -> {
+                            Log.d("AIRI_AGENT", "WaitAndRecheck: Waiting 800ms...")
+                            delay(800)
+                        }
+
+                        AdaptiveStrategy.FallbackPath -> {
+                            Log.d("AIRI_AGENT", "FallbackPath triggered - Logging only for now")
+                        }
+                    }
+                },
+                contextProvider = {
+                    extractScreenContext()
+                },
+                verifierProvider = { verifyingGoal ->
+                    suspend {
+                        val context = extractScreenContext()
+                        val isSuccess = context.contains(verifyingGoal.description, ignoreCase = true)
+                        Log.d("AIRI_VERIFIER", "Verified ${verifyingGoal.id}: $isSuccess")
+                        isSuccess
+                    }
+                },
+                failureStrategyProvider = { FailureStrategy.ABORT }
+            )
+        }
+    }
+
+    // --- 📡 معالجة أحداث النظام وتحليل السياق ---
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        // مراقبة التغيرات الهيكلية في واجهة المستخدم
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
 
@@ -45,7 +140,6 @@ class AIRIAccessibilityService : AccessibilityService() {
             val sourceApp = event.packageName?.toString() ?: "unknown"
             ScreenContextHolder.lastScreenText = screenText
 
-            // معالجة النية والسياق في الخلفية لمنع تعليق الواجهة
             serviceScope.launch(Dispatchers.Default) {
                 val detectedIntent = IntentDetector.detectIntent(screenText)
 
@@ -55,7 +149,6 @@ class AIRIAccessibilityService : AccessibilityService() {
                     detectedIntent = detectedIntent
                 )
 
-                // منطق عرض الاقتراحات التكيفي
                 if (AdaptiveDecisionEngine.shouldDisplay(sourceApp, detectedIntent)) {
                     val suggestions = SuggestionEngine.generateSuggestions(screenText)
 
@@ -63,10 +156,7 @@ class AIRIAccessibilityService : AccessibilityService() {
                         InteractionTracker.recordShown(sourceApp, detectedIntent)
 
                         withContext(Dispatchers.Main) {
-                            OverlayBridge.showSuggestion(
-                                suggestions.first(),
-                                screenText
-                            )
+                            OverlayBridge.showSuggestion(suggestions.first(), screenText)
                         }
                     }
                 }
@@ -74,54 +164,6 @@ class AIRIAccessibilityService : AccessibilityService() {
         }
     }
 
-   fun executeAutonomousGoal(goal: AgentGoal) {
-    serviceScope.launch {
-
-        val chainer = TaskChainer(
-            retryPolicy = RetryPolicy(
-                maxAttempts = 3,
-                delayBetweenAttempts = 600
-            )
-        )
-
-        chainer.addGoal(goal)
-
-        chainer.execute(
-            executor = { executingGoal, strategy ->
-
-                when (strategy) {
-
-                    AdaptiveStrategy.DirectAction -> {
-                        Log.d("AIRI_AGENT", "DirectAction: ${executingGoal.id}")
-                    }
-
-                    AdaptiveStrategy.ScrollAndRetry -> {
-                        Log.d("AIRI_AGENT", "ScrollAndRetry: ${executingGoal.id}")
-                    }
-
-                    AdaptiveStrategy.WaitAndRecheck -> {
-                        Log.d("AIRI_AGENT", "WaitAndRecheck: ${executingGoal.id}")
-                    }
-
-                    AdaptiveStrategy.FallbackPath -> {
-                        Log.d("AIRI_AGENT", "FallbackPath: ${executingGoal.id}")
-                    }
-                }
-            },
-            contextProvider = {
-                extractScreenContext()
-            },
-            verifierProvider = { verifyingGoal ->
-                suspend {
-                    val context = extractScreenContext()
-                    context.contains(verifyingGoal.description, ignoreCase = true)
-                }
-            },
-            failureStrategyProvider = { FailureStrategy.ABORT }
-        )
-    }
-   } 
-    
     fun extractScreenContext(): String {
         val root = rootInActiveWindow ?: return ScreenContextHolder.lastScreenText
         return extractText(root)
@@ -143,10 +185,7 @@ class AIRIAccessibilityService : AccessibilityService() {
         }
 
         traverse(node)
-        return builder.toString()
-            .replace(Regex("\\s+"), " ")
-            .trim()
-            .take(2000)
+        return builder.toString().replace(Regex("\\s+"), " ").trim().take(2000)
     }
 
     override fun onInterrupt() {
@@ -160,7 +199,6 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // إلغاء كافة العمليات لضمان عدم حدوث تسريب للذاكرة
         serviceScope.cancel()
     }
 }

@@ -1,20 +1,16 @@
 package com.airi.assistant.brain
 
-
-data class BrainInput(
-    val text: String,
-    val source: InputSource,
-    val includeScreenContext: Boolean = false
+data class AgentGoal(
+    val id: String,
+    val description: String,
+    val action: String
 )
 
-enum class InputSource {
-    CHAT,
-    VOICE,
-    SYSTEM
-}
-
- * مخرجات الدماغ: النص الراجع ومعرف الهدف المنفذ (إ
 data class BrainOutput(
-    val responseText: String,
-    val executedGoalId: String? = null
+    val message: String,
+    val goalId: String? = null
+)
+
+data class PlanDto(
+    val goals: List<AgentGoal>
 )

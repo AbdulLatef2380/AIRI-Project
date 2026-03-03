@@ -17,7 +17,7 @@ class AiriBrainController(
 ) {
 
     suspend fun handle(input: BrainInput): BrainOutput = coroutineScope {
-        val screenContext = if (input.includeScreenContext) {
+        val screenContext = if (input.withContext) {
             ScreenContextHolder.serviceInstance?.extractScreenContext() ?: ""
         } else ""
 
@@ -68,7 +68,7 @@ class AiriBrainController(
                 if (cont.isActive) cont.resume(result)
             }
         }
-        return@coroutineScope BrainOutput(responseText = response)
+        return@coroutineScope BrainOutput(message = response)
     }
 
     private fun parseToDto(json: String): PlanDto? {
@@ -108,7 +108,3 @@ class AiriBrainController(
     private fun buildPrompt(text: String, context: String) =
         if (context.isNotBlank()) "Context:\n$context\nUser: $text" else text
 }
-
-data class BrainResponse(
-    val message: String
-)

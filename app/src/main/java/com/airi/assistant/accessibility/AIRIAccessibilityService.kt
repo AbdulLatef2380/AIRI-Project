@@ -7,12 +7,13 @@ import android.util.Log
 import android.content.Intent
 import kotlinx.coroutines.*
 
-// استيراد المكونات من مكتبة core ومن حزم المساعد
+// استيراد المكونات الأساسية و الـ PlanStep الجديد
 import com.airi.core.chain.AdaptiveStrategy
 import com.airi.core.chain.FailureStrategy
 import com.airi.core.chain.AgentGoal
 import com.airi.core.chain.TaskChainer
-import com.airi.core.chain.RetryPolicy        
+import com.airi.core.chain.RetryPolicy
+import com.airi.core.chain.PlanStep // 🔥 الاستيراد الجديد لدعم الخطوات
 import com.airi.assistant.ai.IntentDetector
 import com.airi.assistant.data.ContextEngine
 import com.airi.assistant.overlay.OverlayBridge
@@ -31,9 +32,6 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     // --- 🛠️ دوال التنفيذ الفعلي (Physical Actions) ---
 
-    /**
-     * تنفيذ النقر بناءً على النص مع دعم صعود الشجرة (Parent Search)
-     */
     private fun performClickByText(text: String): Boolean {
         val root = rootInActiveWindow ?: return false
         val nodes = root.findAccessibilityNodeInfosByText(text)
@@ -57,16 +55,11 @@ class AIRIAccessibilityService : AccessibilityService() {
         return false
     }
 
-    /**
-     * تنفيذ التمرير للأمام بالبحث عن أول حاوية قابلة للتمرير
-     */
     private fun performScrollForward(): Boolean {
         val root = rootInActiveWindow ?: return false
-        
         fun findAndScroll(node: AccessibilityNodeInfo): Boolean {
             if (node.isScrollable) {
-                val success = node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
-                if (success) return true
+                return node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
             }
             for (i in 0 until node.childCount) {
                 val child = node.getChild(i) ?: continue
@@ -77,11 +70,11 @@ class AIRIAccessibilityService : AccessibilityService() {
         return findAndScroll(root)
     }
 
-    // --- 🧠 محرك التنفيذ الذاتي (Autonomous Engine) ---
+    // --- 🧠 محرك التخطيط والتنفيذ (Planner & Executor) ---
 
     fun executeAutonomousGoal(goal: AgentGoal) {
         serviceScope.launch {
-            Log.d("AIRI_AGENT", "🚀 Starting Autonomous Task: ${goal.id}")
+            Log.d("AIRI_AGENT", "🚀 Executing Plan: ${goal.id} - ${goal.description}")
 
             val chainer = TaskChainer(
                 retryPolicy = RetryPolicy(
@@ -94,37 +87,46 @@ class AIRIAccessibilityService : AccessibilityService() {
 
             chainer.execute(
                 executor = { executingGoal, strategy ->
-                    when (strategy) {
-                        AdaptiveStrategy.DirectAction -> {
-                            val success = performClickByText(executingGoal.description)
-                            Log.d("AIRI_AGENT", "DirectAction result: $success")
-                        }
+                    // 🔥 تنفيذ الخطوات التسلسلية داخل الهدف
+                    for (step in executingGoal.steps) {
+                        Log.d("AIRI_AGENT", "Processing Step: $step")
+                        
+                        when (step) {
+                            is PlanStep.Click -> {
+                                val success = performClickByText(step.text)
+                                Log.d("AIRI_AGENT", "Click '${step.text}' result: $success")
+                            }
 
-                        AdaptiveStrategy.ScrollAndRetry -> {
-                            val success = performScrollForward()
-                            Log.d("AIRI_AGENT", "ScrollAndRetry result: $success")
-                            delay(400) // انتظار استقرار الشاشة
-                        }
+                            is PlanStep.ScrollForward -> {
+                                performScrollForward()
+                                delay(400) // انتظار استقرار الواجهة بعد السكرول
+                            }
 
-                        AdaptiveStrategy.WaitAndRecheck -> {
-                            Log.d("AIRI_AGENT", "WaitAndRecheck: Waiting 800ms...")
-                            delay(800)
-                        }
-
-                        AdaptiveStrategy.FallbackPath -> {
-                            Log.d("AIRI_AGENT", "Fallback triggered")
-                            // سيتم ربطها بمسارات بديلة لاحقاً
+                            is PlanStep.WaitFor -> {
+                                val start = System.currentTimeMillis()
+                                Log.d("AIRI_AGENT", "Waiting for: ${step.text}")
+                                while (System.currentTimeMillis() - start < step.timeout) {
+                                    if (extractScreenContext().contains(step.text, ignoreCase = true)) {
+                                        Log.d("AIRI_AGENT", "Found element: ${step.text}")
+                                        break
+                                    }
+                                    delay(200)
+                                }
+                            }
                         }
                     }
+                    
+                    // هنا يمكن دمج الـ strategy لاحقاً لتعديل سلوك الخطوات عند الفشل
                 },
                 contextProvider = {
                     extractScreenContext()
                 },
                 verifierProvider = { verifyingGoal ->
                     suspend {
+                        // التحقق النهائي بعد تنفيذ كافة الخطوات
                         val context = extractScreenContext()
                         val isSuccess = context.contains(verifyingGoal.description, ignoreCase = true)
-                        Log.d("AIRI_VERIFIER", "Verified ${verifyingGoal.id}: $isSuccess")
+                        Log.d("AIRI_VERIFIER", "Final goal verification: $isSuccess")
                         isSuccess
                     }
                 },
@@ -133,7 +135,7 @@ class AIRIAccessibilityService : AccessibilityService() {
         }
     }
 
-    // --- 📡 معالجة أحداث النظام وتحليل السياق ---
+    // --- 📡 تحليل السياق وأحداث النظام ---
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
@@ -162,7 +164,6 @@ class AIRIAccessibilityService : AccessibilityService() {
 
                     if (suggestions.isNotEmpty()) {
                         InteractionTracker.recordShown(sourceApp, detectedIntent)
-
                         withContext(Dispatchers.Main) {
                             OverlayBridge.showSuggestion(suggestions.first(), screenText)
                         }
@@ -196,9 +197,7 @@ class AIRIAccessibilityService : AccessibilityService() {
         return builder.toString().replace(Regex("\\s+"), " ").trim().take(2000)
     }
 
-    override fun onInterrupt() {
-        Log.e("AIRI_ACC", "Service Interrupted")
-    }
+    override fun onInterrupt() {}
 
     override fun onUnbind(intent: Intent?): Boolean {
         ScreenContextHolder.reset()

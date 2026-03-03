@@ -2,13 +2,15 @@ package com.airi.core.chain
 
 class TaskChainer {
 
-    private val tasks = mutableListOf<() -> Unit>()
+    private val goals = mutableListOf<AgentGoal>()
 
-    fun add(task: () -> Unit) {
-        tasks.add(task)
+    fun addGoal(goal: AgentGoal) {
+        goals.add(goal)
     }
 
-    fun execute() {
-        tasks.forEach { it.invoke() }
+    fun execute(executor: (AgentGoal) -> Unit) {
+        for (goal in goals) {
+            executor(goal)
+        }
     }
 }

@@ -14,13 +14,12 @@ import android.widget.*
 import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.airi.assistant.accessibility.ScreenContextHolder
-import com.airi.assistant.accessibility.ContextActionEngine
-import com.airi.assistant.accessibility.SuggestionEngine
 import com.airi.assistant.accessibility.OverlayBridge
-import com.airi.assistant.accessibility.BehaviorEngine 
 import com.airi.assistant.data.ContextEngine
-import com.airi.assistant.adaptive.InteractionTracker // 🔥 إضافة المتعقب
+import com.airi.assistant.adaptive.InteractionTracker
+import com.airi.assistant.brain.AiriBrainController // 🔥 الاستيراد الجديد
+import com.airi.assistant.brain.BrainInput
+import com.airi.assistant.brain.InputSource
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -34,6 +33,7 @@ class OverlayService : Service() {
     private lateinit var adapter: ChatAdapter
 
     private lateinit var llamaManager: LlamaManager
+    private lateinit var brain: AiriBrainController // 🔥 المحرك المركزي
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private lateinit var ttsManager: TextToSpeech
@@ -48,25 +48,22 @@ class OverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == "ACTION_SHOW_SUGGESTION") {
-            val context = intent.getStringExtra("EXTRA_CONTEXT") ?: ""
-            checkAndShowSuggestions(context)
-        }
-        return super.onStartCommand(intent, flags, startId)
+        return START_STICKY
     }
 
     override fun onCreate() {
         super.onCreate()
         llamaManager = LlamaManager(this)
+        brain = AiriBrainController(llamaManager) // 🔥 تهيئة الدماغ
+        
         setupManagers()
         initViews()
         initSpeechToText()
         setupNotification()
 
-        // استلام الاقتراحات من الـ Bridge
-        OverlayBridge.suggestionListener = { suggestionText, context ->
+        OverlayBridge.suggestionListener = { suggestionText, _ ->
             mainHandler.post {
-                showSuggestionChip(suggestionText, context)
+                showSuggestionChip(suggestionText)
             }
         }
     }
@@ -112,15 +109,12 @@ class OverlayService : Service() {
 
     private fun setupRecyclerView() {
         val recyclerView = chatView.findViewById<RecyclerView>(R.id.chat_recycler)
-        
         adapter = ChatAdapter { selectedAction ->
             mainHandler.post {
-                // 🔥 تسجيل قبول الاقتراح (Accepted) لتعزيز التعلم
                 recordInteraction(isAccepted = true)
                 sendToAIRIWithContext(selectedAction)
             }
         }
-        
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerView.adapter = adapter
     }
@@ -132,18 +126,10 @@ class OverlayService : Service() {
         btnLoadBrain.setOnClickListener {
             progressBar.visibility = View.VISIBLE
             btnLoadBrain.isEnabled = false
-            btnLoadBrain.text = "جاري التفعيل..."
-
             llamaManager.initializeModel { success ->
                 progressBar.visibility = View.GONE
                 btnLoadBrain.isEnabled = true
-                if (success) {
-                    btnLoadBrain.text = "العقل جاهز ✅"
-                    btnLoadBrain.setBackgroundColor(android.graphics.Color.GREEN)
-                } else {
-                    btnLoadBrain.text = "خطأ: الملف مفقود"
-                    btnLoadBrain.setBackgroundColor(android.graphics.Color.RED)
-                }
+                btnLoadBrain.text = if (success) "العقل جاهز ✅" else "خطأ في التحميل"
             }
         }
 
@@ -152,6 +138,7 @@ class OverlayService : Service() {
             val text = input.text.toString()
             if (text.isNotBlank()) {
                 input.text.clear()
+                // الدماغ سيقرر بناءً على الـ flag إذا كان يحتاج للسياق
                 if (text.contains("شاشة") || text.contains("حلل") || isWaitingForScreenQuestion) {
                     sendToAIRIWithContext(text)
                 } else {
@@ -161,117 +148,90 @@ class OverlayService : Service() {
         }
 
         chatView.findViewById<View>(R.id.mic_button).setOnClickListener {
-            if (ttsManager.isSpeaking) ttsManager.stop()
             speechRecognizer.startListening(recognitionIntent)
         }
 
-        // إغلاق الواجهة (تعتبر عملية تجاهل Dismissed)
         chatView.findViewById<View>(R.id.btn_close_chat)?.setOnClickListener {
-            recordInteraction(isAccepted = false)
             toggleChat()
         }
     }
 
-    private fun checkAndShowSuggestions(context: String) {
-        val suggestions = SuggestionEngine.generateSuggestions(context)
-        if (suggestions.isNotEmpty()) {
-            showSuggestionChip(suggestions.first(), context)
-        }
-    }
+    // --- 🧠 التعامل مع الدماغ المركزي (Brain Integration) ---
 
-    private fun showSuggestionChip(suggestionText: String, context: String) {
-        adapter.addMessage(ChatModel("💡 اقتراح ذكي: $suggestionText", isUser = false))
-        chatView.findViewById<RecyclerView>(R.id.chat_recycler)
-            .smoothScrollToPosition(adapter.itemCount - 1)
-        
-        // ملاحظة: تم تسجيل الـ Shown مسبقاً في الـ AccessibilityService
-    }
+    private fun sendToAIRI(text: String) {
+        adapter.addMessage(ChatModel(text, true))
 
-    /**
-     * 🔥 وظيفة تسجيل التفاعل بناءً على السياق الحالي
-     */
-    private fun recordInteraction(isAccepted: Boolean) {
         serviceScope.launch {
-            val recent = ContextEngine.getRecentContext()
-            if (recent != null) {
-                if (isAccepted) {
-                    InteractionTracker.recordAccepted(recent.sourceApp, recent.detectedIntent)
-                    Log.d("AIRI_ADAPTIVE", "Accepted recorded for ${recent.sourceApp}")
-                } else {
-                    InteractionTracker.recordDismissed(recent.sourceApp, recent.detectedIntent)
-                    Log.d("AIRI_ADAPTIVE", "Dismissed recorded for ${recent.sourceApp}")
-                }
+            val output = brain.handle(
+                BrainInput(
+                    text = text,
+                    source = InputSource.CHAT,
+                    includeScreenContext = false
+                )
+            )
+
+            withContext(Dispatchers.Main) {
+                processResponse(output.responseText)
             }
         }
     }
 
     private fun sendToAIRIWithContext(text: String) {
         val userDisplayMessage = if (isWaitingForScreenQuestion) text else "🔍 تحليل السياق: $text"
-        adapter.addMessage(ChatModel(userDisplayMessage, isUser = true))
+        adapter.addMessage(ChatModel(userDisplayMessage, true))
 
         serviceScope.launch {
-            val recent = ContextEngine.getRecentContext()
+            val output = brain.handle(
+                BrainInput(
+                    text = text,
+                    source = InputSource.CHAT,
+                    includeScreenContext = true
+                )
+            )
 
-            val finalPrompt = if (recent != null) {
-                """
-                [ذاكرة AIRI النشطة - سياق زمني]
-                المحتوى السابق الذي كان مفتوحاً في تطبيق (${recent.sourceApp}):
-                ${recent.screenText}
-                
-                سؤال المستخدم الحالي المرتبط بهذا السياق:
-                $text
-                """.trimIndent()
-            } else {
-                val currentScreen = ScreenContextHolder.triggerExtraction()
-                ContextActionEngine.resolveActionPrompt(currentScreen, text)
-            }
-
-            llamaManager.generate(finalPrompt) { response ->
-                mainHandler.post {
-                    processResponse(response)
-                }
+            withContext(Dispatchers.Main) {
+                processResponse(output.responseText)
             }
         }
-        
         isWaitingForScreenQuestion = false
     }
 
-    private fun sendToAIRI(text: String) {
-        adapter.addMessage(ChatModel(text, isUser = true))
-        llamaManager.generate(text) { response ->
-            mainHandler.post {
-                processResponse(response)
-            }
-        }
-    }
-
     private fun processResponse(response: String) {
-        adapter.addMessage(ChatModel(response, isUser = false))
+        adapter.addMessage(ChatModel(response, false))
         ttsManager.speak(response, TextToSpeech.QUEUE_FLUSH, null, "AIRI")
         chatView.findViewById<RecyclerView>(R.id.chat_recycler).smoothScrollToPosition(adapter.itemCount - 1)
+    }
+
+    // --- 🛠️ الوظائف المساعدة والخدمات الأخرى ---
+
+    private fun showSuggestionChip(suggestionText: String) {
+        adapter.addMessage(ChatModel("💡 اقتراح ذكي: $suggestionText", false))
+    }
+
+    private fun recordInteraction(isAccepted: Boolean) {
+        serviceScope.launch {
+            val recent = ContextEngine.getRecentContext() ?: return@launch
+            if (isAccepted) {
+                InteractionTracker.recordAccepted(recent.sourceApp, recent.detectedIntent)
+            } else {
+                InteractionTracker.recordDismissed(recent.sourceApp, recent.detectedIntent)
+            }
+        }
     }
 
     private fun initSpeechToText() {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         recognitionIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-SA")
         }
 
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
             override fun onResults(results: Bundle?) {
-                val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.get(0)?.lowercase() ?: return
-                if (spoken.startsWith("hi airi") || spoken.contains("هاي ايري")) {
-                    showAiriMenu()
-                    return
-                }
-                if (spoken.contains("شاشة") || spoken.contains("حلل")) {
-                    sendToAIRIWithContext(spoken)
-                } else {
-                    sendToAIRI(spoken)
-                }
+                val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.get(0) ?: return
+                sendToAIRI(spoken)
             }
-            override fun onError(error: Int) { Log.e("AIRI", "STT Error: $error") }
+            override fun onError(error: Int) {}
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
@@ -334,7 +294,6 @@ class OverlayService : Service() {
     private fun toggleChat() {
         if (isChatVisible) {
             windowManager.removeView(chatView)
-            // إذا أغلق المستخدم الواجهة دون اختيار الاقتراح، نعتبره Dismissed
             recordInteraction(isAccepted = false)
         } else {
             windowManager.addView(chatView, chatParams)
@@ -350,28 +309,8 @@ class OverlayService : Service() {
         val notification = NotificationCompat.Builder(this, "AIRI_SERVICE")
             .setContentTitle("AIRI Active")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
         startForeground(1, notification)
-    }
-
-    private fun showAiriMenu() {
-        val options = arrayOf("🧠 وضع عادي", "🔍 سؤال عن الشاشة", "📺 مشاركة مباشرة")
-        val builder = AlertDialog.Builder(ContextThemeWrapper(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog))
-        builder.setTitle("اختر نمط AIRI")
-        builder.setItems(options) { _, which ->
-            when (which) {
-                0 -> if (!isChatVisible) toggleChat()
-                1 -> {
-                    isWaitingForScreenQuestion = true
-                    if (!isChatVisible) toggleChat()
-                }
-                2 -> Toast.makeText(this, "قريباً!", Toast.LENGTH_SHORT).show()
-            }
-        }
-        val dialog = builder.create()
-        if (Settings.canDrawOverlays(this)) { dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY) }
-        dialog.show()
     }
 
     override fun onDestroy() {

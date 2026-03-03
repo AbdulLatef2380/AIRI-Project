@@ -9,7 +9,7 @@ import kotlinx.coroutines.*
 import org.json.JSONObject
 import kotlin.coroutines.resume
 
-// تعريف وسيط للبيانات الخام القادمة من JSON (يتوافق مع Validator)
+// 1️⃣ تعريف الـ DTO (وعاء البيانات الخام للفحص)
 data class PlanDto(
     val goal_id: String,
     val description: String,
@@ -31,14 +31,13 @@ class AiriBrainController(
         if (input.text.contains("نفذ") || input.text.contains("افتح") || input.text.contains("اضغط")) {
             
             val planPrompt = """
-                أنت محرك تخطيط لنظام أندرويد. أعد الرد بصيغة JSON فقط.
-                ممنوع أي نص إضافي أو markdown.
+                أنت محرك تخطيط أندرويد. أعد الرد JSON فقط.
                 {
-                  "goal_id": "task_id",
+                  "goal_id": "task_1",
                   "description": "وصف المهمة",
-                  "steps": [ { "action": "click", "text": "زر" } ]
+                  "steps": [ { "action": "click", "text": "نص" } ]
                 }
-                سياق الشاشة: $screenContext
+                السياق: $screenContext
                 الأمر: ${input.text}
             """.trimIndent()
 
@@ -48,39 +47,36 @@ class AiriBrainController(
                 }
             }
 
-            // 1️⃣ تنظيف الرد
             val cleanedJson = cleanRawJson(rawResponse)
-            if (!cleanedJson.startsWith("{")) {
-                return@coroutineScope BrainOutput("⚠ الرد غير صالح (ليس JSON)")
-            }
+            
+            // 2️⃣ الإصلاح هنا: استخراج الـ DTO أولاً
+            val planDto = parseToDto(cleanedJson) 
 
-            // 2️⃣ تحويل إلى DTO وفحصه (حل المشكلة رقم 3)
-            val planDto = parseToDto(cleanedJson)
+            // 3️⃣ الفحص يتم على الـ DTO (حل مشكلة Type Mismatch)
             if (planDto == null || !PlanValidator.isValid(planDto)) {
-                return@coroutineScope BrainOutput("⚠ الخطة غير آمنة أو تالفة وتم رفضها")
+                return@coroutineScope BrainOutput("⚠ الخطة مرفوضة: إما تالفة أو غير آمنة")
             }
 
-            // 3️⃣ التحقق من الأوامر الحساسة (Guardian Check)
+            // 4️⃣ الـ Guardian Check يتم أيضاً على الـ DTO
             if (planDto.description.contains("حذف") || planDto.description.contains("إعادة ضبط")) {
-                return@coroutineScope BrainOutput("⚠ هذا الأمر حساس ويحتاج تأكيد يدوي")
+                return@coroutineScope BrainOutput("⚠ أمر حساس يتطلب تأكيداً يدوياً")
             }
 
-            // 4️⃣ تحويل الـ DTO الموثوق إلى AgentGoal للتنفيذ
+            // 5️⃣ الآن فقط نحول الـ DTO الموثوق إلى AgentGoal (الكائن التنفيذي)
             val goal = buildGoalFromDto(planDto)
 
-            // 5️⃣ التنفيذ مع Timeout
             val success = withTimeoutOrNull(15000) {
                 goalExecutor.executeGoal(goal)
             } ?: return@coroutineScope BrainOutput("⏳ انتهى الوقت أثناء التنفيذ")
 
             return@coroutineScope if (success) {
-                BrainOutput("✅ تم التنفيذ بنجاح: ${goal.description}", goal.id)
+                BrainOutput("✅ تم التنفيذ: ${goal.description}", goal.id)
             } else {
-                BrainOutput("❌ فشل التنفيذ ميدانياً", goal.id)
+                BrainOutput("❌ فشل التنفيذ الميداني", goal.id)
             }
         }
 
-        // المسار الافتراضي للمحادثة
+        // مسار المحادثة الطبيعي
         val response = suspendCancellableCoroutine<String> { cont ->
             llamaManager.generate(buildPrompt(input.text, screenContext)) { result ->
                 if (cont.isActive) cont.resume(result)
@@ -89,6 +85,7 @@ class AiriBrainController(
         return@coroutineScope BrainOutput(responseText = response)
     }
 
+    // دالة التحليل تعيد PlanDto حصراً للفحص
     private fun parseToDto(json: String): PlanDto? {
         return try {
             val obj = JSONObject(json)
@@ -99,9 +96,13 @@ class AiriBrainController(
                 stepsList.add(StepDto(s.getString("action"), s.optString("text", "")))
             }
             PlanDto(obj.getString("goal_id"), obj.getString("description"), stepsList)
-        } catch (e: Exception) { null }
+        } catch (e: Exception) { 
+            Log.e("AIRI_BRAIN", "JSON Parsing Error: ${e.message}")
+            null 
+        }
     }
 
+    // دالة بناء الهدف النهائي من الـ DTO
     private fun buildGoalFromDto(dto: PlanDto): AgentGoal {
         val steps = dto.steps.map {
             when (it.action) {

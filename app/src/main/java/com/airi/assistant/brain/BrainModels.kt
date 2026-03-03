@@ -6,11 +6,26 @@ data class AgentGoal(
     val action: String
 )
 
-data class BrainOutput(
-    val message: String,
-    val goalId: String? = null
+data class StepDto(
+    val id: String,
+    val action: String
 )
 
 data class PlanDto(
-    val goals: List<AgentGoal>
+    val steps: List<StepDto>
+)
+
+data class BrainInput(
+    val text: String,
+    val source: InputSource
+)
+
+enum class InputSource {
+    USER,
+    SYSTEM
+}
+
+data class BrainOutput(
+    val message: String,
+    val goalId: String? = null
 )

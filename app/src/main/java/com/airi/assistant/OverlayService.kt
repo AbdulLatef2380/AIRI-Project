@@ -5,7 +5,6 @@ import android.app.*
 import android.content.*
 import android.graphics.PixelFormat
 import android.os.*
-import android.provider.Settings
 import android.speech.*
 import android.speech.tts.TextToSpeech
 import android.util.Log
@@ -14,14 +13,14 @@ import android.widget.*
 import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.airi.assistant.accessibility.OverlayBridge
 import com.airi.assistant.accessibility.ScreenContextHolder
 import com.airi.assistant.data.ContextEngine
 import com.airi.assistant.adaptive.InteractionTracker
 import com.airi.assistant.brain.AiriBrainController
 import com.airi.assistant.brain.BrainInput
 import com.airi.assistant.brain.InputSource
-import com.airi.assistant.brain.GoalExecutor // 🔥 استيراد الواجهة
+import com.airi.assistant.brain.GoalExecutor
+import com.airi.assistant.accessibility.OverlayBridge
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -35,8 +34,8 @@ class OverlayService : Service() {
     private lateinit var adapter: ChatAdapter
 
     private lateinit var llamaManager: LlamaManager
-    private lateinit var brain: AiriBrainController 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var brain: AiriBrainController? = null 
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private lateinit var ttsManager: TextToSpeech
     private lateinit var speechRecognizer: SpeechRecognizer
@@ -53,7 +52,7 @@ class OverlayService : Service() {
         super.onCreate()
         llamaManager = LlamaManager(this)
         
-        // 🔥 محاولة ربط الدماغ بالمحرك التنفيذي
+        // محاولة تهيئة الدماغ عند التشغيل
         initializeBrain()
 
         setupManagers()
@@ -67,24 +66,17 @@ class OverlayService : Service() {
     }
 
     /**
-     * 🔥 تهيئة الدماغ مع ربطه بـ GoalExecutor (خدمة الوصول)
+     * تهيئة الدماغ بربطه بخدمة الوصول كـ Executor وحيد
      */
     private fun initializeBrain() {
         val executor = ScreenContextHolder.serviceInstance as? GoalExecutor
         
         if (executor != null) {
             brain = AiriBrainController(llamaManager, executor)
-            Log.d("AIRI_OVERLAY", "✅ Brain initialized with GoalExecutor")
+            Log.d("AIRI_OVERLAY", "✅ Brain initialized with Accessibility Executor")
         } else {
-            // في حالة عدم اتصال الخدمة بعد، ننشئ Brain مع Executor "صامت" لتجنب الانهيار
-            Log.e("AIRI_OVERLAY", "⚠️ AccessibilityService not connected. Using fallback executor.")
-            brain = AiriBrainController(llamaManager, object : GoalExecutor {
-                override fun executeGoal(goal: com.airi.core.chain.AgentGoal) {
-                    mainHandler.post {
-                        Toast.makeText(applicationContext, "يرجى تفعيل خدمة الوصول أولاً!", Toast.LENGTH_LONG).show()
-                    }
-                }
-            })
+            Log.e("AIRI_OVERLAY", "⚠️ AccessibilityService not connected yet.")
+            // لا ننشئ object مؤقت هنا لأن الواجهة أصبحت suspend وتتطلب تنفيذ حقيقي
         }
     }
 
@@ -130,10 +122,7 @@ class OverlayService : Service() {
     private fun setupRecyclerView() {
         val recyclerView = chatView.findViewById<RecyclerView>(R.id.chat_recycler)
         adapter = ChatAdapter { selectedAction ->
-            mainHandler.post {
-                recordInteraction(isAccepted = true)
-                sendToAIRIWithContext(selectedAction)
-            }
+            mainHandler.post { sendToAIRIWithContext(selectedAction) }
         }
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerView.adapter = adapter
@@ -150,8 +139,7 @@ class OverlayService : Service() {
                 progressBar.visibility = View.GONE
                 btnLoadBrain.isEnabled = true
                 btnLoadBrain.text = if (success) "العقل جاهز ✅" else "خطأ في التحميل"
-                // إعادة محاولة ربط الـ Executor في حال تفعيل الخدمة متأخراً
-                initializeBrain()
+                initializeBrain() // تحديث الربط بعد تحميل الموديل
             }
         }
 
@@ -172,45 +160,52 @@ class OverlayService : Service() {
             speechRecognizer.startListening(recognitionIntent)
         }
 
-        chatView.findViewById<View>(R.id.btn_close_chat)?.setOnClickListener {
-            toggleChat()
-        }
+        chatView.findViewById<View>(R.id.btn_close_chat)?.setOnClickListener { toggleChat() }
     }
 
     private fun sendToAIRI(text: String) {
+        if (brain == null) {
+            initializeBrain()
+            if (brain == null) {
+                Toast.makeText(this, "يرجى تفعيل خدمة الوصول أولاً", Toast.LENGTH_SHORT).show()
+                return
+            }
+        }
+
         adapter.addMessage(ChatModel(text, true))
         serviceScope.launch {
-            val output = brain.handle(BrainInput(text, InputSource.CHAT, false))
-            withContext(Dispatchers.Main) { processResponse(output.responseText) }
+            val output = brain?.handle(BrainInput(text, InputSource.CHAT, false))
+            output?.let { processResponse(it.responseText) }
         }
     }
 
     private fun sendToAIRIWithContext(text: String) {
-        val userDisplayMessage = if (isWaitingForScreenQuestion) text else "🔍 تحليل السياق: $text"
-        adapter.addMessage(ChatModel(userDisplayMessage, true))
+        if (brain == null) {
+            initializeBrain()
+            if (brain == null) {
+                Toast.makeText(this, "يرجى تفعيل خدمة الوصول للتحليل", Toast.LENGTH_SHORT).show()
+                return
+            }
+        }
+
+        adapter.addMessage(ChatModel(text, true))
         serviceScope.launch {
-            val output = brain.handle(BrainInput(text, InputSource.CHAT, true))
-            withContext(Dispatchers.Main) { processResponse(output.responseText) }
+            val output = brain?.handle(BrainInput(text, InputSource.CHAT, true))
+            output?.let { processResponse(it.responseText) }
         }
         isWaitingForScreenQuestion = false
     }
 
     private fun processResponse(response: String) {
-        adapter.addMessage(ChatModel(response, false))
-        ttsManager.speak(response, TextToSpeech.QUEUE_FLUSH, null, "AIRI")
-        chatView.findViewById<RecyclerView>(R.id.chat_recycler).smoothScrollToPosition(adapter.itemCount - 1)
+        mainHandler.post {
+            adapter.addMessage(ChatModel(response, false))
+            ttsManager.speak(response, TextToSpeech.QUEUE_FLUSH, null, "AIRI")
+            chatView.findViewById<RecyclerView>(R.id.chat_recycler).smoothScrollToPosition(adapter.itemCount - 1)
+        }
     }
 
     private fun showSuggestionChip(suggestionText: String) {
         adapter.addMessage(ChatModel("💡 اقتراح ذكي: $suggestionText", false))
-    }
-
-    private fun recordInteraction(isAccepted: Boolean) {
-        serviceScope.launch {
-            val recent = ContextEngine.getRecentContext() ?: return@launch
-            if (isAccepted) InteractionTracker.recordAccepted(recent.sourceApp, recent.detectedIntent)
-            else InteractionTracker.recordDismissed(recent.sourceApp, recent.detectedIntent)
-        }
     }
 
     private fun initSpeechToText() {
@@ -288,7 +283,6 @@ class OverlayService : Service() {
     private fun toggleChat() {
         if (isChatVisible) {
             windowManager.removeView(chatView)
-            recordInteraction(isAccepted = false)
         } else {
             windowManager.addView(chatView, chatParams)
         }

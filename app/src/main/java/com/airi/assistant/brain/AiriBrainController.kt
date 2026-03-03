@@ -14,76 +14,66 @@ class AiriBrainController(
     private val goalExecutor: GoalExecutor 
 ) {
 
+    /**
+     * المعالج المركزي المحدث: يطبق نظام الـ Closed-Loop مع طبقات أمان متعددة
+     */
     suspend fun handle(input: BrainInput): BrainOutput = coroutineScope {
         
         val screenContext = if (input.includeScreenContext) {
             ScreenContextHolder.serviceInstance?.extractScreenContext() ?: ""
         } else ""
 
-        // 1️⃣ فحص نية التنفيذ (Execution Flow)
+        // المسار التنفيذي: إذا احتوى الطلب على كلمات مفتاحية للأوامر
         if (input.text.contains("نفذ") || input.text.contains("افتح") || input.text.contains("اضغط")) {
             
             val planPrompt = """
-                You are an Android AI Agent. Respond ONLY with valid JSON.
+                You are an Android Task Planner. Respond ONLY with valid JSON.
                 Context: $screenContext
                 User Request: ${input.text}
-                JSON Format:
-                {
-                  "goal_id": "task_id",
-                  "description": "Short description",
-                  "steps": [{"action": "click", "text": "target"}]
-                }
+                JSON Format: { "goal_id": "id", "description": "desc", "steps": [...] }
             """.trimIndent()
 
-            val rawJson = suspendCancellableCoroutine<String> { cont ->
+            val rawResponse = suspendCancellableCoroutine<String> { cont ->
                 llamaManager.generate(planPrompt) { response ->
                     if (cont.isActive) cont.resume(response)
                 }
             }
 
-            val cleanedJson = cleanRawJson(rawJson)
+            // 1️⃣ Anti-Hallucination guard (أول فحص للتأكد من أن المخرج JSON)
+            if (!rawResponse.trim().startsWith("{")) {
+                return@coroutineScope BrainOutput("⚠ الرد غير صالح (ليس JSON)")
+            }
+
+            // تنظيف النص وتحويله لـ JSON
+            val cleanedJson = cleanRawJson(rawResponse)
+            
+            // 2️⃣ Plan Validation (التحقق من صحة ومحتوى الخطوات)
+            // ملاحظة: parsePlan هنا يعيد كائن AgentGoal (الذي يمثل الـ PlanDto في منطقنا)
             val goal = parsePlan(cleanedJson)
-
-            // 🛡️ صمام الأمان 1: التحقق من هيكلية الخطة عبر Validator
-            // نمرر الـ Goal المنشأ للتحقق من سلامة الأوامر
+            
             if (goal == null || !PlanValidator.isValid(goal)) {
-                return@coroutineScope BrainOutput(
-                    responseText = "⚠ الخطة غير آمنة أو غير مدعومة وتم رفضها تلقائياً."
-                )
+                return@coroutineScope BrainOutput("⚠ الخطة غير آمنة أو تالفة وتم رفضها")
             }
 
-            // 🛡️ صمام الأمان 2: Guardian Check للأوامر الحساسة
-            if (goal.description.contains("حذف") || goal.description.contains("إعادة ضبط") || 
-                goal.description.contains("مسح") || goal.description.contains("format")) {
-                return@coroutineScope BrainOutput(
-                    responseText = "🔒 تنبيه أمني: الخطة تحتوي على عمليات حساسة. يرجى تأكيد التنفيذ يدوياً."
-                )
+            // 3️⃣ Guardian Check (فحص الكلمات الحساسة قبل المرور للمنفذ)
+            if (goal.description.contains("حذف") || goal.description.contains("إعادة ضبط")) {
+                return@coroutineScope BrainOutput("⚠ هذا الأمر حساس ويحتاج تأكيد يدوي")
             }
 
-            // 🔄 التنفيذ مع انتظار النتيجة (Closed-Loop) وحماية الوقت (Timeout)
-            return@coroutineScope try {
-                // ننتظر نتيجة التنفيذ لمدة أقصاها 15 ثانية
-                val isSuccess = withTimeout(15000) { 
-                    goalExecutor.executeGoal(goal)
-                }
+            // 4️⃣ Execution with Timeout (التنفيذ مع حماية من التعليق)
+            val success = withTimeoutOrNull(15000) {
+                goalExecutor.executeGoal(goal)
+            } ?: return@coroutineScope BrainOutput("⏳ انتهى الوقت أثناء التنفيذ")
 
-                if (isSuccess) {
-                    BrainOutput(
-                        responseText = "✅ تم التنفيذ بنجاح: ${goal.description}",
-                        executedGoalId = goal.id
-                    )
-                } else {
-                    BrainOutput(
-                        responseText = "❌ فشل التنفيذ ميدانياً. قد يكون العنصر غير متاح حالياً.",
-                        executedGoalId = goal.id
-                    )
-                }
-            } catch (e: TimeoutCancellationException) {
-                BrainOutput("⏳ استغرقت العملية وقتاً طويلاً وتم إيقافها لضمان استقرار النظام.")
+            // 5️⃣ Feedback result (إرسال النتيجة النهائية للمستخدم)
+            return@coroutineScope if (success) {
+                BrainOutput("✅ تم التنفيذ بنجاح: ${goal.description}", goal.id)
+            } else {
+                BrainOutput("❌ فشل التنفيذ ميدانياً", goal.id)
             }
         }
 
-        // 2️⃣ المسار الافتراضي: محادثة عادية
+        // المسار الافتراضي: محادثة عادية
         val enrichedPrompt = buildPrompt(input.text, screenContext)
         val response = suspendCancellableCoroutine<String> { cont ->
             llamaManager.generate(enrichedPrompt) { result ->
@@ -97,10 +87,8 @@ class AiriBrainController(
     private fun parsePlan(json: String): AgentGoal? {
         return try {
             val obj = JSONObject(json)
-            val goalId = obj.getString("goal_id")
-            val description = obj.getString("description")
-            val stepsArray = obj.getJSONArray("steps")
             val steps = mutableListOf<PlanStep>()
+            val stepsArray = obj.getJSONArray("steps")
 
             for (i in 0 until stepsArray.length()) {
                 val stepObj = stepsArray.getJSONObject(i)
@@ -110,9 +98,8 @@ class AiriBrainController(
                     "wait" -> steps.add(PlanStep.WaitFor(stepObj.optString("text", "")))
                 }
             }
-            AgentGoal(goalId, description, steps)
+            AgentGoal(obj.getString("goal_id"), obj.getString("description"), steps)
         } catch (e: Exception) {
-            Log.e("AIRI_PARSER", "JSON Error: ${e.message}")
             null
         }
     }

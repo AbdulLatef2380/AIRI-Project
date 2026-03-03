@@ -11,11 +11,12 @@ import org.json.JSONObject
 import kotlin.coroutines.resume
 
 class AiriBrainController(
-    private val llamaManager: LlamaManager
+    private val llamaManager: LlamaManager,
+    private val goalExecutor: GoalExecutor // 🔥 إضافة واجهة التنفيذ للمشغل
 ) {
 
     /**
-     * المعالج المركزي: يقرر ما إذا كان الطلب دردشة عادية أم خطة تنفيذية
+     * المعالج المركزي: يحلل الطلب، يولد JSON، ثم يرسل الهدف للتنفيذ الفعلي
      */
     suspend fun handle(input: BrainInput): BrainOutput = coroutineScope {
         
@@ -24,23 +25,24 @@ class AiriBrainController(
             ScreenContextHolder.serviceInstance?.extractScreenContext() ?: ""
         } else ""
 
-        // 2️⃣ فحص نية التنفيذ: إذا كان الأمر يحتوي على كلمات مفتاحية للتنفيذ
+        // 2️⃣ فحص نية التنفيذ: (افتح، اضغط، نفذ...)
         if (input.text.contains("نفذ") || input.text.contains("افتح") || input.text.contains("اضغط")) {
             
             val planPrompt = """
-                You are an Android Task Planner. 
-                Respond ONLY with a valid JSON object. No explanation.
+                You are an Android AI Agent. 
+                Respond ONLY with a valid JSON object. No conversation.
                 
                 Context: $screenContext
-                User Task: ${input.text}
+                User Request: ${input.text}
                 
                 JSON Format:
                 {
-                  "goal_id": "unique_id",
-                  "description": "action description",
+                  "goal_id": "task_id",
+                  "description": "Short description of the plan",
                   "steps": [
-                    {"action": "click", "text": "target_text"},
-                    {"action": "scroll"}
+                    {"action": "click", "text": "button_text"},
+                    {"action": "scroll"},
+                    {"action": "wait", "text": "element_to_wait_for"}
                   ]
                 }
             """.trimIndent()
@@ -51,21 +53,24 @@ class AiriBrainController(
                 }
             }
 
-            // تنظيف النص المستلم وتحويله إلى هدف (Goal)
+            // تنظيف ومعالجة الـ JSON
             val cleanedJson = cleanRawJson(rawJson)
             val goal = parsePlan(cleanedJson)
 
             if (goal != null) {
+                // 🔥 إرسال الهدف إلى AccessibilityService عبر الـ Executor
+                goalExecutor.executeGoal(goal)
+
                 return@coroutineScope BrainOutput(
-                    responseText = "🚀 تم إنشاء خطة تنفيذ: ${goal.description}",
+                    responseText = "🚀 جاري تنفيذ: ${goal.description}",
                     executedGoalId = goal.id
                 )
             } else {
-                Log.e("AIRI_BRAIN", "Failed to parse plan. Raw output: $rawJson")
+                Log.e("AIRI_BRAIN", "Failed to construct a plan. Raw output: $rawJson")
             }
         }
 
-        // 3️⃣ المسار الافتراضي: محادثة عادية عبر LLM
+        // 3️⃣ المسار الافتراضي: محادثة عادية (LLM Chat)
         val enrichedPrompt = buildPrompt(input.text, screenContext)
         val response = suspendCancellableCoroutine<String> { cont ->
             llamaManager.generate(enrichedPrompt) { result ->
@@ -77,7 +82,7 @@ class AiriBrainController(
     }
 
     /**
-     * تحويل نص JSON إلى كائن AgentGoal قابل للتنفيذ
+     * تحويل النص المستلم إلى كائن AgentGoal إجرائي
      */
     private fun parsePlan(json: String): AgentGoal? {
         return try {
@@ -108,14 +113,11 @@ class AiriBrainController(
             }
             AgentGoal(goalId, description, steps)
         } catch (e: Exception) {
-            Log.e("AIRI_PARSER", "JSON Parsing Error: ${e.message}")
+            Log.e("AIRI_PARSER", "JSON Error: ${e.message}")
             null
         }
     }
 
-    /**
-     * تنظيف مخرجات الـ LLM من أي Markdown (مثل ```json) لضمان استقرار الـ Parser
-     */
     private fun cleanRawJson(raw: String): String {
         return raw.trim()
             .replace("```json", "")
@@ -129,7 +131,7 @@ class AiriBrainController(
 
     private fun buildPrompt(text: String, context: String): String {
         return if (context.isNotBlank()) {
-            "سياق الشاشة الحالي:\n$context\n\nطلب المستخدم:\n$text"
+            "السياق:\n$context\n\nالمستخدم:\n$text"
         } else {
             text
         }

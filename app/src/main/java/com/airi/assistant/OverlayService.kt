@@ -15,11 +15,13 @@ import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.airi.assistant.accessibility.OverlayBridge
+import com.airi.assistant.accessibility.ScreenContextHolder
 import com.airi.assistant.data.ContextEngine
 import com.airi.assistant.adaptive.InteractionTracker
-import com.airi.assistant.brain.AiriBrainController // 🔥 الاستيراد الجديد
+import com.airi.assistant.brain.AiriBrainController
 import com.airi.assistant.brain.BrainInput
 import com.airi.assistant.brain.InputSource
+import com.airi.assistant.brain.GoalExecutor // 🔥 استيراد الواجهة
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -33,7 +35,7 @@ class OverlayService : Service() {
     private lateinit var adapter: ChatAdapter
 
     private lateinit var llamaManager: LlamaManager
-    private lateinit var brain: AiriBrainController // 🔥 المحرك المركزي
+    private lateinit var brain: AiriBrainController 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private lateinit var ttsManager: TextToSpeech
@@ -47,24 +49,42 @@ class OverlayService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        return START_STICKY
-    }
-
     override fun onCreate() {
         super.onCreate()
         llamaManager = LlamaManager(this)
-        brain = AiriBrainController(llamaManager) // 🔥 تهيئة الدماغ
         
+        // 🔥 محاولة ربط الدماغ بالمحرك التنفيذي
+        initializeBrain()
+
         setupManagers()
         initViews()
         initSpeechToText()
         setupNotification()
 
         OverlayBridge.suggestionListener = { suggestionText, _ ->
-            mainHandler.post {
-                showSuggestionChip(suggestionText)
-            }
+            mainHandler.post { showSuggestionChip(suggestionText) }
+        }
+    }
+
+    /**
+     * 🔥 تهيئة الدماغ مع ربطه بـ GoalExecutor (خدمة الوصول)
+     */
+    private fun initializeBrain() {
+        val executor = ScreenContextHolder.serviceInstance as? GoalExecutor
+        
+        if (executor != null) {
+            brain = AiriBrainController(llamaManager, executor)
+            Log.d("AIRI_OVERLAY", "✅ Brain initialized with GoalExecutor")
+        } else {
+            // في حالة عدم اتصال الخدمة بعد، ننشئ Brain مع Executor "صامت" لتجنب الانهيار
+            Log.e("AIRI_OVERLAY", "⚠️ AccessibilityService not connected. Using fallback executor.")
+            brain = AiriBrainController(llamaManager, object : GoalExecutor {
+                override fun executeGoal(goal: com.airi.core.chain.AgentGoal) {
+                    mainHandler.post {
+                        Toast.makeText(applicationContext, "يرجى تفعيل خدمة الوصول أولاً!", Toast.LENGTH_LONG).show()
+                    }
+                }
+            })
         }
     }
 
@@ -130,6 +150,8 @@ class OverlayService : Service() {
                 progressBar.visibility = View.GONE
                 btnLoadBrain.isEnabled = true
                 btnLoadBrain.text = if (success) "العقل جاهز ✅" else "خطأ في التحميل"
+                // إعادة محاولة ربط الـ Executor في حال تفعيل الخدمة متأخراً
+                initializeBrain()
             }
         }
 
@@ -138,7 +160,6 @@ class OverlayService : Service() {
             val text = input.text.toString()
             if (text.isNotBlank()) {
                 input.text.clear()
-                // الدماغ سيقرر بناءً على الـ flag إذا كان يحتاج للسياق
                 if (text.contains("شاشة") || text.contains("حلل") || isWaitingForScreenQuestion) {
                     sendToAIRIWithContext(text)
                 } else {
@@ -156,42 +177,20 @@ class OverlayService : Service() {
         }
     }
 
-    // --- 🧠 التعامل مع الدماغ المركزي (Brain Integration) ---
-
     private fun sendToAIRI(text: String) {
         adapter.addMessage(ChatModel(text, true))
-
         serviceScope.launch {
-            val output = brain.handle(
-                BrainInput(
-                    text = text,
-                    source = InputSource.CHAT,
-                    includeScreenContext = false
-                )
-            )
-
-            withContext(Dispatchers.Main) {
-                processResponse(output.responseText)
-            }
+            val output = brain.handle(BrainInput(text, InputSource.CHAT, false))
+            withContext(Dispatchers.Main) { processResponse(output.responseText) }
         }
     }
 
     private fun sendToAIRIWithContext(text: String) {
         val userDisplayMessage = if (isWaitingForScreenQuestion) text else "🔍 تحليل السياق: $text"
         adapter.addMessage(ChatModel(userDisplayMessage, true))
-
         serviceScope.launch {
-            val output = brain.handle(
-                BrainInput(
-                    text = text,
-                    source = InputSource.CHAT,
-                    includeScreenContext = true
-                )
-            )
-
-            withContext(Dispatchers.Main) {
-                processResponse(output.responseText)
-            }
+            val output = brain.handle(BrainInput(text, InputSource.CHAT, true))
+            withContext(Dispatchers.Main) { processResponse(output.responseText) }
         }
         isWaitingForScreenQuestion = false
     }
@@ -202,8 +201,6 @@ class OverlayService : Service() {
         chatView.findViewById<RecyclerView>(R.id.chat_recycler).smoothScrollToPosition(adapter.itemCount - 1)
     }
 
-    // --- 🛠️ الوظائف المساعدة والخدمات الأخرى ---
-
     private fun showSuggestionChip(suggestionText: String) {
         adapter.addMessage(ChatModel("💡 اقتراح ذكي: $suggestionText", false))
     }
@@ -211,11 +208,8 @@ class OverlayService : Service() {
     private fun recordInteraction(isAccepted: Boolean) {
         serviceScope.launch {
             val recent = ContextEngine.getRecentContext() ?: return@launch
-            if (isAccepted) {
-                InteractionTracker.recordAccepted(recent.sourceApp, recent.detectedIntent)
-            } else {
-                InteractionTracker.recordDismissed(recent.sourceApp, recent.detectedIntent)
-            }
+            if (isAccepted) InteractionTracker.recordAccepted(recent.sourceApp, recent.detectedIntent)
+            else InteractionTracker.recordDismissed(recent.sourceApp, recent.detectedIntent)
         }
     }
 

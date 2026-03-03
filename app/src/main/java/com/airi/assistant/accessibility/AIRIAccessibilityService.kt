@@ -31,18 +31,21 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     // --- 🛠️ دوال التنفيذ الفعلي (Physical Actions) ---
 
+    /**
+     * تنفيذ النقر بناءً على النص مع دعم صعود الشجرة (Parent Search)
+     */
     private fun performClickByText(text: String): Boolean {
         val root = rootInActiveWindow ?: return false
         val nodes = root.findAccessibilityNodeInfosByText(text)
         if (nodes.isNullOrEmpty()) return false
 
         for (node in nodes) {
-            // محاولة الضغط على العنصر نفسه أو البحث في الآباء إذا لم يكن قابلاً للضغط
             var current: AccessibilityNodeInfo? = node
             while (current != null) {
                 if (current.isClickable) {
                     val success = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                     if (success) {
+                        Log.d("AIRI_ACC", "Successfully clicked on: $text")
                         node.recycle()
                         return true
                     }
@@ -54,12 +57,16 @@ class AIRIAccessibilityService : AccessibilityService() {
         return false
     }
 
+    /**
+     * تنفيذ التمرير للأمام بالبحث عن أول حاوية قابلة للتمرير
+     */
     private fun performScrollForward(): Boolean {
         val root = rootInActiveWindow ?: return false
-        // محاولة البحث عن عنصر قابل للتمرير في الشجرة
+        
         fun findAndScroll(node: AccessibilityNodeInfo): Boolean {
             if (node.isScrollable) {
-                return node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                val success = node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                if (success) return true
             }
             for (i in 0 until node.childCount) {
                 val child = node.getChild(i) ?: continue
@@ -90,13 +97,13 @@ class AIRIAccessibilityService : AccessibilityService() {
                     when (strategy) {
                         AdaptiveStrategy.DirectAction -> {
                             val success = performClickByText(executingGoal.description)
-                            Log.d("AIRI_AGENT", "DirectAction (Click) result: $success for ${executingGoal.id}")
+                            Log.d("AIRI_AGENT", "DirectAction result: $success")
                         }
 
                         AdaptiveStrategy.ScrollAndRetry -> {
                             val success = performScrollForward()
                             Log.d("AIRI_AGENT", "ScrollAndRetry result: $success")
-                            delay(400) // انتظار استقرار الواجهة بعد السكرول
+                            delay(400) // انتظار استقرار الشاشة
                         }
 
                         AdaptiveStrategy.WaitAndRecheck -> {
@@ -105,7 +112,8 @@ class AIRIAccessibilityService : AccessibilityService() {
                         }
 
                         AdaptiveStrategy.FallbackPath -> {
-                            Log.d("AIRI_AGENT", "FallbackPath triggered - Logging only for now")
+                            Log.d("AIRI_AGENT", "Fallback triggered")
+                            // سيتم ربطها بمسارات بديلة لاحقاً
                         }
                     }
                 },

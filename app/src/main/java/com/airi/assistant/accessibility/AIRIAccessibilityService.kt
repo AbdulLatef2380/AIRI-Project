@@ -6,6 +6,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
 import android.content.Intent
 import kotlinx.coroutines.*
+
+// استيراد المكونات من مكتبة core ومن حزم المساعد
 import com.airi.core.chain.AgentGoal
 import com.airi.core.chain.TaskChainer
 import com.airi.assistant.ai.IntentDetector
@@ -16,10 +18,12 @@ import com.airi.assistant.adaptive.InteractionTracker
 
 class AIRIAccessibilityService : AccessibilityService() {
 
+    // إدارة العمليات غير المتزامنة على الخيط الرئيسي لضمان سلامة الوصول لعناصر الواجهة
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        // ربط الخدمة بالمخزن السحابي للسياق لتمكين الوصول إليها من أي مكان
         ScreenContextHolder.serviceInstance = this
         Log.d("AIRI_ACC", "Service Connected & Linked to Holder")
     }
@@ -27,6 +31,7 @@ class AIRIAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
+        // مراقبة التغيرات الهيكلية في واجهة المستخدم
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
 
@@ -37,6 +42,7 @@ class AIRIAccessibilityService : AccessibilityService() {
             val sourceApp = event.packageName?.toString() ?: "unknown"
             ScreenContextHolder.lastScreenText = screenText
 
+            // معالجة النية والسياق في الخلفية لمنع تعليق الواجهة
             serviceScope.launch(Dispatchers.Default) {
                 val detectedIntent = IntentDetector.detectIntent(screenText)
 
@@ -46,6 +52,7 @@ class AIRIAccessibilityService : AccessibilityService() {
                     detectedIntent = detectedIntent
                 )
 
+                // منطق عرض الاقتراحات التكيفي
                 if (AdaptiveDecisionEngine.shouldDisplay(sourceApp, detectedIntent)) {
                     val suggestions = SuggestionEngine.generateSuggestions(screenText)
 
@@ -65,7 +72,8 @@ class AIRIAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * 🔥 Autonomous Execution Entry Point
+     * 🔥 نقطة الدخول للتنفيذ الذاتي (Autonomous Execution)
+     * تستخدم نظام الـ Chaining الجديد مع VerifierProvider للتحقق من النتائج
      */
     fun executeAutonomousGoal(goal: AgentGoal) {
         serviceScope.launch {
@@ -74,15 +82,25 @@ class AIRIAccessibilityService : AccessibilityService() {
             val chainer = TaskChainer()
             chainer.addGoal(goal)
 
-            chainer.execute { executingGoal ->
-                Log.d("AIRI_AGENT", "⚙ Executing goal: ${executingGoal.id}")
-
-                // 🔥 هنا مستقبلاً سنربط StateMachine + ExecutionEngine
-                // حالياً مجرد logging لضمان البناء السليم
-            }
+            chainer.execute(
+                executor = { executingGoal ->
+                    Log.d("AIRI_AGENT", "Executing: ${executingGoal.id}")
+                    // TODO: هنا يتم ربط الـ ExecutionEngine لتنفيذ النقرات أو الكتابة فعلياً
+                },
+                verifierProvider = { verifyingGoal ->
+                    // توفير منطق التحقق: هل تغير سياق الشاشة ليطابق وصف الهدف؟
+                    suspend {
+                        val currentContext = extractScreenContext()
+                        currentContext.contains(verifyingGoal.description, ignoreCase = true)
+                    }
+                }
+            )
         }
     }
 
+    /**
+     * سحب النص الكامل من الشاشة الحالية
+     */
     fun extractScreenContext(): String {
         val root = rootInActiveWindow ?: return ScreenContextHolder.lastScreenText
         return extractText(root)
@@ -110,7 +128,9 @@ class AIRIAccessibilityService : AccessibilityService() {
             .take(2000)
     }
 
-    override fun onInterrupt() {}
+    override fun onInterrupt() {
+        Log.e("AIRI_ACC", "Service Interrupted")
+    }
 
     override fun onUnbind(intent: Intent?): Boolean {
         ScreenContextHolder.reset()
@@ -119,6 +139,7 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // إلغاء كافة العمليات لضمان عدم حدوث تسريب للذاكرة
         serviceScope.cancel()
     }
 }

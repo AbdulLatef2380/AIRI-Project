@@ -21,6 +21,7 @@ import com.airi.assistant.brain.BrainInput
 import com.airi.assistant.brain.InputSource
 import com.airi.assistant.brain.GoalExecutor
 import com.airi.assistant.accessibility.OverlayBridge
+import com.airi.core.chain.AgentGoal // 🔥 استيراد مهم
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -52,9 +53,7 @@ class OverlayService : Service() {
         super.onCreate()
         llamaManager = LlamaManager(this)
         
-        // محاولة تهيئة الدماغ عند التشغيل
         initializeBrain()
-
         setupManagers()
         initViews()
         initSpeechToText()
@@ -66,19 +65,32 @@ class OverlayService : Service() {
     }
 
     /**
-     * تهيئة الدماغ بربطه بخدمة الوصول كـ Executor وحيد
+     * 🔥 الربط مع المحرك التنفيذي (Accessibility Service)
      */
     private fun initializeBrain() {
-        val executor = ScreenContextHolder.serviceInstance as? GoalExecutor
+        // نحاول الحصول على الخدمة الحقيقية أولاً
+        val realExecutor = ScreenContextHolder.serviceInstance as? GoalExecutor
         
-        if (executor != null) {
-            brain = AiriBrainController(llamaManager, executor)
-            Log.d("AIRI_OVERLAY", "✅ Brain initialized with Accessibility Executor")
+        if (realExecutor != null) {
+            brain = AiriBrainController(llamaManager, realExecutor)
+            Log.d("AIRI_OVERLAY", "✅ Brain connected to Real GoalExecutor")
         } else {
-            Log.e("AIRI_OVERLAY", "⚠️ AccessibilityService not connected yet.")
-            // لا ننشئ object مؤقت هنا لأن الواجهة أصبحت suspend وتتطلب تنفيذ حقيقي
+            // 🔥 الحل للمشكلة: تعريف Executor محلي متوافق مع النوع الجديد (suspend & Boolean)
+            Log.e("AIRI_OVERLAY", "⚠️ Accessibility not connected. Using Local Fallback.")
+            val fallbackExecutor = object : GoalExecutor {
+                override suspend fun executeGoal(goal: AgentGoal): Boolean {
+                    // هنا Overlay لا يمكنه التنفيذ حقيقة، فنقوم بإظهار رسالة
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(applicationContext, "يرجى تفعيل خدمة الوصول للتنفيذ!", Toast.LENGTH_LONG).show()
+                    }
+                    return false // فشل التنفيذ لعدم وجود صلاحيات
+                }
+            }
+            brain = AiriBrainController(llamaManager, fallbackExecutor)
         }
     }
+
+    // --- (بقية الدوال setupManagers, initViews, setupRecyclerView تبقى كما هي) ---
 
     private fun setupManagers() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -139,7 +151,7 @@ class OverlayService : Service() {
                 progressBar.visibility = View.GONE
                 btnLoadBrain.isEnabled = true
                 btnLoadBrain.text = if (success) "العقل جاهز ✅" else "خطأ في التحميل"
-                initializeBrain() // تحديث الربط بعد تحميل الموديل
+                initializeBrain() 
             }
         }
 
@@ -164,14 +176,6 @@ class OverlayService : Service() {
     }
 
     private fun sendToAIRI(text: String) {
-        if (brain == null) {
-            initializeBrain()
-            if (brain == null) {
-                Toast.makeText(this, "يرجى تفعيل خدمة الوصول أولاً", Toast.LENGTH_SHORT).show()
-                return
-            }
-        }
-
         adapter.addMessage(ChatModel(text, true))
         serviceScope.launch {
             val output = brain?.handle(BrainInput(text, InputSource.CHAT, false))
@@ -180,14 +184,6 @@ class OverlayService : Service() {
     }
 
     private fun sendToAIRIWithContext(text: String) {
-        if (brain == null) {
-            initializeBrain()
-            if (brain == null) {
-                Toast.makeText(this, "يرجى تفعيل خدمة الوصول للتحليل", Toast.LENGTH_SHORT).show()
-                return
-            }
-        }
-
         adapter.addMessage(ChatModel(text, true))
         serviceScope.launch {
             val output = brain?.handle(BrainInput(text, InputSource.CHAT, true))

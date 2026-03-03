@@ -1,11 +1,5 @@
 package com.airi.assistant.brain
 
-data class AgentGoal(
-    val id: String,
-    val description: String,
-    val action: String
-)
-
 data class StepDto(
     val id: String,
     val action: String
@@ -17,12 +11,14 @@ data class PlanDto(
 
 data class BrainInput(
     val text: String,
-    val source: InputSource
+    val source: InputSource,
+    val withContext: Boolean = false
 )
 
 enum class InputSource {
     USER,
-    SYSTEM
+    SYSTEM,
+    CHAT
 }
 
 data class BrainOutput(

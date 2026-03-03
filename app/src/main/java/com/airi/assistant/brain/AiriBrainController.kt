@@ -15,7 +15,7 @@ class AiriBrainController(
 ) {
 
     /**
-     * المعالج المركزي المحدث: يطبق نظام الـ Closed-Loop مع طبقات أمان متعددة
+     * المعالج المركزي: المايسترو الذي يدير طبقات الحماية والتنفيذ
      */
     suspend fun handle(input: BrainInput): BrainOutput = coroutineScope {
         
@@ -23,14 +23,33 @@ class AiriBrainController(
             ScreenContextHolder.serviceInstance?.extractScreenContext() ?: ""
         } else ""
 
-        // المسار التنفيذي: إذا احتوى الطلب على كلمات مفتاحية للأوامر
+        // المسار التنفيذي: (افتح، اضغط، نفذ...)
         if (input.text.contains("نفذ") || input.text.contains("افتح") || input.text.contains("اضغط")) {
             
+            // 🔥 الـ Prompt الصارم جداً لمنع الهلوسة والالتزام بالصيغة
             val planPrompt = """
-                You are an Android Task Planner. Respond ONLY with valid JSON.
-                Context: $screenContext
-                User Request: ${input.text}
-                JSON Format: { "goal_id": "id", "description": "desc", "steps": [...] }
+                أنت محرك تخطيط لنظام أندرويد.
+                أعد الرد بصيغة JSON فقط.
+                ممنوع أي نص إضافي.
+                ممنوع استخدام markdown (```json).
+                ممنوع تقديم أي شرح أو ملاحظات.
+
+                الصيغة المطلوبة:
+                {
+                  "goal_id": "تعريف_فريد",
+                  "description": "وصف دقيق باللغة العربية",
+                  "steps": [
+                    { "action": "click", "text": "نص_الزر" },
+                    { "action": "scroll" },
+                    { "action": "wait", "text": "نص_العنصر" }
+                  ]
+                }
+
+                السياق الحالي للشاشة:
+                $screenContext
+
+                الأمر المطلوب:
+                ${input.text}
             """.trimIndent()
 
             val rawResponse = suspendCancellableCoroutine<String> { cont ->
@@ -39,48 +58,47 @@ class AiriBrainController(
                 }
             }
 
-            // 1️⃣ Anti-Hallucination guard (أول فحص للتأكد من أن المخرج JSON)
-            if (!rawResponse.trim().startsWith("{")) {
-                return@coroutineScope BrainOutput("⚠ الرد غير صالح (ليس JSON)")
+            // 1️⃣ JSON Guard: منع الهلوسة النصية
+            val trimmedResponse = rawResponse.trim()
+            if (!trimmedResponse.startsWith("{")) {
+                Log.e("AIRI_GUARD", "Hallucination detected: Not a JSON start")
+                return@coroutineScope BrainOutput("⚠ الرد غير صالح (ليس JSON). يرجى المحاولة بصياغة أوضح.")
             }
 
-            // تنظيف النص وتحويله لـ JSON
-            val cleanedJson = cleanRawJson(rawResponse)
+            // تنظيف النص (في حال أضاف LLM وسوم markdown رغم المنع)
+            val cleanedJson = cleanRawJson(trimmedResponse)
             
-            // 2️⃣ Plan Validation (التحقق من صحة ومحتوى الخطوات)
-            // ملاحظة: parsePlan هنا يعيد كائن AgentGoal (الذي يمثل الـ PlanDto في منطقنا)
+            // 2️⃣ Plan Validation: فحص هيكلية الخطوات وسلامتها
             val goal = parsePlan(cleanedJson)
-            
             if (goal == null || !PlanValidator.isValid(goal)) {
-                return@coroutineScope BrainOutput("⚠ الخطة غير آمنة أو تالفة وتم رفضها")
+                return@coroutineScope BrainOutput("⚠ الخطة غير آمنة أو غير مكتملة وتم رفضها.")
             }
 
-            // 3️⃣ Guardian Check (فحص الكلمات الحساسة قبل المرور للمنفذ)
-            if (goal.description.contains("حذف") || goal.description.contains("إعادة ضبط")) {
-                return@coroutineScope BrainOutput("⚠ هذا الأمر حساس ويحتاج تأكيد يدوي")
+            // 3️⃣ Guardian Check: صمام الأمان الأخير للأوامر الحساسة
+            if (goal.description.contains("حذف") || goal.description.contains("إعادة ضبط") || 
+                goal.description.contains("مسح") || goal.description.contains("فرمتة")) {
+                return@coroutineScope BrainOutput("⚠ هذا الأمر حساس جداً ويتطلب تأكيداً يدوياً.")
             }
 
-            // 4️⃣ Execution with Timeout (التنفيذ مع حماية من التعليق)
+            // 4️⃣ Timeout Execution: التنفيذ مع مراقبة الوقت (Closed-Loop)
             val success = withTimeoutOrNull(15000) {
                 goalExecutor.executeGoal(goal)
-            } ?: return@coroutineScope BrainOutput("⏳ انتهى الوقت أثناء التنفيذ")
+            } ?: return@coroutineScope BrainOutput("⏳ انتهى الوقت المحدد أثناء محاولة التنفيذ.")
 
-            // 5️⃣ Feedback result (إرسال النتيجة النهائية للمستخدم)
+            // 5️⃣ Feedback result: إرسال النتيجة النهائية
             return@coroutineScope if (success) {
                 BrainOutput("✅ تم التنفيذ بنجاح: ${goal.description}", goal.id)
             } else {
-                BrainOutput("❌ فشل التنفيذ ميدانياً", goal.id)
+                BrainOutput("❌ فشل التنفيذ الميداني. ربما تغيرت واجهة التطبيق.", goal.id)
             }
         }
 
         // المسار الافتراضي: محادثة عادية
-        val enrichedPrompt = buildPrompt(input.text, screenContext)
         val response = suspendCancellableCoroutine<String> { cont ->
-            llamaManager.generate(enrichedPrompt) { result ->
+            llamaManager.generate(buildPrompt(input.text, screenContext)) { result ->
                 if (cont.isActive) cont.resume(result)
             }
         }
-
         return@coroutineScope BrainOutput(responseText = response)
     }
 
@@ -89,7 +107,6 @@ class AiriBrainController(
             val obj = JSONObject(json)
             val steps = mutableListOf<PlanStep>()
             val stepsArray = obj.getJSONArray("steps")
-
             for (i in 0 until stepsArray.length()) {
                 val stepObj = stepsArray.getJSONObject(i)
                 when (stepObj.getString("action")) {
@@ -99,20 +116,13 @@ class AiriBrainController(
                 }
             }
             AgentGoal(obj.getString("goal_id"), obj.getString("description"), steps)
-        } catch (e: Exception) {
-            null
-        }
+        } catch (e: Exception) { null }
     }
 
     private fun cleanRawJson(raw: String): String {
-        return raw.trim()
-            .replace("```json", "")
-            .replace("```", "")
-            .let { 
-                val start = it.indexOf("{")
-                val end = it.lastIndexOf("}")
-                if (start != -1 && end != -1) it.substring(start, end + 1) else ""
-            }
+        val start = raw.indexOf("{")
+        val end = raw.lastIndexOf("}")
+        return if (start != -1 && end != -1) raw.substring(start, end + 1) else ""
     }
 
     private fun buildPrompt(text: String, context: String) = 

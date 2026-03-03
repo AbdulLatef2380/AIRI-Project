@@ -1,7 +1,7 @@
 package com.airi.core.chain
 
-data class AgentGoal(
+class AgentGoal(
     val id: String,
     val description: String,
-    val priority: Int = 0
+    val steps: List<PlanStep>
 )

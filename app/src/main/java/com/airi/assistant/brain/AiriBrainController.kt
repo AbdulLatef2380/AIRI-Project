@@ -108,3 +108,7 @@ class AiriBrainController(
     private fun buildPrompt(text: String, context: String) =
         if (context.isNotBlank()) "Context:\n$context\nUser: $text" else text
 }
+
+data class BrainResponse(
+    val message: String
+)

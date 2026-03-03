@@ -79,11 +79,7 @@ class OverlayService : Service() {
             Log.e("AIRI_OVERLAY", "⚠️ Accessibility not connected. Using Local Fallback.")
             val fallbackExecutor = object : GoalExecutor {
                 override suspend fun executeGoal(goal: AgentGoal): Boolean {
-                    // هنا Overlay لا يمكنه التنفيذ حقيقة، فنقوم بإظهار رسالة
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(applicationContext, "يرجى تفعيل خدمة الوصول للتنفيذ!", Toast.LENGTH_LONG).show()
-                    }
-                    return false // فشل التنفيذ لعدم وجود صلاحيات
+                    return executeAutonomousGoal(goal)
                 }
             }
             brain = AiriBrainController(llamaManager, fallbackExecutor)

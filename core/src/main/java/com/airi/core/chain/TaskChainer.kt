@@ -7,13 +7,15 @@ class TaskChainer(
 ) {
 
     private val goals = mutableListOf<AgentGoal>()
+    private val strategySelector = StrategySelector()
 
     fun addGoal(goal: AgentGoal) {
         goals.add(goal)
     }
 
     suspend fun execute(
-        executor: suspend (AgentGoal) -> Unit,
+        executor: suspend (AgentGoal, AdaptiveStrategy) -> Unit,
+        contextProvider: suspend () -> String,
         verifierProvider: (AgentGoal) -> (suspend () -> Boolean),
         failureStrategyProvider: (AgentGoal) -> FailureStrategy = { FailureStrategy.RETRY }
     ) {
@@ -25,7 +27,15 @@ class TaskChainer(
 
             while (attempt < retryPolicy.maxAttempts && !success) {
 
-                executor(goal)
+                val currentContext = contextProvider()
+
+                val strategy = strategySelector.selectStrategy(
+                    goal = goal,
+                    currentContext = currentContext,
+                    attempt = attempt
+                )
+
+                executor(goal, strategy)
 
                 val verifier = TemporalVerifier()
 

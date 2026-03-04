@@ -15,7 +15,7 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     /**
      * 🏗️ المنفذ الداخلي (Internal Executor)
-     * هذا الكائن هو الذي سيتم تمريره للدماغ للتحكم في المتصفح/التطبيقات
+     * تنفيذ الأهداف القادمة من الدماغ عبر الـ Accessibility
      */
     private val executor = object : GoalExecutor() {
         override suspend fun executeGoal(goal: AgentGoal): Boolean {
@@ -26,7 +26,7 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        // ربط النسخة الحالية بالـ Holder ليتمكن الـ OverlayService من الوصول للـ executor
+        // تمرير الـ executor الداخلي للمستودع المركزي
         ScreenContextHolder.serviceInstance = executor 
         Log.d("AIRI_ACC", "✅ Service Connected: Internal Executor Ready")
     }
@@ -37,26 +37,35 @@ class AIRIAccessibilityService : AccessibilityService() {
         Log.d("AIRI_AGENT", "🚀 Starting Execution Loop for Goal: ${goal.id}")
 
         for ((index, step) in goal.steps.withIndex()) {
-            Log.d("AIRI_AGENT", "Executing Step ${index + 1}/${goal.steps.size}: $step")
+            Log.d("AIRI_AGENT", "Executing Step ${index + 1}/${goal.steps.size}")
 
             val stepSuccess = when (step) {
-                is PlanStep.Click -> performClickByText(step.text)
-                is PlanStep.ScrollForward -> performScrollForward()
-                is PlanStep.WaitFor -> waitForElement(step.text, step.timeout)
-                // إضافة تنفيذ الحالات الجديدة إذا وجدت في الـ Brain
+                is PlanStep.Click -> {
+                    performClickByText(step.text)
+                }
+
+                is PlanStep.Scroll -> {
+                    performScrollForward()
+                }
+
                 is PlanStep.Wait -> {
-                    delay(2000) // تنفيذ Wait افتراضي
+                    // نستخدم delay بدلاً من Thread.sleep لأننا في Coroutine Scope 
+                    // للحفاظ على استجابة الخدمة
+                    delay(step.millis)
                     true
                 }
-                else -> false
             }
 
             if (!stepSuccess) {
-                Log.e("AIRI_AGENT", "❌ Step Failed: $step. Aborting.")
+                Log.e("AIRI_AGENT", "❌ Step Failed. Aborting entire goal.")
                 return@withContext false
             }
-            delay(600) // استقرار الواجهة
+
+            // وقت راحة قصير لاستقرار الـ UI بعد كل عملية
+            delay(500)
         }
+
+        Log.d("AIRI_AGENT", "✅ All steps completed successfully.")
         return@withContext true
     }
 
@@ -104,21 +113,11 @@ class AIRIAccessibilityService : AccessibilityService() {
         return false
     }
 
-    private suspend fun waitForElement(text: String, timeout: Long): Boolean {
-        val start = System.currentTimeMillis()
-        while (System.currentTimeMillis() - start < timeout) {
-            if (extractScreenContext().contains(text, ignoreCase = true)) return true
-            delay(300)
-        }
-        return false
-    }
-
-    // --- 📡 تحليل السياق ---
+    // --- 📡 إدارة السياق والبيانات ---
 
     private fun extractScreenContext(): String {
         val root = rootInActiveWindow ?: return ""
         val sb = StringBuilder()
-        
         fun traverse(n: AccessibilityNodeInfo?) {
             if (n == null) return
             n.text?.let { sb.append(it).append(" ") }
@@ -128,7 +127,6 @@ class AIRIAccessibilityService : AccessibilityService() {
                 child?.recycle()
             }
         }
-        
         traverse(root)
         root.recycle()
         return sb.toString().trim()

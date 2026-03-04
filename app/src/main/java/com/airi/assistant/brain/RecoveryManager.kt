@@ -10,8 +10,7 @@ class RecoveryManager {
 
     fun diagnose(error: Throwable): RecoveryStrategy {
         return when (error) {
-            is TimeoutException -> RecoveryStrategy.REDUCE_SCOPE
-            is ValidationException -> RecoveryStrategy.REPLAN
+            is Exception -> ...
             else -> RecoveryStrategy.ABORT
         }
     }

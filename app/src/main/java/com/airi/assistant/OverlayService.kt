@@ -19,7 +19,6 @@ import java.util.*
 
 class OverlayService : Service() {
 
-    // --- مكونات الواجهة ---
     private lateinit var windowManager: WindowManager
     private lateinit var bubbleParams: WindowManager.LayoutParams
     private lateinit var chatParams: WindowManager.LayoutParams
@@ -27,21 +26,19 @@ class OverlayService : Service() {
     private lateinit var chatView: View
     private lateinit var adapter: ChatAdapter
 
-    // --- الدماغ والمحرك (النسخة النظيفة) ---
     private lateinit var llamaManager: LlamaManager
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    // 🔥 تهيئة الدماغ بنمط Lazy وبدون تمرير أي Context أو بارامترات زائدة
+    // 🔥 إنشاء الدماغ بنمط Lazy وبدون بارامترات زائدة
     private val brain: AiriBrainController by lazy {
         AiriBrainController(
-            planner = PlanGenerator(),      // لا يوجد باراميتر
-            validator = PlanValidator(),    // استدعاء الـ Constructor بالأقواس
-            executor = GoalExecutor(),       // المنفذ الافتراضي
+            planner = PlanGenerator(),
+            validator = PlanValidator(),
+            executor = GoalExecutor(),
             recoveryManager = RecoveryManager()
         )
     }
 
-    // --- خدمات الصوت ---
     private lateinit var ttsManager: TextToSpeech
     private lateinit var speechRecognizer: SpeechRecognizer
     private lateinit var recognitionIntent: Intent
@@ -55,41 +52,37 @@ class OverlayService : Service() {
     override fun onCreate() {
         super.onCreate()
         llamaManager = LlamaManager(this)
-
         setupManagers()
         initViews()
         initSpeechToText()
         setupNotification()
-
-        Log.d("AIRI_SERVICE", "✅ Overlay Service Started with Clean Brain Architecture")
     }
 
-    // --- دالة التواصل مع AIRI (بدون سياق شاشة) ---
+    /**
+     * ✅ تم التحديث: إرسال الطلب باستخدام BrainInput(text) فقط
+     * حذف includeScreenContext نهائياً
+     */
     private fun sendToAIRI(text: String) {
         adapter.addMessage(ChatModel(text, true))
         serviceScope.launch {
             try {
-                val input = BrainInput(text = text, includeScreenContext = false)
-                val output = brain.handle(input) // استدعاء مباشر بدون ?
-                processResponse(output.message)   // استخدام الحقل الموحد message
+                // استدعاء نظيف يتوافق مع الداتا كلاس الجديدة
+                val input = BrainInput(text) 
+                val output = brain.handle(input) 
+                processResponse(output.message)
             } catch (e: Exception) {
-                processResponse("⚠️ عذراً، حدث خطأ داخلي: ${e.message}")
+                processResponse("❌ خطأ: ${e.message}")
             }
         }
     }
 
-    // --- دالة التواصل مع AIRI (مع سياق شاشة) ---
+    /**
+     * ✅ تم التحديث: حتى في حالة طلب تحليل الشاشة، نرسل النص فقط 
+     * لأن الدماغ سيتولى اتخاذ القرار بناءً على محتوى النص
+     */
     private fun sendToAIRIWithContext(text: String) {
-        adapter.addMessage(ChatModel(text, true))
-        serviceScope.launch {
-            try {
-                val input = BrainInput(text = text, includeScreenContext = true)
-                val output = brain.handle(input)
-                processResponse(output.message)
-            } catch (e: Exception) {
-                processResponse("⚠️ تعذر تحليل الشاشة: ${e.message}")
-            }
-        }
+        // نستخدم نفس المنطق المبسط لتوحيد المدخلات
+        sendToAIRI(text)
     }
 
     private fun processResponse(response: String) {
@@ -101,7 +94,7 @@ class OverlayService : Service() {
         }
     }
 
-    // --- إعدادات نظام الأندرويد والواجهات (Standard UI Boilerplate) ---
+    // --- بقية وظائف الواجهة الرسومية ---
 
     private fun setupManagers() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -141,7 +134,7 @@ class OverlayService : Service() {
 
     private fun setupRecyclerView() {
         val recyclerView = chatView.findViewById<RecyclerView>(R.id.chat_recycler)
-        adapter = ChatAdapter { selectedAction -> sendToAIRIWithContext(selectedAction) }
+        adapter = ChatAdapter { selectedAction -> sendToAIRI(selectedAction) }
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerView.adapter = adapter
     }
@@ -152,8 +145,7 @@ class OverlayService : Service() {
             val text = inputField.text.toString()
             if (text.isNotBlank()) {
                 inputField.text.clear()
-                if (text.contains("شاشة") || text.contains("حلل")) sendToAIRIWithContext(text) 
-                else sendToAIRI(text)
+                sendToAIRI(text) // استدعاء موحد وبسيط
             }
         }
 

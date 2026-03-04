@@ -17,13 +17,10 @@ class AiriBrainController(
         while (true) {
             try {
 
-                // 1️⃣ التخطيط
                 val plan = planner.createPlan(input)
 
-                // 2️⃣ التحقق
                 validator.validate(plan)
 
-                // 3️⃣ التنفيذ بمهلة
                 val result = withTimeoutOrNull(15000) {
                     executor.executeGoal(plan)
                 } ?: throw TimeoutException("Execution timeout")
@@ -37,8 +34,8 @@ class AiriBrainController(
 
                 val strategy = recoveryManager.diagnose(e)
 
-                if (!recoveryManager.shouldRetry(attempt)
-                    || strategy == RecoveryStrategy.ABORT
+                if (!recoveryManager.shouldRetry(attempt) ||
+                    strategy == RecoveryStrategy.ABORT
                 ) {
                     return@coroutineScope BrainOutput(
                         message = "Execution failed: ${e.message}"
@@ -48,16 +45,13 @@ class AiriBrainController(
                 attempt++
 
                 when (strategy) {
-
-                    RecoveryStrategy.REPLAN -> {
-                        planner.adjustStrategy()
+                    RecoveryStrategy.REPLAN -> planner.adjustStrategy()
+                    RecoveryStrategy.REDUCE_SCOPE -> planner.reduceComplexity()
+                    RecoveryStrategy.ABORT -> {
+                        return@coroutineScope BrainOutput(
+                            message = "Execution aborted"
+                        )
                     }
-
-                    RecoveryStrategy.REDUCE_SCOPE -> {
-                        planner.reduceComplexity()
-                    }
-
-                    else -> {}
                 }
             }
         }

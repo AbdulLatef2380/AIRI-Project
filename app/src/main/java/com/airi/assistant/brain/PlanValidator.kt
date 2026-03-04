@@ -1,15 +1,10 @@
 package com.airi.assistant.brain
 
-object PlanValidator {
+class PlanValidator {
 
-    fun validate(goal: AgentGoal) {
-
-        if (goal.description.isBlank()) {
-            throw ValidationException("Goal description is empty")
-        }
-
-        if (goal.steps.isEmpty()) {
-            throw ValidationException("Goal has no steps")
+    fun validate(plan: AgentGoal) {
+        if (plan.steps.isEmpty()) {
+            throw IllegalArgumentException("Plan has no steps")
         }
     }
 }

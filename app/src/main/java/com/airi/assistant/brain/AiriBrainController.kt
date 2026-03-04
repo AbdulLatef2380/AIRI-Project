@@ -51,7 +51,7 @@ class AiriBrainController(
 
                 val success = withTimeoutOrNull(15000) {
                     goalExecutor.executeGoal(goal)
-                } ?: throw TimeoutCancellationException("Execution timeout")
+                } ?: throw Exception("Execution timeout")
 
                 if (success) {
                     return@coroutineScope BrainOutput("✅ تم التنفيذ", goal)

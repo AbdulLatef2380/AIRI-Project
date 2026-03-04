@@ -1,36 +1,37 @@
-GoalExecutor com.airi.assistant.accessibility
+package com.airi.assistant.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
-import android.content.Intent
 import kotlinx.coroutines.*
 import com.airi.assistant.brain.AgentGoal
 import com.airi.assistant.brain.PlanStep
 import com.airi.assistant.brain.GoalExecutor
-import com.airi.assistant.ai.IntentDetector
-import com.airi.assistant.data.ContextEngine
-import com.airi.assistant.brain.GoalExecutor
 
-class AIRIAccessibilityService : AccessibilityService {
+class AIRIAccessibilityService : AccessibilityService() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
+    /**
+     * 🏗️ المنفذ الداخلي (Internal Executor)
+     * هذا الكائن هو الذي سيتم تمريره للدماغ للتحكم في المتصفح/التطبيقات
+     */
+    private val executor = object : GoalExecutor() {
+        override suspend fun executeGoal(goal: AgentGoal): Boolean {
+            Log.d("AIRI_ACC", "📥 Brain Goal Received: ${goal.description}")
+            return executeAutonomousGoal(goal)
+        }
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
-        ScreenContextHolder.serviceInstance = this
-        Log.d("AIRI_ACC", "Service Connected as GoalExecutor")
+        // ربط النسخة الحالية بالـ Holder ليتمكن الـ OverlayService من الوصول للـ executor
+        ScreenContextHolder.serviceInstance = executor 
+        Log.d("AIRI_ACC", "✅ Service Connected: Internal Executor Ready")
     }
 
-    // --- 🏗️ تنفيذ واجهة GoalExecutor (مُصحح) ---
-
-    override suspend fun executeGoal(goal: AgentGoal): Boolean {
-        Log.d("AIRI_ACC", "📥 Brain Goal Received: ${goal.description}")
-        return executeAutonomousGoal(goal)
-    }
-
-    // --- 🧠 المحرك التنفيذي التسلسلي (Professional Logic) ---
+    // --- 🧠 المحرك التنفيذي التسلسلي ---
 
     private suspend fun executeAutonomousGoal(goal: AgentGoal): Boolean = withContext(Dispatchers.Main) {
         Log.d("AIRI_AGENT", "🚀 Starting Execution Loop for Goal: ${goal.id}")
@@ -38,60 +39,46 @@ class AIRIAccessibilityService : AccessibilityService {
         for ((index, step) in goal.steps.withIndex()) {
             Log.d("AIRI_AGENT", "Executing Step ${index + 1}/${goal.steps.size}: $step")
 
-            // تنفيذ الخطوة الحالية
-            val stepSuccess = executeStep(step)
-
-            if (!stepSuccess) {
-                Log.e("AIRI_AGENT", "❌ Step Failed: $step. Aborting entire goal.")
-                return@withContext false // فشل الخطة كاملة
+            val stepSuccess = when (step) {
+                is PlanStep.Click -> performClickByText(step.text)
+                is PlanStep.ScrollForward -> performScrollForward()
+                is PlanStep.WaitFor -> waitForElement(step.text, step.timeout)
+                // إضافة تنفيذ الحالات الجديدة إذا وجدت في الـ Brain
+                is PlanStep.Wait -> {
+                    delay(2000) // تنفيذ Wait افتراضي
+                    true
+                }
+                else -> false
             }
 
-            // انتظار بسيط لاستقرار الواجهة (UI Settling Time)
-            delay(600)
+            if (!stepSuccess) {
+                Log.e("AIRI_AGENT", "❌ Step Failed: $step. Aborting.")
+                return@withContext false
+            }
+            delay(600) // استقرار الواجهة
         }
-
-        Log.d("AIRI_AGENT", "✅ All steps completed successfully for: ${goal.description}")
         return@withContext true
     }
 
-    /**
-     * مُوزع المهام (Step Dispatcher)
-     */
-    private suspend fun executeStep(step: PlanStep): Boolean {
-        return when (step) {
-            is PlanStep.Click -> performClickByText(step.text)
-            is PlanStep.ScrollForward -> performScrollForward()
-            is PlanStep.WaitFor -> waitForElement(step.text, step.timeout)
-            else -> false
-        }
-    }
-
-    // --- 🛠️ دوال الأفعال الفيزيائية (Physical Actions) ---
+    // --- 🛠️ دوال الأفعال الفيزيائية (Accessibility Actions) ---
 
     private fun performClickByText(text: String): Boolean {
         val root = rootInActiveWindow ?: return false
         val nodes = root.findAccessibilityNodeInfosByText(text)
         var isClicked = false
 
-        if (!nodes.isNullOrEmpty()) {
-            for (node in nodes) {
-                if (!isClicked) {
-                    var current: AccessibilityNodeInfo? = node
-                    while (current != null) {
-                        if (current.isClickable) {
-                            isClicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                            if (isClicked) {
-                                Log.d("AIRI_ACC", "Click Success on: $text")
-                                break
-                            }
-                        }
-                        val parent = current.parent
-                        if (current != node) current.recycle()
-                        current = parent
+        nodes?.forEach { node ->
+            if (!isClicked) {
+                var current: AccessibilityNodeInfo? = node
+                while (current != null) {
+                    if (current.isClickable) {
+                        isClicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        if (isClicked) break
                     }
+                    current = current.parent
                 }
-                node.recycle()
             }
+            node.recycle()
         }
         root.recycle()
         return isClicked
@@ -120,55 +107,46 @@ class AIRIAccessibilityService : AccessibilityService {
     private suspend fun waitForElement(text: String, timeout: Long): Boolean {
         val start = System.currentTimeMillis()
         while (System.currentTimeMillis() - start < timeout) {
-            if (extractScreenContext().contains(text, ignoreCase = true)) {
-                Log.d("AIRI_ACC", "Element found: $text")
-                return true
-            }
+            if (extractScreenContext().contains(text, ignoreCase = true)) return true
             delay(300)
         }
         return false
     }
 
-    // --- 📡 تحليل السياق واستخراج النصوص ---
+    // --- 📡 تحليل السياق ---
 
-    fun extractScreenContext(): String {
-        val root = rootInActiveWindow ?: return ScreenContextHolder.lastScreenText
-        val text = extractText(root)
-        root.recycle()
-        return text
-    }
-
-    private fun extractText(node: AccessibilityNodeInfo?): String {
-        if (node == null) return ""
+    private fun extractScreenContext(): String {
+        val root = rootInActiveWindow ?: return ""
         val sb = StringBuilder()
+        
         fun traverse(n: AccessibilityNodeInfo?) {
             if (n == null) return
             n.text?.let { sb.append(it).append(" ") }
-            n.contentDescription?.let { sb.append(it).append(" ") }
             for (i in 0 until n.childCount) {
                 val child = n.getChild(i)
                 traverse(child)
                 child?.recycle()
             }
         }
-        traverse(node)
-        return sb.toString().replace(Regex("\\s+"), " ").trim().take(2000)
+        
+        traverse(root)
+        root.recycle()
+        return sb.toString().trim()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // إدارة السياق التلقائي
         if (event == null) return
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
-            val root = rootInActiveWindow ?: return
-            ScreenContextHolder.lastScreenText = extractText(root)
-            root.recycle()
+            ScreenContextHolder.lastScreenText = extractScreenContext()
         }
     }
 
     override fun onInterrupt() {}
+
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
+        ScreenContextHolder.serviceInstance = null
     }
 }

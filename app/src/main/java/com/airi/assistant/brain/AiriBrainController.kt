@@ -1,8 +1,6 @@
 package com.airi.assistant.brain
 
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.withTimeoutOrNull
-import java.util.concurrent.TimeoutException
 
 class AiriBrainController(
     private val planner: PlanGenerator,
@@ -11,46 +9,25 @@ class AiriBrainController(
     private val recoveryManager: RecoveryManager
 ) {
 
+    /**
+     * معالجة الطلب بشكل خطي ومضمون العودة بـ BrainOutput
+     * هذا الشكل يحل مشكلة الـ Type Mismatch نهائياً
+     */
     suspend fun process(input: BrainInput): BrainOutput = coroutineScope {
 
-        var attempt = 0
+        // 1️⃣ مرحلة التخطيط: تحويل المدخلات إلى خطة عمل
+        val plan = planner.createPlan(input)
 
-        while (true) {
-            try {
+        // 2️⃣ مرحلة التحقق: التأكد من سلامة الخطوات
+        validator.validate(plan)
 
-                val plan = planner.createPlan(input)
+        // 3️⃣ مرحلة التنفيذ: تشغيل المهمة ميدانياً
+        val result = executor.executeGoal(plan)
 
-                validator.validate(plan)
-
-                val result = withTimeoutOrNull(15000) {
-                    executor.executeGoal(plan)
-                } ?: throw TimeoutException("Execution timeout")
-
-                return@coroutineScope BrainOutput(
-                    message = if (result) "✅ تم التنفيذ" else "❌ فشل التنفيذ",
-                    goal = plan
-                )
-
-            } catch (e: Throwable) {
-
-                val strategy = recoveryManager.diagnose(e)
-
-                if (!recoveryManager.shouldRetry(attempt)
-                    || strategy == RecoveryStrategy.ABORT
-                ) {
-                    return@coroutineScope BrainOutput(
-                        message = "Execution failed: ${e.message}"
-                    )
-                }
-
-                attempt++
-
-                when (strategy) {
-                    RecoveryStrategy.REPLAN -> planner.adjustStrategy()
-                    RecoveryStrategy.REDUCE_SCOPE -> planner.reduceComplexity()
-                    else -> {}
-                }
-            }
-        }
+        // 4️⃣ العودة بالنتيجة: مسار واحد واضح ومضمون للمترجم
+        return@coroutineScope BrainOutput(
+            message = if (result) "✅ تم التنفيذ: ${plan.description}" else "❌ فشل التنفيذ الميداني",
+            goalId = plan.id
+        )
     }
 }

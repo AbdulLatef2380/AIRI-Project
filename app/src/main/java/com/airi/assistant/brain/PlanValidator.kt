@@ -1,24 +1,31 @@
 package com.airi.assistant.brain
 
-import com.airi.core.chain.PlanStep
-
 object PlanValidator {
 
-    private val allowedActions = setOf("click", "scroll")
+    fun isValid(plan: PlanDto?): Boolean {
 
-    fun isValid(plan: PlanDto): Boolean {
+        if (plan == null) return false
 
-        if (plan.goal_id.isBlank()) return false
         if (plan.steps.isEmpty()) return false
-        if (plan.steps.size > 10) return false // منع الخطط المبالغ بها
 
         for (step in plan.steps) {
-            if (!allowedActions.contains(step.action)) return false
 
-            if (step.action == "click" && step.text.isNullOrBlank())
-                return false
+            if (step.action.isBlank()) return false
+
+            if (step.id.isBlank()) return false
+
+            if (!isAllowedAction(step.action)) return false
         }
 
         return true
+    }
+
+    private fun isAllowedAction(action: String): Boolean {
+        return when (action) {
+            "click",
+            "scroll",
+            "wait" -> true
+            else -> false
+        }
     }
 }

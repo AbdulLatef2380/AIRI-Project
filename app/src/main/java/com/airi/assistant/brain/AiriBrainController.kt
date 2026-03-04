@@ -10,24 +10,23 @@ class AiriBrainController(
 ) {
 
     /**
-     * معالجة الطلب بشكل خطي ومضمون العودة بـ BrainOutput
-     * هذا الشكل يحل مشكلة الـ Type Mismatch نهائياً
+     * معالجة الطلب وإعادة كائن BrainOutput يحتوي على الرسالة والهدف (Goal) كاملاً.
      */
     suspend fun process(input: BrainInput): BrainOutput = coroutineScope {
 
-        // 1️⃣ مرحلة التخطيط: تحويل المدخلات إلى خطة عمل
+        // 1️⃣ مرحلة التخطيط: إنشاء كائن AgentGoal من المدخلات
         val plan = planner.createPlan(input)
 
-        // 2️⃣ مرحلة التحقق: التأكد من سلامة الخطوات
+        // 2️⃣ مرحلة التحقق
         validator.validate(plan)
 
-        // 3️⃣ مرحلة التنفيذ: تشغيل المهمة ميدانياً
+        // 3️⃣ مرحلة التنفيذ
         val result = executor.executeGoal(plan)
 
-        // 4️⃣ العودة بالنتيجة: مسار واحد واضح ومضمون للمترجم
+        // 4️⃣ العودة بالنتيجة مع تمرير كائن plan بالكامل إلى الحقل goal
         return@coroutineScope BrainOutput(
             message = if (result) "✅ تم التنفيذ: ${plan.description}" else "❌ فشل التنفيذ الميداني",
-            goalId = plan.id
+            goal = plan // تم التغيير من goalId إلى goal
         )
     }
 }

@@ -13,15 +13,13 @@ import android.widget.*
 import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.airi.assistant.accessibility.ScreenContextHolder
-import com.airi.assistant.brain.* // استيراد حزمة الدماغ بالكامل
-import com.airi.assistant.accessibility.OverlayBridge
-import com.airi.core.chain.AgentGoal
+import com.airi.assistant.brain.* import com.airi.assistant.accessibility.OverlayBridge
 import kotlinx.coroutines.*
 import java.util.*
 
 class OverlayService : Service() {
 
+    // --- مكونات الواجهة ---
     private lateinit var windowManager: WindowManager
     private lateinit var bubbleParams: WindowManager.LayoutParams
     private lateinit var chatParams: WindowManager.LayoutParams
@@ -29,10 +27,21 @@ class OverlayService : Service() {
     private lateinit var chatView: View
     private lateinit var adapter: ChatAdapter
 
+    // --- الدماغ والمحرك (النسخة النظيفة) ---
     private lateinit var llamaManager: LlamaManager
-    private var brain: AiriBrainController? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    // 🔥 تهيئة الدماغ بنمط Lazy وبدون تمرير أي Context أو بارامترات زائدة
+    private val brain: AiriBrainController by lazy {
+        AiriBrainController(
+            planner = PlanGenerator(),      // لا يوجد باراميتر
+            validator = PlanValidator(),    // استدعاء الـ Constructor بالأقواس
+            executor = GoalExecutor(),       // المنفذ الافتراضي
+            recoveryManager = RecoveryManager()
+        )
+    }
+
+    // --- خدمات الصوت ---
     private lateinit var ttsManager: TextToSpeech
     private lateinit var speechRecognizer: SpeechRecognizer
     private lateinit var recognitionIntent: Intent
@@ -40,7 +49,6 @@ class OverlayService : Service() {
 
     private var isChatVisible = false
     private val screenWidth by lazy { resources.displayMetrics.widthPixels }
-    private var isWaitingForScreenQuestion = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -48,77 +56,57 @@ class OverlayService : Service() {
         super.onCreate()
         llamaManager = LlamaManager(this)
 
-        initializeBrain()
         setupManagers()
         initViews()
         initSpeechToText()
         setupNotification()
 
-        OverlayBridge.suggestionListener = { suggestionText, _ ->
-            mainHandler.post { showSuggestionChip(suggestionText) }
-        }
+        Log.d("AIRI_SERVICE", "✅ Overlay Service Started with Clean Brain Architecture")
     }
 
-    /**
-     * 🔥 الإصلاح النهائي لإنشاء الـ Brain:
-     * تمرير المكونات الأربعة فقط كما هو محدد في الـ Constructor الجديد.
-     */
-    private fun initializeBrain() {
-        val realExecutor = ScreenContextHolder.serviceInstance as? GoalExecutor
-        
-        // اختيار المنفذ المتاح
-        val currentExecutor = realExecutor ?: object : GoalExecutor {
-            override suspend fun executeGoal(goal: AgentGoal): Boolean = executeAutonomousGoal(goal)
-        }
-
-        // بناء الدماغ بالمكونات الصافية
-        brain = AiriBrainController(
-            planner = PlanGenerator(llamaManager),
-            validator = PlanValidator, 
-            executor = currentExecutor,
-            recoveryManager = RecoveryManager()
-        )
-        
-        Log.d("AIRI_OVERLAY", "✅ Brain fully synchronized with new architecture")
-    }
-
-    private suspend fun executeAutonomousGoal(goal: AgentGoal): Boolean {
-        withContext(Dispatchers.Main) {
-            Toast.makeText(this@OverlayService, "جاري محاكاة: ${goal.description}", Toast.LENGTH_SHORT).show()
-        }
-        delay(1000)
-        return false
-    }
-
+    // --- دالة التواصل مع AIRI (بدون سياق شاشة) ---
     private fun sendToAIRI(text: String) {
         adapter.addMessage(ChatModel(text, true))
         serviceScope.launch {
-            // استخدام العقد الموحد: BrainInput و دالة handle
-            val input = BrainInput(text = text, includeScreenContext = false)
-            val output = brain?.handle(input)
-            output?.let { processResponse(it.message) }
+            try {
+                val input = BrainInput(text = text, includeScreenContext = false)
+                val output = brain.handle(input) // استدعاء مباشر بدون ?
+                processResponse(output.message)   // استخدام الحقل الموحد message
+            } catch (e: Exception) {
+                processResponse("⚠️ عذراً، حدث خطأ داخلي: ${e.message}")
+            }
         }
     }
 
+    // --- دالة التواصل مع AIRI (مع سياق شاشة) ---
     private fun sendToAIRIWithContext(text: String) {
         adapter.addMessage(ChatModel(text, true))
         serviceScope.launch {
-            // استخدام العقد الموحد مع تفعيل سياق الشاشة
-            val input = BrainInput(text = text, includeScreenContext = true)
-            val output = brain?.handle(input)
-            output?.let { processResponse(it.message) }
+            try {
+                val input = BrainInput(text = text, includeScreenContext = true)
+                val output = brain.handle(input)
+                processResponse(output.message)
+            } catch (e: Exception) {
+                processResponse("⚠️ تعذر تحليل الشاشة: ${e.message}")
+            }
         }
-        isWaitingForScreenQuestion = false
     }
 
-    // --- بقية دوال الـ UI لإدارة الطبقة العائمة ---
+    private fun processResponse(response: String) {
+        mainHandler.post {
+            adapter.addMessage(ChatModel(response, false))
+            ttsManager.speak(response, TextToSpeech.QUEUE_FLUSH, null, "AIRI")
+            chatView.findViewById<RecyclerView>(R.id.chat_recycler)
+                .smoothScrollToPosition(adapter.itemCount - 1)
+        }
+    }
+
+    // --- إعدادات نظام الأندرويد والواجهات (Standard UI Boilerplate) ---
 
     private fun setupManagers() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         ttsManager = TextToSpeech(this) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                ttsManager.language = Locale("ar")
-            }
+            if (status == TextToSpeech.SUCCESS) ttsManager.language = Locale("ar")
         }
     }
 
@@ -134,8 +122,7 @@ class OverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 0
-            y = 500
+            x = 0; y = 500
         }
 
         chatParams = WindowManager.LayoutParams(
@@ -154,38 +141,19 @@ class OverlayService : Service() {
 
     private fun setupRecyclerView() {
         val recyclerView = chatView.findViewById<RecyclerView>(R.id.chat_recycler)
-        adapter = ChatAdapter { selectedAction ->
-            mainHandler.post { sendToAIRIWithContext(selectedAction) }
-        }
+        adapter = ChatAdapter { selectedAction -> sendToAIRIWithContext(selectedAction) }
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerView.adapter = adapter
     }
 
     private fun setupClickListeners() {
-        val btnLoadBrain = chatView.findViewById<Button>(R.id.btnLoadBrain)
-        val progressBar = chatView.findViewById<ProgressBar>(R.id.progressBar)
-
-        btnLoadBrain.setOnClickListener {
-            progressBar.visibility = View.VISIBLE
-            btnLoadBrain.isEnabled = false
-            llamaManager.initializeModel { success ->
-                progressBar.visibility = View.GONE
-                btnLoadBrain.isEnabled = true
-                btnLoadBrain.text = if (success) "العقل جاهز ✅" else "خطأ"
-                initializeBrain()
-            }
-        }
-
         chatView.findViewById<View>(R.id.btn_send).setOnClickListener {
             val inputField = chatView.findViewById<EditText>(R.id.chat_input)
             val text = inputField.text.toString()
             if (text.isNotBlank()) {
                 inputField.text.clear()
-                if (text.contains("شاشة") || text.contains("حلل")) {
-                    sendToAIRIWithContext(text)
-                } else {
-                    sendToAIRI(text)
-                }
+                if (text.contains("شاشة") || text.contains("حلل")) sendToAIRIWithContext(text) 
+                else sendToAIRI(text)
             }
         }
 
@@ -196,35 +164,22 @@ class OverlayService : Service() {
         chatView.findViewById<View>(R.id.btn_close_chat)?.setOnClickListener { toggleChat() }
     }
 
-    private fun processResponse(response: String) {
-        mainHandler.post {
-            adapter.addMessage(ChatModel(response, false))
-            ttsManager.speak(response, TextToSpeech.QUEUE_FLUSH, null, "AIRI")
-            chatView.findViewById<RecyclerView>(R.id.chat_recycler).smoothScrollToPosition(adapter.itemCount - 1)
-        }
-    }
-
-    private fun showSuggestionChip(suggestionText: String) {
-        adapter.addMessage(ChatModel("💡 اقتراح: $suggestionText", false))
-    }
-
     private fun initSpeechToText() {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         recognitionIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-SA")
         }
-
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
             override fun onResults(results: Bundle?) {
                 val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.get(0) ?: return
                 sendToAIRI(spoken)
             }
             override fun onError(error: Int) {}
-            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onReadyForSpeech(p0: Bundle?) {}
             override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onRmsChanged(p0: Float) {}
+            override fun onBufferReceived(p0: ByteArray?) {}
             override fun onEndOfSpeech() {}
             override fun onPartialResults(p0: Bundle?) {}
             override fun onEvent(p0: Int, p1: Bundle?) {}
@@ -234,28 +189,22 @@ class OverlayService : Service() {
     private fun setupTouchListener() {
         val avatar = bubbleView.findViewById<ImageView>(R.id.airi_avatar)
         avatar.setOnTouchListener(object : View.OnTouchListener {
-            private var initialX = 0
-            private var initialY = 0
-            private var initialTouchX = 0f
-            private var initialTouchY = 0f
+            private var initialX = 0; private var initialY = 0
+            private var initialTouchX = 0f; private var initialTouchY = 0f
             private var isMoving = false
 
             override fun onTouch(v: View, event: MotionEvent): Boolean {
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        initialX = bubbleParams.x
-                        initialY = bubbleParams.y
-                        initialTouchX = event.rawX
-                        initialTouchY = event.rawY
-                        isMoving = false
-                        return true
+                        initialX = bubbleParams.x; initialY = bubbleParams.y
+                        initialTouchX = event.rawX; initialTouchY = event.rawY
+                        isMoving = false; return true
                     }
                     MotionEvent.ACTION_MOVE -> {
                         val dx = (event.rawX - initialTouchX).toInt()
                         val dy = (event.rawY - initialTouchY).toInt()
                         if (Math.abs(dx) > 10 || Math.abs(dy) > 10) isMoving = true
-                        bubbleParams.x = initialX + dx
-                        bubbleParams.y = initialY + dy
+                        bubbleParams.x = initialX + dx; bubbleParams.y = initialY + dy
                         windowManager.updateViewLayout(bubbleView, bubbleParams)
                         return true
                     }
@@ -271,21 +220,19 @@ class OverlayService : Service() {
 
     private fun snapToEdge() {
         val targetX = if (bubbleParams.x + bubbleView.width / 2 < screenWidth / 2) 0 else screenWidth - bubbleView.width
-        val animator = ValueAnimator.ofInt(bubbleParams.x, targetX)
-        animator.addUpdateListener {
-            bubbleParams.x = it.animatedValue as Int
-            windowManager.updateViewLayout(bubbleView, bubbleParams)
+        ValueAnimator.ofInt(bubbleParams.x, targetX).apply {
+            addUpdateListener {
+                bubbleParams.x = it.animatedValue as Int
+                windowManager.updateViewLayout(bubbleView, bubbleParams)
+            }
+            duration = 300
+            start()
         }
-        animator.duration = 300
-        animator.start()
     }
 
     private fun toggleChat() {
-        if (isChatVisible) {
-            windowManager.removeView(chatView)
-        } else {
-            windowManager.addView(chatView, chatParams)
-        }
+        if (isChatVisible) windowManager.removeView(chatView) 
+        else windowManager.addView(chatView, chatParams)
         isChatVisible = !isChatVisible
     }
 
@@ -303,7 +250,6 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        OverlayBridge.suggestionListener = null
         serviceScope.cancel()
         ttsManager.shutdown()
         speechRecognizer.destroy()

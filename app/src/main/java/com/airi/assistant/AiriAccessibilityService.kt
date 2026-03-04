@@ -4,6 +4,8 @@ import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
+// 🔥 تم استبدال الـ imports القديمة بالـ AgentGoal التابع لـ brain
+import com.airi.assistant.brain.AgentGoal
 import kotlinx.coroutines.*
 
 /**
@@ -27,8 +29,9 @@ class AiriAccessibilityService : AccessibilityService(), CoroutineScope {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        // ملاحظة: تأكد من تحديث GuardianEngine ليتوافق مع السياق الجديد إذا لزم الأمر
         guardianEngine = GuardianEngine(this)
-        Log.d("AIRI_VISION", "العين الثالثة مفعلة وجاهزة.")
+        Log.d("AIRI_VISION", "✅ العين الثالثة مفعلة وجاهزة.")
     }
 
     override fun onDestroy() {
@@ -45,10 +48,10 @@ class AiriAccessibilityService : AccessibilityService(), CoroutineScope {
         // 1. حماية الخصوصية النشطة
         val packageName = event.packageName?.toString() ?: ""
         if (::guardianEngine.isInitialized && guardianEngine.analyzeAppBehavior(packageName, event.eventType)) {
-            Log.w("AIRI_GUARDIAN", "سلوك مشبوه تم اكتشافه في: $packageName")
+            Log.w("AIRI_GUARDIAN", "⚠️ سلوك مشبوه تم اكتشافه في: $packageName")
         }
 
-        // 2. تصفية الأحداث (Debounce + Hash) لمنع إغراق النظام (Flood)
+        // 2. تصفية الأحداث (Debounce) لمنع إرهاق المعالج
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             
@@ -59,48 +62,51 @@ class AiriAccessibilityService : AccessibilityService(), CoroutineScope {
                 
                 if (currentHash != lastScreenHash) {
                     lastScreenHash = currentHash
-                    // إرسال السياق الجديد للناقل المركزي
+                    // إرسال السياق للناقل المركزي (تأكد من توافق AiriCore مع BrainInput)
                     launch {
                         AiriCore.send(AiriCore.AiriEvent.ScreenContext(currentContext))
                     }
                 }
             }
-            handler.postDelayed(pendingContextRunnable!!, 1000) // 1 second debounce
+            handler.postDelayed(pendingContextRunnable!!, 1000) 
         }
     }
 
     override fun onInterrupt() {}
 
     /**
-     * تحليل محتوى الشاشة الحالي وتحويله إلى وصف نصي (Context Description)
+     * تحليل محتوى الشاشة الحالي وتحويله إلى وصف نصي
      */
     fun getScreenContext(): String {
         val rootNode = rootInActiveWindow ?: return "الشاشة غير متاحة حالياً."
         val contextBuilder = StringBuilder()
         
-        // استخراج اسم التطبيق الحالي
         contextBuilder.append("التطبيق الحالي: ${rootNode.packageName}\n")
-        
-        // تحليل العناصر النصية الهامة (تجنب البيانات الحساسة)
         parseNodes(rootNode, contextBuilder)
         
         return contextBuilder.toString()
     }
 
     private fun parseNodes(node: AccessibilityNodeInfo, builder: StringBuilder) {
-        // 1. تجنب حقول كلمات المرور (الخصوصية المقدسة)
-        if (node.isPassword) return
+        if (node.isPassword) return // حماية كلمات المرور
 
-        // 2. استخراج النصوص الظاهرة
         node.text?.let {
             if (it.isNotBlank()) {
                 builder.append("- $it\n")
             }
         }
 
-        // 3. التكرار عبر الأبناء (Recursive parsing)
         for (i in 0 until node.childCount) {
             node.getChild(i)?.let { parseNodes(it, builder) }
         }
+    }
+
+    /**
+     * دالة مساعدة لتنفيذ الأهداف القادمة من الدماغ (تستخدمها GoalExecutor)
+     */
+    fun performGoal(goal: AgentGoal): Boolean {
+        Log.d("AIRI_VISION", "Executing goal via Accessibility: ${goal.description}")
+        // هنا يتم وضع منطق محاكاة النقر أو التفاعل بناءً على خطوات الهدف
+        return true 
     }
 }

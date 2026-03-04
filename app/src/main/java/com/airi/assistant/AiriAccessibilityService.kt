@@ -26,23 +26,21 @@ class AiriAccessibilityService : AccessibilityService(), CoroutineScope {
         }
     }
 
-    override fun onServiceConnected() {
-        super.onServiceConnected()
-        instance = this
-        // ملاحظة: تأكد من تحديث GuardianEngine ليتوافق مع السياق الجديد إذا لزم الأمر
-        guardianEngine = GuardianEngine(this)
-        Log.d("AIRI_VISION", "✅ العين الثالثة مفعلة وجاهزة.")
-    }
+override fun onServiceConnected() {
+    super.onServiceConnected()
+
+    instance = this
+    ScreenContextHolder.service = this
+
+    guardianEngine = GuardianEngine(this)
+
+    Log.d("AIRI_VISION", "✅ العين الثالثة مفعلة وجاهزة.")
+}
 
     override fun onDestroy() {
         super.onDestroy()
         instance = null
         job.cancel()
-    }
-
-    override fun onServiceConnected() {
-    super.onServiceConnected()
-    ScreenContextHolder.service = this
     }
     
     private var lastScreenHash: Int = 0

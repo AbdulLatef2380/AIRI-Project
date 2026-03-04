@@ -1,16 +1,10 @@
 package com.airi.assistant.brain
 
-data class BrainInput(
-    val text: String
-)
+sealed class PlanStep {
 
-data class BrainOutput(
-    val message: String,
-    val goal: AgentGoal? = null
-)
+    data class Click(val target: String) : PlanStep()
 
-data class AgentGoal(
-    val id: String,
-    val description: String,
-    val steps: List<PlanStep>
-)
+    object Scroll : PlanStep()
+
+    data class Wait(val millis: Long) : PlanStep()
+}

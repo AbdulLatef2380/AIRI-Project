@@ -118,7 +118,7 @@ class OverlayService : Service() {
         serviceScope.launch {
             // 🔥 تصحيح استدعاء الدالة إلى process واستخدام message
             val input = BrainInput(text = text, includeScreenContext = true)
-            val output = brain?.process(input)
+            val output = brain?.handle(input)
             output?.let { processResponse(it.message) }
         }
         isWaitingForScreenQuestion = false

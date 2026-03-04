@@ -10,49 +10,54 @@ class AiriBrainController(
     private val recoveryManager: RecoveryManager
 ) {
 
-    suspend fun process(input: BrainInput): BrainOutput = coroutineScope {
-
+    suspend fun handle(input: BrainInput): BrainOutput = coroutineScope {
         var attempt = 0
 
         while (true) {
             try {
-
+                // 1️⃣ مرحلة التخطيط
                 val plan = planner.createPlan(input)
 
+                // 2️⃣ مرحلة التحقق
                 validator.validate(plan)
 
+                // 3️⃣ مرحلة التنفيذ بمهلة زمنية
                 val result = withTimeoutOrNull(15000) {
                     executor.executeGoal(plan)
                 } ?: throw TimeoutException("Execution timeout")
 
+                // العودة بنتيجة التنفيذ بنجاح
                 return@coroutineScope BrainOutput(
-                    message = if (result) "✅ تم التنفيذ" else "❌ فشل التنفيذ",
-                    goal = plan
+                    responseText = if (result) "✅ تم التنفيذ: ${plan.description}" else "❌ فشل التنفيذ الميداني",
+                    executedGoalId = plan.id
                 )
 
             } catch (e: Throwable) {
-
+                // 4️⃣ تشخيص الخطأ وتحديد استراتيجية التعافي
                 val strategy = recoveryManager.diagnose(e)
 
-                if (!recoveryManager.shouldRetry(attempt) ||
-                    strategy == RecoveryStrategy.ABORT
-                ) {
+                // إذا استنفدنا المحاولات أو كانت الاستراتيجية هي الإيقاف
+                if (!recoveryManager.shouldRetry(attempt) || strategy == RecoveryStrategy.ABORT) {
                     return@coroutineScope BrainOutput(
-                        message = "Execution failed: ${e.message}"
+                        responseText = "❌ تعذر إكمال المهمة: ${e.message}",
+                        executedGoalId = null
                     )
                 }
 
                 attempt++
 
+                // 5️⃣ تعديل الخطة بناءً على الاستراتيجية المختارة
                 when (strategy) {
                     RecoveryStrategy.REPLAN -> planner.adjustStrategy()
                     RecoveryStrategy.REDUCE_SCOPE -> planner.reduceComplexity()
-                    RecoveryStrategy.ABORT -> {
+                    else -> {
                         return@coroutineScope BrainOutput(
-                            message = "Execution aborted"
+                            responseText = "❌ توقف التنفيذ: ${e.message}",
+                            executedGoalId = null
                         )
                     }
                 }
+                // الحلقة ستعيد التشغيل (Retry) تلقائياً هنا بعد تعديل الاستراتيجية
             }
         }
     }

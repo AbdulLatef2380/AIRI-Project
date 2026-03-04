@@ -40,6 +40,11 @@ class AiriAccessibilityService : AccessibilityService(), CoroutineScope {
         job.cancel()
     }
 
+    override fun onServiceConnected() {
+    super.onServiceConnected()
+    ScreenContextHolder.service = this
+    }
+    
     private var lastScreenHash: Int = 0
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private var pendingContextRunnable: Runnable? = null

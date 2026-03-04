@@ -14,7 +14,7 @@ import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.airi.assistant.accessibility.ScreenContextHolder
-import com.airi.assistant.brain.* // 🔥 استيراد حزمة الدماغ بالكامل
+import com.airi.assistant.brain.* // استيراد حزمة الدماغ بالكامل
 import com.airi.assistant.accessibility.OverlayBridge
 import com.airi.core.chain.AgentGoal
 import kotlinx.coroutines.*
@@ -60,53 +60,40 @@ class OverlayService : Service() {
     }
 
     /**
-     * 🔥 الحل لخطأ الـ Constructor:
-     * نقوم بإنشاء المكونات الجديدة وتمريرها للدماغ
+     * 🔥 الإصلاح النهائي لإنشاء الـ Brain:
+     * تمرير المكونات الأربعة فقط كما هو محدد في الـ Constructor الجديد.
      */
     private fun initializeBrain() {
         val realExecutor = ScreenContextHolder.serviceInstance as? GoalExecutor
-
-        // تحديد المنفذ (الحقيقي أو التجريبي)
+        
+        // اختيار المنفذ المتاح
         val currentExecutor = realExecutor ?: object : GoalExecutor {
-            override suspend fun executeGoal(goal: AgentGoal): Boolean {
-                return executeAutonomousGoal(goal)
-            }
+            override suspend fun executeGoal(goal: AgentGoal): Boolean = executeAutonomousGoal(goal)
         }
 
-        // 1️⃣ إنشاء المخطط
-        val planner = PlanGenerator(llamaManager)
-        
-        // 2️⃣ استخدام الفاحص (بما أنه object نمرره مباشرة)
-        val validator = PlanValidator 
-        
-        // 3️⃣ إنشاء مدير الاستشفاء
-        val recovery = RecoveryManager()
-
-        // 4️⃣ ربط الدماغ الجديد بالهيكلية الكاملة
+        // بناء الدماغ بالمكونات الصافية
         brain = AiriBrainController(
-            planner = planner,
-            validator = validator,
+            planner = PlanGenerator(llamaManager),
+            validator = PlanValidator, 
             executor = currentExecutor,
-            recoveryManager = recovery
+            recoveryManager = RecoveryManager()
         )
         
-        Log.d("AIRI_OVERLAY", "✅ Brain Architecture Initialized with Autonomous Loop")
+        Log.d("AIRI_OVERLAY", "✅ Brain fully synchronized with new architecture")
     }
 
     private suspend fun executeAutonomousGoal(goal: AgentGoal): Boolean {
         withContext(Dispatchers.Main) {
-            Toast.makeText(this@OverlayService, "محاولة تنفيذ: ${goal.description}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@OverlayService, "جاري محاكاة: ${goal.description}", Toast.LENGTH_SHORT).show()
         }
-        delay(1500)
-        return false // Fallback دائماً يعيد فشل لأنه ليس خدمة وصول حقيقية
+        delay(1000)
+        return false
     }
-
-    // --- (بقية الدوال تبقى كما هي مع تصحيح استدعاء الدماغ أدناه) ---
 
     private fun sendToAIRI(text: String) {
         adapter.addMessage(ChatModel(text, true))
         serviceScope.launch {
-            // 🔥 تصحيح استدعاء الدالة إلى process واستخدام message
+            // استخدام العقد الموحد: BrainInput و دالة handle
             val input = BrainInput(text = text, includeScreenContext = false)
             val output = brain?.handle(input)
             output?.let { processResponse(it.message) }
@@ -116,13 +103,15 @@ class OverlayService : Service() {
     private fun sendToAIRIWithContext(text: String) {
         adapter.addMessage(ChatModel(text, true))
         serviceScope.launch {
-            // 🔥 تصحيح استدعاء الدالة إلى process واستخدام message
+            // استخدام العقد الموحد مع تفعيل سياق الشاشة
             val input = BrainInput(text = text, includeScreenContext = true)
             val output = brain?.handle(input)
             output?.let { processResponse(it.message) }
         }
         isWaitingForScreenQuestion = false
     }
+
+    // --- بقية دوال الـ UI لإدارة الطبقة العائمة ---
 
     private fun setupManagers() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -182,17 +171,17 @@ class OverlayService : Service() {
             llamaManager.initializeModel { success ->
                 progressBar.visibility = View.GONE
                 btnLoadBrain.isEnabled = true
-                btnLoadBrain.text = if (success) "العقل جاهز ✅" else "خطأ في التحميل"
+                btnLoadBrain.text = if (success) "العقل جاهز ✅" else "خطأ"
                 initializeBrain()
             }
         }
 
         chatView.findViewById<View>(R.id.btn_send).setOnClickListener {
-            val input = chatView.findViewById<EditText>(R.id.chat_input)
-            val text = input.text.toString()
+            val inputField = chatView.findViewById<EditText>(R.id.chat_input)
+            val text = inputField.text.toString()
             if (text.isNotBlank()) {
-                input.text.clear()
-                if (text.contains("شاشة") || text.contains("حلل") || isWaitingForScreenQuestion) {
+                inputField.text.clear()
+                if (text.contains("شاشة") || text.contains("حلل")) {
                     sendToAIRIWithContext(text)
                 } else {
                     sendToAIRI(text)
@@ -216,7 +205,7 @@ class OverlayService : Service() {
     }
 
     private fun showSuggestionChip(suggestionText: String) {
-        adapter.addMessage(ChatModel("💡 اقتراح ذكي: $suggestionText", false))
+        adapter.addMessage(ChatModel("💡 اقتراح: $suggestionText", false))
     }
 
     private fun initSpeechToText() {

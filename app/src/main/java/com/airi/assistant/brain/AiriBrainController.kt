@@ -14,42 +14,69 @@ class AiriBrainController(
     private val goalExecutor: GoalExecutor
 ) {
 
+    private val maxRetries = 2
+
     suspend fun handle(input: BrainInput): BrainOutput = coroutineScope {
+
+        var attempt = 0
+        var lastError: String? = null
 
         val screenContext = if (input.withContext) {
             ScreenContextHolder.serviceInstance?.extractScreenContext() ?: ""
         } else ""
 
-        if (isExecutionIntent(input.text)) {
+        if (!isExecutionIntent(input.text)) {
+            val response = requestChatResponse(input.text, screenContext)
+            return@coroutineScope BrainOutput(response)
+        }
 
-            val rawResponse = requestPlan(input.text, screenContext)
-            val cleanedJson = cleanRawJson(rawResponse)
+        while (attempt <= maxRetries) {
+            try {
 
-            if (!cleanedJson.trim().startsWith("{")) {
-                return@coroutineScope BrainOutput("⚠ رد النموذج ليس JSON صالح")
-            }
+                val rawResponse = requestPlan(input.text, screenContext)
+                val cleanedJson = cleanRawJson(rawResponse)
 
-            val planDto = parseToDto(cleanedJson)
+                if (!cleanedJson.trim().startsWith("{")) {
+                    throw Exception("Model did not return valid JSON")
+                }
 
-            if (planDto == null || !PlanValidator.isValid(planDto)) {
-                return@coroutineScope BrainOutput("⚠ الخطة مرفوضة أو تالفة")
-            }
+                val planDto = parseToDto(cleanedJson)
+                    ?: throw Exception("Plan parsing failed")
 
-            val goal = buildGoalFromDto(planDto)
+                if (!PlanValidator.isValid(planDto)) {
+                    throw Exception("Plan validation failed")
+                }
 
-            val success = withTimeoutOrNull(15000) {
-                goalExecutor.executeGoal(goal)
-            } ?: return@coroutineScope BrainOutput("⏳ انتهى الوقت أثناء التنفيذ")
+                val goal = buildGoalFromDto(planDto)
 
-            return@coroutineScope if (success) {
-                BrainOutput("✅ تم التنفيذ", goal)
-            } else {
-                BrainOutput("❌ فشل التنفيذ", goal)
+                val success = withTimeoutOrNull(15000) {
+                    goalExecutor.executeGoal(goal)
+                } ?: throw TimeoutCancellationException("Execution timeout")
+
+                if (success) {
+                    return@coroutineScope BrainOutput("✅ تم التنفيذ", goal)
+                } else {
+                    throw Exception("Field execution failed")
+                }
+
+            } catch (e: Throwable) {
+
+                lastError = e.message
+                attempt++
+
+                if (attempt > maxRetries) {
+                    break
+                }
+
+                Log.w("AIRI_RECOVERY", "Retry attempt $attempt بسبب: ${e.message}")
+
+                delay(500) // small backoff before retry
             }
         }
 
-        val response = requestChatResponse(input.text, screenContext)
-        return@coroutineScope BrainOutput(response)
+        return@coroutineScope BrainOutput(
+            message = "❌ فشل بعد $maxRetries محاولات: $lastError"
+        )
     }
 
     private fun isExecutionIntent(text: String): Boolean {

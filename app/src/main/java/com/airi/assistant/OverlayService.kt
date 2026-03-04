@@ -18,7 +18,6 @@ import com.airi.assistant.data.ContextEngine
 import com.airi.assistant.adaptive.InteractionTracker
 import com.airi.assistant.brain.AiriBrainController
 import com.airi.assistant.brain.BrainInput
-import com.airi.assistant.brain.InputSource
 import com.airi.assistant.brain.GoalExecutor
 import com.airi.assistant.accessibility.OverlayBridge
 import com.airi.core.chain.AgentGoal
@@ -175,16 +174,16 @@ class OverlayService : Service() {
     private fun sendToAIRI(text: String) {
         adapter.addMessage(ChatModel(text, true))
         serviceScope.launch {
-            val output = brain?.handle(BrainInput(text, InputSource.CHAT, false))
-            output?.let { processResponse(it.responseText) }
+            val output = brain?.handle(BrainInput(text = text, withContext = false))
+            output?.let { processResponse(it.message) }
         }
     }
 
     private fun sendToAIRIWithContext(text: String) {
         adapter.addMessage(ChatModel(text, true))
         serviceScope.launch {
-            val output = brain?.handle(BrainInput(text, InputSource.CHAT, true))
-            output?.let { processResponse(it.responseText) }
+            val output = brain?.handle(BrainInput(text = text, withContext = true))
+            output?.let { processResponse(it.message) }
         }
         isWaitingForScreenQuestion = false
     }

@@ -1,22 +1,19 @@
 package com.airi.assistant.brain
 
-import java.util.UUID
-
 class PlanGenerator {
 
-    suspend fun createPlan(input: BrainInput): AgentGoal {
-
-        if (input.text.isBlank()) {
-            throw ValidationException("Empty input")
-        }
+    fun createPlan(input: BrainInput): AgentGoal {
 
         return AgentGoal(
-            id = UUID.randomUUID().toString(),
+            id = "goal_${System.currentTimeMillis()}",
             description = input.text,
-            steps = listOf("execute")
+            steps = listOf(
+                PlanStep.Click("default")
+            )
         )
     }
 
     fun adjustStrategy() {}
+
     fun reduceComplexity() {}
 }

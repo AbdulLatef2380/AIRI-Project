@@ -2,8 +2,7 @@ package com.airi.assistant.brain
 
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
-// ملاحظة: يفضل استخدام java.util.concurrent.TimeoutException أو تعريف خاص بك
-import java.util.concurrent.TimeoutException 
+import java.util.concurrent.TimeoutException
 
 class AiriBrainController(
     private val planner: PlanGenerator,
@@ -12,55 +11,44 @@ class AiriBrainController(
     private val recoveryManager: RecoveryManager
 ) {
 
-    suspend fun handle(input: BrainInput): BrainOutput = coroutineScope {
+    suspend fun process(input: BrainInput): BrainOutput = coroutineScope {
+
         var attempt = 0
 
         while (true) {
             try {
-                // 1️⃣ محاولة التخطيط والتنفيذ
-                val goal = planner.createPlan(input)
-                validator.validate(goal)
+
+                val plan = planner.createPlan(input)
+
+                validator.validate(plan)
 
                 val result = withTimeoutOrNull(15000) {
-                    executor.executeGoal(goal)
-                } ?: throw TimeoutException("انتهى وقت التنفيذ")
+                    executor.executeGoal(plan)
+                } ?: throw TimeoutException("Execution timeout")
 
-                // مخرج النجاح: ينهي الدالة ويرجع النتيجة
                 return@coroutineScope BrainOutput(
-                    message = if (result) "✅ تم التنفيذ: ${goal.description}" else "❌ فشل التنفيذ الميداني",
-                    goalId = goal.id
+                    message = if (result) "✅ تم التنفيذ" else "❌ فشل التنفيذ",
+                    goal = plan
                 )
 
             } catch (e: Throwable) {
+
                 val strategy = recoveryManager.diagnose(e)
 
-                // 2️⃣ فحص الاستسلام (Abort)
-                if (!recoveryManager.shouldRetry(attempt) || strategy == RecoveryStrategy.ABORT) {
+                if (!recoveryManager.shouldRetry(attempt)
+                    || strategy == RecoveryStrategy.ABORT
+                ) {
                     return@coroutineScope BrainOutput(
-                        message = "❌ تعذر إكمال المهمة: ${e.message}",
-                        goalId = null
+                        message = "Execution failed: ${e.message}"
                     )
                 }
 
                 attempt++
 
-                // 3️⃣ توجيه التدفق لإعادة المحاولة أو الإنهاء الصريح
                 when (strategy) {
-                    RecoveryStrategy.REPLAN -> {
-                        planner.adjustStrategy()
-                        continue // 🔄 يخبر المترجم بالعودة لبداية while (يحل مشكلة Unit)
-                    }
-                    RecoveryStrategy.REDUCE_SCOPE -> {
-                        planner.reduceComplexity()
-                        continue // 🔄 يخبر المترجم بالعودة لبداية while (يحل مشكلة Unit)
-                    }
-                    else -> {
-                        // مسار الأمان النهائي
-                        return@coroutineScope BrainOutput(
-                            message = "❌ توقف التنفيذ لسبب غير معروف: ${e.message}",
-                            goalId = null
-                        )
-                    }
+                    RecoveryStrategy.REPLAN -> planner.adjustStrategy()
+                    RecoveryStrategy.REDUCE_SCOPE -> planner.reduceComplexity()
+                    else -> {}
                 }
             }
         }

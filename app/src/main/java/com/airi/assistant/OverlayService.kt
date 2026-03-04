@@ -29,7 +29,11 @@ class OverlayService : Service() {
     private lateinit var llamaManager: LlamaManager
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    // 🔥 إنشاء الدماغ بنمط Lazy وبدون بارامترات زائدة
+    /**
+     * ✅ الدماغ المحدث:
+     * يستخدم المكونات كـ Classes عادية.
+     * تم تغيير المسمى ليتوافق مع التعديلات الأخيرة.
+     */
     private val brain: AiriBrainController by lazy {
         AiriBrainController(
             planner = PlanGenerator(),
@@ -59,30 +63,21 @@ class OverlayService : Service() {
     }
 
     /**
-     * ✅ تم التحديث: إرسال الطلب باستخدام BrainInput(text) فقط
-     * حذف includeScreenContext نهائياً
+     * ✅ تم التحديث: استخدام دالة .process(input)
+     * وإرسال BrainInput(text) البسيط
      */
     private fun sendToAIRI(text: String) {
         adapter.addMessage(ChatModel(text, true))
         serviceScope.launch {
             try {
-                // استدعاء نظيف يتوافق مع الداتا كلاس الجديدة
                 val input = BrainInput(text) 
-                val output = brain.handle(input) 
+                // تم التغيير من .handle إلى .process
+                val output = brain.process(input) 
                 processResponse(output.message)
             } catch (e: Exception) {
-                processResponse("❌ خطأ: ${e.message}")
+                processResponse("❌ خطأ في المعالجة: ${e.message}")
             }
         }
-    }
-
-    /**
-     * ✅ تم التحديث: حتى في حالة طلب تحليل الشاشة، نرسل النص فقط 
-     * لأن الدماغ سيتولى اتخاذ القرار بناءً على محتوى النص
-     */
-    private fun sendToAIRIWithContext(text: String) {
-        // نستخدم نفس المنطق المبسط لتوحيد المدخلات
-        sendToAIRI(text)
     }
 
     private fun processResponse(response: String) {
@@ -94,7 +89,7 @@ class OverlayService : Service() {
         }
     }
 
-    // --- بقية وظائف الواجهة الرسومية ---
+    // --- إدارة الواجهة الرسومية (WindowManager) ---
 
     private fun setupManagers() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -145,7 +140,7 @@ class OverlayService : Service() {
             val text = inputField.text.toString()
             if (text.isNotBlank()) {
                 inputField.text.clear()
-                sendToAIRI(text) // استدعاء موحد وبسيط
+                sendToAIRI(text)
             }
         }
 
@@ -167,7 +162,7 @@ class OverlayService : Service() {
                 val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.get(0) ?: return
                 sendToAIRI(spoken)
             }
-            override fun onError(error: Int) {}
+            override fun onError(p0: Int) {}
             override fun onReadyForSpeech(p0: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(p0: Float) {}

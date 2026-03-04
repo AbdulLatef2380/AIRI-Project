@@ -2,7 +2,8 @@ package com.airi.assistant.brain
 
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.concurrent.TimeoutException
+// ملاحظة: يفضل استخدام java.util.concurrent.TimeoutException أو تعريف خاص بك
+import java.util.concurrent.TimeoutException 
 
 class AiriBrainController(
     private val planner: PlanGenerator,
@@ -16,30 +17,25 @@ class AiriBrainController(
 
         while (true) {
             try {
-
-                val plan = planner.createPlan(input)
-
-                validator.validate(plan)
+                // 1️⃣ محاولة التخطيط والتنفيذ
+                val goal = planner.createPlan(input)
+                validator.validate(goal)
 
                 val result = withTimeoutOrNull(15000) {
-                    executor.executeGoal(plan)
-                } ?: throw TimeoutException("Execution timeout")
+                    executor.executeGoal(goal)
+                } ?: throw TimeoutException("انتهى وقت التنفيذ")
 
+                // مخرج النجاح: ينهي الدالة ويرجع النتيجة
                 return@coroutineScope BrainOutput(
-                    message = if (result)
-                        "✅ تم التنفيذ: ${plan.description}"
-                    else
-                        "❌ فشل التنفيذ الميداني",
-                    goalId = plan.id
+                    message = if (result) "✅ تم التنفيذ: ${goal.description}" else "❌ فشل التنفيذ الميداني",
+                    goalId = goal.id
                 )
 
             } catch (e: Throwable) {
-
                 val strategy = recoveryManager.diagnose(e)
 
-                if (!recoveryManager.shouldRetry(attempt)
-                    || strategy == RecoveryStrategy.ABORT
-                ) {
+                // 2️⃣ فحص الاستسلام (Abort)
+                if (!recoveryManager.shouldRetry(attempt) || strategy == RecoveryStrategy.ABORT) {
                     return@coroutineScope BrainOutput(
                         message = "❌ تعذر إكمال المهمة: ${e.message}",
                         goalId = null
@@ -48,12 +44,20 @@ class AiriBrainController(
 
                 attempt++
 
+                // 3️⃣ توجيه التدفق لإعادة المحاولة أو الإنهاء الصريح
                 when (strategy) {
-                    RecoveryStrategy.REPLAN -> planner.adjustStrategy()
-                    RecoveryStrategy.REDUCE_SCOPE -> planner.reduceComplexity()
+                    RecoveryStrategy.REPLAN -> {
+                        planner.adjustStrategy()
+                        continue // 🔄 يخبر المترجم بالعودة لبداية while (يحل مشكلة Unit)
+                    }
+                    RecoveryStrategy.REDUCE_SCOPE -> {
+                        planner.reduceComplexity()
+                        continue // 🔄 يخبر المترجم بالعودة لبداية while (يحل مشكلة Unit)
+                    }
                     else -> {
+                        // مسار الأمان النهائي
                         return@coroutineScope BrainOutput(
-                            message = "❌ توقف التنفيذ: ${e.message}",
+                            message = "❌ توقف التنفيذ لسبب غير معروف: ${e.message}",
                             goalId = null
                         )
                     }

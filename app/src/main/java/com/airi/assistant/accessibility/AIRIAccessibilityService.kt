@@ -6,8 +6,9 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
 import android.content.Intent
 import kotlinx.coroutines.*
-
-import com.airi.core.chain.*
+import com.airi.assistant.brain.AgentGoal
+import com.airi.assistant.brain.PlanStep
+import com.airi.assistant.brain.GoalExecutor
 import com.airi.assistant.ai.IntentDetector
 import com.airi.assistant.data.ContextEngine
 import com.airi.assistant.brain.GoalExecutor

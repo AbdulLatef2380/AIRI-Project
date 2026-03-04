@@ -14,11 +14,7 @@ import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.airi.assistant.accessibility.ScreenContextHolder
-import com.airi.assistant.data.ContextEngine
-import com.airi.assistant.adaptive.InteractionTracker
-import com.airi.assistant.brain.AiriBrainController
-import com.airi.assistant.brain.BrainInput
-import com.airi.assistant.brain.GoalExecutor
+import com.airi.assistant.brain.* // 🔥 استيراد حزمة الدماغ بالكامل
 import com.airi.assistant.accessibility.OverlayBridge
 import com.airi.core.chain.AgentGoal
 import kotlinx.coroutines.*
@@ -63,29 +59,69 @@ class OverlayService : Service() {
         }
     }
 
+    /**
+     * 🔥 الحل لخطأ الـ Constructor:
+     * نقوم بإنشاء المكونات الجديدة وتمريرها للدماغ
+     */
     private fun initializeBrain() {
         val realExecutor = ScreenContextHolder.serviceInstance as? GoalExecutor
 
-        if (realExecutor != null) {
-            brain = AiriBrainController(llamaManager, realExecutor)
-            Log.d("AIRI_OVERLAY", "✅ Brain connected to Real GoalExecutor")
-        } else {
-            Log.e("AIRI_OVERLAY", "⚠️ Accessibility not connected. Using Local Fallback.")
-            val fallbackExecutor = object : GoalExecutor {
-                override suspend fun executeGoal(goal: AgentGoal): Boolean {
-                    return executeAutonomousGoal(goal)
-                }
+        // تحديد المنفذ (الحقيقي أو التجريبي)
+        val currentExecutor = realExecutor ?: object : GoalExecutor {
+            override suspend fun executeGoal(goal: AgentGoal): Boolean {
+                return executeAutonomousGoal(goal)
             }
-            brain = AiriBrainController(llamaManager, fallbackExecutor)
         }
+
+        // 1️⃣ إنشاء المخطط
+        val planner = PlanGenerator(llamaManager)
+        
+        // 2️⃣ استخدام الفاحص (بما أنه object نمرره مباشرة)
+        val validator = PlanValidator 
+        
+        // 3️⃣ إنشاء مدير الاستشفاء
+        val recovery = RecoveryManager()
+
+        // 4️⃣ ربط الدماغ الجديد بالهيكلية الكاملة
+        brain = AiriBrainController(
+            planner = planner,
+            validator = validator,
+            executor = currentExecutor,
+            recoveryManager = recovery
+        )
+        
+        Log.d("AIRI_OVERLAY", "✅ Brain Architecture Initialized with Autonomous Loop")
     }
 
     private suspend fun executeAutonomousGoal(goal: AgentGoal): Boolean {
         withContext(Dispatchers.Main) {
             Toast.makeText(this@OverlayService, "محاولة تنفيذ: ${goal.description}", Toast.LENGTH_SHORT).show()
         }
-        delay(1000)
-        return false
+        delay(1500)
+        return false // Fallback دائماً يعيد فشل لأنه ليس خدمة وصول حقيقية
+    }
+
+    // --- (بقية الدوال تبقى كما هي مع تصحيح استدعاء الدماغ أدناه) ---
+
+    private fun sendToAIRI(text: String) {
+        adapter.addMessage(ChatModel(text, true))
+        serviceScope.launch {
+            // 🔥 تصحيح استدعاء الدالة إلى process واستخدام message
+            val input = BrainInput(text = text, includeScreenContext = false)
+            val output = brain?.process(input)
+            output?.let { processResponse(it.message) }
+        }
+    }
+
+    private fun sendToAIRIWithContext(text: String) {
+        adapter.addMessage(ChatModel(text, true))
+        serviceScope.launch {
+            // 🔥 تصحيح استدعاء الدالة إلى process واستخدام message
+            val input = BrainInput(text = text, includeScreenContext = true)
+            val output = brain?.process(input)
+            output?.let { processResponse(it.message) }
+        }
+        isWaitingForScreenQuestion = false
     }
 
     private fun setupManagers() {
@@ -169,23 +205,6 @@ class OverlayService : Service() {
         }
 
         chatView.findViewById<View>(R.id.btn_close_chat)?.setOnClickListener { toggleChat() }
-    }
-
-    private fun sendToAIRI(text: String) {
-        adapter.addMessage(ChatModel(text, true))
-        serviceScope.launch {
-            val output = brain?.handle(BrainInput(text = text, withContext = false))
-            output?.let { processResponse(it.message) }
-        }
-    }
-
-    private fun sendToAIRIWithContext(text: String) {
-        adapter.addMessage(ChatModel(text, true))
-        serviceScope.launch {
-            val output = brain?.handle(BrainInput(text = text, withContext = true))
-            output?.let { processResponse(it.message) }
-        }
-        isWaitingForScreenQuestion = false
     }
 
     private fun processResponse(response: String) {

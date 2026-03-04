@@ -49,8 +49,7 @@ class AIRIAccessibilityService : AccessibilityService() {
                 }
 
                 is PlanStep.Wait -> {
-                    // نستخدم delay بدلاً من Thread.sleep لأننا في Coroutine Scope 
-                    // للحفاظ على استجابة الخدمة
+                    // استخدام delay للحفاظ على استجابة الخدمة وعدم تجميد الـ UI thread
                     delay(step.millis)
                     true
                 }
@@ -61,7 +60,7 @@ class AIRIAccessibilityService : AccessibilityService() {
                 return@withContext false
             }
 
-            // وقت راحة قصير لاستقرار الـ UI بعد كل عملية
+            // وقت استقرار الواجهة (UI Settling Time)
             delay(500)
         }
 
@@ -115,18 +114,26 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     // --- 📡 إدارة السياق والبيانات ---
 
-    private fun extractScreenContext(): String {
+    /**
+     * ✅ تم التغيير إلى Public: استخراج النصوص من الشاشة الحالية
+     */
+    fun extractScreenContext(): String {
         val root = rootInActiveWindow ?: return ""
         val sb = StringBuilder()
+        
         fun traverse(n: AccessibilityNodeInfo?) {
             if (n == null) return
+            // استخراج النصوص ووصف المحتوى (Content Description)
             n.text?.let { sb.append(it).append(" ") }
+            n.contentDescription?.let { sb.append(it).append(" ") }
+            
             for (i in 0 until n.childCount) {
                 val child = n.getChild(i)
                 traverse(child)
                 child?.recycle()
             }
         }
+        
         traverse(root)
         root.recycle()
         return sb.toString().trim()
@@ -134,6 +141,7 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+        // تحديث السياق المخزن عند حدوث تغييرات في الشاشة
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
             ScreenContextHolder.lastScreenText = extractScreenContext()

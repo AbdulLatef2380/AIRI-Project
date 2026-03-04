@@ -1,10 +1,7 @@
 package com.airi.assistant.brain
 
-import com.airi.core.chain.AgentGoal
-
 data class BrainInput(
-    val text: String,
-    val withContext: Boolean = false
+    val text: String
 )
 
 data class BrainOutput(
@@ -12,11 +9,14 @@ data class BrainOutput(
     val goal: AgentGoal? = null
 )
 
-data class PlanDto(
-    val steps: List<StepDto>
+data class AgentGoal(
+    val id: String,
+    val description: String,
+    val steps: List<PlanStep>
 )
 
-data class StepDto(
-    val id: String,
-    val action: String
-)
+sealed class PlanStep {
+    data class Click(val target: String) : PlanStep()
+    object Scroll : PlanStep()
+    data class Wait(val target: String) : PlanStep()
+}

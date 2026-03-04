@@ -1,4 +1,4 @@
-package com.airi.assistant.accessibility
+GoalExecutor com.airi.assistant.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
@@ -12,7 +12,7 @@ import com.airi.assistant.ai.IntentDetector
 import com.airi.assistant.data.ContextEngine
 import com.airi.assistant.brain.GoalExecutor
 
-class AIRIAccessibilityService : AccessibilityService(), GoalExecutor {
+class AIRIAccessibilityService : AccessibilityService {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 

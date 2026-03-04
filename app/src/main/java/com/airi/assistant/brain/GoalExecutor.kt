@@ -1,10 +1,8 @@
 package com.airi.assistant.brain
 
-import com.airi.core.chain.AgentGoal
+open class GoalExecutor {
 
-class GoalExecutor {
-
-    suspend fun executeGoal(goal: AgentGoal): Boolean {
+    open suspend fun executeGoal(goal: AgentGoal): Boolean {
         return true
     }
 }

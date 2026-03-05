@@ -22,6 +22,8 @@ class AIRIAccessibilityService : AccessibilityService() {
 
         Log.i(TAG, "AIRI Accessibility Connected")
 
+        ScreenContextHolder.serviceInstance = this
+
         Toast.makeText(
             applicationContext,
             "AIRI Screen Reader Active",
@@ -36,16 +38,19 @@ class AIRIAccessibilityService : AccessibilityService() {
         if (event == null) return
 
         val packageName = event.packageName?.toString() ?: return
-
         val rootNode = rootInActiveWindow ?: return
 
         val screenText = extractText(rootNode).trim()
-
         if (screenText.isBlank()) return
 
         val fullContext = "App:$packageName | $screenText"
 
-        if (fullContext == lastScreenText && packageName == lastPackage) return
+        val newHash = fullContext.hashCode()
+
+        if (newHash == ScreenContextHolder.lastContextHash) return
+
+        ScreenContextHolder.lastContextHash = newHash
+        ScreenContextHolder.lastScreenText = fullContext
 
         lastScreenText = fullContext
         lastPackage = packageName
@@ -53,14 +58,41 @@ class AIRIAccessibilityService : AccessibilityService() {
         Log.d(TAG, "Screen captured from $packageName")
 
         storeScreen(fullContext)
-
         sendToBrain(fullContext)
-
         updateOverlay(fullContext)
     }
 
     override fun onInterrupt() {
         Log.w(TAG, "Accessibility Interrupted")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        ScreenContextHolder.reset()
+    }
+
+    /**
+     * 🔥 الدالة التي كان ينقصها المشروع
+     * تستخدمها ScreenContextHolder لجلب السياق فوراً
+     */
+    fun extractScreenContext(): String {
+
+        val rootNode = rootInActiveWindow ?: return ScreenContextHolder.lastScreenText
+
+        val screenText = extractText(rootNode).trim()
+
+        if (screenText.isBlank()) {
+            return ScreenContextHolder.lastScreenText
+        }
+
+        val packageName = rootNode.packageName?.toString() ?: "unknown"
+
+        val fullContext = "App:$packageName | $screenText"
+
+        ScreenContextHolder.lastScreenText = fullContext
+        ScreenContextHolder.lastContextHash = fullContext.hashCode()
+
+        return fullContext
     }
 
     private fun extractText(node: AccessibilityNodeInfo?): String {
@@ -85,55 +117,37 @@ class AIRIAccessibilityService : AccessibilityService() {
     }
 
     private fun storeScreen(text: String) {
-
         try {
-
             val prefs = getSharedPreferences("airi_memory", MODE_PRIVATE)
-
             prefs.edit()
                 .putString("last_screen", text)
                 .apply()
-
         } catch (e: Exception) {
-
             Log.e(TAG, "Store error", e)
         }
     }
 
     private fun sendToBrain(text: String) {
-
         try {
-
             BrainManager.processScreen(text)
-
         } catch (e: Exception) {
-
             Log.e(TAG, "Brain error", e)
         }
     }
 
     private fun startOverlay() {
-
         try {
-
             val intent = Intent(this, DebugOverlayService::class.java)
-
             startService(intent)
-
         } catch (e: Exception) {
-
             Log.e(TAG, "Overlay start failed", e)
         }
     }
 
     private fun updateOverlay(text: String) {
-
         try {
-
             DebugOverlayService.updateText(text.take(150))
-
         } catch (e: Exception) {
-
             Log.e(TAG, "Overlay update error", e)
         }
     }

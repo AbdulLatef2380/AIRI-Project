@@ -1,4 +1,4 @@
-package your.package.brain
+package com.airi.assistant.brain
 
 import android.util.Log
 

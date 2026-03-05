@@ -57,11 +57,11 @@ class MainActivity : AppCompatActivity() {
 
                         // 🔥 اختبار inference مباشر
                         llamaManager.generate("Hello") { reply ->
-    Toast.makeText(
-        this@MainActivity,
-        "AI: $reply",
-        Toast.LENGTH_LONG
-    ).show()
+                            Toast.makeText(
+                                this@MainActivity,
+                                "AI: $reply",
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
 
                         // بعد التأكد من نجاح المحرك نتحقق من إذن Overlay
@@ -163,7 +163,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startAiriService() {
-        val intent = Intent(this, OverlayService::class.java)
+        // تم التغيير هنا إلى DebugOverlayService
+        val intent = Intent(this, DebugOverlayService::class.java)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)

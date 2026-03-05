@@ -4,7 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import com.airi.assistant.accessibility.AIRIAccessibilityService // تأكد من استيراد المسار الصحيح
+import android.accessibilityservice.AccessibilityService
+import com.airi.assistant.accessibility.ScreenContextHolder
 
 /**
  * تمثيل للأوامر التي يمكن لـ AIRI تنفيذها.
@@ -26,72 +27,69 @@ enum class ActionType {
 }
 
 /**
- * مدير التحكم بالنظام (The Hands).
+ * مدير التحكم بالنظام (Execution Layer).
  */
 class SystemControlManager(private val context: Context) {
 
-    /**
-     * تنفيذ الأمر بعد التحقق والموافقة.
-     */
     fun execute(command: AiriCommand) {
-        Log.d("AIRI_CONTROL", "تنفيذ الأمر: ${command.action} على ${command.target}")
-        
+        Log.d("AIRI_CONTROL", "Executing: ${command.action} -> ${command.target}")
+
         when (command.action) {
-            ActionType.OPEN_APP -> openApp(command.target) 
+            ActionType.OPEN_APP -> openApp(command.target)
             ActionType.OPEN_URL -> openUrl(command.target)
             ActionType.NAVIGATE_BACK -> navigateBack()
-            else -> Log.w("AIRI_CONTROL", "أمر غير مدعوم حالياً.")
+            else -> Log.w("AIRI_CONTROL", "Unsupported action.")
         }
     }
 
-    /**
-     * دالة موحدة لفتح التطبيق بناءً على اسم الحزمة (Package Name).
-     */
-    fun openApp(packageName: String?) {
+    private fun openApp(packageName: String?) {
         if (packageName.isNullOrEmpty()) {
-            Log.e("AIRI_CONTROL", "اسم الحزمة فارغ أو غير موجود.")
+            Log.e("AIRI_CONTROL", "Package name is null or empty.")
             return
         }
 
-        Log.d("AIRI_CONTROL", "محاولة فتح التطبيق: $packageName")
         try {
             val intent = context.packageManager.getLaunchIntentForPackage(packageName)
             if (intent != null) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(intent)
             } else {
-                Log.e("AIRI_CONTROL", "لم يتم العثور على تطبيق بالحزمة: $packageName")
+                Log.e("AIRI_CONTROL", "App not found: $packageName")
             }
         } catch (e: Exception) {
-            Log.e("AIRI_CONTROL", "خطأ أثناء محاولة فتح التطبيق: ${e.message}")
+            Log.e("AIRI_CONTROL", "Open app failed: ${e.message}")
         }
     }
 
     private fun openUrl(url: String?) {
-        url?.let {
-            try {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(it))
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-            } catch (e: Exception) {
-                Log.e("AIRI_CONTROL", "فشل فتح الرابط: ${e.message}")
-            }
+        if (url.isNullOrEmpty()) return
+
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("AIRI_CONTROL", "Open URL failed: ${e.message}")
         }
     }
 
     /**
-     * ✅ تم التحديث: استخدام AIRIAccessibilityService بدلاً من AiriAccessibilityService
+     * ✅ الربط الصحيح مع Accessibility Service
      */
     private fun navigateBack() {
-        AIRIAccessibilityService.getInstance()?.performGlobalAction(
-            android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK
+        val service = ScreenContextHolder.serviceInstance
+
+        if (service == null) {
+            Log.e("AIRI_CONTROL", "AccessibilityService not connected.")
+            return
+        }
+
+        service.performGlobalAction(
+            AccessibilityService.GLOBAL_ACTION_BACK
         )
     }
 
-    /**
-     * تنفيذ أمر نظام عام بناءً على نص الأمر.
-     */
     fun executeCommand(command: String) {
-        Log.d("AIRI_CONTROL", "Executing system command: $command")
+        Log.d("AIRI_CONTROL", "Executing raw command: $command")
     }
 }

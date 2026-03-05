@@ -6,8 +6,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
 import android.content.Intent
 import android.widget.Toast
-import your.package.overlay.OverlayService
-import your.package.brain.BrainManager
+import com.airi.assistant.overlay.OverlayService
+import com.airi.assistant.brain.BrainManager
 
 class AIRIAccessibilityService : AccessibilityService() {
 

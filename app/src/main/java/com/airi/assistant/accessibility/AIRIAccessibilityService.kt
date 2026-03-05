@@ -8,7 +8,6 @@ import android.content.Intent
 import android.widget.Toast
 import com.airi.assistant.overlay.OverlayService
 import com.airi.assistant.brain.BrainManager
-
 class AIRIAccessibilityService : AccessibilityService() {
 
     companion object {

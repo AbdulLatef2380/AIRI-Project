@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import com.airi.assistant.accessibility.AIRIAccessibilityService // تأكد من استيراد المسار الصحيح
 
 /**
  * تمثيل للأوامر التي يمكن لـ AIRI تنفيذها.
@@ -36,7 +37,7 @@ class SystemControlManager(private val context: Context) {
         Log.d("AIRI_CONTROL", "تنفيذ الأمر: ${command.action} على ${command.target}")
         
         when (command.action) {
-            ActionType.OPEN_APP -> openApp(command.target) // تستدعي الدالة الموحدة بالأسفل
+            ActionType.OPEN_APP -> openApp(command.target) 
             ActionType.OPEN_URL -> openUrl(command.target)
             ActionType.NAVIGATE_BACK -> navigateBack()
             else -> Log.w("AIRI_CONTROL", "أمر غير مدعوم حالياً.")
@@ -78,8 +79,11 @@ class SystemControlManager(private val context: Context) {
         }
     }
 
+    /**
+     * ✅ تم التحديث: استخدام AIRIAccessibilityService بدلاً من AiriAccessibilityService
+     */
     private fun navigateBack() {
-        AiriAccessibilityService.getInstance()?.performGlobalAction(
+        AIRIAccessibilityService.getInstance()?.performGlobalAction(
             android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK
         )
     }
@@ -89,6 +93,5 @@ class SystemControlManager(private val context: Context) {
      */
     fun executeCommand(command: String) {
         Log.d("AIRI_CONTROL", "Executing system command: $command")
-        // سيتم إضافة المنطق الخاص بالصوت والسطوع لاحقاً
     }
 }

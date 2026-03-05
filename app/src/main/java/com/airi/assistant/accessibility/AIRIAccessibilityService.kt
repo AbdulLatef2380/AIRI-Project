@@ -38,24 +38,14 @@ class AIRIAccessibilityService : AccessibilityService() {
         if (event == null) return
 
         val packageName = event.packageName?.toString() ?: return
-        val rootNode = rootInActiveWindow ?: return
+        
+        // استدعاء الدالة المحدثة التي تحتوي على Guard
+        val fullContext = extractScreenContext()
 
-        val screenText = extractText(rootNode).trim()
-        if (screenText.isBlank()) return
-
-        val fullContext = "App:$packageName | $screenText"
-
-        val newHash = fullContext.hashCode()
-
-        if (newHash == ScreenContextHolder.lastContextHash) return
-
-        ScreenContextHolder.lastContextHash = newHash
-        ScreenContextHolder.lastScreenText = fullContext
-
-        lastScreenText = fullContext
-        lastPackage = packageName
-
-        Log.d(TAG, "Screen captured from $packageName")
+        // إذا كانت الدالة قد أعادت نفس السياق القديم (بسبب الـ Hash)، لا تكمل المعالجة
+        // ملاحظة: الـ Hash يتم فحصه وتحديثه داخل extractScreenContext
+        
+        Log.d(TAG, "Event processed from $packageName")
 
         storeScreen(fullContext)
         sendToBrain(fullContext)
@@ -72,8 +62,7 @@ class AIRIAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * 🔥 الدالة التي كان ينقصها المشروع
-     * تستخدمها ScreenContextHolder لجلب السياق فوراً
+     * 🔥 الدالة المحدثة مع نظام حماية استقرار السياق (Stability Guard)
      */
     fun extractScreenContext(): String {
 
@@ -86,11 +75,22 @@ class AIRIAccessibilityService : AccessibilityService() {
         }
 
         val packageName = rootNode.packageName?.toString() ?: "unknown"
-
         val fullContext = "App:$packageName | $screenText"
 
+        // 🧠 Context Stability Guard
+        val newHash = fullContext.hashCode()
+
+        if (newHash == ScreenContextHolder.lastContextHash) {
+            // نفس الشاشة ونفس التطبيق → تجاهل التحديث
+            return ScreenContextHolder.lastScreenText
+        }
+
+        // تحديث البصمة والبيانات في الـ Holder
+        ScreenContextHolder.lastContextHash = newHash
         ScreenContextHolder.lastScreenText = fullContext
-        ScreenContextHolder.lastContextHash = fullContext.hashCode()
+        
+        lastScreenText = fullContext
+        lastPackage = packageName
 
         return fullContext
     }

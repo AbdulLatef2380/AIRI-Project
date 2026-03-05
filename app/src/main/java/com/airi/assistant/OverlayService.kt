@@ -1,4 +1,4 @@
-package com.airi.assistant
+package com.airi.assistant.overlay
 
 import android.animation.ValueAnimator
 import android.app.*

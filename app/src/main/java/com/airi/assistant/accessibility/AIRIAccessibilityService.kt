@@ -7,41 +7,33 @@ import android.util.Log
 import kotlinx.coroutines.*
 import com.airi.assistant.brain.AgentGoal
 import com.airi.assistant.brain.PlanStep
-import com.airi.assistant.brain.GoalExecutor
 
-class AIRIAccessibilityService : AccessibilityService() {
+class AIRIAccessibilityService : AccessibilityService(), CoroutineScope {
 
-    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-
-    /**
-     * 🏗️ المنفذ الداخلي (Internal Executor)
-     * تنفيذ الأهداف القادمة من الدماغ عبر الـ Accessibility
-     */
-    private val executor = object : GoalExecutor() {
-        override suspend fun executeGoal(goal: AgentGoal): Boolean {
-            Log.d("AIRI_ACC", "📥 Brain Goal Received: ${goal.description}")
-            return executeAutonomousGoal(goal)
-        }
-    }
+    private val job = SupervisorJob()
+    override val coroutineContext = Dispatchers.Main + job
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        // تمرير الـ executor الداخلي للمستودع المركزي
-        ScreenContextHolder.serviceInstance = executor 
-        Log.d("AIRI_ACC", "✅ Service Connected: Internal Executor Ready")
+        ScreenContextHolder.serviceInstance = this
+        Log.d("AIRI_ACC", "✅ Service Connected")
     }
 
-    // --- 🧠 المحرك التنفيذي التسلسلي ---
+    // ==============================
+    // 🧠 Goal Execution Entry Point
+    // ==============================
 
-    private suspend fun executeAutonomousGoal(goal: AgentGoal): Boolean = withContext(Dispatchers.Main) {
-        Log.d("AIRI_AGENT", "🚀 Starting Execution Loop for Goal: ${goal.id}")
+    suspend fun executeGoal(goal: AgentGoal): Boolean {
+        Log.d("AIRI_AGENT", "🚀 Starting Goal: ${goal.description}")
 
         for ((index, step) in goal.steps.withIndex()) {
+
             Log.d("AIRI_AGENT", "Executing Step ${index + 1}/${goal.steps.size}")
 
             val stepSuccess = when (step) {
+
                 is PlanStep.Click -> {
-                    performClickByText(step.text)
+                    performClickByText(step.target)
                 }
 
                 is PlanStep.Scroll -> {
@@ -49,101 +41,109 @@ class AIRIAccessibilityService : AccessibilityService() {
                 }
 
                 is PlanStep.Wait -> {
-                    // استخدام delay للحفاظ على استجابة الخدمة وعدم تجميد الـ UI thread
                     delay(step.millis)
                     true
                 }
             }
 
             if (!stepSuccess) {
-                Log.e("AIRI_AGENT", "❌ Step Failed. Aborting entire goal.")
-                return@withContext false
+                Log.e("AIRI_AGENT", "❌ Step Failed. Aborting Goal.")
+                return false
             }
 
-            // وقت استقرار الواجهة (UI Settling Time)
-            delay(500)
+            delay(500) // UI settling
         }
 
-        Log.d("AIRI_AGENT", "✅ All steps completed successfully.")
-        return@withContext true
+        Log.d("AIRI_AGENT", "✅ Goal Completed Successfully")
+        return true
     }
 
-    // --- 🛠️ دوال الأفعال الفيزيائية (Accessibility Actions) ---
+    // ==============================
+    // 🛠 Accessibility Actions
+    // ==============================
 
     private fun performClickByText(text: String): Boolean {
         val root = rootInActiveWindow ?: return false
         val nodes = root.findAccessibilityNodeInfosByText(text)
-        var isClicked = false
+
+        var clicked = false
 
         nodes?.forEach { node ->
-            if (!isClicked) {
+            if (!clicked) {
                 var current: AccessibilityNodeInfo? = node
                 while (current != null) {
                     if (current.isClickable) {
-                        isClicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                        if (isClicked) break
+                        clicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        if (clicked) break
                     }
                     current = current.parent
                 }
             }
             node.recycle()
         }
+
         root.recycle()
-        return isClicked
+        return clicked
     }
 
     private fun performScrollForward(): Boolean {
         val root = rootInActiveWindow ?: return false
-        val success = findAndScrollRecursive(root)
+        val success = findScrollableAndScroll(root)
         root.recycle()
         return success
     }
 
-    private fun findAndScrollRecursive(node: AccessibilityNodeInfo): Boolean {
-        if (node.isScrollable) return node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+    private fun findScrollableAndScroll(node: AccessibilityNodeInfo): Boolean {
+        if (node.isScrollable) {
+            return node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+        }
+
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
-            if (findAndScrollRecursive(child)) {
+            if (findScrollableAndScroll(child)) {
                 child.recycle()
                 return true
             }
             child.recycle()
         }
+
         return false
     }
 
-    // --- 📡 إدارة السياق والبيانات ---
+    // ==============================
+    // 📡 Screen Context Extraction
+    // ==============================
 
-    /**
-     * ✅ تم التغيير إلى Public: استخراج النصوص من الشاشة الحالية
-     */
     fun extractScreenContext(): String {
         val root = rootInActiveWindow ?: return ""
-        val sb = StringBuilder()
-        
-        fun traverse(n: AccessibilityNodeInfo?) {
-            if (n == null) return
-            // استخراج النصوص ووصف المحتوى (Content Description)
-            n.text?.let { sb.append(it).append(" ") }
-            n.contentDescription?.let { sb.append(it).append(" ") }
-            
-            for (i in 0 until n.childCount) {
-                val child = n.getChild(i)
+
+        val builder = StringBuilder()
+
+        fun traverse(node: AccessibilityNodeInfo?) {
+            if (node == null) return
+
+            node.text?.let { builder.append(it).append(" ") }
+            node.contentDescription?.let { builder.append(it).append(" ") }
+
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i)
                 traverse(child)
                 child?.recycle()
             }
         }
-        
+
         traverse(root)
         root.recycle()
-        return sb.toString().trim()
+
+        return builder.toString().trim()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-        // تحديث السياق المخزن عند حدوث تغييرات في الشاشة
+
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+
             ScreenContextHolder.lastScreenText = extractScreenContext()
         }
     }
@@ -152,7 +152,7 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
-        serviceScope.cancel()
+        job.cancel()
         ScreenContextHolder.serviceInstance = null
     }
 }

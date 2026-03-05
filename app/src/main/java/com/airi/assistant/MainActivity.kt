@@ -15,7 +15,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-
+import com.airi.assistant.overlay.OverlayService
 class MainActivity : AppCompatActivity() {
 
     private lateinit var downloader: ModelDownloadManager
@@ -164,7 +164,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startAiriService() {
         // تم التغيير هنا إلى DebugOverlayService
-        val intent = Intent(this, DebugOverlayService::class.java)
+        val intent = Intent(this, OverlayService::class.java)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)

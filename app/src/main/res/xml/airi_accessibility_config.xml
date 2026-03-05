@@ -3,7 +3,6 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeAllMask"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:canRetrieveWindowContent="true"
     android:notificationTimeout="100"
-    android:accessibilityFlags="flagReportViewIds"
-    android:description="@string/app_name"/>
+    android:canRetrieveWindowContent="true"
+    android:accessibilityFlags="flagDefault"/>

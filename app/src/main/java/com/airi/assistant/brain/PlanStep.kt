@@ -2,7 +2,7 @@ package com.airi.assistant.brain
 
 sealed class PlanStep {
 
-    data class Click(val target: String) : PlanStep()
+    data class Click(val text: String) : PlanStep()
 
     object Scroll : PlanStep()
 

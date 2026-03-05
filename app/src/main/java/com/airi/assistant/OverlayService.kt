@@ -13,7 +13,8 @@ import android.widget.*
 import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.airi.assistant.brain.* import com.airi.assistant.accessibility.OverlayBridge
+import com.airi.assistant.brain.*
+import com.airi.assistant.accessibility.ScreenContextHolder // إضافة الـ Import للسياق
 import kotlinx.coroutines.*
 import java.util.*
 
@@ -31,8 +32,7 @@ class OverlayService : Service() {
 
     /**
      * ✅ الدماغ المحدث:
-     * يستخدم المكونات كـ Classes عادية.
-     * تم تغيير المسمى ليتوافق مع التعديلات الأخيرة.
+     * يعتمد على المكونات الأساسية لإدارة التخطيط والتنفيذ.
      */
     private val brain: AiriBrainController by lazy {
         AiriBrainController(
@@ -63,15 +63,22 @@ class OverlayService : Service() {
     }
 
     /**
-     * ✅ تم التحديث: استخدام دالة .process(input)
-     * وإرسال BrainInput(text) البسيط
+     * ✅ تم التحديث: جلب سياق الشاشة قبل إرسال الطلب للدماغ
      */
-    private fun sendToAIRI(text: String) {
-        adapter.addMessage(ChatModel(text, true))
+    private fun sendToAIRI(userText: String) {
+        adapter.addMessage(ChatModel(userText, true))
         serviceScope.launch {
             try {
-                val input = BrainInput(text) 
-                // تم التغيير من .handle إلى .process
+                // 1. جلب آخر سياق تم التقاطه بواسطة خدمة الوصول
+                val context = ScreenContextHolder.lastScreenText ?: ""
+                
+                // 2. تجهيز المدخلات الشاملة (نص المستخدم + ما تراه AIRI على الشاشة)
+                val input = BrainInput(
+                    text = userText,
+                    screenContext = context
+                )
+                
+                // 3. المعالجة والرد
                 val output = brain.process(input) 
                 processResponse(output.message)
             } catch (e: Exception) {

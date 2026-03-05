@@ -176,18 +176,15 @@ class AIRIAccessibilityService : AccessibilityService(), CoroutineScope {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-
         if (event == null) return
 
-        if (event.eventType ==
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-            event.eventType ==
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-        ) {
+        val text = event.text?.joinToString(" ") ?: return
 
-            ScreenContextHolder.lastScreenText =
-                extractScreenContext()
-        }
+        android.widget.Toast.makeText(
+            applicationContext,
+            "AIRI sees: $text",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
     }
 
     override fun onInterrupt() {}

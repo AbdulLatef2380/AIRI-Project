@@ -15,8 +15,7 @@ class AIRIAccessibilityService : AccessibilityService() {
         private const val TAG = "AIRI_ACCESS"
         var lastScreenText: String = ""
         var lastPackage: String = ""
-    }
-
+    } 
     override fun onServiceConnected() {
         super.onServiceConnected()
 

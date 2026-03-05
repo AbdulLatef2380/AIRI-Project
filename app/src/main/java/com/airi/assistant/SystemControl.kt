@@ -42,7 +42,7 @@ class SystemControlManager(private val context: Context) {
         }
     }
 
-    private fun openApp(packageName: String?) {
+     fun openApp(packageName: String?) {
         if (packageName.isNullOrEmpty()) {
             Log.e("AIRI_CONTROL", "Package name is null or empty.")
             return
@@ -61,7 +61,7 @@ class SystemControlManager(private val context: Context) {
         }
     }
 
-    private fun openUrl(url: String?) {
+     fun openUrl(url: String?) {
         if (url.isNullOrEmpty()) return
 
         try {
@@ -76,7 +76,7 @@ class SystemControlManager(private val context: Context) {
     /**
      * ✅ الربط الصحيح مع Accessibility Service
      */
-    private fun navigateBack() {
+     fun navigateBack() {
         val service = ScreenContextHolder.serviceInstance
 
         if (service == null) {

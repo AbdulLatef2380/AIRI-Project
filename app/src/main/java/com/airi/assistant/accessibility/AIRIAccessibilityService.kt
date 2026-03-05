@@ -10,37 +10,43 @@ import com.airi.assistant.brain.PlanStep
 
 class AIRIAccessibilityService : AccessibilityService(), CoroutineScope {
 
+    companion object {
+        private var instance: AIRIAccessibilityService? = null
+
+        fun getInstance(): AIRIAccessibilityService? {
+            return instance
+        }
+    }
+
     private val job = SupervisorJob()
     override val coroutineContext = Dispatchers.Main + job
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        // ربط الخدمة بالمستودع المركزي
+
+        instance = this
         ScreenContextHolder.serviceInstance = this
+
         Log.d("AIRI_ACC", "✅ Service Connected")
     }
 
     // ==============================
-    // 🧠 Goal Execution Entry Point
+    // 🧠 Goal Execution
     // ==============================
 
     suspend fun executeGoal(goal: AgentGoal): Boolean {
+
         Log.d("AIRI_AGENT", "🚀 Starting Goal: ${goal.description}")
 
         for ((index, step) in goal.steps.withIndex()) {
 
             Log.d("AIRI_AGENT", "Executing Step ${index + 1}/${goal.steps.size}")
 
-            val stepSuccess = when (step) {
+            val success = when (step) {
 
-                is PlanStep.Click -> {
-                    // ✅ تم التعديل هنا: استخدام step.text بدلاً من step.target
-                    performClickByText(step.text)
-                }
+                is PlanStep.Click -> performClickByText(step.text)
 
-                is PlanStep.Scroll -> {
-                    performScrollForward()
-                }
+                is PlanStep.Scroll -> performScrollForward()
 
                 is PlanStep.Wait -> {
                     delay(step.millis)
@@ -48,15 +54,15 @@ class AIRIAccessibilityService : AccessibilityService(), CoroutineScope {
                 }
             }
 
-            if (!stepSuccess) {
-                Log.e("AIRI_AGENT", "❌ Step Failed. Aborting Goal.")
+            if (!success) {
+                Log.e("AIRI_AGENT", "❌ Step Failed")
                 return false
             }
 
-            delay(500) // UI settling time
+            delay(500)
         }
 
-        Log.d("AIRI_AGENT", "✅ Goal Completed Successfully")
+        Log.d("AIRI_AGENT", "✅ Goal Completed")
         return true
     }
 
@@ -65,50 +71,73 @@ class AIRIAccessibilityService : AccessibilityService(), CoroutineScope {
     // ==============================
 
     private fun performClickByText(text: String): Boolean {
+
         val root = rootInActiveWindow ?: return false
+
         val nodes = root.findAccessibilityNodeInfosByText(text)
 
         var clicked = false
 
         nodes?.forEach { node ->
+
             if (!clicked) {
+
                 var current: AccessibilityNodeInfo? = node
+
                 while (current != null) {
+
                     if (current.isClickable) {
-                        clicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+
+                        clicked = current.performAction(
+                            AccessibilityNodeInfo.ACTION_CLICK
+                        )
+
                         if (clicked) {
-                            Log.d("AIRI_ACC", "Click Success on: $text")
+                            Log.d("AIRI_ACC", "Click Success: $text")
                             break
                         }
                     }
+
                     current = current.parent
                 }
             }
+
             node.recycle()
         }
 
         root.recycle()
+
         return clicked
     }
 
     private fun performScrollForward(): Boolean {
+
         val root = rootInActiveWindow ?: return false
+
         val success = findScrollableAndScroll(root)
+
         root.recycle()
+
         return success
     }
 
     private fun findScrollableAndScroll(node: AccessibilityNodeInfo): Boolean {
+
         if (node.isScrollable) {
-            return node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+            return node.performAction(
+                AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+            )
         }
 
         for (i in 0 until node.childCount) {
+
             val child = node.getChild(i) ?: continue
+
             if (findScrollableAndScroll(child)) {
                 child.recycle()
                 return true
             }
+
             child.recycle()
         }
 
@@ -116,15 +145,17 @@ class AIRIAccessibilityService : AccessibilityService(), CoroutineScope {
     }
 
     // ==============================
-    // 📡 Screen Context Extraction
+    // 📡 Screen Context
     // ==============================
 
     fun extractScreenContext(): String {
+
         val root = rootInActiveWindow ?: return ""
 
         val builder = StringBuilder()
 
         fun traverse(node: AccessibilityNodeInfo?) {
+
             if (node == null) return
 
             node.text?.let { builder.append(it).append(" ") }
@@ -138,26 +169,36 @@ class AIRIAccessibilityService : AccessibilityService(), CoroutineScope {
         }
 
         traverse(root)
+
         root.recycle()
 
         return builder.toString().trim()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+
         if (event == null) return
 
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+        if (event.eventType ==
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            event.eventType ==
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+        ) {
 
-            ScreenContextHolder.lastScreenText = extractScreenContext()
+            ScreenContextHolder.lastScreenText =
+                extractScreenContext()
         }
     }
 
     override fun onInterrupt() {}
 
     override fun onDestroy() {
-        super.onDestroy()
+
+        instance = null
         job.cancel()
+
         ScreenContextHolder.serviceInstance = null
+
+        super.onDestroy()
     }
 }

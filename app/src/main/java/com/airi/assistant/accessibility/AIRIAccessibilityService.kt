@@ -8,11 +8,13 @@ import android.content.Intent
 import android.widget.Toast
 import com.airi.assistant.overlay.OverlayService
 import com.airi.assistant.brain.BrainManager
+
 class AIRIAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "AIRI_ACCESS"
         var lastScreenText: String = ""
+        var lastPackage: String = ""
     }
 
     override fun onServiceConnected() {
@@ -33,23 +35,28 @@ class AIRIAccessibilityService : AccessibilityService() {
 
         if (event == null) return
 
+        val packageName = event.packageName?.toString() ?: return
+
         val rootNode = rootInActiveWindow ?: return
 
-        val screenText = extractText(rootNode)
+        val screenText = extractText(rootNode).trim()
 
         if (screenText.isBlank()) return
 
-        if (screenText == lastScreenText) return
+        val fullContext = "App:$packageName | $screenText"
 
-        lastScreenText = screenText
+        if (fullContext == lastScreenText && packageName == lastPackage) return
 
-        Log.d(TAG, "Screen captured")
+        lastScreenText = fullContext
+        lastPackage = packageName
 
-        storeScreen(screenText)
+        Log.d(TAG, "Screen captured from $packageName")
 
-        sendToBrain(screenText)
+        storeScreen(fullContext)
 
-        updateOverlay(screenText)
+        sendToBrain(fullContext)
+
+        updateOverlay(fullContext)
     }
 
     override fun onInterrupt() {
@@ -88,6 +95,7 @@ class AIRIAccessibilityService : AccessibilityService() {
                 .apply()
 
         } catch (e: Exception) {
+
             Log.e(TAG, "Store error", e)
         }
     }
@@ -114,7 +122,7 @@ class AIRIAccessibilityService : AccessibilityService() {
 
         } catch (e: Exception) {
 
-            Log.e(TAG, "Overlay start failed")
+            Log.e(TAG, "Overlay start failed", e)
         }
     }
 
@@ -122,11 +130,11 @@ class AIRIAccessibilityService : AccessibilityService() {
 
         try {
 
-            OverlayService.updateText(text.take(120))
+            OverlayService.updateText(text.take(150))
 
         } catch (e: Exception) {
 
-            Log.e(TAG, "Overlay update error")
+            Log.e(TAG, "Overlay update error", e)
         }
     }
 }

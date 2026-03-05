@@ -15,6 +15,7 @@ class AIRIAccessibilityService : AccessibilityService(), CoroutineScope {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        // ربط الخدمة بالمستودع المركزي
         ScreenContextHolder.serviceInstance = this
         Log.d("AIRI_ACC", "✅ Service Connected")
     }
@@ -33,7 +34,8 @@ class AIRIAccessibilityService : AccessibilityService(), CoroutineScope {
             val stepSuccess = when (step) {
 
                 is PlanStep.Click -> {
-                    performClickByText(step.target)
+                    // ✅ تم التعديل هنا: استخدام step.text بدلاً من step.target
+                    performClickByText(step.text)
                 }
 
                 is PlanStep.Scroll -> {
@@ -51,7 +53,7 @@ class AIRIAccessibilityService : AccessibilityService(), CoroutineScope {
                 return false
             }
 
-            delay(500) // UI settling
+            delay(500) // UI settling time
         }
 
         Log.d("AIRI_AGENT", "✅ Goal Completed Successfully")
@@ -74,7 +76,10 @@ class AIRIAccessibilityService : AccessibilityService(), CoroutineScope {
                 while (current != null) {
                     if (current.isClickable) {
                         clicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                        if (clicked) break
+                        if (clicked) {
+                            Log.d("AIRI_ACC", "Click Success on: $text")
+                            break
+                        }
                     }
                     current = current.parent
                 }

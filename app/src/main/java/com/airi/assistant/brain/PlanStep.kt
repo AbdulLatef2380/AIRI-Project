@@ -6,5 +6,5 @@ sealed class PlanStep {
 
     object Scroll : PlanStep()
 
-    data class Wait(val target: String) : PlanStep()
+    data class Wait(val millis: Long) : PlanStep()
 }

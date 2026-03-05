@@ -116,7 +116,7 @@ class AIRIAccessibilityService : AccessibilityService() {
 
         try {
 
-            val intent = Intent(this, OverlayService::class.java)
+            val intent = Intent(this, DebugOverlayService::class.java)
 
             startService(intent)
 
@@ -130,7 +130,7 @@ class AIRIAccessibilityService : AccessibilityService() {
 
         try {
 
-            OverlayService.updateText(text.take(150))
+            DebugOverlayService.updateText(text.take(150))
 
         } catch (e: Exception) {
 

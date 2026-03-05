@@ -17,7 +17,9 @@ import com.airi.assistant.brain.*
 import com.airi.assistant.accessibility.ScreenContextHolder // إضافة الـ Import للسياق
 import kotlinx.coroutines.*
 import java.util.*
-
+import com.airi.assistant.ChatAdapter
+import com.airi.assistant.ChatModel
+import com.airi.assistant.LlamaManager
 class OverlayService : Service() {
 
 private lateinit var windowManager: WindowManager  

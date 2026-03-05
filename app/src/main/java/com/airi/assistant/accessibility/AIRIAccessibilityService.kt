@@ -1,4 +1,4 @@
-package your.package.accessibility
+package com.airi.assistant.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent

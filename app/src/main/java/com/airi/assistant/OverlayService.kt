@@ -21,6 +21,7 @@ import com.airi.assistant.ChatAdapter
 import com.airi.assistant.ChatModel
 import com.airi.assistant.LlamaManager
 import com.airi.assistant.R
+import com.airi.assistant.accessibility.AIRIAccessibilityService
 class OverlayService : Service() {
 
 private lateinit var windowManager: WindowManager  

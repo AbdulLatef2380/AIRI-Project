@@ -11,24 +11,24 @@ import com.airi.assistant.brain.BrainManager
 
 class AIRIAccessibilityService : AccessibilityService() {
 
-    private var lastScreenTextInstance: String = "" 
+    private var lastScreenTextInstance: String = ""
     private var lastUpdateTime: Long = 0
+
     private val UPDATE_DELAY = 1200L
 
     companion object {
+
         private const val TAG = "AIRI_ACCESS"
 
-        // ✅ إضافة الـ instance للوصول للخدمة من أي مكان
         var instance: AIRIAccessibilityService? = null
 
         var lastScreenText: String = ""
         var lastPackage: String = ""
-    } 
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
 
-        // ✅ تعيين الـ instance عند اتصال الخدمة
         instance = this
 
         Log.i(TAG, "AIRI Accessibility Connected")
@@ -45,21 +45,38 @@ class AIRIAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
-        
-        val fullContext = extractScreenContext()
 
-        if (fullContext.isNotEmpty()) {
-            storeScreen(fullContext)
-            sendToBrain(fullContext)
-            updateOverlay(fullContext)
+        if (event == null) return
+
+        // فلترة الأحداث غير المهمة لتقليل الضغط
+        when (event.eventType) {
+
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+            AccessibilityEvent.TYPE_VIEW_CLICKED,
+            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
+
+                val fullContext = extractScreenContext()
+
+                if (fullContext.isNotEmpty()) {
+
+                    storeScreen(fullContext)
+
+                    sendToBrain(fullContext)
+
+                    updateOverlay(fullContext)
+                }
+            }
+
+            else -> return
         }
     }
 
     /**
-     * 🛡️ فلتر التكرار والاستقرار الزمني
+     * فلتر منع التكرار
      */
     private fun shouldUpdateContext(newText: String): Boolean {
+
         val now = System.currentTimeMillis()
 
         if (newText == lastScreenTextInstance) {
@@ -72,110 +89,193 @@ class AIRIAccessibilityService : AccessibilityService() {
 
         lastScreenTextInstance = newText
         lastUpdateTime = now
+
         return true
     }
 
     /**
-     * ⚡ تنفيذ الأوامر القادمة من الذكاء الاصطناعي
-     * تم نقلها هنا لتكون في مستوى الكلاس (Correct Member Function)
+     * تنفيذ أوامر الذكاء الاصطناعي
      */
     fun executeCommand(command: String) {
-        when {
-            command.contains("اضغط", true) -> {
-                val target = command.replace("اضغط", "").trim()
-                ActionExecutor.clickByText(this, target)
+
+        try {
+
+            when {
+
+                command.contains("اضغط", true) -> {
+
+                    val target = command.replace("اضغط", "").trim()
+
+                    ActionExecutor.clickByText(this, target)
+                }
+
+                command.contains("اكتب", true) -> {
+
+                    val text = command.replace("اكتب", "").trim()
+
+                    ActionExecutor.inputText(this, text)
+                }
+
+                command.contains("رجوع", true) -> {
+
+                    ActionExecutor.pressBack(this)
+                }
             }
-            command.contains("اكتب", true) -> {
-                val text = command.replace("اكتب", "").trim()
-                ActionExecutor.inputText(this, text)
-            }
-            command.contains("رجوع", true) -> {
-                ActionExecutor.pressBack(this)
-            }
+
+        } catch (e: Exception) {
+
+            Log.e(TAG, "Command execution error", e)
         }
     }
 
+    /**
+     * استخراج سياق الشاشة
+     */
     fun extractScreenContext(): String {
-        val rootNode = rootInActiveWindow ?: return ScreenContextHolder.lastScreenText
+
+        val rootNode = rootInActiveWindow
+            ?: return ScreenContextHolder.lastScreenText
+
         val screenText = extractText(rootNode).trim()
 
-        if (screenText.isBlank()) return ScreenContextHolder.lastScreenText
+        if (screenText.isBlank()) {
+            return ScreenContextHolder.lastScreenText
+        }
 
         val packageName = rootNode.packageName?.toString() ?: "unknown"
+
         val fullContext = "App:$packageName | $screenText"
 
         if (shouldUpdateContext(fullContext)) {
-            
+
             ScreenContextHolder.lastScreenText = fullContext
             ScreenContextHolder.lastContextHash = fullContext.hashCode()
-            
+
             lastScreenText = fullContext
             lastPackage = packageName
 
-            Log.d("AIRI", "AIRI sees: $fullContext")
-            
+            Log.d(TAG, "AIRI sees: $fullContext")
+
             return fullContext
         }
 
         return ScreenContextHolder.lastScreenText
     }
 
+    /**
+     * استخراج النص من شجرة الواجهة
+     */
     private fun extractText(node: AccessibilityNodeInfo?): String {
+
         if (node == null) return ""
+
         val builder = StringBuilder()
-        if (!node.text.isNullOrEmpty()) {
-            builder.append(node.text).append(" ")
+
+        node.text?.let {
+            builder.append(it).append(" ")
         }
-        if (!node.contentDescription.isNullOrEmpty()) {
-            builder.append(node.contentDescription).append(" ")
+
+        node.contentDescription?.let {
+            builder.append(it).append(" ")
         }
+
         for (i in 0 until node.childCount) {
-            builder.append(extractText(node.getChild(i)))
+
+            val child = node.getChild(i)
+
+            builder.append(extractText(child))
         }
+
         return builder.toString()
     }
 
+    /**
+     * تخزين السياق في الذاكرة
+     */
     private fun storeScreen(text: String) {
+
         try {
-            val prefs = getSharedPreferences("airi_memory", MODE_PRIVATE)
-            prefs.edit().putString("last_screen", text).apply()
+
+            val prefs = getSharedPreferences(
+                "airi_memory",
+                MODE_PRIVATE
+            )
+
+            prefs.edit()
+                .putString("last_screen", text)
+                .apply()
+
         } catch (e: Exception) {
+
             Log.e(TAG, "Store error", e)
         }
     }
 
+    /**
+     * إرسال البيانات للمخ
+     */
     private fun sendToBrain(text: String) {
-        if (text == ScreenContextHolder.lastScreenText) {
-            try {
-                BrainManager.processScreen(text)
-            } catch (e: Exception) {
-                Log.e(TAG, "Brain error", e)
-            }
+
+        if (text != ScreenContextHolder.lastScreenText) return
+
+        try {
+
+            BrainManager.processScreen(text)
+
+        } catch (e: Exception) {
+
+            Log.e(TAG, "Brain error", e)
         }
     }
 
+    /**
+     * تشغيل Overlay
+     */
     private fun startOverlay() {
+
         try {
-            val intent = Intent(this, DebugOverlayService::class.java)
+
+            val intent = Intent(
+                this,
+                DebugOverlayService::class.java
+            )
+
             startService(intent)
+
         } catch (e: Exception) {
+
             Log.e(TAG, "Overlay start failed", e)
         }
     }
 
+    /**
+     * تحديث النص في Overlay
+     */
     private fun updateOverlay(text: String) {
+
         try {
-            DebugOverlayService.updateText(text.take(150))
+
+            DebugOverlayService.updateText(
+                text.take(150)
+            )
+
         } catch (e: Exception) {
+
             Log.e(TAG, "Overlay update error", e)
         }
     }
 
-    override fun onInterrupt() {}
+    override fun onInterrupt() {
+
+        Log.w(TAG, "Accessibility Interrupted")
+    }
 
     override fun onDestroy() {
+
         instance = null
+
         super.onDestroy()
+
         ScreenContextHolder.reset()
     }
 }

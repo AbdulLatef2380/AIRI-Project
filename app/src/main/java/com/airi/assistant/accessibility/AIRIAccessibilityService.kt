@@ -11,8 +11,8 @@ import com.airi.assistant.brain.BrainManager
 
 class AIRIAccessibilityService : AccessibilityService() {
 
-    // ✅ الخطوة 1: إضافة متغيرات التحكم في الوقت والاستقرار
-    private var lastScreenText: String = ""
+    // المتغيرات التي أضفناها في الخطوة السابقة
+    private var lastScreenTextInstance: String = "" // قمت بتغيير الاسم قليلاً لتجنب التضارب مع الـ Companion
     private var lastUpdateTime: Long = 0
     private val UPDATE_DELAY = 1200L
 
@@ -24,74 +24,68 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-
         Log.i(TAG, "AIRI Accessibility Connected")
-
         ScreenContextHolder.serviceInstance = this
-
-        Toast.makeText(
-            applicationContext,
-            "AIRI Screen Reader Active",
-            Toast.LENGTH_SHORT
-        ).show()
-
+        Toast.makeText(applicationContext, "AIRI Screen Reader Active", Toast.LENGTH_SHORT).show()
         startOverlay()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-
         if (event == null) return
-
         val packageName = event.packageName?.toString() ?: return
         
-        // استدعاء الدالة المحدثة التي تحتوي على Guard
+        // استخراج السياق (الدالة بالأسفل تستخدم الآن فلتر الوقت)
         val fullContext = extractScreenContext()
 
-        // إذا كانت الدالة قد أعادت نفس السياق القديم (بسبب الـ Hash)، لا تكمل المعالجة
-        // ملاحظة: الـ Hash يتم فحصه وتحديثه داخل extractScreenContext
-        
-        Log.d(TAG, "Event processed from $packageName")
-
-        storeScreen(fullContext)
-        sendToBrain(fullContext)
-        updateOverlay(fullContext)
-    }
-
-    override fun onInterrupt() {
-        Log.w(TAG, "Accessibility Interrupted")
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        ScreenContextHolder.reset()
+        // إذا كانت الدالة فارغة أو لم تتجاوز الفلتر الزمني، سنتوقف هنا
+        if (fullContext.isEmpty() || fullContext == ScreenContextHolder.lastScreenText && lastUpdateTime != System.currentTimeMillis()) {
+            // ملاحظة: إذا أعادت الدالة نفس النص القديم فهذا يعني أن الفلتر منع التحديث
+        } else {
+            Log.d(TAG, "New stable context from $packageName")
+            storeScreen(fullContext)
+            sendToBrain(fullContext)
+            updateOverlay(fullContext)
+        }
     }
 
     /**
-     * 🔥 الدالة المحدثة مع نظام حماية استقرار السياق (Stability Guard)
+     * 🛡️ فلتر التكرار والاستقرار الزمني
      */
+    private fun shouldUpdateContext(newText: String): Boolean {
+        val now = System.currentTimeMillis()
+
+        // 1. فحص التكرار النصي
+        if (newText == lastScreenTextInstance) {
+            return false
+        }
+
+        // 2. فحص التأخير الزمني (Debounce)
+        if (now - lastUpdateTime < UPDATE_DELAY) {
+            return false
+        }
+
+        // تحديث الحالة إذا اجتاز الشروط
+        lastScreenTextInstance = newText
+        lastUpdateTime = now
+        return true
+    }
+
     fun extractScreenContext(): String {
-
         val rootNode = rootInActiveWindow ?: return ScreenContextHolder.lastScreenText
-
         val screenText = extractText(rootNode).trim()
 
-        if (screenText.isBlank()) {
-            return ScreenContextHolder.lastScreenText
-        }
+        if (screenText.isBlank()) return ScreenContextHolder.lastScreenText
 
         val packageName = rootNode.packageName?.toString() ?: "unknown"
         val fullContext = "App:$packageName | $screenText"
 
-        // 🧠 Context Stability Guard
-        val newHash = fullContext.hashCode()
-
-        if (newHash == ScreenContextHolder.lastContextHash) {
-            // نفس الشاشة ونفس التطبيق → تجاهل التحديث
+        // 🔥 تطبيق الفلتر الجديد هنا قبل إرسال النص للمخ أو الـ Holder
+        if (!shouldUpdateContext(fullContext)) {
             return ScreenContextHolder.lastScreenText
         }
 
-        // تحديث البصمة والبيانات في الـ Holder
-        ScreenContextHolder.lastContextHash = newHash
+        // إذا وصلنا هنا، يعني أن النص جديد والوقت كافٍ
+        ScreenContextHolder.lastContextHash = fullContext.hashCode()
         ScreenContextHolder.lastScreenText = fullContext
         
         lastScreenText = fullContext
@@ -101,32 +95,24 @@ class AIRIAccessibilityService : AccessibilityService() {
     }
 
     private fun extractText(node: AccessibilityNodeInfo?): String {
-
         if (node == null) return ""
-
         val builder = StringBuilder()
-
         if (!node.text.isNullOrEmpty()) {
             builder.append(node.text).append(" ")
         }
-
         if (!node.contentDescription.isNullOrEmpty()) {
             builder.append(node.contentDescription).append(" ")
         }
-
         for (i in 0 until node.childCount) {
             builder.append(extractText(node.getChild(i)))
         }
-
         return builder.toString()
     }
 
     private fun storeScreen(text: String) {
         try {
             val prefs = getSharedPreferences("airi_memory", MODE_PRIVATE)
-            prefs.edit()
-                .putString("last_screen", text)
-                .apply()
+            prefs.edit().putString("last_screen", text).apply()
         } catch (e: Exception) {
             Log.e(TAG, "Store error", e)
         }
@@ -155,5 +141,12 @@ class AIRIAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Log.e(TAG, "Overlay update error", e)
         }
+    }
+
+    override fun onInterrupt() {}
+
+    override fun onDestroy() {
+        super.onDestroy()
+        ScreenContextHolder.reset()
     }
 }

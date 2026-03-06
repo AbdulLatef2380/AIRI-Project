@@ -11,11 +11,17 @@ import com.airi.assistant.brain.BrainManager
 
 class AIRIAccessibilityService : AccessibilityService() {
 
+    // ✅ الخطوة 1: إضافة متغيرات التحكم في الوقت والاستقرار
+    private var lastScreenText: String = ""
+    private var lastUpdateTime: Long = 0
+    private val UPDATE_DELAY = 1200L
+
     companion object {
         private const val TAG = "AIRI_ACCESS"
         var lastScreenText: String = ""
         var lastPackage: String = ""
     } 
+
     override fun onServiceConnected() {
         super.onServiceConnected()
 

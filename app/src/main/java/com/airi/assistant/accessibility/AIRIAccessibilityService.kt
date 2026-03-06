@@ -8,7 +8,6 @@ import android.content.Intent
 import android.widget.Toast
 import com.airi.assistant.overlay.DebugOverlayService
 import com.airi.assistant.brain.BrainManager
-import com.airi.assistant.accessibility.ActionExecutor
 
 class AIRIAccessibilityService : AccessibilityService() {
 
@@ -78,6 +77,7 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     /**
      * ⚡ تنفيذ الأوامر القادمة من الذكاء الاصطناعي
+     * تم نقلها هنا لتكون في مستوى الكلاس (Correct Member Function)
      */
     fun executeCommand(command: String) {
         when {
@@ -174,7 +174,6 @@ class AIRIAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {}
 
     override fun onDestroy() {
-        // ✅ تنظيف الـ instance عند تدمير الخدمة
         instance = null
         super.onDestroy()
         ScreenContextHolder.reset()

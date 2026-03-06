@@ -11,8 +11,7 @@ import com.airi.assistant.brain.BrainManager
 
 class AIRIAccessibilityService : AccessibilityService() {
 
-    // المتغيرات التي أضفناها في الخطوة السابقة
-    private var lastScreenTextInstance: String = "" // قمت بتغيير الاسم قليلاً لتجنب التضارب مع الـ Companion
+    private var lastScreenTextInstance: String = "" 
     private var lastUpdateTime: Long = 0
     private val UPDATE_DELAY = 1200L
 
@@ -32,16 +31,12 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-        val packageName = event.packageName?.toString() ?: return
         
-        // استخراج السياق (الدالة بالأسفل تستخدم الآن فلتر الوقت)
+        // استدعاء استخراج النص (الذي يحتوي الآن على فلتر shouldUpdateContext)
         val fullContext = extractScreenContext()
 
-        // إذا كانت الدالة فارغة أو لم تتجاوز الفلتر الزمني، سنتوقف هنا
-        if (fullContext.isEmpty() || fullContext == ScreenContextHolder.lastScreenText && lastUpdateTime != System.currentTimeMillis()) {
-            // ملاحظة: إذا أعادت الدالة نفس النص القديم فهذا يعني أن الفلتر منع التحديث
-        } else {
-            Log.d(TAG, "New stable context from $packageName")
+        // نقوم بالعمليات فقط إذا كان هناك نص صالح (ليس فارغاً)
+        if (fullContext.isNotEmpty()) {
             storeScreen(fullContext)
             sendToBrain(fullContext)
             updateOverlay(fullContext)
@@ -54,17 +49,14 @@ class AIRIAccessibilityService : AccessibilityService() {
     private fun shouldUpdateContext(newText: String): Boolean {
         val now = System.currentTimeMillis()
 
-        // 1. فحص التكرار النصي
         if (newText == lastScreenTextInstance) {
             return false
         }
 
-        // 2. فحص التأخير الزمني (Debounce)
         if (now - lastUpdateTime < UPDATE_DELAY) {
             return false
         }
 
-        // تحديث الحالة إذا اجتاز الشروط
         lastScreenTextInstance = newText
         lastUpdateTime = now
         return true
@@ -79,19 +71,22 @@ class AIRIAccessibilityService : AccessibilityService() {
         val packageName = rootNode.packageName?.toString() ?: "unknown"
         val fullContext = "App:$packageName | $screenText"
 
-        // 🔥 تطبيق الفلتر الجديد هنا قبل إرسال النص للمخ أو الـ Holder
-        if (!shouldUpdateContext(fullContext)) {
-            return ScreenContextHolder.lastScreenText
+        // 🔥 التعديل المطلوب: تحديث الـ Holder والـ Log فقط عند تحقق الشرط
+        if (shouldUpdateContext(fullContext)) {
+            
+            ScreenContextHolder.lastScreenText = fullContext
+            ScreenContextHolder.lastContextHash = fullContext.hashCode()
+            
+            lastScreenText = fullContext
+            lastPackage = packageName
+
+            Log.d("AIRI", "AIRI sees: $fullContext")
+            
+            return fullContext
         }
 
-        // إذا وصلنا هنا، يعني أن النص جديد والوقت كافٍ
-        ScreenContextHolder.lastContextHash = fullContext.hashCode()
-        ScreenContextHolder.lastScreenText = fullContext
-        
-        lastScreenText = fullContext
-        lastPackage = packageName
-
-        return fullContext
+        // إذا لم يتحقق الشرط، نعيد النص القديم المخزن مسبقاً
+        return ScreenContextHolder.lastScreenText
     }
 
     private fun extractText(node: AccessibilityNodeInfo?): String {
@@ -119,10 +114,13 @@ class AIRIAccessibilityService : AccessibilityService() {
     }
 
     private fun sendToBrain(text: String) {
-        try {
-            BrainManager.processScreen(text)
-        } catch (e: Exception) {
-            Log.e(TAG, "Brain error", e)
+        // نرسل للمخ فقط إذا كان النص المرسل هو النص الحالي (المستقر)
+        if (text == ScreenContextHolder.lastScreenText) {
+            try {
+                BrainManager.processScreen(text)
+            } catch (e: Exception) {
+                Log.e(TAG, "Brain error", e)
+            }
         }
     }
 

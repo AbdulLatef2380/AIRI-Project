@@ -93,6 +93,7 @@ private fun sendToAIRI(userText: String) {
 private fun processResponse(response: String) {  
     mainHandler.post {  
         adapter.addMessage(ChatModel(response, false))  
+      AIRIAccessibilityService.instance?.executeCommand(response)
         ttsManager.speak(response, TextToSpeech.QUEUE_FLUSH, null, "AIRI")  
         chatView.findViewById<RecyclerView>(R.id.chat_recycler)  
             .smoothScrollToPosition(adapter.itemCount - 1)  

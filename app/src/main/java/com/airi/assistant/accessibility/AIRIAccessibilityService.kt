@@ -8,6 +8,7 @@ import android.content.Intent
 import android.widget.Toast
 import com.airi.assistant.overlay.DebugOverlayService
 import com.airi.assistant.brain.BrainManager
+import com.airi.assistant.accessibility.ActionExecutor
 
 class AIRIAccessibilityService : AccessibilityService() {
 
@@ -85,6 +86,30 @@ class AIRIAccessibilityService : AccessibilityService() {
             return fullContext
         }
 
+        fun executeCommand(command: String) {
+
+    when {
+
+        command.contains("اضغط", true) -> {
+
+            val target = command.replace("اضغط", "").trim()
+
+            ActionExecutor.clickByText(this, target)
+        }
+
+        command.contains("اكتب", true) -> {
+
+            val text = command.replace("اكتب", "").trim()
+
+            ActionExecutor.inputText(this, text)
+        }
+
+        command.contains("رجوع", true) -> {
+
+            ActionExecutor.pressBack(this)
+        }
+    }
+        }
         // إذا لم يتحقق الشرط، نعيد النص القديم المخزن مسبقاً
         return ScreenContextHolder.lastScreenText
     }

@@ -18,25 +18,38 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "AIRI_ACCESS"
+
+        // ✅ إضافة الـ instance للوصول للخدمة من أي مكان
+        var instance: AIRIAccessibilityService? = null
+
         var lastScreenText: String = ""
         var lastPackage: String = ""
     } 
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+
+        // ✅ تعيين الـ instance عند اتصال الخدمة
+        instance = this
+
         Log.i(TAG, "AIRI Accessibility Connected")
+
         ScreenContextHolder.serviceInstance = this
-        Toast.makeText(applicationContext, "AIRI Screen Reader Active", Toast.LENGTH_SHORT).show()
+
+        Toast.makeText(
+            applicationContext,
+            "AIRI Screen Reader Active",
+            Toast.LENGTH_SHORT
+        ).show()
+
         startOverlay()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         
-        // استدعاء استخراج النص (الذي يحتوي الآن على فلتر shouldUpdateContext)
         val fullContext = extractScreenContext()
 
-        // نقوم بالعمليات فقط إذا كان هناك نص صالح (ليس فارغاً)
         if (fullContext.isNotEmpty()) {
             storeScreen(fullContext)
             sendToBrain(fullContext)
@@ -63,6 +76,25 @@ class AIRIAccessibilityService : AccessibilityService() {
         return true
     }
 
+    /**
+     * ⚡ تنفيذ الأوامر القادمة من الذكاء الاصطناعي
+     */
+    fun executeCommand(command: String) {
+        when {
+            command.contains("اضغط", true) -> {
+                val target = command.replace("اضغط", "").trim()
+                ActionExecutor.clickByText(this, target)
+            }
+            command.contains("اكتب", true) -> {
+                val text = command.replace("اكتب", "").trim()
+                ActionExecutor.inputText(this, text)
+            }
+            command.contains("رجوع", true) -> {
+                ActionExecutor.pressBack(this)
+            }
+        }
+    }
+
     fun extractScreenContext(): String {
         val rootNode = rootInActiveWindow ?: return ScreenContextHolder.lastScreenText
         val screenText = extractText(rootNode).trim()
@@ -72,7 +104,6 @@ class AIRIAccessibilityService : AccessibilityService() {
         val packageName = rootNode.packageName?.toString() ?: "unknown"
         val fullContext = "App:$packageName | $screenText"
 
-        // 🔥 التعديل المطلوب: تحديث الـ Holder والـ Log فقط عند تحقق الشرط
         if (shouldUpdateContext(fullContext)) {
             
             ScreenContextHolder.lastScreenText = fullContext
@@ -86,31 +117,6 @@ class AIRIAccessibilityService : AccessibilityService() {
             return fullContext
         }
 
-        fun executeCommand(command: String) {
-
-    when {
-
-        command.contains("اضغط", true) -> {
-
-            val target = command.replace("اضغط", "").trim()
-
-            ActionExecutor.clickByText(this, target)
-        }
-
-        command.contains("اكتب", true) -> {
-
-            val text = command.replace("اكتب", "").trim()
-
-            ActionExecutor.inputText(this, text)
-        }
-
-        command.contains("رجوع", true) -> {
-
-            ActionExecutor.pressBack(this)
-        }
-    }
-        }
-        // إذا لم يتحقق الشرط، نعيد النص القديم المخزن مسبقاً
         return ScreenContextHolder.lastScreenText
     }
 
@@ -139,7 +145,6 @@ class AIRIAccessibilityService : AccessibilityService() {
     }
 
     private fun sendToBrain(text: String) {
-        // نرسل للمخ فقط إذا كان النص المرسل هو النص الحالي (المستقر)
         if (text == ScreenContextHolder.lastScreenText) {
             try {
                 BrainManager.processScreen(text)
@@ -169,6 +174,8 @@ class AIRIAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {}
 
     override fun onDestroy() {
+        // ✅ تنظيف الـ instance عند تدمير الخدمة
+        instance = null
         super.onDestroy()
         ScreenContextHolder.reset()
     }

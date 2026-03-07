@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
 import com.airi.assistant.brain.UIMemory
+import com.airi.assistant.learning.UILearningEngine // السطر المطلوب إضافته
 
 object SmartActionEngine {
 
@@ -15,6 +16,27 @@ object SmartActionEngine {
     fun smartClick(service: AccessibilityService, label: String): Boolean {
         val root = service.rootInActiveWindow ?: return false
         val target = label.lowercase().trim()
+
+        // 🟢 الإضافة الجديدة: محاولة البحث عبر محرك التعلم (UILearningEngine)
+        val packageName = service.rootInActiveWindow
+            ?.packageName
+            ?.toString() ?: ""
+
+        val learnedId = UILearningEngine.recallElement(
+            service,
+            packageName,
+            target
+        )
+
+        if (learnedId != null) {
+            val node = findByViewId(root, learnedId)
+            if (node != null) {
+                if (performClick(node)) {
+                    Log.i(TAG, "Clicked using learned UI: $target")
+                    return true
+                }
+            }
+        }
 
         // 1️⃣ المرحلة الأولى: محاولة استدعاء "البصمة" من الذاكرة (Memory)
         val memoryId = UIMemory.recallNode(service, target)
@@ -84,7 +106,8 @@ object SmartActionEngine {
         if (node.viewIdResourceName == id) return node
 
         for (i in 0 until node.childCount) {
-            val result = findByViewId(node.getChild(i), id)
+            val child = node.getChild(i) // تأكد من استدعاء الابن
+            val result = findByViewId(child, id)
             if (result != null) return result
         }
         return null

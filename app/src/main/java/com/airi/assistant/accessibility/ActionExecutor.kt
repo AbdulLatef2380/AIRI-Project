@@ -6,23 +6,34 @@ import android.os.Bundle
 
 object ActionExecutor {
 
-    /**
-     * الضغط على عنصر بناءً على النص الظاهر فيه
-     */
     fun clickByText(service: AccessibilityService, text: String): Boolean {
+
         val root = service.rootInActiveWindow ?: return false
+
         val nodes = root.findAccessibilityNodeInfosByText(text)
 
         for (node in nodes) {
-            var current: AccessibilityNodeInfo? = node
-            while (current != null) {
-                if (current.isClickable) {
-                    val success = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    if (success) return true
+
+            if (node.isClickable) {
+
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                return true
+            }
+
+            var parent = node.parent
+
+            while (parent != null) {
+
+                if (parent.isClickable) {
+
+                    parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    return true
                 }
-                current = current.parent
+
+                parent = parent.parent
             }
         }
+
         return false
     }
 

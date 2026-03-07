@@ -4,24 +4,26 @@ import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
 import com.airi.assistant.brain.UIMemory
-import com.airi.assistant.learning.UILearningEngine // السطر المطلوب إضافته
+import com.airi.assistant.learning.UILearningEngine
 
 object SmartActionEngine {
 
     private const val TAG = "AIRI_SMART"
 
     /**
-     * محرك الضغط الذكي: يحاول الوصول للهدف عبر 4 مراحل متقدمة.
+     * محرك الضغط الذكي
+     * يحاول العثور على العنصر عبر 4 مراحل
      */
     fun smartClick(service: AccessibilityService, label: String): Boolean {
+
         val root = service.rootInActiveWindow ?: return false
         val target = label.lowercase().trim()
 
-        // 🟢 الإضافة الجديدة: محاولة البحث عبر محرك التعلم (UILearningEngine)
-        val packageName = service.rootInActiveWindow
-            ?.packageName
-            ?.toString() ?: ""
+        val packageName =
+            root.packageName?.toString() ?: ""
 
+        /* 🟢 المرحلة 0
+           محاولة عبر محرك التعلم */
         val learnedId = UILearningEngine.recallElement(
             service,
             packageName,
@@ -29,7 +31,9 @@ object SmartActionEngine {
         )
 
         if (learnedId != null) {
+
             val node = findByViewId(root, learnedId)
+
             if (node != null) {
                 if (performClick(node)) {
                     Log.i(TAG, "Clicked using learned UI: $target")
@@ -38,96 +42,162 @@ object SmartActionEngine {
             }
         }
 
-        // 1️⃣ المرحلة الأولى: محاولة استدعاء "البصمة" من الذاكرة (Memory)
+        /* 1️⃣ المرحلة الأولى
+           الذاكرة السابقة */
         val memoryId = UIMemory.recallNode(service, target)
+
         if (memoryId != null) {
+
             val node = findByViewId(root, memoryId)
+
             if (node != null && performClick(node)) {
-                Log.i(TAG, "✅ Clicked using memory: $target")
+
+                Log.i(TAG, "Clicked using memory: $target")
                 return true
             }
         }
 
-        // 2️⃣ المرحلة الثانية: بحث مباشر بالنص الظاهر (Text Search)
-        val textNodes = root.findAccessibilityNodeInfosByText(label)
+        /* 2️⃣ المرحلة الثانية
+           البحث بالنص */
+        val textNodes =
+            root.findAccessibilityNodeInfosByText(label)
+
         for (node in textNodes) {
+
             if (performClick(node)) {
-                Log.i(TAG, "✅ Clicked using text: $target")
+
+                Log.i(TAG, "Clicked using text: $target")
                 return true
             }
         }
 
-        // 3️⃣ المرحلة الثالثة: بحث دلالي عميق في شجرة العناصر (Semantic Search)
-        val semanticNode = findSemantic(root, target)
-        if (semanticNode != null && performClick(semanticNode)) {
-            Log.i(TAG, "✅ Clicked using semantic search: $target")
+        /* 3️⃣ المرحلة الثالثة
+           البحث الدلالي */
+        val semanticNode =
+            findSemantic(root, target)
+
+        if (semanticNode != null &&
+            performClick(semanticNode)) {
+
+            Log.i(TAG, "Clicked using semantic search: $target")
             return true
         }
 
-        // 4️⃣ المرحلة الرابعة: التنبؤ بالنية (Intent Prediction) 🚀
-        // في حال فشل كل ما سبق، نطلب من المتنبئ إيجاد العقدة الأكثر احتمالية
-        val predicted = IntentPredictor.predictNode(root, target)
-        if (predicted != null && performClick(predicted)) {
-            Log.i(TAG, "🚀 Clicked using intent prediction: $target")
+        /* 4️⃣ المرحلة الرابعة
+           التنبؤ */
+        val predicted =
+            IntentPredictor.predictNode(root, target)
+
+        if (predicted != null &&
+            performClick(predicted)) {
+
+            Log.i(TAG, "Clicked using intent prediction: $target")
             return true
         }
 
-        Log.w(TAG, "❌ Target not found after 4 stages: $target")
+        Log.w(TAG, "Target not found: $target")
         return false
     }
 
     /**
-     * البحث الدلالي: يطابق الهدف مع النص، الوصف، أو الـ ID
+     * البحث الدلالي داخل الشجرة
      */
-    private fun findSemantic(node: AccessibilityNodeInfo?, target: String): AccessibilityNodeInfo? {
+    private fun findSemantic(
+        node: AccessibilityNodeInfo?,
+        target: String
+    ): AccessibilityNodeInfo? {
+
         if (node == null) return null
 
-        val text = node.text?.toString()?.lowercase() ?: ""
-        val desc = node.contentDescription?.toString()?.lowercase() ?: ""
-        val id = node.viewIdResourceName?.lowercase() ?: ""
+        val text =
+            node.text?.toString()?.lowercase() ?: ""
 
-        if (text.contains(target) || desc.contains(target) || id.contains(target)) {
+        val desc =
+            node.contentDescription?.toString()?.lowercase() ?: ""
+
+        val id =
+            node.viewIdResourceName?.lowercase() ?: ""
+
+        if (
+            text.contains(target) ||
+            desc.contains(target) ||
+            id.contains(target)
+        ) {
             return node
         }
 
         for (i in 0 until node.childCount) {
+
             val child = node.getChild(i)
-            val result = findSemantic(child, target)
-            if (result != null) return result
+
+            val result =
+                findSemantic(child, target)
+
+            if (result != null) {
+                return result
+            }
         }
+
         return null
     }
 
     /**
-     * البحث عن طريق المعرف البرمجي (View ID)
+     * البحث عبر View ID
      */
-    private fun findByViewId(node: AccessibilityNodeInfo?, id: String): AccessibilityNodeInfo? {
+    private fun findByViewId(
+        node: AccessibilityNodeInfo?,
+        id: String
+    ): AccessibilityNodeInfo? {
+
         if (node == null) return null
-        if (node.viewIdResourceName == id) return node
+
+        if (node.viewIdResourceName == id) {
+            return node
+        }
 
         for (i in 0 until node.childCount) {
-            val child = node.getChild(i) // تأكد من استدعاء الابن
-            val result = findByViewId(child, id)
-            if (result != null) return result
+
+            val child = node.getChild(i)
+
+            val result =
+                findByViewId(child, id)
+
+            if (result != null) {
+                return result
+            }
         }
+
         return null
     }
 
     /**
-     * تنفيذ الضغط الفعلي مع دعم الزحف للأبناء (Parent Crawling)
+     * تنفيذ الضغط
      */
-    private fun performClick(node: AccessibilityNodeInfo): Boolean {
+    private fun performClick(
+        node: AccessibilityNodeInfo
+    ): Boolean {
+
         if (node.isClickable) {
-            return node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+
+            return node.performAction(
+                AccessibilityNodeInfo.ACTION_CLICK
+            )
         }
-        
+
         var parent = node.parent
+
         while (parent != null) {
+
             if (parent.isClickable) {
-                return parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+
+                return parent.performAction(
+                    AccessibilityNodeInfo.ACTION_CLICK
+                )
             }
+
             parent = parent.parent
         }
+
         return false
     }
 }

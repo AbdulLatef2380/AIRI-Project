@@ -47,6 +47,7 @@ class AIRIAccessibilityService : AccessibilityService() {
         if (now - lastEventTime < 800) {
             return
         }
+
         lastEventTime = now
 
         val root = rootInActiveWindow ?: return
@@ -60,43 +61,60 @@ class AIRIAccessibilityService : AccessibilityService() {
 
             BrainManager.processScreenContext(fullContext, this)
         }
+
+        // تحليل إضافي لعناصر الشاشة
+        processScreenContext(root)
     }
 
     private fun shouldUpdateContext(newText: String): Boolean {
         val now = System.currentTimeMillis()
+
         if (newText == lastScreenTextInstance) return false
         if (now - lastUpdateTime < UPDATE_DELAY) return false
 
         lastScreenTextInstance = newText
         lastUpdateTime = now
+
         return true
     }
 
     fun executeCommand(command: String) {
         try {
+
             when {
+
                 command.contains("اضغط", true) -> {
+
                     val target = command
                         .replace("اضغط", "", true)
                         .replace("على", "", true)
                         .trim()
-                    
+
                     SmartActionEngine.smartClick(this, target)
                 }
+
                 command.contains("اكتب", true) -> {
-                    val text = command.replace("اكتب", "", true).trim()
+
+                    val text = command
+                        .replace("اكتب", "", true)
+                        .trim()
+
                     ActionExecutor.inputText(this, text)
                 }
+
                 command.contains("رجوع", true) -> {
+
                     ActionExecutor.pressBack(this)
                 }
             }
+
         } catch (e: Exception) {
             Log.e(TAG, "Command execution error", e)
         }
     }
 
     fun extractScreenContext(): String {
+
         val rootNode = rootInActiveWindow ?: return ""
 
         val screenText = UITreeScanner.scan(this, rootNode)
@@ -116,6 +134,7 @@ class AIRIAccessibilityService : AccessibilityService() {
         val fullContext = "App:$packageName | $screenText"
 
         if (shouldUpdateContext(fullContext)) {
+
             ScreenContextHolder.lastScreenText = fullContext
             ScreenContextHolder.lastContextHash = fullContext.hashCode()
 
@@ -123,6 +142,7 @@ class AIRIAccessibilityService : AccessibilityService() {
             lastPackage = packageName
 
             Log.d(TAG, "AIRI sees: $fullContext")
+
             return fullContext
         }
 
@@ -131,8 +151,13 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     private fun storeScreen(text: String) {
         try {
+
             val prefs = getSharedPreferences("airi_memory", MODE_PRIVATE)
-            prefs.edit().putString("last_screen", text).apply()
+
+            prefs.edit()
+                .putString("last_screen", text)
+                .apply()
+
         } catch (e: Exception) {
             Log.e(TAG, "Store error", e)
         }
@@ -140,16 +165,20 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     private fun sendToBrain(text: String) {
         try {
+
             BrainManager.processScreen(this, text)
+
         } catch (e: Exception) {
             Log.e(TAG, "Brain error", e)
         }
     }
 
     private fun startOverlay() {
+
         try {
+
             val intent = Intent(this, DebugOverlayService::class.java)
-            
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)
             } else {
@@ -166,6 +195,29 @@ class AIRIAccessibilityService : AccessibilityService() {
             DebugOverlayService.updateText(text.take(150))
         } catch (e: Exception) {
             Log.e(TAG, "Overlay update error", e)
+        }
+    }
+
+    /**
+     * تحليل عناصر الشاشة (حل مشكلة processScreenContext)
+     */
+    private fun processScreenContext(node: AccessibilityNodeInfo?) {
+
+        if (node == null) return
+
+        val text = node.text?.toString()
+        val desc = node.contentDescription?.toString()
+
+        if (!text.isNullOrEmpty()) {
+            Log.d("AIRI_UI", "Text: $text")
+        }
+
+        if (!desc.isNullOrEmpty()) {
+            Log.d("AIRI_UI", "Desc: $desc")
+        }
+
+        for (i in 0 until node.childCount) {
+            processScreenContext(node.getChild(i))
         }
     }
 

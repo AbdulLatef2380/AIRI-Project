@@ -99,7 +99,7 @@ class AIRIAccessibilityService : AccessibilityService() {
 
                     val target = command.replace("اضغط", "").trim()
 
-                    ActionExecutor.clickByText(this, target)
+                    SmartActionEngine.smartClick(this, target)
                 }
 
                 command.contains("اكتب", true) -> {

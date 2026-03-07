@@ -41,28 +41,17 @@ class AIRIAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
 
-        when (event.eventType) {
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
-            AccessibilityEvent.TYPE_VIEW_CLICKED,
-            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
-                
-                val fullContext = extractScreenContext()
+        val root = rootInActiveWindow ?: return
 
-                // 🛠️ التحسين رقم 1: منع الـ Brain Loop عبر فحص lastProcessedContext
-                if (fullContext.isNotEmpty() && 
-                    fullContext != ScreenContextHolder.lastProcessedContext) {
+        val fullContext = UITreeScanner.scanTree(root)
 
-                    ScreenContextHolder.lastProcessedContext = fullContext
+        if (fullContext.isNotEmpty() &&
+            fullContext != ScreenContextHolder.lastProcessedContext) {
 
-                    storeScreen(fullContext)
-                    sendToBrain(fullContext)
-                    updateOverlay(fullContext)
-                }
-            }
-            else -> return
+            ScreenContextHolder.lastProcessedContext = fullContext
+
+            BrainManager.processScreenContext(fullContext, this)
         }
     }
 
@@ -76,14 +65,10 @@ class AIRIAccessibilityService : AccessibilityService() {
         return true
     }
 
-    /**
-     * تنفيذ الأوامر الصوتية أو البرمجية الموجهة للمساعد
-     */
     fun executeCommand(command: String) {
         try {
             when {
                 command.contains("اضغط", true) -> {
-                    // 🛠️ التحسين رقم 2: معالجة لغوية أفضل لحرف الجر "على"
                     val target = command
                         .replace("اضغط", "", true)
                         .replace("على", "", true)
@@ -104,14 +89,9 @@ class AIRIAccessibilityService : AccessibilityService() {
         }
     }
 
-    /**
-     * استخراج سياق الشاشة وتعلم الأنماط الجديدة تلقائياً
-     */
     fun extractScreenContext(): String {
-        // 🛠️ التحسين رقم 3: تجنب الـ Stale Nodes عبر العودة بـ نص فارغ عند فشل الـ Root
         val rootNode = rootInActiveWindow ?: return ""
 
-        // مسح الشجرة وتحويلها لنص
         val screenText = UITreeScanner.scan(this, rootNode)
 
         if (screenText.isBlank()) {
@@ -120,7 +100,6 @@ class AIRIAccessibilityService : AccessibilityService() {
 
         val packageName = rootNode.packageName?.toString() ?: "unknown"
 
-        // ✅ إدراج محرك التعلم (UILearningEngine) لربط الحزمة بالهيكل
         UILearningEngine.learnScreen(
             this,
             packageName,
@@ -164,7 +143,6 @@ class AIRIAccessibilityService : AccessibilityService() {
         try {
             val intent = Intent(this, DebugOverlayService::class.java)
             
-            // 🛠️ التحسين رقم 4: دعم تشغيل الخدمة في Foreground للأندرويد الحديث
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)
             } else {

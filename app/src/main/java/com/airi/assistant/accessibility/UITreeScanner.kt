@@ -8,11 +8,31 @@ import com.airi.assistant.brain.UIMemory
 object UITreeScanner {
 
     private const val TAG = "AIRI_SCANNER"
-    private const val MAX_DEPTH = 25 // 🛠️ تحسين 2: لمنع CPU Spike في الواجهات العميقة
+    private const val MAX_DEPTH = 25
 
-    /**
-     * مسح شجرة الواجهة بالكامل وتحويلها إلى نص، مع حفظ العناصر المكتشفة في الذاكرة تلقائياً.
-     */
+    fun scanTree(node: AccessibilityNodeInfo?): String {
+        if (node == null) return ""
+        val builder = StringBuilder()
+        scanNode(node, builder)
+        return builder.toString()
+    }
+
+    private fun scanNode(node: AccessibilityNodeInfo, builder: StringBuilder) {
+        node.text?.let {
+            builder.append(it).append(" ")
+        }
+
+        node.contentDescription?.let {
+            builder.append(it).append(" ")
+        }
+
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let {
+                scanNode(it, builder)
+            }
+        }
+    }
+
     fun scan(context: Context, root: AccessibilityNodeInfo?): String {
         if (root == null) return ""
 
@@ -28,33 +48,26 @@ object UITreeScanner {
         builder: StringBuilder,
         depth: Int
     ) {
-        // 🛠️ تحسين 2: التحقق من العمق لمنع استنزاف الموارد
         if (node == null || depth > MAX_DEPTH) return
 
         val indent = "  ".repeat(depth)
 
-        // 🔍 1. استخراج البيانات الخام للعنصر
         val text = node.text?.toString() ?: ""
         val desc = node.contentDescription?.toString() ?: ""
         val className = node.className?.toString() ?: "unknown"
         val viewId = node.viewIdResourceName ?: ""
 
-        // 🎯 2. تحديد التسمية الأنسب (تفضيل النص على الوصف)
         val label = when {
             text.isNotEmpty() -> text
             desc.isNotEmpty() -> desc
             else -> ""
         }
 
-        // 🛠️ تحسين إضافي: رموز مختصرة لتقليل حجم النص (Payload Size)
         val clickable = if (node.isClickable) "[C]" else ""
         val editable = if (node.isEditable) "[E]" else ""
 
-        // 📝 3. بناء تقرير المسح النصي بالصيغة المحسنة
         builder.append("$indent$className [$label] {$viewId} $clickable $editable\n")
 
-        // ✅ 4. منطق التعلم التلقائي (Auto-Learning) مع تحسين الفلترة
-        // 🛠️ تحسين 3: تخزين فقط العناصر ذات القيمة (تجنب الرموز المفردة أو العناصر الفارغة)
         if (node.isClickable && (label.length > 2 || viewId.isNotEmpty())) {
             try {
                 UIMemory.rememberNode(
@@ -67,13 +80,10 @@ object UITreeScanner {
             }
         }
 
-        // 🔄 5. استمرار المسح لكل الأبناء مع إدارة الذاكرة
         for (i in 0 until node.childCount) {
             val child = node.getChild(i)
             if (child != null) {
                 traverse(context, child, builder, depth + 1)
-                
-                // 🛠️ تحسين 1: إعادة تدوير العقدة لمنع Memory Leak (ضروري جداً)
                 child.recycle()
             }
         }

@@ -4,12 +4,13 @@ import android.content.Context
 import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
 import com.airi.assistant.brain.UIMemory
+
 object UITreeScanner {
 
     private const val TAG = "AIRI_SCANNER"
 
     /**
-     * مسح شجرة الواجهة بالكامل وتحويلها إلى نص، مع حفظ العناصر الهامة في الذاكرة.
+     * مسح شجرة الواجهة بالكامل وتحويلها إلى نص، مع حفظ العناصر المكتشفة في الذاكرة تلقائياً.
      */
     fun scan(context: Context, root: AccessibilityNodeInfo?): String {
         if (root == null) return ""
@@ -30,41 +31,40 @@ object UITreeScanner {
 
         val indent = "  ".repeat(depth)
 
-        // 🔍 استخراج البيانات الأساسية للعقدة
+        // 🔍 1. استخراج البيانات الخام للعنصر
         val text = node.text?.toString() ?: ""
         val desc = node.contentDescription?.toString() ?: ""
         val className = node.className?.toString() ?: "unknown"
         val viewId = node.viewIdResourceName ?: ""
 
-        // 🎯 تحديد التسمية الأنسب (النص أولاً، ثم الوصف)
+        // 🎯 2. تحديد "التسمية" الأنسب للزر (نص، وصف، أو معرف برمجي)
         val label = when {
             text.isNotEmpty() -> text
             desc.isNotEmpty() -> desc
             else -> ""
         }
 
-        // تحديد الخصائص الوظيفية
         val clickable = if (node.isClickable) "[Clickable]" else ""
         val editable = if (node.isEditable) "[Editable]" else ""
 
-        // 📝 إضافة البيانات لتقرير المسح (Logcat / UI)
+        // 📝 3. بناء تقرير المسح النصي (للفهم البرمجي والـ Log)
         builder.append("$indent$className | Label: $label | ID: $viewId | $clickable $editable\n")
 
-        // ✅ منطق الذاكرة التلقائي المطور (Memory Auto-Learning)
-        // نحفظ العنصر إذا كان قابلاً للضغط ويملك اسماً أو معرفاً برمجياً
+        // ✅ 4. منطق التعلم التلقائي (Auto-Learning)
+        // وظيفته فقط "الحفظ" في الذاكرة، ولا يتخذ أي قرار تنفيذ هنا.
         if (node.isClickable && (label.isNotEmpty() || viewId.isNotEmpty())) {
             try {
                 UIMemory.rememberNode(
                     context,
-                    label.ifEmpty { viewId }, // الأولوية للاسم، وإذا غاب نستخدم الـ ID كمرجع
-                    className
+                    label.ifEmpty { viewId },           // المفتاح (ماذا نسمي هذا الزر؟)
+                    viewId.ifEmpty { className }        // القيمة (كيف نضغط عليه لاحقاً؟)
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "Memory save error: ${e.message}")
+                Log.e(TAG, "Learning error: ${e.message}")
             }
         }
 
-        // الاستمرار في مسح كافة الأبناء (Recursion)
+        // 🔄 5. استمرار المسح لكل الأبناء (Recursion)
         for (i in 0 until node.childCount) {
             val child = node.getChild(i)
             if (child != null) {

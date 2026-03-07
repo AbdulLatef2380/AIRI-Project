@@ -220,7 +220,7 @@ class AIRIAccessibilityService : AccessibilityService() {
 
         try {
 
-            BrainManager.processScreen(text)
+            BrainManager.processScreen(this, fullContext)
 
         } catch (e: Exception) {
 

@@ -48,7 +48,6 @@ class AIRIAccessibilityService : AccessibilityService() {
 
         if (event == null) return
 
-        // فلترة الأحداث غير المهمة لتقليل الضغط
         when (event.eventType) {
 
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
@@ -72,9 +71,6 @@ class AIRIAccessibilityService : AccessibilityService() {
         }
     }
 
-    /**
-     * فلتر منع التكرار
-     */
     private fun shouldUpdateContext(newText: String): Boolean {
 
         val now = System.currentTimeMillis()
@@ -93,9 +89,6 @@ class AIRIAccessibilityService : AccessibilityService() {
         return true
     }
 
-    /**
-     * تنفيذ أوامر الذكاء الاصطناعي
-     */
     fun executeCommand(command: String) {
 
         try {
@@ -128,9 +121,6 @@ class AIRIAccessibilityService : AccessibilityService() {
         }
     }
 
-    /**
-     * استخراج سياق الشاشة
-     */
     fun extractScreenContext(): String {
 
         val rootNode = rootInActiveWindow
@@ -162,9 +152,6 @@ class AIRIAccessibilityService : AccessibilityService() {
         return ScreenContextHolder.lastScreenText
     }
 
-    /**
-     * استخراج النص من شجرة الواجهة
-     */
     private fun extractText(node: AccessibilityNodeInfo?): String {
 
         if (node == null) return ""
@@ -189,9 +176,6 @@ class AIRIAccessibilityService : AccessibilityService() {
         return builder.toString()
     }
 
-    /**
-     * تخزين السياق في الذاكرة
-     */
     private fun storeScreen(text: String) {
 
         try {
@@ -211,16 +195,13 @@ class AIRIAccessibilityService : AccessibilityService() {
         }
     }
 
-    /**
-     * إرسال البيانات للمخ
-     */
     private fun sendToBrain(text: String) {
 
         if (text != ScreenContextHolder.lastScreenText) return
 
         try {
 
-            BrainManager.processScreen(this, fullContext)
+            BrainManager.processScreen(this, text)
 
         } catch (e: Exception) {
 
@@ -228,9 +209,6 @@ class AIRIAccessibilityService : AccessibilityService() {
         }
     }
 
-    /**
-     * تشغيل Overlay
-     */
     private fun startOverlay() {
 
         try {
@@ -248,9 +226,6 @@ class AIRIAccessibilityService : AccessibilityService() {
         }
     }
 
-    /**
-     * تحديث النص في Overlay
-     */
     private fun updateOverlay(text: String) {
 
         try {

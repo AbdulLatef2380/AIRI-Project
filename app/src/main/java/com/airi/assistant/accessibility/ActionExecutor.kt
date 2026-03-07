@@ -15,7 +15,6 @@ object ActionExecutor {
     fun clickByText(service: AccessibilityService, text: String): Boolean {
 
         val root = service.rootInActiveWindow ?: return false
-
         val nodes = root.findAccessibilityNodeInfosByText(text)
 
         for (node in nodes) {
@@ -45,6 +44,38 @@ object ActionExecutor {
     }
 
     /**
+     * الضغط على أول عنصر قابل للضغط
+     */
+    fun clickFirst(service: AccessibilityService): Boolean {
+
+        val root = service.rootInActiveWindow ?: return false
+
+        val node = findFirstClickable(root) ?: return false
+
+        Log.i(TAG, "Clicked first clickable node")
+
+        return node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    }
+
+    /**
+     * الضغط حسب الترتيب
+     */
+    fun clickByIndex(service: AccessibilityService, index: Int): Boolean {
+
+        val root = service.rootInActiveWindow ?: return false
+
+        val list = mutableListOf<AccessibilityNodeInfo>()
+
+        collectClickableNodes(root, list)
+
+        if (index >= list.size) return false
+
+        Log.i(TAG, "Clicked node index: $index")
+
+        return list[index].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    }
+
+    /**
      * إدخال نص
      */
     fun inputText(service: AccessibilityService, text: String): Boolean {
@@ -70,6 +101,45 @@ object ActionExecutor {
         Log.i(TAG, "Text inserted: $text")
 
         return result
+    }
+
+    /**
+     * البحث عن أول عنصر قابل للضغط
+     */
+    private fun findFirstClickable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+
+        if (node == null) return null
+
+        if (node.isClickable) return node
+
+        for (i in 0 until node.childCount) {
+
+            val result = findFirstClickable(node.getChild(i))
+
+            if (result != null) return result
+        }
+
+        return null
+    }
+
+    /**
+     * جمع كل العناصر القابلة للضغط
+     */
+    private fun collectClickableNodes(
+        node: AccessibilityNodeInfo?,
+        list: MutableList<AccessibilityNodeInfo>
+    ) {
+
+        if (node == null) return
+
+        if (node.isClickable) {
+            list.add(node)
+        }
+
+        for (i in 0 until node.childCount) {
+
+            collectClickableNodes(node.getChild(i), list)
+        }
     }
 
     /**

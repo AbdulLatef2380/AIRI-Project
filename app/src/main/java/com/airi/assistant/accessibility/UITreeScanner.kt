@@ -54,11 +54,11 @@ object UITreeScanner {
         // وظيفته فقط "الحفظ" في الذاكرة، ولا يتخذ أي قرار تنفيذ هنا.
         if (node.isClickable && (label.isNotEmpty() || viewId.isNotEmpty())) {
             try {
-                UIMemory.rememberNode(
-                    context,
-                    label.ifEmpty { viewId },           // المفتاح (ماذا نسمي هذا الزر؟)
-                    viewId.ifEmpty { className }        // القيمة (كيف نضغط عليه لاحقاً؟)
-                )
+            UIMemory.rememberNode(
+    context,
+    label.ifEmpty { viewId },
+    viewId.ifEmpty { className }
+)
             } catch (e: Exception) {
                 Log.e(TAG, "Learning error: ${e.message}")
             }

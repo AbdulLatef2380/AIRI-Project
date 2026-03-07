@@ -3,7 +3,7 @@ package com.airi.assistant.accessibility
 import android.content.Context
 import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
-
+import com.airi.assistant.brain.UIMemory
 object UITreeScanner {
 
     private const val TAG = "AIRI_SCANNER"

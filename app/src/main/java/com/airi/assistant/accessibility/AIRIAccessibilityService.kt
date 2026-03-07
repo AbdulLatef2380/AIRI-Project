@@ -13,6 +13,7 @@ import com.airi.assistant.learning.UILearningEngine
 
 class AIRIAccessibilityService : AccessibilityService() {
 
+    private var lastEventTime = 0L
     private var lastScreenTextInstance: String = ""
     private var lastUpdateTime: Long = 0
     private val UPDATE_DELAY = 1200L
@@ -41,6 +42,12 @@ class AIRIAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        val now = System.currentTimeMillis()
+
+        if (now - lastEventTime < 800) {
+            return
+        }
+        lastEventTime = now
 
         val root = rootInActiveWindow ?: return
 

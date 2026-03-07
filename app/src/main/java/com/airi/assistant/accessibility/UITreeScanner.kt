@@ -28,29 +28,34 @@ object UITreeScanner {
     ) {
         if (node == null) return
 
-        val indent = "  ".repeat(depth) // تنسيق بصري للشجرة
+        val indent = "  ".repeat(depth)
 
         val text = node.text?.toString() ?: ""
         val desc = node.contentDescription?.toString() ?: ""
         val className = node.className?.toString() ?: "unknown"
 
+        // 🎯 منطق الـ Label الذكي: تحديد الهوية بناءً على النص أو الوصف
+        val label = when {
+            text.isNotEmpty() -> text
+            desc.isNotEmpty() -> desc
+            else -> ""
+        }
+
         val clickable = if (node.isClickable) "[Clickable]" else ""
         val editable = if (node.isEditable) "[Editable]" else ""
 
-        // إضافة البيانات للنص الممسوح
-        builder.append("$indent$className | Text: $text | Desc: $desc | $clickable $editable\n")
+        // إضافة البيانات للنص الممسوح (نستخدم الـ label هنا ليكون التقرير أوضح)
+        builder.append("$indent$className | Label: $label | $clickable $editable\n")
 
         // ✅ إضافة منطق الذاكرة التلقائي (Memory Auto-Learning)
-        // إذا كان العنصر قابلاً للضغط وله نص، نحفظه فوراً لنتذكره لاحقاً
-        if (node.isClickable && text.isNotEmpty()) {
+        // نستخدم label هنا بدلاً من text لضمان حفظ الأزرار التي تملك وصفاً فقط
+        if (node.isClickable && label.isNotEmpty()) {
             try {
                 UIMemory.rememberNode(
                     context,
-                    text,
+                    label,
                     className
                 )
-                // Log اختياري للتأكد من الحفظ أثناء التطوير
-                // Log.d(TAG, "Memorized node: $text ($className)")
             } catch (e: Exception) {
                 Log.e(TAG, "Memory save error", e)
             }

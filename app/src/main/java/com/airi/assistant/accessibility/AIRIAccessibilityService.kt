@@ -136,7 +136,7 @@ class AIRIAccessibilityService : AccessibilityService() {
         val rootNode = rootInActiveWindow
             ?: return ScreenContextHolder.lastScreenText
 
-        val screenText = UITreeScanner.scan(rootNode)
+        val screenText = UITreeScanner.scan(this, rootNode)
 
         if (screenText.isBlank()) {
             return ScreenContextHolder.lastScreenText

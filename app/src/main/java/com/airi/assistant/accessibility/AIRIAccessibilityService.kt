@@ -10,6 +10,7 @@ import android.os.Build
 import com.airi.assistant.overlay.DebugOverlayService
 import com.airi.assistant.brain.BrainManager
 import com.airi.assistant.learning.UILearningEngine
+import com.airi.assistant.core.ScreenHasher
 
 class AIRIAccessibilityService : AccessibilityService() {
 

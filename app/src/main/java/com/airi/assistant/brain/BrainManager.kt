@@ -3,7 +3,7 @@ package com.airi.assistant.brain
 import android.content.Context
 import android.util.Log
 import com.airi.assistant.accessibility.AIRIAccessibilityService
-// تأكد من استيراد الكلاسات التالية من حزمها الصحيحة في مشروعك
+// استيراد الموديلات (تأكد من مطابقة المسارات لمشروعك)
 // import com.airi.assistant.models.UIScreen 
 
 object BrainManager {
@@ -17,24 +17,27 @@ object BrainManager {
     }
 
     /**
-     * التحليل الذكي للشاشة بناءً على الذاكرة (Hash) أو القواعد (Rules)
+     * التحليل الذكي للشاشة (نسخة Suspend للتعامل مع العمليات غير المتزامنة)
+     * تستخدم الـ Hash للبحث في الذاكرة، أو تعود لمحرك القواعد في حال عدم المعرفة مسبقاً.
      */
-    fun analyze(screen: UIScreen, hash: String): AiriIntent? {
+    suspend fun analyze(screen: UIScreen, hash: String): AiriIntent? {
         Log.d(TAG, "Analyzing screen with hash: $hash")
 
-        // 1. البحث في الذاكرة باستخدام الـ Hash الخاص بالشاشة
-        val memory = MemoryManager.getActions(hash)
+        // 1. محاولة استرجاع الأكشن من الذاكرة (Memory)
+        val memory = MemoryManager.getAction(hash)
 
         if (memory != null) {
-            Log.i(TAG, "Memory match found for this screen state.")
+            Log.i(TAG, "Memory match found! Action Type: ${memory.actionType}")
+            
+            // إنشاء النية بناءً على البيانات المحفوظة ديناميكياً
             return AiriIntent(
-                type = IntentType.CLICK,
-                target = memory.target
+                type = IntentType.valueOf(memory.actionType),
+                target = memory.targetText
             )
         }
 
-        // 2. إذا لم توجد ذاكرة، ننتقل لمحرك النوايا (التحليل المبني على القواعد)
-        Log.d(TAG, "No memory found. Falling back to IntentEngine.")
+        // 2. نظام الاحتياط: إذا لم تكن الشاشة مألوفة، نستخدم محرك النوايا (Rule-based)
+        Log.d(TAG, "No memory found for this hash. Invoking IntentEngine...")
         return IntentEngine.detect(screen)
     }
 
@@ -49,7 +52,6 @@ object BrainManager {
                 Log.d(TAG, "Search related screen detected")
             }
             
-            // هنا يمكنك مستقبلاً استدعاء analyze بعد تحويل الشاشة لـ UIScreen
         } catch (e: Exception) {
             Log.e(TAG, "Context processing error", e)
         }

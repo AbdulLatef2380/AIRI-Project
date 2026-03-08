@@ -58,7 +58,9 @@ class AIRIAccessibilityService : AccessibilityService() {
 
             ScreenContextHolder.lastProcessedContext = fullContext
 
-            BrainManager.processScreenContext(fullContext, this)
+            if (ScreenHasher.isNewScreen(fullContext)) {
+    BrainManager.processScreenContext(fullContext, this)
+}
         }
 
         processScreenContext(root)

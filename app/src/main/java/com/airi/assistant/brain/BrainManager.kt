@@ -25,7 +25,12 @@ object BrainManager {
             if (rememberedNode != null) {
                 Log.i(TAG, "Memory triggered for keyword: $keyword")
                 
-                IntentEngine.execute(Intent(IntentType.CLICK, keyword))
+                val intent = Intent(IntentType.CLICK, keyword)
+                val plan = ActionPlanner.plan(intent)
+
+                for (step in plan) {
+                    IntentEngine.execute(step)
+                }
                 return 
             }
         }
@@ -34,7 +39,12 @@ object BrainManager {
 
         if (intent != null) {
             Log.d(TAG, "New intent detected via Analysis: $intent")
-            IntentEngine.execute(intent)
+            
+            val plan = ActionPlanner.plan(intent)
+
+            for (step in plan) {
+                IntentEngine.execute(step)
+            }
         } else {
             Log.w(TAG, "No clear intent detected for this screen. Monitoring...")
         }

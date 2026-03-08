@@ -27,7 +27,6 @@ class AIRIAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-
         instance = this
         Log.i(TAG, "AIRI Accessibility Connected")
 
@@ -43,211 +42,129 @@ class AIRIAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-
         val now = System.currentTimeMillis()
 
         if (now - lastEventTime < 800) {
             return
         }
-
         lastEventTime = now
 
         val root = rootInActiveWindow ?: return
 
         val fullContext = UITreeScanner.scanTree(root)
 
-        if (
-            fullContext.isNotEmpty() &&
-            fullContext != ScreenContextHolder.lastProcessedContext
-        ) {
+        if (fullContext.isNotEmpty() &&
+            fullContext != ScreenContextHolder.lastProcessedContext) {
 
             ScreenContextHolder.lastProcessedContext = fullContext
 
-            BrainManager.processScreenContext(
-                fullContext,
-                this
-            )
+            BrainManager.processScreenContext(fullContext, this)
         }
 
-        // تحليل عناصر الشاشة
         processScreenContext(root)
     }
 
     private fun shouldUpdateContext(newText: String): Boolean {
-
         val now = System.currentTimeMillis()
-
         if (newText == lastScreenTextInstance) return false
         if (now - lastUpdateTime < UPDATE_DELAY) return false
 
         lastScreenTextInstance = newText
         lastUpdateTime = now
-
         return true
     }
 
     fun executeCommand(command: String) {
-
         try {
-
             when {
-
                 command.contains("اضغط", true) -> {
-
                     val target = command
                         .replace("اضغط", "", true)
                         .replace("على", "", true)
                         .trim()
-
                     SmartActionEngine.smartClick(this, target)
                 }
-
                 command.contains("اكتب", true) -> {
-
-                    val text = command
-                        .replace("اكتب", "", true)
-                        .trim()
-
+                    val text = command.replace("اكتب", "", true).trim()
                     ActionExecutor.inputText(this, text)
                 }
-
                 command.contains("رجوع", true) -> {
-
                     ActionExecutor.pressBack(this)
                 }
             }
-
         } catch (e: Exception) {
-
             Log.e(TAG, "Command execution error", e)
         }
     }
 
     fun extractScreenContext(): String {
-
         val rootNode = rootInActiveWindow ?: return ""
-
-        val screenText =
-            UITreeScanner.scan(this, rootNode)
+        val screenText = UITreeScanner.scan(this, rootNode)
 
         if (screenText.isBlank()) {
             return ScreenContextHolder.lastScreenText
         }
 
-        val packageName =
-            rootNode.packageName?.toString() ?: "unknown"
+        val packageName = rootNode.packageName?.toString() ?: "unknown"
 
-        UILearningEngine.learnScreen(
-            this,
-            packageName,
-            rootNode
-        )
+        UILearningEngine.learnScreen(this, packageName, rootNode)
 
-        val fullContext =
-            "App:$packageName | $screenText"
+        val fullContext = "App:$packageName | $screenText"
 
         if (shouldUpdateContext(fullContext)) {
-
             ScreenContextHolder.lastScreenText = fullContext
-            ScreenContextHolder.lastContextHash =
-                fullContext.hashCode()
-
+            ScreenContextHolder.lastContextHash = fullContext.hashCode()
             lastScreenText = fullContext
             lastPackage = packageName
-
             Log.d(TAG, "AIRI sees: $fullContext")
-
             return fullContext
         }
-
         return ScreenContextHolder.lastScreenText
     }
 
     private fun storeScreen(text: String) {
-
         try {
-
-            val prefs =
-                getSharedPreferences(
-                    "airi_memory",
-                    MODE_PRIVATE
-                )
-
-            prefs.edit()
-                .putString("last_screen", text)
-                .apply()
-
+            val prefs = getSharedPreferences("airi_memory", MODE_PRIVATE)
+            prefs.edit().putString("last_screen", text).apply()
         } catch (e: Exception) {
-
             Log.e(TAG, "Store error", e)
         }
     }
 
     private fun sendToBrain(text: String) {
-
         try {
-
-            BrainManager.processScreen(
-                this,
-                text
-            )
-
+            BrainManager.processScreen(this, text)
         } catch (e: Exception) {
-
             Log.e(TAG, "Brain error", e)
         }
     }
 
     private fun startOverlay() {
-
         try {
-
-            val intent =
-                Intent(
-                    this,
-                    DebugOverlayService::class.java
-                )
-
+            val intent = Intent(this, DebugOverlayService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)
             } else {
                 startService(intent)
             }
-
         } catch (e: Exception) {
-
             Log.e(TAG, "Overlay start failed", e)
         }
     }
 
     private fun updateOverlay(text: String) {
-
         try {
-
-            DebugOverlayService.updateText(
-                text.take(150)
-            )
-
+            DebugOverlayService.updateText(text.take(150))
         } catch (e: Exception) {
-
             Log.e(TAG, "Overlay update error", e)
         }
     }
 
-    /**
-     * تحليل شجرة عناصر الشاشة
-     */
-    private fun processScreenContext(
-        node: AccessibilityNodeInfo?
-    ) {
-
+    private fun processScreenContext(node: AccessibilityNodeInfo?) {
         if (node == null) return
 
-        val text =
-            node.text?.toString()
-
-        val desc =
-            node.contentDescription?.toString()
+        val text = node.text?.toString()
+        val desc = node.contentDescription?.toString()
 
         if (!text.isNullOrEmpty()) {
             Log.d("AIRI_UI", "Text: $text")
@@ -258,24 +175,17 @@ class AIRIAccessibilityService : AccessibilityService() {
         }
 
         for (i in 0 until node.childCount) {
-
-            processScreenContext(
-                node.getChild(i)
-            )
+            processScreenContext(node.getChild(i))
         }
     }
 
     override fun onInterrupt() {
-
         Log.w(TAG, "Accessibility Interrupted")
     }
 
     override fun onDestroy() {
-
         instance = null
-
         super.onDestroy()
-
         ScreenContextHolder.reset()
     }
 }

@@ -6,28 +6,31 @@ import com.airi.assistant.data.AppDatabase
 import com.airi.assistant.data.ContextEngine
 import com.airi.assistant.adaptive.InteractionTracker
 import com.airi.assistant.adaptive.SuggestionScoreEngine
+import com.airi.assistant.brain.BrainManager // تأكد من استيراد المسار الصحيح
+import com.airi.assistant.brain.MemoryManager // استيراد مدير الذاكرة
 
 class AIRIApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        
-        // 🧠 تهيئة محرك السلوك (التعلم من ضغطات المستخدم التقليدية)
-        BehaviorEngine.initialize(this)
-        
-        // 🕒 تهيئة محرك السياق الزمني (الذاكرة القصيرة للشاشة)
-        ContextEngine.initialize(this)
-   
-        MemoryManager.init(this)
-    
-        // 🧬 تهيئة طبقة التعلم المعزز (Reinforcement Learning Layer)
-        // نقوم بجلب قاعدة البيانات وربطها بمحركات التتبع والتقييم
+
+        // 1. تهيئة المحركات الأساسية وقاعدة البيانات
         val database = AppDatabase.getDatabase(this)
         
-        // تتبع التفاعلات (عرض، قبول، تجاهل)
-        InteractionTracker.initialize(database)
+        // 🧠 تهيئة محركات السلوك والسياق والذاكرة
+        BehaviorEngine.initialize(this)
+        ContextEngine.initialize(this)
+        MemoryManager.init(this)
         
-        // محرك حساب النقاط (الذي يقرر جودة الاقتراح لاحقاً)
+        // 🧬 تهيئة طبقة التعلم المعزز (التتبع والتقييم)
+        InteractionTracker.initialize(database)
         SuggestionScoreEngine.initialize(database)
+
+        // 2. تهيئة "الدماغ" (المسؤول عن اتخاذ القرارات بناءً على السياق)
+        BrainManager.init(this)
+
+        // 3. تشغيل المتحكم العام للوكيل الذكي (Agent)
+        // ملاحظة: يُفضل تشغيله بعد التأكد من جاهزية كافة المحركات أعلاه
+        AgentController.start()
     }
 }

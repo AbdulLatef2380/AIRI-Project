@@ -1,17 +1,18 @@
-package com.airi.assistant.brain.memory
+package com.airi.assistant.memory
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
 
 @Database(
     entities = [
-        AppEntity::class,
-        ScreenEntity::class,
-        UINodeEntity::class
+        ScreenNode::class,
+        UIElement::class,
+        ActionMemory::class
     ],
     version = 1
 )
-abstract class AiriDatabase : RoomDatabase() {
+abstract class AIRIDatabase : RoomDatabase() {
 
-    abstract fun airiDao(): AiriDao
+    abstract fun memoryDao(): MemoryDao
+
 }

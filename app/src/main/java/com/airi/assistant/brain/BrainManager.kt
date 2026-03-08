@@ -25,7 +25,7 @@ object BrainManager {
             if (rememberedNode != null) {
                 Log.i(TAG, "Memory triggered for keyword: $keyword")
                 
-                val intent = Intent(IntentType.CLICK, keyword)
+                val intent = AiriIntent(IntentType.CLICK, keyword)
                 val plan = ActionPlanner.plan(intent)
 
                 for (step in plan) {

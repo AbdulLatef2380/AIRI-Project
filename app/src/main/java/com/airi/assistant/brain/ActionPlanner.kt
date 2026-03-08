@@ -2,19 +2,27 @@ package com.airi.assistant.brain
 
 object ActionPlanner {
 
-    fun plan(intent: AiriIntent): List<AiriIntent> {
+    fun plan(intent: AiriIntent?): List<Action> {
+
+        if (intent == null) return emptyList()
 
         return when (intent.type) {
 
-            IntentType.CLICK -> {
-                listOf(intent)
-            }
+            IntentType.CLICK -> listOf(
+                Action.FindNode(intent.target),
+                Action.Click
+            )
 
-            IntentType.TYPE -> {
-                listOf(intent)
-            }
+            IntentType.TYPE -> listOf(
+                Action.FindInput,
+                Action.Type(intent.target)
+            )
 
-            else -> listOf(intent)
+            IntentType.BACK -> listOf(
+                Action.Back
+            )
+
+            else -> emptyList()
         }
     }
 }

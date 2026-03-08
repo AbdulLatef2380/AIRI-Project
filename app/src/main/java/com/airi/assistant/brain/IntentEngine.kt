@@ -7,7 +7,7 @@ enum class IntentType {
     CLICK, CLICK_FIRST, CLICK_INDEX, TYPE, BACK
 }
 
-data class Intent(
+data class AiriIntent(
     val type: IntentType,
     val target: String? = null,
     val index: Int? = 0
@@ -15,33 +15,33 @@ data class Intent(
 
 object IntentEngine {
 
-    fun resolve(screen: String): Intent? {
+    fun resolve(screen: String): AiriIntent? {
         val lower = screen.lowercase()
 
         if (lower.contains("first")) {
-            return Intent(IntentType.CLICK_FIRST)
+            return AiriIntent(IntentType.CLICK_FIRST)
         }
 
         if (lower.contains("second") || lower.contains("next")) {
-            return Intent(IntentType.CLICK_INDEX, index = 1)
+            return AiriIntent(IntentType.CLICK_INDEX, index = 1)
         }
 
         if (lower.contains("back") || lower.contains("رجوع")) {
-            return Intent(IntentType.BACK)
+            return AiriIntent(IntentType.BACK)
         }
 
         return when {
-            lower.contains("search") -> Intent(IntentType.CLICK, "search")
-            lower.contains("subscribe") -> Intent(IntentType.CLICK, "subscribe")
-            lower.contains("play") -> Intent(IntentType.CLICK, "play")
+            lower.contains("search") -> AiriIntent(IntentType.CLICK, "search")
+            lower.contains("subscribe") -> AiriIntent(IntentType.CLICK, "subscribe")
+            lower.contains("play") -> AiriIntent(IntentType.CLICK, "play")
             else -> null
         }
     }
 
-    fun execute(intent: Intent) {
+    fun execute(AiriIntent: AiriIntent) {
         val service = AIRIAccessibilityService.instance ?: return
 
-        when (intent.type) {
+        when (AiriIntent.type) {
             IntentType.CLICK_FIRST -> {
                 ActionExecutor.clickFirst(service)
             }
@@ -51,12 +51,12 @@ object IntentEngine {
             }
 
             IntentType.CLICK -> {
-                val target = intent.target ?: return
+                val target = AiriIntent.target ?: return
                 service.executeCommand("اضغط $target")
             }
 
             IntentType.TYPE -> {
-                val text = intent.target ?: return
+                val text = AiriIntent.target ?: return
                 service.executeCommand("اكتب $text")
             }
 

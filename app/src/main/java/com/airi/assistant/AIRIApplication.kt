@@ -17,7 +17,9 @@ class AIRIApplication : Application() {
         
         // 🕒 تهيئة محرك السياق الزمني (الذاكرة القصيرة للشاشة)
         ContextEngine.initialize(this)
-
+   
+        MemoryManager.init(this)
+    
         // 🧬 تهيئة طبقة التعلم المعزز (Reinforcement Learning Layer)
         // نقوم بجلب قاعدة البيانات وربطها بمحركات التتبع والتقييم
         val database = AppDatabase.getDatabase(this)

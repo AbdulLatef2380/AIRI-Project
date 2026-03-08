@@ -9,8 +9,8 @@ enum class IntentType {
 
 data class Intent(
     val type: IntentType,
-    val target: String = "",
-    val index: Int = 0
+    val target: String? = null,
+    val index: Int? = 0
 )
 
 object IntentEngine {
@@ -45,18 +45,26 @@ object IntentEngine {
             IntentType.CLICK_FIRST -> {
                 ActionExecutor.clickFirst(service)
             }
+
             IntentType.CLICK_INDEX -> {
-                ActionExecutor.clickByIndex(service, intent.index)
+                ActionExecutor.clickByIndex(service, intent.index ?: 0)
             }
+
             IntentType.CLICK -> {
-                service.executeCommand("اضغط ${intent.target}")
+                val target = intent.target ?: return
+                service.executeCommand("اضغط $target")
             }
+
             IntentType.TYPE -> {
-                service.executeCommand("اكتب ${intent.target}")
+                val text = intent.target ?: return
+                service.executeCommand("اكتب $text")
             }
+
             IntentType.BACK -> {
                 service.executeCommand("رجوع")
             }
+
+            else -> {}
         }
     }
 }

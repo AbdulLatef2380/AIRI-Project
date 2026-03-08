@@ -28,7 +28,7 @@ class AIRIApplication : Application() {
 
         // 2. تهيئة "الدماغ" (المسؤول عن اتخاذ القرارات بناءً على السياق)
         BrainManager.init(this)
-
+        MemoryManager.init(this)
         // 3. تشغيل المتحكم العام للوكيل الذكي (Agent)
         // ملاحظة: يُفضل تشغيله بعد التأكد من جاهزية كافة المحركات أعلاه
         AgentController.start()

@@ -25,16 +25,16 @@ object BrainManager {
             if (rememberedNode != null) {
                 Log.i(TAG, "Memory triggered for keyword: $keyword")
                 
-                IntentEngine.execute("click:$keyword")
+                IntentEngine.execute(Intent(IntentType.CLICK, keyword))
                 return 
             }
         }
 
-        val command = IntentEngine.resolve(screenText)
+        val intent = IntentEngine.resolve(screenText)
 
-        if (command != null) {
-            Log.d(TAG, "New command detected via Analysis: $command")
-            IntentEngine.execute(command)
+        if (intent != null) {
+            Log.d(TAG, "New intent detected via Analysis: $intent")
+            IntentEngine.execute(intent)
         } else {
             Log.w(TAG, "No clear intent detected for this screen. Monitoring...")
         }

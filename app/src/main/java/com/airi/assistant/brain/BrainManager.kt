@@ -3,12 +3,13 @@ package com.airi.assistant.brain
 import android.content.Context
 import android.util.Log
 import com.airi.assistant.accessibility.AIRIAccessibilityService
+// تأكد من استيراد الكلاسات التالية من حزمها الصحيحة في مشروعك
+// import com.airi.assistant.models.UIScreen 
 
 object BrainManager {
 
     private const val TAG = "AIRI_BRAIN"
     
-    // الإضافة الجديدة: تهيئة الـ Context لاستخدامه في كامل الكائن
     private lateinit var context: Context
 
     fun init(ctx: Context) {
@@ -16,53 +17,29 @@ object BrainManager {
     }
 
     /**
-     * تحليل محتوى الشاشة واتخاذ قرار بناءً على الذاكرة أو محرك النوايا
+     * التحليل الذكي للشاشة بناءً على الذاكرة (Hash) أو القواعد (Rules)
      */
-    fun processScreen(context: Context, screenText: String) {
-        Log.d(TAG, "Analyzing screen context...")
+    fun analyze(screen: UIScreen, hash: String): AiriIntent? {
+        Log.d(TAG, "Analyzing screen with hash: $hash")
 
-        val searchKeywords = listOf(
-            "search",
-            "Search",
-            "بحث",
-            "🔍"
-        )
+        // 1. البحث في الذاكرة باستخدام الـ Hash الخاص بالشاشة
+        val memory = MemoryManager.getActions(hash)
 
-        for (keyword in searchKeywords) {
-            // استخدام UIMemory للبحث عن عناصر محفوظة مسبقاً
-            val rememberedNode = UIMemory.recallNode(context, keyword)
-
-            if (rememberedNode != null) {
-                Log.i(TAG, "Memory triggered for keyword: $keyword")
-                
-                val intent = AiriIntent(IntentType.CLICK, keyword)
-                val plan = ActionPlanner.plan(intent)
-
-                for (step in plan) {
-                    IntentEngine.execute(step)
-                }
-                return 
-            }
+        if (memory != null) {
+            Log.i(TAG, "Memory match found for this screen state.")
+            return AiriIntent(
+                type = IntentType.CLICK,
+                target = memory.target
+            )
         }
 
-        // إذا لم توجد ذاكرة، يتم تحليل النص لاستخراج نية جديدة
-        val intent = IntentEngine.resolve(screenText)
-
-        if (intent != null) {
-            Log.d(TAG, "New intent detected via Analysis: $intent")
-            
-            val plan = ActionPlanner.plan(intent)
-
-            for (step in plan) {
-                IntentEngine.execute(step)
-            }
-        } else {
-            Log.w(TAG, "No clear intent detected for this screen. Monitoring...")
-        }
+        // 2. إذا لم توجد ذاكرة، ننتقل لمحرك النوايا (التحليل المبني على القواعد)
+        Log.d(TAG, "No memory found. Falling back to IntentEngine.")
+        return IntentEngine.detect(screen)
     }
 
     /**
-     * معالجة سياق الشاشة القادم من خدمة الوصول (Accessibility Service)
+     * معالجة سياق الشاشة القادم من خدمة الوصول
      */
     fun processScreenContext(contextText: String, service: AIRIAccessibilityService) {
         try {
@@ -71,7 +48,8 @@ object BrainManager {
             if (contextText.contains("search", true) || contextText.contains("بحث", true)) {
                 Log.d(TAG, "Search related screen detected")
             }
-
+            
+            // هنا يمكنك مستقبلاً استدعاء analyze بعد تحويل الشاشة لـ UIScreen
         } catch (e: Exception) {
             Log.e(TAG, "Context processing error", e)
         }

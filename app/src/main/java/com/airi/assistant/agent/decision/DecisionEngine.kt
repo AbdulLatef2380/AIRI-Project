@@ -1,4 +1,4 @@
-package com.airi.assistant.decision.DecisionEngine.kt
+package com.airi.assistant.agent.decision
 
 import kotlin.random.Random
 

@@ -1,4 +1,4 @@
-package com.airi.assistant.agent.execution
+package com.airi.assistant.agent.execution.task
 
 class TaskChain(
     val steps: MutableList<TaskStep>

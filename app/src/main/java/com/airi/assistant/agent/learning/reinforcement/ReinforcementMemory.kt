@@ -1,4 +1,4 @@
-package com.airi.assistant.agent.learning
+package com.airi.assistant.agent.learning.reinforcement
 
 object ReinforcementMemory {
 

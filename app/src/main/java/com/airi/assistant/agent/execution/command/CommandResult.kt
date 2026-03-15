@@ -1,4 +1,4 @@
-package com.airi.assistant.agent.execution
+package com.airi.assistant.agent.execution.command
 
 data class CommandResult(
     val success: Boolean,

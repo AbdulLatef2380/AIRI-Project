@@ -1,4 +1,4 @@
-package com.airi.assistant.agent.decision.ConfidenceScorer.kt
+package com.airi.assistant.agent.decision
 
 object ConfidenceScorer {
 

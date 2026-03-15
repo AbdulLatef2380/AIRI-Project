@@ -1,4 +1,4 @@
-package com.airi.assistant.agent.decision
+package com.airi.assistant.decision.decision
 
 import com.airi.assistant.accessibility.ScreenContextHolder
 

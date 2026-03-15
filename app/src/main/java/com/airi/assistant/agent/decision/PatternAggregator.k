@@ -1,4 +1,4 @@
-package com.airi.decision.PatternAggregator.k
+package com.airi.assistant.agent.decision
 
 import android.util.Log
 

@@ -1,4 +1,4 @@
-package com.airi.assistant.core
+package com.airi.assistant.agent.decision
 
 /**
  * سياسة حدود العلاقة: تضمن أن AIRI صديقة مخلصة دون الوقوع في فخ التماهي البشري الكامل.

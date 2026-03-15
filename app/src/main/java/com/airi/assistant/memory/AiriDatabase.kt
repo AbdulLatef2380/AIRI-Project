@@ -7,15 +7,18 @@ import androidx.room.RoomDatabase
 
 import com.airi.assistant.memory.entity.BehaviorStatsEntity
 import com.airi.assistant.memory.entity.ContextCacheEntity
-import com.airi.assistant.memory.entity.MemoryEntities
+import com.airi.assistant.memory.entity.ChatMessage
+import com.airi.assistant.memory.entity.UserPreference
 import com.airi.assistant.memory.entity.UsageStatEntity
+
 import com.airi.assistant.memory.dao.MemoryDao
 
 @Database(
     entities = [
+        ChatMessage::class,
+        UserPreference::class,
         BehaviorStatsEntity::class,
         ContextCacheEntity::class,
-        MemoryEntities::class,
         UsageStatEntity::class
     ],
     version = 1

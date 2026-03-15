@@ -1,4 +1,4 @@
-package com.airi.assistant.core
+package com.airi.assistant.tools
 
 import android.content.Context
 import java.io.File

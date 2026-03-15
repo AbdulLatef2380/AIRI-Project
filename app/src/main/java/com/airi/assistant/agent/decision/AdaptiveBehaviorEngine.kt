@@ -1,4 +1,4 @@
-package com.airi.assistant.agent.decision.AdaptiveBehaviorEngine.kt
+package com.airi.assistant.agent.decision
 
 import com.airi.assistant.accessibility.ScreenContextHolder
 

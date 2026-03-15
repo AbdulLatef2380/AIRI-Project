@@ -1,4 +1,4 @@
-package com.airi.decision.DialogueRhythmEngine.kt
+package com.airi.assistant.agent.decision
 
 import kotlinx.coroutines.delay
 import kotlin.random.Random

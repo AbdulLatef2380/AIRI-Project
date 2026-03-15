@@ -6,10 +6,10 @@ import kotlinx.coroutines.*
 
 object ContextEngine {
 
-private var db: AppDatabase? = null  
+private var db: AiriDatabase? = null  
 
 fun initialize(context: Context) {  
-    db = AppDatabase.getDatabase(context)  
+    db = AiriDatabase.getDatabase(context)  
 }  
 
 fun saveContext(screenText: String, sourceApp: String, detectedIntent: String) {  

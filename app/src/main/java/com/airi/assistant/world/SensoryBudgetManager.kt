@@ -1,4 +1,4 @@
-package com.airi.assistant.core
+package com.airi.assistant.world
 
 import android.os.SystemClock
 

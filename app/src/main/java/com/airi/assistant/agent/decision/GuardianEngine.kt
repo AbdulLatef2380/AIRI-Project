@@ -1,4 +1,4 @@
-package com.airi.assistant.core
+package com.airi.decision.GuardianEngine.kt
 
 import android.content.Context
 import android.content.Intent

@@ -1,4 +1,4 @@
-package com.airi.assistant.core
+package com.airi.assistant.agent.planning
 
 import android.util.Log
 

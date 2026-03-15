@@ -1,7 +1,7 @@
 package com.airi.assistant.memory.repository
 import android.content.Context
-import com.airi.assistant.data.AppDatabase
-import com.airi.assistant.data.ContextCacheEntity
+import com.airi.assistant.memory.AiriDatabase
+import com.airi.assistant.memory.entity.ContextCacheEntity
 import kotlinx.coroutines.*
 
 object ContextEngine {

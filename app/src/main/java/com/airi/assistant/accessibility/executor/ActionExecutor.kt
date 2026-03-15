@@ -2,8 +2,8 @@ package com.airi.assistant.accessibility.executor
 
 import android.accessibilityservice.AccessibilityService
 import android.os.Bundle
-import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
 
 object ActionExecutor {
 

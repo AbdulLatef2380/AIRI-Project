@@ -1,7 +1,7 @@
 package com.airi.assistant.ai
 
-import com.airi.assistant.MemoryManager
-import com.airi.assistant.planner.ExperienceStore
+import com.airi.assistant.agent.execution.ExperienceStore
+import com.airi.assistant.memory.repository.MemoryManager
 import kotlinx.coroutines.runBlocking
 
 /**

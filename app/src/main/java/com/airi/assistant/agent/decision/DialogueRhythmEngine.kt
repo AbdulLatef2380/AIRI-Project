@@ -1,7 +1,7 @@
 package com.airi.assistant.agent.decision
 
-import kotlinx.coroutines.delay
 import kotlin.random.Random
+import kotlinx.coroutines.delay
 
 /**
  * محرك إيقاع الحوار: يضيف لمسات بشرية (توقفات، تردد خفيف) لكسر جمود الآلة.

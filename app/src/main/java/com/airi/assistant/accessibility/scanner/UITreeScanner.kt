@@ -1,9 +1,9 @@
 package com.airi.assistant.accessibility.scanner
 
 import android.content.Context
-import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
-import com.airi.assistant.brain.UIMemory
+import android.view.accessibility.AccessibilityNodeInfo
+import com.airi.assistant.agent.planning.UIMemory
 
 object UITreeScanner {
 

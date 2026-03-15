@@ -1,6 +1,9 @@
 package com.airi.assistant.ai
 
 import android.content.Context
+import com.airi.assistant.memory.entity.ChatMessage
+import com.airi.assistant.memory.repository.MemoryManager
+import com.airi.assistant.tools.ModelDownloadManager
 import kotlinx.coroutines.*
 
 class LlamaManager(private val context: Context) {

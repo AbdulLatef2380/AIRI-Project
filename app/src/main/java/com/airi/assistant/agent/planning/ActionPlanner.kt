@@ -1,5 +1,7 @@
 package com.airi.assistant.agent.planning
 
+import com.airi.assistant.core.intent.IntentType
+
 object ActionPlanner {
 
     fun plan(intent: AiriIntent): List<AiriIntent> {

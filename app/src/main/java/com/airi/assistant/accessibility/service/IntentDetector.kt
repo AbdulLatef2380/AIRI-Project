@@ -1,5 +1,7 @@
 package com.airi.assistant.accessibility.service
 
+import com.airi.assistant.core.intent.IntentType
+
 object IntentDetector {
 
     fun detectIntent(userQuery: String = "", context: String): IntentType {

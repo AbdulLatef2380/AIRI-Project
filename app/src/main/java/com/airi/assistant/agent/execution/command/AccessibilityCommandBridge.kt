@@ -1,13 +1,13 @@
 package com.airi.assistant.agent.execution.command
 
 import android.accessibilityservice.AccessibilityService
-import com.airi.assistant.accessibility.ScreenContextHolder
-import com.airi.assistant.agent.context.ContextProvider
-import com.airi.assistant.agent.node.NodeActionExecutor
-import com.airi.assistant.agent.node.NodeScanner
-import com.airi.assistant.agent.node.SemanticRanker
-import com.airi.assistant.agent.reinforcement.ReinforcementMemory
-import com.airi.assistant.agent.validation.TemporalValidator // 🔥 استيراد المدقق الزمني
+import com.airi.assistant.accessibility.service.ScreenContextHolder
+import com.airi.assistant.agent.execution.context.ContextProvider
+import com.airi.assistant.agent.execution.node.NodeActionExecutor
+import com.airi.assistant.agent.execution.node.NodeScanner
+import com.airi.assistant.agent.execution.node.SemanticRanker
+import com.airi.assistant.agent.execution.validation.TemporalValidator
+import com.airi.assistant.agent.learning.reinforcement.ReinforcementMemory
 
 object AccessibilityCommandBridge {
 

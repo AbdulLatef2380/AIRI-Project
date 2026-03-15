@@ -1,6 +1,6 @@
 package com.airi.assistant.agent.execution.runtime
 
-import com.airi.assistant.agent.ActionPlan
+import com.airi.assistant.agent.planning.ActionPlan
 
 data class ExecutionContext(
     val plan: ActionPlan,

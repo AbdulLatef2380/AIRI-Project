@@ -1,6 +1,7 @@
 package com.airi.assistant.agent.planning
 
 import android.util.Log
+import com.airi.assistant.agent.decision.PatternAggregator
 
 /**
  * بروتوكول الانسحاب اللطيف: يطبق تعديلات دقيقة على سلوك AIRI بناءً على درجة الاعتمادية المتراكمة.

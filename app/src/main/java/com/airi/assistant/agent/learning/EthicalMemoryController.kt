@@ -1,6 +1,7 @@
 package com.airi.assistant.agent.learning
 
 import android.util.Log
+import com.airi.assistant.agent.decision.PatternAggregator
 
 /**
  * مراقب الذاكرة الأخلاقية: الضمير الصامت الذي يمنع الانحراف السلوكي (Ethical Drift).

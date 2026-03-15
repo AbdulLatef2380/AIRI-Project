@@ -1,7 +1,7 @@
 package com.airi.assistant.accessibility.service
 
-import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
 
 object IntentPredictor {
 

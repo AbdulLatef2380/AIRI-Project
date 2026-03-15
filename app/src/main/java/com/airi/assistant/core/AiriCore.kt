@@ -2,9 +2,6 @@ package com.airi.assistant.core
 
 import android.content.Context
 import android.util.Log
-import com.airi.assistant.core.*
-import com.airi.assistant.tools.*
-import com.airi.assistant.planner.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import org.json.JSONObject

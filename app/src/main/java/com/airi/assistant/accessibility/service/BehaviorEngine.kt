@@ -1,10 +1,9 @@
 package com.airi.assistant.accessibility.service
 
 import android.content.Context
-import com.airi.assistant.data.AppDatabase
-import com.airi.assistant.data.UsageStatEntity // تأكد من استيراد الـ Entity
-import kotlinx.coroutines.*
+import com.airi.assistant.memory.entity.UsageStatEntity
 import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.*
 
 object BehaviorEngine : CoroutineScope {
 

@@ -1,6 +1,7 @@
 package com.airi.assistant.agent.decision
 
-import com.airi.assistant.accessibility.ScreenContextHolder
+import com.airi.assistant.accessibility.service.ScreenContextHolder
+import com.airi.assistant.agent.planning.ActionPlan
 
 object AdaptiveBehaviorEngine {
 

@@ -4,14 +4,12 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-
-import com.airi.assistant.memory.entity.BehaviorStatsEntity
-import com.airi.assistant.memory.entity.ContextCacheEntity
-import com.airi.assistant.memory.entity.ChatMessage
-import com.airi.assistant.memory.entity.UserPreference
-import com.airi.assistant.memory.entity.UsageStatEntity
-
 import com.airi.assistant.memory.dao.MemoryDao
+import com.airi.assistant.memory.entity.BehaviorStatsEntity
+import com.airi.assistant.memory.entity.ChatMessage
+import com.airi.assistant.memory.entity.ContextCacheEntity
+import com.airi.assistant.memory.entity.UsageStatEntity
+import com.airi.assistant.memory.entity.UserPreference
 
 @Database(
     entities = [

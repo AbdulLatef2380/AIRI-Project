@@ -1,6 +1,5 @@
 package com.airi.assistant.agent.decision
 
-import com.airi.assistant.data.AppDatabase
 import kotlinx.coroutines.runBlocking
 
 object SuggestionScoreEngine {

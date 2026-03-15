@@ -1,6 +1,9 @@
 package com.airi.assistant.memory.repository
 
 import android.content.Context
+import com.airi.assistant.memory.AiriDatabase
+import com.airi.assistant.memory.entity.ChatMessage
+import com.airi.assistant.memory.entity.UserPreference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

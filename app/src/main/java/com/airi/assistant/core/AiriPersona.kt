@@ -1,8 +1,8 @@
 package com.airi.assistant.core
 
-import com.airi.assistant.PatternAggregator
-import com.airi.assistant.EthicalMemoryController
-import com.airi.assistant.GracefulDetachmentProtocol
+import com.airi.assistant.agent.decision.PatternAggregator
+import com.airi.assistant.agent.learning.EthicalMemoryController
+import com.airi.assistant.agent.planning.GracefulDetachmentProtocol
 
 /**
  * هذا الملف يمثل "الروح والمنطق" لـ AIRI بناءً على وثيقة Soul & Logic Spec.

@@ -1,11 +1,11 @@
 package com.airi.assistant.core
 
+import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import android.accessibilityservice.AccessibilityService
-import com.airi.assistant.accessibility.ScreenContextHolder
+import com.airi.assistant.accessibility.service.ScreenContextHolder
 
 /**
  * تمثيل للأوامر التي يمكن لـ AIRI تنفيذها.

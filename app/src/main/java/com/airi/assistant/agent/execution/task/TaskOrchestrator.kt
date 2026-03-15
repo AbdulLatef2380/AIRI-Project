@@ -1,7 +1,7 @@
 package com.airi.assistant.agent.execution.task
 
 import android.accessibilityservice.AccessibilityService
-import com.airi.assistant.agent.validation.TemporalValidator
+import com.airi.assistant.agent.execution.validation.TemporalValidator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

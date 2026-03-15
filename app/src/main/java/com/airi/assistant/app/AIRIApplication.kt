@@ -1,11 +1,10 @@
 package com.airi.assistant.app
 
 import android.app.Application
-import com.airi.assistant.accessibility.BehaviorEngine
-import com.airi.assistant.data.AppDatabase
-import com.airi.assistant.data.ContextEngine
-import com.airi.assistant.adaptive.InteractionTracker
-import com.airi.assistant.adaptive.SuggestionScoreEngine
+import com.airi.assistant.accessibility.service.BehaviorEngine
+import com.airi.assistant.agent.decision.SuggestionScoreEngine
+import com.airi.assistant.agent.learning.InteractionTracker
+import com.airi.assistant.memory.repository.ContextEngine
 
 class AIRIApplication : Application() {
 

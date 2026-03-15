@@ -13,15 +13,17 @@ import android.widget.*
 import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.airi.assistant.brain.*
-import com.airi.assistant.accessibility.ScreenContextHolder // إضافة الـ Import للسياق
-import kotlinx.coroutines.*
+import com.airi.assistant.accessibility.service.AIRIAccessibilityService
+import com.airi.assistant.accessibility.service.ScreenContextHolder
+import com.airi.assistant.agent.planning.AiriBrainController
+import com.airi.assistant.agent.planning.GoalExecutor
+import com.airi.assistant.agent.planning.PlanGenerator
+import com.airi.assistant.agent.planning.PlanValidator
+import com.airi.assistant.agent.planning.RecoveryManager
+import com.airi.assistant.ai.LlamaManager
 import java.util.*
-import com.airi.assistant.ChatAdapter
-import com.airi.assistant.ChatModel
-import com.airi.assistant.LlamaManager
-import com.airi.assistant.R
-import com.airi.assistant.accessibility.AIRIAccessibilityService
+import kotlinx.coroutines.*
+
 class OverlayService : Service() {
 
 private lateinit var windowManager: WindowManager  

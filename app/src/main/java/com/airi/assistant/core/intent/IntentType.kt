@@ -1,4 +1,4 @@
-package com.airi.assistant.core.planning
+package com.airi.assistant.core.intent
 
 enum class IntentType {
     CLICK,

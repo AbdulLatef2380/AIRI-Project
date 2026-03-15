@@ -5,7 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.airi.assistant.accessibility.BehaviorEngine // ✅ استيراد محرك السلوك
+import com.airi.assistant.accessibility.service.BehaviorEngine
 
 class ChatAdapter(
     private val onSuggestionClick: (String) -> Unit = {} // كولباك لتنفيذ الأمر عند الضغط

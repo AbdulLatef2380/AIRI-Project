@@ -1,7 +1,6 @@
 package com.airi.assistant.agent.learning
 
-import com.airi.assistant.data.AppDatabase
-import com.airi.assistant.data.BehaviorStatsEntity
+import com.airi.assistant.memory.entity.BehaviorStatsEntity
 import kotlinx.coroutines.*
 
 object InteractionTracker {

@@ -2,7 +2,8 @@ package com.airi.assistant.agent.planning
 
 import android.content.Context
 import android.util.Log
-import com.airi.assistant.accessibility.AIRIAccessibilityService
+import com.airi.assistant.accessibility.service.AIRIAccessibilityService
+import com.airi.assistant.core.intent.IntentType
 
 object BrainManager {
 

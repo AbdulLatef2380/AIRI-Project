@@ -1,7 +1,7 @@
 package com.airi.assistant.agent.execution.runtime
 
-import com.airi.assistant.agent.ActionPlan
-import com.airi.assistant.agent.command.CommandRouter // 🔥 استيراد الموجه الجديد
+import com.airi.assistant.agent.execution.command.CommandRouter
+import com.airi.assistant.agent.planning.ActionPlan
 import kotlinx.coroutines.*
 
 object AgentExecutor {

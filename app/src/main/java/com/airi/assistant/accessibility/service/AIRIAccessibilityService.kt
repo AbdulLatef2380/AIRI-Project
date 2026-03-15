@@ -1,16 +1,18 @@
 package com.airi.assistant.accessibility.service
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
+import android.os.Build
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import android.util.Log
-import android.content.Intent
 import android.widget.Toast
-import android.os.Build
-import com.airi.assistant.overlay.DebugOverlayService
-import com.airi.assistant.brain.BrainManager
-import com.airi.assistant.learning.UILearningEngine
-import com.airi.assistant.core.ScreenHasher
+import com.airi.assistant.accessibility.executor.ActionExecutor
+import com.airi.assistant.accessibility.scanner.UITreeScanner
+import com.airi.assistant.agent.learning.UILearningEngine
+import com.airi.assistant.agent.planning.BrainManager
+import com.airi.assistant.ui.DebugOverlayService
+import com.airi.assistant.world.ScreenHasher
 
 class AIRIAccessibilityService : AccessibilityService() {
 

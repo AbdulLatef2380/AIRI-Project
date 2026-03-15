@@ -1,10 +1,10 @@
 package com.airi.assistant.accessibility.service
 
 import android.accessibilityservice.AccessibilityService
-import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
-import com.airi.assistant.brain.UIMemory
-import com.airi.assistant.learning.UILearningEngine
+import android.view.accessibility.AccessibilityNodeInfo
+import com.airi.assistant.agent.learning.UILearningEngine
+import com.airi.assistant.agent.planning.UIMemory
 
 object SmartActionEngine {
 

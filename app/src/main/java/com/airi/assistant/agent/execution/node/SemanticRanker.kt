@@ -1,8 +1,7 @@
 package com.airi.assistant.agent.execution.node
 
 import android.view.accessibility.AccessibilityNodeInfo
-import com.airi.assistant.agent.decision.DecisionEngine // 🔥 استيراد محرك اتخاذ القرار
-import com.airi.assistant.agent.reinforcement.AdaptivePolicy
+import com.airi.assistant.agent.decision.DecisionEngine
 
 object SemanticRanker {
 

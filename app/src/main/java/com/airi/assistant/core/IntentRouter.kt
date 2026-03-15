@@ -1,5 +1,7 @@
 package com.airi.assistant.core
 
+import com.airi.assistant.core.intent.IntentType
+
 data class IntentEvent(
     val rawText: String,
     val source: InputSource,

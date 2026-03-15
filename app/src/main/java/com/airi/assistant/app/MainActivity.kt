@@ -15,7 +15,10 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.airi.assistant.overlay.OverlayService
+import com.airi.assistant.ai.LlamaManager
+import com.airi.assistant.tools.ModelDownloadManager
+import com.airi.assistant.ui.OverlayService
+
 class MainActivity : AppCompatActivity() {
 
     private lateinit var downloader: ModelDownloadManager

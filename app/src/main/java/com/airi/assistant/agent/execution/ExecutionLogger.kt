@@ -1,7 +1,7 @@
 package com.airi.assistant.agent.execution
 
 import android.util.Log
-import com.airi.assistant.AiriCore
+import com.airi.assistant.core.AiriCore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

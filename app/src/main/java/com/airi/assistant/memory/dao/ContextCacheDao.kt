@@ -1,6 +1,7 @@
 package com.airi.assistant.memory.dao
 
 import androidx.room.*
+import com.airi.assistant.memory.entity.ContextCacheEntity
 
 @Dao
 interface ContextCacheDao {

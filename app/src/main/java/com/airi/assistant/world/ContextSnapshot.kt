@@ -1,6 +1,6 @@
 package com.airi.assistant.world
 
-import com.airi.assistant.EmotionEngine
+import com.airi.assistant.agent.decision.EmotionEngine
 import java.util.UUID
 
 /**

@@ -1,5 +1,7 @@
 package com.airi.assistant.ai
 
+import com.airi.assistant.accessibility.service.IntentDetector
+
 object IntentDetector {
 
     fun detectIntent(screenText: String): String {

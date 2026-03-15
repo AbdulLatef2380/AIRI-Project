@@ -6,6 +6,7 @@ import android.view.View
 import android.view.animation.AlphaAnimation
 import android.view.animation.Animation
 import android.widget.ImageView
+import com.airi.assistant.agent.decision.EmotionEngine
 
 /**
  * فئة مسؤولة عن التجسيد البصري لـ AIRI (النبض، الألوان، والحركة)

@@ -1,4 +1,4 @@
-package com.airi.assistant.core
+package com.airi.assistant.tools
 
 import android.app.*
 import android.content.BroadcastReceiver

@@ -1,4 +1,4 @@
-package com.airi.assistant.decision.AdaptiveDecisionEngine.kt
+package com.airi.assistant.agent.decision.AdaptiveDecisionEngine.kt
 
 object AdaptiveDecisionEngine {
 

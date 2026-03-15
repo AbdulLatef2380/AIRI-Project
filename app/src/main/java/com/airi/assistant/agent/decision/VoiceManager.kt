@@ -1,4 +1,4 @@
-package com.airi.assistant.core
+package com.airi.assistant.agent.decision
 
 import android.content.Context
 import android.util.Log

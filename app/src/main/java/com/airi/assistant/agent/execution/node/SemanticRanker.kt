@@ -1,4 +1,4 @@
-package com.airi.assistant.agent.execution
+package com.airi.assistant.agent.execution.node
 
 import android.view.accessibility.AccessibilityNodeInfo
 import com.airi.assistant.agent.decision.DecisionEngine // 🔥 استيراد محرك اتخاذ القرار

@@ -1,4 +1,4 @@
-package com.airi.assistant.core
+package com.airi.assistant.agent.decision
 
 import com.airi.assistant.world.RiskEstimator
 import com.airi.assistant.world.WorldState

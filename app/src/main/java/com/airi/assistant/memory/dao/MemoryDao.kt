@@ -1,24 +1,36 @@
 package com.airi.assistant.memory.dao
 
 import androidx.room.*
+import com.airi.assistant.memory.entity.BehaviorStatsEntity
+import com.airi.assistant.memory.entity.ContextCacheEntity
+import com.airi.assistant.memory.entity.UsageStatEntity
 
 @Dao
 interface MemoryDao {
 
-    // عمليات الذاكرة العرضية
-    @Insert
-    suspend fun insertMessage(message: ChatMessage)
+    // Behavior statistics
 
-    @Query("SELECT * FROM episodic_memory ORDER BY timestamp DESC LIMIT :limit")
-    suspend fun getRecentMessages(limit: Int = 10): List<ChatMessage>
-
-    // عمليات الذاكرة الدلالية
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun savePreference(preference: UserPreference)
+    suspend fun insertBehaviorStats(stats: BehaviorStatsEntity)
 
-    @Query("SELECT * FROM semantic_memory WHERE `key` = :key")
-    suspend fun getPreference(key: String): UserPreference?
+    @Query("SELECT * FROM behavior_stats")
+    suspend fun getAllBehaviorStats(): List<BehaviorStatsEntity>
 
-    @Query("SELECT * FROM semantic_memory")
-    suspend fun getAllPreferences(): List<UserPreference>
+
+    // Context cache
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertContext(context: ContextCacheEntity)
+
+    @Query("SELECT * FROM context_cache")
+    suspend fun getAllContexts(): List<ContextCacheEntity>
+
+
+    // Usage statistics
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertUsageStat(stat: UsageStatEntity)
+
+    @Query("SELECT * FROM usage_stats")
+    suspend fun getAllUsageStats(): List<UsageStatEntity>
 }

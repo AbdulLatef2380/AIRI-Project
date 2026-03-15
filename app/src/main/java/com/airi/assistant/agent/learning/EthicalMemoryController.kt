@@ -1,4 +1,4 @@
-package com.airi.assistant.core
+package com.airi.assistant.agent.learning
 
 import android.util.Log
 

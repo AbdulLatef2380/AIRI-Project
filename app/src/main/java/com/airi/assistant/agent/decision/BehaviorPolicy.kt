@@ -1,4 +1,4 @@
-package com.airi.assistant.agent.decision.BehaviorPolicy.kt
+package com.airi.assistant.agent.decision
 
 object BehaviorPolicy {
 

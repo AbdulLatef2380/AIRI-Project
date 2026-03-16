@@ -62,6 +62,42 @@ class LlamaManager(private val context: Context) {
         }
     }
 
+    /**
+     * توليد الرد بشكل متدفق (Streaming)
+     */
+    fun generateStream(prompt: String, onToken: (String) -> Unit, onComplete: (String) -> Unit) {
+        if (!isLoaded || ModelManager.getCurrent() == null) {
+            onToken("المحرك غير مفعل")
+            onComplete("")
+            return
+        }
+
+        val userMsg = ChatMessage(role = "user", content = prompt)
+        chatHistory.add(userMsg)
+        memoryManager.recordInteraction(userMsg.role, userMsg.content)
+
+        scope.launch {
+            val fullPrompt = buildChatPrompt()
+            val fullResponse = StringBuilder()
+            
+            LlamaNative.generateStream(fullPrompt) { token ->
+                fullResponse.append(token)
+                scope.launch(Dispatchers.Main) { onToken(token) }
+            }
+            
+            val assistantMsg = ChatMessage(role = "assistant", content = fullResponse.toString())
+            chatHistory.add(assistantMsg)
+            memoryManager.recordInteraction(assistantMsg.role, assistantMsg.content)
+
+            if (chatHistory.size > MAX_HISTORY) {
+                chatHistory.removeAt(0)
+                chatHistory.removeAt(0)
+            }
+
+            withContext(Dispatchers.Main) { onComplete(fullResponse.toString()) }
+        }
+    }
+
     private fun buildChatPrompt(): String {
         val sb = StringBuilder()
         

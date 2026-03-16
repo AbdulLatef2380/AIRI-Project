@@ -1,129 +1,74 @@
 package com.airi.assistant.ai
 
-import com.airi.assistant.agent.execution.ExperienceStore
 import com.airi.assistant.memory.repository.MemoryManager
-import kotlinx.coroutines.runBlocking
 
 /**
  * منشئ الأوامر (Prompt Builder)
- * يقوم بصياغة السياق الكامل للـ LLM، مع دمج الخبرات السابقة (Self-Improving).
- * تم تحديثه ليدعم إدارة ميزانية السياق (Context Budget) لمنع الانفجار المعرفي.
+ * يقوم بصياغة السياق الكامل للـ LLM، مع دمج الذاكرة العميقة والتعليمات التشغيلية.
  */
-class PromptBuilder(
-    private val memoryManager: MemoryManager
-) {
+object PromptBuilder {
 
-    companion object {
-        private const val MAX_CONTEXT_CHARS = 4000 // ميزانية تقريبية للسياق (Characters)
-        private const val MAX_MEMORY_MESSAGES = 10
-    }
-
-    fun build(userInput: String, screenContext: String? = null): String {
-        val systemIdentity = buildSystemIdentity()
-        val rules = buildOperatingRules()
-        val schema = buildActionSchema()
-        
-        // إدارة ميزانية السياق للذاكرة والخبرات
-        val context = buildContext(screenContext)
-        val experiences = buildExperienceContext(userInput)
-        val user = "User Input: $userInput"
-
-        val fullPrompt = listOf(
-            systemIdentity,
-            rules,
-            schema,
-            context,
-            experiences,
-            user
-        ).joinToString("\n\n")
-
-        return trimToBudget(fullPrompt)
-    }
-
-    private fun buildSystemIdentity(): String {
+    /**
+     * بناء الـ Prompt الأساسي للمحادثة مع دمج السياق
+     */
+    fun buildPrompt(userInput: String, memoryContext: String): String {
         return """
-            You are AIRI Operating Core.
-            You are not a chatbot.
-            You are a device-level operating intelligence.
-            You analyze user intent and decide actions.
-            You never simulate actions.
-            You generate structured decisions.
-        """.trimIndent()
-    }
-
-    private fun buildOperatingRules(): String {
-        return """
-            Rules:
-            1. If request is executable locally -> return ACTION.
-            2. If request requires reasoning -> return RESPONSE.
-            3. If both -> return ACTION + RESPONSE.
-            4. Never describe yourself.
-            5. Never explain system logic.
-            6. Never output free text outside schema.
-            7. Output must follow JSON schema.
-            8. Think step-by-step internally but DO NOT expose reasoning. Return JSON only.
-        """.trimIndent()
-    }
-
-    private fun buildActionSchema(): String {
-        return """
-            Output JSON format:
-            {
-              "mode": "ACTION | RESPONSE | HYBRID",
-              "intent": "string",
-              "confidence": float,
-              "action": {
-                  "tool": "string (name of tool to use)",
-                  "type": "OPEN_APP | CLICK | READ_SCREEN | SYSTEM_CMD | NONE",
-                  "parameters": {}
-              },
-              "response": "string"
-            }
-        """.trimIndent()
-    }
-
-    private fun buildContext(screenContext: String?): String {
-        val memoryContext = runBlocking { 
-            memoryManager.getRecentMessages(MAX_MEMORY_MESSAGES)
-                .joinToString("\n") { "${it.sender}: ${it.content}" }
-        }
-        
-        return """
-            Context:
-            Screen: ${screenContext?.take(500) ?: "Unknown"}
+            <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+            أنت AIRI، المساعد الذكي المتطور بنظام Android.
+            هويتك: ذكي، مرح، ومفيد جداً.
+            قواعد الرد:
+            1. أجب دائماً باللغة العربية (لهجة بيضاء مفهومة أو فصحى بسيطة).
+            2. اجعل ردودك قصيرة ومباشرة (إلا إذا طلب المستخدم تفاصيل).
+            3. استخدم الرموز التعبيرية (Emojis) بشكل لطيف لتظهر شخصيتك الودودة.
+            4. إذا لم تعرف الإجابة، قل ذلك بصدق ولا تخترع معلومات.
+            5. تذكر دائماً أنك جزء من مشروع AIRI المفتوح المصدر.
             
-            Memory:
-            ${truncateMemory(memoryContext, 1500)}
-        """.trimIndent()
-    }
-
-    private fun buildExperienceContext(userInput: String): String {
-        val experiences = runBlocking { ExperienceStore.getBestExperiences(userInput, 2) }
-        if (experiences.isEmpty()) return ""
-
-        val expText = experiences.joinToString("\n---\n") { exp ->
-            "Goal: ${exp.goal}\nPlan: ${exp.plan}\nResult: ${exp.result}\nScore: ${exp.score}"
-        }
-
-        return """
-            Past Experiences (Learn from these):
-            ${expText.take(1000)}
+            سياق المحادثة السابقة:
+            $memoryContext
+            <|eot_id|>
+            <|start_header_id|>user<|end_header_id|>
+            $userInput
+            <|eot_id|>
+            <|start_header_id|>assistant<|end_header_id|>
         """.trimIndent()
     }
 
     /**
-     * تقليم السياق لضمان عدم تجاوز حدود النموذج (Context Budget)
+     * بناء Prompt متقدم يدعم اتخاذ القرارات (Agent Mode)
      */
-    private fun trimToBudget(prompt: String): String {
-        if (prompt.length <= MAX_CONTEXT_CHARS) return prompt
-        
-        // إذا تجاوز الطول، نقوم بتقليم الأجزاء الأقل أهمية (مثل وسط الذاكرة)
-        // هنا نكتفي بالتقليم البسيط حالياً لضمان الاستقرار
-        return prompt.take(MAX_CONTEXT_CHARS)
-    }
-
-    private fun truncateMemory(memory: String, maxChars: Int): String {
-        if (memory.length <= maxChars) return memory
-        return "...[Older messages truncated]...\n" + memory.takeLast(maxChars)
+    fun buildAgentPrompt(userInput: String, memoryContext: String, screenContext: String? = null): String {
+        return """
+            <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+            You are AIRI Operating Core.
+            You are a device-level operating intelligence.
+            Analyze user intent and decide actions.
+            
+            Rules:
+            1. If request is executable locally -> return ACTION.
+            2. If request requires reasoning -> return RESPONSE.
+            3. If both -> return ACTION + RESPONSE.
+            4. Output must follow JSON schema.
+            
+            Output JSON format:
+            {
+              "mode": "ACTION | RESPONSE | HYBRID",
+              "intent": "string",
+              "action": {
+                  "tool": "string",
+                  "parameters": {}
+              },
+              "response": "string"
+            }
+            
+            Context:
+            Screen: ${screenContext ?: "Unknown"}
+            Memory:
+            $memoryContext
+            <|eot_id|>
+            <|start_header_id|>user<|end_header_id|>
+            $userInput
+            <|eot_id|>
+            <|start_header_id|>assistant<|end_header_id|>
+        """.trimIndent()
     }
 }

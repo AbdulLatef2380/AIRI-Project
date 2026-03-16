@@ -36,4 +36,9 @@ object LlamaNative {
      * توليد رد من AIRI بناءً على النص المدخل
      */
     external fun generateResponse(prompt: String): String
+
+    /**
+     * توليد الرد بشكل متدفق (Streaming)
+     */
+    external fun generateStream(prompt: String, onToken: (String) -> Unit)
 }

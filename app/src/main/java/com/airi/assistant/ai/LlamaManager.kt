@@ -3,8 +3,8 @@ package com.airi.assistant.ai
 import android.content.Context
 import com.airi.assistant.memory.entity.ChatMessage
 import com.airi.assistant.memory.repository.MemoryManager
-import com.airi.assistant.tools.ModelDownloadManager
 import kotlinx.coroutines.*
+import java.io.File
 
 class LlamaManager(private val context: Context) {
     private var isLoaded = false
@@ -14,8 +14,8 @@ class LlamaManager(private val context: Context) {
     private val chatHistory = mutableListOf<ChatMessage>()
     private val MAX_HISTORY = 10 
 
-    fun initializeModel(onReady: (Boolean) -> Unit) {
-        val modelFile = ModelDownloadManager(context).getModelFile()
+    fun loadModel(path: String, onReady: (Boolean) -> Unit) {
+        val modelFile = File(path)
         if (!modelFile.exists()) {
             onReady(false)
             return
@@ -36,8 +36,8 @@ class LlamaManager(private val context: Context) {
     }
 
     fun generate(prompt: String, onResult: (String) -> Unit) {
-        if (!isLoaded) {
-            onResult("المحرك غير مفعل")
+        if (!isLoaded || ModelManager.getCurrent() == null) {
+            onResult("المحرك غير مفعل أو لم يتم اختيار نموذج")
             return
         }
 
@@ -65,7 +65,6 @@ class LlamaManager(private val context: Context) {
     private fun buildChatPrompt(): String {
         val sb = StringBuilder()
         
-        // --- بداية التوجيه الاحترافي (System Prompt) ---
         sb.append("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n")
         sb.append("""
             أنت AIRI، المساعد الذكي المتطور بنظام Android.
@@ -78,7 +77,6 @@ class LlamaManager(private val context: Context) {
             5. تذكر دائماً أنك جزء من مشروع AIRI المفتوح المصدر.
         """.trimIndent())
         sb.append("<|eot_id|>\n")
-        // --- نهاية التوجيه ---
 
         for (msg in chatHistory) {
             sb.append("<|start_header_id|>${msg.role}<|end_header_id|>\n")

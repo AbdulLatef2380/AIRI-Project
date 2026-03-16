@@ -1,95 +1,66 @@
 package com.airi.assistant.app
 
 import android.Manifest
-import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.view.Gravity
-import android.widget.Button
-import android.widget.LinearLayout
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.airi.assistant.ai.LlamaManager
+import com.airi.assistant.ai.*
+import com.airi.assistant.tools.FileUtils
 import com.airi.assistant.tools.ModelDownloadManager
-import com.airi.assistant.ui.OverlayService
+import com.airi.assistant.ui.theme.AIRITheme
+import com.airi.assistant.ui.chat.AiriApp
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : ComponentActivity() {
 
     private lateinit var downloader: ModelDownloadManager
     private lateinit var llamaManager: LlamaManager
+
+    private val pickModelLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            uri?.let {
+                val path = FileUtils.copyToInternalStorage(this, it)
+                val model = ModelInfo(
+                    name = "Local Model ${System.currentTimeMillis()}",
+                    fileName = "model.gguf",
+                    size = 0,
+                    quantization = "unknown",
+                    path = path,
+                    source = ModelSource.LOCAL_FILE
+                )
+                ModelRegistry.register(model)
+                Toast.makeText(this, "تم استيراد النموذج بنجاح", Toast.LENGTH_SHORT).show()
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         downloader = ModelDownloadManager(this)
         llamaManager = LlamaManager(this)
+        
+        // تهيئة نظام النماذج
+        ModelManager.setLoader(ModelLoader(llamaManager))
 
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(32, 32, 32, 32)
-        }
-
-        val btnStart = Button(this).apply {
-            text = "تفعيل AIRI"
-            setOnClickListener {
-
-                if (!downloader.isModelDownloaded()) {
-                    checkAndRequestPermissions()
-                    return@setOnClickListener
-                }
-
-                // ✅ هنا نهيئ النموذج فعلياً قبل أي Overlay
-                Toast.makeText(this@MainActivity, "جاري تحميل المحرك...", Toast.LENGTH_SHORT).show()
-
-                llamaManager.initializeModel { success ->
-
-                    if (success) {
-
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Model loaded successfully",
-                            Toast.LENGTH_LONG
-                        ).show()
-
-                        // 🔥 اختبار inference مباشر
-                        llamaManager.generate("Hello") { reply ->
-                            Toast.makeText(
-                                this@MainActivity,
-                                "AI: $reply",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-
-                        // بعد التأكد من نجاح المحرك نتحقق من إذن Overlay
-                        checkOverlayPermission()
-
-                    } else {
-
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Model load failed",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
+        setContent {
+            AIRITheme {
+                AiriApp(
+                    onImportModel = { pickModelLauncher.launch(arrayOf("*/*")) },
+                    onStartAiri = { checkOverlayPermission() }
+                )
             }
         }
 
-        layout.addView(btnStart)
-        setContentView(layout)
-
         requestNotificationPermission()
-
-        if (!downloader.isModelDownloaded()) {
-            showDownloadDialog()
-        }
     }
 
     private fun requestNotificationPermission() {
@@ -105,47 +76,6 @@ class MainActivity : AppCompatActivity() {
                     101
                 )
             }
-        }
-    }
-
-    private fun showDownloadDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("تحميل النموذج المطلوب")
-            .setMessage("تحتاج AIRI إلى تحميل ملف الذكاء الاصطناعي (حوالي 900MB). هل تود التحميل الآن؟")
-            .setPositiveButton("نعم") { _, _ ->
-                startLoadingService()
-            }
-            .setNegativeButton("ليس الآن") { _, _ ->
-                Toast.makeText(
-                    this,
-                    "لن تعمل ميزات الذكاء الاصطناعي بدون النموذج.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-            .setCancelable(false)
-            .show()
-    }
-
-    private fun startLoadingService() {
-        Toast.makeText(this, "بدأ التحميل.. تابع الإشعارات", Toast.LENGTH_LONG).show()
-        val intent = Intent(this, ModelDownloadService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
-    }
-
-    private fun checkAndRequestPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            requestNotificationPermission()
-        } else {
-            showDownloadDialog()
         }
     }
 
@@ -166,8 +96,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startAiriService() {
-        // تم التغيير هنا إلى DebugOverlayService
-        val intent = Intent(this, OverlayService::class.java)
+        val intent = Intent(this, com.airi.assistant.ui.OverlayService::class.java)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)
@@ -177,23 +106,6 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "تم تفعيل AIRI بنجاح", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(this, "فشل بدء الخدمة: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 102) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (Settings.canDrawOverlays(this)) {
-                    startAiriService()
-                } else {
-                    Toast.makeText(
-                        this,
-                        "يرجى منح إذن الظهور فوق التطبيقات",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
         }
     }
 }

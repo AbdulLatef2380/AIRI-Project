@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace 'com.airi.assistant'
-    compileSdk 33
+    compileSdk 34
 
     // استخدام نسخة LTS مستقرة لتجنب أخطاء التحميل في الـ CI
     ndkVersion "25.2.9519653" 
@@ -15,7 +15,7 @@ android {
     defaultConfig {
         applicationId "com.airi.assistant"
         minSdk 24
-        targetSdk 33
+        targetSdk 34
         versionCode 1
         versionName "1.0"
 

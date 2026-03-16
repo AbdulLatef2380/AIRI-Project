@@ -1,6 +1,7 @@
 package com.airi.assistant.accessibility.service
 
 import android.content.Context
+import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.memory.entity.UsageStatEntity
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.*
@@ -10,10 +11,10 @@ object BehaviorEngine : CoroutineScope {
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO + SupervisorJob()
 
-    private var database: AppDatabase? = null
+    private var database: AiriDatabase? = null
 
     fun initialize(context: Context) {
-        database = AppDatabase.getDatabase(context)
+        database = AiriDatabase.getDatabase(context)
     }
 
     fun recordUsage(suggestion: String) {

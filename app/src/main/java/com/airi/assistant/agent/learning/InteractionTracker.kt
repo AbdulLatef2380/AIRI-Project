@@ -1,13 +1,14 @@
 package com.airi.assistant.agent.learning
 
+import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.memory.entity.BehaviorStatsEntity
 import kotlinx.coroutines.*
 
 object InteractionTracker {
 
-    private var db: AppDatabase? = null
+    private var db: AiriDatabase? = null
 
-    fun initialize(database: AppDatabase) {
+    fun initialize(database: AiriDatabase) {
         db = database
     }
 

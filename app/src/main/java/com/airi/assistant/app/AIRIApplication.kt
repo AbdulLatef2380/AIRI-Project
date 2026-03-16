@@ -5,11 +5,16 @@ import com.airi.assistant.accessibility.service.BehaviorEngine
 import com.airi.assistant.agent.decision.SuggestionScoreEngine
 import com.airi.assistant.agent.learning.InteractionTracker
 import com.airi.assistant.memory.repository.ContextEngine
+import com.airi.assistant.memory.AiriDatabase
+import com.airi.assistant.core.ServiceLocator
 
 class AIRIApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        
+        // 🛠️ تهيئة ServiceLocator للوصول العالمي للسياق
+        ServiceLocator.context = applicationContext
         
         // 🧠 تهيئة محرك السلوك (التعلم من ضغطات المستخدم التقليدية)
         BehaviorEngine.initialize(this)
@@ -19,7 +24,7 @@ class AIRIApplication : Application() {
 
         // 🧬 تهيئة طبقة التعلم المعزز (Reinforcement Learning Layer)
         // نقوم بجلب قاعدة البيانات وربطها بمحركات التتبع والتقييم
-        val database = AppDatabase.getDatabase(this)
+        val database = AiriDatabase.getDatabase(this)
         
         // تتبع التفاعلات (عرض، قبول، تجاهل)
         InteractionTracker.initialize(database)

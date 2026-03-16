@@ -1,12 +1,13 @@
 package com.airi.assistant.agent.decision
 
+import com.airi.assistant.memory.AiriDatabase
 import kotlinx.coroutines.runBlocking
 
 object SuggestionScoreEngine {
 
-    private var db: AppDatabase? = null
+    private var db: AiriDatabase? = null
 
-    fun initialize(database: AppDatabase) {
+    fun initialize(database: AiriDatabase) {
         db = database
     }
 

@@ -2,6 +2,7 @@ package com.airi.assistant.agent.execution.node
 
 import android.view.accessibility.AccessibilityNodeInfo
 import com.airi.assistant.agent.decision.DecisionEngine
+import com.airi.assistant.agent.learning.reinforcement.AdaptivePolicy
 
 object SemanticRanker {
 

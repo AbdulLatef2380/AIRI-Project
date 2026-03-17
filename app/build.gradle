@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
+
     namespace 'com.airi.assistant'
     compileSdk 34
 
-    // استخدام نسخة LTS مستقرة لتجنب أخطاء التحميل في الـ CI
-    ndkVersion "25.2.9519653" 
+    ndkVersion "25.2.9519653"
 
     defaultConfig {
         applicationId "com.airi.assistant"
@@ -21,7 +21,6 @@ android {
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
-        // حصر البناء بمعمارية 64-بت لدعم مكتبات llama.cpp و FP16
         ndk {
             abiFilters "arm64-v8a"
         }
@@ -36,7 +35,9 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile(
+                    'proguard-android-optimize.txt'
+            ), 'proguard-rules.pro'
         }
     }
 
@@ -58,9 +59,13 @@ android {
 
     buildFeatures {
         viewBinding true
+        compose true
     }
 
-    // إعدادات kapt الضرورية لـ Room وتوليد المخططات (Schemas)
+    composeOptions {
+        kotlinCompilerExtensionVersion '1.5.14'
+    }
+
     kapt {
         correctErrorTypes = true
         arguments {
@@ -70,41 +75,55 @@ android {
 }
 
 dependencies {
-    // 🏗️ Core & Project Links
+
+    // Project modules
     implementation project(":core")
-    
-    // 🧱 AndroidX Essentials
+
+    // AndroidX Core
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    
-    // ⚡ Activity & Fragment KTX (للسياق والتعامل السلس مع الدورات الحياتية)
-    implementation 'androidx.activity:activity-ktx:1.7.2'
-    implementation 'androidx.fragment:fragment-ktx:1.6.0'
-    
-    // 🔄 Lifecycle & ViewModel
+
+    // Activity & Fragment
+    implementation 'androidx.activity:activity-ktx:1.9.0'
+    implementation 'androidx.fragment:fragment-ktx:1.6.2'
+
+    // Lifecycle
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.0'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.0'
-    
-    // 🗄️ Room Database (مستقر لـ SDK 33)
+
+    // Jetpack Compose
+    implementation "androidx.activity:activity-compose:1.9.0"
+
+    implementation "androidx.compose.ui:ui:1.6.7"
+    implementation "androidx.compose.ui:ui-tooling-preview:1.6.7"
+
+    implementation "androidx.compose.material3:material3:1.2.1"
+
+    debugImplementation "androidx.compose.ui:ui-tooling:1.6.7"
+
+    // Room Database
     def room_version = "2.6.1"
+
     implementation "androidx.room:room-runtime:$room_version"
     implementation "androidx.room:room-ktx:$room_version"
+
     kapt "androidx.room:room-compiler:$room_version"
-    
-    // ⚙️ SoLoader for Native Libraries (ضروري لـ llama.cpp)
+
+    // Native loading (llama.cpp)
     implementation 'com.facebook.soloader:soloader:0.10.5'
-    
-    // 🧵 Coroutines (العمود الفقري للـ Agent غير المتزامن)
+
+    // Coroutines
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
 
-    // 🌐 Networking & Integration (للاتصال بـ n8n أو APIs خارجية)
+    // Networking
     implementation 'com.squareup.okhttp3:okhttp:4.11.0'
     implementation 'com.google.code.gson:gson:2.10.1'
 
-    // 🧪 Testing
+    // Testing
     testImplementation 'junit:junit:4.13.2'
+
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }

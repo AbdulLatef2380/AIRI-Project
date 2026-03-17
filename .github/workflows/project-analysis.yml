@@ -1,0 +1,37 @@
+name: AIRI Full Project Analysis
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  analyze:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Grant Gradle permission
+        run: chmod +x gradlew
+
+      - name: Run Full Project Analysis
+        run: python scripts/analyze_project.py
+
+      - name: Upload analysis report
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-analysis-report
+          path: analysis-report/

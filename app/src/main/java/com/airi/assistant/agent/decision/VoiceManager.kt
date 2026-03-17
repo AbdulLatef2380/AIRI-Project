@@ -1,13 +1,12 @@
-package com.airi.assistant.agent.decision
+package com.airi.assistant.core
 
 import android.content.Context
 import android.util.Log
 
-/**
- * مدير الصوت لـ AIRI.
- * يتعامل مع اكتشاف كلمة التنبيه (Wake Word) وتحويل الكلام إلى نص (STT).
- */
-class VoiceManager(private val context: Context, private val listener: VoiceListener) {
+class VoiceManager(
+    private val context: Context,
+    private val listener: VoiceListener
+) {
 
     interface VoiceListener {
         fun onWakeWordDetected()
@@ -17,40 +16,35 @@ class VoiceManager(private val context: Context, private val listener: VoiceList
 
     private var isListeningForWakeWord = false
 
-    /**
-     * بدء الاستماع لكلمة التنبيه "AIRI" (باستخدام Porcupine/Picovoice)
-     */
     fun startWakeWordDetection() {
+
         if (isListeningForWakeWord) return
-        
-        Log.d("VoiceManager", "بدء الاستماع لنداء AIRI...")
+
+        Log.d("VoiceManager", "Listening for AIRI wake word")
+
         isListeningForWakeWord = true
-        
-        // هنا سيتم دمج مكتبة Picovoice
-        // عند الاكتشاف: listener.onWakeWordDetected()
+
+        // Picovoice integration later
     }
 
-    /**
-     * بدء تحويل الكلام إلى نص (باستخدام Vosk)
-     * يتم استدعاؤه فقط بعد اكتشاف Wake Word
-     */
     fun startSpeechToText() {
-        Log.d("VoiceManager", "بدء تحويل الكلام إلى نص...")
-        
-        // هنا سيتم دمج مكتبة Vosk
-        // عند الحصول على نتيجة: listener.onSpeechResult(text)
+
+        Log.d("VoiceManager", "Speech to text started")
+
+        // Vosk integration later
     }
 
     fun stopAll() {
+
         isListeningForWakeWord = false
-        // إيقاف المحركات وتحرير الموارد
+
+        Log.d("VoiceManager", "Voice system stopped")
     }
 
-    /**
-     * تحويل النص إلى كلام (TTS)
-     */
     fun speak(text: String) {
-        Log.i("VoiceManager", "AIRI تقول: $text")
-        // هنا سيتم دمج محرك TTS (مثل Google TTS أو محرك محلي)
+
+        Log.i("VoiceManager", "AIRI says: $text")
+
+        // TTS integration later
     }
 }

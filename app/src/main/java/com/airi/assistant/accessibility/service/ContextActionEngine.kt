@@ -1,5 +1,7 @@
 package com.airi.assistant.accessibility.service
 
+import com.airi.assistant.core.intent.IntentType
+
 object ContextActionEngine {
 
     private const val SYSTEM_ROLE = "[System Role: You are AIRI, a contextual Android AI agent. Use the memory and screen data provided to give precise, human-like assistance.]\n"

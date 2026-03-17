@@ -1,5 +1,7 @@
 package com.airi.assistant.accessibility.service
 
+import com.airi.assistant.core.intent.IntentType
+
 /**
  * محرك الاقتراحات الذكي - النسخة المحدثة (Intent-Based)
  * يقوم بتحويل "النية" المكتشفة إلى خيارات ملموسة للمستخدم.

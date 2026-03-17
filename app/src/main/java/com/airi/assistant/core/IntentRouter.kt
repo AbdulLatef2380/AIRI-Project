@@ -1,7 +1,5 @@
 package com.airi.assistant.core
 
-import com.airi.assistant.core.intent.IntentType
-
 data class IntentEvent(
     val rawText: String,
     val source: InputSource,
@@ -34,16 +32,10 @@ class IntentRouter {
     fun route(event: IntentEvent): IntentResult {
         val normalized = normalize(event.rawText)
 
-        // 1. أوامر النظام
         detectSystemCommand(normalized)?.let { return it }
-
-        // 2. أوامر التطبيقات
         detectAppControl(normalized)?.let { return it }
-
-        // 3. تحليل الشاشة
         detectScreenAnalysis(normalized)?.let { return it }
 
-        // 4. محادثة عامة
         if (isConversation(normalized)) {
             return IntentResult(IntentType.CONVERSATION, 0.7f)
         }
@@ -70,37 +62,50 @@ class IntentRouter {
         for ((key, value) in commands) {
             if (text.contains(key)) {
                 return IntentResult(
-                    type = IntentType.SYSTEM_COMMAND,
-                    confidence = 0.95f,
-                    extractedData = mapOf("command" to value)
+                    IntentType.SYSTEM_COMMAND,
+                    0.95f,
+                    mapOf("command" to value)
                 )
             }
         }
+
         return null
     }
 
     private fun detectAppControl(text: String): IntentResult? {
-        val openRegex = Regex("افتح (.+)")
-        val match = openRegex.find(text)
+        val regex = Regex("افتح (.+)")
+        val match = regex.find(text)
 
         if (match != null) {
-            val appName = match.groupValues[1]
+            val app = match.groupValues[1]
+
             return IntentResult(
-                type = IntentType.APP_CONTROL,
-                confidence = 0.9f,
-                extractedData = mapOf("appName" to appName)
+                IntentType.APP_CONTROL,
+                0.9f,
+                mapOf("appName" to app)
             )
         }
+
         return null
     }
 
     private fun detectScreenAnalysis(text: String): IntentResult? {
-        val patterns = listOf("ماذا ترى", "اقرأ الشاشة", "حلل الشاشة")
+
+        val patterns = listOf(
+            "ماذا ترى",
+            "اقرأ الشاشة",
+            "حلل الشاشة"
+        )
+
         for (pattern in patterns) {
             if (text.contains(pattern)) {
-                return IntentResult(IntentType.SCREEN_ANALYSIS, 0.9f)
+                return IntentResult(
+                    IntentType.SCREEN_ANALYSIS,
+                    0.9f
+                )
             }
         }
+
         return null
     }
 

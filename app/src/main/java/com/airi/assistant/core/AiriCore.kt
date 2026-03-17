@@ -1,134 +1,254 @@
 package com.airi.assistant.core
 
 import android.content.Context
+import android.content.Intent
 import android.util.Log
+import com.airi.assistant.ai.LlamaManager
+import com.airi.assistant.router.IntentRouter
+import com.airi.assistant.tools.ToolRegistry
+import com.airi.assistant.tools.ToolScanner
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import org.json.JSONObject
 
 /**
- * AIRI Core - The Central Event-Driven Bus.
- * تم تحديثه لإصلاح أخطاء الـ Singleton Object والـ Coroutines.
+ * AIRI Core
+ * Central Event-Driven Runtime Bus
  */
 object AiriCore {
 
+    private const val TAG = "AIRI_CORE"
+
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val eventChannel = Channel<AiriEvent>(Channel.UNLIMITED)
-    
-    private var isInitialized = false
+
+    private var initialized = false
     private lateinit var appContext: Context
-    
-    // ملاحظة: تم حذف lateinit var llama لأن LlamaNative أصبح Object مباشر
+
     private lateinit var memoryManager: MemoryManager
     private lateinit var policyEngine: PolicyEngine
-    private lateinit var auditManager: AuditManager
     private lateinit var controlManager: SystemControlManager
     private lateinit var voiceManager: VoiceManager
-    private lateinit var promptBuilder: PromptBuilder
+
+    private lateinit var intentRouter: IntentRouter
+    private lateinit var llamaManager: LlamaManager
     private lateinit var cognitiveLoop: UnifiedCognitiveLoop
 
+    /**
+     * Voice listener
+     */
     private val voiceListener = object : VoiceManager.VoiceListener {
+
         override fun onWakeWordDetected() {
-            Log.d("AIRI_CORE", "Wake word detected")
+            Log.d(TAG, "Wake word detected")
         }
+
         override fun onSpeechResult(text: String) {
-            scope.launch { send(AiriEvent.VoiceInput(text)) }
+            scope.launch {
+                send(AiriEvent.VoiceInput(text))
+            }
         }
+
         override fun onError(error: String) {
-            Log.e("AIRI_CORE", "Voice error: $error")
+            Log.e(TAG, "Voice error: $error")
         }
     }
 
+    /**
+     * Event Types
+     */
     sealed class AiriEvent {
-        data class UserInput(val text: String, val source: InputSource) : AiriEvent()
-        data class ScreenContext(val data: String) : AiriEvent()
-        data class UIRequest(val message: String) : AiriEvent()
-        data class VoiceInput(val text: String) : AiriEvent()
+
+        data class UserInput(
+            val text: String,
+            val source: InputSource
+        ) : AiriEvent()
+
+        data class VoiceInput(
+            val text: String
+        ) : AiriEvent()
+
+        data class ScreenContext(
+            val data: String
+        ) : AiriEvent()
+
+        data class UIRequest(
+            val message: String
+        ) : AiriEvent()
+
         object RefreshTools : AiriEvent()
     }
 
+    /**
+     * Initialization
+     */
     fun init(context: Context) {
-        if (isInitialized) return
+
+        if (initialized) return
+
         appContext = context.applicationContext
-        
-        // تهيئة مخزن الخبرات
+
+        Log.i(TAG, "Initializing AIRI Core")
+
         ExperienceStore.init(appContext)
-        
-        // تم حذف سطر llama = LlamaNative(appContext) لأنه Object وليس Class
-        
+
         memoryManager = MemoryManager(appContext)
         policyEngine = PolicyEngine()
-        auditManager = AuditManager
         controlManager = SystemControlManager(appContext)
-        voiceManager = VoiceManager(appContext, voiceListener)
-        promptBuilder = PromptBuilder(memoryManager)
-        
+
+        voiceManager = VoiceManager(
+            appContext,
+            voiceListener
+        )
+
+        intentRouter = IntentRouter(appContext)
+        llamaManager = LlamaManager(appContext)
+
         cognitiveLoop = UnifiedCognitiveLoop(
             appContext,
-            promptBuilder,
-            LlamaNative, // نمرر الـ Object نفسه هنا
-            policyEngine,
-            auditManager,
-            controlManager,
-            voiceManager
+            intentRouter,
+            llamaManager
         )
-        
+
         refreshTools()
+
         startEventLoop()
-        isInitialized = true
-        Log.d("AIRI_CORE", "Core Bus initialized and running.")
+
+        initialized = true
+
+        Log.i(TAG, "AIRI Core initialized")
     }
 
+    /**
+     * Event loop
+     */
     private fun startEventLoop() {
+
         scope.launch {
+
             for (event in eventChannel) {
+
                 try {
+
                     handleEvent(event)
+
                 } catch (e: Exception) {
-                    Log.e("AIRI_CORE", "Error handling event: ${e.message}")
+
+                    Log.e(TAG, "Event processing error", e)
+
                 }
+
             }
+
         }
+
     }
 
+    /**
+     * Send event
+     */
     suspend fun send(event: AiriEvent) {
+
         eventChannel.send(event)
+
     }
 
+    /**
+     * Handle events
+     */
     private fun handleEvent(event: AiriEvent) {
+
         when (event) {
-            is AiriEvent.UserInput -> cognitiveLoop.processInput(event.text, event.source)
-            is AiriEvent.VoiceInput -> cognitiveLoop.processInput(event.text, InputSource.VOICE)
-            is AiriEvent.ScreenContext -> updateScreenContext(event.data)
-            is AiriEvent.UIRequest -> updateUI(event.message)
-            is AiriEvent.RefreshTools -> refreshTools()
-        }
-    }
 
-    private fun refreshTools() {
-        // التأكد من استخدام scope.launch مع Dispatchers.IO بشكل صحيح
-        scope.launch {
-            withContext(Dispatchers.IO) {
-                try {
-                    val discoveredTools = ToolScanner.scan(appContext)
-                    ToolRegistry.register(discoveredTools)
-                    Log.i("AIRI_CORE", "Tools refreshed: ${discoveredTools.size} tools found.")
-                } catch (e: Exception) {
-                    Log.e("AIRI_CORE", "Failed to refresh tools: ${e.message}")
-                }
+            is AiriEvent.UserInput -> {
+                processText(event.text)
             }
+
+            is AiriEvent.VoiceInput -> {
+                processText(event.text)
+            }
+
+            is AiriEvent.ScreenContext -> {
+                updateScreenContext(event.data)
+            }
+
+            is AiriEvent.UIRequest -> {
+                updateUI(event.message)
+            }
+
+            AiriEvent.RefreshTools -> {
+                refreshTools()
+            }
+
         }
+
     }
 
+    /**
+     * Run LLM pipeline
+     */
+    private fun processText(text: String) {
+
+        scope.launch {
+
+            cognitiveLoop.process(text) { result ->
+
+                updateUI(result)
+
+            }
+
+        }
+
+    }
+
+    /**
+     * Tool refresh
+     */
+    private fun refreshTools() {
+
+        scope.launch(Dispatchers.IO) {
+
+            try {
+
+                val tools = ToolScanner.scan(appContext)
+
+                ToolRegistry.register(tools)
+
+                Log.i(TAG, "Tools refreshed: ${tools.size}")
+
+            } catch (e: Exception) {
+
+                Log.e(TAG, "Tool refresh failed", e)
+
+            }
+
+        }
+
+    }
+
+    /**
+     * Screen context update
+     */
     private fun updateScreenContext(data: String) {
-        Log.d("AIRI_CORE", "Screen context updated (Hash: ${data.hashCode()})")
+
+        Log.d(TAG, "Screen context updated: ${data.hashCode()}")
+
     }
 
+    /**
+     * UI broadcast
+     */
     private fun updateUI(message: String) {
-        Log.i("AIRI_CORE", "UI Update: $message")
-        val intent = android.content.Intent("com.airi.assistant.UI_UPDATE")
+
+        Log.i(TAG, "UI update: $message")
+
+        val intent = Intent("com.airi.assistant.UI_UPDATE")
+
         intent.setPackage(appContext.packageName)
+
         intent.putExtra("message", message)
+
         appContext.sendBroadcast(intent)
+
     }
+
 }

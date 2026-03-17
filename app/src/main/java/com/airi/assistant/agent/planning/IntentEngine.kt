@@ -4,6 +4,10 @@ import com.airi.assistant.accessibility.executor.ActionExecutor
 import com.airi.assistant.accessibility.service.AIRIAccessibilityService
 import com.airi.assistant.core.intent.IntentType
 
+/**
+ * محرك تحليل النية (Intent Resolution Engine)
+ * يحول النص أو وصف الشاشة إلى نية تنفيذية داخل النظام.
+ */
 object IntentEngine {
 
     fun resolve(screen: String): AiriIntent? {
@@ -25,18 +29,21 @@ object IntentEngine {
         return when {
 
             lower.contains("search") ->
-                AiriIntent(IntentType.CLICK, "search")
+                AiriIntent(IntentType.CLICK, target = "search")
 
             lower.contains("subscribe") ->
-                AiriIntent(IntentType.CLICK, "subscribe")
+                AiriIntent(IntentType.CLICK, target = "subscribe")
 
             lower.contains("play") ->
-                AiriIntent(IntentType.CLICK, "play")
+                AiriIntent(IntentType.CLICK, target = "play")
 
             else -> null
         }
     }
 
+    /**
+     * تنفيذ النية داخل Accessibility layer
+     */
     fun execute(intent: AiriIntent) {
 
         val service = AIRIAccessibilityService.instance ?: return
@@ -63,6 +70,10 @@ object IntentEngine {
 
             IntentType.BACK -> {
                 service.executeCommand("رجوع")
+            }
+
+            else -> {
+                // Intent غير مدعوم حالياً
             }
         }
     }

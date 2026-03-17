@@ -23,6 +23,7 @@ import com.airi.assistant.agent.planning.RecoveryManager
 import com.airi.assistant.ai.LlamaManager
 import java.util.*
 import kotlinx.coroutines.*
+import com.airi.assistant.R
 
 class OverlayService : Service() {
 

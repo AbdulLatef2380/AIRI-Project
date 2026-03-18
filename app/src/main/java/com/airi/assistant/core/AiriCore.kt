@@ -7,6 +7,13 @@ import com.airi.assistant.ai.LlamaManager
 import com.airi.assistant.router.IntentRouter
 import com.airi.assistant.tools.ToolRegistry
 import com.airi.assistant.tools.ToolScanner
+import com.airi.assistant.memory.ExperienceStore
+import com.airi.assistant.memory.repository.MemoryManager
+import com.airi.assistant.policy.PolicyEngine
+import com.airi.assistant.system.SystemControlManager
+import com.airi.assistant.voice.VoiceManager
+import com.airi.assistant.core.UnifiedCognitiveLoop
+import com.airi.assistant.data.InputSource
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 
@@ -89,6 +96,7 @@ object AiriCore {
 
         Log.i(TAG, "Initializing AIRI Core")
 
+        // تهيئة مخزن الخبرة أولاً لضمان توفر قاعدة البيانات
         ExperienceStore.init(appContext)
 
         memoryManager = MemoryManager(appContext)
@@ -100,7 +108,9 @@ object AiriCore {
             voiceListener
         )
 
-        intentRouter = IntentRouter(appContext)
+        // ✅ التعديل: استخدام الـ Constructor الافتراضي كما طلبت
+        intentRouter = IntentRouter()
+        
         llamaManager = LlamaManager(appContext)
 
         cognitiveLoop = UnifiedCognitiveLoop(
@@ -211,6 +221,7 @@ object AiriCore {
 
                 val tools = ToolScanner.scan(appContext)
 
+                // ✅ ToolRegistry كـ Object يتم استدعاؤه مباشرة
                 ToolRegistry.register(tools)
 
                 Log.i(TAG, "Tools refreshed: ${tools.size}")

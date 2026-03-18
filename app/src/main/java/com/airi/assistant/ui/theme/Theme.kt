@@ -1,14 +1,12 @@
 package com.airi.assistant.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.darkColors
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val DarkColorPalette = darkColors(
+private val DarkColorScheme = darkColorScheme(
     primary = AiriCyan,
-    primaryVariant = AiriAccent,
     secondary = AiriPink,
     background = AiriDarkBg,
     surface = AiriPanelBg,
@@ -21,7 +19,7 @@ private val DarkColorPalette = darkColors(
 @Composable
 fun AIRITheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colors = DarkColorPalette,
+        colorScheme = DarkColorScheme,
         content = content
     )
 }

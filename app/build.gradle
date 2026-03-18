@@ -89,6 +89,8 @@ dependencies {
     // Icons
     implementation "androidx.compose.material:material-icons-extended"
 
+    implementation "androidx.appcompat:appcompat:1.6.1"
+    
     // Lifecycle
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.8.0"
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.0"

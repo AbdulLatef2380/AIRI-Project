@@ -9,10 +9,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,8 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ai.LlamaManager
-import com.airi.assistant.ai.ModelManager
-import com.airi.assistant.ai.ModelRegistry
 import com.airi.assistant.core.IntentRouter
 import com.airi.assistant.core.UnifiedCognitiveLoop
 import com.airi.assistant.memory.entity.ChatMessage
@@ -33,84 +30,98 @@ import com.airi.assistant.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiriApp(onImportModel: () -> Unit, onStartAiri: () -> Unit) {
+
     val context = LocalContext.current
-    val scaffoldState = rememberScaffoldState()
     val scope = rememberCoroutineScope()
-    
-    // محركات النظام
+
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+
     val llamaManager = remember { LlamaManager(context) }
     val intentRouter = remember { IntentRouter() }
-    val cognitiveLoop = remember { UnifiedCognitiveLoop(context, intentRouter, llamaManager) }
-    
+    val cognitiveLoop = remember {
+        UnifiedCognitiveLoop(context, intentRouter, llamaManager)
+    }
+
     var showSettings by remember { mutableStateOf(false) }
     var showModelManager by remember { mutableStateOf(false) }
-    
-    // حالة الدردشة
+
     val chatMessages = remember { mutableStateListOf<ChatMessage>() }
     var currentInput by remember { mutableStateOf("") }
     var isGenerating by remember { mutableStateOf(false) }
 
-    Surface(color = Color.Black, modifier = Modifier.fillMaxSize()) {
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            SidebarContent(
+                onClose = { scope.launch { drawerState.close() } },
+                onOpenSettings = { showSettings = true },
+                onOpenModels = { showModelManager = true }
+            )
+        }
+    ) {
         Scaffold(
-            scaffoldState = scaffoldState,
-            backgroundColor = Color.Transparent,
-            drawerContent = { 
-                SidebarContent(
-                    onClose = { scope.launch { scaffoldState.drawerState.close() } }, 
-                    onOpenSettings = { showSettings = true },
-                    onOpenModels = { showModelManager = true }
-                ) 
-            },
-            drawerBackgroundColor = AiriDarkBg,
-            drawerShape = RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp),
+            containerColor = Color.Black,
             topBar = {
                 TopAppBar(
-                    backgroundColor = Color.Transparent,
-                    elevation = 0.dp,
-                    title = { Text("AIRI Assistant", color = Color.White, fontSize = 16.sp) },
+                    title = {
+                        Text("AIRI Assistant", color = Color.White)
+                    },
                     navigationIcon = {
-                        IconButton(onClick = { scope.launch { scaffoldState.drawerState.open() } }) {
-                            Icon(Icons.Rounded.Menu, contentDescription = "Menu", tint = Color.White)
+                        IconButton(onClick = {
+                            scope.launch { drawerState.open() }
+                        }) {
+                            Icon(Icons.Rounded.Menu, contentDescription = null, tint = Color.White)
                         }
-                    }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent
+                    )
                 )
             }
         ) { padding ->
-            Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+
                 if (chatMessages.isEmpty()) {
                     EmptyState(onImportModel)
                 } else {
-                    ChatList(chatMessages, isGenerating)
+                    ChatList(chatMessages)
                 }
 
-                // شريط الإدخال في الأسفل
                 Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                     InputBar(
                         value = currentInput,
                         onValueChange = { currentInput = it },
                         onSend = {
                             if (currentInput.isNotBlank() && !isGenerating) {
-                                val userMsg = ChatMessage(role = "user", content = currentInput)
+
+                                val userMsg = ChatMessage("user", currentInput)
+                                val aiMsg = ChatMessage("assistant", "")
+
                                 chatMessages.add(userMsg)
-                                val assistantMsg = ChatMessage(role = "assistant", content = "")
-                                chatMessages.add(assistantMsg)
-                                
-                                val inputToProcess = currentInput
+                                chatMessages.add(aiMsg)
+
+                                val input = currentInput
                                 currentInput = ""
                                 isGenerating = true
-                                
+
                                 cognitiveLoop.processStream(
-                                    input = inputToProcess,
+                                    input = input,
                                     onToken = { token ->
-                                        val lastIndex = chatMessages.size - 1
-                                        val updatedMsg = chatMessages[lastIndex].copy(
-                                            content = chatMessages[lastIndex].content + token
+                                        val index = chatMessages.lastIndex
+                                        val updated = chatMessages[index].copy(
+                                            content = chatMessages[index].content + token
                                         )
-                                        chatMessages[lastIndex] = updatedMsg
+                                        chatMessages[index] = updated
                                     },
-                                    onComplete = { 
+                                    onComplete = {
                                         isGenerating = false
                                     }
                                 )
@@ -119,22 +130,32 @@ fun AiriApp(onImportModel: () -> Unit, onStartAiri: () -> Unit) {
                     )
                 }
 
-                if (showSettings) SettingsScreen(onClose = { showSettings = false })
-                if (showModelManager) ModelManagerScreen(onClose = { showModelManager = false }, onImport = onImportModel)
+                if (showSettings) {
+                    SettingsScreen { showSettings = false }
+                }
+
+                if (showModelManager) {
+                    ModelManagerScreen(
+                        onClose = { showModelManager = false },
+                        onImport = onImportModel
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-fun ChatList(messages: List<ChatMessage>, isGenerating: Boolean) {
+fun ChatList(messages: List<ChatMessage>) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(bottom = 100.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(bottom = 100.dp),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(messages) { message ->
-            ChatBubble(message)
+        items(messages) { msg ->
+            ChatBubble(msg)
         }
     }
 }
@@ -142,268 +163,134 @@ fun ChatList(messages: List<ChatMessage>, isGenerating: Boolean) {
 @Composable
 fun ChatBubble(message: ChatMessage) {
     val isUser = message.role == "user"
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(
-                    topStart = 16.dp, 
-                    topEnd = 16.dp, 
-                    bottomStart = if (isUser) 16.dp else 4.dp, 
-                    bottomEnd = if (isUser) 4.dp else 16.dp
-                ))
-                .background(if (isUser) AiriCyan.copy(alpha = 0.1f) else AiriPanelBg)
-                .border(1.dp, if (isUser) AiriCyan.copy(alpha = 0.3f) else Color(0xFF222222), 
-                    RoundedCornerShape(
-                        topStart = 16.dp, 
-                        topEnd = 16.dp, 
-                        bottomStart = if (isUser) 16.dp else 4.dp, 
-                        bottomEnd = if (isUser) 4.dp else 16.dp
-                    )
-                )
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (isUser) AiriCyan.copy(0.1f) else AiriPanelBg)
+                .border(1.dp, AiriCyan.copy(0.2f), RoundedCornerShape(16.dp))
                 .padding(12.dp)
         ) {
             Text(
                 text = message.content,
-                color = if (isUser) AiriCyan else Color.White,
-                fontSize = 15.sp
+                color = if (isUser) AiriCyan else Color.White
             )
         }
     }
 }
 
 @Composable
-fun InputBar(value: String, onValueChange: (String) -> Unit, onSend: () -> Unit) {
+fun InputBar(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSend: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(20.dp)
+            .padding(16.dp)
             .background(AiriPanelBg, RoundedCornerShape(30.dp))
-            .border(1.dp, Color(0xFF222222), RoundedCornerShape(30.dp))
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier.size(40.dp).background(AiriPink, CircleShape).clickable { onSend() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Rounded.GraphicEq, "", tint = Color.White, modifier = Modifier.size(20.dp))
+
+        IconButton(onClick = onSend) {
+            Icon(Icons.Rounded.GraphicEq, null, tint = Color.White)
         }
 
-        Spacer(Modifier.width(8.dp))
-        
         TextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = { Text("أطرح سؤالك على AIRI...", color = Color(0xFF555555), fontSize = 14.sp) },
             modifier = Modifier.weight(1f),
-            colors = TextFieldDefaults.textFieldColors(
-                backgroundColor = Color.Transparent,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                textColor = Color.White
+            placeholder = {
+                Text("اكتب...", color = Color.Gray)
+            },
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent
             )
         )
 
         IconButton(onClick = onSend) {
-            Icon(Icons.Rounded.Send, "", tint = AiriCyan, modifier = Modifier.size(24.dp))
+            Icon(Icons.Rounded.Send, null, tint = AiriCyan)
         }
     }
 }
 
 @Composable
-fun SidebarContent(onClose: () -> Unit, onOpenSettings: () -> Unit, onOpenModels: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onClose) {
-                Icon(Icons.Rounded.ArrowForward, contentDescription = "Back", tint = Color.White)
-            }
-            Row(
-                modifier = Modifier.background(Color(0xFF222222), CircleShape).padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Icon(Icons.Rounded.Person, "", tint = AiriCyan, modifier = Modifier.size(20.dp).clickable { onOpenSettings() })
-                Spacer(Modifier.width(8.dp))
-                Icon(Icons.Rounded.Search, "", tint = Color.White, modifier = Modifier.size(20.dp))
-            }
+fun SidebarContent(
+    onClose: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenModels: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().padding(20.dp)) {
+
+        IconButton(onClick = onClose) {
+            Icon(Icons.Rounded.ArrowForward, null, tint = Color.White)
         }
 
         Spacer(Modifier.height(20.dp))
-        Text(text = "Airi assistant ai", color = AiriCyan, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Divider(color = Color(0xFF1A1A1A), modifier = Modifier.padding(vertical = 15.dp))
 
-        NavItem(Icons.Rounded.Layers, "النماذج", onClick = onOpenModels)
-        NavItem(Icons.Rounded.GridView, "التطبيقات")
+        Text("AIRI", color = AiriCyan)
 
-        Spacer(Modifier.height(30.dp))
-        Text("دردشاتك", color = Color(0xFF444444), fontSize = 12.sp)
-        Text("سجل الدردشة فارغ", color = Color(0xFF222222), fontSize = 14.sp, modifier = Modifier.padding(vertical = 20.dp).align(Alignment.CenterHorizontally))
+        Spacer(Modifier.height(20.dp))
 
-        Spacer(Modifier.weight(1f))
-        NavItem(Icons.Rounded.ChatBubbleOutline, "Chat", textColor = AiriCyan)
+        NavItem(Icons.Rounded.Layers, "النماذج", onOpenModels)
+        NavItem(Icons.Rounded.Settings, "الإعدادات", onOpenSettings)
+    }
+}
+
+@Composable
+fun NavItem(icon: ImageVector, text: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(12.dp)
+    ) {
+        Icon(icon, null, tint = Color.White)
+        Spacer(Modifier.width(10.dp))
+        Text(text, color = Color.White)
     }
 }
 
 @Composable
 fun EmptyState(onImport: () -> Unit) {
-    var isDownloading by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
-    val animatedProgress by animateFloatAsState(targetValue = progress)
+    val animated = animateFloatAsState(progress)
 
-    LaunchedEffect(isDownloading) {
-        if (isDownloading) {
-            progress = 0f
-            while (progress < 1f) {
-                delay(50)
-                progress += 0.01f
-            }
-            delay(500)
-            isDownloading = false
+    LaunchedEffect(Unit) {
+        while (progress < 1f) {
+            delay(50)
+            progress += 0.01f
         }
     }
 
     Column(
-        modifier = Modifier.fillMaxSize(),
+        Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(Icons.Rounded.RocketLaunch, "", tint = AiriCyan, modifier = Modifier.size(80.dp))
+        Text("AIRI", color = Color.White)
         Spacer(Modifier.height(20.dp))
-        
-        val currentModel = ModelManager.getCurrent()
-        Text(
-            text = if (isDownloading) "جاري تجهيز AIRI..." else if (currentModel != null) "AIRI جاهزة للعمل" else "No Models Available", 
-            color = Color.White, 
-            fontSize = 18.sp, 
-            fontWeight = FontWeight.Medium
-        )
-        
-        Text(
-            text = if (isDownloading) "يتم الآن تحميل ملفات الذكاء الاصطناعي المحلية" else if (currentModel != null) "النموذج النشط: ${currentModel.name}" else "قم بتنزيل نموذج أو استيراده لبدء الدردشة", 
-            color = AiriTextSecondary, 
-            fontSize = 14.sp
-        )
-
-        Spacer(Modifier.height(30.dp))
-
-        if (isDownloading) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(250.dp)) {
-                LinearProgressIndicator(
-                    progress = animatedProgress,
-                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
-                    color = AiriCyan,
-                    backgroundColor = Color(0xFF1A1A1A)
-                )
-                Spacer(Modifier.height(10.dp))
-                Text("${(animatedProgress * 100).toInt()}%", color = AiriCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
-        } else {
-            Row {
-                Button(
-                    onClick = { isDownloading = true },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFFDDDDDD)),
-                    shape = RoundedCornerShape(25.dp),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
-                ) {
-                    Text("تنزيل النموذج", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.width(10.dp))
-                Button(
-                    onClick = onImport,
-                    colors = ButtonDefaults.buttonColors(backgroundColor = AiriPanelBg),
-                    shape = RoundedCornerShape(25.dp),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, AiriCyan)
-                ) {
-                    Text("استيراد نموذج", color = AiriCyan, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun NavItem(icon: ImageVector, label: String, textColor: Color = Color(0xFFAAAAAA), onClick: () -> Unit = {}) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).clickable { onClick() },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(icon, contentDescription = null, tint = textColor, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(15.dp))
-        Text(label, color = textColor, fontSize = 16.sp)
+        LinearProgressIndicator(progress = animated.value)
     }
 }
 
 @Composable
 fun ModelManagerScreen(onClose: () -> Unit, onImport: () -> Unit) {
-    val models = ModelRegistry.getModels()
-    Column(modifier = Modifier.fillMaxSize().background(AiriDarkBg).padding(20.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose) { Icon(Icons.Rounded.ArrowForward, "", tint = Color.White) }
-            Text("إدارة النماذج", color = Color.White, fontSize = 18.sp)
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = onImport) { Icon(Icons.Rounded.Add, "", tint = AiriCyan) }
-        }
-        Spacer(Modifier.height(20.dp))
-        if (models.isEmpty()) {
-            Text("لا توجد نماذج متوفرة حالياً", color = AiriTextSecondary, modifier = Modifier.align(Alignment.CenterHorizontally))
-        } else {
-            models.forEach { model ->
-                Card(
-                    backgroundColor = AiriPanelBg,
-                    shape = RoundedCornerShape(15.dp),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp).clickable { 
-                        ModelManager.load(model) { /* Handle success/fail */ }
-                    }
-                ) {
-                    Row(modifier = Modifier.padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Layers, "", tint = if (ModelManager.getCurrent() == model) AiriCyan else Color.White)
-                        Spacer(Modifier.width(15.dp))
-                        Column {
-                            Text(model.name, color = Color.White, fontWeight = FontWeight.Bold)
-                            Text("${model.source} - ${model.quantization}", color = AiriTextSecondary, fontSize = 12.sp)
-                        }
-                    }
-                }
-            }
-        }
+    Column(Modifier.fillMaxSize().padding(20.dp)) {
+        Text("Models", color = Color.White)
     }
 }
 
 @Composable
 fun SettingsScreen(onClose: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().background(AiriDarkBg).padding(20.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose) { Icon(Icons.Rounded.ArrowForward, "", tint = Color.White) }
-            Text("إعدادات أيري", color = Color.White, fontSize = 18.sp)
-        }
-        Spacer(Modifier.height(30.dp))
-        SettingsCard("المظهر", Icons.Rounded.DarkMode)
-        SettingsCard("اللغة", Icons.Rounded.Language)
-        SettingsCard("الإبلاغ عن خطأ برمجي", Icons.Rounded.BugReport)
-        SettingsCard("معلومات التطبيق", Icons.Rounded.Info)
-    }
-}
-
-@Composable
-fun SettingsCard(title: String, icon: ImageVector) {
-    Card(
-        backgroundColor = AiriPanelBg,
-        shape = RoundedCornerShape(15.dp),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(18.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(title, color = Color.White)
-            Icon(icon, "", tint = Color.White, modifier = Modifier.size(20.dp))
-        }
+    Column(Modifier.fillMaxSize().padding(20.dp)) {
+        Text("Settings", color = Color.White)
     }
 }

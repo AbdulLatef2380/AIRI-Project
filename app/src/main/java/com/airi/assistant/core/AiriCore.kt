@@ -9,11 +9,11 @@ import com.airi.assistant.tools.ToolRegistry
 import com.airi.assistant.tools.ToolScanner
 import com.airi.assistant.memory.ExperienceStore
 import com.airi.assistant.memory.repository.MemoryManager
-import com.airi.assistant.policy.PolicyEngine
 import com.airi.assistant.system.SystemControlManager
 import com.airi.assistant.voice.VoiceManager
 import com.airi.assistant.core.UnifiedCognitiveLoop
-import com.airi.assistant.data.InputSource
+import com.airi.assistant.agent.decision.PolicyEngine
+import com.airi.assistant.agent.execution.ExperienceStore
 import kotlinx.coroutines.*
 import com.airi.assistant.core.IntentRouter
 import kotlinx.coroutines.channels.Channel

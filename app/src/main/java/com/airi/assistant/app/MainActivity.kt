@@ -11,19 +11,26 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+
 import com.airi.assistant.ai.*
 import com.airi.assistant.tools.FileUtils
 import com.airi.assistant.tools.ModelDownloadManager
 import com.airi.assistant.ui.theme.AIRITheme
 import com.airi.assistant.ui.chat.AiriApp
 
+// ✅ imports الجديدة
+import com.airi.assistant.agent.decision.PolicyEngine
+import com.airi.assistant.world.WorldRiskProvider
+
 class MainActivity : ComponentActivity() {
 
     private lateinit var downloader: ModelDownloadManager
     private lateinit var llamaManager: LlamaManager
+
+    // ✅ Policy Engine مربوط بالـ world
+    private lateinit var policyEngine: PolicyEngine
 
     private val pickModelLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -47,7 +54,12 @@ class MainActivity : ComponentActivity() {
 
         downloader = ModelDownloadManager(this)
         llamaManager = LlamaManager(this)
-        
+
+        // ✅ تهيئة Policy Engine مع World
+        policyEngine = PolicyEngine(
+            riskProvider = WorldRiskProvider()
+        )
+
         // تهيئة نظام النماذج
         ModelManager.setLoader(ModelLoader(llamaManager))
 
@@ -55,7 +67,23 @@ class MainActivity : ComponentActivity() {
             AIRITheme {
                 AiriApp(
                     onImportModel = { pickModelLauncher.launch(arrayOf("*/*")) },
-                    onStartAiri = { checkOverlayPermission() }
+                    onStartAiri = { 
+                        // 🔥 مثال استخدام PolicyEngine قبل التشغيل
+                        val result = policyEngine.evaluate(
+                            intent = "system",
+                            action = "start_service"
+                        )
+
+                        if (result.isAllowed) {
+                            checkOverlayPermission()
+                        } else {
+                            Toast.makeText(
+                                this,
+                                "مرفوض: ${result.reason}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
                 )
             }
         }

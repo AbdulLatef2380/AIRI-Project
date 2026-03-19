@@ -4,10 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.airi.assistant.ai.LlamaManager
-import com.airi.assistant.router.IntentRouter
 import com.airi.assistant.tools.ToolRegistry
 import com.airi.assistant.tools.ToolScanner
-import com.airi.assistant.memory.ExperienceStore
 import com.airi.assistant.memory.repository.MemoryManager
 import com.airi.assistant.system.SystemControlManager
 import com.airi.assistant.voice.VoiceManager

@@ -3,6 +3,9 @@ package com.airi.assistant.core
 import java.security.MessageDigest
 import java.time.OffsetDateTime
 
+import com.airi.assistant.agent.decision.PolicyEngine
+import com.airi.assistant.agent.execution.ExperienceStore
+
 /**
  * AIRI Audit Manager - Implements an Immutable Audit Trail.
  * Each log entry is linked to the previous one via a SHA-256 hash.

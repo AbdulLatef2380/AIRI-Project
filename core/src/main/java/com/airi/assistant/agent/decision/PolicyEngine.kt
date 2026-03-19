@@ -1,18 +1,17 @@
 package com.airi.assistant.agent.decision
 
-import com.airi.assistant.world.RiskEstimator
-import com.airi.assistant.world.WorldState
 import java.time.OffsetDateTime
 
 /**
  * AIRI Policy Engine - The Single Source of Truth for decision making.
- * Implements Fail-Closed, Versioning, and Cold Start protocols.
- * Updated to include World Model Risk Estimation.
+ * Clean Architecture version (NO direct dependency on world module).
  */
-class PolicyEngine {
+class PolicyEngine(
+    private val riskProvider: RiskProvider? = null
+) {
 
     companion object {
-        const val POLICY_VERSION = "1.0.4"
+        const val POLICY_VERSION = "1.0.5"
         const val EFFECTIVE_FROM = "2026-02-19T00:00:00Z"
     }
 
@@ -33,8 +32,6 @@ class PolicyEngine {
         val constraints: Map<String, String> = emptyMap(),
         val riskLevel: String = "UNKNOWN"
     )
-
-    private val riskEstimator = RiskEstimator()
 
     // Default policies (The "Constitution" of AIRI)
     private val policies = mutableListOf(
@@ -67,18 +64,18 @@ class PolicyEngine {
     )
 
     /**
-     * Evaluates if an intent and action are allowed under current policies and world state.
-     * Implements Fail-Closed: Any exception or missing rule results in DENY.
+     * Evaluates if an intent and action are allowed.
+     * Implements Fail-Closed strategy.
      */
-    fun evaluate(intent: String, action: String, worldState: WorldState? = null): EvaluationResult {
+    fun evaluate(intent: String, action: String): EvaluationResult {
         return try {
             val rule = policies.find { it.intent == intent && it.action == action }
-            
+
             // 1. Basic Policy Check
             if (rule == null) {
                 return EvaluationResult(
                     isAllowed = false,
-                    reason = "No policy defined for this intent/action pair. Fail-Closed triggered.",
+                    reason = "No policy defined. Fail-Closed triggered.",
                     finalAction = action
                 )
             }
@@ -92,36 +89,48 @@ class PolicyEngine {
                 )
             }
 
-            // 2. World Model Risk Check (If state is provided)
-            var riskReason = ""
+            // 2. Risk Check عبر abstraction
             var riskLevel = "LOW"
-            if (worldState != null) {
-                val assessment = riskEstimator.estimate(action, worldState)
-                riskLevel = assessment.level.name
-                if (!assessment.canProceed) {
+            var riskReason = ""
+
+            if (riskProvider != null) {
+                val assessment = riskProvider.estimate(action)
+
+                riskLevel = when {
+                    assessment.isCritical -> "HIGH"
+                    assessment.riskScore > 0.5f -> "MEDIUM"
+                    else -> "LOW"
+                }
+
+                if (assessment.isCritical) {
                     return EvaluationResult(
                         isAllowed = false,
-                        reason = "Risk Policy Violation: ${assessment.reason}",
+                        reason = "Risk Policy Violation",
                         finalAction = action,
                         riskLevel = riskLevel
                     )
                 }
-                riskReason = assessment.reason
+
+                riskReason = "RiskScore=${assessment.riskScore}"
             }
 
             // 3. Final Approval
-            EvaluationResult(
+            return EvaluationResult(
                 isAllowed = true,
-                reason = if (riskReason.isNotEmpty()) "Allowed ($riskReason)" else rule.reason,
+                reason = if (riskReason.isNotEmpty()) {
+                    "Allowed ($riskReason)"
+                } else {
+                    rule.reason
+                },
                 finalAction = action,
                 constraints = rule.constraints,
                 riskLevel = riskLevel
             )
 
         } catch (e: Exception) {
-            EvaluationResult(
+            return EvaluationResult(
                 isAllowed = false,
-                reason = "Policy Engine Internal Error: ${e.message}. Fail-Closed triggered.",
+                reason = "Internal Error: ${e.message}. Fail-Closed triggered.",
                 finalAction = action
             )
         }

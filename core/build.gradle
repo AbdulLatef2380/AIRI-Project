@@ -25,6 +25,4 @@ dependencies {
     api "org.jetbrains.kotlin:kotlin-stdlib"
     api "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
 
-    // ✅ الحل الحاسم
-    implementation project(":app")
 }

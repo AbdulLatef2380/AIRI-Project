@@ -15,6 +15,7 @@ import com.airi.assistant.voice.VoiceManager
 import com.airi.assistant.core.UnifiedCognitiveLoop
 import com.airi.assistant.data.InputSource
 import kotlinx.coroutines.*
+import com.airi.assistant.core.IntentRouter
 import kotlinx.coroutines.channels.Channel
 
 /**

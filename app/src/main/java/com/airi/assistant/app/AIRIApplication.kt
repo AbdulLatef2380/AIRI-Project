@@ -7,6 +7,8 @@ import com.airi.assistant.agent.learning.InteractionTracker
 import com.airi.assistant.memory.repository.ContextEngine
 import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.core.ServiceLocator
+// تأكد من استيراد المسار الصحيح لـ ExperienceStore
+import com.airi.assistant.core.experience.ExperienceStore 
 
 class AIRIApplication : Application() {
 
@@ -23,7 +25,6 @@ class AIRIApplication : Application() {
         ContextEngine.initialize(this)
 
         // 🧬 تهيئة طبقة التعلم المعزز (Reinforcement Learning Layer)
-        // نقوم بجلب قاعدة البيانات وربطها بمحركات التتبع والتقييم
         val database = AiriDatabase.getDatabase(this)
         
         // تتبع التفاعلات (عرض، قبول، تجاهل)
@@ -31,5 +32,8 @@ class AIRIApplication : Application() {
         
         // محرك حساب النقاط (الذي يقرر جودة الاقتراح لاحقاً)
         SuggestionScoreEngine.initialize(database)
+
+        // 📦 تهيئة مخزن الخبرات (تخزين الدروس المستفادة من التفاعلات)
+        ExperienceStore.init(applicationContext)
     }
 }

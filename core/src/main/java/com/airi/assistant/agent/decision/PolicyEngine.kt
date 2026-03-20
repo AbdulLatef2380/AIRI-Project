@@ -3,15 +3,14 @@ package com.airi.assistant.agent.decision
 import java.time.OffsetDateTime
 
 /**
- * AIRI Policy Engine - The Single Source of Truth for decision making.
- * Clean Architecture version (NO direct dependency on world module).
+ * AIRI Policy Engine - Stable Build Version (Fixed Unreachable Code)
  */
 class PolicyEngine(
     private val riskProvider: RiskProvider? = null
 ) {
 
     companion object {
-        const val POLICY_VERSION = "1.0.5"
+        const val POLICY_VERSION = "1.0.6"
         const val EFFECTIVE_FROM = "2026-02-19T00:00:00Z"
     }
 
@@ -33,7 +32,6 @@ class PolicyEngine(
         val riskLevel: String = "UNKNOWN"
     )
 
-    // Default policies (The "Constitution" of AIRI)
     private val policies = mutableListOf(
         PolicyRule(
             intent = "system",
@@ -64,76 +62,80 @@ class PolicyEngine(
     )
 
     /**
-     * Evaluates if an intent and action are allowed.
-     * Implements Fail-Closed strategy.
+     * Fixed evaluation (NO early returns inside try)
      */
     fun evaluate(intent: String, action: String): EvaluationResult {
-        return try {
+
+        var result: EvaluationResult
+
+        try {
             val rule = policies.find { it.intent == intent && it.action == action }
 
-            // 1. Basic Policy Check
             if (rule == null) {
-                return EvaluationResult(
+                result = EvaluationResult(
                     isAllowed = false,
                     reason = "No policy defined. Fail-Closed triggered.",
                     finalAction = action
                 )
-            }
-
-            if (!rule.allow) {
-                return EvaluationResult(
+            } else if (!rule.allow) {
+                result = EvaluationResult(
                     isAllowed = false,
                     reason = rule.reason,
                     finalAction = action,
                     constraints = rule.constraints
                 )
-            }
+            } else {
 
-            // 2. Risk Check عبر abstraction
-            var riskLevel = "LOW"
-            var riskReason = ""
+                var riskLevel = "LOW"
+                var riskReason = ""
 
-            if (riskProvider != null) {
-                val assessment = riskProvider.estimate(action)
+                if (riskProvider != null) {
+                    val assessment = riskProvider.estimate(action)
 
-                riskLevel = when {
-                    assessment.isCritical -> "HIGH"
-                    assessment.riskScore > 0.5f -> "MEDIUM"
-                    else -> "LOW"
-                }
+                    riskLevel = when {
+                        assessment.isCritical -> "HIGH"
+                        assessment.riskScore > 0.5f -> "MEDIUM"
+                        else -> "LOW"
+                    }
 
-                if (assessment.isCritical) {
-                    return EvaluationResult(
-                        isAllowed = false,
-                        reason = "Risk Policy Violation",
+                    if (assessment.isCritical) {
+                        result = EvaluationResult(
+                            isAllowed = false,
+                            reason = "Risk Policy Violation",
+                            finalAction = action,
+                            riskLevel = riskLevel
+                        )
+                    } else {
+                        riskReason = "RiskScore=${assessment.riskScore}"
+
+                        result = EvaluationResult(
+                            isAllowed = true,
+                            reason = "Allowed ($riskReason)",
+                            finalAction = action,
+                            constraints = rule.constraints,
+                            riskLevel = riskLevel
+                        )
+                    }
+                } else {
+                    result = EvaluationResult(
+                        isAllowed = true,
+                        reason = rule.reason,
                         finalAction = action,
+                        constraints = rule.constraints,
                         riskLevel = riskLevel
                     )
                 }
-
-                riskReason = "RiskScore=${assessment.riskScore}"
             }
 
-            // 3. Final Approval
-            return EvaluationResult(
-                isAllowed = true,
-                reason = if (riskReason.isNotEmpty()) {
-                    "Allowed ($riskReason)"
-                } else {
-                    rule.reason
-                },
-                finalAction = action,
-                constraints = rule.constraints,
-                riskLevel = riskLevel
-            )
-
         } catch (e: Exception) {
-            return EvaluationResult(
+            result = EvaluationResult(
                 isAllowed = false,
                 reason = "Internal Error: ${e.message}. Fail-Closed triggered.",
                 finalAction = action
             )
         }
+
+        return result
     }
 
     fun updatePolicy(rule: PolicyRule) {

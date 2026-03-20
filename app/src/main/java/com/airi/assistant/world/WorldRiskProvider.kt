@@ -3,18 +3,24 @@ package com.airi.assistant.world
 import com.airi.assistant.agent.decision.RiskProvider
 import com.airi.assistant.agent.decision.RiskResult
 
+/**
+ * SAFE implementation (no external dependencies)
+ */
 class WorldRiskProvider : RiskProvider {
 
-    private val riskEstimator = RiskEstimator()
-
     override fun estimate(action: String): RiskResult {
-        val worldState = WorldStateManager.getCurrentState()
 
-        val assessment = riskEstimator.estimate(action, worldState)
+        // 🔥 Rule-based fallback بدل AI (مؤقت)
+        val riskScore = when (action) {
+            "shutdown" -> 0.9f
+            "delete_data" -> 0.8f
+            "start_service" -> 0.3f
+            else -> 0.2f
+        }
 
         return RiskResult(
-            riskScore = assessment.score,
-            isCritical = !assessment.canProceed
+            riskScore = riskScore,
+            isCritical = riskScore > 0.85f
         )
     }
 }

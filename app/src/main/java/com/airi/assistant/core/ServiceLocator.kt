@@ -7,21 +7,20 @@ import com.airi.assistant.tools.ToolRegistry
 
 object ServiceLocator {
 
-    private lateinit var appContext: Context
+    private var appContext: Context? = null
 
     fun init(context: Context) {
         appContext = context.applicationContext
     }
 
     val memoryManager: MemoryManager by lazy {
-        MemoryManager(appContext)
+        MemoryManager(requireNotNull(appContext))
     }
 
     val worldStateManager: WorldStateManager by lazy {
-        WorldStateManager(appContext)
+        WorldStateManager(requireNotNull(appContext))
     }
 
-    val toolRegistry: ToolRegistry by lazy {
-        ToolRegistry
-    }
+    val toolRegistry: ToolRegistry
+        get() = ToolRegistry
 }

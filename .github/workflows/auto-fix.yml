@@ -1,0 +1,39 @@
+name: AUTO FIX AIRI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  fix-loop:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Grant permission
+        run: chmod +x ./gradlew
+
+      - name: Build (capture errors)
+        id: build
+        run: |
+          ./gradlew assembleDebug > build.log 2>&1 || true
+
+      - name: Send to Claude
+        run: |
+          python3 scripts/fix_with_claude.py
+
+      - name: Commit Fix
+        run: |
+          git config --global user.name "AI Fixer"
+          git config --global user.email "ai@bot.com"
+          git add .
+          git commit -m "auto-fix توسط AI" || echo "No changes"
+          git push

@@ -1,9 +1,10 @@
 package com.airi.assistant.agent.decision
 
-import java.time.OffsetDateTime
+import java.text.SimpleDateFormat
+import java.util.*
 
 /**
- * AIRI Policy Engine - Stable Build Version (Fixed Unreachable Code)
+ * AIRI Policy Engine - Stable Build Version (API-safe)
  */
 class PolicyEngine(
     private val riskProvider: RiskProvider? = null
@@ -12,6 +13,13 @@ class PolicyEngine(
     companion object {
         const val POLICY_VERSION = "1.0.6"
         const val EFFECTIVE_FROM = "2026-02-19T00:00:00Z"
+
+        private fun currentTimestamp(): String {
+            return SimpleDateFormat(
+                "yyyy-MM-dd'T'HH:mm:ss",
+                Locale.getDefault()
+            ).format(Date())
+        }
     }
 
     data class PolicyRule(
@@ -27,7 +35,7 @@ class PolicyEngine(
         val reason: String,
         val finalAction: String,
         val policyVersion: String = POLICY_VERSION,
-        val timestamp: String = OffsetDateTime.now().toString(),
+        val timestamp: String = currentTimestamp(),
         val constraints: Map<String, String> = emptyMap(),
         val riskLevel: String = "UNKNOWN"
     )
@@ -62,23 +70,21 @@ class PolicyEngine(
     )
 
     /**
-     * Fixed evaluation (NO early returns inside try)
+     * Evaluation engine (safe, no API violations)
      */
     fun evaluate(intent: String, action: String): EvaluationResult {
 
-        var result: EvaluationResult
-
-        try {
+        return try {
             val rule = policies.find { it.intent == intent && it.action == action }
 
             if (rule == null) {
-                result = EvaluationResult(
+                EvaluationResult(
                     isAllowed = false,
                     reason = "No policy defined. Fail-Closed triggered.",
                     finalAction = action
                 )
             } else if (!rule.allow) {
-                result = EvaluationResult(
+                EvaluationResult(
                     isAllowed = false,
                     reason = rule.reason,
                     finalAction = action,
@@ -87,7 +93,6 @@ class PolicyEngine(
             } else {
 
                 var riskLevel = "LOW"
-                var riskReason = ""
 
                 if (riskProvider != null) {
                     val assessment = riskProvider.estimate(action)
@@ -99,25 +104,23 @@ class PolicyEngine(
                     }
 
                     if (assessment.isCritical) {
-                        result = EvaluationResult(
+                        EvaluationResult(
                             isAllowed = false,
                             reason = "Risk Policy Violation",
                             finalAction = action,
                             riskLevel = riskLevel
                         )
                     } else {
-                        riskReason = "RiskScore=${assessment.riskScore}"
-
-                        result = EvaluationResult(
+                        EvaluationResult(
                             isAllowed = true,
-                            reason = "Allowed ($riskReason)",
+                            reason = "Allowed (RiskScore=${assessment.riskScore})",
                             finalAction = action,
                             constraints = rule.constraints,
                             riskLevel = riskLevel
                         )
                     }
                 } else {
-                    result = EvaluationResult(
+                    EvaluationResult(
                         isAllowed = true,
                         reason = rule.reason,
                         finalAction = action,
@@ -128,14 +131,12 @@ class PolicyEngine(
             }
 
         } catch (e: Exception) {
-            result = EvaluationResult(
+            EvaluationResult(
                 isAllowed = false,
                 reason = "Internal Error: ${e.message}. Fail-Closed triggered.",
                 finalAction = action
             )
         }
-
-        return result
     }
 
     fun updatePolicy(rule: PolicyRule) {

@@ -60,7 +60,7 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion '1.5.13' // ✔️ متوافق
+        kotlinCompilerExtensionVersion '1.9.23' // ✔️ متوافق
     }
 
     kapt {

@@ -3,6 +3,7 @@ package com.airi.assistant.core
 /**
  * AIRI Core - The Central Event-Driven Bus.
  * Refactored for core package: No Android imports, No Context, No external layer dependencies.
+ * Updated to match the new UnifiedCognitiveLoop API.
  */
 object AiriCore {
 
@@ -35,8 +36,14 @@ object AiriCore {
 
     private suspend fun handleEvent(event: AiriEvent) {
         when (event) {
-            is AiriEvent.UserInput -> cognitiveLoop.process(event.text)
-            is AiriEvent.VoiceInput -> cognitiveLoop.process(event.text)
+            is AiriEvent.UserInput -> {
+                val input = BrainInput(text = event.text)
+                cognitiveLoop.process(input, llmJson = "{}")
+            }
+            is AiriEvent.VoiceInput -> {
+                val input = BrainInput(text = event.text)
+                cognitiveLoop.process(input, llmJson = "{}")
+            }
             is AiriEvent.ScreenContext -> { /* Handle screen context */ }
             is AiriEvent.UIRequest -> { /* Handle UI request */ }
             is AiriEvent.RefreshTools -> { /* Refresh tools */ }

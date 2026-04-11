@@ -22,7 +22,8 @@ import com.airi.assistant.memory.entity.UserPreference
         ContextCacheEntity::class,
         UsageStatEntity::class
     ],
-    version = 1
+    version = 1,
+    exportSchema = false // ✔️ إصلاح التحذير
 )
 abstract class AiriDatabase : RoomDatabase() {
 

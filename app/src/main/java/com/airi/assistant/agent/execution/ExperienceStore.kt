@@ -4,17 +4,10 @@ import android.content.Context
 import android.util.Log
 import androidx.room.*
 
-/**
- * مخزن الخبرات (Experience Store)
- * قاعدة بيانات محلية لتخزين سجلات التنفيذ والتعلم منها.
- */
 object ExperienceStore {
     private const val TAG = "ExperienceStore"
     private var database: ExperienceDatabase? = null
 
-    /**
-     * تهيئة قاعدة البيانات
-     */
     fun init(context: Context) {
         if (database == null) {
             database = Room.databaseBuilder(
@@ -26,25 +19,18 @@ object ExperienceStore {
         }
     }
 
-    /**
-     * حفظ سجل تنفيذ جديد
-     */
     suspend fun saveRecord(record: ExecutionRecord) {
         database?.executionDao()?.insert(record)
     }
 
-    /**
-     * الحصول على أفضل الخبرات السابقة لغرض معين (Similarity Search بسيط)
-     */
     suspend fun getBestExperiences(goal: String, limit: Int = 3): List<ExecutionRecord> {
-        // حالياً نقوم بجلب أعلى السجلات تقييماً (Score)
-        // سيتم تطويرها لاحقاً لاستخدام الـ Vector Search
         return database?.executionDao()?.getTopRated(limit) ?: emptyList()
     }
 }
 
 @Dao
 interface ExecutionDao {
+
     @Insert
     suspend fun insert(record: ExecutionRecord)
 
@@ -55,7 +41,11 @@ interface ExecutionDao {
     suspend fun findSimilar(goal: String, limit: Int): List<ExecutionRecord>
 }
 
-@Database(entities = [ExecutionRecord::class], version = 1)
+@Database(
+    entities = [ExecutionRecord::class],
+    version = 1,
+    exportSchema = false // ✔️ إصلاح التحذير
+)
 abstract class ExperienceDatabase : RoomDatabase() {
     abstract fun executionDao(): ExecutionDao
 }

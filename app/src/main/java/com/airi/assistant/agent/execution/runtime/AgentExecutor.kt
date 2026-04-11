@@ -2,6 +2,7 @@ package com.airi.assistant.agent.execution.runtime
 
 import com.airi.assistant.agent.execution.command.CommandRouter
 import com.airi.assistant.agent.planning.ActionPlan
+import com.airi.assistant.agent.planning.PlanStep
 import kotlinx.coroutines.*
 
 object AgentExecutor {
@@ -21,7 +22,6 @@ object AgentExecutor {
         // التحقق من بوابة التأكيد (Confirmation Gate) قبل البدء
         if (plan.requiresConfirmation) {
             context.state = ExecutionState.WAITING_CONFIRMATION
-            // توضيح: هنا يتم استدعاء واجهة المستخدم Overlay لطلب الإذن
             return
         }
 
@@ -39,7 +39,6 @@ object AgentExecutor {
         for ((index, step) in context.plan.steps.withIndex()) {
             context.currentStepIndex = index
 
-            // تنفيذ الخطوة فعلياً عبر الطبقات العميقة
             val result = executeStep(step)
 
             context.stepHistory.add(result)
@@ -54,18 +53,15 @@ object AgentExecutor {
     }
 
     /**
-     * 🛠️ التعديل الجديد: الربط مع CommandRouter
-     * لم نعد نستخدم "when" اليدوية، بل نعتمد على نظام الأوامر المركزي
+     * التنفيذ الفعلي للخطوة باستخدام CommandRouter
      */
-    private suspend fun executeStep(step: String): StepResult {
-        // تأخير بسيط لضمان استقرار واجهة النظام بين العمليات
+    private suspend fun executeStep(step: PlanStep): StepResult {
         delay(150)
 
-        // إرسال الأمر للـ Router الذي بدوره يكلم الـ Accessibility Bridge
         val result = CommandRouter.execute(step)
 
         return StepResult(
-            stepName = step,
+            stepName = step.id, // ✔️ استخدام id بدل الكائن
             success = result.success,
             message = result.message
         )
@@ -76,27 +72,25 @@ object AgentExecutor {
      */
     private fun handleFailure(context: ExecutionContext) {
         context.state = ExecutionState.ROLLING_BACK
-        
+
         rollback(context)
 
         context.state = ExecutionState.FAILED
     }
 
     /**
-     * تنفيذ الخطوات العكسية لإعادة النظام لحالته الأصلية
+     * تنفيذ rollback
      */
     private fun rollback(context: ExecutionContext) {
-        // العكس التاريخي: نبدأ من آخر خطوة نجحت ونعود للخلف
         for (result in context.stepHistory.reversed()) {
             if (result.success) {
                 println("AIRI_AGENT: Rolling back -> ${result.stepName}")
-                // هنا يمكن إضافة logic خاص بكل خطوة عكسية مستقبلاً
             }
         }
     }
 
     /**
-     * للحصول على حالة التنفيذ الحالية (مفيد للـ UI)
+     * حالة التنفيذ الحالية
      */
     fun getCurrentStatus(): ExecutionState? = currentContext?.state
 }

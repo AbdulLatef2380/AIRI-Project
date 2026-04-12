@@ -3,10 +3,16 @@ package com.airi.assistant.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import com.airi.assistant.ui.components.StarBackground
+import com.airi.assistant.ui.screens.AppInfoScreen
 import com.airi.assistant.ui.screens.ChatScreen
+import com.airi.assistant.ui.screens.HistoryScreen
 import com.airi.assistant.ui.screens.LoginScreen
+import com.airi.assistant.ui.screens.ModelSettingsScreen
+import com.airi.assistant.ui.screens.SettingsScreen
+import com.airi.assistant.ui.screens.TemplatesScreen
 import com.airi.assistant.ui.screens.WelcomeScreen
 import com.airi.assistant.ui.theme.AIRITheme
 
@@ -16,7 +22,12 @@ import com.airi.assistant.ui.theme.AIRITheme
 enum class Screen {
     WELCOME,
     LOGIN,
-    CHAT
+    CHAT,
+    TEMPLATES,
+    MODEL_SETTINGS,
+    SETTINGS,
+    HISTORY,
+    APP_INFO
 }
 
 /**
@@ -26,14 +37,12 @@ enum class Screen {
  */
 @Composable
 fun AiriApp() {
-    var currentScreen by remember { mutableStateOf(Screen.WELCOME) }
+    var currentScreen by rememberSaveable { mutableStateOf(Screen.WELCOME) }
 
     AIRITheme {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Star background runs behind all screens
             StarBackground()
 
-            // Current screen
             when (currentScreen) {
                 Screen.WELCOME -> {
                     WelcomeScreen(
@@ -46,7 +55,38 @@ fun AiriApp() {
                     )
                 }
                 Screen.CHAT -> {
-                    ChatScreen()
+                    ChatScreen(
+                        onNavigate = { currentScreen = it },
+                        onLogout = { currentScreen = Screen.LOGIN }
+                    )
+                }
+                Screen.TEMPLATES -> {
+                    TemplatesScreen(
+                        onBack = { currentScreen = Screen.CHAT },
+                        onOpenModelSettings = { currentScreen = Screen.MODEL_SETTINGS }
+                    )
+                }
+                Screen.MODEL_SETTINGS -> {
+                    ModelSettingsScreen(
+                        onBack = { currentScreen = Screen.CHAT },
+                        onOpenAppInfo = { currentScreen = Screen.APP_INFO }
+                    )
+                }
+                Screen.SETTINGS -> {
+                    SettingsScreen(
+                        onBack = { currentScreen = Screen.CHAT },
+                        onOpenAppInfo = { currentScreen = Screen.APP_INFO }
+                    )
+                }
+                Screen.HISTORY -> {
+                    HistoryScreen(
+                        onBack = { currentScreen = Screen.CHAT }
+                    )
+                }
+                Screen.APP_INFO -> {
+                    AppInfoScreen(
+                        onBack = { currentScreen = Screen.CHAT }
+                    )
                 }
             }
         }

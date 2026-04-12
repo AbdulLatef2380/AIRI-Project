@@ -86,9 +86,10 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.gson)
 
-    // 🔥 Firebase (Auth + Google)
+    // Firebase Auth + Google
     implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
     implementation("com.google.firebase:firebase-auth")
 
     // Google Sign-In
     implementation("com.google.android.gms:play-services-auth:20.7.0")
+}

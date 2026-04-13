@@ -58,7 +58,7 @@ fun AiriApp() {
                                         }
                                         onResult(null)
                                     } else {
-                                        onResult(task.exception?.localizedMessage ?: "تعذر تسجيل الدخول")
+                                        onResult(task.exception?.localizedMessage ?: "فشل تسجيل الدخول")
                                     }
                                 }
                         }

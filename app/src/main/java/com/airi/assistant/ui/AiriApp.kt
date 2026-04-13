@@ -49,16 +49,29 @@ fun AiriApp() {
                 composable(AiriRoute.LOGIN) {
                     LoginScreen(
                         onLogin = { email, password, onResult ->
+                            // المحاولة الأولى: تسجيل الدخول
                             firebaseAuth.signInWithEmailAndPassword(email, password)
-                                .addOnCompleteListener { task ->
-                                    if (task.isSuccessful) {
+                                .addOnCompleteListener { loginTask ->
+                                    if (loginTask.isSuccessful) {
                                         navController.navigate(AiriRoute.CHAT) {
                                             popUpTo(AiriRoute.WELCOME) { inclusive = true }
                                             launchSingleTop = true
                                         }
                                         onResult(null)
                                     } else {
-                                        onResult(task.exception?.localizedMessage ?: "فشل تسجيل الدخول")
+                                        // إذا فشل تسجيل الدخول (مثلاً الحساب غير موجود) -> محاولة إنشاء حساب تلقائياً
+                                        firebaseAuth.createUserWithEmailAndPassword(email, password)
+                                            .addOnCompleteListener { registerTask ->
+                                                if (registerTask.isSuccessful) {
+                                                    navController.navigate(AiriRoute.CHAT) {
+                                                        popUpTo(AiriRoute.WELCOME) { inclusive = true }
+                                                        launchSingleTop = true
+                                                    }
+                                                    onResult(null)
+                                                } else {
+                                                    onResult(registerTask.exception?.localizedMessage ?: "فشل المصادقة")
+                                                }
+                                            }
                                     }
                                 }
                         }

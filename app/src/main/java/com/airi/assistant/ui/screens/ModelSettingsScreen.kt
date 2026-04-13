@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -14,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.airi.assistant.ai.ModelInfo
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.ui.viewmodel.ModelUiState
 
@@ -57,13 +59,13 @@ fun ModelSettingsScreen(
         ) {
             item {
                 Text(
-                    "Choose a local GGUF model. Imported files are copied into app storage, saved in preferences, and activated through the existing inference layer.",
+                    "Import GGUF files, keep them in a local registry, and switch between saved models through the real inference loader.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             item {
-                ImportedModelCard(
+                ImportModelCard(
                     state = modelState,
                     onPickModel = { modelPicker.launch("*/*") }
                 )
@@ -76,27 +78,52 @@ fun ModelSettingsScreen(
                     onActivate = { viewModel.activateDownloadedModel() }
                 )
             }
+
+            item {
+                Text(
+                    "Local Models",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            if (modelState.availableModels.isEmpty()) {
+                item {
+                    EmptyModelRegistryCard()
+                }
+            } else {
+                items(
+                    items = modelState.availableModels,
+                    key = { it.id }
+                ) { model ->
+                    RegistryModelCard(
+                        model = model,
+                        state = modelState,
+                        onActivate = { viewModel.selectModel(model.id) }
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-fun ImportedModelCard(
+fun ImportModelCard(
     state: ModelUiState,
     onPickModel: () -> Unit
 ) {
     ModelCard(
         icon = "L",
-        title = if (state.selectedModelPath.isBlank()) "Local GGUF model" else state.selectedModelName,
-        subtitle = if (state.selectedModelPath.isBlank()) "No local model selected" else "${state.selectedModelSize.toReadableSize()} • ${state.selectedModelPath}",
+        title = "Add local GGUF model",
+        subtitle = "Choose a .gguf file from Android storage and save it to the local registry.",
         status = when {
             state.isModelLoading -> "Loading"
-            state.isModelReady -> "Active"
-            state.selectedModelPath.isNotBlank() -> "Not active"
             else -> "Import"
         },
         error = state.loadError,
-        actionText = if (state.selectedModelPath.isBlank()) "Import .gguf" else "Change model",
+        actionText = "Import .gguf",
+        actionEnabled = !state.isModelLoading,
         onAction = onPickModel
     )
 }
@@ -123,11 +150,56 @@ fun DownloadedModelCard(
             state.downloadedModelAvailable -> "Activate"
             else -> "Download"
         },
-        actionEnabled = !isDownloadedModelActive,
+        actionEnabled = !isDownloadedModelActive && !state.isModelLoading,
         onAction = {
             if (state.downloadedModelAvailable) onActivate() else onDownload()
         }
     )
+}
+
+@Composable
+fun RegistryModelCard(
+    model: ModelInfo,
+    state: ModelUiState,
+    onActivate: () -> Unit
+) {
+    val isActive = state.isModelReady && state.selectedModelId == model.id
+    val isLoadingThisModel = state.isModelLoading && state.selectedModelId == model.id
+    ModelCard(
+        icon = model.type.firstOrNull()?.uppercase() ?: "M",
+        title = model.name,
+        subtitle = "${model.size.toReadableSize()} • ${model.quantization} • ${model.type} • ${model.path}",
+        status = when {
+            isLoadingThisModel -> "Loading"
+            isActive -> "Active"
+            else -> "Saved"
+        },
+        error = null,
+        actionText = when {
+            isActive -> "Active"
+            isLoadingThisModel -> "Loading"
+            else -> "Activate"
+        },
+        actionEnabled = !isActive && !state.isModelLoading,
+        onAction = onActivate
+    )
+}
+
+@Composable
+fun EmptyModelRegistryCard() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        tonalElevation = 2.dp
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("No saved local models yet", fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text("Import a GGUF file or download the default model to add it to the registry.")
+        }
+    }
 }
 
 @Composable

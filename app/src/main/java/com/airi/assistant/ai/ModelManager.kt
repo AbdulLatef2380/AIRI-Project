@@ -8,8 +8,8 @@ object ModelManager {
         loader = l
     }
 
-    fun load(model: ModelInfo, onReady: (Boolean) -> Unit) {
-        loader?.loadModel(model) { success ->
+    fun load(model: ModelInfo, onProgress: (Int) -> Unit = {}, onReady: (Boolean) -> Unit) {
+        loader?.loadModel(model, onProgress) { success ->
             if (success) {
                 ModelRegistry.addModel(model)
                 currentModel = model
@@ -18,11 +18,12 @@ object ModelManager {
         } ?: onReady(false)
     }
 
-    fun getCurrent(): ModelInfo? {
-        return currentModel
+    fun unload() {
+        loader?.unload()
+        currentModel = null
     }
 
-    fun getAllModels(): List<ModelInfo> {
-        return ModelRegistry.getAll()
-    }
+    fun getCurrent(): ModelInfo? = currentModel
+
+    fun getAllModels(): List<ModelInfo> = ModelRegistry.getAll()
 }

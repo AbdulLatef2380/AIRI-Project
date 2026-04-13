@@ -9,35 +9,54 @@ import java.io.File
 class LlamaManager(private val context: Context) {
     private var isLoaded = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    
+
     private val memoryManager = MemoryManager(context)
     private val chatHistory = mutableListOf<ChatMessage>()
-    private val MAX_HISTORY = 10 
+    private val MAX_HISTORY = 10
 
-    fun loadModel(path: String, onReady: (Boolean) -> Unit) {
+    fun loadModel(path: String, onProgress: (Int) -> Unit = {}, onReady: (Boolean) -> Unit) {
         val modelFile = File(path)
         if (!modelFile.exists()) {
             onReady(false)
             return
         }
-        
-        scope.launch {
-            val result = LlamaNative.loadModel(modelFile.absolutePath)
-            isLoaded = (result == "Success")
-            
-            if (isLoaded) {
-                val lastMessages = memoryManager.getRecentMessages(MAX_HISTORY)
-                chatHistory.clear()
-                chatHistory.addAll(lastMessages.reversed()) 
-            }
 
-            withContext(Dispatchers.Main) { onReady(isLoaded) }
+        scope.launch {
+            isLoaded = false
+            chatHistory.clear()
+
+            try {
+                LlamaNative.loadModelWithProgress(
+                    modelFile.absolutePath,
+                    object : LlamaNative.ProgressCallback {
+                        override fun onProgress(percent: Int) {
+                            scope.launch(Dispatchers.Main) { onProgress(percent) }
+                        }
+                    }
+                )
+                isLoaded = true
+                restoreHistory()
+                withContext(Dispatchers.Main) { onReady(true) }
+            } catch (e: UnsatisfiedLinkError) {
+                val result = runCatching { LlamaNative.loadModel(modelFile.absolutePath) }.getOrElse { "Error" }
+                isLoaded = (result == "Success")
+                if (isLoaded) restoreHistory()
+                withContext(Dispatchers.Main) { onReady(isLoaded) }
+            } catch (e: Exception) {
+                isLoaded = false
+                withContext(Dispatchers.Main) { onReady(false) }
+            }
         }
+    }
+
+    fun unloadModel() {
+        isLoaded = false
+        chatHistory.clear()
     }
 
     fun generate(prompt: String, onResult: (String) -> Unit) {
         if (!isLoaded || ModelManager.getCurrent() == null) {
-            onResult("المحرك غير مفعل أو لم يتم اختيار نموذج")
+            onResult("Select and activate a local model before sending.")
             return
         }
 
@@ -48,7 +67,7 @@ class LlamaManager(private val context: Context) {
         scope.launch {
             val fullPrompt = buildChatPrompt()
             val response = LlamaNative.generateResponse(fullPrompt)
-            
+
             val assistantMsg = ChatMessage(role = "assistant", content = response)
             chatHistory.add(assistantMsg)
             memoryManager.recordInteraction(assistantMsg.role, assistantMsg.content)
@@ -62,9 +81,6 @@ class LlamaManager(private val context: Context) {
         }
     }
 
-    /**
-     * توليد الرد بشكل متدفق (Streaming)
-     */
     fun generateStream(prompt: String, onToken: (String) -> Unit, onComplete: (String) -> Unit) {
         if (!isLoaded || ModelManager.getCurrent() == null) {
             onToken("المحرك غير مفعل")
@@ -79,12 +95,12 @@ class LlamaManager(private val context: Context) {
         scope.launch {
             val fullPrompt = buildChatPrompt()
             val fullResponse = StringBuilder()
-            
+
             LlamaNative.generateStream(fullPrompt) { token ->
                 fullResponse.append(token)
                 scope.launch(Dispatchers.Main) { onToken(token) }
             }
-            
+
             val assistantMsg = ChatMessage(role = "assistant", content = fullResponse.toString())
             chatHistory.add(assistantMsg)
             memoryManager.recordInteraction(assistantMsg.role, assistantMsg.content)
@@ -98,9 +114,15 @@ class LlamaManager(private val context: Context) {
         }
     }
 
+    private suspend fun restoreHistory() {
+        val lastMessages = memoryManager.getRecentMessages(MAX_HISTORY)
+        chatHistory.clear()
+        chatHistory.addAll(lastMessages.reversed())
+    }
+
     private fun buildChatPrompt(): String {
         val sb = StringBuilder()
-        
+
         sb.append("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n")
         sb.append("""
             أنت AIRI، المساعد الذكي المتطور بنظام Android.
@@ -119,7 +141,7 @@ class LlamaManager(private val context: Context) {
             sb.append(msg.content)
             sb.append("<|eot_id|>\n")
         }
-        
+
         sb.append("<|start_header_id|>assistant<|end_header_id|>\n")
         return sb.toString()
     }

@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -35,6 +36,7 @@ fun ChatScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val messages by viewModel.messages.collectAsState()
+    val streamingText by viewModel.streamingText.collectAsState()
     val agentState by viewModel.agentState.collectAsState()
     val modelState by viewModel.modelState.collectAsState()
 
@@ -67,13 +69,17 @@ fun ChatScreen(
                             Text("AIRI Agent", fontWeight = FontWeight.Bold)
                             Text(
                                 text = when {
-                                    agentState.isWorking -> agentState.currentAction
-                                    modelState.isModelReady -> "online"
-                                    modelState.isModelLoading -> "loading model"
-                                    else -> "idle"
+                                    agentState.isWorking -> "Generating…"
+                                    modelState.isModelReady -> modelState.selectedModelName
+                                    modelState.isModelLoading -> "Loading model…"
+                                    else -> "No model selected"
                                 },
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
+                                color = when {
+                                    agentState.isWorking -> MaterialTheme.colorScheme.tertiary
+                                    modelState.isModelReady -> MaterialTheme.colorScheme.primary
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
                             )
                         }
                     },
@@ -103,12 +109,9 @@ fun ChatScreen(
             ) {
                 MessageList(
                     messages = messages,
+                    streamingText = streamingText,
+                    isGenerating = agentState.isWorking,
                     modifier = Modifier.fillMaxSize()
-                )
-
-                AgentOverlay(
-                    state = agentState,
-                    modifier = Modifier.align(Alignment.TopCenter)
                 )
             }
         }
@@ -118,30 +121,82 @@ fun ChatScreen(
 @Composable
 fun MessageList(
     messages: List<ChatMessage>,
+    streamingText: String,
+    isGenerating: Boolean,
     modifier: Modifier = Modifier
 ) {
-    if (messages.isEmpty()) {
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(messages.size, streamingText) {
+        if (messages.isNotEmpty() || streamingText.isNotEmpty()) {
+            scope.launch { listState.animateScrollToItem(0) }
+        }
+    }
+
+    if (messages.isEmpty() && streamingText.isEmpty()) {
         Column(
-            modifier = modifier.padding(24.dp),
+            modifier = modifier.padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text("Start a conversation with AIRI", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+            Text(
+                "Start a conversation with AIRI",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium
+            )
             Spacer(Modifier.height(8.dp))
             Text(
-                "Choose an active local model, then send your prompt.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                "Select and activate a local model, then send your prompt.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium
             )
         }
     } else {
         LazyColumn(
+            state = listState,
             modifier = modifier,
             reverseLayout = true,
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(messages.reversed()) { msg ->
+            if (streamingText.isNotEmpty() && isGenerating) {
+                item(key = "streaming") {
+                    StreamingBubble(text = streamingText)
+                }
+            }
+
+            items(messages.reversed(), key = { msg -> "${msg.text.hashCode()}_${msg.isUser}" }) { msg ->
                 MessageBubble(msg)
+            }
+        }
+    }
+}
+
+@Composable
+fun StreamingBubble(text: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            shape = RoundedCornerShape(16.dp),
+            tonalElevation = 2.dp,
+            shadowElevation = 1.dp,
+            modifier = Modifier.widthIn(max = 320.dp)
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Text(text = text)
+                Spacer(Modifier.height(4.dp))
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                )
             }
         }
     }
@@ -194,12 +249,18 @@ fun InputBar(
                 label = {
                     Text(
                         when {
-                            modelState.isModelLoading -> "Loading model"
+                            modelState.isModelLoading -> "Loading model…"
                             modelState.isModelReady -> modelState.selectedModelName
                             else -> "Select model"
                         }
                     )
-                }
+                },
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = when {
+                        modelState.isModelReady -> MaterialTheme.colorScheme.primaryContainer
+                        else -> MaterialTheme.colorScheme.surfaceVariant
+                    }
+                )
             )
 
             Spacer(Modifier.height(8.dp))
@@ -221,7 +282,13 @@ fun InputBar(
                     onValueChange = { text = it },
                     modifier = Modifier.weight(1f),
                     enabled = modelState.isModelReady && !isGenerating,
-                    placeholder = { Text(if (modelState.isModelReady) "Type your message" else "Activate a model first") },
+                    placeholder = {
+                        Text(
+                            if (modelState.isModelReady) "Type your message…"
+                            else if (modelState.isModelLoading) "Loading model…"
+                            else "Activate a model first"
+                        )
+                    },
                     minLines = 1,
                     maxLines = 5,
                     shape = RoundedCornerShape(16.dp),
@@ -235,16 +302,20 @@ fun InputBar(
                     )
                 )
 
-                IconButton(onClick = {
-                    if (canSend) {
-                        onSend(text)
-                        text = ""
-                    }
-                }, enabled = canSend) {
+                IconButton(
+                    onClick = {
+                        if (canSend) {
+                            onSend(text)
+                            text = ""
+                        }
+                    },
+                    enabled = canSend
+                ) {
                     Icon(
                         Icons.Default.Send,
                         contentDescription = "Send",
-                        tint = if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                        tint = if (canSend) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                     )
                 }
             }

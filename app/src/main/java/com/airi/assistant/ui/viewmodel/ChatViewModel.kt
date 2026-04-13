@@ -396,4 +396,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun validationMessage(result: ValidationResult): Pair
+    private fun validationMessage(result: ValidationResult): Pair<String, LoadErrorType> = when (result) {
+        is ValidationResult.FileNotFound -> "الملف غير موجود أو تم حذفه" to LoadErrorType.FILE_NOT_FOUND
+        is ValidationResult.InvalidFormat -> "صيغة الملف غير صحيحة — يجب أن يكون ملف GGUF حقيقي" to LoadErrorType.INVALID_FORMAT
+        is ValidationResult.TooSmall -> "حجم الملف صغير جداً — قد يكون التحميل غير مكتمل" to LoadErrorType.TOO_SMALL
+        is ValidationResult.InsufficientRam -> "الذاكرة غير كافية (مطلوب ${result.requiredMb} MB، متاح ${result.availableMb} MB)" to LoadErrorType.INSUFFICIENT_RAM
+        else -> "خطأ غير متوقع" to LoadErrorType.LOAD_FAILED
+    }
+
+    private companion object {
+        const val KEY_MODEL_ID = "selected_model_id"
+        const val KEY_MODEL_PATH = "selected_model_path"
+        const val KEY_MODEL_REGISTRY = "model_registry_json"
+    }
+}

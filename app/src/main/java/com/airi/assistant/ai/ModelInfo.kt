@@ -9,5 +9,7 @@ data class ModelInfo(
     val source: ModelSource,
     val id: String = path,
     val type: String = "chat",
-    val isLocal: Boolean = true
+    val isLocal: Boolean = true,
+    val ramRequiredMb: Int = 0,
+    val contextSize: Int = 0
 )

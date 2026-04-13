@@ -1,57 +1,47 @@
 package com.airi.assistant.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.airi.assistant.ui.Screen
-import com.airi.assistant.ui.theme.CosmicAccent
-import com.airi.assistant.ui.theme.InputBarBackground
-import com.airi.assistant.ui.theme.MessageBubbleAI
-import com.airi.assistant.ui.theme.MessageBubbleUser
-import com.airi.assistant.ui.theme.OverlayBackground
+import com.airi.assistant.ui.AiriRoute
+import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.ChatMessage
 import com.airi.assistant.ui.viewmodel.ChatViewModel
+import com.airi.assistant.ui.viewmodel.ModelUiState
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel = viewModel(),
-    onNavigate: (Screen) -> Unit = {},
+    onNavigate: (String) -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
-    var attachmentDialog by remember { mutableStateOf(false) }
+    val messages by viewModel.messages.collectAsState()
+    val agentState by viewModel.agentState.collectAsState()
+    val modelState by viewModel.modelState.collectAsState()
 
-    fun showPending(message: String) {
-        scope.launch {
-            snackbarHostState.showSnackbar(message)
-        }
-    }
-
-    fun navigate(screen: Screen) {
+    fun navigate(route: String) {
         scope.launch {
             drawerState.close()
-            onNavigate(screen)
+            onNavigate(route)
         }
     }
 
@@ -60,95 +50,66 @@ fun ChatScreen(
         drawerContent = {
             AppDrawer(
                 onNavigate = { navigate(it) },
+                onNewChat = {
+                    viewModel.clearMessages()
+                    navigate(AiriRoute.CHAT)
+                },
                 onLogout = onLogout
             )
         }
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Scaffold(
-                containerColor = Color.Transparent,
-                snackbarHost = { SnackbarHost(snackbarHostState) },
-                topBar = {
-                    TopBar(
-                        onMenu = { scope.launch { drawerState.open() } },
-                        onSettings = { onNavigate(Screen.SETTINGS) },
-                        onAppInfo = { onNavigate(Screen.APP_INFO) }
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("AIRI Agent", fontWeight = FontWeight.Bold)
+                            Text(
+                                text = when {
+                                    agentState.isWorking -> agentState.currentAction
+                                    modelState.isModelReady -> "online"
+                                    modelState.isModelLoading -> "loading model"
+                                    else -> "idle"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "Open menu")
+                        }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
                     )
-                },
-                bottomBar = {
-                    InputBar(
-                        onSend = { input -> viewModel.sendMessage(input) },
-                        onAttachment = { attachmentDialog = true },
-                        onTemplates = { onNavigate(Screen.TEMPLATES) },
-                        onModelSettings = { onNavigate(Screen.MODEL_SETTINGS) }
-                    )
-                }
-            ) { padding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                ) {
-                    QuickActions(
-                        onTemplates = { onNavigate(Screen.TEMPLATES) },
-                        onModelSettings = { onNavigate(Screen.MODEL_SETTINGS) },
-                        onHistory = { onNavigate(Screen.HISTORY) }
-                    )
-                    MessageList(
-                        messages = viewModel.messages,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                )
+            },
+            bottomBar = {
+                InputBar(
+                    modelState = modelState,
+                    isGenerating = agentState.isWorking,
+                    onSend = { input -> viewModel.sendMessage(input) },
+                    onOpenModels = { onNavigate(AiriRoute.MODELS) }
+                )
             }
+        ) { padding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                MessageList(
+                    messages = messages,
+                    modifier = Modifier.fillMaxSize()
+                )
 
-            AgentOverlay(
-                state = viewModel.agentState,
-                modifier = Modifier.align(Alignment.TopCenter)
-            )
-        }
-    }
-
-    if (attachmentDialog) {
-        AttachmentDialog(
-            onDismiss = { attachmentDialog = false },
-            onSelect = {
-                attachmentDialog = false
-                showPending("$it سيستخدم منتقي ملفات Android عند توصيله بالتنفيذ الفعلي.")
-            }
-        )
-    }
-}
-
-@Composable
-fun TopBar(
-    onMenu: () -> Unit,
-    onSettings: () -> Unit,
-    onAppInfo: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.42f))
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onMenu) {
-                Icon(Icons.Default.Menu, contentDescription = "القائمة", tint = Color.White)
-            }
-            Column {
-                Text("AIRI", color = CosmicAccent, fontWeight = FontWeight.Bold)
-                Text("Agent Active", color = Color(0xFF66FF99), style = MaterialTheme.typography.labelSmall)
-            }
-        }
-
-        Row {
-            IconButton(onClick = onSettings) {
-                Icon(Icons.Default.Settings, contentDescription = "الإعدادات", tint = Color.White)
-            }
-            IconButton(onClick = onAppInfo) {
-                Icon(Icons.Default.Info, contentDescription = "معلومات التطبيق", tint = CosmicAccent)
+                AgentOverlay(
+                    state = agentState,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
             }
         }
     }
@@ -161,24 +122,23 @@ fun MessageList(
 ) {
     if (messages.isEmpty()) {
         Column(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(24.dp),
+            modifier = modifier.padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text("ابدأ محادثة جديدة مع AIRI", color = Color.White, fontWeight = FontWeight.Bold)
+            Text("Start a conversation with AIRI", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             Text(
-                "يمكنك إرسال أمر، فتح القوالب، ضبط النموذج المحلي، أو إرفاق ملف من زر الإضافة.",
-                color = Color.LightGray
+                "Choose an active local model, then send your prompt.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     } else {
         LazyColumn(
             modifier = modifier,
             reverseLayout = true,
-            contentPadding = PaddingValues(12.dp)
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(messages.reversed()) { msg ->
                 MessageBubble(msg)
@@ -190,23 +150,20 @@ fun MessageList(
 @Composable
 fun MessageBubble(message: ChatMessage) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (message.isUser) Arrangement.End else Arrangement.Start
     ) {
-        Box(
-            modifier = Modifier
-                .padding(horizontal = 6.dp)
-                .background(
-                    color = if (message.isUser) MessageBubbleUser else MessageBubbleAI,
-                    shape = RoundedCornerShape(12.dp)
-                )
-                .padding(12.dp)
+        Surface(
+            color = if (message.isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = if (message.isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+            shape = RoundedCornerShape(16.dp),
+            tonalElevation = 2.dp,
+            shadowElevation = 1.dp,
+            modifier = Modifier.widthIn(max = 320.dp)
         ) {
             Text(
                 text = message.text,
-                color = Color.White
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
             )
         }
     }
@@ -214,67 +171,82 @@ fun MessageBubble(message: ChatMessage) {
 
 @Composable
 fun InputBar(
+    modelState: ModelUiState,
+    isGenerating: Boolean,
     onSend: (String) -> Unit,
-    onAttachment: () -> Unit,
-    onTemplates: () -> Unit,
-    onModelSettings: () -> Unit
+    onOpenModels: () -> Unit
 ) {
-    var text by remember { mutableStateOf("") }
+    var text by rememberSaveable { mutableStateOf("") }
+    val canSend = text.isNotBlank() && modelState.isModelReady && !isGenerating
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(InputBarBackground)
-            .padding(8.dp)
+    Surface(
+        tonalElevation = 6.dp,
+        shadowElevation = 8.dp,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
-            AssistChip(onClick = onTemplates, label = { Text("القوالب") })
-            AssistChip(onClick = onModelSettings, label = { Text("النموذج المحلي") })
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onAttachment) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = "إضافة ملف",
-                    tint = CosmicAccent
-                )
-            }
-
-            TextField(
-                value = text,
-                onValueChange = { text = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("اكتب أمرك...") },
-                colors = TextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                )
+            AssistChip(
+                onClick = onOpenModels,
+                label = {
+                    Text(
+                        when {
+                            modelState.isModelLoading -> "Loading model"
+                            modelState.isModelReady -> modelState.selectedModelName
+                            else -> "Select model"
+                        }
+                    )
+                }
             )
 
-            IconButton(onClick = {
-                if (text.isNotBlank()) {
-                    onSend(text.trim())
-                    text = ""
+            Spacer(Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                IconButton(onClick = {}, enabled = false) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Attachments",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                    )
                 }
-            }) {
-                Icon(
-                    Icons.Default.Send,
-                    contentDescription = "إرسال",
-                    tint = CosmicAccent
+
+                TextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    modifier = Modifier.weight(1f),
+                    enabled = modelState.isModelReady && !isGenerating,
+                    placeholder = { Text(if (modelState.isModelReady) "Type your message" else "Activate a model first") },
+                    minLines = 1,
+                    maxLines = 5,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent
+                    )
                 )
+
+                IconButton(onClick = {
+                    if (canSend) {
+                        onSend(text)
+                        text = ""
+                    }
+                }, enabled = canSend) {
+                    Icon(
+                        Icons.Default.Send,
+                        contentDescription = "Send",
+                        tint = if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                    )
+                }
             }
         }
     }
@@ -282,73 +254,37 @@ fun InputBar(
 
 @Composable
 fun AgentOverlay(
-    state: com.airi.assistant.ui.viewmodel.AgentState,
+    state: AgentState,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
         visible = state.isWorking,
-        modifier = modifier.padding(top = 80.dp)
+        modifier = modifier.padding(top = 12.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .background(OverlayBackground, RoundedCornerShape(20.dp))
-                .padding(horizontal = 20.dp, vertical = 12.dp)
+        Surface(
+            color = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            shape = RoundedCornerShape(16.dp),
+            tonalElevation = 4.dp,
+            shadowElevation = 4.dp
         ) {
             Text(
-                text = "⚡ ${state.currentAction}",
-                color = CosmicAccent
+                text = state.currentAction,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp)
             )
         }
     }
 }
 
 @Composable
-fun QuickActions(
-    onTemplates: () -> Unit,
-    onModelSettings: () -> Unit,
-    onHistory: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        ActionCard("عرض القوالب", "تحميل أو استخدام قالب", Modifier.weight(1f), onTemplates)
-        ActionCard("إعداد النموذج", "اختيار نموذج LLaMA", Modifier.weight(1f), onModelSettings)
-        ActionCard("المحادثات", "فتح السجل", Modifier.weight(1f), onHistory)
-    }
-}
-
-@Composable
-fun ActionCard(
-    title: String,
-    subtitle: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Button(
-        onClick = onClick,
-        modifier = modifier.heightIn(min = 76.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.08f)),
-        contentPadding = PaddingValues(12.dp)
-    ) {
-        Column(horizontalAlignment = Alignment.Start) {
-            Text(title, color = CosmicAccent, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = Color.LightGray, style = MaterialTheme.typography.labelSmall)
-        }
-    }
-}
-
-@Composable
 fun AppDrawer(
-    onNavigate: (Screen) -> Unit,
+    onNavigate: (String) -> Unit,
+    onNewChat: () -> Unit,
     onLogout: () -> Unit
 ) {
     ModalDrawerSheet(
-        drawerContainerColor = Color(0xFF0A0E27),
-        drawerContentColor = Color.White
+        drawerContainerColor = MaterialTheme.colorScheme.surface,
+        drawerContentColor = MaterialTheme.colorScheme.onSurface
     ) {
         Column(
             modifier = Modifier
@@ -356,21 +292,18 @@ fun AppDrawer(
                 .width(304.dp)
                 .padding(16.dp)
         ) {
-            Text("AIRI", color = CosmicAccent, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("لوحة التحكم", color = Color.LightGray)
+            Text("AIRI", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Agent workspace", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(24.dp))
-            DrawerButton("محادثة جديدة") { onNavigate(Screen.CHAT) }
-            DrawerButton("المحادثات") { onNavigate(Screen.HISTORY) }
-            DrawerButton("القوالب") { onNavigate(Screen.TEMPLATES) }
-            DrawerButton("النموذج المحلي") { onNavigate(Screen.MODEL_SETTINGS) }
-            DrawerButton("الإعدادات") { onNavigate(Screen.SETTINGS) }
-            DrawerButton("معلومات التطبيق") { onNavigate(Screen.APP_INFO) }
+            DrawerButton("New chat", onNewChat)
+            DrawerButton("Model Gallery") { onNavigate(AiriRoute.MODELS) }
+            DrawerButton("Settings & App Info") { onNavigate(AiriRoute.SETTINGS) }
             Spacer(Modifier.weight(1f))
             OutlinedButton(
                 onClick = onLogout,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("تسجيل الخروج")
+                Text("Sign out")
             }
         }
     }
@@ -386,39 +319,6 @@ fun DrawerButton(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp)
     ) {
-        Text(text, modifier = Modifier.fillMaxWidth(), color = Color.White)
+        Text(text, modifier = Modifier.fillMaxWidth())
     }
-}
-
-@Composable
-fun AttachmentDialog(
-    onDismiss: () -> Unit,
-    onSelect: (String) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = null)
-                Spacer(Modifier.width(4.dp))
-                Text("إغلاق")
-            }
-        },
-        title = { Text("إضافة محتوى") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("اختر نوع المحتوى الذي تريد إرفاقه بالمحادثة.")
-                Button(onClick = { onSelect("ملف") }, modifier = Modifier.fillMaxWidth()) {
-                    Text("إرفاق ملف")
-                }
-                Button(onClick = { onSelect("صورة") }, modifier = Modifier.fillMaxWidth()) {
-                    Text("إرفاق صورة")
-                }
-                Button(onClick = { onSelect("فيديو") }, modifier = Modifier.fillMaxWidth()) {
-                    Text("إرفاق فيديو")
-                }
-            }
-        }
-    )
 }

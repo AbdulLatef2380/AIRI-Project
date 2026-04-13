@@ -11,10 +11,13 @@ import com.airi.assistant.ai.LlamaManager
 import com.airi.assistant.ai.ModelInfo
 import com.airi.assistant.ai.ModelLoader
 import com.airi.assistant.ai.ModelManager
+import com.airi.assistant.ai.ModelRegistry
 import com.airi.assistant.ai.ModelSource
 import com.airi.assistant.tools.FileUtils
 import com.airi.assistant.tools.ModelDownloadManager
 import com.airi.assistant.tools.ModelDownloadService
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +39,7 @@ data class AgentState(
 )
 
 data class ModelUiState(
+    val selectedModelId: String = "",
     val selectedModelName: String = "No model",
     val selectedModelPath: String = "",
     val selectedModelSize: Long = 0L,
@@ -43,7 +47,8 @@ data class ModelUiState(
     val isModelReady: Boolean = false,
     val loadError: String? = null,
     val downloadedModelAvailable: Boolean = false,
-    val downloadedModelPath: String = ""
+    val downloadedModelPath: String = "",
+    val availableModels: List<ModelInfo> = emptyList()
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -52,6 +57,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val preferences = appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
     private val llamaManager = LlamaManager(appContext)
     private val downloadManager = ModelDownloadManager(appContext)
+    private val gson = Gson()
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -64,9 +70,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         ModelManager.setLoader(ModelLoader(llamaManager))
-        val savedPath = _modelState.value.selectedModelPath
-        if (savedPath.isNotBlank() && File(savedPath).exists()) {
-            loadModel(savedPath)
+        val savedModel = ModelRegistry.getById(_modelState.value.selectedModelId)
+        if (savedModel != null && File(savedModel.path).exists()) {
+            loadModel(savedModel)
         }
     }
 
@@ -74,7 +80,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val trimmedInput = input.trim()
         if (trimmedInput.isEmpty()) return
 
-        if (!_modelState.value.isModelReady) {
+        if (!_modelState.value.isModelReady || ModelManager.getCurrent() == null) {
             _messages.update { it + ChatMessage("Select and activate a local model before sending.", isUser = false) }
             return
         }
@@ -98,18 +104,39 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val path = FileUtils.copyToInternalStorage(appContext, uri)
-                preferences.edit().putString(KEY_MODEL_PATH, path).apply()
-                loadModel(path)
+                val model = createModelFromFile(File(path), ModelSource.LOCAL_FILE, "custom")
+                ModelRegistry.addModel(model)
+                persistRegistry()
+                preferences.edit()
+                    .putString(KEY_MODEL_ID, model.id)
+                    .putString(KEY_MODEL_PATH, model.path)
+                    .apply()
+                refreshModelList()
+                loadModel(model)
             } catch (e: Exception) {
                 _modelState.update {
                     it.copy(
                         isModelLoading = false,
                         isModelReady = false,
-                        loadError = e.localizedMessage ?: "Could not import model"
+                        loadError = e.localizedMessage ?: "Could not import model",
+                        availableModels = ModelManager.getAllModels()
                     )
                 }
             }
         }
+    }
+
+    fun selectModel(modelId: String) {
+        val model = ModelRegistry.getById(modelId)
+        if (model == null) {
+            _modelState.update { it.copy(loadError = "Model was not found in the local registry") }
+            return
+        }
+        preferences.edit()
+            .putString(KEY_MODEL_ID, model.id)
+            .putString(KEY_MODEL_PATH, model.path)
+            .apply()
+        loadModel(model)
     }
 
     fun activateDownloadedModel() {
@@ -118,8 +145,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _modelState.update { it.copy(loadError = "Downloaded model file was not found") }
             return
         }
-        preferences.edit().putString(KEY_MODEL_PATH, file.absolutePath).apply()
-        loadModel(file.absolutePath)
+        val model = createModelFromFile(file, ModelSource.DOWNLOADED, "chat")
+        ModelRegistry.addModel(model)
+        persistRegistry()
+        preferences.edit()
+            .putString(KEY_MODEL_ID, model.id)
+            .putString(KEY_MODEL_PATH, model.path)
+            .apply()
+        refreshModelList()
+        loadModel(model)
     }
 
     fun startDefaultModelDownload() {
@@ -133,42 +167,38 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refreshDownloadedModelState() {
+        syncDownloadedModelAvailability()
         _modelState.update {
             val downloadedFile = downloadManager.getModelFile()
             it.copy(
                 downloadedModelAvailable = downloadManager.isModelDownloaded(),
-                downloadedModelPath = downloadedFile.absolutePath
+                downloadedModelPath = downloadedFile.absolutePath,
+                availableModels = ModelManager.getAllModels()
             )
         }
     }
 
-    private fun loadModel(path: String) {
-        val file = File(path)
+    private fun loadModel(model: ModelInfo) {
+        val file = File(model.path)
         if (!file.exists()) {
             _modelState.update {
                 it.copy(
-                    selectedModelName = file.name.ifBlank { "No model" },
-                    selectedModelPath = path,
+                    selectedModelId = model.id,
+                    selectedModelName = model.name,
+                    selectedModelPath = model.path,
                     selectedModelSize = 0L,
                     isModelLoading = false,
                     isModelReady = false,
-                    loadError = "Model file does not exist"
+                    loadError = "Model file does not exist",
+                    availableModels = ModelManager.getAllModels()
                 )
             }
             return
         }
 
-        val model = ModelInfo(
-            name = file.nameWithoutExtension,
-            fileName = file.name,
-            size = file.length(),
-            quantization = detectQuantization(file.name),
-            path = file.absolutePath,
-            source = ModelSource.LOCAL_FILE
-        )
-
         _modelState.update {
             it.copy(
+                selectedModelId = model.id,
                 selectedModelName = model.name,
                 selectedModelPath = model.path,
                 selectedModelSize = model.size,
@@ -176,32 +206,91 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 isModelReady = false,
                 loadError = null,
                 downloadedModelAvailable = downloadManager.isModelDownloaded(),
-                downloadedModelPath = downloadManager.getModelFile().absolutePath
+                downloadedModelPath = downloadManager.getModelFile().absolutePath,
+                availableModels = ModelManager.getAllModels()
             )
         }
 
         ModelManager.load(model) { success ->
+            if (success) {
+                preferences.edit()
+                    .putString(KEY_MODEL_ID, model.id)
+                    .putString(KEY_MODEL_PATH, model.path)
+                    .apply()
+                persistRegistry()
+            }
             _modelState.update {
                 it.copy(
                     isModelLoading = false,
                     isModelReady = success,
-                    loadError = if (success) null else "Model could not be loaded by the inference engine"
+                    loadError = if (success) null else "Model could not be loaded by the inference engine",
+                    availableModels = ModelManager.getAllModels()
                 )
             }
         }
     }
 
     private fun createInitialModelState(): ModelUiState {
+        restoreRegistry()
+        syncDownloadedModelAvailability()
+        val savedId = preferences.getString(KEY_MODEL_ID, "").orEmpty()
         val savedPath = preferences.getString(KEY_MODEL_PATH, "").orEmpty()
-        val savedFile = File(savedPath)
+        val savedModel = ModelRegistry.getById(savedId)
+            ?: ModelRegistry.getAll().firstOrNull { it.path == savedPath }
+            ?: File(savedPath).takeIf { it.exists() }?.let { createModelFromFile(it, ModelSource.LOCAL_FILE, "custom") }
+        if (savedModel != null) {
+            ModelRegistry.addModel(savedModel)
+            persistRegistry()
+        }
         val downloadedFile = downloadManager.getModelFile()
         return ModelUiState(
-            selectedModelName = if (savedFile.exists()) savedFile.nameWithoutExtension else "No model",
-            selectedModelPath = savedPath,
-            selectedModelSize = if (savedFile.exists()) savedFile.length() else 0L,
+            selectedModelId = savedModel?.id.orEmpty(),
+            selectedModelName = savedModel?.name ?: "No model",
+            selectedModelPath = savedModel?.path.orEmpty(),
+            selectedModelSize = savedModel?.size ?: 0L,
             isModelReady = false,
             downloadedModelAvailable = downloadManager.isModelDownloaded(),
-            downloadedModelPath = downloadedFile.absolutePath
+            downloadedModelPath = downloadedFile.absolutePath,
+            availableModels = ModelManager.getAllModels()
+        )
+    }
+
+    private fun restoreRegistry() {
+        val json = preferences.getString(KEY_MODEL_REGISTRY, null) ?: return
+        val type = object : TypeToken<List<ModelInfo>>() {}.type
+        val restored = runCatching { gson.fromJson<List<ModelInfo>>(json, type) }.getOrNull().orEmpty()
+        ModelRegistry.replaceAll(restored.filter { File(it.path).exists() })
+    }
+
+    private fun persistRegistry() {
+        preferences.edit()
+            .putString(KEY_MODEL_REGISTRY, gson.toJson(ModelManager.getAllModels()))
+            .apply()
+    }
+
+    private fun syncDownloadedModelAvailability() {
+        val downloadedFile = downloadManager.getModelFile()
+        if (downloadManager.isModelDownloaded()) {
+            ModelRegistry.addModel(createModelFromFile(downloadedFile, ModelSource.DOWNLOADED, "chat"))
+            persistRegistry()
+        }
+    }
+
+    private fun refreshModelList() {
+        _modelState.update { it.copy(availableModels = ModelManager.getAllModels()) }
+    }
+
+    private fun createModelFromFile(file: File, source: ModelSource, type: String): ModelInfo {
+        return ModelInfo(
+            name = file.nameWithoutExtension,
+            fileName = file.name,
+            size = file.length(),
+            quantization = detectQuantization(file.name),
+            path = file.absolutePath,
+            source = source,
+            id = file.absolutePath,
+            type = type,
+            isLocal = true
         )
     }
 
@@ -216,6 +305,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private companion object {
+        const val KEY_MODEL_ID = "selected_model_id"
         const val KEY_MODEL_PATH = "selected_model_path"
+        const val KEY_MODEL_REGISTRY = "model_registry_json"
     }
 }

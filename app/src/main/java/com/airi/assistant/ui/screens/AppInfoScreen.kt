@@ -3,6 +3,9 @@ package com.airi.assistant.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -27,7 +30,8 @@ fun AppInfoScreen(onBack: () -> Unit) {
 
         Spacer(Modifier.height(16.dp))
 
-        SectionCard(title = "AIRI") {
+        // استخدام المكون الجديد AppInfoSectionCard
+        AppInfoSectionCard(title = "AIRI") {
             InfoLine("الاسم", "Android Artificial Intelligence Runtime Interface")
             InfoLine("الإصدار", "1.0")
             InfoLine("الحزمة", "com.airi.assistant")
@@ -38,14 +42,43 @@ fun AppInfoScreen(onBack: () -> Unit) {
 
         Spacer(Modifier.height(12.dp))
 
-        SectionCard(title = "ما تمت إضافته للواجهة") {
-            Text("قائمة جانبية، اختصارات رئيسية، قوالب، إعدادات نموذج محلي، إعدادات مظهر ولغة، سجل محادثات، وخيار معلومات التطبيق.", color = Color.LightGray)
+        AppInfoSectionCard(title = "ما تمت إضافته للواجهة") {
+            Text(
+                text = "قائمة جانبية، اختصارات رئيسية، قوالب، إعدادات نموذج محلي، إعدادات مظهر ولغة، سجل محادثات، وخيار معلومات التطبيق.",
+                color = Color.LightGray
+            )
         }
 
         Spacer(Modifier.height(12.dp))
 
-        SectionCard(title = "ملاحظة تطوير") {
-            Text("تمت إضافة مكونات الواجهة المطلوبة مع الحفاظ على منطق ChatViewModel ومسار المعالجة الحالي حتى لا يتضرر التطوير المستقبلي.", color = Color.LightGray)
+        AppInfoSectionCard(title = "ملاحظة تطوير") {
+            Text(
+                text = "تمت إضافة مكونات الواجهة المطلوبة مع الحفاظ على منطق ChatViewModel ومسار المعالجة الحالي حتى لا يتضرر التطوير المستقبلي.",
+                color = Color.LightGray
+            )
+        }
+    }
+}
+
+@Composable
+fun AppInfoSectionCard(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = CosmicAccent // تم استخدام لون السمة الخاص بالمشروع للعنوان
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            content()
         }
     }
 }

@@ -11,6 +11,7 @@ object ModelManager {
     fun load(model: ModelInfo, onReady: (Boolean) -> Unit) {
         loader?.loadModel(model) { success ->
             if (success) {
+                ModelRegistry.addModel(model)
                 currentModel = model
             }
             onReady(success)
@@ -19,5 +20,9 @@ object ModelManager {
 
     fun getCurrent(): ModelInfo? {
         return currentModel
+    }
+
+    fun getAllModels(): List<ModelInfo> {
+        return ModelRegistry.getAll()
     }
 }

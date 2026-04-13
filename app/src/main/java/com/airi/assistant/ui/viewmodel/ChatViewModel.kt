@@ -8,21 +8,26 @@ import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.airi.assistant.ai.CatalogEntry
+import com.airi.assistant.ai.DeviceProfiler
+import com.airi.assistant.ai.DeviceTier
 import com.airi.assistant.ai.LlamaManager
 import com.airi.assistant.ai.ModelCatalog
 import com.airi.assistant.ai.ModelInfo
 import com.airi.assistant.ai.ModelLoader
 import com.airi.assistant.ai.ModelManager
 import com.airi.assistant.ai.ModelRegistry
+import com.airi.assistant.ai.ModelScout
 import com.airi.assistant.ai.ModelSource
 import com.airi.assistant.ai.ModelValidator
 import com.airi.assistant.ai.ValidationResult
+import com.airi.assistant.memory.repository.MemoryManager
 import com.airi.assistant.tools.FileUtils
 import com.airi.assistant.tools.ModelDownloadManager
 import com.airi.assistant.tools.ModelDownloadService
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -58,7 +63,10 @@ data class ModelUiState(
     val downloadedModelAvailable: Boolean = false,
     val downloadedModelPath: String = "",
     val availableModels: List<ModelInfo> = emptyList(),
-    val catalogModels: List<CatalogEntry> = ModelCatalog.entries
+    val catalogModels: List<CatalogEntry> = ModelCatalog.entries,
+    val recommendedModels: List<CatalogEntry> = emptyList(),
+    val isScanning: Boolean = false,
+    val scannedModelIds: Set<String> = emptySet()
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -66,11 +74,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val appContext = application.applicationContext
     private val preferences = appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
     private val llamaManager = LlamaManager(appContext)
+    private val memoryManager = MemoryManager(appContext)
     private val downloadManager = ModelDownloadManager(appContext)
     private val gson = Gson()
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
+
+    // Live streaming text — updates token by token while AI is generating
+    private val _streamingText = MutableStateFlow("")
+    val streamingText: StateFlow<String> = _streamingText.asStateFlow()
 
     private val _agentState = MutableStateFlow(AgentState())
     val agentState: StateFlow<AgentState> = _agentState.asStateFlow()
@@ -80,34 +93,66 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         ModelManager.setLoader(ModelLoader(llamaManager))
+        loadHistoryFromDb()
         val savedModel = ModelRegistry.getById(_modelState.value.selectedModelId)
         if (savedModel != null && File(savedModel.path).exists()) {
             loadModel(savedModel)
         }
+        refreshRecommendedModels()
     }
+
+    // ── History ──────────────────────────────────────────────────────────────
+
+    private fun loadHistoryFromDb() {
+        viewModelScope.launch {
+            val history = runCatching {
+                memoryManager.getRecentMessages(60)
+            }.getOrElse { emptyList() }
+            // DB returns DESC (newest first) — reverse to chronological order
+            _messages.value = history.reversed().map { msg ->
+                ChatMessage(text = msg.content, isUser = msg.role == "user")
+            }
+        }
+    }
+
+    // ── Messaging ─────────────────────────────────────────────────────────────
 
     fun sendMessage(input: String) {
         val trimmedInput = input.trim()
         if (trimmedInput.isEmpty()) return
 
-        if (!_modelState.value.isModelReady || ModelManager.getCurrent() == null) {
-            _messages.update { it + ChatMessage("Select and activate a local model before sending.", isUser = false) }
+        if (ModelManager.getCurrent() == null || !_modelState.value.isModelReady) {
+            _messages.update {
+                it + ChatMessage("قم باختيار نموذج أولاً — اختر نموذج من قائمة النماذج.", isUser = false)
+            }
             return
         }
 
         _messages.update { it + ChatMessage(trimmedInput, true) }
-        _agentState.value = AgentState(true, "Generating response...")
+        _agentState.value = AgentState(isWorking = true, currentAction = "Generating response…")
+        _streamingText.value = ""
 
-        llamaManager.generate(trimmedInput) { response ->
-            _messages.update { it + ChatMessage(response, isUser = false) }
-            _agentState.value = AgentState()
-        }
+        // Real streaming inference — token by token
+        llamaManager.generateStream(
+            prompt = trimmedInput,
+            onToken = { token ->
+                _streamingText.update { it + token }
+            },
+            onComplete = { fullResponse ->
+                _messages.update { it + ChatMessage(fullResponse, isUser = false) }
+                _streamingText.value = ""
+                _agentState.value = AgentState()
+            }
+        )
     }
 
     fun clearMessages() {
         _messages.value = emptyList()
+        _streamingText.value = ""
         _agentState.value = AgentState()
     }
+
+    // ── Model import / selection ──────────────────────────────────────────────
 
     fun importModel(uri: Uri) {
         _modelState.update { it.copy(isModelLoading = true, loadError = null, loadErrorType = LoadErrorType.NONE, loadProgress = 0) }
@@ -239,9 +284,63 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ── Recommendations ───────────────────────────────────────────────────────
+
+    fun getRecommendedModels(): List<CatalogEntry> {
+        val profile = DeviceProfiler.profile(appContext)
+        return ModelCatalog.entries.filter { entry ->
+            when (profile.tier) {
+                DeviceTier.LOW  -> entry.ramRequiredMb <= 1024  // 0.5B only
+                DeviceTier.MID  -> entry.ramRequiredMb <= 2048  // up to 1.5B
+                DeviceTier.HIGH -> true                         // all models
+            }
+        }.sortedWith(compareBy({ it.ramRequiredMb }, { it.sizeBytes }))
+    }
+
+    fun refreshRecommendedModels() {
+        _modelState.update { it.copy(recommendedModels = getRecommendedModels()) }
+    }
+
+    // ── Model Scout ───────────────────────────────────────────────────────────
+
+    fun scanForLocalModels() {
+        _modelState.update { it.copy(isScanning = true) }
+        viewModelScope.launch(Dispatchers.IO) {
+            val scanned = runCatching { ModelScout.scan(appContext) }.getOrElse { emptyList() }
+
+            // Uniqueness by fileName — prevents adding the same model twice
+            // from different directories (e.g. Downloads + AIRI folder)
+            val existingFileNames = ModelRegistry.getAll().map { it.fileName }.toSet()
+
+            val newScannedIds = mutableSetOf<String>()
+            for (s in scanned) {
+                if (existingFileNames.contains(s.fileName)) continue
+                val file = File(s.path)
+                val catalogMeta = ModelCatalog.entries.find { it.fileName == s.fileName }
+                val model = createModelFromFile(file, ModelSource.LOCAL_FILE, "custom", catalogMeta)
+                ModelRegistry.addModel(model)
+                newScannedIds.add(model.id)
+            }
+
+            if (newScannedIds.isNotEmpty()) persistRegistry()
+
+            val allScannedIds = _modelState.value.scannedModelIds + newScannedIds
+            persistScannedIds(allScannedIds)
+
+            _modelState.update {
+                it.copy(
+                    isScanning = false,
+                    availableModels = ModelManager.getAllModels(),
+                    scannedModelIds = allScannedIds
+                )
+            }
+        }
+    }
+
+    // ── Internal ──────────────────────────────────────────────────────────────
+
     private fun loadModel(model: ModelInfo) {
         val file = File(model.path)
-
         val validation = ModelValidator.validate(file, appContext, model.ramRequiredMb)
         if (validation !is ValidationResult.Valid) {
             val (msg, type) = validationMessage(validation)
@@ -283,9 +382,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         ModelManager.load(
             model,
-            onProgress = { percent ->
-                _modelState.update { it.copy(loadProgress = percent) }
-            }
+            onProgress = { percent -> _modelState.update { it.copy(loadProgress = percent) } }
         ) { success ->
             if (success) {
                 preferences.edit()
@@ -333,7 +430,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             downloadedModelAvailable = downloadManager.isModelDownloaded(),
             downloadedModelPath = downloadedFile.absolutePath,
             availableModels = ModelManager.getAllModels(),
-            catalogModels = ModelCatalog.entries
+            catalogModels = ModelCatalog.entries,
+            scannedModelIds = restoreScannedIds()
         )
     }
 
@@ -397,16 +495,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun validationMessage(result: ValidationResult): Pair<String, LoadErrorType> = when (result) {
-        is ValidationResult.FileNotFound -> "الملف غير موجود أو تم حذفه" to LoadErrorType.FILE_NOT_FOUND
-        is ValidationResult.InvalidFormat -> "صيغة الملف غير صحيحة — يجب أن يكون ملف GGUF حقيقي" to LoadErrorType.INVALID_FORMAT
-        is ValidationResult.TooSmall -> "حجم الملف صغير جداً — قد يكون التحميل غير مكتمل" to LoadErrorType.TOO_SMALL
+        is ValidationResult.FileNotFound   -> "الملف غير موجود أو تم حذفه" to LoadErrorType.FILE_NOT_FOUND
+        is ValidationResult.InvalidFormat  -> "صيغة الملف غير صحيحة — يجب أن يكون ملف GGUF حقيقي" to LoadErrorType.INVALID_FORMAT
+        is ValidationResult.TooSmall       -> "حجم الملف صغير جداً — قد يكون التحميل غير مكتمل" to LoadErrorType.TOO_SMALL
         is ValidationResult.InsufficientRam -> "الذاكرة غير كافية (مطلوب ${result.requiredMb} MB، متاح ${result.availableMb} MB)" to LoadErrorType.INSUFFICIENT_RAM
         else -> "خطأ غير متوقع" to LoadErrorType.LOAD_FAILED
     }
 
+    private fun persistScannedIds(ids: Set<String>) {
+        preferences.edit().putString(KEY_SCANNED_IDS, ids.joinToString("|")).apply()
+    }
+
+    private fun restoreScannedIds(): Set<String> {
+        val raw = preferences.getString(KEY_SCANNED_IDS, "") ?: ""
+        return if (raw.isBlank()) emptySet() else raw.split("|").toSet()
+    }
+
     private companion object {
-        const val KEY_MODEL_ID = "selected_model_id"
-        const val KEY_MODEL_PATH = "selected_model_path"
+        const val KEY_MODEL_ID       = "selected_model_id"
+        const val KEY_MODEL_PATH     = "selected_model_path"
         const val KEY_MODEL_REGISTRY = "model_registry_json"
+        const val KEY_SCANNED_IDS    = "scanned_model_ids"
     }
 }

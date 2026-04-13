@@ -11,10 +11,15 @@ import com.airi.assistant.ui.components.GlassCard
 import com.airi.assistant.ui.theme.CosmicAccent
 
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit) {
+fun LoginScreen(
+    onLogin: (String, String, (String?) -> Unit) -> Unit
+) {
     var visible by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         visible = true
@@ -54,12 +59,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             onValueChange = { email = it },
             label = { Text("البريد الإلكتروني") },
             modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                focusedBorderColor = CosmicAccent,
-                unfocusedBorderColor = Color.Gray
-            )
+            singleLine = true
         )
 
         Spacer(Modifier.height(10.dp))
@@ -69,33 +69,56 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             onValueChange = { password = it },
             label = { Text("كلمة المرور") },
             modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                focusedBorderColor = CosmicAccent,
-                unfocusedBorderColor = Color.Gray
-            )
+            singleLine = true
         )
 
-        Spacer(Modifier.height(15.dp))
+        Spacer(Modifier.height(10.dp))
 
-        Button(
-            onClick = onLoginSuccess,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = CosmicAccent
+        // 🔴 عرض الخطأ
+        errorMessage?.let {
+            Text(
+                text = it,
+                color = Color.Red,
+                style = MaterialTheme.typography.bodySmall
             )
-        ) {
-            Text("دخول", color = Color.Black)
         }
 
         Spacer(Modifier.height(10.dp))
 
-        OutlinedButton(
-            onClick = { /* Google Sign In */ },
-            modifier = Modifier.fillMaxWidth()
+        Button(
+            onClick = {
+                // Validation
+                if (email.isBlank()) {
+                    errorMessage = "البريد الإلكتروني مطلوب"
+                    return@Button
+                }
+
+                if (password.length < 6) {
+                    errorMessage = "كلمة المرور يجب أن تكون 6 أحرف على الأقل"
+                    return@Button
+                }
+
+                isLoading = true
+                errorMessage = null
+
+                onLogin(email, password) { result ->
+                    isLoading = false
+                    errorMessage = result
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading,
+            colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
         ) {
-            Text("التسجيل عبر Google", color = Color.White)
+            if (isLoading) {
+                CircularProgressIndicator(
+                    color = Color.Black,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(20.dp)
+                )
+            } else {
+                Text("دخول", color = Color.Black)
+            }
         }
     }
 }

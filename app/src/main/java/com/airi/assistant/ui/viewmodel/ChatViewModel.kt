@@ -20,6 +20,7 @@ import com.airi.assistant.ai.ModelScout
 import com.airi.assistant.ai.ModelSource
 import com.airi.assistant.ai.ModelValidator
 import com.airi.assistant.ai.ValidationResult
+import com.airi.assistant.memory.entity.ChatMessage as MemoryChatMessage
 import com.airi.assistant.memory.repository.MemoryManager
 import com.airi.assistant.tools.FileUtils
 import com.airi.assistant.tools.ModelDownloadManager
@@ -71,25 +72,51 @@ data class ModelUiState(
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val appContext = application.applicationContext
-    private val preferences = appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
-    private val llamaManager = LlamaManager(appContext)
-    private val memoryManager = MemoryManager(appContext)
+    private val appContext      = application.applicationContext
+    private val preferences     = appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
+    private val llamaManager    = LlamaManager(appContext)
+    private val memoryManager   = MemoryManager(appContext)
     private val downloadManager = ModelDownloadManager(appContext)
-    private val gson = Gson()
+    private val gson            = Gson()
 
+    // ── Chat messages ────────────────────────────────────────────────────────
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
-    // Live streaming text — updates token by token while AI is generating
+    // ── Live streaming (token by token) ─────────────────────────────────────
     private val _streamingText = MutableStateFlow("")
     val streamingText: StateFlow<String> = _streamingText.asStateFlow()
 
+    // ── Agent state ──────────────────────────────────────────────────────────
     private val _agentState = MutableStateFlow(AgentState())
     val agentState: StateFlow<AgentState> = _agentState.asStateFlow()
 
+    // ── Model state ──────────────────────────────────────────────────────────
     private val _modelState = MutableStateFlow(createInitialModelState())
     val modelState: StateFlow<ModelUiState> = _modelState.asStateFlow()
+
+    // ── Generation settings ──────────────────────────────────────────────────
+    private val _temperature = MutableStateFlow(
+        preferences.getFloat("gen_temperature", 0.7f)
+    )
+    val temperature: StateFlow<Float> = _temperature.asStateFlow()
+
+    private val _maxTokens = MutableStateFlow(
+        preferences.getInt("gen_max_tokens", 512)
+    )
+    val maxTokens: StateFlow<Int> = _maxTokens.asStateFlow()
+
+    private val _systemPrompt = MutableStateFlow(
+        preferences.getString("gen_system_prompt", "").orEmpty()
+    )
+    val systemPrompt: StateFlow<String> = _systemPrompt.asStateFlow()
+
+    // ── Memory browser ───────────────────────────────────────────────────────
+    private val _memoryEntries = MutableStateFlow<List<MemoryChatMessage>>(emptyList())
+    val memoryEntries: StateFlow<List<MemoryChatMessage>> = _memoryEntries.asStateFlow()
+
+    private val _memoryCount = MutableStateFlow(0)
+    val memoryCount: StateFlow<Int> = _memoryCount.asStateFlow()
 
     init {
         ModelManager.setLoader(ModelLoader(llamaManager))
@@ -105,13 +132,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadHistoryFromDb() {
         viewModelScope.launch {
-            val history = runCatching {
-                memoryManager.getRecentMessages(60)
-            }.getOrElse { emptyList() }
-            // DB returns DESC (newest first) — reverse to chronological order
+            val history = runCatching { memoryManager.getRecentMessages(60) }.getOrElse { emptyList() }
             _messages.value = history.reversed().map { msg ->
                 ChatMessage(text = msg.content, isUser = msg.role == "user")
             }
+        }
+    }
+
+    fun loadMemoryEntries() {
+        viewModelScope.launch {
+            _memoryEntries.value = runCatching { memoryManager.getRecentMessages(200) }.getOrElse { emptyList() }
+            _memoryCount.value = runCatching { memoryManager.getMessageCount() }.getOrElse { 0 }
         }
     }
 
@@ -132,7 +163,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _agentState.value = AgentState(isWorking = true, currentAction = "Generating response…")
         _streamingText.value = ""
 
-        // Real streaming inference — token by token
         llamaManager.generateStream(
             prompt = trimmedInput,
             onToken = { token ->
@@ -150,6 +180,34 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _messages.value = emptyList()
         _streamingText.value = ""
         _agentState.value = AgentState()
+    }
+
+    fun clearMemory() {
+        viewModelScope.launch {
+            runCatching { memoryManager.clearAll() }
+            _messages.value = emptyList()
+            _memoryEntries.value = emptyList()
+            _memoryCount.value = 0
+            _streamingText.value = ""
+            _agentState.value = AgentState()
+        }
+    }
+
+    // ── Generation settings ───────────────────────────────────────────────────
+
+    fun setTemperature(value: Float) {
+        _temperature.value = value
+        preferences.edit().putFloat("gen_temperature", value).apply()
+    }
+
+    fun setMaxTokens(value: Int) {
+        _maxTokens.value = value
+        preferences.edit().putInt("gen_max_tokens", value).apply()
+    }
+
+    fun setSystemPrompt(value: String) {
+        _systemPrompt.value = value
+        preferences.edit().putString("gen_system_prompt", value).apply()
     }
 
     // ── Model import / selection ──────────────────────────────────────────────
@@ -176,42 +234,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         file.delete()
                         val (msg, type) = validationMessage(v)
                         _modelState.update {
-                            it.copy(
-                                isModelLoading = false,
-                                isModelReady = false,
-                                loadError = msg,
-                                loadErrorType = type,
-                                loadProgress = -1,
-                                availableModels = ModelManager.getAllModels()
-                            )
+                            it.copy(isModelLoading = false, isModelReady = false, loadError = msg,
+                                loadErrorType = type, loadProgress = -1, availableModels = ModelManager.getAllModels())
                         }
                     }
                 }
             } catch (e: Exception) {
                 _modelState.update {
-                    it.copy(
-                        isModelLoading = false,
-                        isModelReady = false,
+                    it.copy(isModelLoading = false, isModelReady = false,
                         loadError = e.localizedMessage ?: "Could not import model",
-                        loadErrorType = LoadErrorType.LOAD_FAILED,
-                        loadProgress = -1,
-                        availableModels = ModelManager.getAllModels()
-                    )
+                        loadErrorType = LoadErrorType.LOAD_FAILED, loadProgress = -1,
+                        availableModels = ModelManager.getAllModels())
                 }
             }
         }
     }
 
     fun selectModel(modelId: String) {
-        val model = ModelRegistry.getById(modelId)
-        if (model == null) {
-            _modelState.update { it.copy(loadError = "Model not found in local registry", loadErrorType = LoadErrorType.FILE_NOT_FOUND) }
-            return
-        }
-        preferences.edit()
-            .putString(KEY_MODEL_ID, model.id)
-            .putString(KEY_MODEL_PATH, model.path)
-            .apply()
+        val model = ModelRegistry.getById(modelId) ?: return
+        preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
         loadModel(model)
     }
 
@@ -225,10 +266,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val model = createModelFromFile(file, ModelSource.DOWNLOADED, "chat", catalogMeta)
         ModelRegistry.addModel(model)
         persistRegistry()
-        preferences.edit()
-            .putString(KEY_MODEL_ID, model.id)
-            .putString(KEY_MODEL_PATH, model.path)
-            .apply()
+        preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
         refreshModelList()
         loadModel(model)
     }
@@ -238,11 +276,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             putExtra(ModelDownloadService.EXTRA_DOWNLOAD_URL, entry.downloadUrl)
             putExtra(ModelDownloadService.EXTRA_FILENAME, entry.fileName)
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            appContext.startForegroundService(intent)
-        } else {
-            appContext.startService(intent)
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) appContext.startForegroundService(intent)
+        else appContext.startService(intent)
     }
 
     fun activateCatalogDownload(entry: CatalogEntry) {
@@ -254,21 +289,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val model = createModelFromFile(file, ModelSource.DOWNLOADED, "chat", entry)
         ModelRegistry.addModel(model)
         persistRegistry()
-        preferences.edit()
-            .putString(KEY_MODEL_ID, model.id)
-            .putString(KEY_MODEL_PATH, model.path)
-            .apply()
+        preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
         refreshModelList()
         loadModel(model)
     }
 
     fun startDefaultModelDownload() {
         val intent = Intent(appContext, ModelDownloadService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            appContext.startForegroundService(intent)
-        } else {
-            appContext.startService(intent)
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) appContext.startForegroundService(intent)
+        else appContext.startService(intent)
         refreshDownloadedModelState()
     }
 
@@ -290,9 +319,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val profile = DeviceProfiler.profile(appContext)
         return ModelCatalog.entries.filter { entry ->
             when (profile.tier) {
-                DeviceTier.LOW  -> entry.ramRequiredMb <= 1024  // 0.5B only
-                DeviceTier.MID  -> entry.ramRequiredMb <= 2048  // up to 1.5B
-                DeviceTier.HIGH -> true                         // all models
+                DeviceTier.LOW  -> entry.ramRequiredMb <= 1024
+                DeviceTier.MID  -> entry.ramRequiredMb <= 2048
+                DeviceTier.HIGH -> true
             }
         }.sortedWith(compareBy({ it.ramRequiredMb }, { it.sizeBytes }))
     }
@@ -307,11 +336,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _modelState.update { it.copy(isScanning = true) }
         viewModelScope.launch(Dispatchers.IO) {
             val scanned = runCatching { ModelScout.scan(appContext) }.getOrElse { emptyList() }
-
-            // Uniqueness by fileName — prevents adding the same model twice
-            // from different directories (e.g. Downloads + AIRI folder)
             val existingFileNames = ModelRegistry.getAll().map { it.fileName }.toSet()
-
             val newScannedIds = mutableSetOf<String>()
             for (s in scanned) {
                 if (existingFileNames.contains(s.fileName)) continue
@@ -321,18 +346,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 ModelRegistry.addModel(model)
                 newScannedIds.add(model.id)
             }
-
             if (newScannedIds.isNotEmpty()) persistRegistry()
-
             val allScannedIds = _modelState.value.scannedModelIds + newScannedIds
             persistScannedIds(allScannedIds)
-
             _modelState.update {
-                it.copy(
-                    isScanning = false,
-                    availableModels = ModelManager.getAllModels(),
-                    scannedModelIds = allScannedIds
-                )
+                it.copy(isScanning = false, availableModels = ModelManager.getAllModels(), scannedModelIds = allScannedIds)
             }
         }
     }
@@ -345,61 +363,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (validation !is ValidationResult.Valid) {
             val (msg, type) = validationMessage(validation)
             _modelState.update {
-                it.copy(
-                    selectedModelId = model.id,
-                    selectedModelName = model.name,
-                    selectedModelPath = model.path,
-                    selectedModelSize = model.size,
-                    isModelLoading = false,
-                    isModelReady = false,
-                    loadError = msg,
-                    loadErrorType = type,
-                    loadProgress = -1,
-                    availableModels = ModelManager.getAllModels()
-                )
+                it.copy(selectedModelId = model.id, selectedModelName = model.name, selectedModelPath = model.path,
+                    selectedModelSize = model.size, isModelLoading = false, isModelReady = false,
+                    loadError = msg, loadErrorType = type, loadProgress = -1, availableModels = ModelManager.getAllModels())
             }
             return
         }
-
         ModelManager.unload()
-
         _modelState.update {
-            it.copy(
-                selectedModelId = model.id,
-                selectedModelName = model.name,
-                selectedModelPath = model.path,
-                selectedModelSize = model.size,
-                isModelLoading = true,
-                isModelReady = false,
-                loadError = null,
-                loadErrorType = LoadErrorType.NONE,
-                loadProgress = 0,
+            it.copy(selectedModelId = model.id, selectedModelName = model.name, selectedModelPath = model.path,
+                selectedModelSize = model.size, isModelLoading = true, isModelReady = false,
+                loadError = null, loadErrorType = LoadErrorType.NONE, loadProgress = 0,
                 downloadedModelAvailable = downloadManager.isModelDownloaded(),
                 downloadedModelPath = downloadManager.getModelFile().absolutePath,
-                availableModels = ModelManager.getAllModels()
-            )
+                availableModels = ModelManager.getAllModels())
         }
-
-        ModelManager.load(
-            model,
-            onProgress = { percent -> _modelState.update { it.copy(loadProgress = percent) } }
-        ) { success ->
+        ModelManager.load(model, onProgress = { percent ->
+            _modelState.update { it.copy(loadProgress = percent) }
+        }) { success ->
             if (success) {
-                preferences.edit()
-                    .putString(KEY_MODEL_ID, model.id)
-                    .putString(KEY_MODEL_PATH, model.path)
-                    .apply()
+                preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
                 persistRegistry()
             }
             _modelState.update {
-                it.copy(
-                    isModelLoading = false,
-                    isModelReady = success,
+                it.copy(isModelLoading = false, isModelReady = success,
                     loadError = if (success) null else "فشل تحميل النموذج في محرك الاستنتاج",
                     loadErrorType = if (success) LoadErrorType.NONE else LoadErrorType.LOAD_FAILED,
-                    loadProgress = -1,
-                    availableModels = ModelManager.getAllModels()
-                )
+                    loadProgress = -1, availableModels = ModelManager.getAllModels())
             }
         }
     }
@@ -407,19 +397,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun createInitialModelState(): ModelUiState {
         restoreRegistry()
         syncDownloadedModelAvailability()
-        val savedId = preferences.getString(KEY_MODEL_ID, "").orEmpty()
+        val savedId   = preferences.getString(KEY_MODEL_ID, "").orEmpty()
         val savedPath = preferences.getString(KEY_MODEL_PATH, "").orEmpty()
         val savedModel = ModelRegistry.getById(savedId)
             ?: ModelRegistry.getAll().firstOrNull { it.path == savedPath }
             ?: File(savedPath).takeIf { it.exists() && it.length() > 0 }
-                ?.let { f ->
-                    val meta = ModelCatalog.entries.find { it.fileName == f.name }
-                    createModelFromFile(f, ModelSource.LOCAL_FILE, "custom", meta)
-                }
-        if (savedModel != null) {
-            ModelRegistry.addModel(savedModel)
-            persistRegistry()
-        }
+                ?.let { f -> createModelFromFile(f, ModelSource.LOCAL_FILE, "custom", ModelCatalog.entries.find { it.fileName == f.name }) }
+        if (savedModel != null) { ModelRegistry.addModel(savedModel); persistRegistry() }
         val downloadedFile = downloadManager.getModelFile()
         return ModelUiState(
             selectedModelId = savedModel?.id.orEmpty(),
@@ -443,9 +427,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun persistRegistry() {
-        preferences.edit()
-            .putString(KEY_MODEL_REGISTRY, gson.toJson(ModelManager.getAllModels()))
-            .apply()
+        preferences.edit().putString(KEY_MODEL_REGISTRY, gson.toJson(ModelManager.getAllModels())).apply()
     }
 
     private fun syncDownloadedModelAvailability() {
@@ -462,42 +444,36 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun createModelFromFile(
-        file: File,
-        source: ModelSource,
-        type: String,
-        catalogMeta: CatalogEntry? = null
+        file: File, source: ModelSource, type: String, catalogMeta: CatalogEntry? = null
     ): ModelInfo {
-        val matchedCatalog = catalogMeta ?: ModelCatalog.entries.find { it.fileName == file.name }
+        val matched = catalogMeta ?: ModelCatalog.entries.find { it.fileName == file.name }
         return ModelInfo(
-            name = matchedCatalog?.name ?: file.nameWithoutExtension,
+            name = matched?.name ?: file.nameWithoutExtension,
             fileName = file.name,
             size = file.length(),
-            quantization = matchedCatalog?.quantization ?: detectQuantization(file.name),
+            quantization = matched?.quantization ?: detectQuantization(file.name),
             path = file.absolutePath,
             source = source,
             id = file.absolutePath,
             type = type,
             isLocal = true,
-            ramRequiredMb = matchedCatalog?.ramRequiredMb ?: 0,
-            contextSize = matchedCatalog?.contextSize ?: 0
+            ramRequiredMb = matched?.ramRequiredMb ?: 0,
+            contextSize = matched?.contextSize ?: 0
         )
     }
 
     private fun detectQuantization(fileName: String): String {
         val lower = fileName.lowercase()
         return when {
-            "q4_k_m" in lower -> "Q4_K_M"
-            "q4" in lower || "4bit" in lower -> "4-bit"
-            "q5" in lower || "5bit" in lower -> "5-bit"
-            "q8" in lower || "8bit" in lower -> "8-bit"
-            else -> "GGUF"
+            "q4_k_m" in lower -> "Q4_K_M"; "q4" in lower -> "4-bit"
+            "q5" in lower -> "5-bit"; "q8" in lower -> "8-bit"; else -> "GGUF"
         }
     }
 
     private fun validationMessage(result: ValidationResult): Pair<String, LoadErrorType> = when (result) {
-        is ValidationResult.FileNotFound   -> "الملف غير موجود أو تم حذفه" to LoadErrorType.FILE_NOT_FOUND
-        is ValidationResult.InvalidFormat  -> "صيغة الملف غير صحيحة — يجب أن يكون ملف GGUF حقيقي" to LoadErrorType.INVALID_FORMAT
-        is ValidationResult.TooSmall       -> "حجم الملف صغير جداً — قد يكون التحميل غير مكتمل" to LoadErrorType.TOO_SMALL
+        is ValidationResult.FileNotFound    -> "الملف غير موجود أو تم حذفه" to LoadErrorType.FILE_NOT_FOUND
+        is ValidationResult.InvalidFormat   -> "صيغة الملف غير صحيحة — يجب أن يكون ملف GGUF حقيقي" to LoadErrorType.INVALID_FORMAT
+        is ValidationResult.TooSmall        -> "حجم الملف صغير جداً — قد يكون التحميل غير مكتمل" to LoadErrorType.TOO_SMALL
         is ValidationResult.InsufficientRam -> "الذاكرة غير كافية (مطلوب ${result.requiredMb} MB، متاح ${result.availableMb} MB)" to LoadErrorType.INSUFFICIENT_RAM
         else -> "خطأ غير متوقع" to LoadErrorType.LOAD_FAILED
     }

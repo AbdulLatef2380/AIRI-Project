@@ -24,10 +24,15 @@ import com.airi.assistant.ai.ValidationResult
 import com.airi.assistant.memory.dao.ChatSessionSummary
 import com.airi.assistant.memory.entity.ChatMessage as MemoryChatMessage
 import com.airi.assistant.memory.repository.MemoryManager
+import com.airi.assistant.ai.intent.ToolCallParser
+import com.airi.assistant.ai.tools.ToolExecutor
+import com.airi.assistant.ai.tools.ToolRegistry
 import com.airi.assistant.tools.FileUtils
 import com.airi.assistant.tools.ModelDownloadManager
 import com.airi.assistant.tools.ModelDownloadService
 import com.google.gson.Gson
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import com.google.gson.reflect.TypeToken
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +92,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val memoryManager   = MemoryManager(appContext)
     private val downloadManager = ModelDownloadManager(appContext)
     private val gson            = Gson()
+    private val toolRegistry    = ToolRegistry(appContext)
+    private val toolExecutor    = ToolExecutor(appContext)
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -237,8 +244,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 onComplete = { fullResponse ->
                     if (fullResponse.isNotBlank()) {
                         viewModelScope.launch {
-                            val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fullResponse)
-                            _messages.update { it + ChatMessage(fullResponse, isUser = false, assistantMessage.id) }
+                            val wasToolCall = handleToolIfNeeded(fullResponse, sessionId)
+                            if (!wasToolCall) {
+                                val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fullResponse)
+                                _messages.update { it + ChatMessage(fullResponse, isUser = false, assistantMessage.id) }
+                            }
                             refreshSessions()
                         }
                     }
@@ -280,7 +290,46 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 append("\n")
                 append(custom)
             }
+            val toolBlock = toolRegistry.buildToolDescriptionBlock()
+            if (toolBlock.isNotBlank()) {
+                append(toolBlock)
+            }
         }
+    }
+
+    // ─── Tool call processing (Phase 2 extension layer) ───────────────────────
+
+    private suspend fun handleToolIfNeeded(response: String, sessionId: String): Boolean {
+        val toolCall = ToolCallParser.parse(response) ?: return false
+
+        _agentState.value = AgentState(
+            isWorking = true,
+            currentAction = "Running tool: ${toolCall.toolName.replace("_", " ")}…"
+        )
+
+        val result = toolExecutor.execute(toolCall)
+
+        val followUpPrompt = if (result.success) {
+            "Tool '${toolCall.toolName}' returned this data:\n${result.data}\n\nExplain this clearly and helpfully to the user."
+        } else {
+            "Tool '${toolCall.toolName}' failed with error: ${result.error ?: "Unknown error"}. " +
+                    "Inform the user in a friendly, helpful way."
+        }
+
+        val finalResponse = suspendCoroutine<String> { continuation ->
+            llamaManager.generate(
+                prompt = followUpPrompt,
+                systemPrompt = _agentMode.value.prompt,
+                onResult = { text -> continuation.resume(text) }
+            )
+        }
+
+        if (finalResponse.isNotBlank()) {
+            val assistantMsg = memoryManager.recordChatMessage(sessionId, "assistant", finalResponse)
+            _messages.update { it + ChatMessage(finalResponse, isUser = false, assistantMsg.id) }
+        }
+
+        return true
     }
 
     fun clearMessages() {

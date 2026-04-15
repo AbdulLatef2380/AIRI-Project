@@ -30,11 +30,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.airi.assistant.R
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.InputBarBackground
@@ -82,22 +84,22 @@ fun ChatScreen(
         if (granted) {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to AIRI")
+                putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
             }
             speechLauncher.launch(intent)
         } else {
-            scope.launch { snackbarHost.showSnackbar("Microphone permission is required for voice input") }
+            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.microphone_permission_required)) }
         }
     }
 
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
-            scope.launch { snackbarHost.showSnackbar("File selected — attachment support coming soon") }
+            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.file_selected_coming_soon)) }
         }
     }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
-            scope.launch { snackbarHost.showSnackbar("Image selected — vision support coming soon") }
+            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.image_selected_coming_soon)) }
         }
     }
 
@@ -139,7 +141,7 @@ fun ChatScreen(
                     onSwitchModel = { showMenu = false; onNavigate(AiriRoute.MODELS) },
                     onExportChat  = {
                         showMenu = false
-                        scope.launch { snackbarHost.showSnackbar("Export coming soon") }
+                        scope.launch { snackbarHost.showSnackbar(context.getString(R.string.export_coming_soon)) }
                     }
                 )
             },
@@ -153,12 +155,12 @@ fun ChatScreen(
                     onMicClick      = {
                         when {
                             !SpeechRecognizer.isRecognitionAvailable(context) -> {
-                                scope.launch { snackbarHost.showSnackbar("Speech recognition is not available on this device") }
+                                scope.launch { snackbarHost.showSnackbar(context.getString(R.string.speech_recognition_unavailable)) }
                             }
                             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> {
                                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to AIRI")
+                                    putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
                                 }
                                 speechLauncher.launch(intent)
                             }
@@ -196,17 +198,17 @@ fun ChatScreen(
                     .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Attach", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
+                Text(stringResource(R.string.attach), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
                 Spacer(Modifier.height(4.dp))
-                AttachOption(icon = Icons.Outlined.Image, label = "Pick image") {
+                AttachOption(icon = Icons.Outlined.Image, label = stringResource(R.string.pick_image)) {
                     showAttachSheet = false
                     imagePicker.launch("image/*")
                 }
-                AttachOption(icon = Icons.Outlined.AttachFile, label = "Pick file") {
+                AttachOption(icon = Icons.Outlined.AttachFile, label = stringResource(R.string.pick_file)) {
                     showAttachSheet = false
                     filePicker.launch("*/*")
                 }
-                AttachOption(icon = Icons.Outlined.CameraAlt, label = "Camera (coming soon)", enabled = false) {}
+                AttachOption(icon = Icons.Outlined.CameraAlt, label = stringResource(R.string.camera_coming_soon), enabled = false) {}
                 Spacer(Modifier.height(16.dp))
             }
         }
@@ -255,23 +257,23 @@ private fun ChatTopBar(
         ),
         navigationIcon = {
             IconButton(onClick = onMenuOpen) {
-                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
+                Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.menu), tint = Color.White)
             }
         },
         title = {
             Column {
                 Text(
-                    "AIRI Agent • ${agentMode.label}",
+                    stringResource(R.string.app_agent_mode_title, agentMode.label),
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     fontSize = 16.sp
                 )
                 Text(
                     text = when {
-                        agentState.isWorking         -> "Generating…"
+                        agentState.isWorking         -> stringResource(R.string.generating)
                         modelState.isModelReady      -> modelState.selectedModelName
-                        modelState.isModelLoading    -> "Loading model…"
-                        else                         -> "No model active"
+                        modelState.isModelLoading    -> stringResource(R.string.loading_model)
+                        else                         -> stringResource(R.string.no_model_active)
                     },
                     fontSize = 11.sp,
                     color = when {
@@ -286,11 +288,11 @@ private fun ChatTopBar(
         },
         actions = {
             IconButton(onClick = onNewChat) {
-                Icon(Icons.Outlined.AddComment, contentDescription = "New chat", tint = Color.White.copy(alpha = 0.8f))
+                Icon(Icons.Outlined.AddComment, contentDescription = stringResource(R.string.new_chat), tint = Color.White.copy(alpha = 0.8f))
             }
             Box {
                 IconButton(onClick = onToggleDropdown) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "More options", tint = Color.White.copy(alpha = 0.8f))
+                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more_options), tint = Color.White.copy(alpha = 0.8f))
                 }
                 DropdownMenu(
                     expanded  = showMenu,
@@ -298,7 +300,7 @@ private fun ChatTopBar(
                     modifier = Modifier.background(Color(0xFF1A1F3A))
                 ) {
                     DropdownMenuItem(
-                        text  = { Text("Generation Settings", color = Color.White) },
+                        text  = { Text(stringResource(R.string.generation_settings), color = Color.White) },
                         leadingIcon = { Icon(Icons.Outlined.Tune, contentDescription = null, tint = CosmicAccent) },
                         onClick = onGenSettings
                     )
@@ -313,13 +315,13 @@ private fun ChatTopBar(
                         )
                     }
                     DropdownMenuItem(
-                        text  = { Text("Switch Model", color = Color.White) },
+                        text  = { Text(stringResource(R.string.switch_model), color = Color.White) },
                         leadingIcon = { Icon(Icons.Outlined.SmartToy, contentDescription = null, tint = CosmicAccent) },
                         onClick = onSwitchModel
                     )
                     Divider(color = Color.White.copy(alpha = 0.1f))
                     DropdownMenuItem(
-                        text  = { Text("Export Chat", color = Color.White) },
+                        text  = { Text(stringResource(R.string.export_chat), color = Color.White) },
                         leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = Color.White.copy(alpha = 0.6f)) },
                         onClick = onExportChat
                     )
@@ -361,15 +363,15 @@ fun ChatMessageList(
                 )
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    "AIRI is ready",
+                    stringResource(R.string.airi_ready),
                     color = Color.White.copy(alpha = 0.75f),
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    if (isModelReady) "Ask anything — your model is active"
-                    else "Activate a model from the Model Gallery first",
+                    if (isModelReady) stringResource(R.string.ask_anything_model_active)
+                    else stringResource(R.string.activate_model_gallery_first),
                     color = Color.White.copy(alpha = 0.4f),
                     fontSize = 13.sp
                 )
@@ -520,13 +522,13 @@ fun ChatInputBar(
                 TextButton(onClick = onOpenModels, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)) {
                     Icon(Icons.Outlined.Warning, contentDescription = null, tint = Color(0xFFFFCC00), modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("No model active — tap to select", color = Color(0xFFFFCC00), fontSize = 12.sp)
+                    Text(stringResource(R.string.no_model_tap_select), color = Color(0xFFFFCC00), fontSize = 12.sp)
                 }
             } else if (modelState.isModelLoading) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
                     CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp, color = CosmicAccent)
                     Spacer(Modifier.width(6.dp))
-                    Text("Loading ${modelState.selectedModelName}…", color = CosmicAccent.copy(alpha = 0.8f), fontSize = 12.sp)
+                    Text(stringResource(R.string.loading_model_name, modelState.selectedModelName), color = CosmicAccent.copy(alpha = 0.8f), fontSize = 12.sp)
                 }
             }
 
@@ -539,7 +541,7 @@ fun ChatInputBar(
                     onClick  = onAttachClick,
                     modifier = Modifier.size(40.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Attach", tint = Color.White.copy(alpha = 0.6f))
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.attach), tint = Color.White.copy(alpha = 0.6f))
                 }
 
                 // TextField
@@ -551,10 +553,10 @@ fun ChatInputBar(
                     placeholder   = {
                         Text(
                             when {
-                                isGenerating              -> "Generating…"
-                                modelState.isModelLoading -> "Model is loading…"
-                                modelState.isModelReady   -> "Message AIRI…"
-                                else                      -> "Activate a model first…"
+                                isGenerating              -> stringResource(R.string.generating)
+                                modelState.isModelLoading -> stringResource(R.string.model_is_loading)
+                                modelState.isModelReady   -> stringResource(R.string.message_airi)
+                                else                      -> stringResource(R.string.activate_model_first)
                             },
                             color = Color.White.copy(alpha = 0.3f),
                             fontSize = 14.sp
@@ -584,7 +586,7 @@ fun ChatInputBar(
                 ) {
                     Icon(
                         Icons.Outlined.Mic,
-                        contentDescription = "Voice input",
+                        contentDescription = stringResource(R.string.voice_input),
                         tint = Color.White.copy(alpha = 0.5f)
                     )
                 }
@@ -603,7 +605,7 @@ fun ChatInputBar(
                 ) {
                     Icon(
                         Icons.Default.Send,
-                        contentDescription = "Send",
+                        contentDescription = stringResource(R.string.send),
                         tint = if (canSend) CosmicAccent else Color.White.copy(alpha = 0.2f)
                     )
                 }
@@ -624,7 +626,7 @@ private fun ModelErrorDialog(
         titleContentColor = Color.White,
         textContentColor = Color.White,
         shape = RoundedCornerShape(20.dp),
-        title = { Text("Model error", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.model_error), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(error)
@@ -636,7 +638,7 @@ private fun ModelErrorDialog(
                 onClick = onDismiss,
                 colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.Black)
             ) {
-                Text("OK")
+                Text(stringResource(R.string.ok))
             }
         }
     )
@@ -687,7 +689,7 @@ fun AiriDrawer(
                     }
                     Spacer(Modifier.width(12.dp))
                     Column {
-                        Text("AIRI Agent", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
+                        Text(stringResource(R.string.app_agent_title), fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
                         Text(email, color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
@@ -698,9 +700,9 @@ fun AiriDrawer(
                 ) {
                     Text(
                         text = when {
-                            modelState.isModelReady   -> "● ${modelState.selectedModelName}"
-                            modelState.isModelLoading -> "○ Loading…"
-                            else                      -> "○ No model"
+                            modelState.isModelReady   -> stringResource(R.string.model_ready_status, modelState.selectedModelName)
+                            modelState.isModelLoading -> stringResource(R.string.model_loading_status)
+                            else                      -> stringResource(R.string.model_none_status)
                         },
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                         fontSize = 11.sp,
@@ -714,24 +716,24 @@ fun AiriDrawer(
         Spacer(Modifier.height(8.dp))
 
         // ── Actions ───────────────────────────────────────────────────────
-        DrawerActionItem(icon = Icons.Outlined.AddComment,  label = "New Chat",      onClick = onNewChat)
-        DrawerNavItem(icon = Icons.Outlined.Forum,          label = "Chats",          route = AiriRoute.HISTORY,      onNavigate = onNavigate)
-        DrawerNavItem(icon = Icons.Outlined.SmartToy,       label = "Model Gallery",  route = AiriRoute.MODELS,       onNavigate = onNavigate)
-        DrawerNavItem(icon = Icons.Outlined.Psychology,     label = "Memory",         route = AiriRoute.MEMORY,       onNavigate = onNavigate)
-        DrawerNavItem(icon = Icons.Outlined.Extension,      label = "Integrations",   route = AiriRoute.INTEGRATIONS, onNavigate = onNavigate)
+        DrawerActionItem(icon = Icons.Outlined.AddComment,  label = stringResource(R.string.new_chat),      onClick = onNewChat)
+        DrawerNavItem(icon = Icons.Outlined.Forum,          label = stringResource(R.string.chats),          route = AiriRoute.HISTORY,      onNavigate = onNavigate)
+        DrawerNavItem(icon = Icons.Outlined.SmartToy,       label = stringResource(R.string.model_gallery),  route = AiriRoute.MODELS,       onNavigate = onNavigate)
+        DrawerNavItem(icon = Icons.Outlined.Psychology,     label = stringResource(R.string.memory),         route = AiriRoute.MEMORY,       onNavigate = onNavigate)
+        DrawerNavItem(icon = Icons.Outlined.Extension,      label = stringResource(R.string.integrations),   route = AiriRoute.INTEGRATIONS, onNavigate = onNavigate)
 
         Spacer(Modifier.height(4.dp))
         Divider(color = Color.White.copy(alpha = 0.06f))
         Spacer(Modifier.height(4.dp))
 
-        DrawerNavItem(icon = Icons.Outlined.Settings,       label = "Settings",       route = AiriRoute.SETTINGS,     onNavigate = onNavigate)
+        DrawerNavItem(icon = Icons.Outlined.Settings,       label = stringResource(R.string.settings),       route = AiriRoute.SETTINGS,     onNavigate = onNavigate)
 
         Spacer(Modifier.weight(1f))
         Divider(color = Color.White.copy(alpha = 0.06f))
 
         DrawerActionItem(
             icon    = Icons.Outlined.Logout,
-            label   = "Sign Out",
+            label   = stringResource(R.string.sign_out),
             tint    = Color(0xFFFF6B6B),
             onClick = onLogout
         )
@@ -824,15 +826,15 @@ private fun GenerationSettingsDialog(
         titleContentColor = Color.White,
         textContentColor  = Color.White,
         shape             = RoundedCornerShape(20.dp),
-        title = { Text("Generation Settings", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.generation_settings), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("These settings will apply to the next conversation.", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                Text(stringResource(R.string.generation_settings_description), color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
 
                 // Temperature
                 Column {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Temperature", fontSize = 13.sp)
+                        Text(stringResource(R.string.temperature), fontSize = 13.sp)
                         Text("%.1f".format(temperature), color = CosmicAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                     Slider(
@@ -841,13 +843,13 @@ private fun GenerationSettingsDialog(
                         valueRange = 0.1f..2.0f,
                         colors = SliderDefaults.colors(thumbColor = CosmicAccent, activeTrackColor = CosmicAccent)
                     )
-                    Text("Lower = focused, Higher = creative", color = Color.White.copy(alpha = 0.35f), fontSize = 11.sp)
+                    Text(stringResource(R.string.temperature_hint), color = Color.White.copy(alpha = 0.35f), fontSize = 11.sp)
                 }
 
                 // Max tokens
                 Column {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Max Tokens", fontSize = 13.sp)
+                        Text(stringResource(R.string.max_tokens), fontSize = 13.sp)
                         Text("$maxTokens", color = CosmicAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                     Slider(
@@ -861,12 +863,12 @@ private fun GenerationSettingsDialog(
 
                 // System prompt
                 Column {
-                    Text("System Prompt Override", fontSize = 13.sp)
+                    Text(stringResource(R.string.system_prompt_override), fontSize = 13.sp)
                     Spacer(Modifier.height(4.dp))
                     OutlinedTextField(
                         value = systemPrompt,
                         onValueChange = { viewModel.setSystemPrompt(it) },
-                        placeholder = { Text("Leave empty to use default", color = Color.White.copy(alpha = 0.3f), fontSize = 12.sp) },
+                        placeholder = { Text(stringResource(R.string.leave_empty_default), color = Color.White.copy(alpha = 0.3f), fontSize = 12.sp) },
                         minLines = 2,
                         maxLines = 4,
                         colors = OutlinedTextFieldDefaults.colors(
@@ -883,10 +885,10 @@ private fun GenerationSettingsDialog(
             Button(
                 onClick = onDismiss,
                 colors  = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.Black)
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = Color.White.copy(alpha = 0.6f)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = Color.White.copy(alpha = 0.6f)) }
         }
     )
 }

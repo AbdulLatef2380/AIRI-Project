@@ -21,9 +21,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.airi.assistant.R
 import com.airi.assistant.ai.CatalogEntry
 import com.airi.assistant.ai.ModelInfo
 import com.airi.assistant.ai.ModelManager
@@ -78,10 +80,10 @@ fun ModelSettingsScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Model Settings") },
+                title = { Text(stringResource(R.string.model_settings)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -107,8 +109,8 @@ fun ModelSettingsScreen(
             if (modelState.recommendedModels.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        title = "Recommended for Your Device",
-                        subtitle = "Filtered by RAM profile so weak devices are not offered oversized models"
+                        title = stringResource(R.string.recommended_for_device),
+                        subtitle = stringResource(R.string.recommended_for_device_subtitle)
                     )
                 }
                 items(items = modelState.recommendedModels, key = { "rec_${it.id}" }) { entry ->
@@ -132,8 +134,8 @@ fun ModelSettingsScreen(
 
             item {
                 SectionHeader(
-                    title = "Model Store",
-                    subtitle = "Production GGUF models with model type, RAM, context, and quantization metadata"
+                    title = stringResource(R.string.model_store),
+                    subtitle = stringResource(R.string.model_store_subtitle)
                 )
             }
             items(items = modelState.catalogModels, key = { "catalog_${it.id}" }) { entry ->
@@ -156,8 +158,8 @@ fun ModelSettingsScreen(
 
             item {
                 SectionHeader(
-                    title = "Local Models",
-                    subtitle = "Downloaded, imported, and scanned GGUF files available on this device"
+                    title = stringResource(R.string.local_models),
+                    subtitle = stringResource(R.string.local_models_subtitle)
                 )
             }
             item { ScanDeviceCard(isScanning = modelState.isScanning, onScan = onScanClick) }
@@ -190,15 +192,15 @@ fun ModelSettingsScreen(
     modelPendingDelete?.let { model ->
         AlertDialog(
             onDismissRequest = { modelPendingDelete = null },
-            title = { Text("Delete model") },
+            title = { Text(stringResource(R.string.delete_model)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Remove ${model.name} from AIRI?")
+                    Text(stringResource(R.string.remove_model_from_airi, model.name))
                     Text(
                         if (model.source == ModelSource.DOWNLOADED) {
-                            "The downloaded GGUF file will be deleted from AIRI model storage."
+                            stringResource(R.string.downloaded_gguf_deleted)
                         } else {
-                            "The registry entry will be removed. External files are only deleted when Android grants write access."
+                            stringResource(R.string.registry_entry_removed)
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
@@ -213,10 +215,10 @@ fun ModelSettingsScreen(
                         modelPendingDelete = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Delete") }
+                ) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { modelPendingDelete = null }) { Text("Cancel") }
+                TextButton(onClick = { modelPendingDelete = null }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -224,7 +226,7 @@ fun ModelSettingsScreen(
     modelState.loadError?.let { error ->
         AlertDialog(
             onDismissRequest = { viewModel.clearModelError() },
-            title = { Text("Model error") },
+            title = { Text(stringResource(R.string.model_error)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(error)
@@ -237,7 +239,7 @@ fun ModelSettingsScreen(
             },
             confirmButton = {
                 Button(onClick = { viewModel.clearModelError() }) {
-                    Text("OK")
+                    Text(stringResource(R.string.ok))
                 }
             }
         )
@@ -257,7 +259,7 @@ fun ActiveModelSummaryCard(state: ModelUiState, onOpenGenerationSettings: () -> 
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Active Model", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.active_model), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
                         activeModel?.name ?: state.selectedModelName,
                         style = MaterialTheme.typography.bodyMedium,
@@ -266,9 +268,9 @@ fun ActiveModelSummaryCard(state: ModelUiState, onOpenGenerationSettings: () -> 
                 }
                 StatusChip(
                     label = when {
-                        state.isModelLoading -> "Loading"
-                        state.isModelReady -> "Active"
-                        else -> "Not active"
+                        state.isModelLoading -> stringResource(R.string.loading)
+                        state.isModelReady -> stringResource(R.string.active)
+                        else -> stringResource(R.string.not_active)
                     },
                     tone = when {
                         state.isModelLoading -> ChipTone.WARNING
@@ -283,8 +285,8 @@ fun ActiveModelSummaryCard(state: ModelUiState, onOpenGenerationSettings: () -> 
                         model.type.label,
                         model.quantization,
                         model.size.toReadableSize(),
-                        "RAM ${model.ramRequiredMb.takeIf { it > 0 } ?: "?"} MB",
-                        "CTX ${model.contextSize.contextLabel()}"
+                        stringResource(R.string.ram_mb, "${model.ramRequiredMb.takeIf { it > 0 } ?: "?"}"),
+                        stringResource(R.string.ctx_value, model.contextSize.contextLabel())
                     )
                 )
             }
@@ -294,10 +296,10 @@ fun ActiveModelSummaryCard(state: ModelUiState, onOpenGenerationSettings: () -> 
                 } else {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
-                Text("Loading model into memory…", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.loading_model_memory), style = MaterialTheme.typography.bodySmall)
             }
             Button(onClick = onOpenGenerationSettings, modifier = Modifier.fillMaxWidth()) {
-                Text("Generation Settings")
+                Text(stringResource(R.string.generation_settings))
             }
         }
     }
@@ -333,10 +335,10 @@ fun ScanDeviceCard(isScanning: Boolean, onScan: () -> Unit) {
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Scan Device", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.scan_device), fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "Search Download, Documents, and AIRI folders for .gguf files",
+                    stringResource(R.string.scan_device_subtitle),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -344,7 +346,7 @@ fun ScanDeviceCard(isScanning: Boolean, onScan: () -> Unit) {
             if (isScanning) {
                 CircularProgressIndicator(modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
             } else {
-                Button(onClick = onScan) { Text("Scan") }
+                Button(onClick = onScan) { Text(stringResource(R.string.scan)) }
             }
         }
     }
@@ -379,7 +381,7 @@ fun CatalogCard(
                         Text(entry.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
                         if (showRecommendedBadge) {
                             Spacer(Modifier.width(8.dp))
-                            StatusChip("Recommended", ChipTone.INFO)
+                            StatusChip(stringResource(R.string.recommended), ChipTone.INFO)
                         }
                     }
                     Text(entry.description, style = MaterialTheme.typography.bodySmall)
@@ -391,8 +393,8 @@ fun CatalogCard(
                     entry.type.label,
                     entry.quantization,
                     entry.sizeBytes.toReadableSize(),
-                    "RAM ${entry.ramRequiredMb} MB",
-                    "CTX ${entry.contextSize.contextLabel()}"
+                    stringResource(R.string.ram_mb, "${entry.ramRequiredMb}"),
+                    stringResource(R.string.ctx_value, entry.contextSize.contextLabel())
                 )
             )
 
@@ -411,21 +413,21 @@ fun CatalogCard(
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     when {
-                        isActive -> StatusChip("Active", ChipTone.SUCCESS)
-                        isLoadingThisEntry -> StatusChip("Loading", ChipTone.WARNING)
-                        isDownloaded -> StatusChip("Downloaded", ChipTone.SUCCESS)
-                        else -> StatusChip("Not installed", ChipTone.NEUTRAL)
+                        isActive -> StatusChip(stringResource(R.string.active), ChipTone.SUCCESS)
+                        isLoadingThisEntry -> StatusChip(stringResource(R.string.loading), ChipTone.WARNING)
+                        isDownloaded -> StatusChip(stringResource(R.string.downloaded), ChipTone.SUCCESS)
+                        else -> StatusChip(stringResource(R.string.not_installed), ChipTone.NEUTRAL)
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
                         onClick = onDownload,
                         enabled = !isDownloaded && !isAnyLoading
-                    ) { Text("Download") }
+                    ) { Text(stringResource(R.string.download)) }
                     Button(
                         onClick = onActivate,
                         enabled = isDownloaded && !isActive && !isAnyLoading
-                    ) { Text(if (isLoadingThisEntry) "Loading…" else "Activate") }
+                    ) { Text(if (isLoadingThisEntry) stringResource(R.string.loading_ellipsis) else stringResource(R.string.activate)) }
                 }
             }
         }
@@ -436,16 +438,16 @@ fun CatalogCard(
 fun ImportModelCard(state: ModelUiState, onPickModel: () -> Unit) {
     ModelCard(
         icon = "G",
-        title = "Add local GGUF model",
-        subtitle = "Choose a .gguf file from storage and add it to the registry.",
+        title = stringResource(R.string.add_local_gguf_model),
+        subtitle = stringResource(R.string.choose_gguf_file),
         metaItems = emptyList(),
         type = null,
-        status = if (state.isModelLoading) "Loading" else "Import",
+        status = if (state.isModelLoading) stringResource(R.string.loading) else stringResource(R.string.import_action),
         error = state.loadError,
         errorType = state.loadErrorType,
         loadProgress = state.loadProgress,
         isLoadingThis = state.isModelLoading,
-        actionText = "Import .gguf",
+        actionText = stringResource(R.string.import_gguf),
         actionEnabled = !state.isModelLoading,
         extraLabel = null,
         onAction = onPickModel,
@@ -466,8 +468,8 @@ fun RegistryModelCard(
     val meta = buildList {
         add(model.quantization)
         add(model.size.toReadableSize())
-        if (model.ramRequiredMb > 0) add("RAM ${model.ramRequiredMb} MB")
-        if (model.contextSize > 0) add("CTX ${model.contextSize.contextLabel()}")
+        if (model.ramRequiredMb > 0) add(stringResource(R.string.ram_mb, "${model.ramRequiredMb}"))
+        if (model.contextSize > 0) add(stringResource(R.string.ctx_value, model.contextSize.contextLabel()))
     }
     ModelCard(
         icon = model.type.label.first().uppercase(),
@@ -476,21 +478,21 @@ fun RegistryModelCard(
         metaItems = meta,
         type = model.type,
         status = when {
-            isLoadingThisModel -> "Loading"
-            isActive -> "Active"
-            else -> "Downloaded"
+            isLoadingThisModel -> stringResource(R.string.loading)
+            isActive -> stringResource(R.string.active)
+            else -> stringResource(R.string.downloaded)
         },
         error = if (isActive || isLoadingThisModel) state.loadError else null,
         errorType = if (isActive || isLoadingThisModel) state.loadErrorType else LoadErrorType.NONE,
         loadProgress = if (isLoadingThisModel) state.loadProgress else -1,
         isLoadingThis = isLoadingThisModel,
         actionText = when {
-            isActive -> "Active"
-            isLoadingThisModel -> "Loading…"
-            else -> "Activate"
+            isActive -> stringResource(R.string.active)
+            isLoadingThisModel -> stringResource(R.string.loading_ellipsis)
+            else -> stringResource(R.string.activate)
         },
         actionEnabled = !isActive && !state.isModelLoading,
-        extraLabel = if (isScanned) "Detected automatically" else null,
+        extraLabel = if (isScanned) stringResource(R.string.detected_automatically) else null,
         onAction = onActivate,
         onDelete = onDelete
     )
@@ -506,9 +508,9 @@ fun EmptyModelRegistryCard() {
         tonalElevation = 2.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("No local models yet", fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.no_local_models_yet), fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text("Download a model from the store above, import a .gguf file, or tap Scan to detect models on your device.")
+            Text(stringResource(R.string.no_local_models_description))
         }
     }
 }
@@ -577,14 +579,14 @@ fun ModelCard(
                 StatusChip(
                     label = status,
                     tone = when (status) {
-                        "Active", "Downloaded" -> ChipTone.SUCCESS
-                        "Loading" -> ChipTone.WARNING
+                        stringResource(R.string.active), stringResource(R.string.downloaded) -> ChipTone.SUCCESS
+                        stringResource(R.string.loading), stringResource(R.string.loading_ellipsis) -> ChipTone.WARNING
                         else -> ChipTone.NEUTRAL
                     }
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     onDelete?.let {
-                        OutlinedButton(onClick = it, enabled = !isLoadingThis) { Text("Delete") }
+                        OutlinedButton(onClick = it, enabled = !isLoadingThis) { Text(stringResource(R.string.delete)) }
                     }
                     Button(onClick = onAction, enabled = actionEnabled) { Text(actionText) }
                 }
@@ -628,17 +630,17 @@ fun AdvancedGenerationSettingsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Generation Settings", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.generation_settings), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
-                    "Settings are persisted and constrained by the active model metadata.",
+                    stringResource(R.string.advanced_generation_description),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall
                 )
 
                 SettingSlider(
-                    title = "Temperature",
+                    title = stringResource(R.string.temperature),
                     valueLabel = "%.1f".format(temperature),
                     value = temperature,
                     valueRange = 0.1f..2.0f,
@@ -647,7 +649,7 @@ fun AdvancedGenerationSettingsDialog(
                 )
 
                 SettingSlider(
-                    title = "Max Tokens",
+                    title = stringResource(R.string.max_tokens),
                     valueLabel = "$maxTokens",
                     value = maxTokens.toFloat(),
                     valueRange = 64f..2048f,
@@ -656,7 +658,7 @@ fun AdvancedGenerationSettingsDialog(
                 )
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Context Size", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.context_size), style = MaterialTheme.typography.labelLarge)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         contextOptions.forEach { option ->
                             FilterChip(
@@ -671,7 +673,7 @@ fun AdvancedGenerationSettingsDialog(
                     }
                     if (activeModel?.type == ModelType.GEMMA) {
                         Text(
-                            "Gemma uses more memory at high context. AIRI keeps context choices inside the model limit.",
+                            stringResource(R.string.gemma_context_warning),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.tertiary
                         )
@@ -679,7 +681,7 @@ fun AdvancedGenerationSettingsDialog(
                 }
 
                 SettingSlider(
-                    title = "Top-K",
+                    title = stringResource(R.string.top_k),
                     valueLabel = "$topK",
                     value = topK.toFloat(),
                     valueRange = 1f..100f,
@@ -691,7 +693,7 @@ fun AdvancedGenerationSettingsDialog(
                 )
 
                 SettingSlider(
-                    title = "Top-P",
+                    title = stringResource(R.string.top_p),
                     valueLabel = "%.2f".format(topP),
                     value = topP,
                     valueRange = 0.1f..1.0f,
@@ -703,12 +705,12 @@ fun AdvancedGenerationSettingsDialog(
                 )
 
                 Column {
-                    Text("System Prompt", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.system_prompt), style = MaterialTheme.typography.labelLarge)
                     Spacer(Modifier.height(4.dp))
                     OutlinedTextField(
                         value = systemPrompt,
                         onValueChange = { viewModel.setSystemPrompt(it) },
-                        placeholder = { Text("Leave empty to use AIRI default") },
+                        placeholder = { Text(stringResource(R.string.leave_empty_airi_default)) },
                         minLines = 2,
                         maxLines = 4,
                         modifier = Modifier.fillMaxWidth()
@@ -717,10 +719,10 @@ fun AdvancedGenerationSettingsDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onDismiss) { Text("Save") }
+            Button(onClick = onDismiss) { Text(stringResource(R.string.save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }

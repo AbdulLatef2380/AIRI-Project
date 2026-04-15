@@ -33,8 +33,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.airi.assistant.R
 import com.airi.assistant.integration.IntegrationManager
 import com.airi.assistant.integration.IntegrationState
 import java.text.SimpleDateFormat
@@ -53,10 +55,10 @@ fun IntegrationsScreen(onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
-                title = { Text("Integrations", color = Color.White, fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.integrations), color = Color.White, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = Color.White)
                     }
                 }
             )
@@ -71,10 +73,10 @@ fun IntegrationsScreen(onBack: () -> Unit) {
         ) {
             item {
                 Column {
-                    Text("Connected tools", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(stringResource(R.string.connected_tools), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "AIRI persists integration state locally and can now enable or disable each provider.",
+                        stringResource(R.string.connected_tools_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.55f)
                     )
@@ -114,13 +116,13 @@ private fun IntegrationCard(
                 AssistChip(
                     onClick = {},
                     enabled = false,
-                    label = { Text(if (state.isConnected) "Connected" else "Disconnected") }
+                    label = { Text(if (state.isConnected) stringResource(R.string.connected) else stringResource(R.string.disconnected)) }
                 )
             }
             if (state.lastUpdated > 0L) {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Last updated ${formatIntegrationTime(state.lastUpdated)}",
+                    stringResource(R.string.last_updated, formatIntegrationTime(state.lastUpdated)),
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.45f)
                 )
@@ -128,9 +130,9 @@ private fun IntegrationCard(
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                 if (state.isConnected) {
-                    OutlinedButton(onClick = onDisconnect) { Text("Disconnect") }
+                    OutlinedButton(onClick = onDisconnect) { Text(stringResource(R.string.disconnect)) }
                 } else {
-                    Button(onClick = onConnect) { Text("Connect") }
+                    Button(onClick = onConnect) { Text(stringResource(R.string.connect)) }
                 }
             }
         }

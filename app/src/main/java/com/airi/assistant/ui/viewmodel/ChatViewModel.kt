@@ -18,6 +18,7 @@ import com.airi.assistant.ai.ModelManager
 import com.airi.assistant.ai.ModelRegistry
 import com.airi.assistant.ai.ModelScout
 import com.airi.assistant.ai.ModelSource
+import com.airi.assistant.ai.ModelType
 import com.airi.assistant.ai.ModelValidator
 import com.airi.assistant.ai.ValidationResult
 import com.airi.assistant.memory.dao.ChatSessionSummary
@@ -556,10 +557,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             path = file.absolutePath,
             source = source,
             id = file.absolutePath,
-            type = type,
+            type = matched?.type ?: when (type.lowercase()) {
+                "gemma" -> ModelType.GEMMA
+                "mistral" -> ModelType.MISTRAL
+                "llama" -> ModelType.LLAMA
+                else -> ModelType.inferFromFileName(file.name)
+            },
             isLocal = true,
             ramRequiredMb = matched?.ramRequiredMb ?: 0,
-            contextSize = matched?.contextSize ?: 0
+            contextSize = matched?.contextSize ?: 4096
         )
     }
 

@@ -24,6 +24,7 @@ class LlamaManager(private val context: Context) {
 
         scope.launch {
             isLoaded = false
+            unloadModel()
             try {
                 LlamaNative.loadModelWithProgress(
                     modelFile.absolutePath,
@@ -104,6 +105,15 @@ class LlamaManager(private val context: Context) {
     }
 
     private fun buildChatPrompt(systemPrompt: String): String {
+        val model = ModelManager.getCurrent()
+        return when (model?.type) {
+            ModelType.GEMMA -> buildGemmaPrompt(systemPrompt)
+            ModelType.MISTRAL -> buildMistralPrompt(systemPrompt)
+            else -> buildQwenPrompt(systemPrompt)
+        }
+    }
+
+    private fun buildQwenPrompt(systemPrompt: String): String {
         val sb = StringBuilder()
         sb.append("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n")
         sb.append(systemPrompt.ifBlank { defaultSystemPrompt() })
@@ -117,6 +127,75 @@ class LlamaManager(private val context: Context) {
 
         sb.append("<|start_header_id|>assistant<|end_header_id|>\n")
         return sb.toString()
+    }
+
+    private fun buildGemmaPrompt(systemPrompt: String): String {
+        val sb = StringBuilder()
+        val effectiveSystemPrompt = systemPrompt.ifBlank { defaultSystemPrompt() }
+        if (effectiveSystemPrompt.isNotBlank()) {
+            sb.append("<start_of_turn>user\n")
+            sb.append(effectiveSystemPrompt)
+            sb.append("<end_of_turn>\n")
+        }
+        for (msg in chatHistory.takeLast(adjustContextForGemma())) {
+            when (msg.role) {
+                "user" -> {
+                    sb.append("<start_of_turn>user\n")
+                    sb.append(msg.content)
+                    sb.append("<end_of_turn>\n")
+                }
+                "assistant" -> {
+                    sb.append("<start_of_turn>model\n")
+                    sb.append(msg.content)
+                    sb.append("<end_of_turn>\n")
+                }
+            }
+        }
+        sb.append("<start_of_turn>model\n")
+        return sb.toString()
+    }
+
+    private fun buildMistralPrompt(systemPrompt: String): String {
+        val sb = StringBuilder()
+        val history = chatHistory.takeLast(maxHistory)
+        val effectiveSystemPrompt = systemPrompt.ifBlank { defaultSystemPrompt() }
+        var pendingUser: String? = null
+
+        for ((index, msg) in history.withIndex()) {
+            when (msg.role) {
+                "user" -> {
+                    pendingUser = if (index == 0 && effectiveSystemPrompt.isNotBlank()) {
+                        "<<SYS>>\n$effectiveSystemPrompt\n<</SYS>>\n\n${msg.content}"
+                    } else {
+                        msg.content
+                    }
+                }
+                "assistant" -> {
+                    pendingUser?.let { userText ->
+                        sb.append("[INST] ")
+                        sb.append(userText)
+                        sb.append(" [/INST] ")
+                        sb.append(msg.content)
+                        sb.append("</s>")
+                        pendingUser = null
+                    }
+                }
+            }
+        }
+
+        val finalUser = pendingUser ?: if (effectiveSystemPrompt.isNotBlank() && history.none { it.role == "user" }) {
+            "<<SYS>>\n$effectiveSystemPrompt\n<</SYS>>"
+        } else {
+            ""
+        }
+        sb.append("[INST] ")
+        sb.append(finalUser)
+        sb.append(" [/INST]")
+        return sb.toString()
+    }
+
+    private fun adjustContextForGemma(): Int {
+        return minOf(maxHistory, 8)
     }
 
     private fun defaultSystemPrompt(): String = """

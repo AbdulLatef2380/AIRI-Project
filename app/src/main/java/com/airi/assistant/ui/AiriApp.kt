@@ -11,6 +11,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.airi.assistant.ui.components.StarBackground
 import com.airi.assistant.ui.screens.ChatScreen
+import com.airi.assistant.ui.screens.HistoryScreen
 import com.airi.assistant.ui.screens.IntegrationsScreen
 import com.airi.assistant.ui.screens.LoginScreen
 import com.airi.assistant.ui.screens.MemoryScreen
@@ -25,6 +26,7 @@ object AiriRoute {
     const val WELCOME      = "screen_welcome"
     const val LOGIN        = "screen_login"
     const val CHAT         = "screen_chat"
+    const val HISTORY      = "screen_history"
     const val MODELS       = "screen_models"
     const val SETTINGS     = "screen_settings"
     const val MEMORY       = "screen_memory"
@@ -98,6 +100,18 @@ fun AiriApp() {
                     ModelSettingsScreen(
                         viewModel = chatViewModel,
                         onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(AiriRoute.HISTORY) {
+                    HistoryScreen(
+                        viewModel = chatViewModel,
+                        onBack = { navController.popBackStack() },
+                        onSessionSelected = {
+                            navController.navigate(AiriRoute.CHAT) {
+                                launchSingleTop = true
+                            }
+                        }
                     )
                 }
 

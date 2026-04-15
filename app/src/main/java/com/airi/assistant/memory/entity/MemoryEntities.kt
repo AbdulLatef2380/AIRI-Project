@@ -7,12 +7,13 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "episodic_memory")
 data class ChatMessage(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val role: String,        // نستخدم role ليتوافق مع معايير Llama 3
+    val sessionId: String = "default",
+    val role: String,
     val content: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val emotionState: String? = null
+    val emotionState: String? = null,
+    val isMemory: Boolean = false
 ) {
-    // هذا السطر يضمن أن أي كود قديم يبحث عن 'sender' سيجد القيمة في 'role'
     @Ignore
     val sender: String = role
 }

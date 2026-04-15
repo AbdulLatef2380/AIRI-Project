@@ -20,6 +20,7 @@ import com.airi.assistant.ai.ModelScout
 import com.airi.assistant.ai.ModelSource
 import com.airi.assistant.ai.ModelValidator
 import com.airi.assistant.ai.ValidationResult
+import com.airi.assistant.memory.dao.ChatSessionSummary
 import com.airi.assistant.memory.entity.ChatMessage as MemoryChatMessage
 import com.airi.assistant.memory.repository.MemoryManager
 import com.airi.assistant.tools.FileUtils
@@ -37,7 +38,8 @@ import kotlinx.coroutines.launch
 
 data class ChatMessage(
     val text: String,
-    val isUser: Boolean
+    val isUser: Boolean,
+    val id: Long = System.currentTimeMillis()
 )
 
 data class AgentState(
@@ -49,6 +51,12 @@ data class AgentState(
 
 enum class LoadErrorType {
     NONE, FILE_NOT_FOUND, INVALID_FORMAT, TOO_SMALL, INSUFFICIENT_RAM, LOAD_FAILED
+}
+
+enum class AgentMode(val label: String, val prompt: String) {
+    ASSISTANT("Assistant", "أنت AIRI، مساعد ذكي متوازن، واضح، ودقيق."),
+    CREATIVE("Creative", "أنت AIRI في الوضع الإبداعي. اقترح أفكاراً متنوعة، استخدم خيالاً عملياً، واجعل الردود ملهمة دون إطالة غير ضرورية."),
+    TECHNICAL("Technical", "أنت AIRI في الوضع التقني. ركز على الدقة، الخطوات العملية، والتحليل المنظم.")
 }
 
 data class ModelUiState(
@@ -79,23 +87,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val downloadManager = ModelDownloadManager(appContext)
     private val gson            = Gson()
 
-    // ── Chat messages ────────────────────────────────────────────────────────
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
-    // ── Live streaming (token by token) ─────────────────────────────────────
     private val _streamingText = MutableStateFlow("")
     val streamingText: StateFlow<String> = _streamingText.asStateFlow()
 
-    // ── Agent state ──────────────────────────────────────────────────────────
     private val _agentState = MutableStateFlow(AgentState())
     val agentState: StateFlow<AgentState> = _agentState.asStateFlow()
 
-    // ── Model state ──────────────────────────────────────────────────────────
     private val _modelState = MutableStateFlow(createInitialModelState())
     val modelState: StateFlow<ModelUiState> = _modelState.asStateFlow()
 
-    // ── Generation settings ──────────────────────────────────────────────────
+    private val _sessions = MutableStateFlow<List<ChatSessionSummary>>(emptyList())
+    val sessions: StateFlow<List<ChatSessionSummary>> = _sessions.asStateFlow()
+
+    private val _currentSessionId = MutableStateFlow("")
+    val currentSessionId: StateFlow<String> = _currentSessionId.asStateFlow()
+
+    private val _agentMode = MutableStateFlow(
+        runCatching { AgentMode.valueOf(preferences.getString("agent_mode", AgentMode.ASSISTANT.name) ?: AgentMode.ASSISTANT.name) }
+            .getOrDefault(AgentMode.ASSISTANT)
+    )
+    val agentMode: StateFlow<AgentMode> = _agentMode.asStateFlow()
+
     private val _temperature = MutableStateFlow(
         preferences.getFloat("gen_temperature", 0.7f)
     )
@@ -111,7 +126,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     )
     val systemPrompt: StateFlow<String> = _systemPrompt.asStateFlow()
 
-    // ── Memory browser ───────────────────────────────────────────────────────
     private val _memoryEntries = MutableStateFlow<List<MemoryChatMessage>>(emptyList())
     val memoryEntries: StateFlow<List<MemoryChatMessage>> = _memoryEntries.asStateFlow()
 
@@ -120,7 +134,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         ModelManager.setLoader(ModelLoader(llamaManager))
-        loadHistoryFromDb()
+        loadInitialSession()
         val savedModel = ModelRegistry.getById(_modelState.value.selectedModelId)
         if (savedModel != null && File(savedModel.path).exists()) {
             loadModel(savedModel)
@@ -128,29 +142,71 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         refreshRecommendedModels()
     }
 
-    // ── History ──────────────────────────────────────────────────────────────
-
-    private fun loadHistoryFromDb() {
+    private fun loadInitialSession() {
         viewModelScope.launch {
-            val history = runCatching { memoryManager.getRecentMessages(60) }.getOrElse { emptyList() }
-            _messages.value = history.reversed().map { msg ->
-                ChatMessage(text = msg.content, isUser = msg.role == "user")
+            val sessions = runCatching { memoryManager.getAllSessions() }.getOrElse { emptyList() }
+            val sessionId = preferences.getString(KEY_SESSION_ID, null)
+                ?.takeIf { saved -> sessions.any { it.id == saved } }
+                ?: sessions.firstOrNull()?.id
+                ?: memoryManager.ensureDefaultSession().id
+            loadSession(sessionId)
+        }
+    }
+
+    fun getAllSessions() {
+        viewModelScope.launch {
+            refreshSessions()
+        }
+    }
+
+    fun createNewSession() {
+        viewModelScope.launch {
+            val session = memoryManager.createSession()
+            _currentSessionId.value = session.id
+            preferences.edit().putString(KEY_SESSION_ID, session.id).apply()
+            _messages.value = emptyList()
+            _streamingText.value = ""
+            _agentState.value = AgentState()
+            llamaManager.setHistory(emptyList())
+            refreshSessions()
+        }
+    }
+
+    fun loadSession(sessionId: String) {
+        viewModelScope.launch {
+            val history = runCatching { memoryManager.loadSession(sessionId) }.getOrElse { emptyList() }
+            _currentSessionId.value = sessionId
+            preferences.edit().putString(KEY_SESSION_ID, sessionId).apply()
+            _messages.value = history.map { msg ->
+                ChatMessage(text = msg.content, isUser = msg.role == "user", id = msg.id)
+            }
+            llamaManager.setHistory(history.takeLast(12))
+            refreshSessions()
+        }
+    }
+
+    fun deleteSession(sessionId: String) {
+        viewModelScope.launch {
+            runCatching { memoryManager.deleteSession(sessionId) }
+            refreshSessions()
+            if (_currentSessionId.value == sessionId) {
+                val next = _sessions.value.firstOrNull()?.id ?: memoryManager.createSession().id
+                loadSession(next)
             }
         }
     }
 
     fun loadMemoryEntries() {
         viewModelScope.launch {
-            _memoryEntries.value = runCatching { memoryManager.getRecentMessages(200) }.getOrElse { emptyList() }
+            _memoryEntries.value = runCatching { memoryManager.getSemanticMemories(200) }.getOrElse { emptyList() }
             _memoryCount.value = runCatching { memoryManager.getMessageCount() }.getOrElse { 0 }
         }
     }
 
-    // ── Messaging ─────────────────────────────────────────────────────────────
-
     fun sendMessage(input: String) {
         val trimmedInput = input.trim()
         if (trimmedInput.isEmpty()) return
+        if (_modelState.value.isModelLoading) return
 
         if (ModelManager.getCurrent() == null || !_modelState.value.isModelReady) {
             _messages.update {
@@ -159,37 +215,82 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        _messages.update { it + ChatMessage(trimmedInput, true) }
-        _agentState.value = AgentState(isWorking = true, currentAction = "Generating response…")
-        _streamingText.value = ""
-
-        llamaManager.generateStream(
-            prompt = trimmedInput,
-            onToken = { token ->
-                _streamingText.update { it + token }
-            },
-            onComplete = { fullResponse ->
-                _messages.update { it + ChatMessage(fullResponse, isUser = false) }
-                _streamingText.value = ""
-                _agentState.value = AgentState()
+        viewModelScope.launch {
+            val sessionId = currentSessionOrCreate()
+            val wasEmpty = _messages.value.isEmpty()
+            val history = memoryManager.loadSession(sessionId).takeLast(12)
+            val userMessage = memoryManager.recordChatMessage(sessionId, "user", trimmedInput)
+            if (wasEmpty) {
+                memoryManager.renameSession(sessionId, trimmedInput.take(48))
             }
-        )
+            _messages.update { it + ChatMessage(trimmedInput, true, userMessage.id) }
+            _agentState.value = AgentState(isWorking = true, currentAction = "Generating response…")
+            _streamingText.value = ""
+            llamaManager.setHistory(history)
+            llamaManager.generateStream(
+                prompt = trimmedInput,
+                systemPrompt = buildEffectiveSystemPrompt(),
+                onToken = { token ->
+                    _streamingText.update { it + token }
+                },
+                onComplete = { fullResponse ->
+                    if (fullResponse.isNotBlank()) {
+                        viewModelScope.launch {
+                            val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fullResponse)
+                            _messages.update { it + ChatMessage(fullResponse, isUser = false, assistantMessage.id) }
+                            refreshSessions()
+                        }
+                    }
+                    _streamingText.value = ""
+                    _agentState.value = AgentState()
+                }
+            )
+        }
+    }
+
+    fun setAgentMode(mode: AgentMode) {
+        _agentMode.value = mode
+        preferences.edit().putString("agent_mode", mode.name).apply()
+    }
+
+    fun clearModelError() {
+        _modelState.update { it.copy(loadError = null, loadErrorType = LoadErrorType.NONE) }
+    }
+
+    private suspend fun currentSessionOrCreate(): String {
+        val current = _currentSessionId.value
+        if (current.isNotBlank()) return current
+        val session = memoryManager.createSession()
+        _currentSessionId.value = session.id
+        preferences.edit().putString(KEY_SESSION_ID, session.id).apply()
+        refreshSessions()
+        return session.id
+    }
+
+    private suspend fun refreshSessions() {
+        _sessions.value = memoryManager.getAllSessions()
+    }
+
+    private fun buildEffectiveSystemPrompt(): String {
+        val custom = _systemPrompt.value.trim()
+        return buildString {
+            append(_agentMode.value.prompt)
+            if (custom.isNotBlank()) {
+                append("\n")
+                append(custom)
+            }
+        }
     }
 
     fun clearMessages() {
-        _messages.value = emptyList()
-        _streamingText.value = ""
-        _agentState.value = AgentState()
+        createNewSession()
     }
 
     fun clearMemory() {
         viewModelScope.launch {
             runCatching { memoryManager.clearAll() }
-            _messages.value = emptyList()
             _memoryEntries.value = emptyList()
             _memoryCount.value = 0
-            _streamingText.value = ""
-            _agentState.value = AgentState()
         }
     }
 
@@ -492,5 +593,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val KEY_MODEL_PATH     = "selected_model_path"
         const val KEY_MODEL_REGISTRY = "model_registry_json"
         const val KEY_SCANNED_IDS    = "scanned_model_ids"
+        const val KEY_SESSION_ID     = "current_session_id"
     }
 }

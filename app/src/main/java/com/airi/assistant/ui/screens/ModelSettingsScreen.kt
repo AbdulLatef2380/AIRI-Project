@@ -175,6 +175,24 @@ fun ModelSettingsScreen(
             }
         }
     }
+
+    modelState.loadError?.let { error ->
+        AlertDialog(
+            onDismissRequest = { viewModel.clearModelError() },
+            title = { Text("Model error") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(error)
+                    Text(modelState.loadErrorType.name, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                }
+            },
+            confirmButton = {
+                Button(onClick = { viewModel.clearModelError() }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
 }
 
 @Composable

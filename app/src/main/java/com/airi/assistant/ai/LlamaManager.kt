@@ -2,17 +2,18 @@ package com.airi.assistant.ai
 
 import android.content.Context
 import com.airi.assistant.memory.entity.ChatMessage
-import com.airi.assistant.memory.repository.MemoryManager
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 class LlamaManager(private val context: Context) {
     private var isLoaded = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
-    private val memoryManager = MemoryManager(context)
     private val chatHistory = mutableListOf<ChatMessage>()
-    private val MAX_HISTORY = 10
+    private val maxHistory = 12
 
     fun loadModel(path: String, onProgress: (Int) -> Unit = {}, onReady: (Boolean) -> Unit) {
         val modelFile = File(path)
@@ -23,8 +24,6 @@ class LlamaManager(private val context: Context) {
 
         scope.launch {
             isLoaded = false
-            chatHistory.clear()
-
             try {
                 LlamaNative.loadModelWithProgress(
                     modelFile.absolutePath,
@@ -35,12 +34,10 @@ class LlamaManager(private val context: Context) {
                     }
                 )
                 isLoaded = true
-                restoreHistory()
                 withContext(Dispatchers.Main) { onReady(true) }
             } catch (e: UnsatisfiedLinkError) {
                 val result = runCatching { LlamaNative.loadModel(modelFile.absolutePath) }.getOrElse { "Error" }
                 isLoaded = (result == "Success")
-                if (isLoaded) restoreHistory()
                 withContext(Dispatchers.Main) { onReady(isLoaded) }
             } catch (e: Exception) {
                 isLoaded = false
@@ -54,89 +51,65 @@ class LlamaManager(private val context: Context) {
         chatHistory.clear()
     }
 
-    fun generate(prompt: String, onResult: (String) -> Unit) {
+    fun setHistory(messages: List<ChatMessage>) {
+        chatHistory.clear()
+        chatHistory.addAll(messages.takeLast(maxHistory))
+    }
+
+    fun generate(prompt: String, systemPrompt: String = defaultSystemPrompt(), onResult: (String) -> Unit) {
         if (!isLoaded || ModelManager.getCurrent() == null) {
             onResult("Select and activate a local model before sending.")
             return
         }
 
-        val userMsg = ChatMessage(role = "user", content = prompt)
-        chatHistory.add(userMsg)
-        memoryManager.recordInteraction(userMsg.role, userMsg.content)
-
+        chatHistory.add(ChatMessage(role = "user", content = prompt))
         scope.launch {
-            val fullPrompt = buildChatPrompt()
-            val response = LlamaNative.generateResponse(fullPrompt)
-
-            val assistantMsg = ChatMessage(role = "assistant", content = response)
-            chatHistory.add(assistantMsg)
-            memoryManager.recordInteraction(assistantMsg.role, assistantMsg.content)
-
-            if (chatHistory.size > MAX_HISTORY) {
-                chatHistory.removeAt(0)
-                chatHistory.removeAt(0)
-            }
-
+            val response = LlamaNative.generateResponse(buildChatPrompt(systemPrompt))
+            chatHistory.add(ChatMessage(role = "assistant", content = response))
+            trimHistory()
             withContext(Dispatchers.Main) { onResult(response) }
         }
     }
 
-    fun generateStream(prompt: String, onToken: (String) -> Unit, onComplete: (String) -> Unit) {
+    fun generateStream(
+        prompt: String,
+        systemPrompt: String = defaultSystemPrompt(),
+        onToken: (String) -> Unit,
+        onComplete: (String) -> Unit
+    ) {
         if (!isLoaded || ModelManager.getCurrent() == null) {
             onToken("المحرك غير مفعل")
             onComplete("")
             return
         }
 
-        val userMsg = ChatMessage(role = "user", content = prompt)
-        chatHistory.add(userMsg)
-        memoryManager.recordInteraction(userMsg.role, userMsg.content)
-
+        chatHistory.add(ChatMessage(role = "user", content = prompt))
         scope.launch {
-            val fullPrompt = buildChatPrompt()
             val fullResponse = StringBuilder()
-
-            LlamaNative.generateStream(fullPrompt) { token ->
+            LlamaNative.generateStream(buildChatPrompt(systemPrompt)) { token ->
                 fullResponse.append(token)
                 scope.launch(Dispatchers.Main) { onToken(token) }
             }
-
-            val assistantMsg = ChatMessage(role = "assistant", content = fullResponse.toString())
-            chatHistory.add(assistantMsg)
-            memoryManager.recordInteraction(assistantMsg.role, assistantMsg.content)
-
-            if (chatHistory.size > MAX_HISTORY) {
-                chatHistory.removeAt(0)
-                chatHistory.removeAt(0)
-            }
-
-            withContext(Dispatchers.Main) { onComplete(fullResponse.toString()) }
+            val response = fullResponse.toString()
+            chatHistory.add(ChatMessage(role = "assistant", content = response))
+            trimHistory()
+            withContext(Dispatchers.Main) { onComplete(response) }
         }
     }
 
-    private suspend fun restoreHistory() {
-        val lastMessages = memoryManager.getRecentMessages(MAX_HISTORY)
-        chatHistory.clear()
-        chatHistory.addAll(lastMessages.reversed())
+    private fun trimHistory() {
+        while (chatHistory.size > maxHistory) {
+            chatHistory.removeAt(0)
+        }
     }
 
-    private fun buildChatPrompt(): String {
+    private fun buildChatPrompt(systemPrompt: String): String {
         val sb = StringBuilder()
-
         sb.append("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n")
-        sb.append("""
-            أنت AIRI، المساعد الذكي المتطور بنظام Android.
-            هويتك: ذكي، مرح، ومفيد جداً.
-            قواعد الرد:
-            1. أجب دائماً باللغة العربية (لهجة بيضاء مفهومة أو فصحى بسيطة).
-            2. اجعل ردودك قصيرة ومباشرة (إلا إذا طلب المستخدم تفاصيل).
-            3. استخدم الرموز التعبيرية (Emojis) بشكل لطيف لتظهر شخصيتك الودودة.
-            4. إذا لم تعرف الإجابة، قل ذلك بصدق ولا تخترع معلومات.
-            5. تذكر دائماً أنك جزء من مشروع AIRI المفتوح المصدر.
-        """.trimIndent())
+        sb.append(systemPrompt.ifBlank { defaultSystemPrompt() })
         sb.append("<|eot_id|>\n")
 
-        for (msg in chatHistory) {
+        for (msg in chatHistory.takeLast(maxHistory)) {
             sb.append("<|start_header_id|>${msg.role}<|end_header_id|>\n")
             sb.append(msg.content)
             sb.append("<|eot_id|>\n")
@@ -145,4 +118,14 @@ class LlamaManager(private val context: Context) {
         sb.append("<|start_header_id|>assistant<|end_header_id|>\n")
         return sb.toString()
     }
+
+    private fun defaultSystemPrompt(): String = """
+        أنت AIRI، المساعد الذكي المتطور بنظام Android.
+        هويتك: ذكي، مرح، ومفيد جداً.
+        قواعد الرد:
+        1. أجب دائماً باللغة العربية (لهجة بيضاء مفهومة أو فصحى بسيطة).
+        2. اجعل ردودك قصيرة ومباشرة (إلا إذا طلب المستخدم تفاصيل).
+        3. إذا لم تعرف الإجابة، قل ذلك بصدق ولا تخترع معلومات.
+        4. تذكر دائماً أنك جزء من مشروع AIRI المفتوح المصدر.
+    """.trimIndent()
 }

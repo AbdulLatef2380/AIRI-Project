@@ -1,6 +1,12 @@
 package com.airi.assistant.ui.screens
 
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -23,14 +29,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.InputBarBackground
 import com.airi.assistant.ui.viewmodel.AgentState
+import com.airi.assistant.ui.viewmodel.AgentMode
 import com.airi.assistant.ui.viewmodel.ChatMessage
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.ui.viewmodel.ModelUiState
@@ -44,17 +53,42 @@ fun ChatScreen(
     onNavigate: (String) -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
+    val context       = LocalContext.current
     val drawerState   = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope         = rememberCoroutineScope()
     val messages      by viewModel.messages.collectAsState()
     val streamingText by viewModel.streamingText.collectAsState()
     val agentState    by viewModel.agentState.collectAsState()
     val modelState    by viewModel.modelState.collectAsState()
+    val agentMode     by viewModel.agentMode.collectAsState()
     val snackbarHost  = remember { SnackbarHostState() }
 
     var showMenu            by remember { mutableStateOf(false) }
     var showAttachSheet     by remember { mutableStateOf(false) }
     var showGenSettings     by remember { mutableStateOf(false) }
+    var voiceInput          by remember { mutableStateOf("") }
+
+    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+                .orEmpty()
+            if (spoken.isNotBlank()) voiceInput = spoken
+        }
+    }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to AIRI")
+            }
+            speechLauncher.launch(intent)
+        } else {
+            scope.launch { snackbarHost.showSnackbar("Microphone permission is required for voice input") }
+        }
+    }
 
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
@@ -94,12 +128,14 @@ fun ChatScreen(
                 ChatTopBar(
                     modelState  = modelState,
                     agentState  = agentState,
+                    agentMode   = agentMode,
                     showMenu    = showMenu,
                     onMenuOpen  = { scope.launch { drawerState.open() } },
                     onNewChat   = { viewModel.clearMessages() },
                     onToggleDropdown = { showMenu = !showMenu },
                     onDismissDropdown = { showMenu = false },
                     onGenSettings = { showMenu = false; showGenSettings = true },
+                    onModeSelected = { viewModel.setAgentMode(it) },
                     onSwitchModel = { showMenu = false; onNavigate(AiriRoute.MODELS) },
                     onExportChat  = {
                         showMenu = false
@@ -111,11 +147,25 @@ fun ChatScreen(
                 ChatInputBar(
                     modelState      = modelState,
                     isGenerating    = agentState.isWorking,
+                    voiceInput      = voiceInput,
                     onSend          = { text -> viewModel.sendMessage(text) },
                     onAttachClick   = { showAttachSheet = true },
                     onMicClick      = {
-                        scope.launch { snackbarHost.showSnackbar("Voice input — Vosk integration coming soon") }
+                        when {
+                            !SpeechRecognizer.isRecognitionAvailable(context) -> {
+                                scope.launch { snackbarHost.showSnackbar("Speech recognition is not available on this device") }
+                            }
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> {
+                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to AIRI")
+                                }
+                                speechLauncher.launch(intent)
+                            }
+                            else -> micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
                     },
+                    onVoiceConsumed = { voiceInput = "" },
                     onOpenModels    = { onNavigate(AiriRoute.MODELS) }
                 )
             }
@@ -169,6 +219,14 @@ fun ChatScreen(
             onDismiss = { showGenSettings = false }
         )
     }
+
+    modelState.loadError?.let { error ->
+        ModelErrorDialog(
+            error = error,
+            errorType = modelState.loadErrorType.name,
+            onDismiss = { viewModel.clearModelError() }
+        )
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -180,12 +238,14 @@ fun ChatScreen(
 private fun ChatTopBar(
     modelState: ModelUiState,
     agentState: AgentState,
+    agentMode: AgentMode,
     showMenu: Boolean,
     onMenuOpen: () -> Unit,
     onNewChat: () -> Unit,
     onToggleDropdown: () -> Unit,
     onDismissDropdown: () -> Unit,
     onGenSettings: () -> Unit,
+    onModeSelected: (AgentMode) -> Unit,
     onSwitchModel: () -> Unit,
     onExportChat: () -> Unit
 ) {
@@ -201,7 +261,7 @@ private fun ChatTopBar(
         title = {
             Column {
                 Text(
-                    "AIRI Agent",
+                    "AIRI Agent • ${agentMode.label}",
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     fontSize = 16.sp
@@ -235,13 +295,23 @@ private fun ChatTopBar(
                 DropdownMenu(
                     expanded  = showMenu,
                     onDismissRequest = onDismissDropdown,
-                    containerColor   = Color(0xFF1A1F3A)
+                    modifier = Modifier.background(Color(0xFF1A1F3A))
                 ) {
                     DropdownMenuItem(
                         text  = { Text("Generation Settings", color = Color.White) },
                         leadingIcon = { Icon(Icons.Outlined.Tune, contentDescription = null, tint = CosmicAccent) },
                         onClick = onGenSettings
                     )
+                    AgentMode.values().forEach { mode ->
+                        DropdownMenuItem(
+                            text = { Text(mode.label, color = if (mode == agentMode) CosmicAccent else Color.White) },
+                            leadingIcon = { Icon(Icons.Outlined.Psychology, contentDescription = null, tint = CosmicAccent) },
+                            onClick = {
+                                onModeSelected(mode)
+                                onDismissDropdown()
+                            }
+                        )
+                    }
                     DropdownMenuItem(
                         text  = { Text("Switch Model", color = Color.White) },
                         leadingIcon = { Icon(Icons.Outlined.SmartToy, contentDescription = null, tint = CosmicAccent) },
@@ -422,13 +492,22 @@ fun AiStreamingBubble(text: String) {
 fun ChatInputBar(
     modelState: ModelUiState,
     isGenerating: Boolean,
+    voiceInput: String,
     onSend: (String) -> Unit,
     onAttachClick: () -> Unit,
     onMicClick: () -> Unit,
+    onVoiceConsumed: () -> Unit,
     onOpenModels: () -> Unit
 ) {
     var text by rememberSaveable { mutableStateOf("") }
-    val canSend = text.isNotBlank() && modelState.isModelReady && !isGenerating
+    val canSend = text.isNotBlank() && modelState.isModelReady && !modelState.isModelLoading && !isGenerating
+
+    LaunchedEffect(voiceInput) {
+        if (voiceInput.isNotBlank()) {
+            text = listOf(text, voiceInput).filter { it.isNotBlank() }.joinToString(" ")
+            onVoiceConsumed()
+        }
+    }
 
     Surface(
         color = InputBarBackground,
@@ -473,6 +552,7 @@ fun ChatInputBar(
                         Text(
                             when {
                                 isGenerating              -> "Generating…"
+                                modelState.isModelLoading -> "Model is loading…"
                                 modelState.isModelReady   -> "Message AIRI…"
                                 else                      -> "Activate a model first…"
                             },
@@ -530,6 +610,36 @@ fun ChatInputBar(
             }
         }
     }
+}
+
+@Composable
+private fun ModelErrorDialog(
+    error: String,
+    errorType: String,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF12162E),
+        titleContentColor = Color.White,
+        textContentColor = Color.White,
+        shape = RoundedCornerShape(20.dp),
+        title = { Text("Model error", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(error)
+                Text(errorType, color = Color.White.copy(alpha = 0.45f), fontSize = 12.sp)
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.Black)
+            ) {
+                Text("OK")
+            }
+        }
+    )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -605,7 +715,7 @@ fun AiriDrawer(
 
         // ── Actions ───────────────────────────────────────────────────────
         DrawerActionItem(icon = Icons.Outlined.AddComment,  label = "New Chat",      onClick = onNewChat)
-        DrawerNavItem(icon = Icons.Outlined.Forum,          label = "Chats",          route = AiriRoute.CHAT,         onNavigate = onNavigate)
+        DrawerNavItem(icon = Icons.Outlined.Forum,          label = "Chats",          route = AiriRoute.HISTORY,      onNavigate = onNavigate)
         DrawerNavItem(icon = Icons.Outlined.SmartToy,       label = "Model Gallery",  route = AiriRoute.MODELS,       onNavigate = onNavigate)
         DrawerNavItem(icon = Icons.Outlined.Psychology,     label = "Memory",         route = AiriRoute.MEMORY,       onNavigate = onNavigate)
         DrawerNavItem(icon = Icons.Outlined.Extension,      label = "Integrations",   route = AiriRoute.INTEGRATIONS, onNavigate = onNavigate)

@@ -129,7 +129,7 @@ fun LoginScreen(
                 ) {
                     // ── App Icon ─────────────────────────────────────────────
                     Image(
-                        painter = painterResource(id = R.mipmap.ic_launcher),
+                        painter = painterResource(id = R.drawable.ic_launcher_fg),
                         contentDescription = "AIRI",
                         modifier = Modifier.size(64.dp)
                     )

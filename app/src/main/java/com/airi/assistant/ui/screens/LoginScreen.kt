@@ -53,11 +53,13 @@ fun LoginScreen(
     var showFacebookDialog by remember { mutableStateOf(false) }
 
     val googleSignInClient = remember {
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(context.getString(R.string.default_web_client_id))
-            .requestEmail()
-            .build()
-        GoogleSignIn.getClient(context, gso)
+        runCatching {
+            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(context.getString(R.string.default_web_client_id))
+                .requestEmail()
+                .build()
+            GoogleSignIn.getClient(context, gso)
+        }.getOrNull()
     }
 
     val googleLauncher = rememberLauncherForActivityResult(
@@ -159,7 +161,11 @@ fun LoginScreen(
                     AuthSocialButton(
                         onClick = {
                             errorMessage = null
-                            googleLauncher.launch(googleSignInClient.signInIntent)
+                            if (googleSignInClient != null) {
+                                googleLauncher.launch(googleSignInClient.signInIntent)
+                            } else {
+                                errorMessage = "Google Sign-In is not configured for this build"
+                            }
                         },
                         enabled = !isLoading,
                         containerColor = Color.White,

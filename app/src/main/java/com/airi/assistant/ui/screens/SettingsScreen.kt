@@ -284,8 +284,23 @@ fun SettingsScreen(
                     )
                 }
                 Spacer(Modifier.height(6.dp))
-                SettingsInfoRow(stringResource(R.string.speech_engine), stringResource(R.string.speech_engine_value))
-                SettingsInfoRow(stringResource(R.string.wake_word), stringResource(R.string.wake_word_value))
+                // These features are not yet available — shown as disabled info only
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(stringResource(R.string.speech_engine), color = Color.White.copy(alpha = 0.25f), fontSize = 13.sp)
+                    Text("Not available", color = Color.White.copy(alpha = 0.2f), fontSize = 12.sp)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(stringResource(R.string.wake_word), color = Color.White.copy(alpha = 0.25f), fontSize = 13.sp)
+                    Text("Not available", color = Color.White.copy(alpha = 0.2f), fontSize = 12.sp)
+                }
             }
 
             SkillsSection(viewModel = viewModel)

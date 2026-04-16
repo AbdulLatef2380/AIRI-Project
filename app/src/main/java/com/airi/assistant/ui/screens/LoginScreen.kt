@@ -3,6 +3,7 @@ package com.airi.assistant.ui.screens
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,6 +12,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,8 +49,8 @@ fun LoginScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var isSignUp by remember { mutableStateOf(false) }
-    var showFacebookDialog by remember { mutableStateOf(false) }
     var showEmailForm by remember { mutableStateOf(false) }
+    var showFacebookDialog by remember { mutableStateOf(false) }
 
     val googleSignInClient = remember {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -105,46 +108,55 @@ fun LoginScreen(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 48.dp),
+                .fillMaxWidth(0.9f)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF13182D)
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 16.dp)
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF13182D)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 28.dp, vertical = 36.dp),
+                        .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
+                    // ── App Icon ─────────────────────────────────────────────
+                    Image(
+                        painter = painterResource(id = R.mipmap.ic_launcher),
+                        contentDescription = "AIRI",
+                        modifier = Modifier.size(64.dp)
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // ── Title ────────────────────────────────────────────────
                     Text(
                         text = "Welcome to AIRI",
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
                         color = Color.White,
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
 
+                    // ── Subtitle ─────────────────────────────────────────────
                     Text(
                         text = "Sign in to continue",
                         fontSize = 14.sp,
-                        color = Color.White.copy(alpha = 0.55f),
+                        color = Color.White.copy(alpha = 0.7f),
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(Modifier.height(32.dp))
+                    Spacer(Modifier.height(28.dp))
 
-                    SocialButton(
+                    // ── Google Button ─────────────────────────────────────────
+                    AuthSocialButton(
                         onClick = {
                             errorMessage = null
                             googleLauncher.launch(googleSignInClient.signInIntent)
@@ -153,12 +165,14 @@ fun LoginScreen(
                         containerColor = Color.White,
                         contentColor = Color(0xFF3C4043),
                         iconResId = R.drawable.ic_google,
-                        text = stringResource(R.string.continue_with_google)
+                        text = stringResource(R.string.continue_with_google),
+                        border = BorderStroke(1.dp, Color(0xFFDDDDDD))
                     )
 
                     Spacer(Modifier.height(12.dp))
 
-                    SocialButton(
+                    // ── Facebook Button ───────────────────────────────────────
+                    AuthSocialButton(
                         onClick = { showFacebookDialog = true },
                         enabled = !isLoading,
                         containerColor = Color(0xFF1877F2),
@@ -169,7 +183,8 @@ fun LoginScreen(
 
                     Spacer(Modifier.height(12.dp))
 
-                    SocialButton(
+                    // ── Email Button ──────────────────────────────────────────
+                    AuthSocialButton(
                         onClick = { showEmailForm = !showEmailForm; errorMessage = null },
                         enabled = !isLoading,
                         containerColor = Color(0xFF1E2540),
@@ -178,6 +193,7 @@ fun LoginScreen(
                         text = "Continue with Email"
                     )
 
+                    // ── Email Form (progressive disclosure) ───────────────────
                     if (showEmailForm) {
                         Spacer(Modifier.height(24.dp))
 
@@ -185,6 +201,7 @@ fun LoginScreen(
 
                         Spacer(Modifier.height(24.dp))
 
+                        // Email field
                         OutlinedTextField(
                             value = email,
                             onValueChange = { email = it; errorMessage = null },
@@ -198,20 +215,13 @@ fun LoginScreen(
                             },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF7C3AED),
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedLabelColor = Color(0xFF7C3AED),
-                                unfocusedLabelColor = Color.White.copy(alpha = 0.45f),
-                                cursorColor = Color(0xFF7C3AED)
-                            )
+                            shape = RoundedCornerShape(12.dp),
+                            colors = authFieldColors()
                         )
 
                         Spacer(Modifier.height(12.dp))
 
+                        // Password field with visibility toggle
                         OutlinedTextField(
                             value = password,
                             onValueChange = { password = it; errorMessage = null },
@@ -224,36 +234,27 @@ fun LoginScreen(
                                 )
                             },
                             trailingIcon = {
-                                TextButton(
-                                    onClick = { passwordVisible = !passwordVisible },
-                                    contentPadding = PaddingValues(horizontal = 8.dp)
-                                ) {
-                                    Text(
-                                        if (passwordVisible) "Hide" else "Show",
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF7C3AED)
+                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                    Icon(
+                                        imageVector = if (passwordVisible) Icons.Outlined.Visibility
+                                                      else Icons.Outlined.VisibilityOff,
+                                        contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                                        tint = Color.White.copy(alpha = 0.5f)
                                     )
                                 }
                             },
-                            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            visualTransformation = if (passwordVisible) VisualTransformation.None
+                                                   else PasswordVisualTransformation(),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF7C3AED),
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedLabelColor = Color(0xFF7C3AED),
-                                unfocusedLabelColor = Color.White.copy(alpha = 0.45f),
-                                cursorColor = Color(0xFF7C3AED)
-                            )
+                            shape = RoundedCornerShape(12.dp),
+                            colors = authFieldColors()
                         )
 
-                        errorMessage?.let {
-                            Spacer(Modifier.height(10.dp))
+                        errorMessage?.let { err ->
+                            Spacer(Modifier.height(8.dp))
                             Text(
-                                it,
+                                text = err,
                                 color = Color(0xFFFF6B6B),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
@@ -263,6 +264,7 @@ fun LoginScreen(
 
                         Spacer(Modifier.height(20.dp))
 
+                        // Primary Sign In / Create Account button
                         Button(
                             onClick = {
                                 if (!validateInputs()) return@Button
@@ -282,13 +284,13 @@ fun LoginScreen(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp),
+                                .height(50.dp),
                             enabled = !isLoading,
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFF7C3AED),
                                 contentColor = Color.White,
-                                disabledContainerColor = Color(0xFF7C3AED).copy(alpha = 0.5f)
+                                disabledContainerColor = Color(0xFF7C3AED).copy(alpha = 0.4f)
                             )
                         ) {
                             if (isLoading) {
@@ -299,21 +301,21 @@ fun LoginScreen(
                                 )
                             } else {
                                 Text(
-                                    if (isSignUp) stringResource(R.string.create_account) else stringResource(R.string.sign_in),
+                                    text = if (isSignUp) stringResource(R.string.create_account)
+                                           else stringResource(R.string.sign_in),
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 16.sp
                                 )
                             }
                         }
 
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(12.dp))
 
-                        TextButton(
-                            onClick = { isSignUp = !isSignUp; errorMessage = null }
-                        ) {
+                        // Toggle sign up / sign in
+                        TextButton(onClick = { isSignUp = !isSignUp; errorMessage = null }) {
                             Text(
-                                if (isSignUp) "Already have an account? Sign in"
-                                else "Don't have an account? Sign up",
+                                text = if (isSignUp) "Already have an account? Sign in"
+                                       else "Don't have an account? Sign up",
                                 fontSize = 14.sp,
                                 color = Color(0xFF7C3AED),
                                 fontWeight = FontWeight.Medium
@@ -353,21 +355,22 @@ fun LoginScreen(
 }
 
 @Composable
-private fun SocialButton(
+private fun AuthSocialButton(
     onClick: () -> Unit,
     enabled: Boolean,
     containerColor: Color,
     contentColor: Color,
     iconResId: Int,
-    text: String
+    text: String,
+    border: BorderStroke? = null
 ) {
     Button(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp),
+            .height(48.dp),
         enabled = enabled,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
             contentColor = contentColor,
@@ -375,9 +378,8 @@ private fun SocialButton(
             disabledContentColor = contentColor.copy(alpha = 0.5f)
         ),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
-        border = if (containerColor == Color.White)
-            BorderStroke(1.dp, Color(0xFFDDDDDD))
-        else null
+        border = border,
+        contentPadding = PaddingValues(horizontal = 16.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -405,10 +407,7 @@ private fun AuthDivider() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        HorizontalDivider(
-            modifier = Modifier.weight(1f),
-            color = Color.White.copy(alpha = 0.12f)
-        )
+        HorizontalDivider(modifier = Modifier.weight(1f), color = Color.White.copy(alpha = 0.12f))
         Text(
             "OR",
             fontSize = 12.sp,
@@ -416,9 +415,17 @@ private fun AuthDivider() {
             fontWeight = FontWeight.Medium,
             letterSpacing = 1.sp
         )
-        HorizontalDivider(
-            modifier = Modifier.weight(1f),
-            color = Color.White.copy(alpha = 0.12f)
-        )
+        HorizontalDivider(modifier = Modifier.weight(1f), color = Color.White.copy(alpha = 0.12f))
     }
 }
+
+@Composable
+private fun authFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = Color(0xFF7C3AED),
+    unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+    focusedTextColor = Color.White,
+    unfocusedTextColor = Color.White,
+    focusedLabelColor = Color(0xFF7C3AED),
+    unfocusedLabelColor = Color.White.copy(alpha = 0.45f),
+    cursorColor = Color(0xFF7C3AED)
+)

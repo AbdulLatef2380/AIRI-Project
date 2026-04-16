@@ -7,6 +7,7 @@ import com.airi.assistant.ai.agent.trace.AgentTrace
 import com.airi.assistant.ai.tools.ToolRegistry
 import com.airi.assistant.ai.agent.trace.AgentTraceManager
 import com.airi.assistant.ai.skills.SkillRegistry
+import com.airi.assistant.ai.tools.ToolRegistry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

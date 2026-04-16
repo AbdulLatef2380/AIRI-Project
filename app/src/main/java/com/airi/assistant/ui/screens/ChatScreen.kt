@@ -281,12 +281,14 @@ private fun ChatTopBar(
             }
         },
         title = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     stringResource(R.string.app_agent_mode_title, agentMode.label),
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     color = Color.White,
-                    fontSize = 16.sp
+                    fontSize = 18.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = when {
@@ -295,11 +297,11 @@ private fun ChatTopBar(
                         modelState.isModelLoading    -> stringResource(R.string.loading_model)
                         else                         -> stringResource(R.string.no_model_active)
                     },
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     color = when {
                         agentState.isWorking      -> CosmicAccent
-                        modelState.isModelReady   -> CosmicAccent.copy(alpha = 0.85f)
-                        else                      -> Color.White.copy(alpha = 0.45f)
+                        modelState.isModelReady   -> CosmicAccent.copy(alpha = 0.8f)
+                        else                      -> Color.White.copy(alpha = 0.6f)
                     },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis

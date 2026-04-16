@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import com.airi.assistant.ai.agent.trace.AgentTrace
-import com.airi.assistant.ai.tools.ToolRegistry
 import com.airi.assistant.ai.agent.trace.AgentTraceManager
 import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.ai.tools.ToolRegistry

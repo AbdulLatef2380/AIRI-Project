@@ -72,7 +72,9 @@ fun ChatScreen(
     var showAttachSheet     by remember { mutableStateOf(false) }
     var showGenSettings     by remember { mutableStateOf(false) }
     var voiceInput          by remember { mutableStateOf("") }
+    var voiceChatInput      by remember { mutableStateOf("") }
 
+    // Voice message: fills text field, user presses Send manually
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val spoken = result.data
@@ -92,6 +94,36 @@ fun ChatScreen(
             speechLauncher.launch(intent)
         } else {
             scope.launch { snackbarHost.showSnackbar(context.getString(R.string.microphone_permission_required)) }
+        }
+    }
+
+    // Voice chat: fills text field AND auto-sends
+    val voiceChatLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+                .orEmpty()
+            if (spoken.isNotBlank()) voiceChatInput = spoken
+        }
+    }
+
+    val voiceChatPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
+            }
+            voiceChatLauncher.launch(intent)
+        } else {
+            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.microphone_permission_required)) }
+        }
+    }
+
+    LaunchedEffect(voiceChatInput) {
+        if (voiceChatInput.isNotBlank() && modelState.isModelReady && !agentState.isWorking) {
+            viewModel.sendMessage(voiceChatInput)
+            voiceChatInput = ""
         }
     }
 
@@ -177,6 +209,21 @@ fun ChatScreen(
                                 speechLauncher.launch(intent)
                             }
                             else -> micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
+                    onVoiceChatClick = {
+                        when {
+                            !SpeechRecognizer.isRecognitionAvailable(context) -> {
+                                scope.launch { snackbarHost.showSnackbar(context.getString(R.string.speech_recognition_unavailable)) }
+                            }
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> {
+                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
+                                }
+                                voiceChatLauncher.launch(intent)
+                            }
+                            else -> voiceChatPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     },
                     onVoiceConsumed = { voiceInput = "" },
@@ -649,6 +696,7 @@ fun ChatInputBar(
     onSend: (String) -> Unit,
     onAttachClick: () -> Unit,
     onMicClick: () -> Unit,
+    onVoiceChatClick: () -> Unit,
     onVoiceConsumed: () -> Unit,
     onOpenModels: () -> Unit
 ) {
@@ -730,7 +778,7 @@ fun ChatInputBar(
                     )
                 )
 
-                // Mic
+                // Mic — voice message (fills field, user sends manually)
                 IconButton(
                     onClick  = onMicClick,
                     modifier = Modifier.size(40.dp)
@@ -739,6 +787,22 @@ fun ChatInputBar(
                         Icons.Outlined.Mic,
                         contentDescription = stringResource(R.string.voice_input),
                         tint = Color.White.copy(alpha = 0.5f)
+                    )
+                }
+
+                // Voice Chat — auto-sends after recognition
+                IconButton(
+                    onClick  = onVoiceChatClick,
+                    enabled  = modelState.isModelReady && !isGenerating,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.RecordVoiceOver,
+                        contentDescription = "Voice Chat",
+                        tint = if (modelState.isModelReady && !isGenerating)
+                            CosmicAccent.copy(alpha = 0.85f)
+                        else
+                            Color.White.copy(alpha = 0.25f)
                     )
                 }
 

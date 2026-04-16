@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -53,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -238,6 +240,12 @@ private fun IntegrationCard(
 
             // ── Header ─────────────────────────────────────────────────────────
             Row(verticalAlignment = Alignment.CenterVertically) {
+                val iconResId: Int? = when (item.id) {
+                    "github"   -> com.airi.assistant.R.drawable.ic_integration_github
+                    "telegram" -> com.airi.assistant.R.drawable.ic_integration_telegram
+                    "google"   -> com.airi.assistant.R.drawable.ic_integration_google
+                    else       -> null
+                }
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -245,7 +253,15 @@ private fun IntegrationCard(
                         .background(Color.White.copy(alpha = 0.08f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(item.emoji, fontSize = 22.sp)
+                    if (iconResId != null) {
+                        Image(
+                            painter = painterResource(id = iconResId),
+                            contentDescription = item.name,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    } else {
+                        Text(item.emoji, fontSize = 22.sp)
+                    }
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {

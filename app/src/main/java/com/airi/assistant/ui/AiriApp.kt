@@ -1,8 +1,11 @@
 package com.airi.assistant.ui
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -16,6 +19,7 @@ import com.airi.assistant.ui.screens.IntegrationsScreen
 import com.airi.assistant.ui.screens.LoginScreen
 import com.airi.assistant.ui.screens.MemoryScreen
 import com.airi.assistant.ui.screens.ModelSettingsScreen
+import com.airi.assistant.ui.screens.ProfileScreen
 import com.airi.assistant.ui.screens.SettingsScreen
 import com.airi.assistant.ui.screens.WelcomeScreen
 import com.airi.assistant.ui.theme.AIRITheme
@@ -31,16 +35,25 @@ object AiriRoute {
     const val SETTINGS     = "screen_settings"
     const val MEMORY       = "screen_memory"
     const val INTEGRATIONS = "screen_integrations"
+    const val PROFILE      = "screen_profile"
 }
 
 @Composable
 fun AiriApp() {
-    val navController  = rememberNavController()
-    val firebaseAuth   = remember { FirebaseAuth.getInstance() }
+    val navController      = rememberNavController()
+    val firebaseAuth       = remember { FirebaseAuth.getInstance() }
     val chatViewModel: ChatViewModel = viewModel()
-    val startDest = if (firebaseAuth.currentUser != null) AiriRoute.CHAT else AiriRoute.WELCOME
+    val startDest          = if (firebaseAuth.currentUser != null) AiriRoute.CHAT else AiriRoute.WELCOME
 
-    AIRITheme {
+    val themeMode by chatViewModel.themeMode.collectAsState()
+    val systemDark = isSystemInDarkTheme()
+    val isDark = when (themeMode) {
+        "light"  -> false
+        "system" -> systemDark
+        else     -> true
+    }
+
+    AIRITheme(darkTheme = isDark) {
         Box(modifier = Modifier.fillMaxSize()) {
             StarBackground()
             NavHost(navController = navController, startDestination = startDest) {
@@ -51,7 +64,7 @@ fun AiriApp() {
 
                 composable(AiriRoute.LOGIN) {
                     LoginScreen(
-                        onLogin = { email, password, onResult ->
+                        onSignIn = { email, password, onResult ->
                             firebaseAuth.signInWithEmailAndPassword(email, password)
                                 .addOnCompleteListener { task ->
                                     if (task.isSuccessful) {
@@ -61,20 +74,29 @@ fun AiriApp() {
                                         }
                                         onResult(null)
                                     } else {
-                                        firebaseAuth.createUserWithEmailAndPassword(email, password)
-                                            .addOnCompleteListener { reg ->
-                                                if (reg.isSuccessful) {
-                                                    navController.navigate(AiriRoute.CHAT) {
-                                                        popUpTo(AiriRoute.WELCOME) { inclusive = true }
-                                                        launchSingleTop = true
-                                                    }
-                                                    onResult(null)
-                                                } else {
-                                                    onResult(reg.exception?.localizedMessage ?: "Authentication failed")
-                                                }
-                                            }
+                                        onResult(task.exception?.localizedMessage ?: "Sign in failed")
                                     }
                                 }
+                        },
+                        onCreateAccount = { email, password, onResult ->
+                            firebaseAuth.createUserWithEmailAndPassword(email, password)
+                                .addOnCompleteListener { task ->
+                                    if (task.isSuccessful) {
+                                        navController.navigate(AiriRoute.CHAT) {
+                                            popUpTo(AiriRoute.WELCOME) { inclusive = true }
+                                            launchSingleTop = true
+                                        }
+                                        onResult(null)
+                                    } else {
+                                        onResult(task.exception?.localizedMessage ?: "Account creation failed")
+                                    }
+                                }
+                        },
+                        onGoogleLoginSuccess = {
+                            navController.navigate(AiriRoute.CHAT) {
+                                popUpTo(AiriRoute.WELCOME) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
                     )
                 }
@@ -142,6 +164,12 @@ fun AiriApp() {
 
                 composable(AiriRoute.INTEGRATIONS) {
                     IntegrationsScreen(
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(AiriRoute.PROFILE) {
+                    ProfileScreen(
                         onBack = { navController.popBackStack() }
                     )
                 }

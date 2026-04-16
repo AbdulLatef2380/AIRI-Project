@@ -3,6 +3,7 @@ package com.airi.assistant.ui.screens
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.speech.SpeechRecognizer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -32,6 +33,7 @@ import com.airi.assistant.system.LanguageOption
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.viewmodel.ChatViewModel
+import com.airi.assistant.util.ChatExporter
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
@@ -52,21 +54,30 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
 
     val systemPrompt by viewModel.systemPrompt.collectAsState()
+    val responseStyleState by viewModel.responseStyle.collectAsState()
+    val themeModeState by viewModel.themeMode.collectAsState()
+    val messages by viewModel.messages.collectAsState()
     val currentLanguage = remember { mutableStateOf(LanguageManager.getCurrentLanguage(context)) }
 
     var customInstructions by rememberSaveable { mutableStateOf(systemPrompt) }
-    var responseStyle by rememberSaveable { mutableStateOf("balanced") }
-    var darkModeEnabled by rememberSaveable { mutableStateOf(true) }
+    var responseStyle by rememberSaveable { mutableStateOf(responseStyleState) }
+    var themeMode by rememberSaveable { mutableStateOf(themeModeState) }
     var voiceEnabled by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var pendingLanguage by remember { mutableStateOf<LanguageOption?>(null) }
+
+    val isSpeechAvailable = remember { SpeechRecognizer.isRecognitionAvailable(context) }
 
     val responseStyles = listOf(
         "concise" to stringResource(R.string.style_concise),
         "balanced" to stringResource(R.string.style_balanced),
         "detailed" to stringResource(R.string.style_detailed)
     )
-    val exportComingMessage = stringResource(R.string.export_coming_next_update)
+    val themeOptions = listOf(
+        "dark" to stringResource(R.string.theme_dark),
+        "light" to stringResource(R.string.theme_light),
+        "system" to stringResource(R.string.theme_system)
+    )
 
     fun applySelectedLanguage(language: LanguageOption) {
         currentLanguage.value = language.code
@@ -84,7 +95,9 @@ fun SettingsScreen(
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = Color.White) }
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = Color.White)
+                    }
                 },
                 title = { Text(stringResource(R.string.settings), fontWeight = FontWeight.Bold, color = Color.White) }
             )
@@ -101,21 +114,31 @@ fun SettingsScreen(
             SettingsSurface {
                 SettingsCategoryHeader(icon = Icons.Outlined.Person, title = stringResource(R.string.profile))
                 Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(CircleShape)
-                            .background(CosmicAccent.copy(alpha = 0.18f))
-                            .border(1.5.dp, CosmicAccent.copy(alpha = 0.5f), CircleShape),
-                        contentAlignment = Alignment.Center
+                Surface(
+                    onClick = { onNavigate(AiriRoute.PROFILE) },
+                    color = Color.Transparent,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 4.dp)
                     ) {
-                        Text(initial, color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column {
-                        Text(email, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 15.sp)
-                        Text(stringResource(R.string.firebase_account), color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .background(CosmicAccent.copy(alpha = 0.18f))
+                                .border(1.5.dp, CosmicAccent.copy(alpha = 0.5f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(initial, color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(email, color = Color.White, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                            Text(stringResource(R.string.firebase_account), color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
+                        }
+                        Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = Color.White.copy(alpha = 0.3f))
                     }
                 }
             }
@@ -153,7 +176,10 @@ fun SettingsScreen(
                         val selected = responseStyle == code
                         FilterChip(
                             selected = selected,
-                            onClick = { responseStyle = code },
+                            onClick = {
+                                responseStyle = code
+                                viewModel.setResponseStyle(code)
+                            },
                             label = { Text(label, fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
@@ -178,7 +204,7 @@ fun SettingsScreen(
                 SettingsNavigationRow(label = stringResource(R.string.view_stored_memory), sublabel = stringResource(R.string.browse_conversation_history)) {
                     onNavigate(AiriRoute.MEMORY)
                 }
-                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(label = stringResource(R.string.clear_all_memory), sublabel = stringResource(R.string.reset_ai_context), destructive = true) {
                     viewModel.clearMemory()
                 }
@@ -187,8 +213,33 @@ fun SettingsScreen(
             SettingsSurface {
                 SettingsCategoryHeader(icon = Icons.Outlined.Palette, title = stringResource(R.string.appearance))
                 Spacer(Modifier.height(8.dp))
-                SettingsSwitchRow(stringResource(R.string.dark_theme_always_on), darkModeEnabled) { darkModeEnabled = it }
-                Text(stringResource(R.string.light_theme_coming), fontSize = 11.sp, color = Color.White.copy(alpha = 0.3f))
+                Text(stringResource(R.string.theme), fontSize = 13.sp, color = Color.White.copy(alpha = 0.7f))
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    themeOptions.forEach { (code, label) ->
+                        val selected = themeMode == code
+                        FilterChip(
+                            selected = selected,
+                            onClick = {
+                                themeMode = code
+                                viewModel.setThemeMode(code)
+                            },
+                            label = { Text(label, fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
+                                selectedLabelColor = CosmicAccent,
+                                containerColor = Color.White.copy(alpha = 0.06f),
+                                labelColor = Color.White.copy(alpha = 0.6f)
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                borderColor = Color.White.copy(alpha = 0.1f),
+                                selectedBorderColor = CosmicAccent.copy(alpha = 0.4f),
+                                enabled = true,
+                                selected = selected
+                            )
+                        )
+                    }
+                }
             }
 
             SettingsSurface {
@@ -216,13 +267,18 @@ fun SettingsScreen(
             SettingsSurface {
                 SettingsCategoryHeader(icon = Icons.Outlined.Mic, title = stringResource(R.string.voice))
                 Spacer(Modifier.height(8.dp))
-                SettingsSwitchRow(stringResource(R.string.enable_voice_mode), voiceEnabled) { voiceEnabled = it }
+                SettingsSwitchRow(stringResource(R.string.enable_voice_mode), voiceEnabled) { enabled ->
+                    voiceEnabled = enabled
+                }
                 if (voiceEnabled) {
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        stringResource(R.string.voice_mode_prepared),
+                        text = if (isSpeechAvailable)
+                            stringResource(R.string.voice_recognition_ready)
+                        else
+                            stringResource(R.string.voice_engine_not_installed),
                         fontSize = 11.sp,
-                        color = CosmicAccent.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(top = 4.dp)
+                        color = if (isSpeechAvailable) CosmicAccent.copy(alpha = 0.7f) else Color(0xFFFF6B6B).copy(alpha = 0.8f)
                     )
                 }
                 Spacer(Modifier.height(6.dp))
@@ -233,14 +289,23 @@ fun SettingsScreen(
             SettingsSurface {
                 SettingsCategoryHeader(icon = Icons.Outlined.Security, title = stringResource(R.string.data_controls))
                 Spacer(Modifier.height(8.dp))
-                SettingsActionRow(label = stringResource(R.string.export_chats), sublabel = stringResource(R.string.download_chat_history)) {
-                    scope.launch { snackbarHost.showSnackbar(exportComingMessage) }
+                SettingsActionRow(
+                    label = stringResource(R.string.export_chats),
+                    sublabel = stringResource(R.string.download_chat_history)
+                ) {
+                    scope.launch {
+                        val success = ChatExporter.exportToJson(context, messages)
+                        snackbarHost.showSnackbar(
+                            if (success) context.getString(R.string.export_success)
+                            else context.getString(R.string.export_failed)
+                        )
+                    }
                 }
-                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(label = stringResource(R.string.clear_chat_history), sublabel = stringResource(R.string.remove_from_display)) {
                     viewModel.clearMessages()
                 }
-                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(label = stringResource(R.string.delete_account), sublabel = stringResource(R.string.delete_account_sublabel), destructive = true) {
                     showDeleteDialog = true
                 }
@@ -293,7 +358,9 @@ fun SettingsScreen(
                 ) { Text(stringResource(R.string.continue_action)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingLanguage = null }) { Text(stringResource(R.string.cancel), color = Color.White.copy(alpha = 0.6f)) }
+                TextButton(onClick = { pendingLanguage = null }) {
+                    Text(stringResource(R.string.cancel), color = Color.White.copy(alpha = 0.6f))
+                }
             }
         )
     }
@@ -317,7 +384,9 @@ fun SettingsScreen(
                 ) { Text(stringResource(R.string.delete_account)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.cancel), color = Color.White.copy(alpha = 0.6f)) }
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text(stringResource(R.string.cancel), color = Color.White.copy(alpha = 0.6f))
+                }
             }
         )
     }

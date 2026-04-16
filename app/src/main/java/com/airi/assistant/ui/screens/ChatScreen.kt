@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -12,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -39,6 +41,7 @@ import androidx.core.content.ContextCompat
 import com.airi.assistant.R
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.ui.theme.InputBarBackground
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.AgentMode
@@ -92,15 +95,18 @@ fun ChatScreen(
         }
     }
 
-    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) {
-            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.file_selected_coming_soon)) }
+    var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { _: Uri? -> }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { _: Uri? -> }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        if (bitmap != null) {
+            capturedBitmap = bitmap
+            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.photo_captured)) }
         }
     }
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) {
-            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.image_selected_coming_soon)) }
-        }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) cameraLauncher.launch(null)
     }
 
     ModalNavigationDrawer(
@@ -141,7 +147,13 @@ fun ChatScreen(
                     onSwitchModel = { showMenu = false; onNavigate(AiriRoute.MODELS) },
                     onExportChat  = {
                         showMenu = false
-                        scope.launch { snackbarHost.showSnackbar(context.getString(R.string.export_coming_soon)) }
+                        scope.launch {
+                            val success = ChatExporter.exportToJson(context, messages)
+                            snackbarHost.showSnackbar(
+                                if (success) context.getString(R.string.export_success)
+                                else context.getString(R.string.export_failed)
+                            )
+                        }
                     }
                 )
             },
@@ -208,7 +220,15 @@ fun ChatScreen(
                     showAttachSheet = false
                     filePicker.launch("*/*")
                 }
-                AttachOption(icon = Icons.Outlined.CameraAlt, label = stringResource(R.string.camera_coming_soon), enabled = false) {}
+                AttachOption(icon = Icons.Outlined.CameraAlt, label = stringResource(R.string.take_photo)) {
+                    showAttachSheet = false
+                    when {
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED ->
+                            cameraLauncher.launch(null)
+                        else ->
+                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
+                }
                 Spacer(Modifier.height(16.dp))
             }
         }
@@ -673,6 +693,7 @@ fun AiriDrawer(
                         listOf(CosmicAccent.copy(alpha = 0.15f), Color.Transparent)
                     )
                 )
+                .clickable { onNavigate(AiriRoute.PROFILE) }
                 .padding(20.dp)
         ) {
             Column {

@@ -134,6 +134,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     )
     val systemPrompt: StateFlow<String> = _systemPrompt.asStateFlow()
 
+    private val _responseStyle = MutableStateFlow(
+        preferences.getString("gen_response_style", "balanced") ?: "balanced"
+    )
+    val responseStyle: StateFlow<String> = _responseStyle.asStateFlow()
+
+    private val _themeMode = MutableStateFlow(
+        preferences.getString("app_theme_mode", "dark") ?: "dark"
+    )
+    val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+
     private val _memoryEntries = MutableStateFlow<List<MemoryChatMessage>>(emptyList())
     val memoryEntries: StateFlow<List<MemoryChatMessage>> = _memoryEntries.asStateFlow()
 
@@ -284,8 +294,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun buildEffectiveSystemPrompt(): String {
         val custom = _systemPrompt.value.trim()
+        val style = _responseStyle.value
         return buildString {
             append(_agentMode.value.prompt)
+            when (style) {
+                "concise" -> append("\nKeep your responses brief and to the point. Avoid unnecessary elaboration.")
+                "detailed" -> append("\nProvide detailed, comprehensive responses with examples and explanations where helpful.")
+                else -> append("\nBalance detail and brevity in your responses.")
+            }
             if (custom.isNotBlank()) {
                 append("\n")
                 append(custom)
@@ -359,6 +375,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun setSystemPrompt(value: String) {
         _systemPrompt.value = value
         preferences.edit().putString("gen_system_prompt", value).apply()
+    }
+
+    fun setResponseStyle(style: String) {
+        _responseStyle.value = style
+        preferences.edit().putString("gen_response_style", style).apply()
+    }
+
+    fun setThemeMode(mode: String) {
+        _themeMode.value = mode
+        preferences.edit().putString("app_theme_mode", mode).apply()
     }
 
     // ── Model import / selection ──────────────────────────────────────────────

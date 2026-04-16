@@ -1,169 +1,161 @@
 package com.airi.assistant.core
 
-import android.content.Context
 import android.util.Log
-import com.airi.assistant.*
-import com.airi.assistant.tools.*
-import com.airi.assistant.planner.*
-import kotlinx.coroutines.*
-import org.json.JSONObject
+import com.airi.assistant.agent.execution.command.CommandResult
+import com.airi.assistant.agent.execution.command.CommandRouter
+import com.airi.assistant.agent.planning.ActionPlan
+import com.airi.assistant.agent.planning.BrainInput
+import com.airi.assistant.agent.planning.PlanGenerator
+import com.airi.assistant.agent.planning.PlanStep
+import com.airi.assistant.world.WorldState
+import com.airi.assistant.world.WorldStateManager
 
 /**
- * المحرك الإدراكي الموحد (Unified Cognitive Loop)
- * يعمل كـ Orchestrator يربط الإدراك بالتفكير ثم التنفيذ.
- * تم تقليل المسؤوليات (God Object) لضمان قابلية التوسع.
+ * UnifiedCognitiveLoop - Core execution engine with world context awareness
+ * 
+ * Unified architecture:
+ * Input → Plan Generation → World Context → Execution → Result
  */
-class UnifiedCognitiveLoop(
-    private val context: Context,
-    private val promptBuilder: PromptBuilder,
-    private val llama: LlamaNative,
-    private val policyEngine: PolicyEngine,
-    private val auditManager: AuditManager,
-    private val systemControl: SystemControlManager,
-    private val voiceManager: VoiceManager
-) {
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+class UnifiedCognitiveLoop {
 
-    fun processInput(text: String, source: InputSource) {
-        scope.launch {
-            val startTime = System.currentTimeMillis()
-            try {
-                // 1. Perception & Intent Routing (Fast Path)
-                val intent = perceive(text, source)
-
-                if (intent.confidence > 0.9f && intent.type != IntentType.CONVERSATION) {
-                    executeFastPath(intent)
-                    return@launch
-                }
-
-                // 2. Reasoning (Slow Path - LLM)
-                val response = reason(text)
-                
-                // 3. Planning & Policy Check
-                act(text, response, startTime)
-
-            } catch (e: Exception) {
-                Log.e("UCL", "Error in cognitive loop: ${e.message}")
-                e.printStackTrace()
-            }
-        }
+    companion object {
+        private const val TAG = "UnifiedCognitiveLoop"
     }
 
-    private fun perceive(text: String, source: InputSource): IntentResult {
-        val event = IntentEvent(text, source)
-        val router = IntentRouter()
-        return router.route(event)
-    }
-
-    private suspend fun reason(text: String): String {
-        val prompt = promptBuilder.build(text)
-        return withContext(Dispatchers.Default) {
-            llama.generateResponse(prompt)
-        }
-    }
-
-    private fun act(goal: String, response: String, startTime: Long) {
-        handleLLMResponse(goal, response, startTime)
-    }
-
-    private fun executeFastPath(intent: IntentResult) {
-        val action = intent.extractedData["command"] ?: intent.extractedData["appName"] ?: ""
-        val policyDecision = policyEngine.evaluate(intent.type.name, action)
-        
-        auditManager.logDecision(
-            result = policyDecision,
-            intent = intent.type.name,
-            action = action
-        )
-
-        if (policyDecision.isAllowed) {
-            when (intent.type) {
-                IntentType.SYSTEM_COMMAND -> systemControl.executeCommand(action)
-                IntentType.APP_CONTROL -> systemControl.openApp(action)
-                IntentType.AUTOMATION -> {
-                    val tool = ToolRegistry.findBestMatch(action)
-                    if (tool != null) {
-                        executeTool(tool, intent.extractedData)
-                    }
-                }
-                else -> {}
-            }
-        }
-    }
-
-    private fun handleLLMResponse(goal: String, jsonResponse: String, startTime: Long) {
+    val planGenerator = PlanGenerator()
+    
+    private val worldStateManager: WorldStateManager? by lazy {
         try {
-            val json = JSONObject(jsonResponse)
-            val mode = json.optString("mode")
-            val responseText = json.optString("response")
-            
-            if (mode == "RESPONSE" || mode == "HYBRID") {
-                if (responseText.isNotEmpty()) {
-                    voiceManager.speak(responseText)
-                    scope.launch { AiriCore.send(AiriCore.AiriEvent.UIRequest(responseText)) }
-                }
-            }
-
-            if (mode == "ACTION" || mode == "HYBRID") {
-                val actionObj = json.optJSONObject("action")
-                val toolName = actionObj?.optString("tool") ?: actionObj?.optString("type")
-                val params = actionObj?.optJSONObject("parameters")
-                
-                if (toolName != null) {
-                    val tool = ToolRegistry.findByName(toolName)
-                    if (tool != null) {
-                        val paramMap = mutableMapOf<String, Any>()
-                        params?.keys()?.forEach { key ->
-                            paramMap[key] = params.get(key)
-                        }
-                        
-                        val policyDecision = policyEngine.evaluate("TOOL_EXECUTION", toolName)
-                        if (policyDecision.isAllowed) {
-                            executeTool(tool, paramMap, goal, jsonResponse, startTime)
-                        } else {
-                            val msg = "Policy Denied: ${policyDecision.reason}"
-                            voiceManager.speak(msg)
-                            scope.launch { AiriCore.send(AiriCore.AiriEvent.UIRequest(msg)) }
-                        }
-                    }
-                }
-            }
+            ServiceLocator.context?.let { WorldStateManager(it) }
         } catch (e: Exception) {
-            Log.e("UCL", "Failed to parse LLM response: ${e.message}")
-            voiceManager.speak(jsonResponse)
-            scope.launch { AiriCore.send(AiriCore.AiriEvent.UIRequest(jsonResponse)) }
+            Log.w(TAG, "WorldStateManager unavailable: ${e.message}")
+            null
         }
     }
 
-    private fun executeTool(
-        tool: ToolDefinition, 
-        params: Map<String, Any>, 
-        goal: String? = null, 
-        plan: String? = null, 
-        startTime: Long = 0
-    ) {
-        scope.launch {
-            withContext(Dispatchers.IO) {
-                Log.i("UCL", "Executing tool: ${tool.name}")
-                val result = ToolExecutor.execute(tool, params)
-                val timeTaken = if (startTime > 0) System.currentTimeMillis() - startTime else 0
-                
-                // تسجيل العملية في سجل الأثر
-                val policyDecision = policyEngine.evaluate("TOOL_EXECUTION", tool.name)
-                auditManager.logDecision(
-                    result = policyDecision,
-                    intent = "TOOL_EXECUTION",
-                    action = tool.name
-                )
-                
-                // تسجيل الخبرة للتعلم الذاتي (Self-Improving)
-                if (goal != null && plan != null) {
-                    val score = PlanScorer.score(result, 1, timeTaken)
-                    ExecutionLogger.logEnd(goal, plan, tool.name, result ?: "", score)
-                }
-                
-                scope.launch { AiriCore.send(AiriCore.AiriEvent.UIRequest("Tool Result: $result")) }
+    /**
+     * Process user input through cognitive pipeline
+     * Dual API support for backward compatibility
+     */
+    suspend fun process(input: String): CognitiveResult {
+        val brainInput = BrainInput(text = input)
+        val simplePlan = """{"goal":"$input","steps":[{"id":"1","action":"process","params":{},"depends_on":[]}]}"""
+        return process(brainInput, simplePlan)
+    }
+
+    suspend fun process(input: BrainInput, llmResponse: String): CognitiveResult {
+        Log.d(TAG, "━━━ Cognitive Loop Start ━━━")
+        Log.d(TAG, "Input: ${input.text}")
+
+        return try {
+            // Capture world state for context
+            val worldState = captureWorldState()
+            logWorldState(worldState)
+            
+            // Generate action plan
+            val actionPlan = planGenerator.createActionPlanFromLLM(llmResponse, input.text)
+            Log.d(TAG, "Plan: ${actionPlan.intent} (${actionPlan.steps.size} steps)")
+
+            // Check confirmation requirement
+            if (actionPlan.requiresConfirmation) {
+                Log.d(TAG, "Awaiting confirmation")
+                return CognitiveResult.AwaitingConfirmation(actionPlan)
             }
+
+            // Execute plan
+            executeActionPlan(actionPlan, worldState)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Loop failed: ${e.message}", e)
+            CognitiveResult.Error("Cognitive loop failed: ${e.message}")
+        } finally {
+            Log.d(TAG, "━━━ Cognitive Loop End ━━━")
         }
     }
+
+    private fun captureWorldState(): WorldState? {
+        return try {
+            worldStateManager?.getCurrentState()
+        } catch (e: Exception) {
+            Log.w(TAG, "WorldState capture failed: ${e.message}")
+            null
+        }
+    }
+    
+    private fun logWorldState(state: WorldState?) {
+        if (state != null) {
+            Log.d(TAG, "World → Battery: ${state.batteryLevel}%, Network: ${state.networkType}, Memory: ${state.availableMemoryMB}MB")
+        } else {
+            Log.d(TAG, "World → Unavailable (limited mode)")
+        }
+    }
+
+    private suspend fun executeActionPlan(actionPlan: ActionPlan, worldState: WorldState?): CognitiveResult {
+        val results = mutableListOf<StepResult>()
+
+        Log.d(TAG, "Executing ${actionPlan.steps.size} steps...")
+        
+        for ((index, step) in actionPlan.steps.withIndex()) {
+            Log.d(TAG, "Step ${index + 1}/${actionPlan.steps.size}: ${step::class.simpleName}")
+            
+            val commandResult = CommandRouter.execute(step)
+            results.add(StepResult(step, commandResult))
+            
+            val icon = if (commandResult.success) "✓" else "✗"
+            Log.d(TAG, "  $icon ${commandResult.message ?: "ok"}")
+
+            if (!commandResult.success && isCriticalFailure(step)) {
+                Log.e(TAG, "Critical failure, aborting")
+                return CognitiveResult.Failed(actionPlan, results, "Critical step failed: ${commandResult.message}")
+            }
+        }
+
+        val allSucceeded = results.all { it.result.success }
+        return if (allSucceeded) {
+            Log.d(TAG, "All steps succeeded")
+            CognitiveResult.Success(actionPlan, results)
+        } else {
+            Log.w(TAG, "Partial success")
+            CognitiveResult.PartialSuccess(actionPlan, results)
+        }
+    }
+
+    private fun isCriticalFailure(step: PlanStep): Boolean {
+        return when (step) {
+            is PlanStep.Wait -> false
+            is PlanStep.Custom -> false
+            else -> true
+        }
+    }
+}
+
+data class StepResult(
+    val step: PlanStep,
+    val result: CommandResult
+)
+
+sealed class CognitiveResult {
+    data class Success(
+        val plan: ActionPlan,
+        val results: List<StepResult>
+    ) : CognitiveResult()
+
+    data class PartialSuccess(
+        val plan: ActionPlan,
+        val results: List<StepResult>
+    ) : CognitiveResult()
+
+    data class Failed(
+        val plan: ActionPlan,
+        val results: List<StepResult>,
+        val reason: String
+    ) : CognitiveResult()
+
+    data class AwaitingConfirmation(
+        val plan: ActionPlan
+    ) : CognitiveResult()
+
+    data class Error(
+        val message: String
+    ) : CognitiveResult()
 }

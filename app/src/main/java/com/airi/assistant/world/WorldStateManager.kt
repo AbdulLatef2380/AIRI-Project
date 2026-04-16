@@ -22,6 +22,10 @@ class WorldStateManager(private val context: Context) {
         )
     }
 
+    fun captureCurrentState(): WorldState {
+        return getCurrentState()
+    }
+
     private fun getBatteryLevel(): Int {
         val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         val level: Int = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
@@ -52,10 +56,7 @@ class WorldStateManager(private val context: Context) {
             val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             val network = connectivityManager.activeNetwork ?: return false
             val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-            
-            // الحل القاطع: القيمة الرقمية لـ NETWORK_CAPABILITY_INTERNET هي 12
-            // نستخدم الرقم مباشرة لتجاوز فشل المترجم في التعرف على الرمز
-            capabilities.hasCapability(12) 
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         } catch (e: Exception) {
             false
         }

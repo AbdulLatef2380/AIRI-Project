@@ -1,31 +1,39 @@
-package com.airi.assistant
+package com.airi.assistant.app
 
 import android.app.Application
-import com.airi.assistant.accessibility.BehaviorEngine
-import com.airi.assistant.data.AppDatabase
-import com.airi.assistant.data.ContextEngine
-import com.airi.assistant.adaptive.InteractionTracker
-import com.airi.assistant.adaptive.SuggestionScoreEngine
+import android.util.Log
+import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.memory.AiriDatabase
 
+/**
+ * AIRI Application - Core initialization
+ */
 class AIRIApplication : Application() {
+
+    companion object {
+        private const val TAG = "AIRIApplication"
+    }
 
     override fun onCreate() {
         super.onCreate()
         
-        // 🧠 تهيئة محرك السلوك (التعلم من ضغطات المستخدم التقليدية)
-        BehaviorEngine.initialize(this)
+        Log.d(TAG, "━━━ AIRI Starting ━━━")
         
-        // 🕒 تهيئة محرك السياق الزمني (الذاكرة القصيرة للشاشة)
-        ContextEngine.initialize(this)
-
-        // 🧬 تهيئة طبقة التعلم المعزز (Reinforcement Learning Layer)
-        // نقوم بجلب قاعدة البيانات وربطها بمحركات التتبع والتقييم
-        val database = AppDatabase.getDatabase(this)
-        
-        // تتبع التفاعلات (عرض، قبول، تجاهل)
-        InteractionTracker.initialize(database)
-        
-        // محرك حساب النقاط (الذي يقرر جودة الاقتراح لاحقاً)
-        SuggestionScoreEngine.initialize(database)
+        try {
+            // Initialize ServiceLocator for global context access
+            ServiceLocator.context = applicationContext
+            Log.d(TAG, "✓ ServiceLocator initialized")
+            
+            // Initialize database
+            AiriDatabase.getDatabase(this)
+            Log.d(TAG, "✓ Database initialized")
+            
+            Log.d(TAG, "━━━ AIRI Ready ━━━")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Initialization error: ${e.message}", e)
+            // Fail fast on critical errors
+            throw e
+        }
     }
 }

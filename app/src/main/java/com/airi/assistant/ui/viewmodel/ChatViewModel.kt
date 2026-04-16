@@ -24,7 +24,10 @@ import com.airi.assistant.ai.ValidationResult
 import com.airi.assistant.memory.dao.ChatSessionSummary
 import com.airi.assistant.memory.entity.ChatMessage as MemoryChatMessage
 import com.airi.assistant.memory.repository.MemoryManager
+import com.airi.assistant.ai.agent.AgentController
+import com.airi.assistant.ai.agent.background.AgentWorker
 import com.airi.assistant.ai.intent.ToolCallParser
+import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.ai.tools.ToolExecutor
 import com.airi.assistant.ai.tools.ToolRegistry
 import com.airi.assistant.tools.FileUtils
@@ -45,7 +48,9 @@ import kotlinx.coroutines.launch
 data class ChatMessage(
     val text: String,
     val isUser: Boolean,
-    val id: Long = System.currentTimeMillis()
+    val id: Long = System.currentTimeMillis(),
+    val agentTag: String? = null,
+    val traceId: String? = null
 )
 
 data class AgentState(
@@ -92,8 +97,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val memoryManager   = MemoryManager(appContext)
     private val downloadManager = ModelDownloadManager(appContext)
     private val gson            = Gson()
-    private val toolRegistry    = ToolRegistry(appContext)
-    private val toolExecutor    = ToolExecutor(appContext)
+    private val toolRegistry     = ToolRegistry(appContext)
+    private val toolExecutor     = ToolExecutor(appContext)
+    private val skillRegistry    = SkillRegistry(appContext)
+    private val agentController  = AgentController(appContext)
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -149,6 +156,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _memoryCount = MutableStateFlow(0)
     val memoryCount: StateFlow<Int> = _memoryCount.asStateFlow()
+
+    private val _backgroundAgentEnabled = MutableStateFlow(
+        preferences.getBoolean("background_agent_enabled", false)
+    )
+    val backgroundAgentEnabled: StateFlow<Boolean> = _backgroundAgentEnabled.asStateFlow()
 
     init {
         ModelManager.setLoader(ModelLoader(llamaManager))
@@ -242,8 +254,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 memoryManager.renameSession(sessionId, trimmedInput.take(48))
             }
             _messages.update { it + ChatMessage(trimmedInput, true, userMessage.id) }
-            _agentState.value = AgentState(isWorking = true, currentAction = "Generating response…")
+            _agentState.value = AgentState(isWorking = true, currentAction = "Agent thinking…")
             _streamingText.value = ""
+
+            val agentResult = agentController.handle(trimmedInput, history)
+            if (agentResult != null) {
+                val responseText = if (agentResult.success) {
+                    agentResult.text
+                } else {
+                    agentResult.text.ifBlank { "Agent action failed. Please try again." }
+                }
+                if (responseText.isNotBlank()) {
+                    val assistantMsg = memoryManager.recordChatMessage(sessionId, "assistant", responseText)
+                    _messages.update {
+                        it + ChatMessage(
+                            text     = responseText,
+                            isUser   = false,
+                            id       = assistantMsg.id,
+                            agentTag = agentResult.agentTag,
+                            traceId  = agentResult.traceId
+                        )
+                    }
+                }
+                _agentState.value = AgentState()
+                refreshSessions()
+                return@launch
+            }
+
             llamaManager.setHistory(history)
             llamaManager.generateStream(
                 prompt = trimmedInput,
@@ -272,6 +309,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun setAgentMode(mode: AgentMode) {
         _agentMode.value = mode
         preferences.edit().putString("agent_mode", mode.name).apply()
+    }
+
+    fun setBackgroundAgentEnabled(enabled: Boolean) {
+        _backgroundAgentEnabled.value = enabled
+        preferences.edit().putBoolean("background_agent_enabled", enabled).apply()
+        if (enabled) {
+            AgentWorker.schedule(appContext)
+        } else {
+            AgentWorker.cancel(appContext)
+        }
     }
 
     fun clearModelError() {
@@ -310,7 +357,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (toolBlock.isNotBlank()) {
                 append(toolBlock)
             }
+            val skillBlock = skillRegistry.buildSkillDescriptionBlock()
+            if (skillBlock.isNotBlank()) {
+                append(skillBlock)
+            }
         }
+    }
+
+    fun getSkillInfos(): List<SkillRegistry.SkillInfo> = skillRegistry.getAllSkillInfos()
+
+    fun setSkillEnabled(skillName: String, enabled: Boolean) {
+        skillRegistry.setSkillEnabled(skillName, enabled)
     }
 
     // ─── Tool call processing (Phase 2 extension layer) ───────────────────────

@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
+import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.system.LanguageOption
 import com.airi.assistant.ui.AiriRoute
@@ -57,6 +58,7 @@ fun SettingsScreen(
     val responseStyleState by viewModel.responseStyle.collectAsState()
     val themeModeState by viewModel.themeMode.collectAsState()
     val messages by viewModel.messages.collectAsState()
+    val backgroundAgentEnabled by viewModel.backgroundAgentEnabled.collectAsState()
     val currentLanguage = remember { mutableStateOf(LanguageManager.getCurrentLanguage(context)) }
 
     var customInstructions by rememberSaveable { mutableStateOf(systemPrompt) }
@@ -285,6 +287,14 @@ fun SettingsScreen(
                 SettingsInfoRow(stringResource(R.string.speech_engine), stringResource(R.string.speech_engine_value))
                 SettingsInfoRow(stringResource(R.string.wake_word), stringResource(R.string.wake_word_value))
             }
+
+            SkillsSection(viewModel = viewModel)
+
+            AgentSection(
+                isEnabled  = backgroundAgentEnabled,
+                onToggle   = { viewModel.setBackgroundAgentEnabled(it) },
+                onNavigate = onNavigate
+            )
 
             SettingsSurface {
                 SettingsCategoryHeader(icon = Icons.Outlined.Security, title = stringResource(R.string.data_controls))
@@ -525,6 +535,173 @@ fun SettingsActionRow(label: String, sublabel: String, destructive: Boolean = fa
             )
         }
     }
+}
+
+@Composable
+private fun SkillsSection(viewModel: ChatViewModel) {
+    val skillInfos = remember { viewModel.getSkillInfos().toMutableStateList() }
+
+    SettingsSurface {
+        SettingsCategoryHeader(
+            icon = Icons.Outlined.AutoAwesome,
+            title = "Skills"
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "High-level capabilities powered by your connected integrations",
+            fontSize = 11.sp,
+            color = Color.White.copy(alpha = 0.35f),
+            modifier = Modifier.padding(bottom = 10.dp)
+        )
+
+        skillInfos.forEachIndexed { index, info ->
+            if (index > 0) {
+                HorizontalDivider(
+                    color = Color.White.copy(alpha = 0.05f),
+                    modifier = Modifier.padding(vertical = 6.dp)
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = skillDisplayName(info.name),
+                            color = if (info.isConnected) Color.White.copy(alpha = 0.88f)
+                            else Color.White.copy(alpha = 0.35f),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        if (!info.isConnected) {
+                            Text(
+                                text = "Not connected",
+                                color = Color(0xFFFF6B6B).copy(alpha = 0.65f),
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                    Text(
+                        text = info.description,
+                        color = Color.White.copy(alpha = 0.35f),
+                        fontSize = 11.sp
+                    )
+                }
+                Switch(
+                    checked = info.isEnabled && info.isConnected,
+                    onCheckedChange = { enabled ->
+                        if (info.isConnected) {
+                            skillInfos[index] = info.copy(isEnabled = enabled)
+                            viewModel.setSkillEnabled(info.name, enabled)
+                        }
+                    },
+                    enabled = info.isConnected,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = CosmicAccent,
+                        checkedTrackColor = CosmicAccent.copy(alpha = 0.3f),
+                        uncheckedThumbColor = Color.White.copy(alpha = 0.4f),
+                        uncheckedTrackColor = Color.White.copy(alpha = 0.1f),
+                        disabledCheckedThumbColor = Color.White.copy(alpha = 0.2f),
+                        disabledUncheckedThumbColor = Color.White.copy(alpha = 0.15f),
+                        disabledCheckedTrackColor = Color.White.copy(alpha = 0.08f),
+                        disabledUncheckedTrackColor = Color.White.copy(alpha = 0.05f)
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AgentSection(
+    isEnabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onNavigate: (String) -> Unit = {}
+) {
+    val context = LocalContext.current
+    val prefs   = remember { context.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE) }
+    val lastRun = remember { prefs.getLong("bg_agent_last_run", 0L) }
+    val lastSummary = remember { prefs.getString("bg_agent_last_result", null) }
+    val lastRunFormatted = remember(lastRun) {
+        if (lastRun == 0L) "Never"
+        else java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault())
+                 .format(java.util.Date(lastRun))
+    }
+
+    SettingsSurface {
+        SettingsCategoryHeader(
+            icon  = Icons.Outlined.SmartToy,
+            title = "Background Agent"
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text  = "Run intelligent background checks on GitHub and Gmail while you're away",
+            fontSize = 11.sp,
+            color = Color.White.copy(alpha = 0.35f),
+            modifier = Modifier.padding(bottom = 10.dp)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text  = "Enable Background Agent",
+                    color = Color.White.copy(alpha = 0.88f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text  = if (isEnabled) "Runs every 2 hours when connected" else "Background checks are off",
+                    color = if (isEnabled) CosmicAccent.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.35f),
+                    fontSize = 11.sp
+                )
+            }
+            Switch(
+                checked = isEnabled,
+                onCheckedChange = onToggle,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor   = CosmicAccent,
+                    checkedTrackColor   = CosmicAccent.copy(alpha = 0.3f),
+                    uncheckedThumbColor = Color.White.copy(alpha = 0.4f),
+                    uncheckedTrackColor = Color.White.copy(alpha = 0.1f)
+                )
+            )
+        }
+        HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+        SettingsInfoRow(label = "Last Run", value = lastRunFormatted)
+        if (!lastSummary.isNullOrBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text  = lastSummary,
+                color = Color.White.copy(alpha = 0.45f),
+                fontSize = 11.sp,
+                lineHeight = 16.sp
+            )
+        }
+        HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+        SettingsNavigationRow(
+            label    = "Agent Logs",
+            sublabel = "View execution history and traces",
+            onClick  = { onNavigate(AiriRoute.AGENT_LOGS) }
+        )
+        SettingsNavigationRow(
+            label    = "Agent Control",
+            sublabel = "Manage skills, tools, and debug mode",
+            onClick  = { onNavigate(AiriRoute.AGENT_CONTROL) }
+        )
+    }
+}
+
+private fun skillDisplayName(name: String): String = when (name) {
+    "github_guardian"    -> "GitHub Guardian"
+    "telegram_messenger" -> "Telegram Messenger"
+    "gmail_assistant"    -> "Gmail Assistant"
+    "drive_search"       -> "Drive Search"
+    "calendar_events"    -> "Calendar Events"
+    else                 -> name.replace("_", " ").split(" ").joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
 }
 
 private tailrec fun Context.findActivity(): Activity? {

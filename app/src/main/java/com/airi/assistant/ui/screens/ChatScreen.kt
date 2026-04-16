@@ -409,7 +409,7 @@ fun ChatMessageList(
                 item(key = "streaming") { AiStreamingBubble(text = streamingText) }
             }
             items(messages.reversed(), key = { "${it.hashCode()}_${it.isUser}" }) { msg ->
-                if (msg.isUser) UserBubble(msg.text) else AiBubble(msg.text)
+                if (msg.isUser) UserBubble(msg.text) else AiBubble(msg.text, msg.agentTag, msg.traceId)
             }
         }
     }
@@ -439,7 +439,13 @@ fun UserBubble(text: String) {
 }
 
 @Composable
-fun AiBubble(text: String) {
+fun AiBubble(text: String, agentTag: String? = null, traceId: String? = null) {
+    val allTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsState()
+    val trace = remember(traceId, allTraces) {
+        if (traceId != null) allTraces.find { it.id == traceId } else null
+    }
+    var traceExpanded by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Start,
@@ -456,15 +462,138 @@ fun AiBubble(text: String) {
             Text("A", color = CosmicAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.width(8.dp))
-        Box(
-            modifier = Modifier
-                .widthIn(max = 300.dp)
-                .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                .background(Color.White.copy(alpha = 0.06f))
-                .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                .padding(horizontal = 14.dp, vertical = 10.dp)
-        ) {
-            Text(text, color = Color.White.copy(alpha = 0.92f), fontSize = 14.sp, lineHeight = 21.sp)
+        Column(modifier = Modifier.widthIn(max = 300.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
+                    .background(Color.White.copy(alpha = 0.06f))
+                    .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) {
+                Text(text, color = Color.White.copy(alpha = 0.92f), fontSize = 14.sp, lineHeight = 21.sp)
+            }
+
+            // ── Agent Trace Card ───────────────────────────────────────────
+            if (trace != null) {
+                Spacer(Modifier.height(6.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CosmicAccent.copy(alpha = 0.07f))
+                        .border(
+                            0.5.dp,
+                            if (trace.hasErrors) Color(0xFFFF5252).copy(alpha = 0.35f)
+                            else CosmicAccent.copy(alpha = 0.3f),
+                            RoundedCornerShape(12.dp)
+                        )
+                ) {
+                    // Header row — always visible, tap to expand/collapse
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { traceExpanded = !traceExpanded }
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Outlined.AutoAwesome,
+                                contentDescription = null,
+                                tint = CosmicAccent,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                text = if (agentTag != null) "⚙ $agentTag · ${trace.stepCount} step${if (trace.stepCount != 1) "s" else ""}  ${if (traceExpanded) "▲" else "▼"}"
+                                       else "⚙ Agent Action · ${trace.stepCount} step${if (trace.stepCount != 1) "s" else ""}  ${if (traceExpanded) "▲" else "▼"}",
+                                color = CosmicAccent.copy(alpha = 0.85f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        Icon(
+                            if (trace.success) Icons.Outlined.CheckCircle else Icons.Outlined.Error,
+                            contentDescription = null,
+                            tint = if (trace.success) Color(0xFF00C853) else Color(0xFFFF5252),
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+
+                    // Expanded step list
+                    if (traceExpanded) {
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                            trace.steps.forEachIndexed { i, step ->
+                                Row(
+                                    verticalAlignment = Alignment.Top,
+                                    modifier = Modifier.padding(vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = "${i + 1}.",
+                                        color = CosmicAccent.copy(alpha = 0.6f),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.width(16.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = step.displayName,
+                                                color = Color.White.copy(alpha = 0.85f),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            Icon(
+                                                if (step.success) Icons.Outlined.CheckCircle else Icons.Outlined.Cancel,
+                                                contentDescription = null,
+                                                tint = if (step.success) Color(0xFF00C853) else Color(0xFFFF5252),
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                        }
+                                        val detail = step.error ?: step.outputSummary.take(80).let {
+                                            if (step.outputSummary.length > 80) "$it…" else it
+                                        }
+                                        if (detail.isNotBlank()) {
+                                            Text(
+                                                text = detail,
+                                                color = if (step.error != null) Color(0xFFFF5252).copy(alpha = 0.8f)
+                                                        else Color.White.copy(alpha = 0.4f),
+                                                fontSize = 10.sp,
+                                                lineHeight = 14.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (agentTag != null) {
+                // Fallback minimal badge (no trace stored)
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(CosmicAccent.copy(alpha = 0.12f))
+                        .border(0.5.dp, CosmicAccent.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = "⚙ $agentTag",
+                        color = CosmicAccent.copy(alpha = 0.85f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
         }
     }
 }
@@ -742,6 +871,13 @@ fun AiriDrawer(
         DrawerNavItem(icon = Icons.Outlined.SmartToy,       label = stringResource(R.string.model_gallery),  route = AiriRoute.MODELS,       onNavigate = onNavigate)
         DrawerNavItem(icon = Icons.Outlined.Psychology,     label = stringResource(R.string.memory),         route = AiriRoute.MEMORY,       onNavigate = onNavigate)
         DrawerNavItem(icon = Icons.Outlined.Extension,      label = stringResource(R.string.integrations),   route = AiriRoute.INTEGRATIONS, onNavigate = onNavigate)
+
+        Spacer(Modifier.height(4.dp))
+        Divider(color = Color.White.copy(alpha = 0.06f))
+        Spacer(Modifier.height(4.dp))
+
+        DrawerNavItem(icon = Icons.Outlined.ManageHistory,  label = "Agent Logs",                            route = AiriRoute.AGENT_LOGS,   onNavigate = onNavigate)
+        DrawerNavItem(icon = Icons.Outlined.Tune,           label = "Agent Control",                         route = AiriRoute.AGENT_CONTROL,onNavigate = onNavigate)
 
         Spacer(Modifier.height(4.dp))
         Divider(color = Color.White.copy(alpha = 0.06f))

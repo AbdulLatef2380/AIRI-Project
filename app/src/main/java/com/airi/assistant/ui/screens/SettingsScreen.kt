@@ -284,22 +284,21 @@ fun SettingsScreen(
                     )
                 }
                 Spacer(Modifier.height(6.dp))
-                // These features are not yet available — shown as disabled info only
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(stringResource(R.string.speech_engine), color = Color.White.copy(alpha = 0.25f), fontSize = 13.sp)
-                    Text("Not available", color = Color.White.copy(alpha = 0.2f), fontSize = 12.sp)
+                    Text(stringResource(R.string.speech_engine), color = Color.White.copy(alpha = 0.65f), fontSize = 13.sp)
+                    Text(stringResource(R.string.speech_engine_value), color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(stringResource(R.string.wake_word), color = Color.White.copy(alpha = 0.25f), fontSize = 13.sp)
-                    Text("Not available", color = Color.White.copy(alpha = 0.2f), fontSize = 12.sp)
+                    Text(stringResource(R.string.wake_word), color = Color.White.copy(alpha = 0.65f), fontSize = 13.sp)
+                    Text(stringResource(R.string.wake_word_value), color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
                 }
             }
 
@@ -314,6 +313,13 @@ fun SettingsScreen(
             SettingsSurface {
                 SettingsCategoryHeader(icon = Icons.Outlined.Security, title = stringResource(R.string.data_controls))
                 Spacer(Modifier.height(8.dp))
+                SettingsNavigationRow(
+                    label = stringResource(R.string.report_bug),
+                    sublabel = stringResource(R.string.report_bug_settings_sublabel)
+                ) {
+                    onNavigate(AiriRoute.BUG_REPORT)
+                }
+                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(
                     label = stringResource(R.string.export_chats),
                     sublabel = stringResource(R.string.download_chat_history)

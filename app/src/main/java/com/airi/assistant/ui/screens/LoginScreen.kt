@@ -1,8 +1,8 @@
 package com.airi.assistant.ui.screens
 
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -18,31 +18,39 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
+import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.integrations.github.GithubService
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.OAuthCredential
+import com.google.firebase.auth.OAuthProvider
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
     onSignIn: (String, String, (String?) -> Unit) -> Unit,
     onCreateAccount: (String, String, (String?) -> Unit) -> Unit,
+    onGithubLoginSuccess: () -> Unit,
     onGoogleLoginSuccess: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -50,7 +58,16 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var isSignUp by remember { mutableStateOf(false) }
     var showEmailForm by remember { mutableStateOf(false) }
-    var showFacebookDialog by remember { mutableStateOf(false) }
+
+    val githubService = remember(context.applicationContext) {
+        GithubService(SecureStorage(context.applicationContext))
+    }
+
+    val githubProvider = remember {
+        val provider = OAuthProvider.newBuilder("github.com")
+        provider.scopes = listOf("read:user", "user:email", "repo")
+        provider.build()
+    }
 
     val googleSignInClient = remember {
         runCatching {
@@ -98,265 +115,252 @@ fun LoginScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Color(0xFF0A0E27), Color(0xFF1A0D2E), Color(0xFF0D1A2E))
-                )
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF13182D)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(0.dp)
-                ) {
-                    // ── App Icon ─────────────────────────────────────────────
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_launcher_fg),
-                        contentDescription = "AIRI",
-                        modifier = Modifier.size(64.dp)
-                    )
+    fun signInWithGithub() {
+        val activity = context as? Activity
+        if (activity == null) {
+            errorMessage = "GitHub sign-in requires an active Android screen"
+            return
+        }
 
-                    Spacer(Modifier.height(16.dp))
+        isLoading = true
+        errorMessage = null
 
-                    // ── Title ────────────────────────────────────────────────
-                    Text(
-                        text = "Welcome to AIRI",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        textAlign = TextAlign.Center
-                    )
+        val auth = FirebaseAuth.getInstance()
+        val authTask = auth.pendingAuthResult
+            ?: auth.startActivityForSignInWithProvider(activity, githubProvider)
 
-                    Spacer(Modifier.height(6.dp))
+        authTask.addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                isLoading = false
+                errorMessage = task.exception?.localizedMessage ?: "GitHub sign-in failed"
+                return@addOnCompleteListener
+            }
 
-                    // ── Subtitle ─────────────────────────────────────────────
-                    Text(
-                        text = "Sign in to continue",
-                        fontSize = 14.sp,
-                        color = Color.White.copy(alpha = 0.7f),
-                        textAlign = TextAlign.Center
-                    )
+            val accessToken = (task.result?.credential as? OAuthCredential)?.accessToken
+            if (accessToken.isNullOrBlank()) {
+                isLoading = false
+                onGithubLoginSuccess()
+                return@addOnCompleteListener
+            }
 
-                    Spacer(Modifier.height(28.dp))
-
-                    // ── Google Button ─────────────────────────────────────────
-                    AuthSocialButton(
-                        onClick = {
-                            errorMessage = null
-                            if (googleSignInClient != null) {
-                                googleLauncher.launch(googleSignInClient.signInIntent)
-                            } else {
-                                errorMessage = "Google Sign-In is not configured for this build"
-                            }
-                        },
-                        enabled = !isLoading,
-                        containerColor = Color.White,
-                        contentColor = Color(0xFF3C4043),
-                        iconResId = R.drawable.ic_google,
-                        text = stringResource(R.string.continue_with_google),
-                        border = BorderStroke(1.dp, Color(0xFFDDDDDD))
-                    )
-
-                    Spacer(Modifier.height(12.dp))
-
-                    // ── Facebook Button ───────────────────────────────────────
-                    AuthSocialButton(
-                        onClick = { showFacebookDialog = true },
-                        enabled = !isLoading,
-                        containerColor = Color(0xFF1877F2),
-                        contentColor = Color.White,
-                        iconResId = R.drawable.ic_facebook,
-                        text = stringResource(R.string.continue_with_facebook)
-                    )
-
-                    Spacer(Modifier.height(12.dp))
-
-                    // ── Email Button ──────────────────────────────────────────
-                    AuthSocialButton(
-                        onClick = { showEmailForm = !showEmailForm; errorMessage = null },
-                        enabled = !isLoading,
-                        containerColor = Color(0xFF1E2540),
-                        contentColor = Color.White,
-                        iconResId = R.drawable.ic_email,
-                        text = "Continue with Email"
-                    )
-
-                    // ── Email Form (progressive disclosure) ───────────────────
-                    if (showEmailForm) {
-                        Spacer(Modifier.height(24.dp))
-
-                        AuthDivider()
-
-                        Spacer(Modifier.height(24.dp))
-
-                        // Email field
-                        OutlinedTextField(
-                            value = email,
-                            onValueChange = { email = it; errorMessage = null },
-                            label = { Text("Email") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Outlined.Email,
-                                    contentDescription = null,
-                                    tint = Color(0xFF7C3AED).copy(alpha = 0.8f)
-                                )
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = authFieldColors()
-                        )
-
-                        Spacer(Modifier.height(12.dp))
-
-                        // Password field with visibility toggle
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = { password = it; errorMessage = null },
-                            label = { Text("Password") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Outlined.Lock,
-                                    contentDescription = null,
-                                    tint = Color(0xFF7C3AED).copy(alpha = 0.8f)
-                                )
-                            },
-                            trailingIcon = {
-                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                    Icon(
-                                        imageVector = if (passwordVisible) Icons.Outlined.Visibility
-                                                      else Icons.Outlined.VisibilityOff,
-                                        contentDescription = if (passwordVisible) "Hide password" else "Show password",
-                                        tint = Color.White.copy(alpha = 0.5f)
-                                    )
-                                }
-                            },
-                            visualTransformation = if (passwordVisible) VisualTransformation.None
-                                                   else PasswordVisualTransformation(),
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = authFieldColors()
-                        )
-
-                        errorMessage?.let { err ->
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                text = err,
-                                color = Color(0xFFFF6B6B),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-
-                        Spacer(Modifier.height(20.dp))
-
-                        // Primary Sign In / Create Account button
-                        Button(
-                            onClick = {
-                                if (!validateInputs()) return@Button
-                                isLoading = true
-                                errorMessage = null
-                                if (isSignUp) {
-                                    onCreateAccount(email, password) { error ->
-                                        isLoading = false
-                                        errorMessage = error
-                                    }
-                                } else {
-                                    onSignIn(email, password) { error ->
-                                        isLoading = false
-                                        errorMessage = error
-                                    }
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp),
-                            enabled = !isLoading,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF7C3AED),
-                                contentColor = Color.White,
-                                disabledContainerColor = Color(0xFF7C3AED).copy(alpha = 0.4f)
-                            )
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(
-                                    color = Color.White,
-                                    strokeWidth = 2.dp,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            } else {
-                                Text(
-                                    text = if (isSignUp) stringResource(R.string.create_account)
-                                           else stringResource(R.string.sign_in),
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 16.sp
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.height(12.dp))
-
-                        // Toggle sign up / sign in
-                        TextButton(onClick = { isSignUp = !isSignUp; errorMessage = null }) {
-                            Text(
-                                text = if (isSignUp) "Already have an account? Sign in"
-                                       else "Don't have an account? Sign up",
-                                fontSize = 14.sp,
-                                color = Color(0xFF7C3AED),
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
+            scope.launch {
+                githubService.validateAndConnect(accessToken)
+                isLoading = false
+                onGithubLoginSuccess()
             }
         }
     }
 
-    if (showFacebookDialog) {
-        AlertDialog(
-            onDismissRequest = { showFacebookDialog = false },
-            containerColor = Color(0xFF13182D),
-            titleContentColor = Color.White,
-            textContentColor = Color.White.copy(alpha = 0.75f),
-            shape = RoundedCornerShape(20.dp),
-            title = {
-                Text(
-                    stringResource(R.string.facebook_sdk_title),
-                    fontWeight = FontWeight.Bold
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(Modifier.height(60.dp))
+
+            Image(
+                painter = painterResource(id = R.drawable.airi_logo),
+                contentDescription = "AIRI",
+                modifier = Modifier.size(100.dp)
+            )
+
+            Spacer(Modifier.height(32.dp))
+
+            Text(
+                text = "مرحباً بك في AIRI",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(40.dp))
+
+            AuthSocialButton(
+                onClick = { signInWithGithub() },
+                enabled = !isLoading,
+                iconResId = R.drawable.ic_github,
+                text = "Continue with GitHub",
+                iconTint = Color.White
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            AuthSocialButton(
+                onClick = {
+                    errorMessage = null
+                    if (googleSignInClient != null) {
+                        googleLauncher.launch(googleSignInClient.signInIntent)
+                    } else {
+                        errorMessage = "Google Sign-In is not configured for this build"
+                    }
+                },
+                enabled = !isLoading,
+                iconResId = R.drawable.ic_google,
+                text = stringResource(R.string.continue_with_google),
+                iconTint = Color.Unspecified
+            )
+
+            AuthDivider()
+
+            AuthSocialButton(
+                onClick = { showEmailForm = !showEmailForm; errorMessage = null },
+                enabled = !isLoading,
+                iconResId = R.drawable.ic_email,
+                text = "متابعة باستخدام البريد الإلكتروني",
+                iconTint = Color.White
+            )
+
+            if (showEmailForm) {
+                Spacer(Modifier.height(24.dp))
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it; errorMessage = null },
+                    label = { Text("Email") },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Outlined.Email,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.8f)
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = authFieldColors()
                 )
-            },
-            text = { Text(stringResource(R.string.facebook_sdk_message)) },
-            confirmButton = {
+
+                Spacer(Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it; errorMessage = null },
+                    label = { Text("Password") },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Outlined.Lock,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.8f)
+                        )
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = if (passwordVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                                tint = Color.White.copy(alpha = 0.5f)
+                            )
+                        }
+                    },
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = authFieldColors()
+                )
+
+                Spacer(Modifier.height(20.dp))
+
                 Button(
-                    onClick = { showFacebookDialog = false },
+                    onClick = {
+                        if (!validateInputs()) return@Button
+                        isLoading = true
+                        errorMessage = null
+                        if (isSignUp) {
+                            onCreateAccount(email, password) { error ->
+                                isLoading = false
+                                errorMessage = error
+                            }
+                        } else {
+                            onSignIn(email, password) { error ->
+                                isLoading = false
+                                errorMessage = error
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    enabled = !isLoading,
+                    shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF1877F2),
-                        contentColor = Color.White
+                        containerColor = Color(0xFF1A1A1A),
+                        contentColor = Color.White,
+                        disabledContainerColor = Color(0xFF1A1A1A).copy(alpha = 0.5f),
+                        disabledContentColor = Color.White.copy(alpha = 0.5f)
                     )
-                ) { Text(stringResource(R.string.ok)) }
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    } else {
+                        Text(
+                            text = if (isSignUp) stringResource(R.string.create_account) else stringResource(R.string.sign_in),
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 16.sp
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                TextButton(onClick = { isSignUp = !isSignUp; errorMessage = null }) {
+                    Text(
+                        text = if (isSignUp) "Already have an account? Sign in" else "Don't have an account? Sign up",
+                        fontSize = 14.sp,
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
-        )
+
+            errorMessage?.let { err ->
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = err,
+                    color = Color(0xFFFF6B6B),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(Modifier.height(32.dp))
+
+            Text(
+                text = "بالمتابعة، فإنك توافق على شروط الخدمة وتقر بأنك قد قرأت سياسة الخصوصية.",
+                fontSize = 10.sp,
+                color = Color(0xFF888888),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = "AIRI Agent © 2026",
+                fontSize = 10.sp,
+                color = Color(0xFF888888),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(32.dp))
+        }
     }
 }
 
@@ -364,44 +368,47 @@ fun LoginScreen(
 private fun AuthSocialButton(
     onClick: () -> Unit,
     enabled: Boolean,
-    containerColor: Color,
-    contentColor: Color,
     iconResId: Int,
     text: String,
-    border: BorderStroke? = null
+    iconTint: Color
 ) {
     Button(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp),
+            .height(56.dp),
         enabled = enabled,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = containerColor,
-            contentColor = contentColor,
-            disabledContainerColor = containerColor.copy(alpha = 0.5f),
-            disabledContentColor = contentColor.copy(alpha = 0.5f)
+            containerColor = Color(0xFF1A1A1A),
+            contentColor = Color.White,
+            disabledContainerColor = Color(0xFF1A1A1A).copy(alpha = 0.5f),
+            disabledContentColor = Color.White.copy(alpha = 0.5f)
         ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
-        border = border,
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
         contentPadding = PaddingValues(horizontal = 16.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(
-                painter = painterResource(id = iconResId),
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = Color.Unspecified
-            )
-            Text(
-                text = text,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp
-            )
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = iconResId),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .size(24.dp),
+                    tint = iconTint
+                )
+                Text(
+                    text = text,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }
@@ -409,29 +416,31 @@ private fun AuthSocialButton(
 @Composable
 private fun AuthDivider() {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        HorizontalDivider(modifier = Modifier.weight(1f), color = Color.White.copy(alpha = 0.12f))
+        HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFF333333))
         Text(
-            "OR",
-            fontSize = 12.sp,
-            color = Color.White.copy(alpha = 0.4f),
+            text = "أو",
+            fontSize = 16.sp,
+            color = Color.White,
             fontWeight = FontWeight.Medium,
-            letterSpacing = 1.sp
+            textAlign = TextAlign.Center
         )
-        HorizontalDivider(modifier = Modifier.weight(1f), color = Color.White.copy(alpha = 0.12f))
+        HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFF333333))
     }
 }
 
 @Composable
 private fun authFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = Color(0xFF7C3AED),
-    unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+    focusedBorderColor = Color(0xFF333333),
+    unfocusedBorderColor = Color(0xFF333333),
     focusedTextColor = Color.White,
     unfocusedTextColor = Color.White,
-    focusedLabelColor = Color(0xFF7C3AED),
-    unfocusedLabelColor = Color.White.copy(alpha = 0.45f),
-    cursorColor = Color(0xFF7C3AED)
+    focusedLabelColor = Color.White,
+    unfocusedLabelColor = Color(0xFF888888),
+    cursorColor = Color.White
 )

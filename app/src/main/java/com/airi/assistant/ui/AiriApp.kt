@@ -16,6 +16,7 @@ import com.airi.assistant.ui.components.StarBackground
 import com.airi.assistant.ui.screens.AgentControlScreen
 import com.airi.assistant.ui.screens.AgentLogsScreen
 import com.airi.assistant.ui.screens.AgentTraceDetailScreen
+import com.airi.assistant.ui.screens.BugReportScreen
 import com.airi.assistant.ui.screens.ChatScreen
 import com.airi.assistant.ui.screens.HistoryScreen
 import com.airi.assistant.ui.screens.IntegrationsScreen
@@ -40,6 +41,7 @@ object AiriRoute {
     const val MEMORY              = "screen_memory"
     const val INTEGRATIONS        = "screen_integrations"
     const val PROFILE             = "screen_profile"
+    const val BUG_REPORT          = "screen_bug_report"
     const val AGENT_CONTROL       = "screen_agent_control"
     const val AGENT_LOGS          = "screen_agent_logs"
     const val AGENT_TRACE_DETAIL  = "screen_agent_trace_detail"
@@ -99,6 +101,12 @@ fun AiriApp() {
                                         onResult(task.exception?.localizedMessage ?: "Account creation failed")
                                     }
                                 }
+                        },
+                        onGithubLoginSuccess = {
+                            navController.navigate(AiriRoute.CHAT) {
+                                popUpTo(AiriRoute.WELCOME) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         },
                         onGoogleLoginSuccess = {
                             navController.navigate(AiriRoute.CHAT) {
@@ -178,6 +186,12 @@ fun AiriApp() {
 
                 composable(AiriRoute.PROFILE) {
                     ProfileScreen(
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(AiriRoute.BUG_REPORT) {
+                    BugReportScreen(
                         onBack = { navController.popBackStack() }
                     )
                 }

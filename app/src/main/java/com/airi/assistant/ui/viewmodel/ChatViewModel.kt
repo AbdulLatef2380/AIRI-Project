@@ -30,15 +30,23 @@ import com.airi.assistant.ai.intent.ToolCallParser
 import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.ai.tools.ToolExecutor
 import com.airi.assistant.ai.tools.ToolRegistry
+import com.airi.assistant.ai.skills.SkillExecutor
+import com.airi.assistant.core.AiriLogger
 import com.airi.assistant.tools.FileUtils
+import com.airi.assistant.util.NetworkMonitor
+import com.airi.assistant.util.RateLimiter
 import com.airi.assistant.tools.ModelDownloadManager
 import com.airi.assistant.tools.ModelDownloadService
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.gson.Gson
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import com.google.gson.reflect.TypeToken
 import java.io.File
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -100,6 +108,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val toolRegistry     = ToolRegistry(appContext)
     private val toolExecutor     = ToolExecutor(appContext)
     private val skillRegistry    = SkillRegistry(appContext)
+    private val skillExecutor    = SkillExecutor(appContext)
     private val agentController  = AgentController(appContext)
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -161,6 +170,57 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         preferences.getBoolean("background_agent_enabled", false)
     )
     val backgroundAgentEnabled: StateFlow<Boolean> = _backgroundAgentEnabled.asStateFlow()
+
+    private val _pendingConfirmation = MutableStateFlow<String?>(null)
+    val pendingConfirmation: StateFlow<String?> = _pendingConfirmation.asStateFlow()
+
+    private val _networkError = MutableStateFlow(false)
+    val networkError: StateFlow<Boolean> = _networkError.asStateFlow()
+
+    private val _rateLimitError = MutableStateFlow(false)
+    val rateLimitError: StateFlow<Boolean> = _rateLimitError.asStateFlow()
+
+    private var _pendingInput: String? = null
+    private var _confirmationTimeoutJob: Job? = null
+
+    data class PermissionRequest(val permissions: Array<String>, val skillName: String, val rationale: String)
+    private val _permissionRequired = MutableStateFlow<PermissionRequest?>(null)
+    val permissionRequired: StateFlow<PermissionRequest?> = _permissionRequired.asStateFlow()
+
+    fun onPermissionGranted() {
+        _permissionRequired.value = null
+        val input = _pendingInput ?: return
+        _pendingInput = null
+        _pendingConfirmation.value = null
+        executeMessage(input)
+    }
+
+    fun onPermissionDenied() {
+        _permissionRequired.value = null
+        _pendingInput = null
+        _pendingConfirmation.value = null
+        _messages.update { it + ChatMessage("Permission denied. Cannot complete this action without the required access.", isUser = false) }
+    }
+
+    fun clearPermissionRequest() {
+        _permissionRequired.value = null
+    }
+
+    private val messageLimiter = RateLimiter(maxRequests = 10, windowMs = 60_000L)
+    private val agentLimiter   = RateLimiter(maxRequests = 5,  windowMs = 60_000L)
+
+    private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        AiriLogger.e("CoroutineException: ${throwable.message}", throwable)
+        FirebaseCrashlytics.getInstance().recordException(throwable)
+        _agentState.value = AgentState()
+        _streamingText.value = ""
+        _messages.update {
+            it + ChatMessage(
+                "An unexpected error occurred. Please try again.",
+                isUser = false
+            )
+        }
+    }
 
     init {
         ModelManager.setLoader(ModelLoader(llamaManager))
@@ -233,6 +293,60 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun confirmSensitiveAction() {
+        val input = _pendingInput ?: return
+        _confirmationTimeoutJob?.cancel()
+        _confirmationTimeoutJob = null
+        _pendingConfirmation.value = null
+        AiriLogger.agent("SensitiveAction", "User CONFIRMED: ${input.take(80)}")
+
+        val lower = input.lowercase()
+        val permReq: PermissionRequest? = when {
+            (lower.contains("calendar") || lower.contains("event")) &&
+            !com.airi.assistant.util.PermissionHelper.hasCalendar(appContext) ->
+                PermissionRequest(
+                    com.airi.assistant.util.PermissionHelper.CALENDAR_PERMISSIONS,
+                    "calendar_events",
+                    "Calendar access is needed to read or create events."
+                )
+            (lower.contains("gmail") || lower.contains("contact") || lower.contains("email")) &&
+            !com.airi.assistant.util.PermissionHelper.hasContacts(appContext) ->
+                PermissionRequest(
+                    com.airi.assistant.util.PermissionHelper.CONTACTS_PERMISSIONS,
+                    "gmail_assistant",
+                    "Contacts access is needed to look up email addresses."
+                )
+            else -> null
+        }
+
+        if (permReq != null) {
+            _pendingInput = input
+            _permissionRequired.value = permReq
+            return
+        }
+
+        _pendingInput = null
+        executeMessage(input)
+    }
+
+    fun cancelSensitiveAction() {
+        val input = _pendingInput
+        _confirmationTimeoutJob?.cancel()
+        _confirmationTimeoutJob = null
+        _pendingInput = null
+        _pendingConfirmation.value = null
+        AiriLogger.agent("SensitiveAction", "User CANCELLED: ${input?.take(80)}")
+        _messages.update { it + ChatMessage("Action cancelled.", isUser = false) }
+    }
+
+    fun dismissNetworkError() {
+        _networkError.value = false
+    }
+
+    fun dismissRateLimitError() {
+        _rateLimitError.value = false
+    }
+
     fun sendMessage(input: String) {
         val trimmedInput = input.trim()
         if (trimmedInput.isEmpty()) return
@@ -240,12 +354,42 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         if (ModelManager.getCurrent() == null || !_modelState.value.isModelReady) {
             _messages.update {
-                it + ChatMessage("قم باختيار نموذج أولاً — اختر نموذج من قائمة النماذج.", isUser = false)
+                it + ChatMessage("No model is active. Please select a model from the Model Gallery first.", isUser = false)
             }
             return
         }
 
-        viewModelScope.launch {
+        if (!messageLimiter.tryAcquire()) {
+            _rateLimitError.value = true
+            AiriLogger.d("Rate limit hit for messages")
+            return
+        }
+
+        if (!NetworkMonitor.isConnected(appContext) && skillExecutor.isSensitive(trimmedInput)) {
+            _networkError.value = true
+            return
+        }
+
+        if (skillExecutor.isSensitive(trimmedInput)) {
+            _pendingInput = trimmedInput
+            _pendingConfirmation.value = trimmedInput
+            AiriLogger.agent("SensitiveAction", "Awaiting confirmation: ${trimmedInput.take(80)}")
+            _confirmationTimeoutJob?.cancel()
+            _confirmationTimeoutJob = viewModelScope.launch {
+                delay(30_000L)
+                if (_pendingConfirmation.value != null) {
+                    AiriLogger.agent("SensitiveAction", "Confirmation TIMED OUT")
+                    cancelSensitiveAction()
+                }
+            }
+            return
+        }
+
+        executeMessage(trimmedInput)
+    }
+
+    private fun executeMessage(trimmedInput: String) {
+        viewModelScope.launch(coroutineExceptionHandler) {
             val sessionId = currentSessionOrCreate()
             val wasEmpty = _messages.value.isEmpty()
             val history = memoryManager.loadSession(sessionId).takeLast(12)
@@ -257,12 +401,35 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _agentState.value = AgentState(isWorking = true, currentAction = "Agent thinking…")
             _streamingText.value = ""
 
-            val agentResult = agentController.handle(trimmedInput, history)
+            if (!agentLimiter.tryAcquire()) {
+                AiriLogger.d("Agent rate limit hit")
+                _messages.update {
+                    it + ChatMessage("Too many agent requests. Please slow down and try again in a moment.", isUser = false)
+                }
+                _agentState.value = AgentState()
+                return@launch
+            }
+
+            val agentResult = try {
+                agentController.handle(trimmedInput, history)
+            } catch (e: Exception) {
+                AiriLogger.e("AgentController.handle failed: ${e.message}", e)
+                FirebaseCrashlytics.getInstance().recordException(e)
+                _messages.update {
+                    it + ChatMessage("Agent encountered an error. Please try again.", isUser = false)
+                }
+                _agentState.value = AgentState()
+                return@launch
+            }
+
             if (agentResult != null) {
                 val responseText = if (agentResult.success) {
                     agentResult.text
                 } else {
                     agentResult.text.ifBlank { "Agent action failed. Please try again." }
+                }
+                if (!agentResult.success) {
+                    AiriLogger.apiFail("agent", responseText)
                 }
                 if (responseText.isNotBlank()) {
                     val assistantMsg = memoryManager.recordChatMessage(sessionId, "assistant", responseText)

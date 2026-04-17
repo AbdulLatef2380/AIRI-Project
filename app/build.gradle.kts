@@ -14,8 +14,8 @@ android {
         applicationId = "com.airi.assistant"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.0"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -43,7 +43,6 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = true
     }
 
     composeOptions {
@@ -88,9 +87,10 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.gson)
 
-    // Firebase Auth + Google
+    // Firebase Auth + Google + Crashlytics
     implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
     implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-crashlytics-ktx")
 
     // Google Sign-In
     implementation("com.google.android.gms:play-services-auth:20.7.0")

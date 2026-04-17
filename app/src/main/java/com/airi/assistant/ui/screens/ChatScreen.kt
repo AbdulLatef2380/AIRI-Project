@@ -49,6 +49,7 @@ import com.airi.assistant.ui.viewmodel.ChatMessage
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.ui.viewmodel.ModelUiState
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,21 +59,38 @@ fun ChatScreen(
     onNavigate: (String) -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
-    val context       = LocalContext.current
-    val drawerState   = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope         = rememberCoroutineScope()
-    val messages      by viewModel.messages.collectAsState()
-    val streamingText by viewModel.streamingText.collectAsState()
-    val agentState    by viewModel.agentState.collectAsState()
-    val modelState    by viewModel.modelState.collectAsState()
-    val agentMode     by viewModel.agentMode.collectAsState()
-    val snackbarHost  = remember { SnackbarHostState() }
+    val context             = LocalContext.current
+    val drawerState         = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope               = rememberCoroutineScope()
+    val messages            by viewModel.messages.collectAsState()
+    val streamingText       by viewModel.streamingText.collectAsState()
+    val agentState          by viewModel.agentState.collectAsState()
+    val modelState          by viewModel.modelState.collectAsState()
+    val agentMode           by viewModel.agentMode.collectAsState()
+    val pendingConfirmation by viewModel.pendingConfirmation.collectAsState()
+    val networkError        by viewModel.networkError.collectAsState()
+    val rateLimitError      by viewModel.rateLimitError.collectAsState()
+    val snackbarHost        = remember { SnackbarHostState() }
 
     var showMenu            by remember { mutableStateOf(false) }
     var showAttachSheet     by remember { mutableStateOf(false) }
     var showGenSettings     by remember { mutableStateOf(false) }
     var voiceInput          by remember { mutableStateOf("") }
     var voiceChatInput      by remember { mutableStateOf("") }
+
+    LaunchedEffect(networkError) {
+        if (networkError) {
+            snackbarHost.showSnackbar("No internet connection. Please check your network and try again.")
+            viewModel.dismissNetworkError()
+        }
+    }
+
+    LaunchedEffect(rateLimitError) {
+        if (rateLimitError) {
+            snackbarHost.showSnackbar("Too many requests. Please slow down and try again.")
+            viewModel.dismissRateLimitError()
+        }
+    }
 
     // Voice message: fills text field, user presses Send manually
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -129,6 +147,34 @@ fun ChatScreen(
 
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
+    val permissionRequired by viewModel.permissionRequired.collectAsState()
+    var showPermDeniedDialog by remember { mutableStateOf(false) }
+    var permDeniedRationale  by remember { mutableStateOf("") }
+
+    val multiplePermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val allGranted = results.values.all { it }
+        if (allGranted) {
+            viewModel.onPermissionGranted()
+        } else {
+            val activity = context as? android.app.Activity
+            val permanentlyDenied = activity != null && results.any { (perm, granted) ->
+                !granted && !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity, perm)
+            }
+            if (permanentlyDenied) {
+                permDeniedRationale = permissionRequired?.rationale ?: "This feature requires permissions that have been permanently denied."
+                showPermDeniedDialog = true
+            }
+            viewModel.onPermissionDenied()
+        }
+    }
+
+    LaunchedEffect(permissionRequired) {
+        val req = permissionRequired ?: return@LaunchedEffect
+        multiplePermLauncher.launch(req.permissions)
+    }
+
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { _: Uri? -> }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { _: Uri? -> }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
@@ -139,6 +185,42 @@ fun ChatScreen(
     }
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) cameraLauncher.launch(null)
+        else scope.launch { snackbarHost.showSnackbar(context.getString(R.string.microphone_permission_required).replace("Microphone", "Camera")) }
+    }
+
+    if (showPermDeniedDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermDeniedDialog = false },
+            containerColor   = Color(0xFF12162E),
+            titleContentColor = Color.White,
+            textContentColor  = Color.White.copy(alpha = 0.75f),
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("Permission Required", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(permDeniedRationale)
+                    Text(
+                        "You have permanently denied this permission. Please enable it in your device settings.",
+                        color = Color.White.copy(alpha = 0.55f),
+                        fontSize = 13.sp
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showPermDeniedDialog = false
+                        com.airi.assistant.util.PermissionHelper.openAppSettings(context)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
+                ) { Text("Open Settings") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermDeniedDialog = false }) {
+                    Text("Dismiss", color = Color.White.copy(alpha = 0.55f))
+                }
+            }
+        )
     }
 
     ModalNavigationDrawer(
@@ -294,6 +376,78 @@ fun ChatScreen(
             error = error,
             errorType = modelState.loadErrorType.name,
             onDismiss = { viewModel.clearModelError() }
+        )
+    }
+
+    pendingConfirmation?.let { action ->
+        val serviceName = when {
+            action.lowercase().contains("telegram") -> "Telegram"
+            action.lowercase().contains("gmail") || action.lowercase().contains("email") -> "Gmail"
+            action.lowercase().contains("calendar") -> "Google Calendar"
+            else -> "an external service"
+        }
+        var secondsLeft by remember { mutableStateOf(30) }
+        LaunchedEffect(action) {
+            while (secondsLeft > 0) {
+                delay(1000L)
+                secondsLeft--
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelSensitiveAction() },
+            containerColor   = Color(0xFF12162E),
+            titleContentColor = Color.White,
+            textContentColor  = Color.White.copy(alpha = 0.75f),
+            shape            = RoundedCornerShape(20.dp),
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Outlined.Warning, contentDescription = null, tint = Color(0xFFFFCC00), modifier = Modifier.size(20.dp))
+                    Text("Confirm Action — ${secondsLeft}s", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("This will send a request to $serviceName on your behalf:")
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color.White.copy(alpha = 0.07f), RoundedCornerShape(8.dp))
+                            .padding(10.dp)
+                    ) {
+                        Text(
+                            text = "\"${action.take(160)}${if (action.length > 160) "…" else ""}\"",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                        )
+                    }
+                    LinearProgressIndicator(
+                        progress = { secondsLeft / 30f },
+                        modifier = Modifier.fillMaxWidth().height(3.dp),
+                        color    = CosmicAccent,
+                        trackColor = Color.White.copy(alpha = 0.12f)
+                    )
+                    Text(
+                        "Auto-cancelled in ${secondsLeft}s if not confirmed.",
+                        color = Color.White.copy(alpha = 0.45f),
+                        fontSize = 12.sp
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.confirmSensitiveAction() },
+                    colors  = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.White)
+                ) { Text("Confirm") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelSensitiveAction() }) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.6f))
+                }
+            }
         )
     }
 }
@@ -457,7 +611,7 @@ fun ChatMessageList(
             if (streamingText.isNotEmpty() && isGenerating) {
                 item(key = "streaming") { AiStreamingBubble(text = streamingText) }
             }
-            items(messages.reversed(), key = { "${it.hashCode()}_${it.isUser}" }) { msg ->
+            items(messages.reversed(), key = { "${it.id}_${it.isUser}" }) { msg ->
                 if (msg.isUser) UserBubble(msg.text) else AiBubble(msg.text, msg.agentTag, msg.traceId)
             }
         }

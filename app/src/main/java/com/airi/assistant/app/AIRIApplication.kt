@@ -1,13 +1,10 @@
 package com.airi.assistant.app
 
 import android.app.Application
-import android.util.Log
 import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.domain.logging.LoggingService
 import com.airi.assistant.memory.AiriDatabase
 
-/**
- * AIRI Application - Core initialization
- */
 class AIRIApplication : Application() {
 
     companion object {
@@ -16,23 +13,32 @@ class AIRIApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        
-        Log.d(TAG, "━━━ AIRI Starting ━━━")
-        
+
+        LoggingService.info(TAG, "━━━ AIRI Starting ━━━")
+
         try {
-            // Initialize ServiceLocator for global context access
             ServiceLocator.context = applicationContext
-            Log.d(TAG, "✓ ServiceLocator initialized")
-            
-            // Initialize database
+            LoggingService.info(TAG, "✓ ServiceLocator initialized")
+
+            // Eagerly initialize connectivity monitoring
+            ServiceLocator.networkService
+            LoggingService.info(TAG, "✓ NetworkService initialized")
+
+            // Eagerly initialize event history — subscribes to EventBus immediately
+            ServiceLocator.executionHistoryStore
+            LoggingService.info(TAG, "✓ ExecutionHistoryStore initialized")
+
+            // Eagerly initialize subscription manager so daily reset is ready
+            ServiceLocator.subscriptionManager
+            LoggingService.info(TAG, "✓ SubscriptionManager initialized")
+
             AiriDatabase.getDatabase(this)
-            Log.d(TAG, "✓ Database initialized")
-            
-            Log.d(TAG, "━━━ AIRI Ready ━━━")
-            
+            LoggingService.info(TAG, "✓ Database initialized")
+
+            LoggingService.info(TAG, "━━━ AIRI Ready ━━━")
+
         } catch (e: Exception) {
-            Log.e(TAG, "Initialization error: ${e.message}", e)
-            // Fail fast on critical errors
+            LoggingService.error(TAG, "Initialization error: ${e.message}", e)
             throw e
         }
     }

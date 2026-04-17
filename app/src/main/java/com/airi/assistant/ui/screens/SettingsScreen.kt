@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.speech.SpeechRecognizer
+import com.airi.assistant.system.DefaultAssistantManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -335,6 +336,12 @@ fun SettingsScreen(
                     showDeleteDialog = true
                 }
             }
+
+            SubscriptionSection(viewModel = viewModel)
+
+            DefaultAssistantSection(activity = activity)
+
+            ObservabilitySection(onNavigate = onNavigate)
 
             SettingsSurface {
                 SettingsCategoryHeader(icon = Icons.Outlined.Info, title = stringResource(R.string.app_info))
@@ -706,6 +713,164 @@ private fun AgentSection(
             label    = "Agent Control",
             sublabel = "Manage skills, tools, and debug mode",
             onClick  = { onNavigate(AiriRoute.AGENT_CONTROL) }
+        )
+    }
+}
+
+@Composable
+private fun SubscriptionSection(viewModel: ChatViewModel) {
+    val summary   = remember { viewModel.getSubscriptionSummary() }
+    val isPremium = remember { viewModel.isPremium() }
+
+    SettingsSurface {
+        SettingsCategoryHeader(
+            icon  = Icons.Outlined.Star,
+            title = "Subscription"
+        )
+        Spacer(Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text       = if (isPremium) "Premium" else "Free Tier",
+                    color      = if (isPremium) CosmicAccent else Color.White.copy(alpha = 0.75f),
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 15.sp
+                )
+                Text(
+                    text     = if (isPremium) "Unlimited access to all features" else "30 messages / 10 agents / 5 skills per day",
+                    color    = Color.White.copy(alpha = 0.42f),
+                    fontSize = 11.sp
+                )
+            }
+            Surface(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                color = if (isPremium) CosmicAccent.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (isPremium) CosmicAccent.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.15f)
+                )
+            ) {
+                Text(
+                    text     = if (isPremium) "✓ Active" else "Free",
+                    color    = if (isPremium) CosmicAccent else Color.White.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
+        }
+
+        HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
+
+        Text("Today's Usage", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+
+        val limit = if (isPremium) "∞" else null
+        SettingsInfoRow("Messages",  "${summary.messagesUsed} / ${limit ?: summary.messagesLimit}")
+        SettingsInfoRow("Agent runs","${summary.agentsUsed} / ${limit ?: summary.agentsLimit}")
+        SettingsInfoRow("Skill uses","${summary.skillsUsed} / ${limit ?: summary.skillsLimit}")
+
+        if (!isPremium) {
+            HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
+            Button(
+                onClick = { viewModel.upgradeToPremium() },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.Black),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+            ) {
+                Icon(Icons.Outlined.Star, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Upgrade to Premium — \$4.99/mo", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DefaultAssistantSection(activity: Activity?) {
+    val context   = LocalContext.current
+    val isDefault = remember { DefaultAssistantManager.isDefaultAssistant(context) }
+
+    SettingsSurface {
+        SettingsCategoryHeader(
+            icon  = Icons.Outlined.Assistant,
+            title = "Default Assistant"
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text     = "Set AIRI as your device's default assistant so it activates when you hold the home button.",
+            fontSize = 11.sp,
+            color    = Color.White.copy(alpha = 0.38f),
+            lineHeight = 16.sp
+        )
+        Spacer(Modifier.height(12.dp))
+
+        if (isDefault) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.Check,
+                    contentDescription = null,
+                    tint     = CosmicAccent,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text("AIRI is your default assistant", color = CosmicAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text     = "AIRI is not the default assistant on this device.",
+                    color    = Color(0xFFFF9800).copy(alpha = 0.85f),
+                    fontSize = 12.sp
+                )
+                Button(
+                    onClick = {
+                        if (activity != null) {
+                            DefaultAssistantManager.requestDefaultAssistant(activity)
+                        } else {
+                            DefaultAssistantManager.openAssistantSettings(context)
+                        }
+                    },
+                    colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.Black),
+                    shape    = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Set as Default Assistant", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+                TextButton(
+                    onClick  = { DefaultAssistantManager.openAssistantSettings(context) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Open Assistant Settings", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ObservabilitySection(onNavigate: (String) -> Unit) {
+    SettingsSurface {
+        SettingsCategoryHeader(
+            icon  = Icons.Outlined.Timeline,
+            title = "Observability"
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text     = "Real-time event log for all agent, skill, auth, and policy executions.",
+            fontSize = 11.sp,
+            color    = Color.White.copy(alpha = 0.38f)
+        )
+        HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
+        SettingsNavigationRow(
+            label    = "Execution History",
+            sublabel = "View live events, policy checks, and agent traces",
+            onClick  = { onNavigate(AiriRoute.OBSERVABILITY) }
         )
     }
 }

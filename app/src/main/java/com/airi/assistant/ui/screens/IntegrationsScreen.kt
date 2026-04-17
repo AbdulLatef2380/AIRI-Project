@@ -154,7 +154,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
                             "github" -> vm.openGithubDialog()
                             "telegram" -> vm.openTelegramDialog()
                             "google" -> googleLauncher.launch(
-                                vm.googleAuthService.getSignInIntent()
+                                vm.getGoogleSignInIntent()
                             )
                         }
                     },

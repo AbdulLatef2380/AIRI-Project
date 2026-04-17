@@ -11,6 +11,9 @@ import androidx.work.WorkerParameters
 import com.airi.assistant.ai.intent.ToolCall
 import com.airi.assistant.ai.tools.ToolExecutor
 import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.domain.error.AppErrorHandler
+import com.airi.assistant.domain.logging.LoggingService
 import java.util.concurrent.TimeUnit
 
 class AgentWorker(
@@ -19,7 +22,8 @@ class AgentWorker(
 ) : CoroutineWorker(appContext, workerParams) {
 
     companion object {
-        private const val WORK_NAME            = "airi_background_agent"
+        private const val TAG = "AgentWorker"
+        private const val WORK_NAME             = "airi_background_agent"
         private const val REPEAT_INTERVAL_HOURS = 2L
 
         fun schedule(context: Context) {
@@ -46,13 +50,23 @@ class AgentWorker(
     }
 
     override suspend fun doWork(): Result {
+        LoggingService.debug(TAG, "Background agent started")
+
+        // Check network via NetworkService before doing any work
+        val networkService = runCatching { ServiceLocator.networkService }.getOrNull()
+        if (networkService != null && !networkService.isOnline()) {
+            LoggingService.warn(TAG, "No network — skipping background agent run")
+            saveSummary("No internet connection — skipped.")
+            return Result.success()
+        }
+
         val prefs         = appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
         val secureStorage = SecureStorage(appContext)
         val toolExecutor  = ToolExecutor(appContext)
         val findings      = mutableListOf<String>()
 
         if (!secureStorage.isGithubConnected() && !secureStorage.isGoogleConnected()) {
-            saveSummary(prefs, "No integrations connected.")
+            saveSummary("No integrations connected.")
             return Result.success()
         }
 
@@ -63,6 +77,8 @@ class AgentWorker(
                 if (result.success && result.data.isNotBlank()) {
                     findings.add("GitHub: ${result.data.lines().firstOrNull() ?: "Active"}")
                 }
+            }.onFailure { e ->
+                AppErrorHandler.capture(e, "AgentWorker.github")
             }
         }
 
@@ -75,20 +91,22 @@ class AgentWorker(
                 if (result.success && result.data.isNotBlank()) {
                     findings.add("Gmail: ${result.data.take(100)}")
                 }
+            }.onFailure { e ->
+                AppErrorHandler.capture(e, "AgentWorker.gmail")
             }
         }
 
         val summary = if (findings.isEmpty()) "Checked — no updates found."
                       else findings.joinToString(" | ")
-        saveSummary(prefs, summary)
+
+        LoggingService.debug(TAG, "Background agent complete: $summary")
+        saveSummary(summary)
         return Result.success()
     }
 
-    private fun saveSummary(
-        prefs: android.content.SharedPreferences,
-        summary: String
-    ) {
-        prefs.edit()
+    private fun saveSummary(summary: String) {
+        appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
+            .edit()
             .putLong("bg_agent_last_run", System.currentTimeMillis())
             .putString("bg_agent_last_result", summary.take(200))
             .apply()

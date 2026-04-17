@@ -21,15 +21,20 @@ import com.airi.assistant.ai.ModelSource
 import com.airi.assistant.ai.ModelType
 import com.airi.assistant.ai.ModelValidator
 import com.airi.assistant.ai.ValidationResult
+import com.airi.assistant.ai.agent.background.AgentWorker
+import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.domain.agent.AgentService
+import com.airi.assistant.domain.error.AppErrorHandler
+import com.airi.assistant.domain.event.AppEvent
+import com.airi.assistant.domain.event.EventBus
+import com.airi.assistant.domain.monetization.SubscriptionManager
+import com.airi.assistant.domain.permission.PermissionService
+import com.airi.assistant.domain.skill.SkillService
+import com.airi.assistant.domain.skill.SkillService.ToolCallResult
 import com.airi.assistant.memory.dao.ChatSessionSummary
 import com.airi.assistant.memory.entity.ChatMessage as MemoryChatMessage
 import com.airi.assistant.memory.repository.MemoryManager
-import com.airi.assistant.ai.agent.AgentController
-import com.airi.assistant.ai.agent.background.AgentWorker
-import com.airi.assistant.ai.intent.ToolCallParser
 import com.airi.assistant.ai.skills.SkillRegistry
-import com.airi.assistant.ai.tools.ToolExecutor
-import com.airi.assistant.ai.tools.ToolRegistry
 import com.airi.assistant.tools.FileUtils
 import com.airi.assistant.tools.ModelDownloadManager
 import com.airi.assistant.tools.ModelDownloadService
@@ -97,10 +102,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val memoryManager   = MemoryManager(appContext)
     private val downloadManager = ModelDownloadManager(appContext)
     private val gson            = Gson()
-    private val toolRegistry     = ToolRegistry(appContext)
-    private val toolExecutor     = ToolExecutor(appContext)
-    private val skillRegistry    = SkillRegistry(appContext)
-    private val agentController  = AgentController(appContext)
+
+    // ── Domain services ───────────────────────────────────────────────────────
+    private val agentService         = ServiceLocator.agentService
+    private val skillService         = ServiceLocator.skillService
+    private val promptService        = ServiceLocator.promptService
+    private val subscriptionManager  = ServiceLocator.subscriptionManager
+    private val permissionService    = ServiceLocator.permissionService
+
+    // ── UI State ──────────────────────────────────────────────────────────────
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -121,19 +131,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val currentSessionId: StateFlow<String> = _currentSessionId.asStateFlow()
 
     private val _agentMode = MutableStateFlow(
-        runCatching { AgentMode.valueOf(preferences.getString("agent_mode", AgentMode.ASSISTANT.name) ?: AgentMode.ASSISTANT.name) }
-            .getOrDefault(AgentMode.ASSISTANT)
+        runCatching {
+            AgentMode.valueOf(
+                preferences.getString("agent_mode", AgentMode.ASSISTANT.name) ?: AgentMode.ASSISTANT.name
+            )
+        }.getOrDefault(AgentMode.ASSISTANT)
     )
     val agentMode: StateFlow<AgentMode> = _agentMode.asStateFlow()
 
-    private val _temperature = MutableStateFlow(
-        preferences.getFloat("gen_temperature", 0.7f)
-    )
+    private val _temperature = MutableStateFlow(preferences.getFloat("gen_temperature", 0.7f))
     val temperature: StateFlow<Float> = _temperature.asStateFlow()
 
-    private val _maxTokens = MutableStateFlow(
-        preferences.getInt("gen_max_tokens", 512)
-    )
+    private val _maxTokens = MutableStateFlow(preferences.getInt("gen_max_tokens", 512))
     val maxTokens: StateFlow<Int> = _maxTokens.asStateFlow()
 
     private val _systemPrompt = MutableStateFlow(
@@ -162,6 +171,37 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     )
     val backgroundAgentEnabled: StateFlow<Boolean> = _backgroundAgentEnabled.asStateFlow()
 
+    // ── Storage permission gate ───────────────────────────────────────────────
+
+    private val _storagePermissionRequired = MutableStateFlow(false)
+    val storagePermissionRequired: StateFlow<Boolean> = _storagePermissionRequired.asStateFlow()
+
+    fun onStoragePermissionGranted() {
+        EventBus.emitSync(AppEvent.PermissionGranted("READ_EXTERNAL_STORAGE"))
+        _storagePermissionRequired.value = false
+        scanForLocalModels()
+    }
+
+    fun onStoragePermissionDenied(permanent: Boolean) {
+        EventBus.emitSync(AppEvent.PermissionDenied("READ_EXTERNAL_STORAGE", permanent))
+        _storagePermissionRequired.value = false
+    }
+
+    // ── Subscription info ─────────────────────────────────────────────────────
+
+    fun getSubscriptionSummary(): SubscriptionManager.UsageSummary =
+        subscriptionManager.getUsageSummary()
+
+    fun isPremium(): Boolean = subscriptionManager.isPremium()
+
+    fun upgradeToPremium() {
+        subscriptionManager.setTier(com.airi.assistant.domain.monetization.SubscriptionTier.PREMIUM)
+    }
+
+    fun downgradeToFree() {
+        subscriptionManager.setTier(com.airi.assistant.domain.monetization.SubscriptionTier.FREE)
+    }
+
     init {
         ModelManager.setLoader(ModelLoader(llamaManager))
         loadInitialSession()
@@ -172,9 +212,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         refreshRecommendedModels()
     }
 
+    // ── Session Management ────────────────────────────────────────────────────
+
     private fun loadInitialSession() {
         viewModelScope.launch {
-            val sessions = runCatching { memoryManager.getAllSessions() }.getOrElse { emptyList() }
+            val sessions  = runCatching { memoryManager.getAllSessions() }.getOrElse { emptyList() }
             val sessionId = preferences.getString(KEY_SESSION_ID, null)
                 ?.takeIf { saved -> sessions.any { it.id == saved } }
                 ?: sessions.firstOrNull()?.id
@@ -184,9 +226,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getAllSessions() {
-        viewModelScope.launch {
-            refreshSessions()
-        }
+        viewModelScope.launch { refreshSessions() }
     }
 
     fun createNewSession() {
@@ -233,10 +273,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ── Message Handling ──────────────────────────────────────────────────────
+
     fun sendMessage(input: String) {
         val trimmedInput = input.trim()
         if (trimmedInput.isEmpty()) return
         if (_modelState.value.isModelLoading) return
+
+        // ── Subscription gate: enforce daily message quota ────────────────────
+        if (!subscriptionManager.canSendMessage()) {
+            _messages.update {
+                val summary = subscriptionManager.getUsageSummary()
+                it + ChatMessage(
+                    "Daily limit reached (${summary.messagesUsed}/${summary.messagesLimit} messages). " +
+                    "Upgrade to Premium for unlimited messaging.",
+                    isUser = false
+                )
+            }
+            return
+        }
 
         if (ModelManager.getCurrent() == null || !_modelState.value.isModelReady) {
             _messages.update {
@@ -247,38 +302,53 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             val sessionId = currentSessionOrCreate()
-            val wasEmpty = _messages.value.isEmpty()
-            val history = memoryManager.loadSession(sessionId).takeLast(12)
+            val wasEmpty  = _messages.value.isEmpty()
+            val history   = memoryManager.loadSession(sessionId).takeLast(12)
             val userMessage = memoryManager.recordChatMessage(sessionId, "user", trimmedInput)
-            if (wasEmpty) {
-                memoryManager.renameSession(sessionId, trimmedInput.take(48))
-            }
+            if (wasEmpty) memoryManager.renameSession(sessionId, trimmedInput.take(48))
+            subscriptionManager.recordMessage()
             _messages.update { it + ChatMessage(trimmedInput, true, userMessage.id) }
             _agentState.value = AgentState(isWorking = true, currentAction = "Agent thinking…")
             _streamingText.value = ""
 
-            val agentResult = agentController.handle(trimmedInput, history)
-            if (agentResult != null) {
-                val responseText = if (agentResult.success) {
-                    agentResult.text
-                } else {
-                    agentResult.text.ifBlank { "Agent action failed. Please try again." }
-                }
-                if (responseText.isNotBlank()) {
-                    val assistantMsg = memoryManager.recordChatMessage(sessionId, "assistant", responseText)
+            // ── Delegate to AgentService (goes through PolicyEngine + pipeline) ──
+            val agentServiceResult = agentService.handle(trimmedInput, history)
+
+            when {
+                agentServiceResult.errorMessage != null -> {
+                    val errMsg = memoryManager.recordChatMessage(
+                        sessionId, "assistant", agentServiceResult.errorMessage
+                    )
                     _messages.update {
-                        it + ChatMessage(
-                            text     = responseText,
-                            isUser   = false,
-                            id       = assistantMsg.id,
-                            agentTag = agentResult.agentTag,
-                            traceId  = agentResult.traceId
-                        )
+                        it + ChatMessage(agentServiceResult.errorMessage, isUser = false, id = errMsg.id)
                     }
+                    _agentState.value = AgentState()
+                    refreshSessions()
+                    return@launch
                 }
-                _agentState.value = AgentState()
-                refreshSessions()
-                return@launch
+
+                agentServiceResult.agentResult != null -> {
+                    val agentResult = agentServiceResult.agentResult
+                    val responseText = if (agentResult.success) agentResult.text
+                                       else agentResult.text.ifBlank { "Agent action failed. Please try again." }
+                    if (responseText.isNotBlank()) {
+                        val assistantMsg = memoryManager.recordChatMessage(sessionId, "assistant", responseText)
+                        _messages.update {
+                            it + ChatMessage(
+                                text     = responseText,
+                                isUser   = false,
+                                id       = assistantMsg.id,
+                                agentTag = agentResult.agentTag,
+                                traceId  = agentResult.traceId
+                            )
+                        }
+                    }
+                    _agentState.value = AgentState()
+                    refreshSessions()
+                    return@launch
+                }
+
+                // isLlmFallback == true — proceed to local LLM
             }
 
             llamaManager.setHistory(history)
@@ -300,11 +370,77 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                     _streamingText.value = ""
-                    _agentState.value = AgentState()
+                    _agentState.value    = AgentState()
                 }
             )
         }
     }
+
+    // ── Tool call processing (delegates to SkillService) ─────────────────────
+
+    private suspend fun handleToolIfNeeded(response: String, sessionId: String): Boolean {
+        return when (val toolResult = skillService.executeToolCall(response)) {
+            is ToolCallResult.NoToolCall -> false
+
+            is ToolCallResult.Executed -> {
+                val toolCall = toolResult.toolCall
+                val result   = toolResult.result
+
+                _agentState.value = AgentState(
+                    isWorking     = true,
+                    currentAction = "Running tool: ${toolCall.toolName.replace("_", " ")}…"
+                )
+
+                val followUpPrompt = if (result.success) {
+                    "Tool '${toolCall.toolName}' returned this data:\n${result.data}\n\nExplain this clearly and helpfully to the user."
+                } else {
+                    "Tool '${toolCall.toolName}' failed with error: ${result.error ?: "Unknown error"}. " +
+                            "Inform the user in a friendly, helpful way."
+                }
+
+                val finalResponse = suspendCoroutine<String> { continuation ->
+                    llamaManager.generate(
+                        prompt       = followUpPrompt,
+                        systemPrompt = _agentMode.value.prompt,
+                        onResult     = { text -> continuation.resume(text) }
+                    )
+                }
+
+                if (finalResponse.isNotBlank()) {
+                    val assistantMsg = memoryManager.recordChatMessage(sessionId, "assistant", finalResponse)
+                    _messages.update { it + ChatMessage(finalResponse, isUser = false, assistantMsg.id) }
+                }
+                true
+            }
+
+            is ToolCallResult.Failed -> {
+                val errMsg = memoryManager.recordChatMessage(sessionId, "assistant", toolResult.errorMessage)
+                _messages.update {
+                    it + ChatMessage(toolResult.errorMessage, isUser = false, id = errMsg.id)
+                }
+                true
+            }
+        }
+    }
+
+    // ── Prompt building (delegates to PromptService) ──────────────────────────
+
+    private fun buildEffectiveSystemPrompt(): String =
+        promptService.buildSystemPrompt(
+            modePrompt    = _agentMode.value.prompt,
+            responseStyle = _responseStyle.value,
+            customPrompt  = _systemPrompt.value.trim()
+        )
+
+    // ── Skill management (delegates to SkillService) ──────────────────────────
+
+    fun getSkillInfos(): List<SkillRegistry.SkillInfo> = skillService.getAllSkillInfos()
+
+    fun setSkillEnabled(skillName: String, enabled: Boolean) {
+        skillService.setSkillEnabled(skillName, enabled)
+    }
+
+    // ── Settings ──────────────────────────────────────────────────────────────
 
     fun setAgentMode(mode: AgentMode) {
         _agentMode.value = mode
@@ -314,110 +450,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun setBackgroundAgentEnabled(enabled: Boolean) {
         _backgroundAgentEnabled.value = enabled
         preferences.edit().putBoolean("background_agent_enabled", enabled).apply()
-        if (enabled) {
-            AgentWorker.schedule(appContext)
-        } else {
-            AgentWorker.cancel(appContext)
-        }
+        if (enabled) AgentWorker.schedule(appContext) else AgentWorker.cancel(appContext)
     }
 
     fun clearModelError() {
         _modelState.update { it.copy(loadError = null, loadErrorType = LoadErrorType.NONE) }
     }
-
-    private suspend fun currentSessionOrCreate(): String {
-        val current = _currentSessionId.value
-        if (current.isNotBlank()) return current
-        val session = memoryManager.createSession()
-        _currentSessionId.value = session.id
-        preferences.edit().putString(KEY_SESSION_ID, session.id).apply()
-        refreshSessions()
-        return session.id
-    }
-
-    private suspend fun refreshSessions() {
-        _sessions.value = memoryManager.getAllSessions()
-    }
-
-    private fun buildEffectiveSystemPrompt(): String {
-        val custom = _systemPrompt.value.trim()
-        val style = _responseStyle.value
-        return buildString {
-            append(_agentMode.value.prompt)
-            when (style) {
-                "concise" -> append("\nKeep your responses brief and to the point. Avoid unnecessary elaboration.")
-                "detailed" -> append("\nProvide detailed, comprehensive responses with examples and explanations where helpful.")
-                else -> append("\nBalance detail and brevity in your responses.")
-            }
-            if (custom.isNotBlank()) {
-                append("\n")
-                append(custom)
-            }
-            val toolBlock = toolRegistry.buildToolDescriptionBlock()
-            if (toolBlock.isNotBlank()) {
-                append(toolBlock)
-            }
-            val skillBlock = skillRegistry.buildSkillDescriptionBlock()
-            if (skillBlock.isNotBlank()) {
-                append(skillBlock)
-            }
-        }
-    }
-
-    fun getSkillInfos(): List<SkillRegistry.SkillInfo> = skillRegistry.getAllSkillInfos()
-
-    fun setSkillEnabled(skillName: String, enabled: Boolean) {
-        skillRegistry.setSkillEnabled(skillName, enabled)
-    }
-
-    // ─── Tool call processing (Phase 2 extension layer) ───────────────────────
-
-    private suspend fun handleToolIfNeeded(response: String, sessionId: String): Boolean {
-        val toolCall = ToolCallParser.parse(response) ?: return false
-
-        _agentState.value = AgentState(
-            isWorking = true,
-            currentAction = "Running tool: ${toolCall.toolName.replace("_", " ")}…"
-        )
-
-        val result = toolExecutor.execute(toolCall)
-
-        val followUpPrompt = if (result.success) {
-            "Tool '${toolCall.toolName}' returned this data:\n${result.data}\n\nExplain this clearly and helpfully to the user."
-        } else {
-            "Tool '${toolCall.toolName}' failed with error: ${result.error ?: "Unknown error"}. " +
-                    "Inform the user in a friendly, helpful way."
-        }
-
-        val finalResponse = suspendCoroutine<String> { continuation ->
-            llamaManager.generate(
-                prompt = followUpPrompt,
-                systemPrompt = _agentMode.value.prompt,
-                onResult = { text -> continuation.resume(text) }
-            )
-        }
-
-        if (finalResponse.isNotBlank()) {
-            val assistantMsg = memoryManager.recordChatMessage(sessionId, "assistant", finalResponse)
-            _messages.update { it + ChatMessage(finalResponse, isUser = false, assistantMsg.id) }
-        }
-
-        return true
-    }
-
-    fun clearMessages() {
-        createNewSession()
-    }
-
-    fun clearMemory() {
-        viewModelScope.launch {
-            runCatching { memoryManager.clearAll() }
-            _memoryEntries.value = emptyList()
-            _memoryCount.value = 0
-        }
-    }
-
-    // ── Generation settings ───────────────────────────────────────────────────
 
     fun setTemperature(value: Float) {
         _temperature.value = value
@@ -444,14 +482,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         preferences.edit().putString("app_theme_mode", mode).apply()
     }
 
+    fun clearMessages()  { createNewSession() }
+
+    fun clearMemory() {
+        viewModelScope.launch {
+            runCatching { memoryManager.clearAll() }
+            _memoryEntries.value = emptyList()
+            _memoryCount.value   = 0
+        }
+    }
+
     // ── Model import / selection ──────────────────────────────────────────────
 
     fun importModel(uri: Uri) {
         _modelState.update { it.copy(isModelLoading = true, loadError = null, loadErrorType = LoadErrorType.NONE, loadProgress = 0) }
         viewModelScope.launch {
             try {
-                val path = FileUtils.copyToInternalStorage(appContext, uri)
-                val file = File(path)
+                val path  = FileUtils.copyToInternalStorage(appContext, uri)
+                val file  = File(path)
                 val model = createModelFromFile(file, ModelSource.LOCAL_FILE, "custom")
                 when (val v = ModelValidator.validate(file, appContext, model.ramRequiredMb)) {
                     is ValidationResult.Valid -> {
@@ -474,11 +522,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             } catch (e: Exception) {
+                val msg = AppErrorHandler.capture(e, "importModel").message
                 _modelState.update {
                     it.copy(isModelLoading = false, isModelReady = false,
-                        loadError = e.localizedMessage ?: "Could not import model",
-                        loadErrorType = LoadErrorType.LOAD_FAILED, loadProgress = -1,
-                        availableModels = ModelManager.getAllModels())
+                        loadError = msg, loadErrorType = LoadErrorType.LOAD_FAILED,
+                        loadProgress = -1, availableModels = ModelManager.getAllModels())
                 }
             }
         }
@@ -541,8 +589,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _modelState.update {
             it.copy(
                 downloadedModelAvailable = downloadManager.isModelDownloaded(),
-                downloadedModelPath = downloadedFile.absolutePath,
-                availableModels = ModelManager.getAllModels()
+                downloadedModelPath      = downloadedFile.absolutePath,
+                availableModels          = ModelManager.getAllModels()
             )
         }
     }
@@ -565,6 +613,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ── Model Scout ───────────────────────────────────────────────────────────
+
+    fun requestScanForLocalModels() {
+        // On Android 13+ no storage permission is needed for scanning.
+        // On Android 12 and below (API <= 32), READ_EXTERNAL_STORAGE is required.
+        if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.S_V2) {
+            if (!permissionService.hasPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)) {
+                _storagePermissionRequired.value = true
+                return
+            }
+        }
+        scanForLocalModels()
+    }
 
     fun scanForLocalModels() {
         _modelState.update { it.copy(isScanning = true) }
@@ -589,7 +649,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ── Internal ──────────────────────────────────────────────────────────────
+    // ── Internal helpers ──────────────────────────────────────────────────────
+
+    private suspend fun currentSessionOrCreate(): String {
+        val current = _currentSessionId.value
+        if (current.isNotBlank()) return current
+        val session = memoryManager.createSession()
+        _currentSessionId.value = session.id
+        preferences.edit().putString(KEY_SESSION_ID, session.id).apply()
+        refreshSessions()
+        return session.id
+    }
+
+    private suspend fun refreshSessions() {
+        _sessions.value = memoryManager.getAllSessions()
+    }
 
     private fun loadModel(model: ModelInfo) {
         val file = File(model.path)
@@ -597,16 +671,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (validation !is ValidationResult.Valid) {
             val (msg, type) = validationMessage(validation)
             _modelState.update {
-                it.copy(selectedModelId = model.id, selectedModelName = model.name, selectedModelPath = model.path,
-                    selectedModelSize = model.size, isModelLoading = false, isModelReady = false,
-                    loadError = msg, loadErrorType = type, loadProgress = -1, availableModels = ModelManager.getAllModels())
+                it.copy(selectedModelId = model.id, selectedModelName = model.name,
+                    selectedModelPath = model.path, selectedModelSize = model.size,
+                    isModelLoading = false, isModelReady = false,
+                    loadError = msg, loadErrorType = type, loadProgress = -1,
+                    availableModels = ModelManager.getAllModels())
             }
             return
         }
         ModelManager.unload()
         _modelState.update {
-            it.copy(selectedModelId = model.id, selectedModelName = model.name, selectedModelPath = model.path,
-                selectedModelSize = model.size, isModelLoading = true, isModelReady = false,
+            it.copy(selectedModelId = model.id, selectedModelName = model.name,
+                selectedModelPath = model.path, selectedModelSize = model.size,
+                isModelLoading = true, isModelReady = false,
                 loadError = null, loadErrorType = LoadErrorType.NONE, loadProgress = 0,
                 downloadedModelAvailable = downloadManager.isModelDownloaded(),
                 downloadedModelPath = downloadManager.getModelFile().absolutePath,
@@ -631,8 +708,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun createInitialModelState(): ModelUiState {
         restoreRegistry()
         syncDownloadedModelAvailability()
-        val savedId   = preferences.getString(KEY_MODEL_ID, "").orEmpty()
-        val savedPath = preferences.getString(KEY_MODEL_PATH, "").orEmpty()
+        val savedId    = preferences.getString(KEY_MODEL_ID, "").orEmpty()
+        val savedPath  = preferences.getString(KEY_MODEL_PATH, "").orEmpty()
         val savedModel = ModelRegistry.getById(savedId)
             ?: ModelRegistry.getAll().firstOrNull { it.path == savedPath }
             ?: File(savedPath).takeIf { it.exists() && it.length() > 0 }
@@ -682,22 +759,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     ): ModelInfo {
         val matched = catalogMeta ?: ModelCatalog.entries.find { it.fileName == file.name }
         return ModelInfo(
-            name = matched?.name ?: file.nameWithoutExtension,
-            fileName = file.name,
-            size = file.length(),
-            quantization = matched?.quantization ?: detectQuantization(file.name),
-            path = file.absolutePath,
-            source = source,
-            id = file.absolutePath,
-            type = matched?.type ?: when (type.lowercase()) {
-                "gemma" -> ModelType.GEMMA
+            name          = matched?.name ?: file.nameWithoutExtension,
+            fileName      = file.name,
+            size          = file.length(),
+            quantization  = matched?.quantization ?: detectQuantization(file.name),
+            path          = file.absolutePath,
+            source        = source,
+            id            = file.absolutePath,
+            type          = matched?.type ?: when (type.lowercase()) {
+                "gemma"   -> ModelType.GEMMA
                 "mistral" -> ModelType.MISTRAL
-                "llama" -> ModelType.LLAMA
-                else -> ModelType.inferFromFileName(file.name)
+                "llama"   -> ModelType.LLAMA
+                else      -> ModelType.inferFromFileName(file.name)
             },
-            isLocal = true,
+            isLocal       = true,
             ramRequiredMb = matched?.ramRequiredMb ?: 0,
-            contextSize = matched?.contextSize ?: 4096
+            contextSize   = matched?.contextSize ?: 4096
         )
     }
 

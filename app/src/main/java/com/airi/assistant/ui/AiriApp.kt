@@ -12,10 +12,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.auth.AuthService
 import com.airi.assistant.domain.experiment.ExperimentManager
+import com.airi.assistant.domain.growth.OnboardingManager
+import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.ui.components.StarBackground
 import com.airi.assistant.ui.screens.AgentControlScreen
 import com.airi.assistant.ui.screens.AgentLogsScreen
@@ -27,15 +31,20 @@ import com.airi.assistant.ui.screens.LoginScreen
 import com.airi.assistant.ui.screens.MemoryScreen
 import com.airi.assistant.ui.screens.ModelSettingsScreen
 import com.airi.assistant.ui.screens.ObservabilityScreen
+import com.airi.assistant.ui.screens.OnboardingScreen
 import com.airi.assistant.ui.screens.PaywallScreen
 import com.airi.assistant.ui.screens.ProfileScreen
+import com.airi.assistant.ui.screens.ReferralScreen
 import com.airi.assistant.ui.screens.SettingsScreen
+import com.airi.assistant.ui.screens.SkillBuilderScreen
+import com.airi.assistant.ui.screens.SkillManagerScreen
 import com.airi.assistant.ui.screens.WelcomeScreen
 import com.airi.assistant.ui.theme.AIRITheme
 import com.airi.assistant.ui.viewmodel.AgentViewModel
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 
 object AiriRoute {
+    const val ONBOARDING         = "screen_onboarding"
     const val WELCOME            = "screen_welcome"
     const val LOGIN              = "screen_login"
     const val CHAT               = "screen_chat"
@@ -50,6 +59,11 @@ object AiriRoute {
     const val AGENT_TRACE_DETAIL = "screen_agent_trace_detail"
     const val OBSERVABILITY      = "screen_observability"
     const val PAYWALL            = "screen_paywall"
+    const val REFERRALS          = "screen_referrals"
+    const val SKILL_MANAGER      = "screen_skill_manager"
+    const val SKILL_BUILDER      = "screen_skill_builder"
+
+    fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 }
 
 @Composable
@@ -58,7 +72,11 @@ fun AiriApp() {
     val authService: AuthService     = remember { ServiceLocator.authService }
     val chatViewModel: ChatViewModel = viewModel()
     val agentViewModel: AgentViewModel = viewModel()
-    val startDest = if (authService.isSignedIn()) AiriRoute.CHAT else AiriRoute.WELCOME
+    val startDest = when {
+        authService.isSignedIn() -> AiriRoute.CHAT
+        !OnboardingManager.isCompleted() -> AiriRoute.ONBOARDING
+        else -> AiriRoute.LOGIN
+    }
 
     val themeMode by chatViewModel.themeMode.collectAsState()
     val systemDark = isSystemInDarkTheme()
@@ -73,6 +91,23 @@ fun AiriApp() {
             StarBackground()
             NavHost(navController = navController, startDestination = startDest) {
 
+                composable(AiriRoute.ONBOARDING) {
+                    OnboardingScreen(
+                        onComplete = {
+                            navController.navigate(AiriRoute.LOGIN) {
+                                popUpTo(AiriRoute.ONBOARDING) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        onSkip = {
+                            navController.navigate(AiriRoute.LOGIN) {
+                                popUpTo(AiriRoute.ONBOARDING) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+
                 composable(AiriRoute.WELCOME) {
                     WelcomeScreen(onStart = { navController.navigate(AiriRoute.LOGIN) })
                 }
@@ -83,12 +118,14 @@ fun AiriApp() {
                             authService.signIn(email, password) { error ->
                                 if (error == null) {
                                     AnalyticsService.login("email")
+                                    AnalyticsService.funnelStep("open_to_login")
+                                    ReferralManager.completePendingReferral(authService.currentUser()?.uid)
                                     ExperimentManager.init(
                                         ServiceLocator.context!!,
                                         authService.currentUser()?.uid ?: "anonymous"
                                     )
                                     navController.navigate(AiriRoute.CHAT) {
-                                        popUpTo(AiriRoute.WELCOME) { inclusive = true }
+                                        popUpTo(AiriRoute.LOGIN) { inclusive = true }
                                         launchSingleTop = true
                                     }
                                 }
@@ -99,12 +136,14 @@ fun AiriApp() {
                             authService.createAccount(email, password) { error ->
                                 if (error == null) {
                                     AnalyticsService.signup("email")
+                                    AnalyticsService.funnelStep("open_to_signup")
+                                    ReferralManager.completePendingReferral(authService.currentUser()?.uid)
                                     ExperimentManager.init(
                                         ServiceLocator.context!!,
                                         authService.currentUser()?.uid ?: "anonymous"
                                     )
                                     navController.navigate(AiriRoute.CHAT) {
-                                        popUpTo(AiriRoute.WELCOME) { inclusive = true }
+                                        popUpTo(AiriRoute.LOGIN) { inclusive = true }
                                         launchSingleTop = true
                                     }
                                 }
@@ -112,8 +151,11 @@ fun AiriApp() {
                             }
                         },
                         onGoogleLoginSuccess = {
+                            AnalyticsService.login("google")
+                            AnalyticsService.funnelStep("open_to_login")
+                            ReferralManager.completePendingReferral(authService.currentUser()?.uid)
                             navController.navigate(AiriRoute.CHAT) {
-                                popUpTo(AiriRoute.WELCOME) { inclusive = true }
+                                popUpTo(AiriRoute.LOGIN) { inclusive = true }
                                 launchSingleTop = true
                             }
                         }
@@ -229,6 +271,35 @@ fun AiriApp() {
                     PaywallScreen(
                         onBack           = { navController.popBackStack() },
                         onPurchaseSuccess = { navController.popBackStack() }
+                    )
+                }
+
+                composable(AiriRoute.REFERRALS) {
+                    ReferralScreen(onBack = { navController.popBackStack() })
+                }
+
+                composable(AiriRoute.SKILL_MANAGER) {
+                    SkillManagerScreen(
+                        onBack = { navController.popBackStack() },
+                        onCreate = { navController.navigate(AiriRoute.skillBuilder()) },
+                        onEdit = { skillId -> navController.navigate(AiriRoute.skillBuilder(skillId)) }
+                    )
+                }
+
+                composable(
+                    route = "${AiriRoute.SKILL_BUILDER}/{skillId}",
+                    arguments = listOf(navArgument("skillId") { type = NavType.StringType })
+                ) { entry ->
+                    val skillId = entry.arguments?.getString("skillId")?.takeIf { it != "new" }
+                    SkillBuilderScreen(
+                        skillId = skillId,
+                        onBack = { navController.popBackStack() },
+                        onSaved = {
+                            navController.navigate(AiriRoute.SKILL_MANAGER) {
+                                popUpTo(AiriRoute.SKILL_MANAGER) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
                     )
                 }
             }

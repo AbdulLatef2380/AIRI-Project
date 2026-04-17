@@ -24,6 +24,7 @@ object PricingConfig {
     val PREMIUM_FEATURES: Set<String> = setOf(
         "background_agent",
         "unlimited_chat",
-        "priority_model_access"
+        "priority_model_access",
+        "custom_skills"
     )
 }

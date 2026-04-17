@@ -2,7 +2,11 @@ package com.airi.assistant.domain.retention
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.airi.assistant.domain.logging.LoggingService
+import java.util.concurrent.TimeUnit
 
 object RetentionManager {
 
@@ -11,6 +15,7 @@ object RetentionManager {
     private const val KEY_LAST_ACTIVE        = "last_active_ms"
     private const val KEY_SESSION_COUNT      = "session_count"
     private const val KEY_TOTAL_MESSAGES     = "total_lifetime_messages"
+    private const val KEY_NOTIFICATIONS_ENABLED = "notifications_enabled"
     private const val INACTIVITY_THRESHOLD_MS = 4 * 60 * 60 * 1000L   // 4 hours
 
     private var prefs: SharedPreferences? = null
@@ -66,4 +71,22 @@ object RetentionManager {
     }
 
     fun shouldShowReEngagement(): Boolean = isInactive() && getSessionCount() > 0
+
+    fun areNotificationsEnabled(): Boolean = prefs?.getBoolean(KEY_NOTIFICATIONS_ENABLED, true) ?: true
+
+    fun setNotificationsEnabled(enabled: Boolean) {
+        prefs?.edit()?.putBoolean(KEY_NOTIFICATIONS_ENABLED, enabled)?.apply()
+    }
+
+    fun scheduleReEngagementReminder(context: Context) {
+        if (!areNotificationsEnabled()) return
+        val request = OneTimeWorkRequestBuilder<ReEngagementNotificationWorker>()
+            .setInitialDelay(8, TimeUnit.HOURS)
+            .build()
+        WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+            "airi_reengagement_reminder",
+            ExistingWorkPolicy.REPLACE,
+            request
+        )
+    }
 }

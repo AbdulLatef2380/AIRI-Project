@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.airi.assistant.R
+import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
@@ -69,11 +70,27 @@ fun ChatScreen(
     val agentMode     by viewModel.agentMode.collectAsState()
     val snackbarHost  = remember { SnackbarHostState() }
     val paywallTrigger by viewModel.paywallTrigger.collectAsState()
+    val upgradePrompt by viewModel.upgradePrompt.collectAsState()
 
     // Navigate to paywall when daily limit is reached
     LaunchedEffect(paywallTrigger) {
         if (paywallTrigger) {
             viewModel.clearPaywallTrigger()
+            onNavigate(AiriRoute.PAYWALL)
+        }
+    }
+
+    LaunchedEffect(upgradePrompt) {
+        val prompt = upgradePrompt ?: return@LaunchedEffect
+        val result = snackbarHost.showSnackbar(
+            message = prompt.message,
+            actionLabel = "Unlock",
+            withDismissAction = true,
+            duration = SnackbarDuration.Short
+        )
+        viewModel.clearUpgradePrompt()
+        if (result == SnackbarResult.ActionPerformed) {
+            AnalyticsService.upgradeClick()
             onNavigate(AiriRoute.PAYWALL)
         }
     }
@@ -256,6 +273,7 @@ fun ChatScreen(
                 streamingText = streamingText,
                 isGenerating  = agentState.isWorking,
                 isModelReady  = modelState.isModelReady,
+                onShareAiResponse = { response -> shareAiResponse(context, response) },
                 modifier      = Modifier
                     .fillMaxSize()
                     .padding(padding)
@@ -430,6 +448,7 @@ fun ChatMessageList(
     streamingText: String,
     isGenerating: Boolean,
     isModelReady: Boolean = false,
+    onShareAiResponse: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -464,6 +483,13 @@ fun ChatMessageList(
                     color = Color.White.copy(alpha = 0.4f),
                     fontSize = 13.sp
                 )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Smart assistant powered by AI",
+                    color = CosmicAccent.copy(alpha = 0.72f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
     } else {
@@ -478,7 +504,7 @@ fun ChatMessageList(
                 item(key = "streaming") { AiStreamingBubble(text = streamingText) }
             }
             items(messages.reversed(), key = { "${it.hashCode()}_${it.isUser}" }) { msg ->
-                if (msg.isUser) UserBubble(msg.text) else AiBubble(msg.text, msg.agentTag, msg.traceId)
+                if (msg.isUser) UserBubble(msg.text) else AiBubble(msg.text, msg.agentTag, msg.traceId, onShareAiResponse)
             }
         }
     }
@@ -508,7 +534,7 @@ fun UserBubble(text: String) {
 }
 
 @Composable
-fun AiBubble(text: String, agentTag: String? = null, traceId: String? = null) {
+fun AiBubble(text: String, agentTag: String? = null, traceId: String? = null, onShare: (String) -> Unit = {}) {
     val allTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsState()
     val trace = remember(traceId, allTraces) {
         if (traceId != null) allTraces.find { it.id == traceId } else null
@@ -662,6 +688,15 @@ fun AiBubble(text: String, agentTag: String? = null, traceId: String? = null) {
                         fontWeight = FontWeight.Medium
                     )
                 }
+            }
+
+            TextButton(
+                onClick = { onShare(text) },
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+            ) {
+                Icon(Icons.Outlined.Share, contentDescription = null, tint = CosmicAccent.copy(alpha = 0.72f), modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Share", color = CosmicAccent.copy(alpha = 0.72f), fontSize = 11.sp)
             }
         }
     }
@@ -957,6 +992,8 @@ fun AiriDrawer(
         DrawerNavItem(icon = Icons.Outlined.SmartToy,       label = stringResource(R.string.model_gallery),  route = AiriRoute.MODELS,       onNavigate = onNavigate)
         DrawerNavItem(icon = Icons.Outlined.Psychology,     label = stringResource(R.string.memory),         route = AiriRoute.MEMORY,       onNavigate = onNavigate)
         DrawerNavItem(icon = Icons.Outlined.Extension,      label = stringResource(R.string.integrations),   route = AiriRoute.INTEGRATIONS, onNavigate = onNavigate)
+        DrawerNavItem(icon = Icons.Outlined.BuildCircle,    label = "Custom Skills",                         route = AiriRoute.SKILL_MANAGER,onNavigate = onNavigate)
+        DrawerNavItem(icon = Icons.Outlined.Share,          label = "Invite friends",                        route = AiriRoute.REFERRALS,    onNavigate = onNavigate)
 
         Spacer(Modifier.height(4.dp))
         Divider(color = Color.White.copy(alpha = 0.06f))
@@ -982,6 +1019,16 @@ fun AiriDrawer(
         )
         Spacer(Modifier.height(8.dp))
     }
+}
+
+private fun shareAiResponse(context: android.content.Context, response: String) {
+    val shareText = "${response.trim()}\n\nGenerated by AIRI"
+    AnalyticsService.shareableOutputShared("android_share")
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, shareText)
+    }
+    context.startActivity(Intent.createChooser(intent, "Share AIRI response"))
 }
 
 @Composable

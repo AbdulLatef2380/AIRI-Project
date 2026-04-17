@@ -4,6 +4,9 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.domain.customskill.CustomSkill
+import com.airi.assistant.domain.customskill.CustomSkillExecutor
+import com.airi.assistant.domain.customskill.CustomSkillRepository
 import com.airi.assistant.integrations.github.GithubService
 import com.airi.assistant.integrations.telegram.TelegramService
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +24,7 @@ class ToolRegistry(private val context: Context) {
     private val secureStorage = SecureStorage(context)
     private val githubService = GithubService(secureStorage)
     private val telegramService = TelegramService(secureStorage)
+    private val customSkillRepository = CustomSkillRepository(context)
 
     fun getAvailableTools(): List<Tool> {
         val tools = mutableListOf<Tool>()
@@ -35,6 +39,9 @@ class ToolRegistry(private val context: Context) {
             tools.add(GmailListEmailsTool())
             tools.add(DriveSearchFileTool())
             tools.add(CalendarNextEventsTool())
+        }
+        customSkillRepository.getAllSkills().forEach { skill ->
+            tools.add(CustomSkillTool(context, skill))
         }
         return tools
     }
@@ -60,12 +67,37 @@ class ToolRegistry(private val context: Context) {
         }
     }
 
+    fun getToolInfos(): List<Pair<String, String>> =
+        getAvailableTools().map { tool ->
+            tool.name to if (tool is CustomSkillTool) "Custom Skill" else tool.name.substringBefore("_").replaceFirstChar(Char::titlecase)
+        }
+
     fun isNetworkAvailable(): Boolean {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             ?: return false
         val network = cm.activeNetwork ?: return false
         val caps = cm.getNetworkCapabilities(network) ?: return false
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+}
+
+fun customSkillToolName(skill: CustomSkill): String =
+    "custom_skill_${skill.id.replace("-", "_")}"
+
+private class CustomSkillTool(
+    context: Context,
+    private val skill: CustomSkill
+) : Tool {
+    private val executor = CustomSkillExecutor(context)
+    override val name: String = customSkillToolName(skill)
+    override val description: String = "Custom ${skill.type.name.lowercase()} skill: ${skill.description}"
+    override val parameters: Map<String, String> = mapOf(
+        "user_input" to "The user's request or message to send to this custom skill"
+    )
+
+    override suspend fun execute(params: Map<String, String>): ToolResult {
+        val result = executor.execute(skill, params)
+        return ToolResult(result.success, result.data, result.error)
     }
 }
 

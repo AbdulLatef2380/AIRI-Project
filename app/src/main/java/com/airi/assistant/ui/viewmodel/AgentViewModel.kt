@@ -71,12 +71,5 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     fun setSkillEnabled(name: String, enabled: Boolean) =
         skillService.setSkillEnabled(name, enabled)
 
-    fun getToolList(): List<Pair<String, String>> = listOf(
-        "github_get_user"        to "GitHub",
-        "github_get_repos"       to "GitHub",
-        "telegram_send_message"  to "Telegram",
-        "gmail_list_emails"      to "Gmail",
-        "drive_search_file"      to "Google Drive",
-        "calendar_next_events"   to "Google Calendar"
-    )
+    fun getToolList(): List<Pair<String, String>> = skillService.getToolList()
 }

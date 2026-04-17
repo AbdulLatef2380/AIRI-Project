@@ -7,10 +7,12 @@ import com.airi.assistant.ai.skills.impl.GithubGuardianSkill
 import com.airi.assistant.ai.skills.impl.GmailAssistantSkill
 import com.airi.assistant.ai.skills.impl.TelegramMessengerSkill
 import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.domain.customskill.CustomSkillRepository
 
 class SkillRegistry(private val context: Context) {
 
     private val secureStorage = SecureStorage(context)
+    private val customSkillRepository = CustomSkillRepository(context)
 
     private val disabledSkillsPrefs by lazy {
         context.getSharedPreferences("airi_skill_toggles", Context.MODE_PRIVATE)
@@ -79,15 +81,26 @@ class SkillRegistry(private val context: Context) {
             isConnected = secureStorage.isGoogleConnected(),
             isEnabled = isSkillEnabled("calendar_events")
         )
-    )
+    ) + customSkillRepository.getAllSkills().map { skill ->
+        SkillInfo(
+            name = skill.name,
+            description = skill.description,
+            isConnected = true,
+            isEnabled = true
+        )
+    }
 
     fun buildSkillDescriptionBlock(): String {
         val available = getAvailableSkills()
-        if (available.isEmpty()) return ""
+        val customSkills = customSkillRepository.getAllSkills()
+        if (available.isEmpty() && customSkills.isEmpty()) return ""
         return buildString {
             append("\n\nYou also have access to the following Skills for high-level tasks:")
             for (skill in available) {
                 append("\n- Skill[${skill.name}]: ${skill.description}")
+            }
+            for (skill in customSkills) {
+                append("\n- CustomSkill[${skill.name}]: ${skill.description}")
             }
             append(
                 "\n\nUse these skills intelligently when the user's intent matches them. " +

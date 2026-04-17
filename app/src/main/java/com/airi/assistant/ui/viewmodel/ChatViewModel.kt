@@ -28,6 +28,7 @@ import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
 import com.airi.assistant.analytics.AnalyticsService
+import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.domain.monetization.PaywallTriggerEngine
 import com.airi.assistant.domain.monetization.SubscriptionManager
 import com.airi.assistant.domain.retention.RetentionManager
@@ -95,6 +96,11 @@ data class ModelUiState(
     val recommendedModels: List<CatalogEntry> = emptyList(),
     val isScanning: Boolean = false,
     val scannedModelIds: Set<String> = emptySet()
+)
+
+data class UpgradePrompt(
+    val message: String,
+    val source: String
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -180,6 +186,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val paywallTrigger: StateFlow<Boolean> = _paywallTrigger.asStateFlow()
 
     fun clearPaywallTrigger() { _paywallTrigger.value = false }
+
+    private val _upgradePrompt = MutableStateFlow<UpgradePrompt?>(null)
+    val upgradePrompt: StateFlow<UpgradePrompt?> = _upgradePrompt.asStateFlow()
+
+    fun clearUpgradePrompt() { _upgradePrompt.value = null }
 
     // ── Storage permission gate ───────────────────────────────────────────────
 
@@ -293,17 +304,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // ── Subscription gate: enforce daily message quota (PolicyEngine) ────────
         val policyResult = com.airi.assistant.domain.policy.PolicyEngine.checkSubscriptionMessage(subscriptionManager)
         if (policyResult is com.airi.assistant.domain.policy.PolicyEngine.PolicyResult.Denied) {
-            val summary = subscriptionManager.getUsageSummary()
-            AnalyticsService.limitReached("daily_messages", summary.messagesUsed, summary.messagesLimit)
-            PaywallTriggerEngine.onLimitReached()
-            _messages.update {
-                it + ChatMessage(
-                    "You reached your limit. Upgrade to continue.",
-                    isUser = false
-                )
+            if (ReferralManager.consumeBonusUsage()) {
+                AnalyticsService.funnelStep("bonus_message_used")
+            } else {
+                val summary = subscriptionManager.getUsageSummary()
+                AnalyticsService.limitReached("daily_messages", summary.messagesUsed, summary.messagesLimit)
+                PaywallTriggerEngine.onLimitReached()
+                _messages.update {
+                    it + ChatMessage(
+                        "You reached your limit. Upgrade to continue.",
+                        isUser = false
+                    )
+                }
+                _paywallTrigger.value = true
+                return
             }
-            _paywallTrigger.value = true
-            return
         }
 
         if (ModelManager.getCurrent() == null || !_modelState.value.isModelReady) {
@@ -321,6 +336,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (wasEmpty) memoryManager.renameSession(sessionId, trimmedInput.take(48))
             subscriptionManager.recordMessage()
             AnalyticsService.messageSent()
+            if (RetentionManager.getTotalMessages() == 0) {
+                AnalyticsService.firstMessageSent()
+                AnalyticsService.funnelStep("signup_to_first_message")
+            }
             RetentionManager.incrementMessageCount()
             // Soft paywall trigger — after threshold messages, show upgrade prompt post-send
             val triggerPaywallAfterSend = PaywallTriggerEngine.onMessageSent(subscriptionManager.isPremium())
@@ -352,7 +371,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         AnalyticsService.agentExecuted(agentResult.agentTag ?: "unknown")
                         // Soft paywall after first agent execution (non-blocking)
                         if (PaywallTriggerEngine.onAgentExecuted(subscriptionManager.isPremium())) {
-                            _paywallTrigger.value = true
+                            _upgradePrompt.value = UpgradePrompt(
+                                message = "AIRI can do much more — unlock Premium",
+                                source = PaywallTriggerEngine.TriggerReason.FirstAgentExecution.source
+                            )
                         }
                     }
                     if (responseText.isNotBlank()) {
@@ -371,7 +393,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     refreshSessions()
                     // Fire soft paywall (message threshold) after response is shown
                     if (triggerPaywallAfterSend && !_paywallTrigger.value) {
-                        _paywallTrigger.value = true
+                        _upgradePrompt.value = UpgradePrompt(
+                            message = "Useful response? Unlock Premium for more AIRI power.",
+                            source = PaywallTriggerEngine.TriggerReason.MessageThreshold.source
+                        )
                     }
                     return@launch
                 }
@@ -397,7 +422,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             refreshSessions()
                             // Fire soft paywall after LLM response if threshold was hit
                             if (triggerPaywallAfterSend && !_paywallTrigger.value) {
-                                _paywallTrigger.value = true
+                                _upgradePrompt.value = UpgradePrompt(
+                                    message = "Useful response? Unlock Premium for more AIRI power.",
+                                    source = PaywallTriggerEngine.TriggerReason.MessageThreshold.source
+                                )
                             }
                         }
                     }

@@ -9,6 +9,10 @@ import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.ai.skills.SkillResult
 import com.airi.assistant.ai.tools.ToolExecutor
 import com.airi.assistant.ai.tools.ToolResult
+import com.airi.assistant.analytics.AnalyticsService
+import com.airi.assistant.domain.customskill.CustomSkill
+import com.airi.assistant.domain.customskill.CustomSkillExecutor
+import com.airi.assistant.domain.customskill.CustomSkillRepository
 import com.airi.assistant.domain.error.AppError
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.event.AppEvent
@@ -26,6 +30,8 @@ class SkillService(private val context: Context) {
     private val skillExecutor = SkillExecutor(context)
     private val skillRegistry = SkillRegistry(context)
     private val toolExecutor  = ToolExecutor(context)
+    private val customSkillExecutor = CustomSkillExecutor(context)
+    private val customSkillRepository = CustomSkillRepository(context)
 
     suspend fun tryHandle(
         input: String,
@@ -86,6 +92,34 @@ class SkillService(private val context: Context) {
     }
 
     fun getAllSkillInfos(): List<SkillRegistry.SkillInfo> = skillRegistry.getAllSkillInfos()
+
+    suspend fun executeCustomSkill(
+        skill: CustomSkill,
+        input: Map<String, Any>
+    ): SkillResult {
+        val subscriptionManager = runCatching { com.airi.assistant.core.ServiceLocator.subscriptionManager }.getOrNull()
+        if (skill.isPremium && subscriptionManager != null) {
+            val premiumCheck = PolicyEngine.checkCustomSkillsPremium(subscriptionManager)
+            if (premiumCheck is PolicyEngine.PolicyResult.Denied) {
+                AppErrorHandler.log(premiumCheck.error)
+                AnalyticsService.skillFailed(skill.name, "premium_required")
+                return SkillResult(false, "", AppErrorHandler.toUserMessage(premiumCheck.error), skill.name)
+            }
+            val quotaCheck = PolicyEngine.checkSubscriptionSkill(subscriptionManager)
+            if (quotaCheck is PolicyEngine.PolicyResult.Denied) {
+                AppErrorHandler.log(quotaCheck.error)
+                AnalyticsService.skillFailed(skill.name, "quota_denied")
+                return SkillResult(false, "", AppErrorHandler.toUserMessage(quotaCheck.error), skill.name)
+            }
+        }
+        val result = customSkillExecutor.execute(skill, input)
+        if (result.success) subscriptionManager?.recordSkillUse()
+        return result
+    }
+
+    fun getCustomSkills(): List<CustomSkill> = customSkillRepository.getAllSkills()
+
+    fun getToolList(): List<Pair<String, String>> = toolExecutor.getToolList()
 
     fun setSkillEnabled(name: String, enabled: Boolean) {
         skillRegistry.setSkillEnabled(name, enabled)

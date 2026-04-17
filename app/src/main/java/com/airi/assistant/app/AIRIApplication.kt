@@ -1,9 +1,12 @@
 package com.airi.assistant.app
 
 import android.app.Application
+import android.content.Context
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.experiment.ExperimentManager
+import com.airi.assistant.domain.growth.OnboardingManager
+import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.domain.logging.LoggingService
 import com.airi.assistant.domain.monetization.PaywallTriggerEngine
 import com.airi.assistant.domain.retention.RetentionManager
@@ -44,11 +47,23 @@ class AIRIApplication : Application() {
             AnalyticsService.init(this)
             LoggingService.info(TAG, "✓ AnalyticsService initialized")
 
+            val launchPrefs = getSharedPreferences("airi_launch_funnel", Context.MODE_PRIVATE)
+            if (!launchPrefs.getBoolean("install_open_logged", false)) {
+                AnalyticsService.installOpen()
+                AnalyticsService.funnelStep("install_to_open")
+                launchPrefs.edit().putBoolean("install_open_logged", true).apply()
+            }
+
+            OnboardingManager.init(this)
+            ReferralManager.init(this)
+            LoggingService.info(TAG, "✓ Growth managers initialized")
+
             PaywallTriggerEngine.init(this)
             LoggingService.info(TAG, "✓ PaywallTriggerEngine initialized")
 
             RetentionManager.init(this)
             RetentionManager.incrementSession()
+            RetentionManager.scheduleReEngagementReminder(this)
             LoggingService.info(TAG, "✓ RetentionManager initialized")
 
             ExperimentManager.init(this)

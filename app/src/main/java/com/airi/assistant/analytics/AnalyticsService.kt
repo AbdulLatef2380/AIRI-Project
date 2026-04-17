@@ -29,6 +29,8 @@ object AnalyticsService {
 
     fun appOpen() = track("app_open")
 
+    fun installOpen() = track("install_open")
+
     fun signup(method: String) = track("signup", "method" to method)
 
     fun login(method: String) = track("login", "method" to method)
@@ -49,6 +51,26 @@ object AnalyticsService {
 
     fun restorePurchase(success: Boolean) = track("restore_purchase", "success" to success.toString())
 
+    fun onboardingStarted() = track("onboarding_started")
+
+    fun onboardingCompleted() = track("onboarding_completed")
+
+    fun onboardingSkipped() = track("onboarding_skipped")
+
+    fun referralSent(channel: String, code: String) = track(
+        "referral_sent",
+        "channel" to channel,
+        "code" to code
+    )
+
+    fun referralJoined(code: String) = track("referral_joined", "code" to code)
+
+    fun shareableOutputShared(channel: String) = track("shareable_output_shared", "channel" to channel)
+
+    fun firstMessageSent() = track("first_message_sent")
+
+    fun funnelStep(step: String) = track("funnel_step", "step" to step)
+
     // ── Usage ─────────────────────────────────────────────────────────────────
 
     fun messageSent() = track("message_sent")
@@ -56,6 +78,16 @@ object AnalyticsService {
     fun agentExecuted(agentTag: String) = track("agent_executed", "agent" to agentTag)
 
     fun skillUsed(skillName: String) = track("skill_used", "skill" to skillName)
+
+    fun skillCreated(skillName: String) = track("skill_created", "skill" to skillName)
+
+    fun skillExecuted(skillName: String) = track("skill_executed", "skill" to skillName)
+
+    fun skillFailed(skillName: String, reason: String) = track(
+        "skill_failed",
+        "skill" to skillName,
+        "reason" to reason
+    )
 
     // ── Limits ────────────────────────────────────────────────────────────────
 

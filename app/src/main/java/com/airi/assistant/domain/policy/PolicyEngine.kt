@@ -125,6 +125,9 @@ object PolicyEngine {
         ))
     }
 
+    fun checkCustomSkillsPremium(subscriptionManager: SubscriptionManager): PolicyResult =
+        checkPremiumFeature(subscriptionManager, "custom_skills")
+
     // ── Composite helper ──────────────────────────────────────────────────────
 
     fun checkAll(vararg checks: () -> PolicyResult): PolicyResult {

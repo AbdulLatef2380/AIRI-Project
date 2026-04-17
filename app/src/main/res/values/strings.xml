@@ -66,14 +66,12 @@
     <string name="engine_value">llama.cpp via LlamaNative JNI</string>
     <string name="ui_value">Jetpack Compose + Material 3</string>
     <string name="database_value">Room (episodic memory)</string>
-    <string name="auth_value">Firebase Email/Password</string>
+    <string name="auth_value">Firebase + GitHub + Google</string>
     <string name="sign_out">Sign Out</string>
     <string name="sign_in">Sign In</string>
     <string name="create_account">Create Account</string>
     <string name="continue_with_google">Continue with Google</string>
-    <string name="continue_with_facebook">Continue with Facebook</string>
-    <string name="facebook_sdk_title">Facebook SDK Not Configured</string>
-    <string name="facebook_sdk_message">To enable Login with Facebook, the developer must configure the Facebook SDK in the project.</string>
+    <string name="continue_with_github">Continue with GitHub</string>
     <string name="speak_to_airi">Speak to AIRI</string>
     <string name="microphone_permission_required">Microphone permission is required for voice input</string>
     <string name="export_coming_soon">Export coming soon</string>
@@ -175,4 +173,14 @@
     <string name="email_read_only">Email (read-only)</string>
     <string name="profile_saved">Profile saved</string>
     <string name="edit_profile">Edit Profile</string>
+    <!-- Bug Report -->
+    <string name="report_a_problem">Report a Problem</string>
+    <string name="report_a_problem_sublabel">Send feedback or bug report via email</string>
+    <string name="report_email_subject">AIRI Bug Report — v1.0.0-alpha</string>
+    <string name="report_email_body">Please describe the issue:\n\n\n\n--- Device Info ---\n</string>
+    <!-- Paywall -->
+    <string name="upgrade_to_premium">Upgrade to Premium</string>
+    <string name="paywall_limit_message">You reached your limit. Upgrade to continue.</string>
+    <!-- Usage limit -->
+    <string name="usage_limit_reached">You reached your limit. Upgrade to continue.</string>
 </resources>

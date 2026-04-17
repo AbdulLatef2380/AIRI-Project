@@ -1,8 +1,12 @@
 package com.airi.assistant.app
 
 import android.app.Application
+import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.domain.experiment.ExperimentManager
 import com.airi.assistant.domain.logging.LoggingService
+import com.airi.assistant.domain.monetization.PaywallTriggerEngine
+import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.memory.AiriDatabase
 
 class AIRIApplication : Application() {
@@ -34,6 +38,25 @@ class AIRIApplication : Application() {
 
             AiriDatabase.getDatabase(this)
             LoggingService.info(TAG, "✓ Database initialized")
+
+            // ── Growth & Analytics Systems ─────────────────────────────────────
+
+            AnalyticsService.init(this)
+            LoggingService.info(TAG, "✓ AnalyticsService initialized")
+
+            PaywallTriggerEngine.init(this)
+            LoggingService.info(TAG, "✓ PaywallTriggerEngine initialized")
+
+            RetentionManager.init(this)
+            RetentionManager.incrementSession()
+            LoggingService.info(TAG, "✓ RetentionManager initialized")
+
+            ExperimentManager.init(this)
+            LoggingService.info(TAG, "✓ ExperimentManager initialized")
+
+            // Fire app_open analytics event
+            AnalyticsService.appOpen()
+            AnalyticsService.sessionStart()
 
             LoggingService.info(TAG, "━━━ AIRI Ready ━━━")
 

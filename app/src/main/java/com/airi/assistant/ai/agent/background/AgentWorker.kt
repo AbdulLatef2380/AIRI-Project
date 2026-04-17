@@ -14,6 +14,7 @@ import com.airi.assistant.auth.SecureStorage
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.logging.LoggingService
+import com.airi.assistant.domain.retention.RetentionManager
 import java.util.concurrent.TimeUnit
 
 class AgentWorker(
@@ -51,6 +52,13 @@ class AgentWorker(
 
     override suspend fun doWork(): Result {
         LoggingService.debug(TAG, "Background agent started")
+
+        // ── Retention check ────────────────────────────────────────────────────
+        if (RetentionManager.isInactive()) {
+            val reEngageMsg = RetentionManager.getReEngagementMessage()
+            LoggingService.info(TAG, "User inactive — re-engagement: $reEngageMsg")
+            saveReEngagementMessage(reEngageMsg)
+        }
 
         // Check network via NetworkService before doing any work
         val networkService = runCatching { ServiceLocator.networkService }.getOrNull()
@@ -109,6 +117,13 @@ class AgentWorker(
             .edit()
             .putLong("bg_agent_last_run", System.currentTimeMillis())
             .putString("bg_agent_last_result", summary.take(200))
+            .apply()
+    }
+
+    private fun saveReEngagementMessage(message: String) {
+        appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
+            .edit()
+            .putString("bg_agent_re_engage_msg", message)
             .apply()
     }
 }

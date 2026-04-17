@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.airi.assistant.R
+import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.util.ChatExporter
@@ -67,6 +68,25 @@ fun ChatScreen(
     val modelState    by viewModel.modelState.collectAsState()
     val agentMode     by viewModel.agentMode.collectAsState()
     val snackbarHost  = remember { SnackbarHostState() }
+    val paywallTrigger by viewModel.paywallTrigger.collectAsState()
+
+    // Navigate to paywall when daily limit is reached
+    LaunchedEffect(paywallTrigger) {
+        if (paywallTrigger) {
+            viewModel.clearPaywallTrigger()
+            onNavigate(AiriRoute.PAYWALL)
+        }
+    }
+
+    // Re-engagement banner: show once if user returns after inactivity
+    LaunchedEffect(Unit) {
+        if (RetentionManager.shouldShowReEngagement()) {
+            snackbarHost.showSnackbar(
+                message        = RetentionManager.getReEngagementMessage(),
+                duration       = SnackbarDuration.Short
+            )
+        }
+    }
 
     var showMenu            by remember { mutableStateOf(false) }
     var showAttachSheet     by remember { mutableStateOf(false) }

@@ -27,7 +27,10 @@ import com.airi.assistant.domain.agent.AgentService
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
+import com.airi.assistant.analytics.AnalyticsService
+import com.airi.assistant.domain.monetization.PaywallTriggerEngine
 import com.airi.assistant.domain.monetization.SubscriptionManager
+import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.domain.permission.PermissionService
 import com.airi.assistant.domain.skill.SkillService
 import com.airi.assistant.domain.skill.SkillService.ToolCallResult
@@ -171,6 +174,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     )
     val backgroundAgentEnabled: StateFlow<Boolean> = _backgroundAgentEnabled.asStateFlow()
 
+    // ── Paywall trigger ───────────────────────────────────────────────────────
+
+    private val _paywallTrigger = MutableStateFlow(false)
+    val paywallTrigger: StateFlow<Boolean> = _paywallTrigger.asStateFlow()
+
+    fun clearPaywallTrigger() { _paywallTrigger.value = false }
+
     // ── Storage permission gate ───────────────────────────────────────────────
 
     private val _storagePermissionRequired = MutableStateFlow(false)
@@ -280,16 +290,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (trimmedInput.isEmpty()) return
         if (_modelState.value.isModelLoading) return
 
-        // ── Subscription gate: enforce daily message quota ────────────────────
-        if (!subscriptionManager.canSendMessage()) {
+        // ── Subscription gate: enforce daily message quota (PolicyEngine) ────────
+        val policyResult = com.airi.assistant.domain.policy.PolicyEngine.checkSubscriptionMessage(subscriptionManager)
+        if (policyResult is com.airi.assistant.domain.policy.PolicyEngine.PolicyResult.Denied) {
+            val summary = subscriptionManager.getUsageSummary()
+            AnalyticsService.limitReached("daily_messages", summary.messagesUsed, summary.messagesLimit)
+            PaywallTriggerEngine.onLimitReached()
             _messages.update {
-                val summary = subscriptionManager.getUsageSummary()
                 it + ChatMessage(
-                    "Daily limit reached (${summary.messagesUsed}/${summary.messagesLimit} messages). " +
-                    "Upgrade to Premium for unlimited messaging.",
+                    "You reached your limit. Upgrade to continue.",
                     isUser = false
                 )
             }
+            _paywallTrigger.value = true
             return
         }
 
@@ -307,6 +320,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val userMessage = memoryManager.recordChatMessage(sessionId, "user", trimmedInput)
             if (wasEmpty) memoryManager.renameSession(sessionId, trimmedInput.take(48))
             subscriptionManager.recordMessage()
+            AnalyticsService.messageSent()
+            RetentionManager.incrementMessageCount()
+            // Soft paywall trigger — after threshold messages, show upgrade prompt post-send
+            val triggerPaywallAfterSend = PaywallTriggerEngine.onMessageSent(subscriptionManager.isPremium())
             _messages.update { it + ChatMessage(trimmedInput, true, userMessage.id) }
             _agentState.value = AgentState(isWorking = true, currentAction = "Agent thinking…")
             _streamingText.value = ""
@@ -331,6 +348,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     val agentResult = agentServiceResult.agentResult
                     val responseText = if (agentResult.success) agentResult.text
                                        else agentResult.text.ifBlank { "Agent action failed. Please try again." }
+                    if (agentResult.success) {
+                        AnalyticsService.agentExecuted(agentResult.agentTag ?: "unknown")
+                        // Soft paywall after first agent execution (non-blocking)
+                        if (PaywallTriggerEngine.onAgentExecuted(subscriptionManager.isPremium())) {
+                            _paywallTrigger.value = true
+                        }
+                    }
                     if (responseText.isNotBlank()) {
                         val assistantMsg = memoryManager.recordChatMessage(sessionId, "assistant", responseText)
                         _messages.update {
@@ -345,6 +369,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     _agentState.value = AgentState()
                     refreshSessions()
+                    // Fire soft paywall (message threshold) after response is shown
+                    if (triggerPaywallAfterSend && !_paywallTrigger.value) {
+                        _paywallTrigger.value = true
+                    }
                     return@launch
                 }
 
@@ -367,6 +395,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 _messages.update { it + ChatMessage(fullResponse, isUser = false, assistantMessage.id) }
                             }
                             refreshSessions()
+                            // Fire soft paywall after LLM response if threshold was hit
+                            if (triggerPaywallAfterSend && !_paywallTrigger.value) {
+                                _paywallTrigger.value = true
+                            }
                         }
                     }
                     _streamingText.value = ""
@@ -385,6 +417,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             is ToolCallResult.Executed -> {
                 val toolCall = toolResult.toolCall
                 val result   = toolResult.result
+                AnalyticsService.skillUsed(toolCall.toolName)
 
                 _agentState.value = AgentState(
                     isWorking     = true,

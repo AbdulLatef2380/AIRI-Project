@@ -3,6 +3,9 @@ package com.airi.assistant.ui.screens
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.speech.SpeechRecognizer
 import com.airi.assistant.system.DefaultAssistantManager
 import androidx.compose.foundation.background
@@ -32,7 +35,10 @@ import com.airi.assistant.R
 import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.system.LanguageOption
+import com.airi.assistant.analytics.AnalyticsService
+import com.airi.assistant.domain.monetization.PaywallTriggerEngine
 import com.airi.assistant.ui.AiriRoute
+import com.airi.assistant.ui.components.PremiumBadge
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.util.ChatExporter
@@ -285,22 +291,37 @@ fun SettingsScreen(
                     )
                 }
                 Spacer(Modifier.height(6.dp))
-                // These features are not yet available — shown as disabled info only
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(stringResource(R.string.speech_engine), color = Color.White.copy(alpha = 0.25f), fontSize = 13.sp)
-                    Text("Not available", color = Color.White.copy(alpha = 0.2f), fontSize = 12.sp)
+                    Text(
+                        stringResource(R.string.speech_engine),
+                        color = if (isSpeechAvailable) Color.White.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.35f),
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        if (isSpeechAvailable) stringResource(R.string.speech_engine_value) else "Not installed",
+                        color = if (isSpeechAvailable) CosmicAccent.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.3f),
+                        fontSize = 12.sp
+                    )
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(stringResource(R.string.wake_word), color = Color.White.copy(alpha = 0.25f), fontSize = 13.sp)
-                    Text("Not available", color = Color.White.copy(alpha = 0.2f), fontSize = 12.sp)
+                    Text(
+                        stringResource(R.string.wake_word),
+                        color = if (isSpeechAvailable) Color.White.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.35f),
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        if (isSpeechAvailable) stringResource(R.string.wake_word_value) else "Requires voice engine",
+                        color = if (isSpeechAvailable) CosmicAccent.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.3f),
+                        fontSize = 12.sp
+                    )
                 }
             }
 
@@ -309,7 +330,8 @@ fun SettingsScreen(
             AgentSection(
                 isEnabled  = backgroundAgentEnabled,
                 onToggle   = { viewModel.setBackgroundAgentEnabled(it) },
-                onNavigate = onNavigate
+                onNavigate = onNavigate,
+                isPremium  = viewModel.isPremium()
             )
 
             SettingsSurface {
@@ -337,7 +359,7 @@ fun SettingsScreen(
                 }
             }
 
-            SubscriptionSection(viewModel = viewModel)
+            SubscriptionSection(viewModel = viewModel, onNavigate = onNavigate)
 
             DefaultAssistantSection(activity = activity)
 
@@ -352,6 +374,25 @@ fun SettingsScreen(
                 SettingsInfoRow(stringResource(R.string.ui), stringResource(R.string.ui_value))
                 SettingsInfoRow(stringResource(R.string.database), stringResource(R.string.database_value))
                 SettingsInfoRow(stringResource(R.string.auth), stringResource(R.string.auth_value))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                SettingsActionRow(
+                    label    = stringResource(R.string.report_a_problem),
+                    sublabel = stringResource(R.string.report_a_problem_sublabel)
+                ) {
+                    val deviceInfo = buildString {
+                        append("Device: ${Build.MANUFACTURER} ${Build.MODEL}\n")
+                        append("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n")
+                        append("App version: ${context.getString(R.string.app_version_value)}")
+                    }
+                    val body = "Please describe the issue:\n\n\n\n--- Device Info ---\n$deviceInfo"
+                    val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
+                        data = Uri.parse("mailto:")
+                        putExtra(Intent.EXTRA_EMAIL, arrayOf("xwenbrr@gmail.com"))
+                        putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.report_email_subject))
+                        putExtra(Intent.EXTRA_TEXT, body)
+                    }
+                    runCatching { context.startActivity(emailIntent) }
+                }
             }
 
             Button(
@@ -640,7 +681,8 @@ private fun SkillsSection(viewModel: ChatViewModel) {
 private fun AgentSection(
     isEnabled: Boolean,
     onToggle: (Boolean) -> Unit,
-    onNavigate: (String) -> Unit = {}
+    onNavigate: (String) -> Unit = {},
+    isPremium: Boolean = false
 ) {
     val context = LocalContext.current
     val prefs   = remember { context.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE) }
@@ -669,21 +711,38 @@ private fun AgentSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text  = "Enable Background Agent",
+                        color = Color.White.copy(alpha = 0.88f),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (!isPremium) PremiumBadge()
+                }
                 Text(
-                    text  = "Enable Background Agent",
-                    color = Color.White.copy(alpha = 0.88f),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text  = if (isEnabled) "Runs every 2 hours when connected" else "Background checks are off",
-                    color = if (isEnabled) CosmicAccent.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.35f),
+                    text  = if (!isPremium) "Requires Premium — upgrade to unlock"
+                            else if (isEnabled) "Runs every 2 hours when connected"
+                            else "Background checks are off",
+                    color = if (!isPremium) Color(0xFFFFB300).copy(alpha = 0.6f)
+                            else if (isEnabled) CosmicAccent.copy(alpha = 0.65f)
+                            else Color.White.copy(alpha = 0.35f),
                     fontSize = 11.sp
                 )
             }
             Switch(
                 checked = isEnabled,
-                onCheckedChange = onToggle,
+                onCheckedChange = { enabled ->
+                    if (!isPremium) {
+                        AnalyticsService.premiumFeatureAttempted("background_agent")
+                        if (PaywallTriggerEngine.onPremiumFeatureAttempt()) onNavigate(AiriRoute.PAYWALL)
+                    } else {
+                        onToggle(enabled)
+                    }
+                },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor   = CosmicAccent,
                     checkedTrackColor   = CosmicAccent.copy(alpha = 0.3f),
@@ -718,7 +777,10 @@ private fun AgentSection(
 }
 
 @Composable
-private fun SubscriptionSection(viewModel: ChatViewModel) {
+private fun SubscriptionSection(
+    viewModel: ChatViewModel,
+    onNavigate: (String) -> Unit = {}
+) {
     val summary   = remember { viewModel.getSubscriptionSummary() }
     val isPremium = remember { viewModel.isPremium() }
 
@@ -778,9 +840,9 @@ private fun SubscriptionSection(viewModel: ChatViewModel) {
         if (!isPremium) {
             HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
             Button(
-                onClick = { viewModel.upgradeToPremium() },
+                onClick = { onNavigate(AiriRoute.PAYWALL) },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.Black),
+                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.White),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
             ) {
                 Icon(Icons.Outlined.Star, contentDescription = null, modifier = Modifier.size(16.dp))

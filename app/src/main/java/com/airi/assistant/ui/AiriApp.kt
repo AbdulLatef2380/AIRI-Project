@@ -12,8 +12,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.auth.AuthService
+import com.airi.assistant.domain.experiment.ExperimentManager
 import com.airi.assistant.ui.components.StarBackground
 import com.airi.assistant.ui.screens.AgentControlScreen
 import com.airi.assistant.ui.screens.AgentLogsScreen
@@ -25,6 +27,7 @@ import com.airi.assistant.ui.screens.LoginScreen
 import com.airi.assistant.ui.screens.MemoryScreen
 import com.airi.assistant.ui.screens.ModelSettingsScreen
 import com.airi.assistant.ui.screens.ObservabilityScreen
+import com.airi.assistant.ui.screens.PaywallScreen
 import com.airi.assistant.ui.screens.ProfileScreen
 import com.airi.assistant.ui.screens.SettingsScreen
 import com.airi.assistant.ui.screens.WelcomeScreen
@@ -46,6 +49,7 @@ object AiriRoute {
     const val AGENT_LOGS         = "screen_agent_logs"
     const val AGENT_TRACE_DETAIL = "screen_agent_trace_detail"
     const val OBSERVABILITY      = "screen_observability"
+    const val PAYWALL            = "screen_paywall"
 }
 
 @Composable
@@ -78,6 +82,11 @@ fun AiriApp() {
                         onSignIn = { email, password, onResult ->
                             authService.signIn(email, password) { error ->
                                 if (error == null) {
+                                    AnalyticsService.login("email")
+                                    ExperimentManager.init(
+                                        ServiceLocator.context!!,
+                                        authService.currentUser()?.uid ?: "anonymous"
+                                    )
                                     navController.navigate(AiriRoute.CHAT) {
                                         popUpTo(AiriRoute.WELCOME) { inclusive = true }
                                         launchSingleTop = true
@@ -89,6 +98,11 @@ fun AiriApp() {
                         onCreateAccount = { email, password, onResult ->
                             authService.createAccount(email, password) { error ->
                                 if (error == null) {
+                                    AnalyticsService.signup("email")
+                                    ExperimentManager.init(
+                                        ServiceLocator.context!!,
+                                        authService.currentUser()?.uid ?: "anonymous"
+                                    )
                                     navController.navigate(AiriRoute.CHAT) {
                                         popUpTo(AiriRoute.WELCOME) { inclusive = true }
                                         launchSingleTop = true
@@ -208,6 +222,13 @@ fun AiriApp() {
                 composable(AiriRoute.OBSERVABILITY) {
                     ObservabilityScreen(
                         onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(AiriRoute.PAYWALL) {
+                    PaywallScreen(
+                        onBack           = { navController.popBackStack() },
+                        onPurchaseSuccess = { navController.popBackStack() }
                     )
                 }
             }

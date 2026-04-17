@@ -68,6 +68,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.activity.compose)
+    implementation("androidx.compose.ui:ui-text-google-fonts:1.6.1")
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     // Lifecycle
@@ -99,4 +100,7 @@ dependencies {
 
     // WorkManager (background agent)
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+    // Google Play Billing
+    implementation("com.android.billingclient:billing-ktx:6.2.1")
 }

@@ -7,8 +7,12 @@ data class CustomSkill(
     val type: SkillType,
     val config: SkillConfig,
     val isPremium: Boolean = true,
-    val createdAt: Long
-)
+    val createdAt: Long,
+    val permission: SkillPermission? = null
+) {
+    fun effectivePermission(): SkillPermission =
+        permission ?: SkillPermissionEnforcer.deriveFromMethod(config.method)
+}
 
 enum class SkillType { API, WEBHOOK, LOCAL }
 

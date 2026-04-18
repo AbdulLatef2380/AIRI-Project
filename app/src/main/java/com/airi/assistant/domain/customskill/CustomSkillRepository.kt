@@ -10,12 +10,24 @@ class CustomSkillRepository(context: Context) {
     private val gson = Gson()
 
     fun saveSkill(skill: CustomSkill) {
-        val skills = getAllSkills().filterNot { it.id == skill.id }.toMutableList()
-        skills.add(skill)
+        val secured = skill.withEncryptedHeaders()
+        val skills = loadRaw().filterNot { it.id == skill.id }.toMutableList()
+        skills.add(secured)
         prefs.edit().putString(KEY_SKILLS, gson.toJson(skills.sortedByDescending { it.createdAt })).apply()
     }
 
-    fun getAllSkills(): List<CustomSkill> {
+    fun getAllSkills(): List<CustomSkill> =
+        loadRaw().map { it.withDecryptedHeaders() }
+
+    fun deleteSkill(id: String) {
+        val skills = loadRaw().filterNot { it.id == id }
+        prefs.edit().putString(KEY_SKILLS, gson.toJson(skills)).apply()
+    }
+
+    fun getSkillById(id: String): CustomSkill? =
+        getAllSkills().firstOrNull { it.id == id }
+
+    private fun loadRaw(): List<CustomSkill> {
         val json = prefs.getString(KEY_SKILLS, null) ?: return emptyList()
         return runCatching {
             val type = object : TypeToken<List<CustomSkill>>() {}.type
@@ -23,13 +35,11 @@ class CustomSkillRepository(context: Context) {
         }.getOrDefault(emptyList())
     }
 
-    fun deleteSkill(id: String) {
-        val skills = getAllSkills().filterNot { it.id == id }
-        prefs.edit().putString(KEY_SKILLS, gson.toJson(skills)).apply()
-    }
+    private fun CustomSkill.withEncryptedHeaders(): CustomSkill =
+        copy(config = config.copy(headers = CustomSkillCrypto.encryptSensitiveHeaders(config.headers)))
 
-    fun getSkillById(id: String): CustomSkill? =
-        getAllSkills().firstOrNull { it.id == id }
+    private fun CustomSkill.withDecryptedHeaders(): CustomSkill =
+        copy(config = config.copy(headers = CustomSkillCrypto.decryptSensitiveHeaders(config.headers)))
 
     private companion object {
         private const val KEY_SKILLS = "skills"

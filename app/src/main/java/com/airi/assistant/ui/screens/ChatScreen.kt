@@ -16,6 +16,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -40,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.airi.assistant.R
 import com.airi.assistant.analytics.AnalyticsService
+import com.airi.assistant.core.VoiceManager
 import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
@@ -157,10 +160,35 @@ fun ChatScreen(
         }
     }
 
+    // ── VoiceManager (TTS) ───────────────────────────────────────────────────
+    val voiceManager = remember {
+        VoiceManager(context, object : VoiceManager.VoiceListener {
+            override fun onWakeWordDetected() {}
+            override fun onSpeechResult(text: String) {}
+            override fun onError(error: String) {}
+        })
+    }
+    DisposableEffect(Unit) { onDispose { voiceManager.destroy() } }
+
+    var speakNextResponse by remember { mutableStateOf(false) }
+    var lastSpokenMsgId by remember { mutableStateOf(-1L) }
+
     LaunchedEffect(voiceChatInput) {
         if (voiceChatInput.isNotBlank() && modelState.isModelReady && !agentState.isWorking) {
             viewModel.sendMessage(voiceChatInput)
+            speakNextResponse = true
             voiceChatInput = ""
+        }
+    }
+
+    LaunchedEffect(messages, agentState.isWorking) {
+        if (speakNextResponse && !agentState.isWorking) {
+            val lastMsg = messages.lastOrNull { !it.isUser }
+            if (lastMsg != null && lastMsg.id != lastSpokenMsgId) {
+                voiceManager.speak(lastMsg.text)
+                lastSpokenMsgId = lastMsg.id
+                speakNextResponse = false
+            }
         }
     }
 
@@ -184,15 +212,15 @@ fun ChatScreen(
             AiriDrawer(
                 modelState = modelState,
                 onNavigate = { route ->
-                    scope.launch { drawerState.close() }
+                    scope.launch { drawerState.snapTo(DrawerValue.Closed) }
                     onNavigate(route)
                 },
                 onNewChat = {
                     viewModel.clearMessages()
-                    scope.launch { drawerState.close() }
+                    scope.launch { drawerState.snapTo(DrawerValue.Closed) }
                 },
                 onLogout = {
-                    scope.launch { drawerState.close() }
+                    scope.launch { drawerState.snapTo(DrawerValue.Closed) }
                     onLogout()
                 }
             )
@@ -934,6 +962,12 @@ fun AiriDrawer(
         drawerContentColor   = Color.White,
         modifier = Modifier.width(300.dp)
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+        ) {
+
         // ── Header ────────────────────────────────────────────────────────
         Box(
             modifier = Modifier
@@ -1008,7 +1042,7 @@ fun AiriDrawer(
 
         DrawerNavItem(icon = Icons.Outlined.Settings,       label = stringResource(R.string.settings),       route = AiriRoute.SETTINGS,     onNavigate = onNavigate)
 
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(24.dp))
         Divider(color = Color.White.copy(alpha = 0.06f))
 
         DrawerActionItem(
@@ -1017,7 +1051,9 @@ fun AiriDrawer(
             tint    = Color(0xFFFF6B6B),
             onClick = onLogout
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(16.dp))
+
+        } // end scrollable Column
     }
 }
 

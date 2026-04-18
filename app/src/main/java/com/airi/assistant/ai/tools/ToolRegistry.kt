@@ -9,15 +9,6 @@ import com.airi.assistant.domain.customskill.CustomSkillExecutor
 import com.airi.assistant.domain.customskill.CustomSkillRepository
 import com.airi.assistant.integrations.github.GithubService
 import com.airi.assistant.integrations.telegram.TelegramService
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONArray
-import org.json.JSONObject
-import java.util.concurrent.TimeUnit
 
 class ToolRegistry(private val context: Context) {
 
@@ -55,10 +46,19 @@ class ToolRegistry(private val context: Context) {
         return buildString {
             append("\n\nYou have access to the following real tools. Use them ONLY when the user asks for live data:")
             for (tool in tools) {
-                append("\n- ${tool.name}: ${tool.description}")
+                val meta = TOOL_METADATA[tool.name]
+                append("\n\n- Tool: ${tool.name}")
+                append("\n  Description: ${tool.description}")
                 if (tool.parameters.isNotEmpty()) {
                     val paramDesc = tool.parameters.entries.joinToString(", ") { "${it.key} (${it.value})" }
-                    append("\n  Params: $paramDesc")
+                    append("\n  Parameters: $paramDesc")
+                }
+                if (meta != null) {
+                    append("\n  When to use: ${meta.whenToUse}")
+                    append("\n  Expected input: ${meta.expectedInput}")
+                } else if (tool is CustomSkillTool) {
+                    append("\n  When to use: When the user's request aligns with the skill '${tool.skillName}' or its description.")
+                    append("\n  Expected input: user_input (the user's natural language request)")
                 }
             }
             append("\n\nTo call a tool, respond ONLY with this exact JSON format — no other text:")
@@ -79,16 +79,48 @@ class ToolRegistry(private val context: Context) {
         val caps = cm.getNetworkCapabilities(network) ?: return false
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
+
+    private data class ToolMeta(val whenToUse: String, val expectedInput: String)
+
+    private companion object {
+        private val TOOL_METADATA = mapOf(
+            "github_get_user" to ToolMeta(
+                whenToUse = "When user asks about their GitHub profile, username, bio, or account info",
+                expectedInput = "No parameters required"
+            ),
+            "github_get_repos" to ToolMeta(
+                whenToUse = "When user asks to list, browse, or count their GitHub repositories",
+                expectedInput = "limit (optional): max number of repos to return"
+            ),
+            "telegram_send_message" to ToolMeta(
+                whenToUse = "When user explicitly asks to send a Telegram message to a specific chat or contact",
+                expectedInput = "chat_id (Telegram chat ID or username), text (message content)"
+            ),
+            "gmail_list_emails" to ToolMeta(
+                whenToUse = "When user asks to check, read, or list their Gmail emails",
+                expectedInput = "max (optional): number of emails to return"
+            ),
+            "drive_search_file" to ToolMeta(
+                whenToUse = "When user wants to find a specific file or document in Google Drive",
+                expectedInput = "query: file name or search terms"
+            ),
+            "calendar_next_events" to ToolMeta(
+                whenToUse = "When user asks about upcoming meetings, schedule, or calendar events",
+                expectedInput = "count (optional): number of events to return"
+            )
+        )
+    }
 }
 
 fun customSkillToolName(skill: CustomSkill): String =
     "custom_skill_${skill.id.replace("-", "_")}"
 
-private class CustomSkillTool(
+internal class CustomSkillTool(
     context: Context,
     private val skill: CustomSkill
 ) : Tool {
     private val executor = CustomSkillExecutor(context)
+    val skillName: String = skill.name
     override val name: String = customSkillToolName(skill)
     override val description: String = "Custom ${skill.type.name.lowercase()} skill: ${skill.description}"
     override val parameters: Map<String, String> = mapOf(

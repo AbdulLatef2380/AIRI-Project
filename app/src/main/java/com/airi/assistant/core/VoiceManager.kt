@@ -1,7 +1,10 @@
 package com.airi.assistant.core
 
 import android.content.Context
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import java.util.Locale
 
 class VoiceManager(
     private val context: Context,
@@ -14,37 +17,81 @@ class VoiceManager(
         fun onError(error: String)
     }
 
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
     private var isListeningForWakeWord = false
 
+    init {
+        tts = TextToSpeech(context.applicationContext) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                val result = tts?.setLanguage(Locale.getDefault())
+                ttsReady = result != TextToSpeech.LANG_MISSING_DATA
+                        && result != TextToSpeech.LANG_NOT_SUPPORTED
+                if (!ttsReady) {
+                    Log.w(TAG, "TTS language not supported — falling back to ENGLISH")
+                    tts?.setLanguage(Locale.ENGLISH)
+                    ttsReady = true
+                }
+                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) {}
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) {
+                        Log.w(TAG, "TTS utterance error: $utteranceId")
+                    }
+                })
+                Log.d(TAG, "TextToSpeech initialized successfully")
+            } else {
+                ttsReady = false
+                Log.w(TAG, "TextToSpeech initialization failed (status=$status)")
+            }
+        }
+    }
+
+    fun speak(text: String) {
+        if (!ttsReady || tts == null) {
+            Log.w(TAG, "TTS not ready — skipping speak")
+            return
+        }
+        val utteranceId = "airi_${System.currentTimeMillis()}"
+        tts!!.speak(text.trim(), TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+        Log.i(TAG, "Speaking: ${text.take(80)}…")
+    }
+
+    fun stopSpeaking() {
+        tts?.stop()
+    }
+
+    fun isSpeaking(): Boolean = tts?.isSpeaking == true
+
     fun startWakeWordDetection() {
-
         if (isListeningForWakeWord) return
-
-        Log.d("VoiceManager", "Listening for AIRI wake word")
-
         isListeningForWakeWord = true
-
+        Log.d(TAG, "Listening for AIRI wake word")
         // Picovoice integration later
     }
 
     fun startSpeechToText() {
-
-        Log.d("VoiceManager", "Speech to text started")
-
+        Log.d(TAG, "Speech to text started")
         // Vosk integration later
     }
 
     fun stopAll() {
-
         isListeningForWakeWord = false
-
-        Log.d("VoiceManager", "Voice system stopped")
+        tts?.stop()
+        Log.d(TAG, "Voice system stopped")
     }
 
-    fun speak(text: String) {
+    fun destroy() {
+        isListeningForWakeWord = false
+        tts?.stop()
+        tts?.shutdown()
+        tts = null
+        ttsReady = false
+        Log.d(TAG, "VoiceManager destroyed")
+    }
 
-        Log.i("VoiceManager", "AIRI says: $text")
-
-        // TTS integration later
+    private companion object {
+        private const val TAG = "VoiceManager"
     }
 }

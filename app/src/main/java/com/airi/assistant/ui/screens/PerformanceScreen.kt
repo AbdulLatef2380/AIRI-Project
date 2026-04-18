@@ -254,7 +254,7 @@ private fun collectDeviceInfo(context: Context): DeviceInfo {
         totalRamMb     = info.totalMem    / (1024L * 1024L),
         availRamMb     = info.availMem    / (1024L * 1024L),
         totalStorageMb = stat.blockCountLong * blockSize / (1024L * 1024L),
-        freeStorageMb  = stat.availBlocksLong * blockSize / (1024L * 1024L),
+        freeStorageMb  = stat.availableBlocksLong * blockSize / (1024L * 1024L),
         isLowMemory    = info.lowMemory
     )
 }

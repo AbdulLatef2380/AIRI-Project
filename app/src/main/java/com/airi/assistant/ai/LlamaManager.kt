@@ -5,15 +5,17 @@ import com.airi.assistant.memory.entity.ChatMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 class LlamaManager(private val context: Context) {
     private var isLoaded = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val chatHistory = mutableListOf<ChatMessage>()
-    private val maxHistory = 12
+    private val maxHistory = 6
 
     fun loadModel(path: String, onProgress: (Int) -> Unit = {}, onReady: (Boolean) -> Unit) {
         val modelFile = File(path)
@@ -35,10 +37,12 @@ class LlamaManager(private val context: Context) {
                     }
                 )
                 isLoaded = true
+                warmup()
                 withContext(Dispatchers.Main) { onReady(true) }
             } catch (e: UnsatisfiedLinkError) {
                 val result = runCatching { LlamaNative.loadModel(modelFile.absolutePath) }.getOrElse { "Error" }
                 isLoaded = (result == "Success")
+                if (isLoaded) warmup()
                 withContext(Dispatchers.Main) { onReady(isLoaded) }
             } catch (e: Exception) {
                 isLoaded = false
@@ -54,10 +58,16 @@ class LlamaManager(private val context: Context) {
 
     fun setHistory(messages: List<ChatMessage>) {
         chatHistory.clear()
-        chatHistory.addAll(messages.takeLast(maxHistory))
+        chatHistory.addAll(trimContext(messages))
     }
 
-    fun generate(prompt: String, systemPrompt: String = defaultSystemPrompt(), onResult: (String) -> Unit) {
+    fun generate(
+        prompt: String,
+        systemPrompt: String = defaultSystemPrompt(),
+        maxTokens: Int = PerformanceMode.BALANCED.maxTokens,
+        temperature: Float = PerformanceMode.BALANCED.temperature,
+        onResult: (String) -> Unit
+    ) {
         if (!isLoaded || ModelManager.getCurrent() == null) {
             onResult("Select and activate a local model before sending.")
             return
@@ -65,7 +75,7 @@ class LlamaManager(private val context: Context) {
 
         chatHistory.add(ChatMessage(role = "user", content = prompt))
         scope.launch {
-            val response = LlamaNative.generateResponse(buildChatPrompt(systemPrompt))
+            val response = LlamaNative.generateResponse(buildChatPrompt(systemPrompt, maxTokens, temperature))
             chatHistory.add(ChatMessage(role = "assistant", content = response))
             trimHistory()
             withContext(Dispatchers.Main) { onResult(response) }
@@ -75,8 +85,12 @@ class LlamaManager(private val context: Context) {
     fun generateStream(
         prompt: String,
         systemPrompt: String = defaultSystemPrompt(),
+        maxTokens: Int = PerformanceMode.BALANCED.maxTokens,
+        temperature: Float = PerformanceMode.BALANCED.temperature,
+        timeoutMs: Long = 15_000L,
         onToken: (String) -> Unit,
-        onComplete: (String) -> Unit
+        onComplete: (String) -> Unit,
+        onError: (String) -> Unit = {}
     ) {
         if (!isLoaded || ModelManager.getCurrent() == null) {
             onToken("المحرك غير مفعل")
@@ -85,11 +99,40 @@ class LlamaManager(private val context: Context) {
         }
 
         chatHistory.add(ChatMessage(role = "user", content = prompt))
+        trimHistory()
+        val finished = AtomicBoolean(false)
+        val firstTokenDelivered = AtomicBoolean(false)
+        scope.launch {
+            delay(timeoutMs)
+            if (finished.compareAndSet(false, true)) {
+                withContext(Dispatchers.Main) {
+                    onError("Local model timed out after ${timeoutMs / 1000}s.")
+                }
+            }
+        }
         scope.launch {
             val fullResponse = StringBuilder()
-            LlamaNative.generateStream(buildChatPrompt(systemPrompt)) { token ->
-                fullResponse.append(token)
-                scope.launch(Dispatchers.Main) { onToken(token) }
+            runCatching {
+                LlamaNative.generateStream(buildChatPrompt(systemPrompt, maxTokens, temperature)) { token ->
+                    if (!finished.get()) {
+                        fullResponse.append(token)
+                        scope.launch(Dispatchers.Main) {
+                            if (firstTokenDelivered.compareAndSet(false, true)) {
+                                delay(0)
+                            }
+                            onToken(token)
+                            delay(0)
+                        }
+                    }
+                }
+            }.onFailure { e ->
+                if (finished.compareAndSet(false, true)) {
+                    scope.launch(Dispatchers.Main) { onError(e.message ?: "Local generation failed.") }
+                }
+                return@launch
+            }
+            if (!finished.compareAndSet(false, true)) {
+                return@launch
             }
             val response = fullResponse.toString()
             chatHistory.add(ChatMessage(role = "assistant", content = response))
@@ -98,18 +141,35 @@ class LlamaManager(private val context: Context) {
         }
     }
 
-    private fun trimHistory() {
-        while (chatHistory.size > maxHistory) {
-            chatHistory.removeAt(0)
+    fun trimContext(messages: List<ChatMessage>, maxApproxTokens: Int = 1500): List<ChatMessage> {
+        val recent = messages.takeLast(maxHistory)
+        val trimmed = ArrayDeque<ChatMessage>()
+        var approxTokens = 0
+        for (msg in recent.asReversed()) {
+            val count = estimateTokens(msg.content)
+            if (trimmed.isNotEmpty() && approxTokens + count > maxApproxTokens) break
+            trimmed.addFirst(msg)
+            approxTokens += count
         }
+        return trimmed.toList()
     }
 
-    private fun buildChatPrompt(systemPrompt: String): String {
+    private fun trimHistory() {
+        val trimmed = trimContext(chatHistory)
+        chatHistory.clear()
+        chatHistory.addAll(trimmed)
+    }
+
+    private fun buildChatPrompt(systemPrompt: String, maxTokens: Int, temperature: Float): String {
+        val tunedPrompt = buildString {
+            append(systemPrompt.ifBlank { defaultSystemPrompt() })
+            append("\nGeneration limits: answer in no more than $maxTokens tokens. Temperature target: $temperature.")
+        }
         val model = ModelManager.getCurrent()
         return when (model?.type) {
-            ModelType.GEMMA -> buildGemmaPrompt(systemPrompt)
-            ModelType.MISTRAL -> buildMistralPrompt(systemPrompt)
-            else -> buildQwenPrompt(systemPrompt)
+            ModelType.GEMMA -> buildGemmaPrompt(tunedPrompt)
+            ModelType.MISTRAL -> buildMistralPrompt(tunedPrompt)
+            else -> buildQwenPrompt(tunedPrompt)
         }
     }
 
@@ -196,6 +256,17 @@ class LlamaManager(private val context: Context) {
 
     private fun adjustContextForGemma(): Int {
         return minOf(maxHistory, 8)
+    }
+
+    private fun estimateTokens(text: String): Int =
+        (text.length / 4).coerceAtLeast(1)
+
+    private fun warmup() {
+        scope.launch {
+            runCatching {
+                LlamaNative.generateResponse("AIRI warmup. Reply with one short token.")
+            }
+        }
     }
 
     private fun defaultSystemPrompt(): String = """

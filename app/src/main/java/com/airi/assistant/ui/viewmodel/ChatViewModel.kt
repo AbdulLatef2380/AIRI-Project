@@ -24,6 +24,9 @@ import com.airi.assistant.ai.ModelType
 import com.airi.assistant.ai.ModelValidator
 import com.airi.assistant.ai.ValidationResult
 import com.airi.assistant.ai.agent.background.AgentWorker
+import com.airi.assistant.ai.remote.RemoteModel
+import com.airi.assistant.ai.remote.RemoteModelExecutor
+import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.agent.AgentService
 import com.airi.assistant.domain.error.AppErrorHandler
@@ -50,11 +53,13 @@ import kotlin.coroutines.suspendCoroutine
 import com.google.gson.reflect.TypeToken
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class ChatMessage(
     val text: String,
@@ -114,6 +119,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val memoryManager     = MemoryManager(appContext)
     private val downloadManager   = ModelDownloadManager(appContext)
     private val modelConfigManager = ModelConfigManager(appContext)
+    private val remoteExecutor    = RemoteModelExecutor()
     private val gson              = Gson()
 
     // ── Domain services ───────────────────────────────────────────────────────
@@ -189,7 +195,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setPerformanceMode(mode: PerformanceMode) {
         _performanceMode.value = mode
+        _maxTokens.value = mode.maxTokens
+        _temperature.value = mode.temperature
         modelConfigManager.setPerformanceMode(mode)
+        preferences.edit()
+            .putInt("gen_max_tokens", mode.maxTokens)
+            .putFloat("gen_temperature", mode.temperature)
+            .apply()
     }
 
     // ── Paywall trigger ───────────────────────────────────────────────────────
@@ -333,17 +345,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        if (ModelManager.getCurrent() == null || !_modelState.value.isModelReady) {
+        val activeRemote = RemoteModelRegistry.getActive()
+        if ((ModelManager.getCurrent() == null || !_modelState.value.isModelReady) && activeRemote == null) {
             _messages.update {
-                it + ChatMessage("قم باختيار نموذج أولاً — اختر نموذج من قائمة النماذج.", isUser = false)
+                it + ChatMessage("قم باختيار نموذج محلي أو Remote Model أولاً.", isUser = false)
             }
             return
         }
 
         viewModelScope.launch {
+            val perfMode = _performanceMode.value
             val sessionId = currentSessionOrCreate()
             val wasEmpty  = _messages.value.isEmpty()
-            val history   = memoryManager.loadSession(sessionId).takeLast(12)
+            val history   = trimContext(memoryManager.loadSession(sessionId), perfMode)
             val userMessage = memoryManager.recordChatMessage(sessionId, "user", trimmedInput)
             if (wasEmpty) memoryManager.renameSession(sessionId, trimmedInput.take(48))
             subscriptionManager.recordMessage()
@@ -356,11 +370,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // Soft paywall trigger — after threshold messages, show upgrade prompt post-send
             val triggerPaywallAfterSend = PaywallTriggerEngine.onMessageSent(subscriptionManager.isPremium())
             _messages.update { it + ChatMessage(trimmedInput, true, userMessage.id) }
-            _agentState.value = AgentState(isWorking = true, currentAction = "Agent thinking…")
-            _streamingText.value = ""
+            _agentState.value = AgentState(isWorking = true, currentAction = "Thinking...")
+            _streamingText.value = "Thinking..."
 
             // ── Delegate to AgentService (goes through PolicyEngine + pipeline) ──
-            val agentServiceResult = agentService.handle(trimmedInput, history)
+            val simpleQuery = promptService.isSimpleQuery(trimmedInput)
+            val agentServiceResult = if (simpleQuery) {
+                AgentService.AgentServiceResult(agentResult = null, errorMessage = null, isLlmFallback = true)
+            } else {
+                withContext(Dispatchers.IO) { agentService.handle(trimmedInput, history) }
+            }
 
             when {
                 agentServiceResult.errorMessage != null -> {
@@ -416,45 +435,70 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 // isLlmFallback == true — proceed to local LLM
             }
 
-            val perfMode     = _performanceMode.value
             val streamStart  = System.currentTimeMillis()
             var tokenCount   = 0
             llamaManager.setHistory(history)
-            llamaManager.generateStream(
-                prompt = trimmedInput,
-                systemPrompt = buildEffectiveSystemPrompt(perfMode),
-                onToken = { token ->
-                    tokenCount++
-                    _streamingText.update { it + token }
-                },
-                onComplete = { fullResponse ->
-                    val elapsed = (System.currentTimeMillis() - streamStart).coerceAtLeast(1L)
-                    val tps     = tokenCount * 1000f / elapsed
-                    perfPrefs.edit()
-                        .putFloat("tokens_per_sec", tps)
-                        .putLong("last_latency_ms", elapsed)
-                        .apply()
-                    if (fullResponse.isNotBlank()) {
+            val deviceWeak = isDeviceWeak()
+            val remote = RemoteModelRegistry.getActive()
+            val systemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode)
+            val finish: suspend (String, Long, Int) -> Unit = { fullResponse, elapsedMs, tokens ->
+                recordGenerationStats(elapsedMs, tokens)
+                if (fullResponse.isNotBlank()) {
+                    val wasToolCall = handleToolIfNeeded(fullResponse, sessionId)
+                    if (!wasToolCall) {
+                        val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fullResponse)
+                        _messages.update { it + ChatMessage(fullResponse, isUser = false, assistantMessage.id) }
+                    }
+                    refreshSessions()
+                    if (triggerPaywallAfterSend && !_paywallTrigger.value) {
+                        _upgradePrompt.value = UpgradePrompt(
+                            message = "Useful response? Unlock Premium for more AIRI power.",
+                            source = PaywallTriggerEngine.TriggerReason.MessageThreshold.source
+                        )
+                    }
+                }
+                _streamingText.value = ""
+                _agentState.value    = AgentState()
+            }
+
+            if (deviceWeak && remote != null) {
+                streamRemoteResponse(remote, trimmedInput, systemPrompt, perfMode, streamStart, finish)
+            } else {
+                llamaManager.generateStream(
+                    prompt = trimmedInput,
+                    systemPrompt = systemPrompt,
+                    maxTokens = perfMode.maxTokens,
+                    temperature = perfMode.temperature,
+                    timeoutMs = 15_000L,
+                    onToken = { token ->
+                        tokenCount++
+                        _streamingText.update { current ->
+                            if (current == "Thinking...") token else current + token
+                        }
+                    },
+                    onComplete = { fullResponse ->
                         viewModelScope.launch {
-                            val wasToolCall = handleToolIfNeeded(fullResponse, sessionId)
-                            if (!wasToolCall) {
-                                val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fullResponse)
-                                _messages.update { it + ChatMessage(fullResponse, isUser = false, assistantMessage.id) }
-                            }
-                            refreshSessions()
-                            // Fire soft paywall after LLM response if threshold was hit
-                            if (triggerPaywallAfterSend && !_paywallTrigger.value) {
-                                _upgradePrompt.value = UpgradePrompt(
-                                    message = "Useful response? Unlock Premium for more AIRI power.",
-                                    source = PaywallTriggerEngine.TriggerReason.MessageThreshold.source
-                                )
+                            finish(fullResponse, System.currentTimeMillis() - streamStart, tokenCount)
+                        }
+                    },
+                    onError = {
+                        viewModelScope.launch {
+                            val fallbackRemote = RemoteModelRegistry.getActive()
+                            if (fallbackRemote != null) {
+                                _streamingText.value = "Thinking..."
+                                streamRemoteResponse(fallbackRemote, trimmedInput, systemPrompt, perfMode, streamStart, finish)
+                            } else {
+                                val fallback = "تعذر توليد الرد بسرعة. جرّب Fast Mode أو Remote Model."
+                                val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fallback)
+                                _messages.update { it + ChatMessage(fallback, isUser = false, assistantMessage.id) }
+                                _streamingText.value = ""
+                                _agentState.value = AgentState()
+                                refreshSessions()
                             }
                         }
                     }
-                    _streamingText.value = ""
-                    _agentState.value    = AgentState()
-                }
-            )
+                )
+            }
         }
     }
 
@@ -485,6 +529,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     llamaManager.generate(
                         prompt       = followUpPrompt,
                         systemPrompt = _agentMode.value.prompt,
+                        maxTokens    = _performanceMode.value.maxTokens,
+                        temperature  = _performanceMode.value.temperature,
                         onResult     = { text -> continuation.resume(text) }
                     )
                 }
@@ -516,6 +562,84 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         customPrompt  = _systemPrompt.value.trim(),
         performanceMode = perfMode
     )
+
+    private fun buildGenerationSystemPrompt(input: String, perfMode: PerformanceMode): String {
+        return if (promptService.isSimpleQuery(input)) {
+            "You are AIRI. Answer immediately and briefly. No long system context. Max ${perfMode.maxTokens} tokens."
+        } else {
+            buildEffectiveSystemPrompt(perfMode)
+        }
+    }
+
+    private suspend fun streamRemoteResponse(
+        remote: RemoteModel,
+        prompt: String,
+        systemPrompt: String,
+        perfMode: PerformanceMode,
+        streamStart: Long,
+        finish: suspend (String, Long, Int) -> Unit
+    ) {
+        var tokenCount = 0
+        val result = remoteExecutor.generateStream(
+            model = remote,
+            prompt = prompt,
+            systemPrompt = systemPrompt,
+            maxTokens = perfMode.maxTokens,
+            temperature = perfMode.temperature,
+            onToken = { token ->
+                tokenCount++
+                withContext(Dispatchers.Main) {
+                    _streamingText.update { current ->
+                        if (current == "Thinking...") token else current + token
+                    }
+                    delay(0)
+                }
+            }
+        )
+        withContext(Dispatchers.Main) {
+            when (result) {
+                is RemoteModelExecutor.RemoteResult.Success ->
+                    finish(result.text, result.latencyMs.coerceAtLeast(System.currentTimeMillis() - streamStart), tokenCount)
+                is RemoteModelExecutor.RemoteResult.Failure -> {
+                    val fallback = "الرد تأخر أكثر من 15 ثانية. حاول مرة أخرى أو استخدم نموذج أخف."
+                    val sessionId = currentSessionOrCreate()
+                    val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fallback)
+                    _messages.update { it + ChatMessage(fallback, isUser = false, assistantMessage.id) }
+                    _streamingText.value = ""
+                    _agentState.value = AgentState()
+                    refreshSessions()
+                }
+            }
+        }
+    }
+
+    private fun trimContext(messages: List<MemoryChatMessage>, perfMode: PerformanceMode): List<MemoryChatMessage> {
+        val recent = messages.takeLast(6)
+        val trimmed = ArrayDeque<MemoryChatMessage>()
+        var approxTokens = 0
+        val maxTokens = minOf(perfMode.contextWindow, 1500)
+        for (msg in recent.asReversed()) {
+            val count = (msg.content.length / 4).coerceAtLeast(1)
+            if (trimmed.isNotEmpty() && approxTokens + count > maxTokens) break
+            trimmed.addFirst(msg)
+            approxTokens += count
+        }
+        return trimmed.toList()
+    }
+
+    private fun recordGenerationStats(elapsedMs: Long, tokenCount: Int) {
+        val elapsed = elapsedMs.coerceAtLeast(1L)
+        val tps = tokenCount * 1000f / elapsed
+        perfPrefs.edit()
+            .putFloat("tokens_per_sec", tps)
+            .putLong("last_latency_ms", elapsed)
+            .apply()
+    }
+
+    private fun isDeviceWeak(): Boolean {
+        val profile = DeviceProfiler.profile(appContext)
+        return profile.tier == DeviceTier.LOW || profile.availableRamMb < 1500 || profile.cpuCores <= 4
+    }
 
     // ── Skill management (delegates to SkillService) ──────────────────────────
 

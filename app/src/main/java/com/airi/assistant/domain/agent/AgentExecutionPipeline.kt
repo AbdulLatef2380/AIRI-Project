@@ -20,7 +20,7 @@ class AgentExecutionPipeline(
 
     companion object {
         private const val TAG                 = "AgentExecutionPipeline"
-        private const val EXECUTION_TIMEOUT_MS = 30_000L
+        private const val EXECUTION_TIMEOUT_MS = 15_000L
     }
 
     sealed class PipelineResult {

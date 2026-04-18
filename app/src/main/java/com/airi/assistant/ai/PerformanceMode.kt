@@ -5,27 +5,31 @@ enum class PerformanceMode(
     val description: String,
     val maxTokens: Int,
     val contextWindow: Int,
-    val aggressiveTruncation: Boolean
+    val aggressiveTruncation: Boolean,
+    val temperature: Float
 ) {
     FAST(
         label               = "Fast",
         description         = "Low context + aggressive truncation — fastest responses",
-        maxTokens           = 256,
-        contextWindow       = 1024,
-        aggressiveTruncation = true
+        maxTokens           = 128,
+        contextWindow       = 1500,
+        aggressiveTruncation = true,
+        temperature         = 0.7f
     ),
     BALANCED(
         label               = "Balanced",
         description         = "Default — good quality without sacrificing speed",
-        maxTokens           = 512,
-        contextWindow       = 4096,
-        aggressiveTruncation = false
+        maxTokens           = 256,
+        contextWindow       = 3000,
+        aggressiveTruncation = false,
+        temperature         = 0.8f
     ),
     QUALITY(
         label               = "Quality",
         description         = "Full context + slower — best accuracy",
-        maxTokens           = 1024,
-        contextWindow       = 8192,
-        aggressiveTruncation = false
+        maxTokens           = 512,
+        contextWindow       = 6000,
+        aggressiveTruncation = false,
+        temperature         = 0.9f
     )
 }

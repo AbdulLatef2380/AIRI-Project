@@ -73,6 +73,14 @@ object AnalyticsService {
 
     // ── Usage ─────────────────────────────────────────────────────────────────
 
+    fun modelLoaded(modelName: String, loadMs: Long) = track(
+        "model_loaded",
+        "model" to modelName,
+        "load_ms" to loadMs.toString()
+    )
+
+    fun remoteModelUsed(url: String) = track("remote_model_used", "url" to url.take(60))
+
     fun messageSent() = track("message_sent")
 
     fun agentExecuted(agentTag: String) = track("agent_executed", "agent" to agentTag)

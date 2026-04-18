@@ -7,14 +7,20 @@ import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,18 +30,27 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.airi.assistant.R
 import com.airi.assistant.ai.CatalogEntry
+import com.airi.assistant.ai.ModelConfigManager
 import com.airi.assistant.ai.ModelInfo
 import com.airi.assistant.ai.ModelManager
 import com.airi.assistant.ai.ModelSource
 import com.airi.assistant.ai.ModelType
+import com.airi.assistant.ai.remote.RemoteModel
+import com.airi.assistant.ai.remote.RemoteModelExecutor
+import com.airi.assistant.ai.remote.RemoteModelRegistry
+import com.airi.assistant.analytics.AnalyticsService
+import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.ui.viewmodel.LoadErrorType
 import com.airi.assistant.ui.viewmodel.ModelUiState
 import com.google.gson.Gson
 import java.io.File
+import java.util.UUID
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,10 +58,13 @@ fun ModelSettingsScreen(
     viewModel: ChatViewModel,
     onBack: () -> Unit
 ) {
-    val context = LocalContext.current
-    val modelState by viewModel.modelState.collectAsState()
+    val context        = LocalContext.current
+    val scope          = rememberCoroutineScope()
+    val modelState     by viewModel.modelState.collectAsState()
     var showGenerationSettings by remember { mutableStateOf(false) }
-    var modelPendingDelete by remember { mutableStateOf<ModelInfo?>(null) }
+    var modelPendingDelete     by remember { mutableStateOf<ModelInfo?>(null) }
+    var modelForSettings       by remember { mutableStateOf<ModelInfo?>(null) }
+    var showAddModelSheet      by remember { mutableStateOf(false) }
 
     val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { viewModel.importModel(it) }
@@ -90,6 +108,15 @@ fun ModelSettingsScreen(
                     containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
                 )
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showAddModelSheet = true },
+                containerColor = CosmicAccent,
+                contentColor   = Color.Black
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add model")
+            }
         }
     ) { padding ->
         LazyColumn(
@@ -170,11 +197,12 @@ fun ModelSettingsScreen(
             } else {
                 items(items = modelState.availableModels, key = { "reg_${it.id}" }) { model ->
                     RegistryModelCard(
-                        model = model,
-                        state = modelState,
-                        isScanned = modelState.scannedModelIds.contains(model.id),
+                        model      = model,
+                        state      = modelState,
+                        isScanned  = modelState.scannedModelIds.contains(model.id),
                         onActivate = { viewModel.selectModel(model.id) },
-                        onDelete = { modelPendingDelete = model }
+                        onDelete   = { modelPendingDelete = model },
+                        onSettings = { modelForSettings = model }
                     )
                 }
             }
@@ -186,6 +214,25 @@ fun ModelSettingsScreen(
             viewModel = viewModel,
             state = modelState,
             onDismiss = { showGenerationSettings = false }
+        )
+    }
+
+    modelForSettings?.let { model ->
+        ModelPerCardSettingsDialog(
+            model     = model,
+            context   = context,
+            onDismiss = { modelForSettings = null }
+        )
+    }
+
+    if (showAddModelSheet) {
+        AddModelBottomSheet(
+            onDismiss      = { showAddModelSheet = false },
+            onPickLocal    = {
+                showAddModelSheet = false
+                modelPicker.launch("*/*")
+            },
+            scope          = scope
         )
     }
 
@@ -461,7 +508,8 @@ fun RegistryModelCard(
     state: ModelUiState,
     isScanned: Boolean,
     onActivate: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onSettings: (() -> Unit)? = null
 ) {
     val isActive = state.isModelReady && state.selectedModelId == model.id
     val isLoadingThisModel = state.isModelLoading && state.selectedModelId == model.id
@@ -494,7 +542,8 @@ fun RegistryModelCard(
         actionEnabled = !isActive && !state.isModelLoading,
         extraLabel = if (isScanned) stringResource(R.string.detected_automatically) else null,
         onAction = onActivate,
-        onDelete = onDelete
+        onDelete = onDelete,
+        onSettings = onSettings
     )
 }
 
@@ -531,8 +580,11 @@ fun ModelCard(
     actionEnabled: Boolean = true,
     extraLabel: String?,
     onAction: () -> Unit,
-    onDelete: (() -> Unit)?
+    onDelete: (() -> Unit)?,
+    onSettings: (() -> Unit)? = null
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -552,6 +604,27 @@ fun ModelCard(
                         Spacer(Modifier.height(2.dp))
                         Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
                     }
+                }
+                if (onSettings != null) {
+                    IconButton(onClick = onSettings, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            Icons.Outlined.Settings,
+                            contentDescription = "Model settings",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                IconButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                        contentDescription = if (expanded) "Collapse" else "Expand",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                    )
                 }
             }
 
@@ -589,6 +662,24 @@ fun ModelCard(
                         OutlinedButton(onClick = it, enabled = !isLoadingThis) { Text(stringResource(R.string.delete)) }
                     }
                     Button(onClick = onAction, enabled = actionEnabled) { Text(actionText) }
+                }
+            }
+
+            AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f))
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                    )
+                    metadata.forEach { tag ->
+                        Text(
+                            "· $tag",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.65f)
+                        )
+                    }
                 }
             }
 
@@ -839,4 +930,346 @@ private fun Long.toReadableSize(): String {
 
 private fun Int.contextLabel(): String {
     return if (this >= 1024) "${this / 1024}K" else "$this"
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ModelPerCardSettingsDialog(
+    model: ModelInfo,
+    context: Context,
+    onDismiss: () -> Unit
+) {
+    val configManager = remember { ModelConfigManager(context) }
+    var config        by remember { mutableStateOf(configManager.getConfig(model.id)) }
+    var stopWordInput by remember { mutableStateOf("") }
+    var saved         by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Model Settings",
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value         = config.displayName.ifBlank { model.name },
+                    onValueChange = { config = config.copy(displayName = it) },
+                    label         = { Text("Model Name") },
+                    singleLine    = true,
+                    modifier      = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment     = Alignment.CenterVertically
+                ) {
+                    Text("BOS Token", style = MaterialTheme.typography.bodyMedium)
+                    Switch(
+                        checked   = config.bosEnabled,
+                        onCheckedChange = { config = config.copy(bosEnabled = it) }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment     = Alignment.CenterVertically
+                ) {
+                    Text("EOS Token", style = MaterialTheme.typography.bodyMedium)
+                    Switch(
+                        checked   = config.eosEnabled,
+                        onCheckedChange = { config = config.copy(eosEnabled = it) }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment     = Alignment.CenterVertically
+                ) {
+                    Text("Add Generation Prompt", style = MaterialTheme.typography.bodyMedium)
+                    Switch(
+                        checked   = config.generationPromptEnabled,
+                        onCheckedChange = { config = config.copy(generationPromptEnabled = it) }
+                    )
+                }
+
+                OutlinedTextField(
+                    value         = config.systemPrompt,
+                    onValueChange = { config = config.copy(systemPrompt = it) },
+                    label         = { Text("System Prompt") },
+                    minLines      = 2,
+                    maxLines      = 5,
+                    modifier      = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value         = config.template,
+                    onValueChange = { config = config.copy(template = it) },
+                    label         = { Text("Template Editor") },
+                    placeholder   = { Text("Leave blank for default", style = MaterialTheme.typography.labelSmall) },
+                    minLines      = 2,
+                    maxLines      = 4,
+                    modifier      = Modifier.fillMaxWidth()
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Stop Words", style = MaterialTheme.typography.labelLarge)
+                    if (config.stopWords.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            config.stopWords.forEach { word ->
+                                InputChip(
+                                    selected = false,
+                                    onClick  = {
+                                        config = config.copy(stopWords = config.stopWords.filter { it != word })
+                                    },
+                                    label    = { Text(word) },
+                                    trailingIcon = {
+                                        Icon(Icons.Outlined.Close, contentDescription = "Remove", modifier = Modifier.size(14.dp))
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value         = stopWordInput,
+                            onValueChange = { stopWordInput = it },
+                            label         = { Text("Add stop word") },
+                            singleLine    = true,
+                            modifier      = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = {
+                                val w = stopWordInput.trim()
+                                if (w.isNotBlank() && !config.stopWords.contains(w)) {
+                                    config = config.copy(stopWords = config.stopWords + w)
+                                    stopWordInput = ""
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Add")
+                        }
+                    }
+                }
+
+                if (saved) {
+                    Text(
+                        "Settings saved!",
+                        color = CosmicAccent,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                configManager.saveConfig(config)
+                saved = true
+                AnalyticsService.featureDiscovered("model_per_card_settings_saved")
+            }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddModelBottomSheet(
+    onDismiss: () -> Unit,
+    onPickLocal: () -> Unit,
+    scope: kotlinx.coroutines.CoroutineScope
+) {
+    var showRemote by remember { mutableStateOf(false) }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "Add Model",
+                fontWeight = FontWeight.Bold,
+                style      = MaterialTheme.typography.titleLarge
+            )
+            Spacer(Modifier.height(4.dp))
+
+            if (!showRemote) {
+                Surface(
+                    onClick    = onPickLocal,
+                    shape      = RoundedCornerShape(14.dp),
+                    color      = MaterialTheme.colorScheme.primaryContainer,
+                    modifier   = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Icon(Icons.Outlined.FolderOpen, contentDescription = null, tint = CosmicAccent)
+                        Column {
+                            Text("Add Local Model", fontWeight = FontWeight.Bold)
+                            Text(
+                                "Import a .gguf file from device storage",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                }
+
+                Surface(
+                    onClick    = { showRemote = true },
+                    shape      = RoundedCornerShape(14.dp),
+                    color      = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier   = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Icon(Icons.Outlined.Cloud, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                        Column {
+                            Text("Add Remote Model", fontWeight = FontWeight.Bold)
+                            Text(
+                                "Connect to an OpenAI-compatible API server",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                }
+            } else {
+                AddRemoteModelContent(
+                    scope     = scope,
+                    onSaved   = { onDismiss() },
+                    onBack    = { showRemote = false }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddRemoteModelContent(
+    scope: kotlinx.coroutines.CoroutineScope,
+    onSaved: () -> Unit,
+    onBack: () -> Unit
+) {
+    var modelName   by remember { mutableStateOf("") }
+    var serverUrl   by remember { mutableStateOf("") }
+    var apiKey      by remember { mutableStateOf("") }
+    var testStatus  by remember { mutableStateOf<String?>(null) }
+    var isTesting   by remember { mutableStateOf(false) }
+    val executor    = remember { RemoteModelExecutor() }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Surface(
+            color  = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
+            shape  = RoundedCornerShape(10.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(modifier = Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Outlined.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                Text(
+                    "Using a remote model will send your messages out of device. Make sure you trust the server.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        }
+
+        OutlinedTextField(
+            value         = modelName,
+            onValueChange = { modelName = it },
+            label         = { Text("Model Name") },
+            singleLine    = true,
+            modifier      = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            value         = serverUrl,
+            onValueChange = { serverUrl = it; testStatus = null },
+            label         = { Text("Server URL") },
+            placeholder   = { Text("http://your-server:8080") },
+            singleLine    = true,
+            modifier      = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            value         = apiKey,
+            onValueChange = { apiKey = it },
+            label         = { Text("API Key (optional)") },
+            singleLine    = true,
+            modifier      = Modifier.fillMaxWidth()
+        )
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = {
+                    if (serverUrl.isBlank()) { testStatus = "Enter a server URL first"; return@OutlinedButton }
+                    isTesting = true; testStatus = null
+                    scope.launch {
+                        val ok = executor.testConnection(RemoteModel(id = "test", name = "test", serverUrl = serverUrl, apiKey = apiKey))
+                        isTesting   = false
+                        testStatus  = if (ok) "Connection successful!" else "Connection failed. Check URL and server."
+                    }
+                },
+                enabled = !isTesting && serverUrl.isNotBlank()
+            ) {
+                if (isTesting) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text("Test Connection")
+            }
+        }
+
+        testStatus?.let { msg ->
+            Text(
+                msg,
+                color  = if (msg.contains("success", true)) CosmicAccent else MaterialTheme.colorScheme.error,
+                style  = MaterialTheme.typography.labelMedium
+            )
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text("Back") }
+            Button(
+                onClick = {
+                    if (serverUrl.isBlank()) return@Button
+                    val remoteModel = RemoteModel(
+                        id        = UUID.randomUUID().toString(),
+                        name      = modelName.ifBlank { "Remote Model" },
+                        serverUrl = serverUrl.trim(),
+                        apiKey    = apiKey.trim()
+                    )
+                    RemoteModelRegistry.add(remoteModel)
+                    AnalyticsService.featureDiscovered("remote_model_added")
+                    onSaved()
+                },
+                enabled = serverUrl.isNotBlank(),
+                modifier = Modifier.weight(1f)
+            ) { Text("Save") }
+        }
+    }
 }

@@ -31,6 +31,7 @@ import com.airi.assistant.ui.screens.LoginScreen
 import com.airi.assistant.ui.screens.MemoryScreen
 import com.airi.assistant.ui.screens.ModelSettingsScreen
 import com.airi.assistant.ui.screens.ObservabilityScreen
+import com.airi.assistant.ui.screens.PerformanceScreen
 import com.airi.assistant.ui.screens.OnboardingScreen
 import com.airi.assistant.ui.screens.PaywallScreen
 import com.airi.assistant.ui.screens.ProfileScreen
@@ -62,6 +63,7 @@ object AiriRoute {
     const val REFERRALS          = "screen_referrals"
     const val SKILL_MANAGER      = "screen_skill_manager"
     const val SKILL_BUILDER      = "screen_skill_builder"
+    const val PERFORMANCE        = "screen_performance"
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 }
@@ -276,6 +278,13 @@ fun AiriApp() {
 
                 composable(AiriRoute.REFERRALS) {
                     ReferralScreen(onBack = { navController.popBackStack() })
+                }
+
+                composable(AiriRoute.PERFORMANCE) {
+                    PerformanceScreen(
+                        viewModel = chatViewModel,
+                        onBack    = { navController.popBackStack() }
+                    )
                 }
 
                 composable(AiriRoute.SKILL_MANAGER) {

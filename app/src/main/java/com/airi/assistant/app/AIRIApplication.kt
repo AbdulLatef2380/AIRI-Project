@@ -2,6 +2,7 @@ package com.airi.assistant.app
 
 import android.app.Application
 import android.content.Context
+import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.experiment.ExperimentManager
@@ -68,6 +69,9 @@ class AIRIApplication : Application() {
 
             ExperimentManager.init(this)
             LoggingService.info(TAG, "✓ ExperimentManager initialized")
+
+            RemoteModelRegistry.init(this)
+            LoggingService.info(TAG, "✓ RemoteModelRegistry initialized")
 
             // Fire app_open analytics event
             AnalyticsService.appOpen()

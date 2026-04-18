@@ -9,6 +9,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.airi.assistant.ai.CatalogEntry
 import com.airi.assistant.ai.DeviceProfiler
+import com.airi.assistant.ai.ModelConfigManager
+import com.airi.assistant.ai.PerformanceMode
 import com.airi.assistant.ai.DeviceTier
 import com.airi.assistant.ai.LlamaManager
 import com.airi.assistant.ai.ModelCatalog
@@ -105,12 +107,14 @@ data class UpgradePrompt(
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val appContext      = application.applicationContext
-    private val preferences     = appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
-    private val llamaManager    = LlamaManager(appContext)
-    private val memoryManager   = MemoryManager(appContext)
-    private val downloadManager = ModelDownloadManager(appContext)
-    private val gson            = Gson()
+    private val appContext        = application.applicationContext
+    private val preferences       = appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
+    private val perfPrefs         = appContext.getSharedPreferences("airi_perf_stats", Context.MODE_PRIVATE)
+    private val llamaManager      = LlamaManager(appContext)
+    private val memoryManager     = MemoryManager(appContext)
+    private val downloadManager   = ModelDownloadManager(appContext)
+    private val modelConfigManager = ModelConfigManager(appContext)
+    private val gson              = Gson()
 
     // ── Domain services ───────────────────────────────────────────────────────
     private val agentService         = ServiceLocator.agentService
@@ -179,6 +183,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         preferences.getBoolean("background_agent_enabled", false)
     )
     val backgroundAgentEnabled: StateFlow<Boolean> = _backgroundAgentEnabled.asStateFlow()
+
+    private val _performanceMode = MutableStateFlow(modelConfigManager.getPerformanceMode())
+    val performanceMode: StateFlow<PerformanceMode> = _performanceMode.asStateFlow()
+
+    fun setPerformanceMode(mode: PerformanceMode) {
+        _performanceMode.value = mode
+        modelConfigManager.setPerformanceMode(mode)
+    }
 
     // ── Paywall trigger ───────────────────────────────────────────────────────
 
@@ -404,14 +416,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 // isLlmFallback == true — proceed to local LLM
             }
 
+            val perfMode     = _performanceMode.value
+            val streamStart  = System.currentTimeMillis()
+            var tokenCount   = 0
             llamaManager.setHistory(history)
             llamaManager.generateStream(
                 prompt = trimmedInput,
-                systemPrompt = buildEffectiveSystemPrompt(),
+                systemPrompt = buildEffectiveSystemPrompt(perfMode),
                 onToken = { token ->
+                    tokenCount++
                     _streamingText.update { it + token }
                 },
                 onComplete = { fullResponse ->
+                    val elapsed = (System.currentTimeMillis() - streamStart).coerceAtLeast(1L)
+                    val tps     = tokenCount * 1000f / elapsed
+                    perfPrefs.edit()
+                        .putFloat("tokens_per_sec", tps)
+                        .putLong("last_latency_ms", elapsed)
+                        .apply()
                     if (fullResponse.isNotBlank()) {
                         viewModelScope.launch {
                             val wasToolCall = handleToolIfNeeded(fullResponse, sessionId)
@@ -486,12 +508,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Prompt building (delegates to PromptService) ──────────────────────────
 
-    private fun buildEffectiveSystemPrompt(): String =
-        promptService.buildSystemPrompt(
-            modePrompt    = _agentMode.value.prompt,
-            responseStyle = _responseStyle.value,
-            customPrompt  = _systemPrompt.value.trim()
-        )
+    private fun buildEffectiveSystemPrompt(
+        perfMode: PerformanceMode = _performanceMode.value
+    ): String = promptService.buildSystemPrompt(
+        modePrompt    = _agentMode.value.prompt,
+        responseStyle = _responseStyle.value,
+        customPrompt  = _systemPrompt.value.trim(),
+        performanceMode = perfMode
+    )
 
     // ── Skill management (delegates to SkillService) ──────────────────────────
 
@@ -741,6 +765,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         ModelManager.unload()
+        val loadStart = System.currentTimeMillis()
         _modelState.update {
             it.copy(selectedModelId = model.id, selectedModelName = model.name,
                 selectedModelPath = model.path, selectedModelSize = model.size,
@@ -754,6 +779,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _modelState.update { it.copy(loadProgress = percent) }
         }) { success ->
             if (success) {
+                val loadMs = System.currentTimeMillis() - loadStart
+                perfPrefs.edit().putLong("last_model_load_ms", loadMs).apply()
+                AnalyticsService.modelLoaded(model.name, loadMs)
                 preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
                 persistRegistry()
             }

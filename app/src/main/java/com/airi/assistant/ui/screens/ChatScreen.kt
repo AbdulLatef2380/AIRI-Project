@@ -56,6 +56,8 @@ import com.airi.assistant.ui.viewmodel.ModelUiState
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
+enum class MicState { IDLE, LISTENING }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
@@ -113,9 +115,11 @@ fun ChatScreen(
     var showGenSettings     by remember { mutableStateOf(false) }
     var voiceInput          by remember { mutableStateOf("") }
     var voiceChatInput      by remember { mutableStateOf("") }
+    var micState            by remember { mutableStateOf(MicState.IDLE) }
 
     // Voice message: fills text field, user presses Send manually
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        micState = MicState.IDLE
         if (result.resultCode == Activity.RESULT_OK) {
             val spoken = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
@@ -127,18 +131,30 @@ fun ChatScreen(
 
     val micPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
+            micState = MicState.LISTENING
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
             }
             speechLauncher.launch(intent)
         } else {
-            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.microphone_permission_required)) }
+            micState = MicState.IDLE
+            val isPermanentlyDenied = context is Activity &&
+                !context.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)
+            scope.launch {
+                snackbarHost.showSnackbar(
+                    if (isPermanentlyDenied)
+                        "Microphone blocked — enable it in Settings → App permissions"
+                    else
+                        context.getString(R.string.microphone_permission_required)
+                )
+            }
         }
     }
 
     // Voice chat: fills text field AND auto-sends
     val voiceChatLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        micState = MicState.IDLE
         if (result.resultCode == Activity.RESULT_OK) {
             val spoken = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
@@ -150,12 +166,14 @@ fun ChatScreen(
 
     val voiceChatPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
+            micState = MicState.LISTENING
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
             }
             voiceChatLauncher.launch(intent)
         } else {
+            micState = MicState.IDLE
             scope.launch { snackbarHost.showSnackbar(context.getString(R.string.microphone_permission_required)) }
         }
     }
@@ -170,24 +188,25 @@ fun ChatScreen(
     }
     DisposableEffect(Unit) { onDispose { voiceManager.destroy() } }
 
-    var speakNextResponse by remember { mutableStateOf(false) }
-    var lastSpokenMsgId by remember { mutableStateOf(-1L) }
+    var speakNextResponse by rememberSaveable { mutableStateOf(false) }
+    var lastSpokenMsgId   by rememberSaveable { mutableStateOf(-1L) }
 
     LaunchedEffect(voiceChatInput) {
-        if (voiceChatInput.isNotBlank() && modelState.isModelReady && !agentState.isWorking) {
-            viewModel.sendMessage(voiceChatInput)
-            speakNextResponse = true
+        val input = voiceChatInput
+        if (input.isNotBlank() && modelState.isModelReady && !agentState.isWorking) {
             voiceChatInput = ""
+            viewModel.sendMessage(input)
+            speakNextResponse = true
         }
     }
 
-    LaunchedEffect(messages, agentState.isWorking) {
+    LaunchedEffect(agentState.isWorking) {
         if (speakNextResponse && !agentState.isWorking) {
             val lastMsg = messages.lastOrNull { !it.isUser }
             if (lastMsg != null && lastMsg.id != lastSpokenMsgId) {
-                voiceManager.speak(lastMsg.text)
                 lastSpokenMsgId = lastMsg.id
                 speakNextResponse = false
+                voiceManager.speak(lastMsg.text)
             }
         }
     }
@@ -261,12 +280,14 @@ fun ChatScreen(
                     voiceInput      = voiceInput,
                     onSend          = { text -> viewModel.sendMessage(text) },
                     onAttachClick   = { showAttachSheet = true },
+                    micState        = micState,
                     onMicClick      = {
                         when {
                             !SpeechRecognizer.isRecognitionAvailable(context) -> {
                                 scope.launch { snackbarHost.showSnackbar(context.getString(R.string.speech_recognition_unavailable)) }
                             }
                             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> {
+                                micState = MicState.LISTENING
                                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                                     putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
@@ -282,6 +303,7 @@ fun ChatScreen(
                                 scope.launch { snackbarHost.showSnackbar(context.getString(R.string.speech_recognition_unavailable)) }
                             }
                             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> {
+                                micState = MicState.LISTENING
                                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                                     putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
@@ -291,7 +313,7 @@ fun ChatScreen(
                             else -> voiceChatPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     },
-                    onVoiceConsumed = { voiceInput = "" },
+                    onVoiceConsumed = { voiceInput = ""; micState = MicState.IDLE },
                     onOpenModels    = { onNavigate(AiriRoute.MODELS) }
                 )
             }
@@ -776,6 +798,7 @@ fun ChatInputBar(
     modelState: ModelUiState,
     isGenerating: Boolean,
     voiceInput: String,
+    micState: MicState = MicState.IDLE,
     onSend: (String) -> Unit,
     onAttachClick: () -> Unit,
     onMicClick: () -> Unit,
@@ -785,6 +808,18 @@ fun ChatInputBar(
 ) {
     var text by rememberSaveable { mutableStateOf("") }
     val canSend = text.isNotBlank() && modelState.isModelReady && !modelState.isModelLoading && !isGenerating
+
+    val micPulse = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(micState) {
+        if (micState == MicState.LISTENING) {
+            while (true) {
+                micPulse.animateTo(1.25f, animationSpec = androidx.compose.animation.core.tween(500))
+                micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(500))
+            }
+        } else {
+            micPulse.snapTo(1f)
+        }
+    }
 
     LaunchedEffect(voiceInput) {
         if (voiceInput.isNotBlank()) {
@@ -798,6 +833,40 @@ fun ChatInputBar(
         shadowElevation = 12.dp
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+
+            // Listening indicator
+            androidx.compose.animation.AnimatedVisibility(
+                visible = micState == MicState.LISTENING,
+                enter = androidx.compose.animation.fadeIn(
+                    animationSpec = androidx.compose.animation.core.tween(150)
+                ) + androidx.compose.animation.expandVertically(
+                    animationSpec = androidx.compose.animation.core.tween(150)
+                ),
+                exit = androidx.compose.animation.fadeOut(
+                    animationSpec = androidx.compose.animation.core.tween(150)
+                ) + androidx.compose.animation.shrinkVertically(
+                    animationSpec = androidx.compose.animation.core.tween(150)
+                )
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFF4444))
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Listening…",
+                        color = Color(0xFFFF6666),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
 
             // Model status chip
             if (!modelState.isModelReady && !modelState.isModelLoading) {
@@ -866,11 +935,28 @@ fun ChatInputBar(
                     onClick  = onMicClick,
                     modifier = Modifier.size(40.dp)
                 ) {
-                    Icon(
-                        Icons.Outlined.Mic,
-                        contentDescription = stringResource(R.string.voice_input),
-                        tint = Color.White.copy(alpha = 0.5f)
-                    )
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        if (micState == MicState.LISTENING) {
+                            Box(
+                                modifier = Modifier
+                                    .size((28 * micPulse.value).dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFFF4444).copy(alpha = 0.18f))
+                            )
+                        }
+                        Icon(
+                            Icons.Outlined.Mic,
+                            contentDescription = stringResource(R.string.voice_input),
+                            tint = if (micState == MicState.LISTENING)
+                                Color(0xFFFF4444)
+                            else
+                                Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
 
                 // Voice Chat — auto-sends after recognition
@@ -889,23 +975,47 @@ fun ChatInputBar(
                     )
                 }
 
-                // Send
+                // Send — shows spinner while generating
                 IconButton(
                     onClick  = { if (canSend) { onSend(text); text = "" } },
-                    enabled  = canSend,
+                    enabled  = canSend || isGenerating,
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
                         .background(
-                            if (canSend) CosmicAccent.copy(alpha = 0.2f)
-                            else Color.Transparent
+                            when {
+                                isGenerating -> CosmicAccent.copy(alpha = 0.1f)
+                                canSend      -> CosmicAccent.copy(alpha = 0.2f)
+                                else         -> Color.Transparent
+                            }
                         )
                 ) {
-                    Icon(
-                        Icons.Default.Send,
-                        contentDescription = stringResource(R.string.send),
-                        tint = if (canSend) CosmicAccent else Color.White.copy(alpha = 0.2f)
-                    )
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = isGenerating,
+                        transitionSpec = {
+                            androidx.compose.animation.fadeIn(
+                                animationSpec = androidx.compose.animation.core.tween(150)
+                            ) togetherWith androidx.compose.animation.fadeOut(
+                                animationSpec = androidx.compose.animation.core.tween(150)
+                            )
+                        },
+                        label = "send_icon"
+                    ) { generating ->
+                        if (generating) {
+                            CircularProgressIndicator(
+                                modifier   = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color      = CosmicAccent.copy(alpha = 0.7f)
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Send,
+                                contentDescription = stringResource(R.string.send),
+                                tint = if (canSend) CosmicAccent else Color.White.copy(alpha = 0.2f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -962,9 +1072,13 @@ fun AiriDrawer(
         drawerContentColor   = Color.White,
         modifier = Modifier.width(300.dp)
     ) {
+        Box(modifier = Modifier.fillMaxHeight()) {
+
+        // ── Scrollable content ────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(bottom = 112.dp)
                 .verticalScroll(rememberScrollState())
         ) {
 
@@ -1036,24 +1150,48 @@ fun AiriDrawer(
         DrawerNavItem(icon = Icons.Outlined.ManageHistory,  label = "Agent Logs",                            route = AiriRoute.AGENT_LOGS,   onNavigate = onNavigate)
         DrawerNavItem(icon = Icons.Outlined.Tune,           label = "Agent Control",                         route = AiriRoute.AGENT_CONTROL,onNavigate = onNavigate)
 
-        Spacer(Modifier.height(4.dp))
-        Divider(color = Color.White.copy(alpha = 0.06f))
-        Spacer(Modifier.height(4.dp))
-
-        DrawerNavItem(icon = Icons.Outlined.Settings,       label = stringResource(R.string.settings),       route = AiriRoute.SETTINGS,     onNavigate = onNavigate)
-
-        Spacer(Modifier.height(24.dp))
-        Divider(color = Color.White.copy(alpha = 0.06f))
-
-        DrawerActionItem(
-            icon    = Icons.Outlined.Logout,
-            label   = stringResource(R.string.sign_out),
-            tint    = Color(0xFFFF6B6B),
-            onClick = onLogout
-        )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
 
         } // end scrollable Column
+
+        // ── Scroll fade gradient ──────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(32.dp)
+                .align(Alignment.BottomCenter)
+                .offset(y = (-112).dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, Color(0xFF0D1124))
+                    )
+                )
+        )
+
+        // ── Sticky bottom: Settings + Logout ─────────────────────────────
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Color(0xFF0D1124))
+        ) {
+            Divider(color = Color.White.copy(alpha = 0.08f))
+            DrawerNavItem(
+                icon      = Icons.Outlined.Settings,
+                label     = stringResource(R.string.settings),
+                route     = AiriRoute.SETTINGS,
+                onNavigate = onNavigate
+            )
+            DrawerActionItem(
+                icon    = Icons.Outlined.Logout,
+                label   = stringResource(R.string.sign_out),
+                tint    = Color(0xFFFF6B6B),
+                onClick = onLogout
+            )
+            Spacer(Modifier.height(16.dp))
+        }
+
+        } // end Box
     }
 }
 

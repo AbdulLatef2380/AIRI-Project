@@ -116,6 +116,17 @@ data class UpgradePrompt(
     val source: String
 )
 
+data class DebugState(
+    val lastQueryType: String     = "-",
+    val lastModelName: String     = "-",
+    val lastFirstTokenMs: Long    = -1L,
+    val lastTotalLatencyMs: Long  = -1L,
+    val lastTokensPerSec: Float   = 0f,
+    val lastIsFastPath: Boolean   = false,
+    val lastWasCut: Boolean       = false,
+    val currentVoiceState: String = "IDLE"
+)
+
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val appContext        = application.applicationContext
@@ -240,6 +251,31 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearSmartReplies() { _smartReplies.value = emptyList() }
 
+    // ── Debug state (verification layer) ─────────────────────────────────────
+
+    private val _debugState = MutableStateFlow(DebugState())
+    val debugState: StateFlow<DebugState> = _debugState.asStateFlow()
+
+    private val _systemIntegrityFailed = MutableStateFlow(false)
+    val systemIntegrityFailed: StateFlow<Boolean> = _systemIntegrityFailed.asStateFlow()
+
+    fun clearSystemIntegrityFailed() { _systemIntegrityFailed.value = false }
+
+    fun updateVoiceState(stateName: String) {
+        com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", stateName)
+        com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = stateName) }
+        _debugState.update { it.copy(currentVoiceState = stateName) }
+    }
+
+    fun runDiagnostics() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            val report = com.airi.assistant.core.debug.Diagnostics.runDiagnostics()
+            if (!report.allPassed) {
+                _systemIntegrityFailed.value = true
+            }
+        }
+    }
+
     // ── Generation cancellation ───────────────────────────────────────────────
 
     private val _isCancelled = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -249,6 +285,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _isCancelled.set(true)
             llamaManager.cancelStream()
             Log.d("AIRI_SPEED", "cancelGeneration: user triggered")
+            com.airi.assistant.domain.logging.ProofLogger.streamCancelled(
+                byUser = true,
+                tokensStreamed = 0
+            )
         }
     }
 
@@ -291,6 +331,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             loadModel(savedModel)
         }
         refreshRecommendedModels()
+        runDiagnostics()
     }
 
     // ── Session Management ────────────────────────────────────────────────────
@@ -363,7 +404,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         // ── Intent classification (before any async work) ─────────────────────
         val queryType = QueryClassifier.classifyQuery(trimmedInput)
-        Log.d("AIRI_INTENT", "type=${queryType.name} input_words=${trimmedInput.split(Regex("\\s+")).size}")
+        val wordCount = trimmedInput.split(Regex("\\s+")).size
+        Log.d("AIRI_INTENT", "type=${queryType.name} input_words=$wordCount")
+        com.airi.assistant.domain.logging.ProofLogger.classificationResult(
+            input = trimmedInput, queryType = queryType.name, wordCount = wordCount
+        )
+        com.airi.assistant.core.analytics.ProofLogger.log("CLASSIFICATION", queryType.name)
+        com.airi.assistant.core.debug.RuntimeStore.update { copy(lastQueryType = queryType.name) }
+        _debugState.update { it.copy(lastQueryType = queryType.name) }
 
         // ── Subscription gate: enforce daily message quota (PolicyEngine) ────────
         val policyResult = com.airi.assistant.domain.policy.PolicyEngine.checkSubscriptionMessage(subscriptionManager)
@@ -425,9 +473,34 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             // ── Fast response shortcut — bypass model inference for known replies ──
+            val startTimeMs = System.currentTimeMillis()
             val fastHit = ResponseOptimizer.tryFastResponse(trimmedInput)
             if (fastHit != null) {
+                val fastLatency = System.currentTimeMillis() - startTimeMs
                 Log.d("AIRI_FAST", "hit=true response_len=${fastHit.length}")
+                com.airi.assistant.domain.logging.ProofLogger.fastPathUsed(trimmedInput)
+                com.airi.assistant.core.analytics.ProofLogger.log("FAST_PATH", "true latency=${fastLatency}ms")
+                com.airi.assistant.domain.verification.VerificationTracker.record(
+                    com.airi.assistant.domain.verification.VerificationEvent(
+                        type      = "FAST",
+                        latencyMs = fastLatency,
+                        tokens    = fastHit.length / 5,
+                        wasCut    = false,
+                        queryType = queryType.name
+                    )
+                )
+                com.airi.assistant.core.debug.RuntimeStore.update {
+                    copy(fastPath = true, wasCut = false, totalLatencyMs = fastLatency,
+                         lastQueryType = queryType.name)
+                }
+                _debugState.update { it.copy(
+                    lastIsFastPath      = true,
+                    lastWasCut          = false,
+                    lastFirstTokenMs    = 0L,
+                    lastTotalLatencyMs  = fastLatency,
+                    lastTokensPerSec    = 0f,
+                    lastModelName       = "fast-table"
+                )}
                 val fastMsg = memoryManager.recordChatMessage(sessionId, "assistant", fastHit)
                 _messages.update { it + ChatMessage(fastHit, isUser = false, id = fastMsg.id) }
                 _smartReplies.value = ResponseOptimizer.generateSuggestions(fastHit)
@@ -437,6 +510,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             Log.d("AIRI_FAST", "hit=false")
+            _debugState.update { it.copy(lastIsFastPath = false) }
             _smartReplies.value = emptyList()
             _isCancelled.set(false)
 
@@ -580,9 +654,43 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             Log.d("AIRI_SPEED", "input_len=${trimmedInput.length} gen_tokens=${genConfig.maxTokens} final_cap=$finalMaxTokens")
             Log.d("AIRI_GEN", "mode=${queryType.name} tokens=$finalMaxTokens temp=${genConfig.temperature} model=${_modelState.value.selectedModelName} input_len=${trimmedInput.length}")
+            com.airi.assistant.domain.logging.ProofLogger.streamStarted(
+                queryType = queryType.name,
+                model     = _modelState.value.selectedModelName,
+                tokens    = finalMaxTokens
+            )
+            _debugState.update { it.copy(
+                lastModelName  = _modelState.value.selectedModelName,
+                lastWasCut     = false
+            )}
             val finish: suspend (String, Long, Int) -> Unit = { fullResponse, elapsedMs, tokens ->
                 recordGenerationStats(elapsedMs, tokens)
-                val tps = if (elapsedMs > 0) tokens * 1000f / elapsedMs.coerceAtLeast(1) else 0f
+                val tps      = if (elapsedMs > 0) tokens * 1000f / elapsedMs.coerceAtLeast(1) else 0f
+                val wasCutNow = _isCancelled.get()
+                com.airi.assistant.core.analytics.ProofLogger.log(
+                    "COMPLETE", "latency=${elapsedMs}ms tokens=$tokens tps=%.1f cut=$wasCutNow".format(tps)
+                )
+                com.airi.assistant.domain.verification.VerificationTracker.record(
+                    com.airi.assistant.domain.verification.VerificationEvent(
+                        type      = "LLM",
+                        latencyMs = elapsedMs,
+                        tokens    = tokens,
+                        wasCut    = wasCutNow,
+                        queryType = queryType.name
+                    )
+                )
+                com.airi.assistant.core.debug.RuntimeStore.update {
+                    copy(
+                        totalLatencyMs = elapsedMs,
+                        tokensPerSecond = tps,
+                        fastPath = false,
+                        wasCut   = wasCutNow
+                    )
+                }
+                _debugState.update { it.copy(
+                    lastTotalLatencyMs = elapsedMs,
+                    lastTokensPerSec   = tps
+                )}
                 AnalyticsService.responseGenerated(elapsedMs, tps, _modelState.value.selectedModelName, false)
                 if (fullResponse.isNotBlank()) {
                     val wasToolCall = handleToolIfNeeded(fullResponse, sessionId)
@@ -650,6 +758,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             firstTokenReceived = true
                             val firstTokenMs = System.currentTimeMillis() - requestStart
                             Log.d("AIRI_SPEED", "first_token=${firstTokenMs}ms query=${queryType.name}")
+                            com.airi.assistant.domain.logging.ProofLogger.firstToken(firstTokenMs, queryType.name)
+                            com.airi.assistant.core.analytics.ProofLogger.log("FIRST_TOKEN", "$firstTokenMs ms")
+                            com.airi.assistant.core.debug.RuntimeStore.update { copy(firstTokenMs = firstTokenMs) }
+                            _debugState.update { it.copy(lastFirstTokenMs = firstTokenMs) }
                         }
                         tokenCount += tokenBatch.length / 4 + 1
                         _streamingText.update { current ->
@@ -660,6 +772,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         if (elapsed > 4000L && tokenCount > 60 && !_isCancelled.get()) {
                             partialCutText = _streamingText.value
                             Log.d("AIRI_SPEED", "cut_triggered=true tokens_streamed=$tokenCount total_latency=${elapsed}ms")
+                            com.airi.assistant.domain.logging.ProofLogger.cutTriggered(tokenCount, elapsed)
+                            com.airi.assistant.core.analytics.ProofLogger.log("CUT", "triggered tokens=$tokenCount elapsed=${elapsed}ms")
+                            com.airi.assistant.core.debug.RuntimeStore.update { copy(wasCut = true) }
+                            _debugState.update { it.copy(lastWasCut = true) }
                             _isCancelled.set(true)
                             llamaManager.cancelStream()
                         }

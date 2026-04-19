@@ -45,7 +45,8 @@ object ResponseOptimizer {
             )
         },
         FastEntry(
-            listOf("hello", "hi there", "hey airi", "hey there", "مرحبا", "أهلاً", "أهلا",
+            listOf("hello", "hi there", "hey airi", "hey there", "hi", "hey",
+                   "مرحبا", "أهلاً", "أهلا",
                    "هلا", "السلام عليكم", "good morning", "good evening", "good afternoon")
         ) {
             pick(

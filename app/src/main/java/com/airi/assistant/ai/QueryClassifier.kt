@@ -26,6 +26,13 @@ object QueryClassifier {
         "فكّر في أفكار", "أفكار إبداعية", "قصة قصيرة"
     )
 
+    private val CREATIVE_CONTENT_WORDS = listOf(
+        "story", "poem", "tale", "fiction", "narrative", "novel",
+        "song", "lyrics", "fairy tale", "sci-fi", "fantasy story", "adventure",
+        "short story", "bedtime story", "horror story", "love story",
+        "قصة", "قصيدة", "حكاية", "خيال"
+    )
+
     private val ACTION_STARTERS = listOf(
         "send ", "write ", "implement ", "create ", "make ",
         "build ", "set up", "configure", "install ", "run ",
@@ -74,6 +81,11 @@ object QueryClassifier {
 
         // ── Action (starts with an imperative verb) ───────────────────────
         if (ACTION_STARTERS.any { lower.startsWith(it.trim()) }) {
+            // If the action verb targets creative content, reclassify as CREATIVE
+            if (CREATIVE_CONTENT_WORDS.any { lower.contains(it) }) {
+                Log.d(TAG, "classify=CREATIVE reason=action_verb+creative_content words=$wordCount")
+                return QueryType.CREATIVE
+            }
             val type = if (wordCount <= 6 && !ANALYTICAL_PATTERNS.any { lower.contains(it) })
                 QueryType.SIMPLE else QueryType.ACTION
             Log.d(TAG, "classify=$type reason=action_verb words=$wordCount")

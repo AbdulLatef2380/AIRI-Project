@@ -240,14 +240,6 @@
     <string name="min_p_hint">Minimum probability floor for token selection</string>
     <string name="presence_penalty_hint">Penalizes tokens already present in the response</string>
     <string name="frequency_penalty_hint">Penalizes tokens based on how often they appear</string>
-    <!-- Take photo / camera -->
-    <string name="take_photo">Take photo</string>
-    <string name="photo_captured">Photo captured</string>
-    <!-- Sign in / account -->
-    <string name="sign_in">Sign In</string>
-    <string name="create_account">Create Account</string>
-    <string name="continue_with_google">Continue with Google</string>
-    <string name="continue_with_github">Continue with GitHub</string>
     <!-- Share action -->
     <string name="share">Share</string>
     <!-- Drawer items — previously hardcoded -->

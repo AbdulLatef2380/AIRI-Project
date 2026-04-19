@@ -38,12 +38,12 @@
     <string name="enable_voice_mode">تفعيل وضع الصوت</string>
     <string name="voice_mode_prepared">وضع الصوت مجهز لتكامل Vosk (تحويل الكلام إلى نص) وكلمة التنبيه Picovoice.</string>
     <string name="speech_engine">محرك الكلام</string>
-    <string name="speech_engine_value">Vosk — قريبًا</string>
+    <string name="speech_engine_value">STT النظام</string>
     <string name="wake_word">كلمة التنبيه</string>
-    <string name="wake_word_value">Hey AIRI — قريبًا</string>
+    <string name="wake_word_value">Hey AIRI</string>
     <string name="data_controls">التحكم في البيانات</string>
     <string name="export_chats">تصدير المحادثات</string>
-    <string name="download_chat_history">تنزيل سجل المحادثات كنص</string>
+    <string name="download_chat_history">حفظ المحادثة الحالية كـ JSON في Downloads/AIRI/</string>
     <string name="export_coming_next_update">التصدير قادم في التحديث القادم</string>
     <string name="clear_chat_history">مسح سجل المحادثة</string>
     <string name="remove_from_display">إزالة من العرض (وليس من قاعدة البيانات)</string>
@@ -238,32 +238,16 @@
     <string name="create_account">إنشاء حساب</string>
     <string name="continue_with_google">المتابعة مع Google</string>
     <string name="continue_with_github">المتابعة مع GitHub</string>
-    <!-- Model status chips -->
-    <string name="model_error">خطأ في النموذج</string>
-    <string name="model_ready_status">● %1$s</string>
-    <string name="model_loading_status">○ جارٍ التحميل…</string>
-    <string name="model_none_status">○ لا يوجد نموذج</string>
     <!-- Voice -->
     <string name="voice_recognition_ready">التعرف على الكلام جاهز</string>
-    <string name="speech_engine_value">STT النظام</string>
-    <string name="wake_word_value">Hey AIRI</string>
     <!-- Export -->
     <string name="export_success">تم تصدير المحادثة إلى Downloads/AIRI/</string>
     <string name="export_failed">فشل التصدير — تحقق من صلاحيات التخزين</string>
-    <string name="download_chat_history">حفظ المحادثة الحالية كـ JSON في Downloads/AIRI/</string>
-    <string name="remove_from_display">إزالة من العرض (وليس من قاعدة البيانات)</string>
-    <string name="export_chat">تصدير المحادثة</string>
     <!-- Theme -->
     <string name="theme">السمة</string>
     <string name="theme_dark">داكن</string>
     <string name="theme_light">فاتح</string>
     <string name="theme_system">النظام</string>
-    <!-- Performance notice -->
-    <string name="performance_notice_title">تنبيه الأداء</string>
-    <string name="performance_notice_message">تنبيه: أداء النماذج يكون أسرع وأكثر دقة باللغة الإنجليزية. استخدام لغات أخرى قد يؤدي إلى بطء في الاستجابة أو انخفاض الجودة.</string>
-    <!-- App agent -->
-    <string name="app_agent_title">وكيل AIRI</string>
-    <string name="app_agent_mode_title">وكيل AIRI • %1$s</string>
     <string name="share">مشاركة</string>
     <!-- Drawer items — previously hardcoded -->
     <string name="custom_skills">المهارات المخصصة</string>

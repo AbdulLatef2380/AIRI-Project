@@ -23,6 +23,8 @@ import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.ui.components.StarBackground
 import com.airi.assistant.ui.screens.AgentControlScreen
 import com.airi.assistant.ui.screens.AgentLogsScreen
+import com.airi.assistant.ui.screens.DebugPanelScreen
+import com.airi.assistant.ui.debug.DebugScreen
 import com.airi.assistant.ui.screens.AgentTraceDetailScreen
 import com.airi.assistant.ui.screens.ChatScreen
 import com.airi.assistant.ui.screens.HistoryScreen
@@ -64,6 +66,8 @@ object AiriRoute {
     const val SKILL_MANAGER      = "screen_skill_manager"
     const val SKILL_BUILDER      = "screen_skill_builder"
     const val PERFORMANCE        = "screen_performance"
+    const val DEBUG_PANEL        = "screen_debug_panel"
+    const val DEBUG_SCREEN       = "screen_debug_runtime"
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 }
@@ -310,6 +314,17 @@ fun AiriApp() {
                             }
                         }
                     )
+                }
+
+                composable(AiriRoute.DEBUG_PANEL) {
+                    DebugPanelScreen(
+                        viewModel = chatViewModel,
+                        onBack    = { navController.popBackStack() }
+                    )
+                }
+
+                composable(AiriRoute.DEBUG_SCREEN) {
+                    DebugScreen(onBack = { navController.popBackStack() })
                 }
             }
         }

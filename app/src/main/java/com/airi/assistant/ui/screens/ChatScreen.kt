@@ -80,8 +80,9 @@ fun ChatScreen(
     val agentMode     by viewModel.agentMode.collectAsState()
     val smartReplies  by viewModel.smartReplies.collectAsState()
     val snackbarHost  = remember { SnackbarHostState() }
-    val paywallTrigger by viewModel.paywallTrigger.collectAsState()
-    val upgradePrompt by viewModel.upgradePrompt.collectAsState()
+    val paywallTrigger        by viewModel.paywallTrigger.collectAsState()
+    val upgradePrompt         by viewModel.upgradePrompt.collectAsState()
+    val systemIntegrityFailed by viewModel.systemIntegrityFailed.collectAsState()
 
     // Navigate to paywall when daily limit is reached
     LaunchedEffect(paywallTrigger) {
@@ -122,6 +123,10 @@ fun ChatScreen(
     var voiceInput          by remember { mutableStateOf("") }
     var voiceChatInput      by remember { mutableStateOf("") }
     var voiceState            by remember { mutableStateOf(VoiceSessionState.IDLE) }
+
+    LaunchedEffect(voiceState) {
+        viewModel.updateVoiceState(voiceState.name)
+    }
 
     // Voice message: fills text field, user presses Send manually
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -341,6 +346,7 @@ fun ChatScreen(
                     onGenSettings = { showMenu = false; showGenSettings = true },
                     onModeSelected = { viewModel.setAgentMode(it) },
                     onSwitchModel = { showMenu = false; onNavigate(AiriRoute.MODELS) },
+                    onLongPressTitle = { onNavigate(AiriRoute.DEBUG_SCREEN) },
                     onExportChat  = {
                         showMenu = false
                         scope.launch {
@@ -421,23 +427,60 @@ fun ChatScreen(
                 )
             }
         ) { padding ->
-            ChatMessageList(
-                messages      = messages,
-                streamingText = streamingText,
-                isGenerating  = agentState.isWorking,
-                isModelReady  = modelState.isModelReady,
-                onShareAiResponse = { response -> shareAiResponse(context, response) },
-                onSpeak = { text ->
-                    voiceManager.stopSpeaking()
-                    voiceState = VoiceSessionState.SPEAKING
-                    voiceStateRef.value = VoiceSessionState.SPEAKING
-                    voiceManager.speak(text)
-                    Log.d("AIRI_VOICE", "Speak-action triggered from message → SPEAKING")
-                },
-                modifier      = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            )
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                ChatMessageList(
+                    messages      = messages,
+                    streamingText = streamingText,
+                    isGenerating  = agentState.isWorking,
+                    isModelReady  = modelState.isModelReady,
+                    onShareAiResponse = { response -> shareAiResponse(context, response) },
+                    onSpeak = { text ->
+                        voiceManager.stopSpeaking()
+                        voiceState = VoiceSessionState.SPEAKING
+                        voiceStateRef.value = VoiceSessionState.SPEAKING
+                        voiceManager.speak(text)
+                        Log.d("AIRI_VOICE", "Speak-action triggered from message → SPEAKING")
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+                if (com.airi.assistant.BuildConfig.DEBUG) {
+                    Box(modifier = Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp)) {
+                        com.airi.assistant.ui.debug.DebugOverlay()
+                    }
+                }
+                AnimatedVisibility(
+                    visible = systemIntegrityFailed,
+                    enter   = slideInVertically { -it } + fadeIn(),
+                    exit    = slideOutVertically { -it } + fadeOut(),
+                    modifier = Modifier.align(Alignment.TopCenter)
+                ) {
+                    Surface(
+                        color  = Color(0xFFFF4444),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "System Integrity Failed",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                            TextButton(onClick = {
+                                viewModel.clearSystemIntegrityFailed()
+                                Log.d("AIRI_PROOF", "INTEGRITY_BANNER dismissed by user")
+                            }) {
+                                Text("Dismiss", color = Color.White, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -514,6 +557,7 @@ private fun ChatTopBar(
     onGenSettings: () -> Unit,
     onModeSelected: (AgentMode) -> Unit,
     onSwitchModel: () -> Unit,
+    onLongPressTitle: () -> Unit = {},
     onExportChat: () -> Unit
 ) {
     TopAppBar(
@@ -526,7 +570,12 @@ private fun ChatTopBar(
             }
         },
         title = {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier.pointerInput(Unit) {
+                    detectTapGestures(onLongPress = { onLongPressTitle() })
+                }
+            ) {
                 Text(
                     stringResource(R.string.app_agent_mode_title, agentMode.label),
                     fontWeight = FontWeight.SemiBold,

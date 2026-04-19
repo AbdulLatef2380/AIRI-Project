@@ -66,6 +66,8 @@ class VoiceManager(
         Log.d(TAG, "TTS speak invoked: text_len=${text.length} preview='${text.take(80)}'")
         tts!!.speak(text.trim(), TextToSpeech.QUEUE_FLUSH, null, utteranceId)
         Log.i(TAG, "TTS speak queued: utteranceId=$utteranceId")
+        com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "SPEAKING")
+        com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "SPEAKING") }
     }
 
     fun stopSpeaking() {
@@ -76,6 +78,8 @@ class VoiceManager(
         } else {
             tts?.stop()
         }
+        com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "IDLE")
+        com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
     }
 
     fun isSpeaking(): Boolean = tts?.isSpeaking == true

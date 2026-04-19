@@ -62,28 +62,21 @@ fun PaywallScreen(
     val showUrgency        = remember { ExperimentManager.getBool(ExperimentManager.PAYWALL_URGENCY) }
 
     val contextMessage: String? = remember {
-        when (triggerReason) {
-            is PaywallTriggerEngine.TriggerReason.LimitReached ->
-                if (usagePercent >= 90) "You've used $usagePercent% of your daily limit"
-                else "You've reached your daily limit"
-            is PaywallTriggerEngine.TriggerReason.MessageThreshold ->
-                "You've sent your first ${ PaywallTriggerEngine.getTotalMessages() } messages — unlock unlimited"
-            is PaywallTriggerEngine.TriggerReason.FirstAgentExecution ->
-                "Great — your AI agent just ran! Unlock unlimited agent executions"
-            is PaywallTriggerEngine.TriggerReason.PremiumFeatureAttempt ->
-                "This feature is exclusive to Premium members"
-            else -> null
-        }
+        PaywallTriggerEngine.getPaywallMessage(triggerReason)
     }
+
+    val upsellLevel = remember { PaywallTriggerEngine.getUpsellLevel() }
 
     LaunchedEffect(Unit) {
         AnalyticsService.paywallView(triggerReason.source)
+        AnalyticsService.paywallShown(triggerReason.source, upsellLevel.name.lowercase())
         billingManager.connect()
     }
 
     LaunchedEffect(billingState) {
         when (val state = billingState) {
             is BillingManager.BillingState.PurchaseSuccess -> {
+                AnalyticsService.subscribed("premium_monthly")
                 snackbarHost.showSnackbar("Premium activated! Enjoy unlimited access.")
                 onPurchaseSuccess()
             }
@@ -163,30 +156,52 @@ fun PaywallScreen(
                     )
                 }
 
-                // ── Dynamic context message (trigger-based) ───────────────────
-                if (contextMessage != null) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = goldColor.copy(alpha = 0.12f)
+                // ── AI Power Meter — visible when free usage is high ──────────
+                if (usagePercent >= 40) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Icon(
-                                Icons.Outlined.Info,
-                                contentDescription = null,
-                                tint     = goldColor,
-                                modifier = Modifier.size(16.dp)
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Bolt,
+                                    contentDescription = null,
+                                    tint     = goldColor,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text       = "AI Power",
+                                    fontSize   = 11.sp,
+                                    color      = Color.White.copy(alpha = 0.55f),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                             Text(
-                                text      = contextMessage,
-                                fontSize  = 13.sp,
-                                color     = goldColor,
-                                fontWeight = FontWeight.Medium
+                                text     = "${100 - usagePercent}% remaining",
+                                fontSize = 11.sp,
+                                color    = if (usagePercent >= 80) goldColor else Color.White.copy(alpha = 0.45f)
                             )
                         }
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = { (1f - usagePercent / 100f).coerceIn(0f, 1f) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = when {
+                                usagePercent >= 80 -> goldColor
+                                usagePercent >= 60 -> Color(0xFFFF7043)
+                                else               -> accentColor
+                            },
+                            trackColor = Color.White.copy(alpha = 0.1f)
+                        )
                     }
                 }
 
@@ -200,7 +215,10 @@ fun PaywallScreen(
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        text      = "Unlock the full power of your on-device AI assistant",
+                        text      = if (contextMessage != null)
+                            contextMessage
+                        else
+                            "Unlock the full power of your on-device AI assistant",
                         fontSize  = 14.sp,
                         color     = Color.White.copy(alpha = 0.55f),
                         textAlign = TextAlign.Center,
@@ -310,6 +328,7 @@ fun PaywallScreen(
                 Button(
                     onClick = {
                         AnalyticsService.upgradeClick()
+                        AnalyticsService.paywallClicked(triggerReason.source)
                         if (activity != null) {
                             billingManager.launchPurchaseFlow(activity)
                         } else {

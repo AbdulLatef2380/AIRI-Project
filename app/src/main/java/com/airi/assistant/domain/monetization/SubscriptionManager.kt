@@ -13,13 +13,14 @@ class SubscriptionManager(context: Context) {
     private val prefs = context.getSharedPreferences("airi_subscription", Context.MODE_PRIVATE)
 
     companion object {
-        private const val TAG              = "SubscriptionManager"
-        private const val KEY_TIER         = "subscription_tier"
-        private const val KEY_MESSAGES     = "daily_messages"
-        private const val KEY_AGENTS       = "daily_agents"
-        private const val KEY_SKILLS       = "daily_skills"
-        private const val KEY_DATE         = "usage_date"
-        private const val DATE_FORMAT      = "yyyy-MM-dd"
+        private const val TAG                      = "SubscriptionManager"
+        private const val KEY_TIER                 = "subscription_tier"
+        private const val KEY_MESSAGES             = "daily_messages"
+        private const val KEY_AGENTS               = "daily_agents"
+        private const val KEY_SKILLS               = "daily_skills"
+        private const val KEY_DATE                 = "usage_date"
+        private const val KEY_CONSECUTIVE_SUCCESSES = "consecutive_successes"
+        private const val DATE_FORMAT              = "yyyy-MM-dd"
     }
 
     // ── Tier management ───────────────────────────────────────────────────────
@@ -119,6 +120,53 @@ class SubscriptionManager(context: Context) {
         val allowed         = !requiresPremium || isPremium()
         if (!allowed) EventBus.emitSync(AppEvent.PremiumRequired(featureName))
         return allowed
+    }
+
+    // ── Soft limit phase (0=normal, 1=hint, 2=warning, 3=hard block) ─────────
+
+    fun getSoftLimitPhase(): Int {
+        if (isPremium()) return 0
+        resetIfNewDay()
+        val used = prefs.getInt(KEY_MESSAGES, 0)
+        return when {
+            used >= PricingConfig.FREE_DAILY_MESSAGES  -> 3
+            used >= PricingConfig.FREE_NEAR_LIMIT      -> 2
+            used >= PricingConfig.FREE_SOFT_LIMIT_START -> 1
+            else                                       -> 0
+        }
+    }
+
+    // ── AI Power Level (1.0 = full; decreases with free usage) ───────────────
+
+    fun getPowerLevel(): Float {
+        if (isPremium()) return 1.0f
+        resetIfNewDay()
+        val used  = prefs.getInt(KEY_MESSAGES, 0)
+        val limit = PricingConfig.FREE_DAILY_MESSAGES
+        val ratio = used.toFloat() / limit.toFloat()
+        return (1.0f - ratio * 0.55f).coerceAtLeast(PricingConfig.POWER_MIN)
+    }
+
+    // ── Consecutive success tracking (for success_moment trigger) ─────────────
+
+    fun recordConsecutiveSuccess() {
+        val n = prefs.getInt(KEY_CONSECUTIVE_SUCCESSES, 0) + 1
+        prefs.edit().putInt(KEY_CONSECUTIVE_SUCCESSES, n).apply()
+    }
+
+    fun resetConsecutiveSuccesses() {
+        prefs.edit().putInt(KEY_CONSECUTIVE_SUCCESSES, 0).apply()
+    }
+
+    fun getConsecutiveSuccesses(): Int = prefs.getInt(KEY_CONSECUTIVE_SUCCESSES, 0)
+
+    // ── Remaining fast responses display ─────────────────────────────────────
+
+    fun getRemainingFastResponses(): Int {
+        if (isPremium()) return Int.MAX_VALUE
+        resetIfNewDay()
+        val used = prefs.getInt(KEY_MESSAGES, 0)
+        return (PricingConfig.FREE_DAILY_MESSAGES - used).coerceAtLeast(0)
     }
 
     // ── Summary ───────────────────────────────────────────────────────────────

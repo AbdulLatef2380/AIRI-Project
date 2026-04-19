@@ -749,7 +749,7 @@ private fun AgentSection(
                 onCheckedChange = { enabled ->
                     if (!isPremium) {
                         AnalyticsService.premiumFeatureAttempted("background_agent")
-                        if (PaywallTriggerEngine.onPremiumFeatureAttempt()) onNavigate(AiriRoute.PAYWALL)
+                        if (PaywallTriggerEngine.onPremiumFeatureAttempt() != PaywallTriggerEngine.UpsellLevel.NONE) onNavigate(AiriRoute.PAYWALL)
                     } else {
                         onToggle(enabled)
                     }

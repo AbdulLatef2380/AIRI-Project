@@ -18,9 +18,17 @@ class LlamaManager(private val context: Context) {
     private val chatHistory = mutableListOf<ChatMessage>()
     private val maxHistory = 6
 
+    private val cancelRequested = AtomicBoolean(false)
+
     companion object {
         private const val TAG = "AIRI_MODEL"
-        private const val TOKEN_BATCH_MS = 35L
+        private const val TOKEN_BATCH_MS = 50L
+        private const val TOKEN_BATCH_CHARS = 20
+    }
+
+    fun cancelStream() {
+        cancelRequested.set(true)
+        Log.d(TAG, "cancelStream requested")
     }
 
     fun loadModel(path: String, onProgress: (Int) -> Unit = {}, onReady: (Boolean) -> Unit) {
@@ -123,6 +131,7 @@ class LlamaManager(private val context: Context) {
             return
         }
 
+        cancelRequested.set(false)
         chatHistory.add(ChatMessage(role = "user", content = prompt))
         trimHistory()
         Log.d(TAG, "generateStream params: maxTokens=$maxTokens temp=$temperature repeatPenalty=$repeatPenalty " +
@@ -150,11 +159,22 @@ class LlamaManager(private val context: Context) {
             runCatching {
                 LlamaNative.generateStream(buildChatPrompt(systemPrompt, maxTokens, temperature, repeatPenalty, topK, topP, minP, presencePenalty, frequencyPenalty)) { token ->
                     if (!finished.get()) {
+                        if (cancelRequested.get()) {
+                            if (finished.compareAndSet(false, true)) {
+                                val partial = fullResponse.toString()
+                                chatHistory.add(ChatMessage(role = "assistant", content = partial))
+                                trimHistory()
+                                scope.launch(Dispatchers.Main) { onComplete(partial) }
+                            }
+                            return@generateStream
+                        }
                         fullResponse.append(token)
                         tokenBuffer.append(token)
 
                         val now = System.currentTimeMillis()
-                        if (now - lastFlushTime >= TOKEN_BATCH_MS) {
+                        val shouldFlushByTime = now - lastFlushTime >= TOKEN_BATCH_MS
+                        val shouldFlushBySize = tokenBuffer.length >= TOKEN_BATCH_CHARS
+                        if (shouldFlushByTime || shouldFlushBySize) {
                             val batch = tokenBuffer.toString()
                             tokenBuffer.clear()
                             lastFlushTime = now
@@ -172,7 +192,7 @@ class LlamaManager(private val context: Context) {
 
             // Flush any remaining buffered tokens
             val remaining = tokenBuffer.toString()
-            if (remaining.isNotEmpty() && !finished.get()) {
+            if (remaining.isNotEmpty() && !finished.get() && !cancelRequested.get()) {
                 scope.launch(Dispatchers.Main) { onToken(remaining) }
             }
 

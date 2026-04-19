@@ -116,6 +116,37 @@ object AnalyticsService {
 
     fun paywallTriggered(source: String) = track("paywall_triggered", "source" to source)
 
+    // ── Required AIRI monetization tags ──────────────────────────────────────
+
+    fun paywallShown(reason: String, level: String = "full") {
+        LoggingService.info(TAG, "AIRI_PAYWALL_SHOWN: reason=$reason level=$level")
+        track("paywall_shown", "reason" to reason, "level" to level)
+    }
+
+    fun paywallClicked(reason: String = "") {
+        LoggingService.info(TAG, "AIRI_PAYWALL_CLICKED: reason=$reason")
+        track("paywall_clicked", "reason" to reason)
+    }
+
+    fun subscribed(productId: String) {
+        LoggingService.info(TAG, "AIRI_SUBSCRIBED: product=$productId")
+        track("airi_subscribed", "product_id" to productId)
+    }
+
+    fun limitHit(type: String, used: Int, max: Int) {
+        LoggingService.info(TAG, "AIRI_LIMIT_HIT: type=$type used=$used max=$max")
+        track("airi_limit_hit", "type" to type, "used" to used.toString(), "max" to max.toString())
+    }
+
+    fun softLimitApplied(phase: Int, tokenFactor: Float) {
+        LoggingService.debug(TAG, "AIRI_SOFT_LIMIT: phase=$phase token_factor=$tokenFactor")
+        track("soft_limit_applied", "phase" to phase.toString(), "token_factor" to "%.2f".format(tokenFactor))
+    }
+
+    fun powerLevelChanged(level: Float) {
+        LoggingService.debug(TAG, "AIRI_POWER: level=%.2f".format(level))
+    }
+
     // ── Feature exposure ──────────────────────────────────────────────────────
 
     fun premiumFeatureAttempted(feature: String) = track("premium_feature_attempted", "feature" to feature)

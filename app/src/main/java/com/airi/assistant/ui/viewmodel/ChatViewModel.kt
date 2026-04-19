@@ -36,6 +36,8 @@ import com.airi.assistant.domain.event.EventBus
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.domain.monetization.PaywallTriggerEngine
+import com.airi.assistant.domain.monetization.PaywallTriggerEngine.UpsellLevel
+import com.airi.assistant.domain.monetization.PricingConfig
 import com.airi.assistant.domain.monetization.SubscriptionManager
 import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.domain.permission.PermissionService
@@ -53,6 +55,9 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import com.google.gson.reflect.TypeToken
 import java.io.File
+import com.airi.assistant.ai.QueryClassifier
+import com.airi.assistant.ai.QueryType
+import com.airi.assistant.ai.ResponseOptimizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -217,6 +222,36 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearUpgradePrompt() { _upgradePrompt.value = null }
 
+    // ── AI Power Level — decreases with free usage, exposed to UI ────────────
+
+    private val _powerLevel = MutableStateFlow(subscriptionManager.getPowerLevel())
+    val powerLevel: StateFlow<Float> = _powerLevel.asStateFlow()
+
+    private fun refreshPowerLevel() {
+        val level = subscriptionManager.getPowerLevel()
+        _powerLevel.value = level
+        AnalyticsService.powerLevelChanged(level)
+    }
+
+    // ── Smart reply suggestions ───────────────────────────────────────────────
+
+    private val _smartReplies = MutableStateFlow<List<String>>(emptyList())
+    val smartReplies: StateFlow<List<String>> = _smartReplies.asStateFlow()
+
+    fun clearSmartReplies() { _smartReplies.value = emptyList() }
+
+    // ── Generation cancellation ───────────────────────────────────────────────
+
+    private val _isCancelled = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    fun cancelGeneration() {
+        if (_agentState.value.isWorking) {
+            _isCancelled.set(true)
+            llamaManager.cancelStream()
+            Log.d("AIRI_SPEED", "cancelGeneration: user triggered")
+        }
+    }
+
     // ── Storage permission gate ───────────────────────────────────────────────
 
     private val _storagePermissionRequired = MutableStateFlow(false)
@@ -326,6 +361,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (trimmedInput.isEmpty()) return
         if (_modelState.value.isModelLoading) return
 
+        // ── Intent classification (before any async work) ─────────────────────
+        val queryType = QueryClassifier.classifyQuery(trimmedInput)
+        Log.d("AIRI_INTENT", "type=${queryType.name} input_words=${trimmedInput.split(Regex("\\s+")).size}")
+
         // ── Subscription gate: enforce daily message quota (PolicyEngine) ────────
         val policyResult = com.airi.assistant.domain.policy.PolicyEngine.checkSubscriptionMessage(subscriptionManager)
         if (policyResult is com.airi.assistant.domain.policy.PolicyEngine.PolicyResult.Denied) {
@@ -333,14 +372,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 AnalyticsService.funnelStep("bonus_message_used")
             } else {
                 val summary = subscriptionManager.getUsageSummary()
-                AnalyticsService.limitReached("daily_messages", summary.messagesUsed, summary.messagesLimit)
-                PaywallTriggerEngine.onLimitReached()
+                PaywallTriggerEngine.onLimitReached("daily_messages", summary.messagesUsed, summary.messagesLimit)
                 _messages.update {
                     it + ChatMessage(
-                        "You reached your limit. Upgrade to continue.",
+                        PaywallTriggerEngine.getPaywallMessage(PaywallTriggerEngine.TriggerReason.LimitReached),
                         isUser = false
                     )
                 }
+                refreshPowerLevel()
                 _paywallTrigger.value = true
                 return
             }
@@ -357,8 +396,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val perfMode = _performanceMode.value
             val sessionId = currentSessionOrCreate()
-            val wasEmpty  = _messages.value.isEmpty()
-            val history   = trimContext(memoryManager.loadSession(sessionId), perfMode)
+            val wasEmpty   = _messages.value.isEmpty()
+            val rawHistory = memoryManager.loadSession(sessionId)
+            val history    = ResponseOptimizer.smartTrim(rawHistory)
+            Log.d("AIRI_TRIM", "before=${rawHistory.size} after=${history.size}")
             val userMessage = memoryManager.recordChatMessage(sessionId, "user", trimmedInput)
             if (wasEmpty) memoryManager.renameSession(sessionId, trimmedInput.take(48))
             subscriptionManager.recordMessage()
@@ -369,21 +410,62 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             RetentionManager.incrementMessageCount()
             // Soft paywall trigger — after threshold messages, show upgrade prompt post-send
-            val triggerPaywallAfterSend = PaywallTriggerEngine.onMessageSent(subscriptionManager.isPremium())
+            val paywallLevel = PaywallTriggerEngine.onMessageSent(subscriptionManager.isPremium())
+            val triggerPaywallAfterSend = paywallLevel != UpsellLevel.NONE
+            refreshPowerLevel()
             _messages.update { it + ChatMessage(trimmedInput, true, userMessage.id) }
-            _agentState.value = AgentState(isWorking = true, currentAction = "Analyzing...")
-            _streamingText.value = "Analyzing..."
+
+            // ── Phase 1 & 5 — Soft limit: degrade quality + add delay for free users ──
+            val softPhase = subscriptionManager.getSoftLimitPhase()
+            if (softPhase >= 1 && !subscriptionManager.isPremium()) {
+                val delayMs = PricingConfig.SOFT_LIMIT_DELAY_MS
+                Log.d("AIRI_MONET", "softLimit phase=$softPhase delay=${delayMs}ms")
+                AnalyticsService.softLimitApplied(softPhase, if (softPhase >= 2) PricingConfig.NEAR_LIMIT_TOKEN_FACTOR else PricingConfig.SOFT_LIMIT_TOKEN_FACTOR)
+                delay(delayMs)
+            }
+
+            // ── Fast response shortcut — bypass model inference for known replies ──
+            val fastHit = ResponseOptimizer.tryFastResponse(trimmedInput)
+            if (fastHit != null) {
+                Log.d("AIRI_FAST", "hit=true response_len=${fastHit.length}")
+                val fastMsg = memoryManager.recordChatMessage(sessionId, "assistant", fastHit)
+                _messages.update { it + ChatMessage(fastHit, isUser = false, id = fastMsg.id) }
+                _smartReplies.value = ResponseOptimizer.generateSuggestions(fastHit)
+                _streamingText.value = ""
+                _agentState.value = AgentState()
+                refreshSessions()
+                return@launch
+            }
+            Log.d("AIRI_FAST", "hit=false")
+            _smartReplies.value = emptyList()
+            _isCancelled.set(false)
+
+            val previewHint = when (queryType) {
+                QueryType.SIMPLE     -> "Thinking..."
+                QueryType.ANALYTICAL -> "Analyzing..."
+                QueryType.ACTION     -> "Preparing..."
+                QueryType.CREATIVE   -> "Imagining..."
+                QueryType.UNKNOWN    -> "Thinking..."
+            }
+            _agentState.value = AgentState(isWorking = true, currentAction = previewHint)
+            _streamingText.value = previewHint
+
+            val allThinkingStages = setOf(
+                "Thinking...", "Analyzing...", "Preparing...", "Imagining...",
+                "Planning...", "Generating...", "Reasoning...", "Creating..."
+            )
 
             var thinkingJob: kotlinx.coroutines.Job? = viewModelScope.launch {
-                kotlinx.coroutines.delay(700)
-                if (_streamingText.value == "Analyzing...") {
-                    _streamingText.value = "Planning..."
-                    _agentState.update { it.copy(currentAction = "Planning...") }
-                }
                 kotlinx.coroutines.delay(800)
-                if (_streamingText.value == "Planning...") {
-                    _streamingText.value = "Generating..."
-                    _agentState.update { it.copy(currentAction = "Generating...") }
+                if (_streamingText.value in allThinkingStages) {
+                    val stage2 = when (queryType) {
+                        QueryType.ANALYTICAL -> "Reasoning..."
+                        QueryType.CREATIVE   -> "Creating..."
+                        QueryType.ACTION     -> "Planning..."
+                        else                 -> "Generating..."
+                    }
+                    _streamingText.value = stage2
+                    _agentState.update { it.copy(currentAction = stage2) }
                 }
             }
 
@@ -416,13 +498,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                        else agentResult.text.ifBlank { "Agent action failed. Please try again." }
                     if (agentResult.success) {
                         AnalyticsService.agentExecuted(agentResult.agentTag ?: "unknown")
+                        subscriptionManager.recordConsecutiveSuccess()
                         // Soft paywall after first agent execution (non-blocking)
-                        if (PaywallTriggerEngine.onAgentExecuted(subscriptionManager.isPremium())) {
+                        val agentLevel = PaywallTriggerEngine.onAgentExecuted(subscriptionManager.isPremium())
+                        if (agentLevel != UpsellLevel.NONE) {
                             _upgradePrompt.value = UpgradePrompt(
-                                message = "AIRI can do much more — unlock Premium",
+                                message = PaywallTriggerEngine.getPaywallMessage(PaywallTriggerEngine.TriggerReason.FirstAgentExecution),
                                 source = PaywallTriggerEngine.TriggerReason.FirstAgentExecution.source
                             )
                         }
+                    } else {
+                        subscriptionManager.resetConsecutiveSuccesses()
                     }
                     if (responseText.isNotBlank()) {
                         val assistantMsg = memoryManager.recordChatMessage(sessionId, "assistant", responseText)
@@ -438,10 +524,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     _agentState.value = AgentState()
                     refreshSessions()
-                    // Fire soft paywall (message threshold) after response is shown
+                    refreshPowerLevel()
+                    // Fire soft paywall (message threshold) after agent response is shown
                     if (triggerPaywallAfterSend && !_paywallTrigger.value) {
                         _upgradePrompt.value = UpgradePrompt(
-                            message = "Useful response? Unlock Premium for more AIRI power.",
+                            message = PaywallTriggerEngine.getPaywallMessage(PaywallTriggerEngine.TriggerReason.MessageThreshold),
                             source = PaywallTriggerEngine.TriggerReason.MessageThreshold.source
                         )
                     }
@@ -451,12 +538,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 // isLlmFallback == true — proceed to local LLM
             }
 
-            val streamStart  = System.currentTimeMillis()
+            val requestStart = System.currentTimeMillis()
+            val streamStart  = requestStart
             var tokenCount   = 0
+            var firstTokenReceived = false
+            var partialCutText = ""
             llamaManager.setHistory(history)
             val deviceWeak = isDeviceWeak()
             val remote = RemoteModelRegistry.getActive()
-            val systemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode)
+            val systemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType)
             val uiPrefs = appContext.getSharedPreferences("airi_ui_state", android.content.Context.MODE_PRIVATE)
             val repeatPenalty    = uiPrefs.getFloat("gen_repeat_penalty",    1.1f)
             val topK             = uiPrefs.getInt  ("gen_top_k",             40)
@@ -472,10 +562,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 else                  -> perfMode.maxTokens
             }
             Log.d("AIRI_PERF", "AdaptiveTokens: requested=${perfMode.maxTokens} clamped=$adaptiveMaxTokens availRAM=${availableRamMb}MB")
-            Log.d("AIRI_GEN", "params: maxTokens=$adaptiveMaxTokens temp=${perfMode.temperature} " +
-                    "repeatPenalty=$repeatPenalty topK=$topK topP=$topP minP=$minP " +
-                    "presence=$presencePenalty frequency=$frequencyPenalty " +
-                    "model=${_modelState.value.selectedModelName} input_len=${trimmedInput.length}")
+
+            // ── Dynamic generation control — adjust per intent type ───────────────
+            val genConfig = ResponseOptimizer.adjustGeneration(queryType, adaptiveMaxTokens)
+            // ── Input-size driven token cap — short inputs need short answers ─────
+            val inputSizeCapped = ResponseOptimizer.inputSizeTokenCap(trimmedInput.length, genConfig.maxTokens)
+            // ── Phase 1 — Soft token cap for free users in degradation zone ───────
+            val finalMaxTokens = when {
+                !subscriptionManager.isPremium() && softPhase >= 2 ->
+                    (inputSizeCapped * PricingConfig.NEAR_LIMIT_TOKEN_FACTOR).toInt().coerceAtLeast(64)
+                !subscriptionManager.isPremium() && softPhase >= 1 ->
+                    (inputSizeCapped * PricingConfig.SOFT_LIMIT_TOKEN_FACTOR).toInt().coerceAtLeast(96)
+                else -> inputSizeCapped
+            }
+            if (softPhase >= 1 && !subscriptionManager.isPremium()) {
+                Log.d("AIRI_MONET", "softTokenCap phase=$softPhase original=$inputSizeCapped capped=$finalMaxTokens")
+            }
+            Log.d("AIRI_SPEED", "input_len=${trimmedInput.length} gen_tokens=${genConfig.maxTokens} final_cap=$finalMaxTokens")
+            Log.d("AIRI_GEN", "mode=${queryType.name} tokens=$finalMaxTokens temp=${genConfig.temperature} model=${_modelState.value.selectedModelName} input_len=${trimmedInput.length}")
             val finish: suspend (String, Long, Int) -> Unit = { fullResponse, elapsedMs, tokens ->
                 recordGenerationStats(elapsedMs, tokens)
                 val tps = if (elapsedMs > 0) tokens * 1000f / elapsedMs.coerceAtLeast(1) else 0f
@@ -487,13 +591,37 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _messages.update { it + ChatMessage(fullResponse, isUser = false, assistantMessage.id) }
                     }
                     refreshSessions()
-                    if (triggerPaywallAfterSend && !_paywallTrigger.value) {
+                    refreshPowerLevel()
+
+                    // ── Phase 2 — success_moment paywall (after N consecutive good responses) ─
+                    subscriptionManager.recordConsecutiveSuccess()
+                    val successes = subscriptionManager.getConsecutiveSuccesses()
+                    val successLevel = PaywallTriggerEngine.onSuccessfulResponse(successes, subscriptionManager.isPremium())
+                    if (successLevel != UpsellLevel.NONE && !_paywallTrigger.value) {
                         _upgradePrompt.value = UpgradePrompt(
-                            message = "Useful response? Unlock Premium for more AIRI power.",
+                            message = PaywallTriggerEngine.getPaywallMessage(PaywallTriggerEngine.TriggerReason.SuccessMoment),
+                            source = PaywallTriggerEngine.TriggerReason.SuccessMoment.source
+                        )
+                    }
+
+                    // ── Phase 5 — speed_upsell (slow response detected for free users) ───
+                    val speedLevel = PaywallTriggerEngine.onSlowResponse(elapsedMs, subscriptionManager.isPremium())
+                    if (speedLevel != UpsellLevel.NONE && !_paywallTrigger.value) {
+                        _upgradePrompt.value = UpgradePrompt(
+                            message = PaywallTriggerEngine.getPaywallMessage(PaywallTriggerEngine.TriggerReason.SpeedUpsell),
+                            source = PaywallTriggerEngine.TriggerReason.SpeedUpsell.source
+                        )
+                    }
+
+                    // ── Message threshold upsell ─────────────────────────────────────────
+                    if (triggerPaywallAfterSend && !_paywallTrigger.value && successLevel == UpsellLevel.NONE) {
+                        _upgradePrompt.value = UpgradePrompt(
+                            message = PaywallTriggerEngine.getPaywallMessage(PaywallTriggerEngine.TriggerReason.MessageThreshold),
                             source = PaywallTriggerEngine.TriggerReason.MessageThreshold.source
                         )
                     }
                 }
+                _smartReplies.value = ResponseOptimizer.generateSuggestions(fullResponse)
                 _streamingText.value = ""
                 _agentState.value    = AgentState()
             }
@@ -506,36 +634,57 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 llamaManager.generateStream(
                     prompt = trimmedInput,
                     systemPrompt = systemPrompt,
-                    maxTokens = adaptiveMaxTokens,
-                    temperature = perfMode.temperature,
+                    maxTokens = finalMaxTokens,
+                    temperature = genConfig.temperature,
                     repeatPenalty = repeatPenalty,
                     topK = topK,
                     topP = topP,
                     minP = minP,
                     presencePenalty = presencePenalty,
                     frequencyPenalty = frequencyPenalty,
-                    timeoutMs = 15_000L,
+                    timeoutMs = 12_000L,
                     onToken = { tokenBatch ->
                         thinkingJob?.cancel()
                         thinkingJob = null
+                        if (!firstTokenReceived) {
+                            firstTokenReceived = true
+                            val firstTokenMs = System.currentTimeMillis() - requestStart
+                            Log.d("AIRI_SPEED", "first_token=${firstTokenMs}ms query=${queryType.name}")
+                        }
                         tokenCount += tokenBatch.length / 4 + 1
-                        val thinkingStages = setOf("Thinking...", "Analyzing...", "Planning...", "Generating...")
                         _streamingText.update { current ->
-                            if (current in thinkingStages) tokenBatch else current + tokenBatch
+                            if (current in allThinkingStages) tokenBatch else current + tokenBatch
+                        }
+                        // Partial cut: if running too long with enough tokens, stop early
+                        val elapsed = System.currentTimeMillis() - streamStart
+                        if (elapsed > 4000L && tokenCount > 60 && !_isCancelled.get()) {
+                            partialCutText = _streamingText.value
+                            Log.d("AIRI_SPEED", "cut_triggered=true tokens_streamed=$tokenCount total_latency=${elapsed}ms")
+                            _isCancelled.set(true)
+                            llamaManager.cancelStream()
                         }
                     },
                     onComplete = { fullResponse ->
+                        val totalLatency = System.currentTimeMillis() - requestStart
+                        Log.d("AIRI_SPEED", "tokens_streamed=$tokenCount total_latency=${totalLatency}ms first_token=$firstTokenReceived cut=${_isCancelled.get()}")
+                        val responseToSave = if (_isCancelled.get() && partialCutText.isNotBlank()) {
+                            partialCutText
+                        } else {
+                            fullResponse
+                        }
+                        _isCancelled.set(false)
                         viewModelScope.launch {
-                            finish(fullResponse, System.currentTimeMillis() - streamStart, tokenCount)
+                            finish(responseToSave, totalLatency, tokenCount)
                         }
                     },
                     onError = {
                         viewModelScope.launch {
                             thinkingJob?.cancel()
                             thinkingJob = null
+                            _isCancelled.set(false)
                             val fallbackRemote = RemoteModelRegistry.getActive()
                             if (fallbackRemote != null) {
-                                _streamingText.value = "Analyzing..."
+                                _streamingText.value = "Thinking..."
                                 streamRemoteResponse(fallbackRemote, trimmedInput, systemPrompt, perfMode, streamStart, finish)
                             } else {
                                 val fallback = "تعذر توليد الرد بسرعة. جرّب Fast Mode أو Remote Model."
@@ -605,19 +754,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // ── Prompt building (delegates to PromptService) ──────────────────────────
 
     private fun buildEffectiveSystemPrompt(
-        perfMode: PerformanceMode = _performanceMode.value
+        perfMode: PerformanceMode = _performanceMode.value,
+        queryType: QueryType = QueryType.UNKNOWN
     ): String = promptService.buildSystemPrompt(
-        modePrompt    = _agentMode.value.prompt,
-        responseStyle = _responseStyle.value,
-        customPrompt  = _systemPrompt.value.trim(),
-        performanceMode = perfMode
+        modePrompt      = _agentMode.value.prompt,
+        responseStyle   = _responseStyle.value,
+        customPrompt    = _systemPrompt.value.trim(),
+        performanceMode = perfMode,
+        queryType       = queryType
     )
 
-    private fun buildGenerationSystemPrompt(input: String, perfMode: PerformanceMode): String {
-        return if (promptService.isSimpleQuery(input)) {
-            "You are AIRI. Answer immediately and briefly. No long system context. Max ${perfMode.maxTokens} tokens."
+    private fun buildGenerationSystemPrompt(
+        input: String,
+        perfMode: PerformanceMode,
+        queryType: QueryType = QueryType.UNKNOWN
+    ): String {
+        return if (promptService.isSimpleQuery(input) || queryType == QueryType.SIMPLE) {
+            promptService.buildSimpleSystemPrompt(_agentMode.value.prompt, perfMode.maxTokens)
         } else {
-            buildEffectiveSystemPrompt(perfMode)
+            buildEffectiveSystemPrompt(perfMode, queryType)
         }
     }
 

@@ -17,6 +17,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
@@ -77,6 +78,7 @@ fun ChatScreen(
     val agentState    by viewModel.agentState.collectAsState()
     val modelState    by viewModel.modelState.collectAsState()
     val agentMode     by viewModel.agentMode.collectAsState()
+    val smartReplies  by viewModel.smartReplies.collectAsState()
     val snackbarHost  = remember { SnackbarHostState() }
     val paywallTrigger by viewModel.paywallTrigger.collectAsState()
     val upgradePrompt by viewModel.upgradePrompt.collectAsState()
@@ -356,7 +358,10 @@ fun ChatScreen(
                     modelState      = modelState,
                     isGenerating    = agentState.isWorking,
                     voiceInput      = voiceInput,
+                    smartReplies    = smartReplies,
                     onSend          = { text -> viewModel.sendMessage(text) },
+                    onCancel        = { viewModel.cancelGeneration() },
+                    onSmartReply    = { reply -> viewModel.clearSmartReplies(); viewModel.sendMessage(reply) },
                     onAttachClick   = { showAttachSheet = true },
                     voiceState        = voiceState,
                     onMicClick      = mic@{
@@ -953,7 +958,10 @@ fun AiBubble(
 
 @Composable
 fun AiStreamingBubble(text: String) {
-    val isThinkingStage = text in setOf("Thinking...", "Analyzing...", "Planning...", "Generating...")
+    val isThinkingStage = text in setOf(
+        "Thinking...", "Analyzing...", "Planning...", "Generating...",
+        "Preparing...", "Imagining...", "Reasoning...", "Creating..."
+    )
     var cursorOn by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -1016,7 +1024,10 @@ fun ChatInputBar(
     isGenerating: Boolean,
     voiceInput: String,
     voiceState: VoiceSessionState = VoiceSessionState.IDLE,
+    smartReplies: List<String> = emptyList(),
     onSend: (String) -> Unit,
+    onCancel: () -> Unit = {},
+    onSmartReply: (String) -> Unit = {},
     onAttachClick: () -> Unit,
     onMicClick: () -> Unit,
     onVoiceChatClick: () -> Unit,
@@ -1063,6 +1074,48 @@ fun ChatInputBar(
         shadowElevation = 12.dp
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+
+            // Smart replies chips (visible only when not generating)
+            androidx.compose.animation.AnimatedVisibility(
+                visible = smartReplies.isNotEmpty() && !isGenerating,
+                enter = androidx.compose.animation.fadeIn(
+                    animationSpec = androidx.compose.animation.core.tween(200)
+                ) + androidx.compose.animation.expandVertically(
+                    animationSpec = androidx.compose.animation.core.tween(200)
+                ),
+                exit = androidx.compose.animation.fadeOut(
+                    animationSpec = androidx.compose.animation.core.tween(150)
+                ) + androidx.compose.animation.shrinkVertically(
+                    animationSpec = androidx.compose.animation.core.tween(150)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(bottom = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    smartReplies.forEach { reply ->
+                        Surface(
+                            onClick = { onSmartReply(reply) },
+                            shape = RoundedCornerShape(20.dp),
+                            color = CosmicAccent.copy(alpha = 0.12f),
+                            modifier = Modifier.border(
+                                1.dp, CosmicAccent.copy(alpha = 0.4f), RoundedCornerShape(20.dp)
+                            )
+                        ) {
+                            Text(
+                                text = reply,
+                                color = CosmicAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
 
             // Voice state indicator banner
             androidx.compose.animation.AnimatedVisibility(
@@ -1218,16 +1271,23 @@ fun ChatInputBar(
                     )
                 }
 
-                // Send — shows spinner while generating
+                // Send / Stop — shows Stop icon while generating for cancel
                 IconButton(
-                    onClick  = { if (canSend) { onSend(text); text = "" } },
+                    onClick  = {
+                        if (isGenerating) {
+                            onCancel()
+                        } else if (canSend) {
+                            onSend(text)
+                            text = ""
+                        }
+                    },
                     enabled  = canSend || isGenerating,
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
                         .background(
                             when {
-                                isGenerating -> CosmicAccent.copy(alpha = 0.1f)
+                                isGenerating -> Color(0xFFFF4444).copy(alpha = 0.12f)
                                 canSend      -> CosmicAccent.copy(alpha = 0.2f)
                                 else         -> Color.Transparent
                             }
@@ -1245,10 +1305,11 @@ fun ChatInputBar(
                         label = "send_icon"
                     ) { generating ->
                         if (generating) {
-                            CircularProgressIndicator(
-                                modifier   = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color      = CosmicAccent.copy(alpha = 0.7f)
+                            Icon(
+                                Icons.Default.Stop,
+                                contentDescription = "Stop generation",
+                                tint = Color(0xFFFF6B6B),
+                                modifier = Modifier.size(20.dp)
                             )
                         } else {
                             Icon(

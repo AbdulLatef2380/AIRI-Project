@@ -90,7 +90,7 @@ fun LockedFeatureRow(
             .border(1.dp, goldColor.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
             .clickable {
                 AnalyticsService.premiumFeatureAttempted(title)
-                if (PaywallTriggerEngine.onPremiumFeatureAttempt()) onUnlockClick()
+                if (PaywallTriggerEngine.onPremiumFeatureAttempt() != PaywallTriggerEngine.UpsellLevel.NONE) onUnlockClick()
             }
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -8,6 +8,20 @@ object PricingConfig {
     const val FREE_DAILY_AGENT_EXECUTIONS  = 10
     const val FREE_DAILY_SKILL_USES        = 5
 
+    // ── Soft Limit Thresholds (degrade before hard block) ─────────────────────
+
+    const val FREE_SOFT_LIMIT_START    = 22          // phase 1: hint zone (22-26)
+    const val FREE_NEAR_LIMIT          = 27          // phase 2: warning zone (27-29)
+    const val SOFT_LIMIT_TOKEN_FACTOR  = 0.65f       // reduce max tokens by 35% in soft zone
+    const val SOFT_LIMIT_DELAY_MS      = 200L        // add 200 ms delay in soft zone
+    const val NEAR_LIMIT_TOKEN_FACTOR  = 0.45f       // reduce max tokens by 55% near limit
+
+    // ── Trigger Thresholds ────────────────────────────────────────────────────
+
+    const val SUCCESS_TRIGGER_COUNT      = 3         // trigger paywall after N consecutive successes
+    const val SPEED_UPSELL_THRESHOLD_MS  = 5_000L   // slow response triggers speed upsell
+    const val POWER_MIN                  = 0.45f     // minimum power level for free users
+
     // ── Premium Limits (effectively unlimited) ────────────────────────────────
 
     const val PREMIUM_DAILY_MESSAGES          = Int.MAX_VALUE

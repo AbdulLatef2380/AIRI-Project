@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.airi.assistant.ai.CatalogEntry
@@ -463,6 +464,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val minP             = uiPrefs.getFloat("gen_min_p",             0.05f)
             val presencePenalty  = uiPrefs.getFloat("gen_presence_penalty",  0.0f)
             val frequencyPenalty = uiPrefs.getFloat("gen_frequency_penalty", 0.0f)
+            // Adaptive token limit — clamp based on available RAM to prevent OOM crashes
+            val availableRamMb = DeviceProfiler.profile(appContext).availableRamMb
+            val adaptiveMaxTokens = when {
+                availableRamMb < 1000 -> minOf(perfMode.maxTokens, 256)
+                availableRamMb < 2000 -> minOf(perfMode.maxTokens, 512)
+                else                  -> perfMode.maxTokens
+            }
+            Log.d("AIRI_PERF", "AdaptiveTokens: requested=${perfMode.maxTokens} clamped=$adaptiveMaxTokens availRAM=${availableRamMb}MB")
+            Log.d("AIRI_GEN", "params: maxTokens=$adaptiveMaxTokens temp=${perfMode.temperature} " +
+                    "repeatPenalty=$repeatPenalty topK=$topK topP=$topP minP=$minP " +
+                    "presence=$presencePenalty frequency=$frequencyPenalty " +
+                    "model=${_modelState.value.selectedModelName} input_len=${trimmedInput.length}")
             val finish: suspend (String, Long, Int) -> Unit = { fullResponse, elapsedMs, tokens ->
                 recordGenerationStats(elapsedMs, tokens)
                 val tps = if (elapsedMs > 0) tokens * 1000f / elapsedMs.coerceAtLeast(1) else 0f
@@ -493,7 +506,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 llamaManager.generateStream(
                     prompt = trimmedInput,
                     systemPrompt = systemPrompt,
-                    maxTokens = perfMode.maxTokens,
+                    maxTokens = adaptiveMaxTokens,
                     temperature = perfMode.temperature,
                     repeatPenalty = repeatPenalty,
                     topK = topK,
@@ -668,6 +681,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun recordGenerationStats(elapsedMs: Long, tokenCount: Int) {
         val elapsed = elapsedMs.coerceAtLeast(1L)
         val tps = tokenCount * 1000f / elapsed
+        Log.d("AIRI_PERF", "Generation complete: latency=${elapsed}ms tokens=$tokenCount tps=%.2f".format(tps))
         perfPrefs.edit()
             .putFloat("tokens_per_sec", tps)
             .putLong("last_latency_ms", elapsed)

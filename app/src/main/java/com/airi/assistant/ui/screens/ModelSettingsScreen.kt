@@ -116,7 +116,7 @@ fun ModelSettingsScreen(
                 containerColor = CosmicAccent,
                 contentColor   = Color.Black
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add model")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_model_fab))
             }
         }
     ) { padding ->
@@ -622,7 +622,7 @@ fun ModelCard(
                     IconButton(onClick = onSettings, modifier = Modifier.size(32.dp)) {
                         Icon(
                             Icons.Outlined.Settings,
-                            contentDescription = "Model settings",
+                            contentDescription = stringResource(R.string.model_settings_icon),
                             modifier = Modifier.size(18.dp),
                             tint = Color.White.copy(alpha = 0.7f)
                         )
@@ -634,7 +634,7 @@ fun ModelCard(
                 ) {
                     Icon(
                         if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                        contentDescription = if (expanded) "Collapse" else "Expand",
+                        contentDescription = if (expanded) stringResource(R.string.collapse) else stringResource(R.string.expand),
                         modifier = Modifier.size(18.dp),
                         tint = Color.White.copy(alpha = 0.5f)
                     )

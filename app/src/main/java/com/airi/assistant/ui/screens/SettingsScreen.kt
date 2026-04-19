@@ -337,11 +337,11 @@ fun SettingsScreen(
             )
 
             SettingsSurface {
-                SettingsCategoryHeader(icon = Icons.Outlined.Speed, title = "Performance")
+                SettingsCategoryHeader(icon = Icons.Outlined.Speed, title = stringResource(R.string.performance))
                 Spacer(Modifier.height(8.dp))
                 SettingsNavigationRow(
-                    label    = "Performance & Device Info",
-                    sublabel = "RAM, CPU, token speed, performance mode"
+                    label    = stringResource(R.string.performance_device_info),
+                    sublabel = stringResource(R.string.performance_device_info_sublabel)
                 ) { onNavigate(AiriRoute.PERFORMANCE) }
             }
 

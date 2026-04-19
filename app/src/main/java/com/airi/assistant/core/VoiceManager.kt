@@ -15,6 +15,8 @@ class VoiceManager(
         fun onWakeWordDetected()
         fun onSpeechResult(text: String)
         fun onError(error: String)
+        fun onSpeakingStarted() = Unit
+        fun onSpeakingDone()    = Unit
     }
 
     private var tts: TextToSpeech? = null
@@ -33,11 +35,18 @@ class VoiceManager(
                     ttsReady = true
                 }
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) {}
-                    override fun onDone(utteranceId: String?) {}
+                    override fun onStart(utteranceId: String?) {
+                        Log.d(TAG, "TTS onStart utteranceId=$utteranceId")
+                        listener.onSpeakingStarted()
+                    }
+                    override fun onDone(utteranceId: String?) {
+                        Log.d(TAG, "TTS onDone utteranceId=$utteranceId")
+                        listener.onSpeakingDone()
+                    }
                     @Deprecated("Deprecated in Java")
                     override fun onError(utteranceId: String?) {
                         Log.w(TAG, "TTS utterance error: $utteranceId")
+                        listener.onSpeakingDone()
                     }
                 })
                 Log.d(TAG, "TextToSpeech initialized successfully")
@@ -54,12 +63,19 @@ class VoiceManager(
             return
         }
         val utteranceId = "airi_${System.currentTimeMillis()}"
+        Log.d(TAG, "TTS speak invoked: text_len=${text.length} preview='${text.take(80)}'")
         tts!!.speak(text.trim(), TextToSpeech.QUEUE_FLUSH, null, utteranceId)
-        Log.i(TAG, "Speaking: ${text.take(80)}…")
+        Log.i(TAG, "TTS speak queued: utteranceId=$utteranceId")
     }
 
     fun stopSpeaking() {
-        tts?.stop()
+        if (tts?.isSpeaking == true) {
+            Log.d(TAG, "stopSpeaking: TTS was speaking, calling stop + onSpeakingDone")
+            tts?.stop()
+            listener.onSpeakingDone()
+        } else {
+            tts?.stop()
+        }
     }
 
     fun isSpeaking(): Boolean = tts?.isSpeaking == true
@@ -92,6 +108,6 @@ class VoiceManager(
     }
 
     private companion object {
-        private const val TAG = "VoiceManager"
+        private const val TAG = "AIRI_VOICE"
     }
 }

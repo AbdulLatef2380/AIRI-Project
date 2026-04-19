@@ -250,6 +250,47 @@
     <string name="continue_with_github">Continue with GitHub</string>
     <!-- Share action -->
     <string name="share">Share</string>
+    <!-- Drawer items — previously hardcoded -->
+    <string name="custom_skills">Custom Skills</string>
+    <string name="invite_friends">Invite friends</string>
+    <!-- Performance screen -->
+    <string name="performance">Performance</string>
+    <string name="performance_device_info">Performance &amp; Device Info</string>
+    <string name="performance_device_info_sublabel">RAM, CPU, token speed, performance mode</string>
+    <string name="performance_device">Performance &amp; Device</string>
+    <string name="performance_mode">Performance Mode</string>
+    <string name="stat_device_info">Device Info</string>
+    <string name="stat_device">Device</string>
+    <string name="stat_android">Android</string>
+    <string name="stat_cpu_abi">CPU ABI</string>
+    <string name="stat_cpu_cores">CPU Cores</string>
+    <string name="stat_memory">Memory</string>
+    <string name="stat_total_ram">Total RAM</string>
+    <string name="stat_available_ram">Available</string>
+    <string name="stat_used_ram">Used RAM</string>
+    <string name="stat_low_memory">Low Memory</string>
+    <string name="stat_low_memory_yes">Yes ⚠</string>
+    <string name="stat_low_memory_no">No ✓</string>
+    <string name="stat_storage">Storage</string>
+    <string name="stat_total_storage">Total Storage</string>
+    <string name="stat_free_storage">Free Storage</string>
+    <string name="stat_inference">Inference Stats</string>
+    <string name="stat_last_load_time">Last load time</string>
+    <string name="stat_tokens_per_sec">Tokens / sec</string>
+    <string name="stat_last_latency">Last latency</string>
+    <string name="perf_mode_label_fast">⚡ Fast</string>
+    <string name="perf_mode_label_balanced">⚖ Balanced</string>
+    <string name="perf_mode_label_quality">🎯 Quality</string>
+    <string name="perf_footer_note">Performance Mode affects: context window, max tokens, and truncation strategy. Changes apply to the next message sent.</string>
+    <!-- Model settings content descriptions -->
+    <string name="add_model_fab">Add model</string>
+    <string name="model_settings_icon">Model settings</string>
+    <string name="expand">Expand</string>
+    <string name="collapse">Collapse</string>
+    <!-- File/image pick feedback -->
+    <string name="file_selected_name">File selected: %1$s</string>
+    <string name="image_selected_vision_soon">Image selected — vision support coming soon</string>
+    <string name="photo_attached">Photo attached</string>
     <!-- Remote model form -->
     <string name="server_url">Server URL</string>
     <string name="api_key_optional">API Key (optional)</string>

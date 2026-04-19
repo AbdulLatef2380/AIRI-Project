@@ -265,6 +265,47 @@
     <string name="app_agent_title">وكيل AIRI</string>
     <string name="app_agent_mode_title">وكيل AIRI • %1$s</string>
     <string name="share">مشاركة</string>
+    <!-- Drawer items — previously hardcoded -->
+    <string name="custom_skills">المهارات المخصصة</string>
+    <string name="invite_friends">دعوة الأصدقاء</string>
+    <!-- Performance screen -->
+    <string name="performance">الأداء</string>
+    <string name="performance_device_info">معلومات الأداء والجهاز</string>
+    <string name="performance_device_info_sublabel">الذاكرة، المعالج، سرعة الرموز، وضع الأداء</string>
+    <string name="performance_device">الأداء والجهاز</string>
+    <string name="performance_mode">وضع الأداء</string>
+    <string name="stat_device_info">معلومات الجهاز</string>
+    <string name="stat_device">الجهاز</string>
+    <string name="stat_android">أندرويد</string>
+    <string name="stat_cpu_abi">معمارية المعالج</string>
+    <string name="stat_cpu_cores">أنوية المعالج</string>
+    <string name="stat_memory">الذاكرة</string>
+    <string name="stat_total_ram">إجمالي الذاكرة</string>
+    <string name="stat_available_ram">المتاح</string>
+    <string name="stat_used_ram">الذاكرة المستخدمة</string>
+    <string name="stat_low_memory">ذاكرة منخفضة</string>
+    <string name="stat_low_memory_yes">نعم ⚠</string>
+    <string name="stat_low_memory_no">لا ✓</string>
+    <string name="stat_storage">التخزين</string>
+    <string name="stat_total_storage">إجمالي التخزين</string>
+    <string name="stat_free_storage">التخزين المتاح</string>
+    <string name="stat_inference">إحصاءات الاستنتاج</string>
+    <string name="stat_last_load_time">آخر وقت تحميل</string>
+    <string name="stat_tokens_per_sec">رمز / ثانية</string>
+    <string name="stat_last_latency">آخر زمن استجابة</string>
+    <string name="perf_mode_label_fast">⚡ سريع</string>
+    <string name="perf_mode_label_balanced">⚖ متوازن</string>
+    <string name="perf_mode_label_quality">🎯 جودة</string>
+    <string name="perf_footer_note">يؤثر وضع الأداء على: نافذة السياق، والحد الأقصى للرموز، واستراتيجية الاقتطاع. تُطبق التغييرات على الرسالة التالية.</string>
+    <!-- Model settings content descriptions -->
+    <string name="add_model_fab">إضافة نموذج</string>
+    <string name="model_settings_icon">إعدادات النموذج</string>
+    <string name="expand">توسيع</string>
+    <string name="collapse">طي</string>
+    <!-- File/image pick feedback -->
+    <string name="file_selected_name">تم اختيار الملف: %1$s</string>
+    <string name="image_selected_vision_soon">تم اختيار الصورة — دعم الرؤية قريبًا</string>
+    <string name="photo_attached">تم إرفاق الصورة</string>
     <!-- Remote model form -->
     <string name="server_url">عنوان الخادم</string>
     <string name="api_key_optional">مفتاح API (اختياري)</string>

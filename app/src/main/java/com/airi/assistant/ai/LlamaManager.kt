@@ -19,7 +19,7 @@ class LlamaManager(private val context: Context) {
     private val maxHistory = 6
 
     companion object {
-        private const val TAG = "LlamaManager"
+        private const val TAG = "AIRI_MODEL"
         private const val TOKEN_BATCH_MS = 35L
     }
 
@@ -125,6 +125,9 @@ class LlamaManager(private val context: Context) {
 
         chatHistory.add(ChatMessage(role = "user", content = prompt))
         trimHistory()
+        Log.d(TAG, "generateStream params: maxTokens=$maxTokens temp=$temperature repeatPenalty=$repeatPenalty " +
+                "topK=$topK topP=$topP minP=$minP presence=$presencePenalty frequency=$frequencyPenalty " +
+                "timeout=${timeoutMs}ms prompt_len=${prompt.length}")
         val finished = AtomicBoolean(false)
 
         // Timeout watchdog

@@ -1,6 +1,7 @@
 package com.airi.assistant.ai
 
 import android.content.Context
+import android.util.Log
 import com.airi.assistant.memory.entity.ChatMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,17 +18,25 @@ class LlamaManager(private val context: Context) {
     private val chatHistory = mutableListOf<ChatMessage>()
     private val maxHistory = 6
 
+    companion object {
+        private const val TAG = "LlamaManager"
+        private const val TOKEN_BATCH_MS = 35L
+    }
+
     fun loadModel(path: String, onProgress: (Int) -> Unit = {}, onReady: (Boolean) -> Unit) {
         val modelFile = File(path)
         if (!modelFile.exists()) {
+            Log.e(TAG, "loadModel FAILED — file does not exist: $path")
             onReady(false)
             return
         }
+        Log.i(TAG, "loadModel → file=${modelFile.name} size=${modelFile.length() / (1024 * 1024)}MB")
 
         scope.launch {
             isLoaded = false
             unloadModel()
             try {
+                Log.d(TAG, "Calling LlamaNative.loadModelWithProgress …")
                 LlamaNative.loadModelWithProgress(
                     modelFile.absolutePath,
                     object : LlamaNative.ProgressCallback {
@@ -37,14 +46,21 @@ class LlamaManager(private val context: Context) {
                     }
                 )
                 isLoaded = true
+                Log.i(TAG, "loadModel SUCCESS — starting warmup")
                 warmup()
                 withContext(Dispatchers.Main) { onReady(true) }
             } catch (e: UnsatisfiedLinkError) {
-                val result = runCatching { LlamaNative.loadModel(modelFile.absolutePath) }.getOrElse { "Error" }
+                Log.w(TAG, "loadModelWithProgress not available — falling back to loadModel(): ${e.message}")
+                val result = runCatching { LlamaNative.loadModel(modelFile.absolutePath) }.getOrElse { ex ->
+                    Log.e(TAG, "loadModel fallback also failed: ${ex.message}")
+                    "Error"
+                }
                 isLoaded = (result == "Success")
+                Log.i(TAG, "loadModel fallback result=$result isLoaded=$isLoaded")
                 if (isLoaded) warmup()
                 withContext(Dispatchers.Main) { onReady(isLoaded) }
             } catch (e: Exception) {
+                Log.e(TAG, "loadModel EXCEPTION: ${e.javaClass.simpleName}: ${e.message}", e)
                 isLoaded = false
                 withContext(Dispatchers.Main) { onReady(false) }
             }
@@ -54,6 +70,7 @@ class LlamaManager(private val context: Context) {
     fun unloadModel() {
         isLoaded = false
         chatHistory.clear()
+        Log.d(TAG, "Model unloaded")
     }
 
     fun setHistory(messages: List<ChatMessage>) {
@@ -87,53 +104,79 @@ class LlamaManager(private val context: Context) {
         systemPrompt: String = defaultSystemPrompt(),
         maxTokens: Int = PerformanceMode.BALANCED.maxTokens,
         temperature: Float = PerformanceMode.BALANCED.temperature,
+        repeatPenalty: Float = 1.1f,
+        topK: Int = 40,
+        topP: Float = 0.9f,
+        minP: Float = 0.05f,
+        presencePenalty: Float = 0.0f,
+        frequencyPenalty: Float = 0.0f,
         timeoutMs: Long = 15_000L,
         onToken: (String) -> Unit,
         onComplete: (String) -> Unit,
         onError: (String) -> Unit = {}
     ) {
         if (!isLoaded || ModelManager.getCurrent() == null) {
-            onToken("المحرك غير مفعل")
-            onComplete("")
+            scope.launch(Dispatchers.Main) {
+                onToken("المحرك غير مفعل")
+                onComplete("")
+            }
             return
         }
 
         chatHistory.add(ChatMessage(role = "user", content = prompt))
         trimHistory()
         val finished = AtomicBoolean(false)
-        val firstTokenDelivered = AtomicBoolean(false)
+
+        // Timeout watchdog
         scope.launch {
             delay(timeoutMs)
             if (finished.compareAndSet(false, true)) {
+                Log.w(TAG, "generateStream timed out after ${timeoutMs / 1000}s")
                 withContext(Dispatchers.Main) {
                     onError("Local model timed out after ${timeoutMs / 1000}s.")
                 }
             }
         }
+
         scope.launch {
             val fullResponse = StringBuilder()
+            // Token batch accumulator — flush every TOKEN_BATCH_MS
+            val tokenBuffer = StringBuilder()
+            var lastFlushTime = System.currentTimeMillis()
+
             runCatching {
-                LlamaNative.generateStream(buildChatPrompt(systemPrompt, maxTokens, temperature)) { token ->
+                LlamaNative.generateStream(buildChatPrompt(systemPrompt, maxTokens, temperature, repeatPenalty, topK, topP, minP, presencePenalty, frequencyPenalty)) { token ->
                     if (!finished.get()) {
                         fullResponse.append(token)
-                        scope.launch(Dispatchers.Main) {
-                            if (firstTokenDelivered.compareAndSet(false, true)) {
-                                delay(0)
-                            }
-                            onToken(token)
-                            delay(0)
+                        tokenBuffer.append(token)
+
+                        val now = System.currentTimeMillis()
+                        if (now - lastFlushTime >= TOKEN_BATCH_MS) {
+                            val batch = tokenBuffer.toString()
+                            tokenBuffer.clear()
+                            lastFlushTime = now
+                            scope.launch(Dispatchers.Main) { onToken(batch) }
                         }
                     }
                 }
             }.onFailure { e ->
+                Log.e(TAG, "generateStream native error: ${e.javaClass.simpleName}: ${e.message}", e)
                 if (finished.compareAndSet(false, true)) {
                     scope.launch(Dispatchers.Main) { onError(e.message ?: "Local generation failed.") }
                 }
                 return@launch
             }
+
+            // Flush any remaining buffered tokens
+            val remaining = tokenBuffer.toString()
+            if (remaining.isNotEmpty() && !finished.get()) {
+                scope.launch(Dispatchers.Main) { onToken(remaining) }
+            }
+
             if (!finished.compareAndSet(false, true)) {
                 return@launch
             }
+
             val response = fullResponse.toString()
             chatHistory.add(ChatMessage(role = "assistant", content = response))
             trimHistory()
@@ -160,20 +203,66 @@ class LlamaManager(private val context: Context) {
         chatHistory.addAll(trimmed)
     }
 
-    private fun buildChatPrompt(systemPrompt: String, maxTokens: Int, temperature: Float): String {
+    private fun buildChatPrompt(
+        systemPrompt: String,
+        maxTokens: Int,
+        temperature: Float,
+        repeatPenalty: Float = 1.1f,
+        topK: Int = 40,
+        topP: Float = 0.9f,
+        minP: Float = 0.05f,
+        presencePenalty: Float = 0.0f,
+        frequencyPenalty: Float = 0.0f
+    ): String {
         val tunedPrompt = buildString {
             append(systemPrompt.ifBlank { defaultSystemPrompt() })
-            append("\nGeneration limits: answer in no more than $maxTokens tokens. Temperature target: $temperature.")
+            append("\nSampling: max_tokens=$maxTokens temperature=$temperature repeat_penalty=$repeatPenalty top_k=$topK top_p=$topP min_p=$minP")
+            if (presencePenalty != 0.0f)  append(" presence_penalty=$presencePenalty")
+            if (frequencyPenalty != 0.0f) append(" frequency_penalty=$frequencyPenalty")
         }
         val model = ModelManager.getCurrent()
         return when (model?.type) {
-            ModelType.GEMMA -> buildGemmaPrompt(tunedPrompt)
+            ModelType.GEMMA   -> buildGemmaPrompt(tunedPrompt)
             ModelType.MISTRAL -> buildMistralPrompt(tunedPrompt)
-            else -> buildQwenPrompt(tunedPrompt)
+            ModelType.LLAMA   -> buildLlamaPrompt(tunedPrompt)
+            else              -> buildQwenChatMLPrompt(tunedPrompt)
         }
     }
 
-    private fun buildQwenPrompt(systemPrompt: String): String {
+    /**
+     * ChatML format — correct for Qwen 2.5 and most modern instruction-tuned models.
+     * Qwen models specifically use <|im_start|> / <|im_end|> control tokens.
+     * Using the wrong format (e.g. LLaMA-3 tokens) causes garbage outputs.
+     */
+    private fun buildQwenChatMLPrompt(systemPrompt: String): String {
+        val sb = StringBuilder()
+        sb.append("<|im_start|>system\n")
+        sb.append(systemPrompt.ifBlank { defaultSystemPrompt() })
+        sb.append("\n<|im_end|>\n")
+
+        for (msg in chatHistory.takeLast(maxHistory)) {
+            when (msg.role) {
+                "user" -> {
+                    sb.append("<|im_start|>user\n")
+                    sb.append(msg.content)
+                    sb.append("\n<|im_end|>\n")
+                }
+                "assistant" -> {
+                    sb.append("<|im_start|>assistant\n")
+                    sb.append(msg.content)
+                    sb.append("\n<|im_end|>\n")
+                }
+            }
+        }
+
+        sb.append("<|im_start|>assistant\n")
+        return sb.toString()
+    }
+
+    /**
+     * LLaMA-3 / Meta format — <|begin_of_text|> + header tokens.
+     */
+    private fun buildLlamaPrompt(systemPrompt: String): String {
         val sb = StringBuilder()
         sb.append("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n")
         sb.append(systemPrompt.ifBlank { defaultSystemPrompt() })
@@ -254,17 +343,17 @@ class LlamaManager(private val context: Context) {
         return sb.toString()
     }
 
-    private fun adjustContextForGemma(): Int {
-        return minOf(maxHistory, 8)
-    }
+    private fun adjustContextForGemma(): Int = minOf(maxHistory, 8)
 
-    private fun estimateTokens(text: String): Int =
-        (text.length / 4).coerceAtLeast(1)
+    private fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
 
     private fun warmup() {
         scope.launch {
             runCatching {
-                LlamaNative.generateResponse("AIRI warmup. Reply with one short token.")
+                LlamaNative.generateResponse("Hi")
+                Log.d(TAG, "Warmup complete")
+            }.onFailure { e ->
+                Log.w(TAG, "Warmup failed (non-critical): ${e.message}")
             }
         }
     }

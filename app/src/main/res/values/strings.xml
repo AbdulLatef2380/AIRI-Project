@@ -183,4 +183,80 @@
     <string name="paywall_limit_message">You reached your limit. Upgrade to continue.</string>
     <!-- Usage limit -->
     <string name="usage_limit_reached">You reached your limit. Upgrade to continue.</string>
+    <!-- Subscription section -->
+    <string name="subscription">Subscription</string>
+    <string name="plan_premium">Premium</string>
+    <string name="plan_free_tier">Free Tier</string>
+    <string name="plan_premium_description">Unlimited access to all features</string>
+    <string name="plan_free_description">30 messages / 10 agents / 5 skills per day</string>
+    <string name="plan_badge_active">✓ Active</string>
+    <string name="plan_badge_free">Free</string>
+    <string name="today_usage">Today\'s Usage</string>
+    <string name="usage_messages">Messages</string>
+    <string name="usage_agent_runs">Agent runs</string>
+    <string name="usage_skill_uses">Skill uses</string>
+    <string name="upgrade_premium_price">Upgrade to Premium — $4.99/mo</string>
+    <!-- Default assistant section -->
+    <string name="default_assistant">Default Assistant</string>
+    <string name="default_assistant_description">Set AIRI as your device\'s default assistant so it activates when you hold the home button.</string>
+    <string name="airi_is_default">AIRI is your default assistant</string>
+    <string name="airi_not_default">AIRI is not the default assistant on this device.</string>
+    <string name="set_as_default_assistant">Set as Default Assistant</string>
+    <string name="open_assistant_settings">Open Assistant Settings</string>
+    <!-- Observability section -->
+    <string name="observability">Observability</string>
+    <string name="observability_description">Real-time event log for all agent, skill, auth, and policy executions.</string>
+    <string name="execution_history">Execution History</string>
+    <string name="execution_history_description">View live events, policy checks, and agent traces</string>
+    <!-- Agent section -->
+    <string name="agent_logs">Agent Logs</string>
+    <string name="agent_logs_description">View execution history and traces</string>
+    <string name="agent_control">Agent Control</string>
+    <string name="agent_control_description">Manage skills, tools, and debug mode</string>
+    <string name="last_run">Last Run</string>
+    <!-- Model per-card settings dialog -->
+    <string name="model_name_label">Model Name</string>
+    <string name="bos_token">BOS Token</string>
+    <string name="eos_token">EOS Token</string>
+    <string name="add_generation_prompt">Add Generation Prompt</string>
+    <string name="template_editor">Template Editor</string>
+    <string name="leave_blank_for_default">Leave blank for default</string>
+    <string name="stop_words">Stop Words</string>
+    <string name="add_stop_word">Add stop word</string>
+    <string name="settings_saved">Settings saved!</string>
+    <!-- Add model sheet -->
+    <string name="add_model">Add Model</string>
+    <string name="add_local_model">Add Local Model</string>
+    <string name="import_gguf_from_storage">Import a .gguf file from device storage</string>
+    <string name="add_remote_model">Add Remote Model</string>
+    <string name="add_openai_compatible_server">Connect an OpenAI-compatible server</string>
+    <!-- Microphone permission blocked -->
+    <string name="mic_blocked_settings">Microphone blocked — enable it in Settings → App permissions</string>
+    <!-- Generation parameters -->
+    <string name="repeat_penalty">Repeat Penalty</string>
+    <string name="min_p">Min-P</string>
+    <string name="presence_penalty">Presence Penalty</string>
+    <string name="frequency_penalty">Frequency Penalty</string>
+    <string name="min_p_hint">Minimum probability floor for token selection</string>
+    <string name="presence_penalty_hint">Penalizes tokens already present in the response</string>
+    <string name="frequency_penalty_hint">Penalizes tokens based on how often they appear</string>
+    <!-- Take photo / camera -->
+    <string name="take_photo">Take photo</string>
+    <string name="photo_captured">Photo captured</string>
+    <!-- Sign in / account -->
+    <string name="sign_in">Sign In</string>
+    <string name="create_account">Create Account</string>
+    <string name="continue_with_google">Continue with Google</string>
+    <string name="continue_with_github">Continue with GitHub</string>
+    <!-- Share action -->
+    <string name="share">Share</string>
+    <!-- Remote model form -->
+    <string name="server_url">Server URL</string>
+    <string name="api_key_optional">API Key (optional)</string>
+    <string name="test_connection">Test Connection</string>
+    <string name="remote_model_warning">Using a remote model will send your messages out of device. Make sure you trust the server.</string>
+    <string name="enter_server_url_first">Enter a server URL first</string>
+    <string name="connection_success">Connection successful</string>
+    <string name="connection_failed">Connection failed</string>
+    <string name="testing_connection">Testing…</string>
 </resources>

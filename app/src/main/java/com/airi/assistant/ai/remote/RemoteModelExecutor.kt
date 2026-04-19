@@ -17,7 +17,7 @@ class RemoteModelExecutor {
         private const val TIMEOUT_MS = 15_000L
         private const val CONNECT_TIMEOUT = 5_000
         private const val READ_TIMEOUT    = 15_000
-        private const val MAX_RETRIES     = 0
+        private const val MAX_RETRIES     = 1
     }
 
     sealed class RemoteResult {

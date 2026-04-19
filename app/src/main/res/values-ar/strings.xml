@@ -161,4 +161,117 @@
     <string name="accessibility_dialog_steps">للتفعيل: انتقل إلى الإعدادات ← إمكانية الوصول ← الخدمات المثبتة ← AIRI ← تشغيل.</string>
     <string name="open_settings">فتح الإعدادات</string>
     <string name="later">لاحقًا</string>
+    <string name="display_name">الاسم المعروض</string>
+    <string name="username">اسم المستخدم</string>
+    <string name="email_read_only">البريد الإلكتروني (للقراءة فقط)</string>
+    <string name="profile_saved">تم حفظ الملف الشخصي</string>
+    <string name="edit_profile">تعديل الملف الشخصي</string>
+    <string name="report_a_problem">الإبلاغ عن مشكلة</string>
+    <string name="report_a_problem_sublabel">أرسل ملاحظة أو بلاغ عن خطأ عبر البريد الإلكتروني</string>
+    <string name="report_email_subject">تقرير خطأ AIRI — v1.0.0-alpha</string>
+    <string name="report_email_body">يرجى وصف المشكلة:\n\n\n\n--- معلومات الجهاز ---\n</string>
+    <string name="upgrade_to_premium">الترقية إلى Premium</string>
+    <string name="paywall_limit_message">لقد بلغت الحد المسموح به. قم بالترقية للمتابعة.</string>
+    <string name="usage_limit_reached">لقد بلغت الحد المسموح به. قم بالترقية للمتابعة.</string>
+    <!-- Subscription section -->
+    <string name="subscription">الاشتراك</string>
+    <string name="plan_premium">Premium</string>
+    <string name="plan_free_tier">الخطة المجانية</string>
+    <string name="plan_premium_description">وصول غير محدود لجميع الميزات</string>
+    <string name="plan_free_description">30 رسالة / 10 وكلاء / 5 مهارات يوميًا</string>
+    <string name="plan_badge_active">✓ نشط</string>
+    <string name="plan_badge_free">مجاني</string>
+    <string name="today_usage">الاستخدام اليوم</string>
+    <string name="usage_messages">الرسائل</string>
+    <string name="usage_agent_runs">تشغيل الوكيل</string>
+    <string name="usage_skill_uses">استخدام المهارات</string>
+    <string name="upgrade_premium_price">الترقية إلى Premium — 4.99$/شهر</string>
+    <!-- Default assistant section -->
+    <string name="default_assistant">المساعد الافتراضي</string>
+    <string name="default_assistant_description">عيّن AIRI مساعدًا افتراضيًا لجهازك حتى يتفعل عند الضغط المطوّل على زر الرئيسية.</string>
+    <string name="airi_is_default">AIRI هو مساعدك الافتراضي</string>
+    <string name="airi_not_default">AIRI ليس المساعد الافتراضي على هذا الجهاز.</string>
+    <string name="set_as_default_assistant">تعيين كمساعد افتراضي</string>
+    <string name="open_assistant_settings">فتح إعدادات المساعد</string>
+    <!-- Observability section -->
+    <string name="observability">المراقبة</string>
+    <string name="observability_description">سجل أحداث في الوقت الفعلي لجميع تنفيذات الوكيل والمهارات والمصادقة والسياسات.</string>
+    <string name="execution_history">سجل التنفيذ</string>
+    <string name="execution_history_description">عرض الأحداث الحية وفحوصات السياسات وتتبعات الوكيل</string>
+    <!-- Agent section -->
+    <string name="agent_logs">سجلات الوكيل</string>
+    <string name="agent_logs_description">عرض سجل التنفيذ والتتبعات</string>
+    <string name="agent_control">التحكم في الوكيل</string>
+    <string name="agent_control_description">إدارة المهارات والأدوات ووضع التصحيح</string>
+    <string name="last_run">آخر تشغيل</string>
+    <!-- Model per-card settings dialog -->
+    <string name="model_name_label">اسم النموذج</string>
+    <string name="bos_token">رمز البداية BOS</string>
+    <string name="eos_token">رمز النهاية EOS</string>
+    <string name="add_generation_prompt">إضافة موجه التوليد</string>
+    <string name="template_editor">محرر القالب</string>
+    <string name="leave_blank_for_default">اتركه فارغًا للافتراضي</string>
+    <string name="stop_words">كلمات الإيقاف</string>
+    <string name="add_stop_word">إضافة كلمة إيقاف</string>
+    <string name="settings_saved">تم حفظ الإعدادات!</string>
+    <!-- Add model sheet -->
+    <string name="add_model">إضافة نموذج</string>
+    <string name="add_local_model">إضافة نموذج محلي</string>
+    <string name="import_gguf_from_storage">استيراد ملف .gguf من تخزين الجهاز</string>
+    <string name="add_remote_model">إضافة نموذج عن بُعد</string>
+    <string name="add_openai_compatible_server">ربط خادم متوافق مع OpenAI</string>
+    <!-- Microphone permission blocked -->
+    <string name="mic_blocked_settings">الميكروفون محظور — فعّله من الإعدادات ← صلاحيات التطبيق</string>
+    <!-- Generation parameters -->
+    <string name="repeat_penalty">عقوبة التكرار</string>
+    <string name="min_p">الحد الأدنى P</string>
+    <string name="presence_penalty">عقوبة الحضور</string>
+    <string name="frequency_penalty">عقوبة التكرار المتكرر</string>
+    <string name="min_p_hint">الحد الأدنى لاحتمالية اختيار الرمز</string>
+    <string name="presence_penalty_hint">عقوبة الرموز الموجودة بالفعل في الرد</string>
+    <string name="frequency_penalty_hint">عقوبة الرموز بناءً على تكرار ظهورها</string>
+    <!-- Take photo / camera -->
+    <string name="take_photo">التقاط صورة</string>
+    <string name="photo_captured">تم التقاط الصورة</string>
+    <!-- Sign in / account -->
+    <string name="sign_in">تسجيل الدخول</string>
+    <string name="create_account">إنشاء حساب</string>
+    <string name="continue_with_google">المتابعة مع Google</string>
+    <string name="continue_with_github">المتابعة مع GitHub</string>
+    <!-- Model status chips -->
+    <string name="model_error">خطأ في النموذج</string>
+    <string name="model_ready_status">● %1$s</string>
+    <string name="model_loading_status">○ جارٍ التحميل…</string>
+    <string name="model_none_status">○ لا يوجد نموذج</string>
+    <!-- Voice -->
+    <string name="voice_recognition_ready">التعرف على الكلام جاهز</string>
+    <string name="speech_engine_value">STT النظام</string>
+    <string name="wake_word_value">Hey AIRI</string>
+    <!-- Export -->
+    <string name="export_success">تم تصدير المحادثة إلى Downloads/AIRI/</string>
+    <string name="export_failed">فشل التصدير — تحقق من صلاحيات التخزين</string>
+    <string name="download_chat_history">حفظ المحادثة الحالية كـ JSON في Downloads/AIRI/</string>
+    <string name="remove_from_display">إزالة من العرض (وليس من قاعدة البيانات)</string>
+    <string name="export_chat">تصدير المحادثة</string>
+    <!-- Theme -->
+    <string name="theme">السمة</string>
+    <string name="theme_dark">داكن</string>
+    <string name="theme_light">فاتح</string>
+    <string name="theme_system">النظام</string>
+    <!-- Performance notice -->
+    <string name="performance_notice_title">تنبيه الأداء</string>
+    <string name="performance_notice_message">تنبيه: أداء النماذج يكون أسرع وأكثر دقة باللغة الإنجليزية. استخدام لغات أخرى قد يؤدي إلى بطء في الاستجابة أو انخفاض الجودة.</string>
+    <!-- App agent -->
+    <string name="app_agent_title">وكيل AIRI</string>
+    <string name="app_agent_mode_title">وكيل AIRI • %1$s</string>
+    <string name="share">مشاركة</string>
+    <!-- Remote model form -->
+    <string name="server_url">عنوان الخادم</string>
+    <string name="api_key_optional">مفتاح API (اختياري)</string>
+    <string name="test_connection">اختبار الاتصال</string>
+    <string name="remote_model_warning">استخدام نموذج عن بُعد سيُرسل رسائلك خارج الجهاز. تأكد من ثقتك بالخادم.</string>
+    <string name="enter_server_url_first">أدخل عنوان الخادم أولًا</string>
+    <string name="connection_success">الاتصال ناجح</string>
+    <string name="connection_failed">فشل الاتصال</string>
+    <string name="testing_connection">جارٍ الاختبار…</string>
 </resources>

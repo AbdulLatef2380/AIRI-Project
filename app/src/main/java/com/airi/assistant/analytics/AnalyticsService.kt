@@ -97,6 +97,14 @@ object AnalyticsService {
         "reason" to reason
     )
 
+    fun responseGenerated(latencyMs: Long, tokensPerSec: Float, modelName: String, isFallback: Boolean) = track(
+        "response_generated",
+        "latency_ms" to latencyMs.toString(),
+        "tokens_per_sec" to "%.1f".format(tokensPerSec),
+        "model" to modelName.take(60),
+        "fallback" to isFallback.toString()
+    )
+
     // ── Limits ────────────────────────────────────────────────────────────────
 
     fun limitReached(limitType: String, used: Int, max: Int) = track(

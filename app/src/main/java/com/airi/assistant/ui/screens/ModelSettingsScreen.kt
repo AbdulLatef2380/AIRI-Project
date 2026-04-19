@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -412,12 +413,18 @@ fun CatalogCard(
     onActivate: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        tonalElevation = 3.dp,
-        shadowElevation = 3.dp
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = if (isActive) CosmicAccent.copy(alpha = 0.55f) else CosmicAccent.copy(alpha = 0.14f),
+                shape = RoundedCornerShape(20.dp)
+            ),
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFF0E1629),
+        contentColor = Color.White,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -586,12 +593,18 @@ fun ModelCard(
     var expanded by remember { mutableStateOf(false) }
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        tonalElevation = 3.dp,
-        shadowElevation = 3.dp
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = CosmicAccent.copy(alpha = 0.14f),
+                shape = RoundedCornerShape(20.dp)
+            ),
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFF0E1629),
+        contentColor = Color.White,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -611,7 +624,7 @@ fun ModelCard(
                             Icons.Outlined.Settings,
                             contentDescription = "Model settings",
                             modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            tint = Color.White.copy(alpha = 0.7f)
                         )
                     }
                 }
@@ -623,7 +636,7 @@ fun ModelCard(
                         if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                         contentDescription = if (expanded) "Collapse" else "Expand",
                         modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                        tint = Color.White.copy(alpha = 0.5f)
                     )
                 }
             }
@@ -667,17 +680,17 @@ fun ModelCard(
 
             AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f))
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
                     Text(
                         subtitle,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                        color = Color.White.copy(alpha = 0.5f)
                     )
                     metadata.forEach { tag ->
                         Text(
                             "· $tag",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.65f)
+                            color = Color.White.copy(alpha = 0.65f)
                         )
                     }
                 }
@@ -716,8 +729,12 @@ fun AdvancedGenerationSettingsDialog(
     var selectedContext by remember(maxContext) {
         mutableStateOf(prefs.getInt("gen_context_size", minOf(4096, maxContext)).coerceAtMost(maxContext))
     }
-    var topK by remember { mutableStateOf(prefs.getInt("gen_top_k", 40)) }
-    var topP by remember { mutableStateOf(prefs.getFloat("gen_top_p", 0.9f)) }
+    var topK             by remember { mutableStateOf(prefs.getInt  ("gen_top_k",             40)) }
+    var topP             by remember { mutableStateOf(prefs.getFloat("gen_top_p",             0.9f)) }
+    var repeatPenalty    by remember { mutableStateOf(prefs.getFloat("gen_repeat_penalty",    1.1f)) }
+    var minP             by remember { mutableStateOf(prefs.getFloat("gen_min_p",             0.05f)) }
+    var presencePenalty  by remember { mutableStateOf(prefs.getFloat("gen_presence_penalty",  0.0f)) }
+    var frequencyPenalty by remember { mutableStateOf(prefs.getFloat("gen_frequency_penalty", 0.0f)) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -792,6 +809,54 @@ fun AdvancedGenerationSettingsDialog(
                     onValueChange = {
                         topP = it
                         prefs.edit().putFloat("gen_top_p", topP).apply()
+                    }
+                )
+
+                SettingSlider(
+                    title = stringResource(R.string.repeat_penalty),
+                    valueLabel = "%.2f".format(repeatPenalty),
+                    value = repeatPenalty,
+                    valueRange = 1.0f..1.5f,
+                    steps = 9,
+                    onValueChange = {
+                        repeatPenalty = it
+                        prefs.edit().putFloat("gen_repeat_penalty", it).apply()
+                    }
+                )
+
+                SettingSlider(
+                    title = stringResource(R.string.min_p),
+                    valueLabel = "%.2f".format(minP),
+                    value = minP,
+                    valueRange = 0.0f..0.5f,
+                    steps = 9,
+                    onValueChange = {
+                        minP = it
+                        prefs.edit().putFloat("gen_min_p", it).apply()
+                    }
+                )
+
+                SettingSlider(
+                    title = stringResource(R.string.presence_penalty),
+                    valueLabel = "%.2f".format(presencePenalty),
+                    value = presencePenalty,
+                    valueRange = 0.0f..2.0f,
+                    steps = 7,
+                    onValueChange = {
+                        presencePenalty = it
+                        prefs.edit().putFloat("gen_presence_penalty", it).apply()
+                    }
+                )
+
+                SettingSlider(
+                    title = stringResource(R.string.frequency_penalty),
+                    valueLabel = "%.2f".format(frequencyPenalty),
+                    value = frequencyPenalty,
+                    valueRange = 0.0f..2.0f,
+                    steps = 7,
+                    onValueChange = {
+                        frequencyPenalty = it
+                        prefs.edit().putFloat("gen_frequency_penalty", it).apply()
                     }
                 )
 
@@ -948,7 +1013,7 @@ fun ModelPerCardSettingsDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                "Model Settings",
+                stringResource(R.string.model_settings),
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleMedium
             )
@@ -963,7 +1028,7 @@ fun ModelPerCardSettingsDialog(
                 OutlinedTextField(
                     value         = config.displayName.ifBlank { model.name },
                     onValueChange = { config = config.copy(displayName = it) },
-                    label         = { Text("Model Name") },
+                    label         = { Text(stringResource(R.string.model_name_label)) },
                     singleLine    = true,
                     modifier      = Modifier.fillMaxWidth()
                 )
@@ -973,7 +1038,7 @@ fun ModelPerCardSettingsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment     = Alignment.CenterVertically
                 ) {
-                    Text("BOS Token", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.bos_token), style = MaterialTheme.typography.bodyMedium)
                     Switch(
                         checked   = config.bosEnabled,
                         onCheckedChange = { config = config.copy(bosEnabled = it) }
@@ -985,7 +1050,7 @@ fun ModelPerCardSettingsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment     = Alignment.CenterVertically
                 ) {
-                    Text("EOS Token", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.eos_token), style = MaterialTheme.typography.bodyMedium)
                     Switch(
                         checked   = config.eosEnabled,
                         onCheckedChange = { config = config.copy(eosEnabled = it) }
@@ -997,7 +1062,7 @@ fun ModelPerCardSettingsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment     = Alignment.CenterVertically
                 ) {
-                    Text("Add Generation Prompt", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.add_generation_prompt), style = MaterialTheme.typography.bodyMedium)
                     Switch(
                         checked   = config.generationPromptEnabled,
                         onCheckedChange = { config = config.copy(generationPromptEnabled = it) }
@@ -1007,7 +1072,7 @@ fun ModelPerCardSettingsDialog(
                 OutlinedTextField(
                     value         = config.systemPrompt,
                     onValueChange = { config = config.copy(systemPrompt = it) },
-                    label         = { Text("System Prompt") },
+                    label         = { Text(stringResource(R.string.system_prompt)) },
                     minLines      = 2,
                     maxLines      = 5,
                     modifier      = Modifier.fillMaxWidth()
@@ -1016,15 +1081,15 @@ fun ModelPerCardSettingsDialog(
                 OutlinedTextField(
                     value         = config.template,
                     onValueChange = { config = config.copy(template = it) },
-                    label         = { Text("Template Editor") },
-                    placeholder   = { Text("Leave blank for default", style = MaterialTheme.typography.labelSmall) },
+                    label         = { Text(stringResource(R.string.template_editor)) },
+                    placeholder   = { Text(stringResource(R.string.leave_blank_for_default), style = MaterialTheme.typography.labelSmall) },
                     minLines      = 2,
                     maxLines      = 4,
                     modifier      = Modifier.fillMaxWidth()
                 )
 
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Stop Words", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.stop_words), style = MaterialTheme.typography.labelLarge)
                     if (config.stopWords.isNotEmpty()) {
                         Row(
                             modifier = Modifier.horizontalScroll(rememberScrollState()),
@@ -1048,7 +1113,7 @@ fun ModelPerCardSettingsDialog(
                         OutlinedTextField(
                             value         = stopWordInput,
                             onValueChange = { stopWordInput = it },
-                            label         = { Text("Add stop word") },
+                            label         = { Text(stringResource(R.string.add_stop_word)) },
                             singleLine    = true,
                             modifier      = Modifier.weight(1f)
                         )
@@ -1068,7 +1133,7 @@ fun ModelPerCardSettingsDialog(
 
                 if (saved) {
                     Text(
-                        "Settings saved!",
+                        stringResource(R.string.settings_saved),
                         color = CosmicAccent,
                         style = MaterialTheme.typography.labelMedium
                     )
@@ -1080,10 +1145,10 @@ fun ModelPerCardSettingsDialog(
                 configManager.saveConfig(config)
                 saved = true
                 AnalyticsService.featureDiscovered("model_per_card_settings_saved")
-            }) { Text("Save") }
+            }) { Text(stringResource(R.string.save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
@@ -1106,7 +1171,7 @@ fun AddModelBottomSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "Add Model",
+                stringResource(R.string.add_model),
                 fontWeight = FontWeight.Bold,
                 style      = MaterialTheme.typography.titleLarge
             )
@@ -1116,7 +1181,7 @@ fun AddModelBottomSheet(
                 Surface(
                     onClick    = onPickLocal,
                     shape      = RoundedCornerShape(14.dp),
-                    color      = MaterialTheme.colorScheme.primaryContainer,
+                    color      = Color(0xFF0E1629),
                     modifier   = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -1126,11 +1191,11 @@ fun AddModelBottomSheet(
                     ) {
                         Icon(Icons.Outlined.FolderOpen, contentDescription = null, tint = CosmicAccent)
                         Column {
-                            Text("Add Local Model", fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.add_local_model), fontWeight = FontWeight.Bold)
                             Text(
-                                "Import a .gguf file from device storage",
+                                stringResource(R.string.import_gguf_from_storage),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+                                color = Color.White.copy(alpha = 0.6f)
                             )
                         }
                     }
@@ -1149,9 +1214,9 @@ fun AddModelBottomSheet(
                     ) {
                         Icon(Icons.Outlined.Cloud, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
                         Column {
-                            Text("Add Remote Model", fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.add_remote_model), fontWeight = FontWeight.Bold)
                             Text(
-                                "Connect to an OpenAI-compatible API server",
+                                stringResource(R.string.add_openai_compatible_server),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
                             )
@@ -1191,7 +1256,7 @@ private fun AddRemoteModelContent(
             Row(modifier = Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Outlined.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
                 Text(
-                    "Using a remote model will send your messages out of device. Make sure you trust the server.",
+                    stringResource(R.string.remote_model_warning),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
@@ -1201,7 +1266,7 @@ private fun AddRemoteModelContent(
         OutlinedTextField(
             value         = modelName,
             onValueChange = { modelName = it },
-            label         = { Text("Model Name") },
+            label         = { Text(stringResource(R.string.model_name_label)) },
             singleLine    = true,
             modifier      = Modifier.fillMaxWidth()
         )
@@ -1209,7 +1274,7 @@ private fun AddRemoteModelContent(
         OutlinedTextField(
             value         = serverUrl,
             onValueChange = { serverUrl = it; testStatus = null },
-            label         = { Text("Server URL") },
+            label         = { Text(stringResource(R.string.server_url)) },
             placeholder   = { Text("http://your-server:8080") },
             singleLine    = true,
             modifier      = Modifier.fillMaxWidth()
@@ -1218,20 +1283,24 @@ private fun AddRemoteModelContent(
         OutlinedTextField(
             value         = apiKey,
             onValueChange = { apiKey = it },
-            label         = { Text("API Key (optional)") },
+            label         = { Text(stringResource(R.string.api_key_optional)) },
             singleLine    = true,
             modifier      = Modifier.fillMaxWidth()
         )
 
+        val connectionOk    = stringResource(R.string.connection_success)
+        val connectionFail  = stringResource(R.string.connection_failed)
+        val enterUrlFirst   = stringResource(R.string.enter_server_url_first)
+
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
                 onClick = {
-                    if (serverUrl.isBlank()) { testStatus = "Enter a server URL first"; return@OutlinedButton }
+                    if (serverUrl.isBlank()) { testStatus = enterUrlFirst; return@OutlinedButton }
                     isTesting = true; testStatus = null
                     scope.launch {
                         val ok = executor.testConnection(RemoteModel(id = "test", name = "test", serverUrl = serverUrl, apiKey = apiKey))
                         isTesting   = false
-                        testStatus  = if (ok) "Connection successful!" else "Connection failed. Check URL and server."
+                        testStatus  = if (ok) connectionOk else connectionFail
                     }
                 },
                 enabled = !isTesting && serverUrl.isNotBlank()
@@ -1240,20 +1309,20 @@ private fun AddRemoteModelContent(
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(6.dp))
                 }
-                Text("Test Connection")
+                Text(stringResource(R.string.test_connection))
             }
         }
 
         testStatus?.let { msg ->
             Text(
                 msg,
-                color  = if (msg.contains("success", true)) CosmicAccent else MaterialTheme.colorScheme.error,
+                color  = if (msg.contains("success", true) || msg.contains("ناجح", true)) CosmicAccent else MaterialTheme.colorScheme.error,
                 style  = MaterialTheme.typography.labelMedium
             )
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text("Back") }
+            OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.back)) }
             Button(
                 onClick = {
                     if (serverUrl.isBlank()) return@Button
@@ -1269,7 +1338,7 @@ private fun AddRemoteModelContent(
                 },
                 enabled = serverUrl.isNotBlank(),
                 modifier = Modifier.weight(1f)
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.save)) }
         }
     }
 }

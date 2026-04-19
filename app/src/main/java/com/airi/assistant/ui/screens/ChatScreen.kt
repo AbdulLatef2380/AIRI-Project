@@ -56,7 +56,7 @@ import com.airi.assistant.ui.viewmodel.ModelUiState
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
-enum class MicState { IDLE, LISTENING }
+enum class MicState { IDLE, LISTENING, PROCESSING }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -132,8 +132,10 @@ fun ChatScreen(
     val micPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
             micState = MicState.LISTENING
+            val locale = java.util.Locale.getDefault().toLanguageTag()
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
                 putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
             }
             speechLauncher.launch(intent)
@@ -144,7 +146,7 @@ fun ChatScreen(
             scope.launch {
                 snackbarHost.showSnackbar(
                     if (isPermanentlyDenied)
-                        "Microphone blocked — enable it in Settings → App permissions"
+                        context.getString(R.string.mic_blocked_settings)
                     else
                         context.getString(R.string.microphone_permission_required)
                 )
@@ -154,21 +156,29 @@ fun ChatScreen(
 
     // Voice chat: fills text field AND auto-sends
     val voiceChatLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        micState = MicState.IDLE
         if (result.resultCode == Activity.RESULT_OK) {
             val spoken = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
                 ?.firstOrNull()
                 .orEmpty()
-            if (spoken.isNotBlank()) voiceChatInput = spoken
+            if (spoken.isNotBlank()) {
+                micState = MicState.PROCESSING
+                voiceChatInput = spoken
+            } else {
+                micState = MicState.IDLE
+            }
+        } else {
+            micState = MicState.IDLE
         }
     }
 
     val voiceChatPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
             micState = MicState.LISTENING
+            val locale = java.util.Locale.getDefault().toLanguageTag()
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
                 putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
             }
             voiceChatLauncher.launch(intent)
@@ -183,11 +193,14 @@ fun ChatScreen(
         VoiceManager(context, object : VoiceManager.VoiceListener {
             override fun onWakeWordDetected() {}
             override fun onSpeechResult(text: String) {}
-            override fun onError(error: String) {}
+            override fun onError(error: String) {
+                scope.launch { snackbarHost.showSnackbar("Voice error: $error") }
+            }
         })
     }
     DisposableEffect(Unit) { onDispose { voiceManager.destroy() } }
 
+    val voicePrefs = remember { context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE) }
     var speakNextResponse by rememberSaveable { mutableStateOf(false) }
     var lastSpokenMsgId   by rememberSaveable { mutableStateOf(-1L) }
 
@@ -195,8 +208,9 @@ fun ChatScreen(
         val input = voiceChatInput
         if (input.isNotBlank() && modelState.isModelReady && !agentState.isWorking) {
             voiceChatInput = ""
+            micState = MicState.IDLE
             viewModel.sendMessage(input)
-            speakNextResponse = true
+            if (voicePrefs.getBoolean("voice_enabled", false)) speakNextResponse = true
         }
     }
 
@@ -282,6 +296,7 @@ fun ChatScreen(
                     onAttachClick   = { showAttachSheet = true },
                     micState        = micState,
                     onMicClick      = {
+                        val locale = java.util.Locale.getDefault().toLanguageTag()
                         when {
                             !SpeechRecognizer.isRecognitionAvailable(context) -> {
                                 scope.launch { snackbarHost.showSnackbar(context.getString(R.string.speech_recognition_unavailable)) }
@@ -290,6 +305,7 @@ fun ChatScreen(
                                 micState = MicState.LISTENING
                                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
                                     putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
                                 }
                                 speechLauncher.launch(intent)
@@ -298,6 +314,7 @@ fun ChatScreen(
                         }
                     },
                     onVoiceChatClick = {
+                        val locale = java.util.Locale.getDefault().toLanguageTag()
                         when {
                             !SpeechRecognizer.isRecognitionAvailable(context) -> {
                                 scope.launch { snackbarHost.showSnackbar(context.getString(R.string.speech_recognition_unavailable)) }
@@ -306,6 +323,7 @@ fun ChatScreen(
                                 micState = MicState.LISTENING
                                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
                                     putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
                                 }
                                 voiceChatLauncher.launch(intent)
@@ -746,7 +764,7 @@ fun AiBubble(text: String, agentTag: String? = null, traceId: String? = null, on
             ) {
                 Icon(Icons.Outlined.Share, contentDescription = null, tint = CosmicAccent.copy(alpha = 0.72f), modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("Share", color = CosmicAccent.copy(alpha = 0.72f), fontSize = 11.sp)
+                Text(stringResource(R.string.share), color = CosmicAccent.copy(alpha = 0.72f), fontSize = 11.sp)
             }
         }
     }
@@ -811,7 +829,7 @@ fun ChatInputBar(
 
     val micPulse = remember { androidx.compose.animation.core.Animatable(1f) }
     LaunchedEffect(micState) {
-        if (micState == MicState.LISTENING) {
+        if (micState == MicState.LISTENING || micState == MicState.PROCESSING) {
             while (true) {
                 micPulse.animateTo(1.25f, animationSpec = androidx.compose.animation.core.tween(500))
                 micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(500))
@@ -834,9 +852,9 @@ fun ChatInputBar(
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
 
-            // Listening indicator
+            // Listening/Processing indicator
             androidx.compose.animation.AnimatedVisibility(
-                visible = micState == MicState.LISTENING,
+                visible = micState == MicState.LISTENING || micState == MicState.PROCESSING,
                 enter = androidx.compose.animation.fadeIn(
                     animationSpec = androidx.compose.animation.core.tween(150)
                 ) + androidx.compose.animation.expandVertically(
@@ -860,8 +878,8 @@ fun ChatInputBar(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        "Listening…",
-                        color = Color(0xFFFF6666),
+                        if (micState == MicState.PROCESSING) "Processing…" else "Listening…",
+                        color = if (micState == MicState.PROCESSING) CosmicAccent else Color(0xFFFF6666),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -939,21 +957,23 @@ fun ChatInputBar(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier.size(36.dp)
                     ) {
-                        if (micState == MicState.LISTENING) {
+                        if (micState == MicState.LISTENING || micState == MicState.PROCESSING) {
+                            val pulseColor = if (micState == MicState.PROCESSING) CosmicAccent else Color(0xFFFF4444)
                             Box(
                                 modifier = Modifier
                                     .size((28 * micPulse.value).dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFFFF4444).copy(alpha = 0.18f))
+                                    .background(pulseColor.copy(alpha = 0.18f))
                             )
                         }
                         Icon(
                             Icons.Outlined.Mic,
                             contentDescription = stringResource(R.string.voice_input),
-                            tint = if (micState == MicState.LISTENING)
-                                Color(0xFFFF4444)
-                            else
-                                Color.White.copy(alpha = 0.5f),
+                            tint = when (micState) {
+                                MicState.LISTENING -> Color(0xFFFF4444)
+                                MicState.PROCESSING -> CosmicAccent
+                                MicState.IDLE -> Color.White.copy(alpha = 0.5f)
+                            },
                             modifier = Modifier.size(22.dp)
                         )
                     }

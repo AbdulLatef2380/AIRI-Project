@@ -71,7 +71,8 @@ fun SettingsScreen(
     var customInstructions by rememberSaveable { mutableStateOf(systemPrompt) }
     var responseStyle by rememberSaveable { mutableStateOf(responseStyleState) }
     var themeMode by rememberSaveable { mutableStateOf(themeModeState) }
-    var voiceEnabled by rememberSaveable { mutableStateOf(false) }
+    val voicePrefs = remember { context.getSharedPreferences("airi_voice", Context.MODE_PRIVATE) }
+    var voiceEnabled by rememberSaveable { mutableStateOf(voicePrefs.getBoolean("voice_enabled", false)) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var pendingLanguage by remember { mutableStateOf<LanguageOption?>(null) }
 
@@ -278,6 +279,7 @@ fun SettingsScreen(
                 Spacer(Modifier.height(8.dp))
                 SettingsSwitchRow(stringResource(R.string.enable_voice_mode), voiceEnabled) { enabled ->
                     voiceEnabled = enabled
+                    voicePrefs.edit().putBoolean("voice_enabled", enabled).apply()
                 }
                 if (voiceEnabled) {
                     Spacer(Modifier.height(4.dp))
@@ -761,7 +763,7 @@ private fun AgentSection(
             )
         }
         HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
-        SettingsInfoRow(label = "Last Run", value = lastRunFormatted)
+        SettingsInfoRow(label = stringResource(R.string.last_run), value = lastRunFormatted)
         if (!lastSummary.isNullOrBlank()) {
             Spacer(Modifier.height(4.dp))
             Text(
@@ -773,13 +775,13 @@ private fun AgentSection(
         }
         HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
         SettingsNavigationRow(
-            label    = "Agent Logs",
-            sublabel = "View execution history and traces",
+            label    = stringResource(R.string.agent_logs),
+            sublabel = stringResource(R.string.agent_logs_description),
             onClick  = { onNavigate(AiriRoute.AGENT_LOGS) }
         )
         SettingsNavigationRow(
-            label    = "Agent Control",
-            sublabel = "Manage skills, tools, and debug mode",
+            label    = stringResource(R.string.agent_control),
+            sublabel = stringResource(R.string.agent_control_description),
             onClick  = { onNavigate(AiriRoute.AGENT_CONTROL) }
         )
     }
@@ -796,7 +798,7 @@ private fun SubscriptionSection(
     SettingsSurface {
         SettingsCategoryHeader(
             icon  = Icons.Outlined.Star,
-            title = "Subscription"
+            title = stringResource(R.string.subscription)
         )
         Spacer(Modifier.height(8.dp))
 
@@ -807,13 +809,13 @@ private fun SubscriptionSection(
         ) {
             Column {
                 Text(
-                    text       = if (isPremium) "Premium" else "Free Tier",
+                    text       = if (isPremium) stringResource(R.string.plan_premium) else stringResource(R.string.plan_free_tier),
                     color      = if (isPremium) CosmicAccent else Color.White.copy(alpha = 0.75f),
                     fontWeight = FontWeight.Bold,
                     fontSize   = 15.sp
                 )
                 Text(
-                    text     = if (isPremium) "Unlimited access to all features" else "30 messages / 10 agents / 5 skills per day",
+                    text     = if (isPremium) stringResource(R.string.plan_premium_description) else stringResource(R.string.plan_free_description),
                     color    = Color.White.copy(alpha = 0.42f),
                     fontSize = 11.sp
                 )
@@ -827,7 +829,7 @@ private fun SubscriptionSection(
                 )
             ) {
                 Text(
-                    text     = if (isPremium) "✓ Active" else "Free",
+                    text     = if (isPremium) stringResource(R.string.plan_badge_active) else stringResource(R.string.plan_badge_free),
                     color    = if (isPremium) CosmicAccent else Color.White.copy(alpha = 0.5f),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -838,13 +840,13 @@ private fun SubscriptionSection(
 
         HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
 
-        Text("Today's Usage", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.today_usage), color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
 
         val limit = if (isPremium) "∞" else null
-        SettingsInfoRow("Messages",  "${summary.messagesUsed} / ${limit ?: summary.messagesLimit}")
-        SettingsInfoRow("Agent runs","${summary.agentsUsed} / ${limit ?: summary.agentsLimit}")
-        SettingsInfoRow("Skill uses","${summary.skillsUsed} / ${limit ?: summary.skillsLimit}")
+        SettingsInfoRow(stringResource(R.string.usage_messages),  "${summary.messagesUsed} / ${limit ?: summary.messagesLimit}")
+        SettingsInfoRow(stringResource(R.string.usage_agent_runs),"${summary.agentsUsed} / ${limit ?: summary.agentsLimit}")
+        SettingsInfoRow(stringResource(R.string.usage_skill_uses),"${summary.skillsUsed} / ${limit ?: summary.skillsLimit}")
 
         if (!isPremium) {
             HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
@@ -856,7 +858,7 @@ private fun SubscriptionSection(
             ) {
                 Icon(Icons.Outlined.Star, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Upgrade to Premium — \$4.99/mo", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(stringResource(R.string.upgrade_premium_price), fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
         }
     }
@@ -870,11 +872,11 @@ private fun DefaultAssistantSection(activity: Activity?) {
     SettingsSurface {
         SettingsCategoryHeader(
             icon  = Icons.Outlined.Assistant,
-            title = "Default Assistant"
+            title = stringResource(R.string.default_assistant)
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text     = "Set AIRI as your device's default assistant so it activates when you hold the home button.",
+            text     = stringResource(R.string.default_assistant_description),
             fontSize = 11.sp,
             color    = Color.White.copy(alpha = 0.38f),
             lineHeight = 16.sp
@@ -890,12 +892,12 @@ private fun DefaultAssistantSection(activity: Activity?) {
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(Modifier.width(6.dp))
-                Text("AIRI is your default assistant", color = CosmicAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.airi_is_default), color = CosmicAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text     = "AIRI is not the default assistant on this device.",
+                    text     = stringResource(R.string.airi_not_default),
                     color    = Color(0xFFFF9800).copy(alpha = 0.85f),
                     fontSize = 12.sp
                 )
@@ -911,13 +913,13 @@ private fun DefaultAssistantSection(activity: Activity?) {
                     shape    = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Set as Default Assistant", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(stringResource(R.string.set_as_default_assistant), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
                 TextButton(
                     onClick  = { DefaultAssistantManager.openAssistantSettings(context) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Open Assistant Settings", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                    Text(stringResource(R.string.open_assistant_settings), color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
                 }
             }
         }
@@ -929,18 +931,18 @@ private fun ObservabilitySection(onNavigate: (String) -> Unit) {
     SettingsSurface {
         SettingsCategoryHeader(
             icon  = Icons.Outlined.Timeline,
-            title = "Observability"
+            title = stringResource(R.string.observability)
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text     = "Real-time event log for all agent, skill, auth, and policy executions.",
+            text     = stringResource(R.string.observability_description),
             fontSize = 11.sp,
             color    = Color.White.copy(alpha = 0.38f)
         )
         HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
         SettingsNavigationRow(
-            label    = "Execution History",
-            sublabel = "View live events, policy checks, and agent traces",
+            label    = stringResource(R.string.execution_history),
+            sublabel = stringResource(R.string.execution_history_description),
             onClick  = { onNavigate(AiriRoute.OBSERVABILITY) }
         )
     }

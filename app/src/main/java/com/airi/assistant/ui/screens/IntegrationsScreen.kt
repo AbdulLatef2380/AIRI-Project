@@ -247,20 +247,17 @@ private fun IntegrationCard(
                     else       -> null
                 }
                 Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.08f)),
+                    modifier = Modifier.size(44.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     if (iconResId != null) {
                         Image(
                             painter = painterResource(id = iconResId),
                             contentDescription = item.name,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     } else {
-                        Text(item.emoji, fontSize = 22.sp)
+                        Text(item.emoji, fontSize = 24.sp)
                     }
                 }
                 Spacer(Modifier.width(12.dp))

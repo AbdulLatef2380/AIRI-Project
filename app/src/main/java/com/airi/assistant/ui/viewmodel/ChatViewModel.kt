@@ -370,8 +370,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // Soft paywall trigger — after threshold messages, show upgrade prompt post-send
             val triggerPaywallAfterSend = PaywallTriggerEngine.onMessageSent(subscriptionManager.isPremium())
             _messages.update { it + ChatMessage(trimmedInput, true, userMessage.id) }
-            _agentState.value = AgentState(isWorking = true, currentAction = "Thinking...")
-            _streamingText.value = "Thinking..."
+            _agentState.value = AgentState(isWorking = true, currentAction = "Analyzing...")
+            _streamingText.value = "Analyzing..."
+
+            var thinkingJob: kotlinx.coroutines.Job? = viewModelScope.launch {
+                kotlinx.coroutines.delay(700)
+                if (_streamingText.value == "Analyzing...") {
+                    _streamingText.value = "Planning..."
+                    _agentState.update { it.copy(currentAction = "Planning...") }
+                }
+                kotlinx.coroutines.delay(800)
+                if (_streamingText.value == "Planning...") {
+                    _streamingText.value = "Generating..."
+                    _agentState.update { it.copy(currentAction = "Generating...") }
+                }
+            }
 
             // ── Delegate to AgentService (goes through PolicyEngine + pipeline) ──
             val simpleQuery = promptService.isSimpleQuery(trimmedInput)
@@ -383,6 +396,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
             when {
                 agentServiceResult.errorMessage != null -> {
+                    thinkingJob?.cancel(); thinkingJob = null
                     val errMsg = memoryManager.recordChatMessage(
                         sessionId, "assistant", agentServiceResult.errorMessage
                     )
@@ -395,6 +409,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 agentServiceResult.agentResult != null -> {
+                    thinkingJob?.cancel(); thinkingJob = null
                     val agentResult = agentServiceResult.agentResult
                     val responseText = if (agentResult.success) agentResult.text
                                        else agentResult.text.ifBlank { "Agent action failed. Please try again." }
@@ -441,8 +456,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val deviceWeak = isDeviceWeak()
             val remote = RemoteModelRegistry.getActive()
             val systemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode)
+            val uiPrefs = appContext.getSharedPreferences("airi_ui_state", android.content.Context.MODE_PRIVATE)
+            val repeatPenalty    = uiPrefs.getFloat("gen_repeat_penalty",    1.1f)
+            val topK             = uiPrefs.getInt  ("gen_top_k",             40)
+            val topP             = uiPrefs.getFloat("gen_top_p",             0.9f)
+            val minP             = uiPrefs.getFloat("gen_min_p",             0.05f)
+            val presencePenalty  = uiPrefs.getFloat("gen_presence_penalty",  0.0f)
+            val frequencyPenalty = uiPrefs.getFloat("gen_frequency_penalty", 0.0f)
             val finish: suspend (String, Long, Int) -> Unit = { fullResponse, elapsedMs, tokens ->
                 recordGenerationStats(elapsedMs, tokens)
+                val tps = if (elapsedMs > 0) tokens * 1000f / elapsedMs.coerceAtLeast(1) else 0f
+                AnalyticsService.responseGenerated(elapsedMs, tps, _modelState.value.selectedModelName, false)
                 if (fullResponse.isNotBlank()) {
                     val wasToolCall = handleToolIfNeeded(fullResponse, sessionId)
                     if (!wasToolCall) {
@@ -462,6 +486,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             if (deviceWeak && remote != null) {
+                thinkingJob?.cancel()
+                thinkingJob = null
                 streamRemoteResponse(remote, trimmedInput, systemPrompt, perfMode, streamStart, finish)
             } else {
                 llamaManager.generateStream(
@@ -469,11 +495,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     systemPrompt = systemPrompt,
                     maxTokens = perfMode.maxTokens,
                     temperature = perfMode.temperature,
+                    repeatPenalty = repeatPenalty,
+                    topK = topK,
+                    topP = topP,
+                    minP = minP,
+                    presencePenalty = presencePenalty,
+                    frequencyPenalty = frequencyPenalty,
                     timeoutMs = 15_000L,
-                    onToken = { token ->
-                        tokenCount++
+                    onToken = { tokenBatch ->
+                        thinkingJob?.cancel()
+                        thinkingJob = null
+                        tokenCount += tokenBatch.length / 4 + 1
+                        val thinkingStages = setOf("Thinking...", "Analyzing...", "Planning...", "Generating...")
                         _streamingText.update { current ->
-                            if (current == "Thinking...") token else current + token
+                            if (current in thinkingStages) tokenBatch else current + tokenBatch
                         }
                     },
                     onComplete = { fullResponse ->
@@ -483,9 +518,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     },
                     onError = {
                         viewModelScope.launch {
+                            thinkingJob?.cancel()
+                            thinkingJob = null
                             val fallbackRemote = RemoteModelRegistry.getActive()
                             if (fallbackRemote != null) {
-                                _streamingText.value = "Thinking..."
+                                _streamingText.value = "Analyzing..."
                                 streamRemoteResponse(fallbackRemote, trimmedInput, systemPrompt, perfMode, streamStart, finish)
                             } else {
                                 val fallback = "تعذر توليد الرد بسرعة. جرّب Fast Mode أو Remote Model."
@@ -589,8 +626,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             onToken = { token ->
                 tokenCount++
                 withContext(Dispatchers.Main) {
+                    val stages = setOf("Thinking...", "Analyzing...", "Planning...", "Generating...")
                     _streamingText.update { current ->
-                        if (current == "Thinking...") token else current + token
+                        if (current in stages) token else current + token
                     }
                     delay(0)
                 }

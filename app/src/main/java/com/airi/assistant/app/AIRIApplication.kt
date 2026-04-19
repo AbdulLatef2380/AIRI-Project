@@ -12,8 +12,13 @@ import com.airi.assistant.domain.logging.LoggingService
 import com.airi.assistant.domain.monetization.PaywallTriggerEngine
 import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.memory.AiriDatabase
+import com.airi.assistant.system.LanguageManager
 
 class AIRIApplication : Application() {
+
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(LanguageManager.applyLocale(base))
+    }
 
     companion object {
         private const val TAG = "AIRIApplication"

@@ -113,6 +113,7 @@ fun DebugScreen(onBack: () -> Unit) {
             MetricRow("Query Type",    runtime.lastQueryType)
             MetricRow("First Token",   if (runtime.firstTokenMs == 0L) "-" else "${runtime.firstTokenMs} ms")
             MetricRow("Total Latency", if (runtime.totalLatencyMs == 0L) "-" else "${runtime.totalLatencyMs} ms")
+            MetricRow("P50 / P90",     "${runtime.p50LatencyMs} / ${runtime.p90LatencyMs} ms")
             MetricRow("Tokens/sec",    if (runtime.tokensPerSecond == 0f) "-" else "%.1f".format(runtime.tokensPerSecond))
             BoolRow("Fast Path",   runtime.fastPath,  positiveColor = GREEN)
             BoolRow("Was Cut",     runtime.wasCut,    positiveColor = RED)

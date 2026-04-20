@@ -121,6 +121,8 @@ data class DebugState(
     val lastModelName: String     = "-",
     val lastFirstTokenMs: Long    = -1L,
     val lastTotalLatencyMs: Long  = -1L,
+    val p50LatencyMs: Long        = -1L,
+    val p90LatencyMs: Long        = -1L,
     val lastTokensPerSec: Float   = 0f,
     val lastIsFastPath: Boolean   = false,
     val lastWasCut: Boolean       = false,
@@ -489,15 +491,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         queryType = queryType.name
                     )
                 )
+                val fastP50 = com.airi.assistant.domain.verification.VerificationTracker.p50LatencyMs()
+                val fastP90 = com.airi.assistant.domain.verification.VerificationTracker.p90LatencyMs()
                 com.airi.assistant.core.debug.RuntimeStore.update {
                     copy(fastPath = true, wasCut = false, totalLatencyMs = fastLatency,
-                         lastQueryType = queryType.name)
+                         lastQueryType = queryType.name, p50LatencyMs = fastP50, p90LatencyMs = fastP90)
                 }
                 _debugState.update { it.copy(
                     lastIsFastPath      = true,
                     lastWasCut          = false,
                     lastFirstTokenMs    = 0L,
                     lastTotalLatencyMs  = fastLatency,
+                    p50LatencyMs        = fastP50,
+                    p90LatencyMs        = fastP90,
                     lastTokensPerSec    = 0f,
                     lastModelName       = "fast-table"
                 )}
@@ -638,7 +644,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             Log.d("AIRI_PERF", "AdaptiveTokens: requested=${perfMode.maxTokens} clamped=$adaptiveMaxTokens availRAM=${availableRamMb}MB")
 
             // ── Dynamic generation control — adjust per intent type ───────────────
-            val genConfig = ResponseOptimizer.adjustGeneration(queryType, adaptiveMaxTokens)
+            val recentP90 = com.airi.assistant.domain.verification.VerificationTracker.p90LatencyMs()
+            val genConfig = ResponseOptimizer.adaptiveGeneration(
+                queryType = queryType,
+                ramCappedMaxTokens = adaptiveMaxTokens,
+                recentP90Ms = recentP90,
+                isPremium = subscriptionManager.isPremium()
+            )
             // ── Input-size driven token cap — short inputs need short answers ─────
             val inputSizeCapped = ResponseOptimizer.inputSizeTokenCap(trimmedInput.length, genConfig.maxTokens)
             // ── Phase 1 — Soft token cap for free users in degradation zone ───────
@@ -679,9 +691,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         queryType = queryType.name
                     )
                 )
+                val p50 = com.airi.assistant.domain.verification.VerificationTracker.p50LatencyMs()
+                val p90 = com.airi.assistant.domain.verification.VerificationTracker.p90LatencyMs()
                 com.airi.assistant.core.debug.RuntimeStore.update {
                     copy(
                         totalLatencyMs = elapsedMs,
+                        p50LatencyMs = p50,
+                        p90LatencyMs = p90,
                         tokensPerSecond = tps,
                         fastPath = false,
                         wasCut   = wasCutNow
@@ -689,6 +705,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 _debugState.update { it.copy(
                     lastTotalLatencyMs = elapsedMs,
+                    p50LatencyMs       = p50,
+                    p90LatencyMs       = p90,
                     lastTokensPerSec   = tps
                 )}
                 AnalyticsService.responseGenerated(elapsedMs, tps, _modelState.value.selectedModelName, false)
@@ -718,6 +736,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _upgradePrompt.value = UpgradePrompt(
                             message = PaywallTriggerEngine.getPaywallMessage(PaywallTriggerEngine.TriggerReason.SpeedUpsell),
                             source = PaywallTriggerEngine.TriggerReason.SpeedUpsell.source
+                        )
+                    }
+
+                    val cutLevel = if (wasCutNow) PaywallTriggerEngine.onResponseCut(subscriptionManager.isPremium()) else UpsellLevel.NONE
+                    if (cutLevel != UpsellLevel.NONE && !_paywallTrigger.value) {
+                        _upgradePrompt.value = UpgradePrompt(
+                            message = PaywallTriggerEngine.getPaywallMessage(PaywallTriggerEngine.TriggerReason.ResponseCut),
+                            source = PaywallTriggerEngine.TriggerReason.ResponseCut.source
+                        )
+                    }
+
+                    val powerLevel = PaywallTriggerEngine.onPowerUser(PaywallTriggerEngine.getTotalMessages(), subscriptionManager.isPremium())
+                    if (powerLevel != UpsellLevel.NONE && !_paywallTrigger.value) {
+                        _upgradePrompt.value = UpgradePrompt(
+                            message = PaywallTriggerEngine.getPaywallMessage(PaywallTriggerEngine.TriggerReason.PowerUser),
+                            source = PaywallTriggerEngine.TriggerReason.PowerUser.source
                         )
                     }
 
@@ -769,8 +803,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                         // Partial cut: if running too long with enough tokens, stop early
                         val elapsed = System.currentTimeMillis() - streamStart
-                        if (elapsed > 4000L && tokenCount > 60 && !_isCancelled.get()) {
-                            partialCutText = _streamingText.value
+                        if (ResponseOptimizer.shouldSemanticCut(_streamingText.value, elapsed, tokenCount, queryType, subscriptionManager.isPremium()) && !_isCancelled.get()) {
+                            val cutResult = ResponseOptimizer.semanticCut(_streamingText.value)
+                            partialCutText = cutResult.text.ifBlank { _streamingText.value }
                             Log.d("AIRI_SPEED", "cut_triggered=true tokens_streamed=$tokenCount total_latency=${elapsed}ms")
                             com.airi.assistant.domain.logging.ProofLogger.cutTriggered(tokenCount, elapsed)
                             com.airi.assistant.core.analytics.ProofLogger.log("CUT", "triggered tokens=$tokenCount elapsed=${elapsed}ms")

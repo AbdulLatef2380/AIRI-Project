@@ -5,6 +5,10 @@ import com.airi.assistant.ai.QueryClassifier
 import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.ResponseOptimizer
 import com.airi.assistant.domain.logging.ProofLogger
+import com.airi.assistant.domain.monetization.PaywallTriggerEngine
+import com.airi.assistant.domain.monetization.PricingConfig
+import com.airi.assistant.domain.verification.VerificationEvent
+import com.airi.assistant.domain.verification.VerificationTracker
 
 object DiagnosticsRunner {
 
@@ -22,7 +26,7 @@ object DiagnosticsRunner {
     )
 
     fun runDiagnostics(): DiagnosticsReport {
-        Log.d(TAG, "DIAGNOSTICS_START running 3 test scenarios")
+        Log.d(TAG, "DIAGNOSTICS_START running 4 test scenarios")
         val results = mutableListOf<TestResult>()
 
         // ── Test 1: "hi" → must hit FAST_PATH ─────────────────────────────
@@ -59,6 +63,52 @@ object DiagnosticsRunner {
             detail = "queryType=$creativeType expected=CREATIVE"
         )
         ProofLogger.diagnosticsResult("write a sci-fi story → CREATIVE", test3Pass, "type=$creativeType")
+
+        VerificationTracker.clear()
+        listOf(80L, 120L, 3000L, 6200L, 9000L).forEachIndexed { index, latency ->
+            VerificationTracker.record(
+                VerificationEvent(
+                    type = if (index == 0) "FAST" else "LLM",
+                    latencyMs = latency,
+                    tokens = 24 + index,
+                    wasCut = index == 3,
+                    queryType = if (index == 0) QueryType.SIMPLE.name else QueryType.ANALYTICAL.name
+                )
+            )
+        }
+        val p50 = VerificationTracker.p50LatencyMs()
+        val p90 = VerificationTracker.p90LatencyMs()
+        val longPartial = "AIRI starts with a clear answer. It keeps the important facts together. It avoids cutting inside a sentence while preserving meaning for the user. Extra trailing text is still generating"
+        val shouldCut = ResponseOptimizer.shouldSemanticCut(
+            partialText = longPartial,
+            elapsedMs = 5_000L,
+            tokensStreamed = 88,
+            queryType = QueryType.ANALYTICAL,
+            isPremium = false
+        )
+        val cut = ResponseOptimizer.semanticCut(longPartial)
+        val tuned = ResponseOptimizer.adaptiveGeneration(
+            queryType = QueryType.ANALYTICAL,
+            ramCappedMaxTokens = 512,
+            recentP90Ms = p90,
+            isPremium = false
+        )
+        val upsell = PaywallTriggerEngine.evaluateDataDrivenUpsell(
+            wasCut = true,
+            latencyMs = PricingConfig.SPEED_UPSELL_THRESHOLD_MS + 1,
+            totalMessages = 9,
+            isPremium = false
+        )
+        val test4Pass = p50 == 3000L && p90 == 9000L && shouldCut && cut.wasCut &&
+            tuned.maxTokens < 512 && upsell == PaywallTriggerEngine.TriggerReason.ResponseCut
+        results += TestResult(
+            name = "Optimization + Monetization Loop",
+            passed = test4Pass,
+            detail = "p50=${p50}ms p90=${p90}ms cut=${cut.wasCut} tunedTokens=${tuned.maxTokens} upsell=${upsell?.source}"
+        )
+        Log.d("AIRI_OPTIMIZE", "VERIFY semanticCut=${cut.wasCut} p50=${p50}ms p90=${p90}ms tunedTokens=${tuned.maxTokens}")
+        Log.d("AIRI_MONET", "VERIFY upsell=${upsell?.source} slowThreshold=${PricingConfig.SPEED_UPSELL_THRESHOLD_MS}")
+        ProofLogger.diagnosticsResult("Optimization + Monetization Loop", test4Pass, "p50=$p50 p90=$p90 cut=${cut.wasCut} tuned=${tuned.maxTokens} upsell=${upsell?.source}")
 
         val allPassed = results.all { it.passed }
         val summary   = results.joinToString(" | ") { "${it.name}:${if (it.passed) "PASS" else "FAIL"}" }

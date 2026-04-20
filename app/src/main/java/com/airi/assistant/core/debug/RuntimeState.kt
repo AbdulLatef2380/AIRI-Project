@@ -6,6 +6,8 @@ data class RuntimeState(
     val lastQueryType: String  = "UNKNOWN",
     val firstTokenMs: Long     = 0L,
     val totalLatencyMs: Long   = 0L,
+    val p50LatencyMs: Long     = -1L,
+    val p90LatencyMs: Long     = -1L,
     val tokensPerSecond: Float = 0f,
     val fastPath: Boolean      = false,
     val wasCut: Boolean        = false,

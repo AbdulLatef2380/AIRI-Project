@@ -91,6 +91,7 @@ fun DebugPanelScreen(
             DebugRow("Query Type",      debugState.lastQueryType)
             DebugRow("First Token",     if (debugState.lastFirstTokenMs < 0) "-" else "${debugState.lastFirstTokenMs} ms")
             DebugRow("Total Latency",   if (debugState.lastTotalLatencyMs < 0) "-" else "${debugState.lastTotalLatencyMs} ms")
+            DebugRow("P50 / P90",       "${debugState.p50LatencyMs} / ${debugState.p90LatencyMs} ms")
             DebugRow("Tokens/sec",      if (debugState.lastTokensPerSec == 0f) "-" else "%.1f".format(debugState.lastTokensPerSec))
             DebugBoolRow("Fast Path",   debugState.lastIsFastPath)
             DebugBoolRow("Was Cut",     debugState.lastWasCut)

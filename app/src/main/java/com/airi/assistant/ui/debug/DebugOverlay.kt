@@ -77,6 +77,7 @@ private fun DebugCard(event: VerificationEvent) {
             Spacer(Modifier.height(2.dp))
             OverlayRow("Latency", "${event.latencyMs} ms",
                 if (event.latencyMs < 100) GREEN else if (event.latencyMs < 3000) BLUE else RED)
+            OverlayRow("P50/P90", "${VerificationTracker.p50LatencyMs()}/${VerificationTracker.p90LatencyMs()} ms", BLUE)
             OverlayRow("Tokens",  "${event.tokens}",    Color.White)
             OverlayRow("Cut",     "${event.wasCut}",    if (event.wasCut) RED else Color.White.copy(alpha = 0.5f))
         }

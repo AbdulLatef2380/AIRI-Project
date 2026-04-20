@@ -11,9 +11,15 @@ data class GenerationConfig(
     val maxTokens: Int
 )
 
+data class SemanticCutResult(
+    val text: String,
+    val wasCut: Boolean,
+    val reason: String
+)
+
 object ResponseOptimizer {
 
-    private const val TAG = "AIRI_OPT"
+    private const val TAG = "AIRI_OPTIMIZE"
 
     // ── Fast response table ───────────────────────────────────────────────────
 
@@ -23,32 +29,32 @@ object ResponseOptimizer {
 
     private val fastTable: List<FastEntry> = listOf(
         FastEntry(
-            listOf("what time is it", "what's the time", "current time", "الوقت الآن", "كم الساعة")
-        ) {
-            val fmt = SimpleDateFormat("hh:mm a", Locale.getDefault())
-            listOf({ "The current time is ${fmt.format(Date())}." })
-        },
+            listOf("what time is it", "what's the time", "current time", "الوقت الآن", "كم الساعة"),
+            listOf({
+                val fmt = SimpleDateFormat("hh:mm a", Locale.getDefault())
+                "The current time is ${fmt.format(Date())}."
+            })
+        ),
         FastEntry(
             listOf("what's today's date", "what is today's date", "what day is it",
-                   "التاريخ اليوم", "ما هو التاريخ", "today's date")
-        ) {
-            val fmt = SimpleDateFormat("EEEE, MMMM d yyyy", Locale.getDefault())
-            listOf({ "Today is ${fmt.format(Date())}." })
-        },
+                   "التاريخ اليوم", "ما هو التاريخ", "today's date"),
+            listOf({
+                val fmt = SimpleDateFormat("EEEE, MMMM d yyyy", Locale.getDefault())
+                "Today is ${fmt.format(Date())}."
+            })
+        ),
         FastEntry(
-            listOf("who are you", "what are you", "من أنت", "ما أنت", "ما اسمك", "introduce yourself")
-        ) {
+            listOf("who are you", "what are you", "من أنت", "ما أنت", "ما اسمك", "introduce yourself"),
             pick(
                 "I'm AIRI — your on-device AI assistant. I run 100% locally, no cloud, no tracking.",
                 "AIRI here — an intelligent AI that runs entirely on your device. No cloud, total privacy.",
                 "I'm AIRI, an on-device AI assistant. Everything I do stays on your phone."
             )
-        },
+        ),
         FastEntry(
             listOf("hello", "hi there", "hey airi", "hey there", "hi", "hey",
                    "مرحبا", "أهلاً", "أهلا",
-                   "هلا", "السلام عليكم", "good morning", "good evening", "good afternoon")
-        ) {
+                   "هلا", "السلام عليكم", "good morning", "good evening", "good afternoon"),
             pick(
                 "Hey! How can I help you today?",
                 "Hi there! What can I do for you?",
@@ -57,19 +63,17 @@ object ResponseOptimizer {
                 "Hi! Ask me anything.",
                 "أهلاً! كيف أستطيع مساعدتك؟"
             )
-        },
+        ),
         FastEntry(
-            listOf("how are you", "كيف حالك", "كيف الحال", "عامل إيه")
-        ) {
+            listOf("how are you", "كيف حالك", "كيف الحال", "عامل إيه"),
             pick(
                 "Doing great and ready to help! What's on your mind?",
                 "All good here! What can I help you with?",
                 "Ready and sharp! What do you need?"
             )
-        },
+        ),
         FastEntry(
-            listOf("thank you", "thanks", "شكراً", "شكرا", "شكرًا", "merci", "tnx", "thx", "ty")
-        ) {
+            listOf("thank you", "thanks", "شكراً", "شكرا", "شكرًا", "merci", "tnx", "thx", "ty"),
             pick(
                 "You're welcome! Let me know if there's anything else.",
                 "Happy to help! Anything else?",
@@ -77,25 +81,23 @@ object ResponseOptimizer {
                 "Of course! Feel free to ask anything.",
                 "عفواً! هل تحتاج أي مساعدة أخرى؟"
             )
-        },
+        ),
         FastEntry(
             listOf("are you online", "do you need internet", "هل تحتاج إنترنت", "هل أنت أونلاين",
-                   "offline", "no internet", "internet connection")
-        ) {
+                   "offline", "no internet", "internet connection"),
             pick(
                 "Nope — I run fully offline on your device. No internet required.",
                 "I work 100% offline. No network, no cloud — everything stays on your device."
             )
-        },
+        ),
         FastEntry(
-            listOf("what can you do", "what are your capabilities", "help me", "show me what you can do")
-        ) {
+            listOf("what can you do", "what are your capabilities", "help me", "show me what you can do"),
             pick(
                 "I can answer questions, write code, analyze text, summarize, translate, brainstorm, and much more — all offline.",
                 "I can help with coding, writing, Q&A, analysis, translations, and creative tasks. What would you like?",
                 "Ask me anything: code, writing, summaries, explanations, math, and more. All on-device."
             )
-        }
+        )
     )
 
     /**
@@ -121,13 +123,38 @@ object ResponseOptimizer {
      * The caller's adaptive RAM-based cap is used as an upper bound.
      */
     fun adjustGeneration(queryType: QueryType, ramCappedMaxTokens: Int): GenerationConfig {
-        return when (queryType) {
+        return adaptiveGeneration(queryType, ramCappedMaxTokens, recentP90Ms = -1L, isPremium = true)
+    }
+
+    fun adaptiveGeneration(
+        queryType: QueryType,
+        ramCappedMaxTokens: Int,
+        recentP90Ms: Long,
+        isPremium: Boolean
+    ): GenerationConfig {
+        val base = when (queryType) {
             QueryType.SIMPLE     -> GenerationConfig(temperature = 0.3f, maxTokens = minOf(128,  ramCappedMaxTokens))
             QueryType.ANALYTICAL -> GenerationConfig(temperature = 0.7f, maxTokens = minOf(512,  ramCappedMaxTokens))
             QueryType.ACTION     -> GenerationConfig(temperature = 0.5f, maxTokens = minOf(256,  ramCappedMaxTokens))
             QueryType.CREATIVE   -> GenerationConfig(temperature = 0.9f, maxTokens = minOf(1024, ramCappedMaxTokens))
             QueryType.UNKNOWN    -> GenerationConfig(temperature = 0.7f, maxTokens = minOf(256,  ramCappedMaxTokens))
         }
+        val latencyFactor = when {
+            recentP90Ms >= 9000L -> 0.55f
+            recentP90Ms >= 6000L -> 0.7f
+            recentP90Ms >= 4000L -> 0.85f
+            else                 -> 1.0f
+        }
+        val tierFactor = if (isPremium) 1.0f else 0.9f
+        val tunedTokens = (base.maxTokens * latencyFactor * tierFactor).toInt()
+            .coerceAtLeast(if (queryType == QueryType.SIMPLE) 48 else 96)
+            .coerceAtMost(base.maxTokens)
+        val tunedTemperature = when {
+            recentP90Ms >= 6000L && queryType != QueryType.CREATIVE -> (base.temperature - 0.1f).coerceAtLeast(0.2f)
+            else -> base.temperature
+        }
+        Log.d(TAG, "adaptive_tuning queryType=${queryType.name} p90=${recentP90Ms}ms premium=$isPremium baseTokens=${base.maxTokens} tunedTokens=$tunedTokens temp=$tunedTemperature")
+        return GenerationConfig(temperature = tunedTemperature, maxTokens = tunedTokens)
     }
 
     /**
@@ -141,6 +168,45 @@ object ResponseOptimizer {
             inputLength < 200 -> minOf(queryTypeCap, 320)
             else              -> queryTypeCap
         }
+    }
+
+    fun shouldSemanticCut(
+        partialText: String,
+        elapsedMs: Long,
+        tokensStreamed: Int,
+        queryType: QueryType,
+        isPremium: Boolean
+    ): Boolean {
+        val minTokens = when (queryType) {
+            QueryType.SIMPLE -> 36
+            QueryType.ACTION -> 52
+            QueryType.ANALYTICAL -> 68
+            QueryType.CREATIVE -> 96
+            QueryType.UNKNOWN -> 60
+        }
+        val maxElapsed = if (isPremium) 6500L else 4200L
+        val hasSemanticStop = lastBoundaryIndex(partialText) >= 80
+        val shouldCut = elapsedMs >= maxElapsed && tokensStreamed >= minTokens && hasSemanticStop
+        Log.d(TAG, "semantic_cut_check queryType=${queryType.name} elapsed=${elapsedMs}ms tokens=$tokensStreamed boundary=$hasSemanticStop premium=$isPremium cut=$shouldCut")
+        return shouldCut
+    }
+
+    fun semanticCut(partialText: String): SemanticCutResult {
+        val cleaned = partialText.trim()
+        if (cleaned.isEmpty()) return SemanticCutResult("", false, "empty")
+        val boundary = lastBoundaryIndex(cleaned)
+        if (boundary < 80 || boundary >= cleaned.lastIndex - 12) {
+            return SemanticCutResult(cleaned, false, "no_better_boundary")
+        }
+        val cut = cleaned.take(boundary + 1).trim()
+        Log.d(TAG, "semantic_cut_applied original_len=${cleaned.length} cut_len=${cut.length}")
+        return SemanticCutResult("$cut\n\nResponse shortened to keep AIRI fast.", true, "semantic_boundary")
+    }
+
+    private fun lastBoundaryIndex(text: String): Int {
+        val sentence = listOf('.', '!', '?', '؟', '\n').map { text.lastIndexOf(it) }.maxOrNull() ?: -1
+        if (sentence >= 0) return sentence
+        return text.lastIndexOf(";")
     }
 
     // ── Smart context trimmer ─────────────────────────────────────────────────

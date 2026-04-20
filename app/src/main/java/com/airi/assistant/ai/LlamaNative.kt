@@ -22,33 +22,20 @@ object LlamaNative {
 
     fun loadFailureMessage(): String? = loadFailure
 
-    /**
-     * واجهة لاستقبال تحديثات التقدم من محرك C++
-     */
     interface ProgressCallback {
         fun onProgress(percent: Int)
     }
 
-    /**
-     * تحميل النموذج مع متابعة نسبة التقدم (حقيقي)
-     */
     external fun loadModelWithProgress(
         modelPath: String,
         callback: ProgressCallback
     )
 
-    /**
-     * التحميل القديم (للتوافق أو الاختبار)
-     */
     external fun loadModel(modelPath: String): String
 
-    /**
-     * توليد رد من AIRI بناءً على النص المدخل
-     */
     external fun generateResponse(prompt: String): String
 
-    /**
-     * توليد الرد بشكل متدفق (Streaming)
-     */
     external fun generateStream(prompt: String, onToken: (String) -> Unit)
+
+    external fun cancel()
 }

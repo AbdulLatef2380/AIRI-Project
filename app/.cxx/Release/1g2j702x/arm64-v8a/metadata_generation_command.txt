@@ -1,0 +1,21 @@
+                        -H/home/runner/workspace/app/src/main/cpp
+-DCMAKE_SYSTEM_NAME=Android
+-DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+-DCMAKE_SYSTEM_VERSION=26
+-DANDROID_PLATFORM=android-26
+-DANDROID_ABI=arm64-v8a
+-DCMAKE_ANDROID_ARCH_ABI=arm64-v8a
+-DANDROID_NDK=/home/runner/workspace/.android-sdk/ndk/25.2.9519653
+-DCMAKE_ANDROID_NDK=/home/runner/workspace/.android-sdk/ndk/25.2.9519653
+-DCMAKE_TOOLCHAIN_FILE=/home/runner/workspace/.android-sdk/ndk/25.2.9519653/build/cmake/android.toolchain.cmake
+-DCMAKE_MAKE_PROGRAM=/home/runner/workspace/.android-sdk/cmake/3.22.1/bin/ninja
+-DCMAKE_CXX_FLAGS=-std=c++17
+-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=/home/runner/workspace/app/build/intermediates/cxx/Release/1g2j702x/obj/arm64-v8a
+-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=/home/runner/workspace/app/build/intermediates/cxx/Release/1g2j702x/obj/arm64-v8a
+-B/home/runner/workspace/app/.cxx/Release/1g2j702x/arm64-v8a
+-GNinja
+-DANDROID_TOOLCHAIN=clang
+-DANDROID_STL=c++_shared
+-DCMAKE_BUILD_TYPE=Release
+                        Build command args: []
+                        Version: 2

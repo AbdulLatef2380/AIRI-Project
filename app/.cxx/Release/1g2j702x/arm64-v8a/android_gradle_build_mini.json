@@ -1,0 +1,27 @@
+{
+  "buildFiles": [
+    "/home/runner/workspace/app/src/main/cpp/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/home/runner/workspace/.android-sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/home/runner/workspace/app/.cxx/Release/1g2j702x/arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/home/runner/workspace/.android-sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/home/runner/workspace/app/.cxx/Release/1g2j702x/arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "airi_native::@6890427a1f51a3e7e1df": {
+      "artifactName": "airi_native",
+      "abi": "arm64-v8a",
+      "output": "/home/runner/workspace/app/build/intermediates/cxx/Release/1g2j702x/obj/arm64-v8a/libairi_native.so",
+      "runtimeFiles": []
+    }
+  }
+}

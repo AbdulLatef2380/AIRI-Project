@@ -61,6 +61,8 @@ import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.launch
 
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModelSettingsScreen(
@@ -74,22 +76,46 @@ fun ModelSettingsScreen(
     var modelPendingDelete     by remember { mutableStateOf<ModelInfo?>(null) }
     var modelForSettings       by remember { mutableStateOf<ModelInfo?>(null) }
     var showAddModelSheet      by remember { mutableStateOf(false) }
-    var selectedCategory       by remember { mutableStateOf("General") }
+    var selectedCategory       by remember { mutableStateOf("All") }
+    var readyExpanded          by remember { mutableStateOf(true) }
+    var availableExpanded      by remember { mutableStateOf(true) }
+    var downloadingIds         by remember { mutableStateOf(emptySet<String>()) }
     val listState = rememberLazyListState()
-    val deviceProfile = remember { DeviceProfiler.profile(context) }
-    val showCollapsedTitle by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
-    val categories = remember { listOf("Gemma", "Qwen", "Llama", "Coding", "Small", "General") }
-    val filteredCatalog = remember(modelState.catalogModels, selectedCategory) {
-        modelState.catalogModels.filter { entry ->
+
+    val categories = remember { listOf("All", "Gemma", "Qwen", "Llama", "Coding", "Small") }
+
+    val downloadedFileNames = remember(modelState.availableModels) {
+        modelState.availableModels.map { it.fileName }.toSet()
+    }
+
+    val filteredDownloaded = remember(modelState.availableModels, selectedCategory) {
+        modelState.availableModels.filter { model ->
             when (selectedCategory) {
-                "Gemma" -> entry.type == ModelType.GEMMA || entry.name.contains("gemma", ignoreCase = true)
-                "Qwen" -> entry.type == ModelType.QWEN || entry.name.contains("qwen", ignoreCase = true)
-                "Llama" -> entry.name.contains("llama", ignoreCase = true)
-                "Coding" -> entry.name.contains("code", ignoreCase = true) || entry.description.contains("code", ignoreCase = true)
-                "Small" -> entry.sizeBytes < 1_000L * 1024L * 1024L || entry.ramRequiredMb <= 1800
-                else -> true
+                "All"    -> true
+                "Gemma"  -> model.type == ModelType.GEMMA
+                "Qwen"   -> model.type == ModelType.QWEN
+                "Llama"  -> model.name.contains("llama", ignoreCase = true)
+                "Coding" -> model.name.contains("code", ignoreCase = true)
+                "Small"  -> model.size < 1_000L * 1024L * 1024L || model.ramRequiredMb <= 1800
+                else     -> true
             }
         }
+    }
+
+    val filteredCatalog = remember(modelState.catalogModels, downloadedFileNames, selectedCategory) {
+        modelState.catalogModels
+            .filter { entry -> !downloadedFileNames.contains(entry.fileName) }
+            .filter { entry ->
+                when (selectedCategory) {
+                    "All"    -> true
+                    "Gemma"  -> entry.type == ModelType.GEMMA || entry.name.contains("gemma", ignoreCase = true)
+                    "Qwen"   -> entry.type == ModelType.QWEN  || entry.name.contains("qwen",  ignoreCase = true)
+                    "Llama"  -> entry.name.contains("llama",  ignoreCase = true)
+                    "Coding" -> entry.name.contains("code",   ignoreCase = true) || entry.description.contains("code", ignoreCase = true)
+                    "Small"  -> entry.sizeBytes < 1_000L * 1024L * 1024L || entry.ramRequiredMb <= 1800
+                    else     -> true
+                }
+            }
     }
 
     val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -120,13 +146,20 @@ fun ModelSettingsScreen(
         viewModel.refreshRecommendedModels()
     }
 
+    // Clear downloading state when model appears in downloaded list
+    LaunchedEffect(downloadedFileNames) {
+        downloadingIds = downloadingIds.filter { id ->
+            !downloadedFileNames.contains(modelState.catalogModels.firstOrNull { it.id == id }?.fileName)
+        }.toSet()
+    }
+
     Scaffold(
         containerColor = Color.Black,
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        if (showCollapsedTitle) "اكتشف عقل AIRI الجديد" else stringResource(R.string.model_settings),
+                        stringResource(R.string.model_settings),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         color = Color.White,
@@ -153,111 +186,155 @@ fun ModelSettingsScreen(
             }
         }
     ) { padding ->
+        // container: flex 1, padding 2
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(2.dp),
+            contentPadding = PaddingValues(bottom = 120.dp)
         ) {
+            // Category filter chips row
             item {
-                ModelStoreHero(
-                    totalRamMb = deviceProfile.totalRamMb,
-                    storageBytes = context.filesDir.usableSpace
-                )
-            }
-
-            if (modelState.recommendedModels.isNotEmpty()) {
-                item {
-                    SmartRecommendationSection(
-                        profileSummary = "RAM ${deviceProfile.totalRamMb} MB • ${deviceProfile.cpuCores} CPU cores • ${(context.filesDir.usableSpace / (1024L * 1024L * 1024L)).coerceAtLeast(0)} GB free"
-                    )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    categories.forEach { category ->
+                        val active = category == selectedCategory
+                        Surface(
+                            onClick = { selectedCategory = category },
+                            modifier = Modifier.height(36.dp),
+                            shape = CircleShape,
+                            color = if (active) Color(0xFF007AFF) else Color(0xFF1C1C1E),
+                            contentColor = Color.White
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .border(
+                                        0.5.dp,
+                                        Color.White.copy(alpha = if (active) 0f else 0.12f),
+                                        CircleShape
+                                    )
+                                    .padding(horizontal = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    category,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
                 }
-                items(items = modelState.recommendedModels, key = { "rec_${it.id}" }) { entry ->
-                    CatalogCard(
-                        entry = entry,
-                        isDownloaded = modelState.availableModels.any { m -> m.fileName == entry.fileName },
-                        isActive = modelState.isModelReady && modelState.availableModels.any { m ->
-                            m.fileName == entry.fileName && m.id == modelState.selectedModelId
-                        },
-                        isLoadingThisEntry = modelState.isModelLoading && modelState.availableModels.any { m ->
-                            m.fileName == entry.fileName && m.id == modelState.selectedModelId
-                        },
-                        isAnyLoading = modelState.isModelLoading,
-                        loadProgress = modelState.loadProgress,
-                        hasFailed = modelState.loadError != null,
-                        showRecommendedBadge = true,
-                        onDownload = { viewModel.downloadCatalogModel(entry) },
-                        onActivate = { viewModel.activateCatalogDownload(entry) }
-                    )
+            }
+
+            // ── "Ready to Use" accordion (downloaded models) ──────────────────
+            item {
+                RefModelGroupAccordion(
+                    title = "Ready to Use",
+                    count = filteredDownloaded.size,
+                    isExpanded = readyExpanded,
+                    hasActiveModel = filteredDownloaded.any {
+                        it.id == modelState.selectedModelId && modelState.isModelReady
+                    },
+                    onToggle = { readyExpanded = !readyExpanded }
+                ) {
+                    if (filteredDownloaded.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 18.dp, vertical = 16.dp)
+                        ) {
+                            Text(
+                                "No downloaded models yet. Browse below to get started.",
+                                fontSize = 14.sp,
+                                color = Color.White.copy(alpha = 0.45f),
+                                lineHeight = 20.sp
+                            )
+                        }
+                    } else {
+                        filteredDownloaded.forEach { model ->
+                            val isActive = modelState.isModelReady && model.id == modelState.selectedModelId
+                            val isLoading = modelState.isModelLoading && model.id == modelState.selectedModelId
+                            RefDownloadedModelCard(
+                                model = model,
+                                isActive = isActive,
+                                isLoading = isLoading,
+                                loadProgress = if (isLoading) modelState.loadProgress else -1,
+                                onActivate = { viewModel.selectModel(model.id) },
+                                onDelete   = { modelPendingDelete = model },
+                                onSettings = { modelForSettings = model }
+                            )
+                        }
+                    }
                 }
             }
 
+            // ── "Available to Download" accordion (catalog, not downloaded) ───
             item {
-                CategoryChips(
-                    categories = categories,
-                    selected = selectedCategory,
-                    onSelected = { selectedCategory = it }
-                )
-            }
-            items(items = filteredCatalog, key = { "catalog_${it.id}" }) { entry ->
-                val downloaded = modelState.availableModels.any { m -> m.fileName == entry.fileName }
-                CatalogCard(
-                    entry = entry,
-                    isDownloaded = downloaded,
-                    isActive = modelState.isModelReady && modelState.availableModels.any { m ->
-                        m.fileName == entry.fileName && m.id == modelState.selectedModelId
-                    },
-                    isLoadingThisEntry = modelState.isModelLoading && modelState.availableModels.any { m ->
-                        m.fileName == entry.fileName && m.id == modelState.selectedModelId
-                    },
-                    isAnyLoading = modelState.isModelLoading,
-                    loadProgress = modelState.loadProgress,
-                    hasFailed = modelState.loadError != null && !downloaded,
-                    showRecommendedBadge = false,
-                    onDownload = { viewModel.downloadCatalogModel(entry) },
-                    onActivate = { viewModel.activateCatalogDownload(entry) }
-                )
+                RefModelGroupAccordion(
+                    title = "Available to Download",
+                    count = filteredCatalog.size,
+                    isExpanded = availableExpanded,
+                    hasActiveModel = false,
+                    onToggle = { availableExpanded = !availableExpanded }
+                ) {
+                    filteredCatalog.forEach { entry ->
+                        val isDownloading = downloadingIds.contains(entry.id)
+                        RefCatalogModelCard(
+                            entry = entry,
+                            isDownloading = isDownloading,
+                            onDownload = {
+                                downloadingIds = downloadingIds + entry.id
+                                viewModel.downloadCatalogModel(entry)
+                            }
+                        )
+                    }
+                }
             }
 
+            // Active model summary + generation settings
             item {
+                Spacer(Modifier.height(8.dp))
                 ActiveModelSummaryCard(
                     state = modelState,
                     onOpenGenerationSettings = { showGenerationSettings = true }
                 )
             }
 
+            // Scan + import local models
             item {
+                Spacer(Modifier.height(8.dp))
                 SectionHeader(
-                    title = stringResource(R.string.local_models),
+                    title    = stringResource(R.string.local_models),
                     subtitle = stringResource(R.string.local_models_subtitle)
                 )
             }
             item { ScanDeviceCard(isScanning = modelState.isScanning, onScan = onScanClick) }
-            item { ImportModelCard(state = modelState, onPickModel = { modelPicker.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*")) }) }
-
-            if (modelState.availableModels.isEmpty()) {
-                item { EmptyModelRegistryCard() }
-            } else {
-                items(items = modelState.availableModels, key = { "reg_${it.id}" }) { model ->
-                    RegistryModelCard(
-                        model      = model,
-                        state      = modelState,
-                        isScanned  = modelState.scannedModelIds.contains(model.id),
-                        onActivate = { viewModel.selectModel(model.id) },
-                        onDelete   = { modelPendingDelete = model },
-                        onSettings = { modelForSettings = model }
-                    )
-                }
+            item {
+                ImportModelCard(
+                    state = modelState,
+                    onPickModel = {
+                        modelPicker.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*"))
+                    }
+                )
             }
         }
     }
 
+    // ── Dialogs ───────────────────────────────────────────────────────────────
+
     if (showGenerationSettings) {
         AdvancedGenerationSettingsDialog(
             viewModel = viewModel,
-            state = modelState,
+            state     = modelState,
             onDismiss = { showGenerationSettings = false }
         )
     }
@@ -272,12 +349,12 @@ fun ModelSettingsScreen(
 
     if (showAddModelSheet) {
         AddModelBottomSheet(
-            onDismiss      = { showAddModelSheet = false },
-            onPickLocal    = {
+            onDismiss   = { showAddModelSheet = false },
+            onPickLocal = {
                 showAddModelSheet = false
                 modelPicker.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*"))
             },
-            scope          = scope
+            scope = scope
         )
     }
 
@@ -337,6 +414,715 @@ fun ModelSettingsScreen(
         )
     }
 }
+
+// ─── Reference: ModelAccordion ────────────────────────────────────────────────
+// Exact match to airi-custom ModelAccordion.tsx
+// height: 55dp, title 14sp, gap 8dp
+
+@Composable
+fun RefModelGroupAccordion(
+    title: String,
+    count: Int,
+    isExpanded: Boolean,
+    hasActiveModel: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Accordion header — height 55dp
+        Surface(
+            onClick = onToggle,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(55.dp),
+            color = if (hasActiveModel) Color(0xFF0A2540) else Color(0xFF111111),
+            contentColor = Color.White
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        title,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (hasActiveModel) Color(0xFF5AC8FA) else Color.White.copy(alpha = 0.72f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (count > 0) {
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.10f))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                "$count",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.65f)
+                            )
+                        }
+                    }
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                        modifier = Modifier.size(20.dp),
+                        tint = Color.White.copy(alpha = 0.55f)
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(visible = isExpanded, enter = expandVertically(), exit = shrinkVertically()) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                content()
+            }
+        }
+    }
+}
+
+// ─── Reference: ModelCard — Downloaded ───────────────────────────────────────
+// Exact dp match to airi-custom ModelCard.tsx (isDownloaded = true)
+// card: borderRadius 24, margin 6, border 1
+// compactHeader: paddingH 18, paddingV 12
+// headerLeft: row gap 10, icon 16x16
+// headerRight: row gap 8, sizeInfo, statusDot 8x8
+// actionButtonsRow: paddingH 18, paddingBottom 12, gap 8
+// primaryActionButton: weight 1, borderRadius 16, height 40, border 1
+// iconButton: padding 10, borderRadius 16, size 40
+
+@Composable
+fun RefDownloadedModelCard(
+    model: ModelInfo,
+    isActive: Boolean,
+    isLoading: Boolean,
+    loadProgress: Int,
+    onActivate: () -> Unit,
+    onDelete: () -> Unit,
+    onSettings: () -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(6.dp) // margin: 6
+            .border(
+                width = 1.dp,
+                color = if (isActive) Color(0xFF007AFF).copy(alpha = 0.55f)
+                        else Color.White.copy(alpha = 0.10f),
+                shape = RoundedCornerShape(24.dp) // borderRadius: 24
+            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color(0xFF0E1117))
+    ) {
+        Column {
+            // compactHeader: paddingH 18, paddingV 12
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // headerLeft: row, gap 10, flex 1
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // modelTypeIcon 16x16
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .background(modelTypeColor(model.type).copy(alpha = 0.22f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            model.type.label.first().uppercase(),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = modelTypeColor(model.type)
+                        )
+                    }
+                    // compactModelName: ellipsizeMode middle
+                    Text(
+                        model.name,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // headerRight: row, gap 8
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // sizeInfo: CpuChip 10x10 + size text
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Memory,
+                            contentDescription = null,
+                            modifier = Modifier.size(10.dp),
+                            tint = Color.White.copy(alpha = 0.45f)
+                        )
+                        Text(
+                            model.size.toReadableSize(),
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.50f)
+                        )
+                    }
+                    // statusDot: 8x8, borderRadius 4
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                when {
+                                    isActive  -> Color(0xFF34C759)
+                                    isLoading -> Color(0xFFFF9500)
+                                    else      -> Color.White.copy(alpha = 0.22f)
+                                }
+                            )
+                    )
+                }
+            }
+
+            // Loading progress bar (when loading this model)
+            if (isLoading) {
+                if (loadProgress in 0..100) {
+                    LinearProgressIndicator(
+                        progress = { loadProgress / 100f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                        color = Color(0xFF007AFF),
+                        trackColor = Color.White.copy(alpha = 0.08f)
+                    )
+                } else {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                        color = Color(0xFF007AFF),
+                        trackColor = Color.White.copy(alpha = 0.08f)
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+            }
+
+            // actionButtonsRow: paddingH 18, paddingBottom 12, gap 8
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp)
+                    .padding(bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // primaryActionButton: flex 1, height 40, borderRadius 16, border 1
+                OutlinedButton(
+                    onClick = onActivate,
+                    enabled = !isLoading,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                        width = 1.dp
+                    ),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (isActive) Color(0xFF34C759).copy(alpha = 0.12f)
+                                         else Color.Transparent,
+                        contentColor   = if (isActive) Color(0xFF34C759) else Color.White
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp)
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                    } else {
+                        Text(
+                            if (isActive) "Active" else "Load",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                // iconButton: padding 10, borderRadius 16, size 40 — Settings
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.06f))
+                        .clickable { onSettings() }
+                        .padding(10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Outlined.Settings,
+                        contentDescription = stringResource(R.string.model_settings_icon),
+                        modifier = Modifier.size(20.dp),
+                        tint = Color.White.copy(alpha = 0.65f)
+                    )
+                }
+
+                // iconButton: Delete
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFFFF3B30).copy(alpha = 0.08f))
+                        .clickable { onDelete() }
+                        .padding(10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Outlined.Delete,
+                        contentDescription = stringResource(R.string.delete),
+                        modifier = Modifier.size(20.dp),
+                        tint = Color(0xFFFF3B30).copy(alpha = 0.75f)
+                    )
+                }
+
+                // iconButton: Expand/Collapse
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.06f))
+                        .clickable { isExpanded = !isExpanded }
+                        .padding(10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                        contentDescription = if (isExpanded) stringResource(R.string.collapse) else stringResource(R.string.expand),
+                        modifier = Modifier.size(16.dp),
+                        tint = Color.White.copy(alpha = 0.55f)
+                    )
+                }
+            }
+
+            // detailsContent: paddingH 18, paddingBottom 18, gap 12
+            AnimatedVisibility(visible = isExpanded, enter = expandVertically(), exit = shrinkVertically()) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 18.dp)
+                        .padding(bottom = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // descriptionContainer: bg surface, borderRadius 16, padding 12
+                    Surface(
+                        color = Color(0xFF1C1C1E),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                "Model",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White.copy(alpha = 0.45f),
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                            Text(
+                                model.name,
+                                fontSize = 14.sp,
+                                color = Color.White,
+                                lineHeight = 20.sp
+                            )
+                            if (model.path.isNotBlank()) {
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    model.path,
+                                    fontSize = 11.sp,
+                                    color = Color.White.copy(alpha = 0.35f),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    // technicalDetailCard grid: bg surface, borderRadius 16, padding 12
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        RefDetailCard(
+                            label = "RAM",
+                            value = "${model.ramRequiredMb.takeIf { it > 0 } ?: "—"} MB",
+                            modifier = Modifier.weight(1f)
+                        )
+                        RefDetailCard(
+                            label = "Context",
+                            value = if (model.contextSize > 0) model.contextSize.contextLabel() else "—",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        RefDetailCard(
+                            label = "Size",
+                            value = model.size.toReadableSize(),
+                            modifier = Modifier.weight(1f)
+                        )
+                        RefDetailCard(
+                            label = "Quant",
+                            value = model.quantization.ifBlank { model.type.label },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─── Reference: ModelCard — Catalog (not downloaded) ─────────────────────────
+// Exact dp match to airi-custom ModelCard.tsx (isDownloaded = false)
+
+@Composable
+fun RefCatalogModelCard(
+    entry: CatalogEntry,
+    isDownloading: Boolean,
+    onDownload: () -> Unit
+) {
+    val context = LocalContext.current
+    val profile = remember { DeviceProfiler.profile(context) }
+    val unsupportedByRam = profile.totalRamMb < entry.ramRequiredMb
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(6.dp) // margin: 6
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(24.dp) // borderRadius: 24
+            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color(0xFF0E1117))
+    ) {
+        Column {
+            // compactHeader: paddingH 18, paddingV 12
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // headerLeft: row, gap 10, flex 1
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .background(modelTypeColor(entry.type).copy(alpha = 0.22f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            entry.type.label.first().uppercase(),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = modelTypeColor(entry.type)
+                        )
+                    }
+                    Text(
+                        entry.name,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // headerRight: row, gap 8
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Memory,
+                            contentDescription = null,
+                            modifier = Modifier.size(10.dp),
+                            tint = if (unsupportedByRam) Color(0xFFFF3B30).copy(alpha = 0.7f)
+                                   else Color.White.copy(alpha = 0.45f)
+                        )
+                        Text(
+                            entry.sizeBytes.toReadableSize(),
+                            fontSize = 11.sp,
+                            color = if (unsupportedByRam) Color(0xFFFF3B30).copy(alpha = 0.7f)
+                                    else Color.White.copy(alpha = 0.50f)
+                        )
+                    }
+                    // statusDot: always grey (not downloaded)
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isDownloading) Color(0xFFFF9500)
+                                else Color.White.copy(alpha = 0.18f)
+                            )
+                    )
+                }
+            }
+
+            // RAM warning
+            if (unsupportedByRam) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp)
+                        .padding(bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.Warning,
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp),
+                        tint = Color(0xFFFF3B30).copy(alpha = 0.75f)
+                    )
+                    Text(
+                        "Requires ${entry.ramRequiredMb} MB RAM — may not run on this device",
+                        fontSize = 11.sp,
+                        color = Color(0xFFFF3B30).copy(alpha = 0.75f),
+                        lineHeight = 14.sp
+                    )
+                }
+            }
+
+            // Download progress bar
+            if (isDownloading) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp)),
+                    color = Color(0xFF007AFF),
+                    trackColor = Color.White.copy(alpha = 0.08f)
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // actionButtonsRow: paddingH 18, paddingBottom 12, gap 8
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp)
+                    .padding(bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // primaryActionButton: flex 1, height 40, borderRadius 16, border 1
+                OutlinedButton(
+                    onClick = { if (!isDownloading && !unsupportedByRam) onDownload() },
+                    enabled = !isDownloading && !unsupportedByRam,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color(0xFF007AFF).copy(alpha = 0.10f),
+                        contentColor   = Color(0xFF007AFF),
+                        disabledContainerColor = Color.White.copy(alpha = 0.04f),
+                        disabledContentColor   = Color.White.copy(alpha = 0.25f)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp)
+                ) {
+                    if (isDownloading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Color(0xFF007AFF)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Downloading…", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    } else {
+                        Icon(
+                            Icons.Outlined.Download,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (unsupportedByRam) "Unsupported" else "Download",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                // iconButton: Expand/Collapse
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.06f))
+                        .clickable { isExpanded = !isExpanded }
+                        .padding(10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                        contentDescription = if (isExpanded) stringResource(R.string.collapse) else stringResource(R.string.expand),
+                        modifier = Modifier.size(16.dp),
+                        tint = Color.White.copy(alpha = 0.55f)
+                    )
+                }
+            }
+
+            // detailsContent expanded: paddingH 18, paddingBottom 18, gap 12
+            AnimatedVisibility(visible = isExpanded, enter = expandVertically(), exit = shrinkVertically()) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 18.dp)
+                        .padding(bottom = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // descriptionContainer: bg surface, borderRadius 16, padding 12
+                    if (entry.description.isNotBlank()) {
+                        Surface(
+                            color = Color(0xFF1C1C1E),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                entry.description,
+                                modifier = Modifier.padding(12.dp),
+                                fontSize = 13.sp,
+                                color = Color.White.copy(alpha = 0.68f),
+                                lineHeight = 19.sp
+                            )
+                        }
+                    }
+                    // technicalDetailCard grid
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        RefDetailCard(
+                            label = "RAM",
+                            value = "${entry.ramRequiredMb} MB",
+                            modifier = Modifier.weight(1f),
+                            warn = unsupportedByRam
+                        )
+                        RefDetailCard(
+                            label = "Context",
+                            value = entry.contextSize.contextLabel(),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        RefDetailCard(
+                            label = "Size",
+                            value = entry.sizeBytes.toReadableSize(),
+                            modifier = Modifier.weight(1f)
+                        )
+                        RefDetailCard(
+                            label = "Quant",
+                            value = entry.quantization,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─── technicalDetailCard: bg surface, borderRadius 16, padding 12 ─────────────
+
+@Composable
+private fun RefDetailCard(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    warn: Boolean = false
+) {
+    Surface(
+        color = Color(0xFF1C1C1E),
+        shape = RoundedCornerShape(16.dp),
+        modifier = modifier
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.White.copy(alpha = 0.40f),
+                modifier = Modifier.padding(bottom = 3.dp)
+            )
+            Text(
+                value,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (warn) Color(0xFFFF3B30) else Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+// ─── Color helper ─────────────────────────────────────────────────────────────
+
+private fun modelTypeColor(type: ModelType): Color = when (type) {
+    ModelType.GEMMA -> Color(0xFFFF9500)
+    ModelType.QWEN  -> Color(0xFF007AFF)
+    else            -> Color(0xFF34C759)
+}
+
+// ─── Legacy composables kept for backward compatibility ───────────────────────
 
 @Composable
 private fun ModelStoreHero(totalRamMb: Int, storageBytes: Long) {
@@ -401,14 +1187,6 @@ private fun ModelStoreHero(totalRamMb: Int, storageBytes: Long) {
 }
 
 @Composable
-private fun SmartRecommendationSection(profileSummary: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Recommended for your device", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Text(profileSummary, color = Color.White.copy(alpha = 0.55f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-@Composable
 private fun CategoryChips(categories: List<String>, selected: String, onSelected: (String) -> Unit) {
     Row(
         modifier = Modifier
@@ -461,13 +1239,13 @@ fun ActiveModelSummaryCard(state: ModelUiState, onOpenGenerationSettings: () -> 
                 StatusChip(
                     label = when {
                         state.isModelLoading -> stringResource(R.string.loading)
-                        state.isModelReady -> stringResource(R.string.active)
-                        else -> stringResource(R.string.not_active)
+                        state.isModelReady   -> stringResource(R.string.active)
+                        else                 -> stringResource(R.string.not_active)
                     },
                     tone = when {
                         state.isModelLoading -> ChipTone.WARNING
-                        state.isModelReady -> ChipTone.SUCCESS
-                        else -> ChipTone.NEUTRAL
+                        state.isModelReady   -> ChipTone.SUCCESS
+                        else                 -> ChipTone.NEUTRAL
                     }
                 )
             }
@@ -484,7 +1262,7 @@ fun ActiveModelSummaryCard(state: ModelUiState, onOpenGenerationSettings: () -> 
             }
             if (state.isModelLoading) {
                 if (state.loadProgress in 0..100) {
-                    LinearProgressIndicator(progress = state.loadProgress / 100f, modifier = Modifier.fillMaxWidth())
+                    LinearProgressIndicator(progress = { state.loadProgress / 100f }, modifier = Modifier.fillMaxWidth())
                 } else {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
@@ -632,7 +1410,7 @@ fun CatalogCard(
 
             if (isLoadingThisEntry) {
                 if (loadProgress in 0..100) {
-                    LinearProgressIndicator(progress = loadProgress / 100f, modifier = Modifier.fillMaxWidth())
+                    LinearProgressIndicator(progress = { loadProgress / 100f }, modifier = Modifier.fillMaxWidth())
                 } else {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
@@ -657,8 +1435,8 @@ fun CatalogCard(
 private fun ManufacturerIcon(type: ModelType) {
     val bg = when (type) {
         ModelType.GEMMA -> Color(0xFFFF9500)
-        ModelType.QWEN -> Color(0xFF007AFF)
-        else -> Color(0xFF34C759)
+        ModelType.QWEN  -> Color(0xFF007AFF)
+        else            -> Color(0xFF34C759)
     }
     Box(
         modifier = Modifier
@@ -697,10 +1475,10 @@ private fun StoreDownloadButton(
     onOpen: () -> Unit
 ) {
     val label = when {
-        isDownloading -> ""
+        isDownloading          -> ""
         isDownloaded || isActive -> "Open"
-        hasFailed -> "Retry"
-        else -> "Download"
+        hasFailed              -> "Retry"
+        else                   -> "Download"
     }
     Button(
         onClick = { if (isDownloaded || isActive) onOpen() else onDownload() },
@@ -710,7 +1488,7 @@ private fun StoreDownloadButton(
             containerColor = if (isDownloaded || isActive) Color(0xFF34C759) else if (hasFailed) Color(0xFFFF9500) else Color(0xFF007AFF),
             contentColor = Color.White,
             disabledContainerColor = Color.White.copy(alpha = 0.08f),
-            disabledContentColor = Color.White.copy(alpha = 0.35f)
+            disabledContentColor   = Color.White.copy(alpha = 0.35f)
         ),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
         modifier = Modifier.height(42.dp).widthIn(min = 88.dp)
@@ -777,17 +1555,17 @@ fun RegistryModelCard(
         type = model.type,
         status = when {
             isLoadingThisModel -> stringResource(R.string.loading)
-            isActive -> stringResource(R.string.active)
-            else -> stringResource(R.string.downloaded)
+            isActive           -> stringResource(R.string.active)
+            else               -> stringResource(R.string.downloaded)
         },
         error = if (isActive || isLoadingThisModel) state.loadError else null,
         errorType = if (isActive || isLoadingThisModel) state.loadErrorType else LoadErrorType.NONE,
         loadProgress = if (isLoadingThisModel) state.loadProgress else -1,
         isLoadingThis = isLoadingThisModel,
         actionText = when {
-            isActive -> stringResource(R.string.active)
+            isActive           -> stringResource(R.string.active)
             isLoadingThisModel -> stringResource(R.string.loading_ellipsis)
-            else -> stringResource(R.string.activate)
+            else               -> stringResource(R.string.activate)
         },
         actionEnabled = !isActive && !state.isModelLoading,
         extraLabel = if (isScanned) stringResource(R.string.detected_automatically) else null,
@@ -894,7 +1672,7 @@ fun ModelCard(
 
             when {
                 isLoadingThis && loadProgress in 0..100 -> LinearProgressIndicator(
-                    progress = loadProgress / 100f,
+                    progress = { loadProgress / 100f },
                     modifier = Modifier.fillMaxWidth()
                 )
                 isLoadingThis -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -1173,7 +1951,7 @@ private fun StatusChip(label: String, tone: ChipTone) {
     val (container, content) = when (tone) {
         ChipTone.SUCCESS -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
         ChipTone.WARNING -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-        ChipTone.INFO -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
+        ChipTone.INFO    -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
         ChipTone.NEUTRAL -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
     }
     Surface(shape = RoundedCornerShape(20.dp), color = container, contentColor = content) {
@@ -1219,7 +1997,7 @@ private fun deleteLocalModel(context: Context, model: ModelInfo, state: ModelUiS
     if (model.source == ModelSource.DOWNLOADED || model.path.contains(context.packageName)) {
         runCatching { File(model.path).delete() }
     }
-    val prefs = context.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
+    val prefs  = context.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
     val editor = prefs.edit()
     editor.putString("model_registry_json", Gson().toJson(ModelManager.getAllModels()))
     if (state.selectedModelId == model.id) {
@@ -1283,7 +2061,7 @@ fun ModelPerCardSettingsDialog(
                 ) {
                     Text(stringResource(R.string.bos_token), style = MaterialTheme.typography.bodyMedium)
                     Switch(
-                        checked   = config.bosEnabled,
+                        checked         = config.bosEnabled,
                         onCheckedChange = { config = config.copy(bosEnabled = it) }
                     )
                 }
@@ -1295,7 +2073,7 @@ fun ModelPerCardSettingsDialog(
                 ) {
                     Text(stringResource(R.string.eos_token), style = MaterialTheme.typography.bodyMedium)
                     Switch(
-                        checked   = config.eosEnabled,
+                        checked         = config.eosEnabled,
                         onCheckedChange = { config = config.copy(eosEnabled = it) }
                     )
                 }
@@ -1307,7 +2085,7 @@ fun ModelPerCardSettingsDialog(
                 ) {
                     Text(stringResource(R.string.add_generation_prompt), style = MaterialTheme.typography.bodyMedium)
                     Switch(
-                        checked   = config.generationPromptEnabled,
+                        checked         = config.generationPromptEnabled,
                         onCheckedChange = { config = config.copy(generationPromptEnabled = it) }
                     )
                 }
@@ -1340,11 +2118,11 @@ fun ModelPerCardSettingsDialog(
                         ) {
                             config.stopWords.forEach { word ->
                                 InputChip(
-                                    selected = false,
-                                    onClick  = {
+                                    selected  = false,
+                                    onClick   = {
                                         config = config.copy(stopWords = config.stopWords.filter { it != word })
                                     },
-                                    label    = { Text(word) },
+                                    label     = { Text(word) },
                                     trailingIcon = {
                                         Icon(Icons.Outlined.Close, contentDescription = "Remove", modifier = Modifier.size(14.dp))
                                     }
@@ -1422,10 +2200,10 @@ fun AddModelBottomSheet(
 
             if (!showRemote) {
                 Surface(
-                    onClick    = onPickLocal,
-                    shape      = RoundedCornerShape(14.dp),
-                    color      = Color(0xFF0E1629),
-                    modifier   = Modifier.fillMaxWidth()
+                    onClick  = onPickLocal,
+                    shape    = RoundedCornerShape(14.dp),
+                    color    = Color(0xFF0E1629),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
@@ -1445,10 +2223,10 @@ fun AddModelBottomSheet(
                 }
 
                 Surface(
-                    onClick    = { showRemote = true },
-                    shape      = RoundedCornerShape(14.dp),
-                    color      = MaterialTheme.colorScheme.secondaryContainer,
-                    modifier   = Modifier.fillMaxWidth()
+                    onClick  = { showRemote = true },
+                    shape    = RoundedCornerShape(14.dp),
+                    color    = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
@@ -1468,9 +2246,9 @@ fun AddModelBottomSheet(
                 }
             } else {
                 AddRemoteModelContent(
-                    scope     = scope,
-                    onSaved   = { onDismiss() },
-                    onBack    = { showRemote = false }
+                    scope   = scope,
+                    onSaved = { onDismiss() },
+                    onBack  = { showRemote = false }
                 )
             }
         }
@@ -1492,8 +2270,8 @@ private fun AddRemoteModelContent(
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Surface(
-            color  = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
-            shape  = RoundedCornerShape(10.dp),
+            color    = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
+            shape    = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(modifier = Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1531,9 +2309,9 @@ private fun AddRemoteModelContent(
             modifier      = Modifier.fillMaxWidth()
         )
 
-        val connectionOk    = stringResource(R.string.connection_success)
-        val connectionFail  = stringResource(R.string.connection_failed)
-        val enterUrlFirst   = stringResource(R.string.enter_server_url_first)
+        val connectionOk   = stringResource(R.string.connection_success)
+        val connectionFail = stringResource(R.string.connection_failed)
+        val enterUrlFirst  = stringResource(R.string.enter_server_url_first)
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
@@ -1542,8 +2320,8 @@ private fun AddRemoteModelContent(
                     isTesting = true; testStatus = null
                     scope.launch {
                         val ok = executor.testConnection(RemoteModel(id = "test", name = "test", serverUrl = serverUrl, apiKey = apiKey))
-                        isTesting   = false
-                        testStatus  = if (ok) connectionOk else connectionFail
+                        isTesting  = false
+                        testStatus = if (ok) connectionOk else connectionFail
                     }
                 },
                 enabled = !isTesting && serverUrl.isNotBlank()
@@ -1559,8 +2337,8 @@ private fun AddRemoteModelContent(
         testStatus?.let { msg ->
             Text(
                 msg,
-                color  = if (msg.contains("success", true) || msg.contains("ناجح", true)) CosmicAccent else MaterialTheme.colorScheme.error,
-                style  = MaterialTheme.typography.labelMedium
+                color = if (msg.contains("success", true) || msg.contains("ناجح", true)) CosmicAccent else MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.labelMedium
             )
         }
 
@@ -1579,7 +2357,7 @@ private fun AddRemoteModelContent(
                     AnalyticsService.featureDiscovered("remote_model_added")
                     onSaved()
                 },
-                enabled = serverUrl.isNotBlank(),
+                enabled  = serverUrl.isNotBlank(),
                 modifier = Modifier.weight(1f)
             ) { Text(stringResource(R.string.save)) }
         }

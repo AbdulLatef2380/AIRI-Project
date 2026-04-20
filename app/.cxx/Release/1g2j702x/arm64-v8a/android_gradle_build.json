@@ -1,0 +1,40 @@
+{
+  "buildFiles": [
+    "/home/runner/workspace/app/src/main/cpp/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/home/runner/workspace/.android-sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/home/runner/workspace/app/.cxx/Release/1g2j702x/arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/home/runner/workspace/.android-sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/home/runner/workspace/app/.cxx/Release/1g2j702x/arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "airi_native::@6890427a1f51a3e7e1df": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "airi_native",
+      "output": "/home/runner/workspace/app/build/intermediates/cxx/Release/1g2j702x/obj/arm64-v8a/libairi_native.so",
+      "runtimeFiles": []
+    }
+  },
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "/home/runner/workspace/.android-sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/linux-x86_64/bin/clang.lld",
+      "cppCompilerExecutable": "/home/runner/workspace/.android-sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++.lld"
+    }
+  },
+  "cFileExtensions": [
+    "c"
+  ],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

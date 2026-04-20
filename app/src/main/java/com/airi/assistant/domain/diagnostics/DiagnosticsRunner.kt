@@ -116,4 +116,32 @@ object DiagnosticsRunner {
 
         return DiagnosticsReport(results = results, allPassed = allPassed)
     }
+
+    fun runRuntimeVerification(
+        modelLoaded: Boolean,
+        firstTokenEmitted: Boolean,
+        completionProduced: Boolean,
+        exportSucceeded: Boolean,
+        downloadSucceeded: Boolean,
+        memoryStable: Boolean,
+        detail: String
+    ): DiagnosticsReport {
+        Log.d(TAG, "RUNTIME_DIAGNOSTICS_START")
+        val results = listOf(
+            TestResult("MODEL_LOAD", modelLoaded, detail),
+            TestResult("FIRST_TOKEN", firstTokenEmitted, detail),
+            TestResult("GENERATION", completionProduced, detail),
+            TestResult("EXPORT", exportSucceeded, detail),
+            TestResult("DOWNLOAD", downloadSucceeded, detail),
+            TestResult("MEMORY", memoryStable, detail)
+        )
+        results.forEach {
+            Log.d("AIRI_VERIFY", "${it.name} ${if (it.passed) "PASS" else "FAIL"} detail=${it.detail}")
+            ProofLogger.diagnosticsResult(it.name, it.passed, it.detail)
+        }
+        val allPassed = results.all { it.passed }
+        Log.d(TAG, "RUNTIME_DIAGNOSTICS_COMPLETE allPassed=$allPassed")
+        if (allPassed) Log.d(TAG, "SYSTEM FULLY VERIFIED")
+        return DiagnosticsReport(results, allPassed)
+    }
 }

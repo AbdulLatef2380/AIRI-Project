@@ -8,6 +8,8 @@ import android.net.Uri
 import android.os.Build
 import android.speech.SpeechRecognizer
 import com.airi.assistant.system.DefaultAssistantManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -77,6 +79,17 @@ fun SettingsScreen(
     var pendingLanguage by remember { mutableStateOf<LanguageOption?>(null) }
 
     val isSpeechAvailable = remember { SpeechRecognizer.isRecognitionAvailable(context) }
+    val exportChatLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        scope.launch {
+            val success = uri != null && ChatExporter.exportToUri(context, uri, messages)
+            snackbarHost.showSnackbar(
+                if (success) context.getString(R.string.export_success)
+                else context.getString(R.string.export_failed)
+            )
+        }
+    }
 
     val responseStyles = listOf(
         "concise" to stringResource(R.string.style_concise),
@@ -352,13 +365,7 @@ fun SettingsScreen(
                     label = stringResource(R.string.export_chats),
                     sublabel = stringResource(R.string.download_chat_history)
                 ) {
-                    scope.launch {
-                        val success = ChatExporter.exportToJson(context, messages)
-                        snackbarHost.showSnackbar(
-                            if (success) context.getString(R.string.export_success)
-                            else context.getString(R.string.export_failed)
-                        )
-                    }
+                    exportChatLauncher.launch(ChatExporter.buildFileName())
                 }
                 HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(label = stringResource(R.string.clear_chat_history), sublabel = stringResource(R.string.remove_from_display)) {

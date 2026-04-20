@@ -3,14 +3,24 @@ package com.airi.assistant.ai
 import android.util.Log
 
 object LlamaNative {
+    private var available = false
+    private var loadFailure: String? = null
 
     init {
         try {
             System.loadLibrary("airi_native")
+            available = true
+            Log.i("LlamaNative", "Native library airi_native loaded")
         } catch (e: UnsatisfiedLinkError) {
-            Log.e("LlamaNative", "Native library airi_native not found: ${e.message}")
+            available = false
+            loadFailure = e.message
+            Log.e("LlamaNative", "Native library airi_native not found: ${e.message}", e)
         }
     }
+
+    fun isAvailable(): Boolean = available
+
+    fun loadFailureMessage(): String? = loadFailure
 
     /**
      * واجهة لاستقبال تحديثات التقدم من محرك C++

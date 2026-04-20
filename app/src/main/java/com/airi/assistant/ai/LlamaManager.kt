@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class LlamaManager(private val context: Context) {
     private var isLoaded = false
+    private var lastLoadFailure: String? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val chatHistory = mutableListOf<ChatMessage>()
     private val maxHistory = 6
@@ -33,12 +34,27 @@ class LlamaManager(private val context: Context) {
 
     fun loadModel(path: String, onProgress: (Int) -> Unit = {}, onReady: (Boolean) -> Unit) {
         val modelFile = File(path)
+        lastLoadFailure = null
         if (!modelFile.exists()) {
-            Log.e(TAG, "loadModel FAILED — file does not exist: $path")
+            lastLoadFailure = "file does not exist: $path"
+            Log.e(TAG, "LOAD FAILED: $lastLoadFailure")
             onReady(false)
             return
         }
-        Log.i(TAG, "loadModel → file=${modelFile.name} size=${modelFile.length() / (1024 * 1024)}MB")
+        if (!modelFile.canRead()) {
+            lastLoadFailure = "file is not readable by app/native layer: $path"
+            Log.e(TAG, "LOAD FAILED: $lastLoadFailure")
+            onReady(false)
+            return
+        }
+        if (!LlamaNative.isAvailable()) {
+            lastLoadFailure = "native backend unavailable: ${LlamaNative.loadFailureMessage() ?: "airi_native could not be loaded"}"
+            Log.e(TAG, "LOAD FAILED: $lastLoadFailure")
+            onReady(false)
+            return
+        }
+        val inspection = ModelValidator.inspect(modelFile)
+        Log.i(TAG, "LOAD START path=${modelFile.absolutePath} file=${modelFile.name} size=${modelFile.length() / (1024 * 1024)}MB ggufVersion=${inspection.ggufVersion} architecture=${inspection.architecture}")
 
         scope.launch {
             isLoaded = false
@@ -54,26 +70,39 @@ class LlamaManager(private val context: Context) {
                     }
                 )
                 isLoaded = true
-                Log.i(TAG, "loadModel SUCCESS — starting warmup")
+                Log.i(TAG, "LOAD SUCCESS path=${modelFile.absolutePath}")
+                com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", true, "path=${modelFile.absolutePath}")
                 warmup()
                 withContext(Dispatchers.Main) { onReady(true) }
             } catch (e: UnsatisfiedLinkError) {
-                Log.w(TAG, "loadModelWithProgress not available — falling back to loadModel(): ${e.message}")
+                Log.w(TAG, "loadModelWithProgress not available — falling back to loadModel(): ${e.message}", e)
                 val result = runCatching { LlamaNative.loadModel(modelFile.absolutePath) }.getOrElse { ex ->
-                    Log.e(TAG, "loadModel fallback also failed: ${ex.message}")
+                    lastLoadFailure = "${ex.javaClass.simpleName}: ${ex.message}"
+                    Log.e(TAG, "LOAD FAILED: $lastLoadFailure", ex)
                     "Error"
                 }
                 isLoaded = (result == "Success")
-                Log.i(TAG, "loadModel fallback result=$result isLoaded=$isLoaded")
+                if (isLoaded) {
+                    Log.i(TAG, "LOAD SUCCESS path=${modelFile.absolutePath}")
+                    com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", true, "path=${modelFile.absolutePath}")
+                } else {
+                    lastLoadFailure = "native loader returned $result for architecture=${inspection.architecture} ggufVersion=${inspection.ggufVersion}"
+                    Log.e(TAG, "LOAD FAILED: $lastLoadFailure")
+                    com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", false, lastLoadFailure ?: "unknown")
+                }
                 if (isLoaded) warmup()
                 withContext(Dispatchers.Main) { onReady(isLoaded) }
             } catch (e: Exception) {
-                Log.e(TAG, "loadModel EXCEPTION: ${e.javaClass.simpleName}: ${e.message}", e)
+                lastLoadFailure = "${e.javaClass.simpleName}: ${e.message}"
+                Log.e(TAG, "LOAD FAILED: $lastLoadFailure", e)
+                com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", false, lastLoadFailure ?: "unknown")
                 isLoaded = false
                 withContext(Dispatchers.Main) { onReady(false) }
             }
         }
     }
+
+    fun getLastLoadFailure(): String? = lastLoadFailure
 
     fun unloadModel() {
         isLoaded = false
@@ -138,6 +167,7 @@ class LlamaManager(private val context: Context) {
                 "topK=$topK topP=$topP minP=$minP presence=$presencePenalty frequency=$frequencyPenalty " +
                 "timeout=${timeoutMs}ms prompt_len=${prompt.length}")
         val finished = AtomicBoolean(false)
+        val firstTokenLogged = AtomicBoolean(false)
 
         // Timeout watchdog
         scope.launch {
@@ -170,6 +200,9 @@ class LlamaManager(private val context: Context) {
                         }
                         fullResponse.append(token)
                         tokenBuffer.append(token)
+                        if (firstTokenLogged.compareAndSet(false, true)) {
+                            com.airi.assistant.domain.verification.VerificationTracker.recordCheck("FIRST_TOKEN", true, "streaming token emitted")
+                        }
 
                         val now = System.currentTimeMillis()
                         val shouldFlushByTime = now - lastFlushTime >= TOKEN_BATCH_MS
@@ -201,6 +234,11 @@ class LlamaManager(private val context: Context) {
             }
 
             val response = fullResponse.toString()
+            if (response.isNotBlank()) {
+                com.airi.assistant.domain.verification.VerificationTracker.recordCheck("GENERATION", true, "tokensApprox=${response.length / 4 + 1}")
+            } else {
+                com.airi.assistant.domain.verification.VerificationTracker.recordCheck("GENERATION", false, "empty_response")
+            }
             chatHistory.add(ChatMessage(role = "assistant", content = response))
             trimHistory()
             withContext(Dispatchers.Main) { onComplete(response) }

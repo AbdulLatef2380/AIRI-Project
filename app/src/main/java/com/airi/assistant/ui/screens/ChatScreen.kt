@@ -310,6 +310,18 @@ fun ChatScreen(
         if (granted) cameraLauncher.launch(null)
     }
 
+    val exportChatLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        scope.launch {
+            val success = uri != null && ChatExporter.exportToUri(context, uri, messages)
+            snackbarHost.showSnackbar(
+                if (success) context.getString(R.string.export_success)
+                else context.getString(R.string.export_failed)
+            )
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -349,13 +361,7 @@ fun ChatScreen(
                     onLongPressTitle = { onNavigate(AiriRoute.DEBUG_SCREEN) },
                     onExportChat  = {
                         showMenu = false
-                        scope.launch {
-                            val success = ChatExporter.exportToJson(context, messages)
-                            snackbarHost.showSnackbar(
-                                if (success) context.getString(R.string.export_success)
-                                else context.getString(R.string.export_failed)
-                            )
-                        }
+                        exportChatLauncher.launch(ChatExporter.buildFileName())
                     }
                 )
             },
@@ -433,6 +439,7 @@ fun ChatScreen(
                     streamingText = streamingText,
                     isGenerating  = agentState.isWorking,
                     isModelReady  = modelState.isModelReady,
+                    onOpenModels  = { onNavigate(AiriRoute.MODELS) },
                     onShareAiResponse = { response -> shareAiResponse(context, response) },
                     onSpeak = { text ->
                         voiceManager.stopSpeaking()
@@ -577,7 +584,7 @@ private fun ChatTopBar(
                 }
             ) {
                 Text(
-                    stringResource(R.string.app_agent_mode_title, agentMode.label),
+                    stringResource(R.string.app_agent_mode_title),
                     fontWeight = FontWeight.SemiBold,
                     color = Color.White,
                     fontSize = 18.sp,
@@ -657,6 +664,7 @@ fun ChatMessageList(
     streamingText: String,
     isGenerating: Boolean,
     isModelReady: Boolean = false,
+    onOpenModels: () -> Unit = {},
     onShareAiResponse: (String) -> Unit = {},
     onSpeak: (String) -> Unit = {},
     modifier: Modifier = Modifier
@@ -672,34 +680,46 @@ fun ChatMessageList(
 
     if (messages.isEmpty() && streamingText.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(horizontal = 24.dp)
+            ) {
                 Icon(
                     Icons.Outlined.SmartToy,
                     contentDescription = null,
-                    tint = CosmicAccent.copy(alpha = 0.35f),
-                    modifier = Modifier.size(64.dp)
+                    tint = Color.White.copy(alpha = 0.20f),
+                    modifier = Modifier.size(96.dp)
                 )
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    stringResource(R.string.airi_ready),
+                    if (isModelReady) stringResource(R.string.airi_ready) else "تفعيل عقل AIRI",
                     color = Color.White.copy(alpha = 0.75f),
                     fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
+                    fontSize = 22.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     if (isModelReady) stringResource(R.string.ask_anything_model_active)
                     else stringResource(R.string.activate_model_gallery_first),
                     color = Color.White.copy(alpha = 0.4f),
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    lineHeight = 18.sp
                 )
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Smart assistant powered by AI",
-                    color = CosmicAccent.copy(alpha = 0.72f),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
+                if (!isModelReady) {
+                    Spacer(Modifier.height(16.dp))
+                    Button(
+                        onClick = onOpenModels,
+                        shape = RoundedCornerShape(20.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.Black)
+                    ) {
+                        Icon(Icons.Outlined.SmartToy, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("تفعيل عقل AIRI", fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     } else {
@@ -1236,7 +1256,10 @@ fun ChatInputBar(
                 TextField(
                     value         = text,
                     onValueChange = { text = it },
-                    modifier      = Modifier.weight(1f),
+                    modifier      = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(Color.White.copy(alpha = 0.04f)),
                     enabled       = modelState.isModelReady && !isGenerating,
                     placeholder   = {
                         Text(
@@ -1252,7 +1275,7 @@ fun ChatInputBar(
                     },
                     minLines = 1,
                     maxLines = 6,
-                    shape    = RoundedCornerShape(20.dp),
+                    shape    = RoundedCornerShape(28.dp),
                     colors   = TextFieldDefaults.colors(
                         focusedContainerColor   = Color.White.copy(alpha = 0.08f),
                         unfocusedContainerColor = Color.White.copy(alpha = 0.05f),

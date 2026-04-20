@@ -1065,8 +1065,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _modelState.update { it.copy(isModelLoading = true, loadError = null, loadErrorType = LoadErrorType.NONE, loadProgress = 0) }
         viewModelScope.launch {
             try {
-                val path  = FileUtils.copyToInternalStorage(appContext, uri)
-                val file  = File(path)
+                val copy = withContext(Dispatchers.IO) { FileUtils.copyModelFromSaf(appContext, uri) }
+                val file = copy.file
+                Log.i("AIRI_MODEL", "IMPORT SUCCESS path=${file.absolutePath} sourceBytes=${copy.sourceSizeBytes} copiedBytes=${copy.copiedBytes}")
+                com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_IMPORT", true, "path=${file.absolutePath} copied=${copy.copiedBytes}")
                 val model = createModelFromFile(file, ModelSource.LOCAL_FILE, "custom")
                 when (val v = ModelValidator.validate(file, appContext, model.ramRequiredMb)) {
                     is ValidationResult.Valid -> {
@@ -1089,6 +1091,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             } catch (e: Exception) {
+                Log.e("AIRI_MODEL", "IMPORT FAILED: ${e.message}", e)
+                com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_IMPORT", false, e.message ?: "unknown")
                 val msg = AppErrorHandler.capture(e, "importModel").message
                 _modelState.update {
                     it.copy(isModelLoading = false, isModelReady = false,
@@ -1124,6 +1128,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val intent = Intent(appContext, ModelDownloadService::class.java).apply {
             putExtra(ModelDownloadService.EXTRA_DOWNLOAD_URL, entry.downloadUrl)
             putExtra(ModelDownloadService.EXTRA_FILENAME, entry.fileName)
+            putExtra(ModelDownloadService.EXTRA_EXPECTED_SIZE_BYTES, entry.sizeBytes)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) appContext.startForegroundService(intent)
         else appContext.startService(intent)
@@ -1135,6 +1140,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _modelState.update { it.copy(loadError = "${entry.fileName} غير موجود، قم بتحميله أولاً", loadErrorType = LoadErrorType.FILE_NOT_FOUND) }
             return
         }
+        if (file.length() < (entry.sizeBytes * 0.97).toLong()) {
+            val reason = "Downloaded model incomplete expected=${entry.sizeBytes} actual=${file.length()}"
+            Log.e("AIRI_MODEL_DOWNLOAD", "FAILED reason=$reason")
+            com.airi.assistant.domain.verification.VerificationTracker.recordCheck("DOWNLOAD", false, reason)
+            _modelState.update { it.copy(loadError = reason, loadErrorType = LoadErrorType.TOO_SMALL) }
+            return
+        }
+        com.airi.assistant.domain.verification.VerificationTracker.recordCheck("DOWNLOAD", true, "file=${file.absolutePath} size=${file.length()}")
         val model = createModelFromFile(file, ModelSource.DOWNLOADED, "chat", entry)
         ModelRegistry.addModel(model)
         persistRegistry()
@@ -1246,6 +1259,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             return
         }
+        com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MEMORY", true, "model=${model.name} requiredMb=${model.ramRequiredMb}")
         ModelManager.unload()
         val loadStart = System.currentTimeMillis()
         _modelState.update {
@@ -1266,10 +1280,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 AnalyticsService.modelLoaded(model.name, loadMs)
                 preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
                 persistRegistry()
+                Log.i("AIRI_MODEL", "LOAD SUCCESS path=${model.path} model=${model.name} loadMs=$loadMs")
+                com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", true, "path=${model.path} loadMs=$loadMs")
+            } else {
+                val failure = llamaManager.getLastLoadFailure() ?: "native inference engine returned failure"
+                Log.e("AIRI_MODEL", "LOAD FAILED: $failure")
+                com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", false, failure)
             }
             _modelState.update {
                 it.copy(isModelLoading = false, isModelReady = success,
-                    loadError = if (success) null else "فشل تحميل النموذج في محرك الاستنتاج",
+                    loadError = if (success) null else "فشل تحميل النموذج في محرك الاستنتاج: ${llamaManager.getLastLoadFailure() ?: "سبب غير معروف"}",
                     loadErrorType = if (success) LoadErrorType.NONE else LoadErrorType.LOAD_FAILED,
                     loadProgress = -1, availableModels = ModelManager.getAllModels())
             }

@@ -82,8 +82,8 @@
     <string name="take_photo">Take photo</string>
     <string name="photo_captured">Photo captured</string>
     <string name="menu">Menu</string>
-    <string name="app_agent_title">AIRI Agent</string>
-    <string name="app_agent_mode_title">AIRI Agent • %1$s</string>
+    <string name="app_agent_title">AIRI • Assistant</string>
+    <string name="app_agent_mode_title">AIRI • Assistant</string>
     <string name="generating">Generating…</string>
     <string name="loading_model">Loading model…</string>
     <string name="no_model_active">No model active</string>

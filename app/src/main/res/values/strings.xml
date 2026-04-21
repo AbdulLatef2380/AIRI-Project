@@ -296,4 +296,14 @@
     <string name="connection_success">Connection successful</string>
     <string name="connection_failed">Connection failed</string>
     <string name="testing_connection">Testing…</string>
+
+    <!-- Default-locale fallbacks for keys previously only present in translated locales.
+         Required by aapt2 strict-defaults check. -->
+    <string name="dark_theme_always_on">Dark theme (always on)</string>
+    <string name="light_theme_coming">Light theme coming in next update</string>
+    <string name="voice_mode_prepared">Voice mode is wired up for Vosk (speech-to-text) and Picovoice wake-word.</string>
+    <string name="export_coming_next_update">Export coming in next update</string>
+    <string name="file_selected_coming_soon">File selected — attachment support coming soon</string>
+    <string name="image_selected_coming_soon">Image selected — vision support coming soon</string>
+    <string name="camera_coming_soon">Camera (coming soon)</string>
 </resources>

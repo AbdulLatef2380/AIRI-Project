@@ -26,17 +26,20 @@ android {
             abiFilters += listOf("arm64-v8a")
         }
 
-        // Native build config disabled; pre-built .so in jniLibs/arm64-v8a
-        // externalNativeBuild {
-        //     cmake {
-        //         cppFlags += "-std=c++17"
-        //         arguments += listOf(
-        //             "-DANDROID_TOOLCHAIN=clang",
-        //             "-DANDROID_STL=c++_shared",
-        //             "-DCMAKE_BUILD_TYPE=Release"
-        //         )
-        //     }
-        // }
+        // Native (llama.cpp + JNI bridge) is built from source — see
+        // app/src/main/cpp/CMakeLists.txt. No prebuilt .so is shipped; if
+        // libairi_native.so ever appears in jniLibs/ it would shadow the
+        // freshly compiled one, so the directory MUST stay empty of that name.
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-std=c++17"
+                arguments += listOf(
+                    "-DANDROID_TOOLCHAIN=clang",
+                    "-DANDROID_STL=c++_shared",
+                    "-DCMAKE_BUILD_TYPE=Release"
+                )
+            }
+        }
     }
 
     buildTypes {
@@ -73,13 +76,14 @@ android {
         }
     }
 
-    // Native library pre-built and placed in src/main/jniLibs/arm64-v8a/
-    // externalNativeBuild {
-    //     cmake {
-    //         path = file("src/main/cpp/CMakeLists.txt")
-    //         version = "3.22.1"
-    //     }
-    // }
+    // Build native sources from CMakeLists.txt in src/main/cpp/. Requires
+    // Android NDK r25c (25.2.9519653) — declared via `ndkVersion` above.
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
 }
 
 dependencies {

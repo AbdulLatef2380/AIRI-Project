@@ -823,7 +823,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     frequencyPenalty = frequencyPenalty,
                     // First-token deadline (covers slow CPU prompt decode on phones).
                     // Post-first-token inactivity timeout is owned by LlamaManager.
-                    timeoutMs = 90_000L,
+                    timeoutMs = 60_000L,
                     onToken = { tokenBatch ->
                         thinkingJob?.cancel()
                         thinkingJob = null
@@ -840,9 +840,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _streamingText.update { current ->
                             if (current in allThinkingStages) tokenBatch else current + tokenBatch
                         }
-                        // Partial cut: if running too long with enough tokens, stop early
+                        // Partial cut: if running too long with enough tokens, stop early.
+                        // Hard guard: NEVER cut before the first token has been emitted.
                         val elapsed = System.currentTimeMillis() - streamStart
-                        if (ResponseOptimizer.shouldSemanticCut(_streamingText.value, elapsed, tokenCount, queryType, subscriptionManager.isPremium()) && !_isCancelled.get()) {
+                        if (firstTokenReceived &&
+                            ResponseOptimizer.shouldSemanticCut(_streamingText.value, elapsed, tokenCount, queryType, subscriptionManager.isPremium()) &&
+                            !_isCancelled.get()
+                        ) {
                             val cutResult = ResponseOptimizer.semanticCut(_streamingText.value)
                             partialCutText = cutResult.text.ifBlank { _streamingText.value }
                             Log.d("AIRI_SPEED", "cut_triggered=true tokens_streamed=$tokenCount total_latency=${elapsed}ms")
@@ -867,23 +871,61 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             finish(responseToSave, totalLatency, tokenCount)
                         }
                     },
-                    onError = {
+                    onError = { errorMsg ->
                         viewModelScope.launch {
                             thinkingJob?.cancel()
                             thinkingJob = null
                             _isCancelled.set(false)
+
+                            // Categorize the error code emitted by LlamaManager.
+                            // Only INACTIVITY_TIMEOUT (i.e. tokens started flowing then stopped)
+                            // is a "responded too slowly" condition that warrants the
+                            // fast/remote-mode upsell message. FIRST_TOKEN_TIMEOUT and
+                            // ERR_NATIVE are real failures and must surface their own message
+                            // so the user knows the engine actually failed.
+                            val isInactivityAfterFirstToken =
+                                errorMsg.startsWith(com.airi.assistant.ai.LlamaManager.ERR_INACTIVITY_TIMEOUT)
+                            val isFirstTokenTimeout =
+                                errorMsg.startsWith(com.airi.assistant.ai.LlamaManager.ERR_FIRST_TOKEN_TIMEOUT)
+                            val isNativeError =
+                                errorMsg.startsWith(com.airi.assistant.ai.LlamaManager.ERR_NATIVE)
+
+                            // If we already streamed any tokens, persist whatever we have
+                            // through the normal finish path instead of overwriting it.
+                            if (firstTokenReceived && _streamingText.value.isNotBlank() && !isInactivityAfterFirstToken) {
+                                val partial = _streamingText.value
+                                val totalLatency = System.currentTimeMillis() - requestStart
+                                viewModelScope.launch { finish(partial, totalLatency, tokenCount) }
+                                return@launch
+                            }
+
                             val fallbackRemote = RemoteModelRegistry.getActive()
                             if (fallbackRemote != null) {
                                 _streamingText.value = "Thinking..."
                                 streamRemoteResponse(fallbackRemote, trimmedInput, systemPrompt, perfMode, streamStart, finish)
-                            } else {
-                                val fallback = "تعذر توليد الرد بسرعة. جرّب Fast Mode أو Remote Model."
-                                val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fallback)
-                                _messages.update { it + ChatMessage(fallback, isUser = false, assistantMessage.id) }
-                                _streamingText.value = ""
-                                _agentState.value = AgentState()
-                                refreshSessions()
+                                return@launch
                             }
+
+                            val userVisible = when {
+                                // True post-first-token slowdown — the original "fast mode"
+                                // upsell message is appropriate here.
+                                isInactivityAfterFirstToken ->
+                                    "تعذر توليد الرد بسرعة. جرّب Fast Mode أو Remote Model."
+                                // No first token within the budget — engine is stalled
+                                // (cold cache, oversized prompt, or model not warming up).
+                                isFirstTokenTimeout ->
+                                    "النموذج لم يبدأ التوليد خلال المهلة. جرّب رسالة أقصر أو أعد تحميل النموذج."
+                                // Native crash / exception bubbled up from JNI.
+                                isNativeError ->
+                                    "حدث خطأ في المحرك المحلي. تفاصيل: ${errorMsg.removePrefix(com.airi.assistant.ai.LlamaManager.ERR_NATIVE).trim()}"
+                                else ->
+                                    "تعذر إكمال التوليد. ($errorMsg)"
+                            }
+                            val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", userVisible)
+                            _messages.update { it + ChatMessage(userVisible, isUser = false, assistantMessage.id) }
+                            _streamingText.value = ""
+                            _agentState.value = AgentState()
+                            refreshSessions()
                         }
                     }
                 )

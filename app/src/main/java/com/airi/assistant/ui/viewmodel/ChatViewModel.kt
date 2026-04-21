@@ -1168,7 +1168,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // Ensure we have a session to attach the messages to.
             if (_currentSessionId.value.isBlank()) {
                 Log.w("AIRI_STORAGE", "importChatJson: no active session — creating one")
-                createNewChat()
+                createNewSession()
             }
             val targetSession = _currentSessionId.value
             if (targetSession.isBlank()) {

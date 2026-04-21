@@ -103,13 +103,40 @@ object ResponseOptimizer {
     /**
      * Try to answer instantly without touching the model.
      * Returns null if no shortcut matches → caller must proceed to LLM.
+     *
+     * Matching rules (anti-overmatch — see Bug A):
+     *   - Multi-word keys (≥ 2 tokens or contains a space)  → substring match
+     *   - Single-word keys                                  → exact whole-input
+     *                                                         OR exact phrase as a
+     *                                                         standalone token
+     * This prevents "this", "history", "high", "child", etc. from triggering the
+     * "hi" greeting bucket and returning "Hi! Ask me anything." for real prompts.
      */
     fun tryFastResponse(input: String): String? {
-        val lower = input.trim().lowercase()
+        val raw   = input.trim()
+        val lower = raw.lowercase()
+        if (lower.isEmpty()) return null
+
+        // Tokenize on whitespace + Arabic-aware punctuation so we can do
+        // word-boundary matching for short keys.
+        val tokens = lower.split(Regex("[\\s\\p{Punct}،؛؟]+")).filter { it.isNotBlank() }
+
         for (entry in fastTable) {
-            if (entry.keys.any { lower.contains(it) }) {
+            val matched = entry.keys.any { key ->
+                val k = key.trim().lowercase()
+                if (k.isEmpty()) return@any false
+                val isMultiWord = k.contains(' ')
+                if (isMultiWord) {
+                    // Multi-word phrase — keep substring semantics.
+                    lower.contains(k)
+                } else {
+                    // Single-word key — exact whole input OR a standalone token.
+                    lower == k || tokens.contains(k)
+                }
+            }
+            if (matched) {
                 val reply = entry.replies.random()()
-                Log.d(TAG, "fast_response matched for len=${input.length}")
+                Log.d(TAG, "fast_response matched len=${input.length} reply_len=${reply.length}")
                 return reply
             }
         }

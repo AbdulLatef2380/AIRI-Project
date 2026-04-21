@@ -7,6 +7,7 @@
 #include <functional>
 #include <cstring>
 #include <cstdio>
+#include <algorithm>
 #include <sys/stat.h>
 
 #include "llama/include/llama.h"
@@ -304,7 +305,7 @@ Java_com_airi_assistant_ai_LlamaNative_generateStream(
     std::string prompt_str(prompt);
     env->ReleaseStringUTFChars(jPrompt, prompt);
 
-    LOGI("generateStream: prompt_len=%d", (int)prompt_str.size());
+    LOGI("AIRI_PROOF STREAM_START prompt_len=%d", (int)prompt_str.size());
 
     // Tokenise
     int n_max_tokens = 4096;
@@ -313,19 +314,35 @@ Java_com_airi_assistant_ai_LlamaNative_generateStream(
     int n_tokens = llama_tokenize(vocab, prompt_str.c_str(), (int)prompt_str.size(),
                                   tokens.data(), n_max_tokens, /*add_special=*/true, /*parse_special=*/true);
     if (n_tokens < 0) {
-        LOGE("generateStream: tokenize failed (n_tokens=%d)", n_tokens);
+        LOGE("AIRI_PROOF TOKENIZE_FAILED n_tokens=%d", n_tokens);
         return;
     }
     tokens.resize(n_tokens);
 
-    LOGD("generateStream: %d prompt tokens", n_tokens);
+    LOGI("AIRI_PROOF TOKENIZE_OK n_prompt_tokens=%d", n_tokens);
 
-    // Clear KV cache and decode prompt
+    // Clear KV cache and decode prompt in chunks so we can:
+    //   (a) honor cancellation between chunks (otherwise a long prompt on CPU
+    //       blocks for many seconds with no way to abort)
+    //   (b) emit progress logs that prove the pipeline is alive
     llama_memory_clear(llama_get_memory(g_ctx), true);
-    if (llama_decode(g_ctx, llama_batch_get_one(tokens.data(), (int)tokens.size())) != 0) {
-        LOGE("generateStream: prompt decode failed");
-        return;
+
+    long t_decode_start = (long)(ggml_time_us() / 1000LL);
+    const int prompt_chunk = 64;
+    for (int off = 0; off < n_tokens; off += prompt_chunk) {
+        if (g_cancel.load()) {
+            LOGI("AIRI_PROOF PROMPT_DECODE_CANCELLED at_offset=%d", off);
+            return;
+        }
+        int chunk = std::min(prompt_chunk, n_tokens - off);
+        if (llama_decode(g_ctx, llama_batch_get_one(tokens.data() + off, chunk)) != 0) {
+            LOGE("AIRI_PROOF PROMPT_DECODE_FAILED at_offset=%d chunk=%d", off, chunk);
+            return;
+        }
     }
+    long t_decode_end = (long)(ggml_time_us() / 1000LL);
+    LOGI("AIRI_PROOF PROMPT_DECODE_OK n_tokens=%d elapsed_ms=%ld",
+         n_tokens, (t_decode_end - t_decode_start));
 
     // Build sampler chain
     llama_sampler* sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());

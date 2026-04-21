@@ -25,6 +25,9 @@ class LlamaManager(private val context: Context) {
         private const val TAG = "AIRI_MODEL"
         private const val TOKEN_BATCH_MS = 50L
         private const val TOKEN_BATCH_CHARS = 20
+        // Maximum idle time AFTER first token before we consider the stream dead.
+        // First-token deadline is the caller-supplied timeoutMs (default 90 s).
+        private const val INACTIVITY_TIMEOUT_MS = 20_000L
     }
 
     fun cancelStream() {
@@ -147,7 +150,7 @@ class LlamaManager(private val context: Context) {
         minP: Float = 0.05f,
         presencePenalty: Float = 0.0f,
         frequencyPenalty: Float = 0.0f,
-        timeoutMs: Long = 15_000L,
+        timeoutMs: Long = 90_000L,
         onToken: (String) -> Unit,
         onComplete: (String) -> Unit,
         onError: (String) -> Unit = {}
@@ -165,17 +168,35 @@ class LlamaManager(private val context: Context) {
         trimHistory()
         Log.d(TAG, "generateStream params: maxTokens=$maxTokens temp=$temperature repeatPenalty=$repeatPenalty " +
                 "topK=$topK topP=$topP minP=$minP presence=$presencePenalty frequency=$frequencyPenalty " +
-                "timeout=${timeoutMs}ms prompt_len=${prompt.length}")
+                "timeout=${timeoutMs}ms (prompt-decode budget) prompt_len=${prompt.length}")
         val finished = AtomicBoolean(false)
         val firstTokenLogged = AtomicBoolean(false)
+        // Inactivity watchdog: resets every time a token arrives.
+        // - First-token budget = full timeoutMs (covers slow CPU prompt-decode).
+        // - After first token, idle ≥ INACTIVITY_TIMEOUT_MS without any new token = abort.
+        val lastTokenAtMs = java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis())
 
-        // Timeout watchdog
+        // Timeout watchdog — inactivity-based, not total deadline.
         scope.launch {
-            delay(timeoutMs)
-            if (finished.compareAndSet(false, true)) {
-                Log.w(TAG, "generateStream timed out after ${timeoutMs / 1000}s")
-                withContext(Dispatchers.Main) {
-                    onError("Local model timed out after ${timeoutMs / 1000}s.")
+            val inactivityWindowMs = INACTIVITY_TIMEOUT_MS
+            while (!finished.get()) {
+                delay(500L)
+                val now = System.currentTimeMillis()
+                val idleMs = now - lastTokenAtMs.get()
+                val firstTokenSeen = firstTokenLogged.get()
+                val budget = if (firstTokenSeen) inactivityWindowMs else timeoutMs
+                if (idleMs >= budget) {
+                    if (finished.compareAndSet(false, true)) {
+                        val phase = if (firstTokenSeen) "post-first-token idle" else "no-first-token (prompt decode)"
+                        Log.w(TAG, "generateStream timed out: $phase idle=${idleMs}ms budget=${budget}ms")
+                        Log.i("AIRI_PROOF", "TIMEOUT phase=${if (firstTokenSeen) "INACTIVITY" else "FIRST_TOKEN"} idle_ms=$idleMs budget_ms=$budget")
+                        cancelRequested.set(true)
+                        runCatching { LlamaNative.cancel() }
+                        withContext(Dispatchers.Main) {
+                            onError("Local model timed out ($phase, ${idleMs / 1000}s).")
+                        }
+                    }
+                    return@launch
                 }
             }
         }
@@ -200,6 +221,8 @@ class LlamaManager(private val context: Context) {
                         }
                         fullResponse.append(token)
                         tokenBuffer.append(token)
+                        // Reset inactivity watchdog on every native token.
+                        lastTokenAtMs.set(System.currentTimeMillis())
                         if (firstTokenLogged.compareAndSet(false, true)) {
                             com.airi.assistant.domain.verification.VerificationTracker.recordCheck("FIRST_TOKEN", true, "streaming token emitted")
                             Log.i("AIRI_PROOF", "FIRST_TOKEN token_emitted=true model=${ModelManager.getCurrent()?.name ?: "unknown"}")

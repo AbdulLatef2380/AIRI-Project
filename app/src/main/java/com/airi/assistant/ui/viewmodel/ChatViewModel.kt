@@ -821,7 +821,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     minP = minP,
                     presencePenalty = presencePenalty,
                     frequencyPenalty = frequencyPenalty,
-                    timeoutMs = 12_000L,
+                    // First-token deadline (covers slow CPU prompt decode on phones).
+                    // Post-first-token inactivity timeout is owned by LlamaManager.
+                    timeoutMs = 90_000L,
                     onToken = { tokenBatch ->
                         thinkingJob?.cancel()
                         thinkingJob = null

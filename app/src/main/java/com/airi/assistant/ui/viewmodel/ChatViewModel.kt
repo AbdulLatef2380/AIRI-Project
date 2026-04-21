@@ -1,8 +1,10 @@
 package com.airi.assistant.ui.viewmodel
 
 import android.app.Application
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.util.Log
@@ -325,8 +327,38 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         subscriptionManager.setTier(com.airi.assistant.domain.monetization.SubscriptionTier.FREE)
     }
 
+    private val downloadCompleteReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != ModelDownloadService.ACTION_DOWNLOAD_COMPLETE) return
+            val fileName = intent.getStringExtra(ModelDownloadService.EXTRA_RESULT_FILENAME) ?: return
+            val filePath = intent.getStringExtra(ModelDownloadService.EXTRA_RESULT_PATH) ?: return
+            Log.i("AIRI_PROOF", "DOWNLOAD_BROADCAST_RECEIVED fileName=$fileName path=$filePath")
+            viewModelScope.launch(Dispatchers.IO) {
+                val file = File(filePath)
+                if (file.exists() && file.length() > 50_000_000L) {
+                    val catalogMeta = ModelCatalog.entries.find { it.fileName == fileName }
+                    val model = createModelFromFile(file, ModelSource.DOWNLOADED, "chat", catalogMeta)
+                    ModelRegistry.addModel(model)
+                    persistRegistry()
+                    withContext(Dispatchers.Main) {
+                        refreshModelList()
+                        _modelState.update {
+                            it.copy(downloadedModelAvailable = true, downloadedModelPath = filePath)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     init {
         ModelManager.setLoader(ModelLoader(llamaManager))
+        val filter = IntentFilter(ModelDownloadService.ACTION_DOWNLOAD_COMPLETE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            appContext.registerReceiver(downloadCompleteReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            appContext.registerReceiver(downloadCompleteReceiver, filter)
+        }
         loadInitialSession()
         val savedModel = ModelRegistry.getById(_modelState.value.selectedModelId)
         if (savedModel != null && File(savedModel.path).exists()) {
@@ -334,6 +366,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         refreshRecommendedModels()
         runDiagnostics()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        runCatching { appContext.unregisterReceiver(downloadCompleteReceiver) }
     }
 
     // ── Session Management ────────────────────────────────────────────────────
@@ -1105,6 +1142,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectModel(modelId: String) {
         val model = ModelRegistry.getById(modelId) ?: return
+        Log.i("AIRI_PROOF", "MODEL_ACTIVATED name=${model.name} id=${model.id} type=${model.type.label} path=${model.path}")
         preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
         loadModel(model)
     }
@@ -1281,10 +1319,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
                 persistRegistry()
                 Log.i("AIRI_MODEL", "LOAD SUCCESS path=${model.path} model=${model.name} loadMs=$loadMs")
+                Log.i("AIRI_PROOF", "MODEL_LOAD_SUCCESS name=${model.name} type=${model.type.label} loadMs=${loadMs}ms path=${model.path}")
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", true, "path=${model.path} loadMs=$loadMs")
             } else {
                 val failure = llamaManager.getLastLoadFailure() ?: "native inference engine returned failure"
                 Log.e("AIRI_MODEL", "LOAD FAILED: $failure")
+                Log.e("AIRI_PROOF", "MODEL_LOAD_FAILURE name=${model.name} type=${model.type.label} reason=$failure path=${model.path}")
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", false, failure)
             }
             _modelState.update {
@@ -1333,12 +1373,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun syncDownloadedModelAvailability() {
-        val downloadedFile = downloadManager.getModelFile()
-        if (downloadManager.isModelDownloaded()) {
-            val catalogMeta = ModelCatalog.entries.find { it.fileName == downloadedFile.name }
-            ModelRegistry.addModel(createModelFromFile(downloadedFile, ModelSource.DOWNLOADED, "chat", catalogMeta))
-            persistRegistry()
+        val modelsDir = runCatching { downloadManager.getModelsDir() }.getOrNull() ?: return
+        val ggufFiles = modelsDir.listFiles()
+            ?.filter { it.isFile && it.name.lowercase().endsWith(".gguf") && it.length() > 50_000_000L }
+            ?: emptyList()
+        Log.i("AIRI_PROOF", "SYNC_MODELS_SCAN dir=${modelsDir.absolutePath} ggufCount=${ggufFiles.size}")
+        var changed = false
+        for (file in ggufFiles) {
+            val catalogMeta = ModelCatalog.entries.find { it.fileName == file.name }
+            val model = createModelFromFile(file, ModelSource.DOWNLOADED, "chat", catalogMeta)
+            if (ModelRegistry.getById(model.id) == null) {
+                ModelRegistry.addModel(model)
+                changed = true
+                Log.i("AIRI_PROOF", "MODEL_REGISTERED name=${model.name} source=DOWNLOADED_SCAN path=${file.absolutePath}")
+            }
         }
+        if (changed) persistRegistry()
     }
 
     private fun refreshModelList() {

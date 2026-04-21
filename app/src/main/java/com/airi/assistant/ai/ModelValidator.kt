@@ -45,6 +45,7 @@ object ModelValidator {
         val architecture = detectArchitecture(file)
         val readable = file.canRead()
         Log.i(TAG, "GGUF_INSPECT path=${file.absolutePath} size=${file.length()} version=$version architecture=$architecture readable=$readable")
+        Log.i("AIRI_PROOF", "MODEL_TYPE_DETECTED architecture=$architecture ggufVersion=$version sizeBytes=${file.length()} path=${file.absolutePath}")
         return Inspection(file.length(), version, architecture, readable)
     }
 

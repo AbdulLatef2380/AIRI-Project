@@ -26,16 +26,17 @@ android {
             abiFilters += listOf("arm64-v8a")
         }
 
-        externalNativeBuild {
-            cmake {
-                cppFlags += "-std=c++17"
-                arguments += listOf(
-                    "-DANDROID_TOOLCHAIN=clang",
-                    "-DANDROID_STL=c++_shared",
-                    "-DCMAKE_BUILD_TYPE=Release"
-                )
-            }
-        }
+        // Native build config disabled; pre-built .so in jniLibs/arm64-v8a
+        // externalNativeBuild {
+        //     cmake {
+        //         cppFlags += "-std=c++17"
+        //         arguments += listOf(
+        //             "-DANDROID_TOOLCHAIN=clang",
+        //             "-DANDROID_STL=c++_shared",
+        //             "-DCMAKE_BUILD_TYPE=Release"
+        //         )
+        //     }
+        // }
     }
 
     buildTypes {
@@ -72,12 +73,13 @@ android {
         }
     }
 
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
-    }
+    // Native library pre-built and placed in src/main/jniLibs/arm64-v8a/
+    // externalNativeBuild {
+    //     cmake {
+    //         path = file("src/main/cpp/CMakeLists.txt")
+    //         version = "3.22.1"
+    //     }
+    // }
 }
 
 dependencies {

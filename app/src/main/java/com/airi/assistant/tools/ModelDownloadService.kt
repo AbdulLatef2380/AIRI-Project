@@ -68,7 +68,14 @@ class ModelDownloadService : Service() {
                     if (!tempFile.renameTo(finalFile)) throw IllegalStateException("rename failed")
                     Log.i(TAG, "SUCCESS file=${finalFile.absolutePath} size=${finalFile.length()} attempts=$attempt")
                     com.airi.assistant.domain.verification.VerificationTracker.recordCheck("DOWNLOAD", true, "file=${finalFile.absolutePath} size=${finalFile.length()}")
+                    Log.i("AIRI_PROOF", "DOWNLOAD_COMPLETE fileName=$fileName path=${finalFile.absolutePath} sizeBytes=${finalFile.length()}")
                     success = true
+                    val broadcastIntent = Intent(ACTION_DOWNLOAD_COMPLETE).apply {
+                        putExtra(EXTRA_RESULT_FILENAME, fileName)
+                        putExtra(EXTRA_RESULT_PATH, finalFile.absolutePath)
+                        `package` = applicationContext.packageName
+                    }
+                    applicationContext.sendBroadcast(broadcastIntent)
                     Handler(Looper.getMainLooper()).post {
                         Toast.makeText(applicationContext, "تم تحميل $fileName بنجاح!", Toast.LENGTH_LONG).show()
                     }
@@ -121,5 +128,8 @@ class ModelDownloadService : Service() {
         const val EXTRA_DOWNLOAD_URL = "download_url"
         const val EXTRA_FILENAME = "download_filename"
         const val EXTRA_EXPECTED_SIZE_BYTES = "download_expected_size_bytes"
+        const val ACTION_DOWNLOAD_COMPLETE = "com.airi.assistant.ACTION_DOWNLOAD_COMPLETE"
+        const val EXTRA_RESULT_FILENAME = "result_filename"
+        const val EXTRA_RESULT_PATH = "result_path"
     }
 }

@@ -202,6 +202,7 @@ class LlamaManager(private val context: Context) {
                         tokenBuffer.append(token)
                         if (firstTokenLogged.compareAndSet(false, true)) {
                             com.airi.assistant.domain.verification.VerificationTracker.recordCheck("FIRST_TOKEN", true, "streaming token emitted")
+                            Log.i("AIRI_PROOF", "FIRST_TOKEN token_emitted=true model=${ModelManager.getCurrent()?.name ?: "unknown"}")
                         }
 
                         val now = System.currentTimeMillis()
@@ -235,9 +236,12 @@ class LlamaManager(private val context: Context) {
 
             val response = fullResponse.toString()
             if (response.isNotBlank()) {
-                com.airi.assistant.domain.verification.VerificationTracker.recordCheck("GENERATION", true, "tokensApprox=${response.length / 4 + 1}")
+                val approxTokens = response.length / 4 + 1
+                com.airi.assistant.domain.verification.VerificationTracker.recordCheck("GENERATION", true, "tokensApprox=$approxTokens")
+                Log.i("AIRI_PROOF", "GENERATION_SUCCESS tokens_approx=$approxTokens model=${ModelManager.getCurrent()?.name ?: "unknown"}")
             } else {
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("GENERATION", false, "empty_response")
+                Log.w("AIRI_PROOF", "GENERATION_EMPTY model=${ModelManager.getCurrent()?.name ?: "unknown"}")
             }
             chatHistory.add(ChatMessage(role = "assistant", content = response))
             trimHistory()

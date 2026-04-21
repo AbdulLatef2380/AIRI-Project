@@ -44,6 +44,10 @@
     <string name="data_controls">Controles de datos</string>
     <string name="export_chats">Exportar chats</string>
     <string name="download_chat_history">Descargar tu historial de chat</string>
+    <string name="import_chats">Importar chats</string>
+    <string name="import_chat_history">Cargar un archivo JSON de chat exportado anteriormente</string>
+    <string name="import_success">Se importaron %1$d mensajes</string>
+    <string name="import_failed">Error al importar — archivo vacío o JSON inválido</string>
     <string name="export_coming_next_update">La exportación llegará en la próxima actualización</string>
     <string name="clear_chat_history">Borrar historial de chat</string>
     <string name="remove_from_display">Eliminar mensajes de la vista actual</string>

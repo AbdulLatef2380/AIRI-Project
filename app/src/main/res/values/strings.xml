@@ -49,6 +49,10 @@
     <string name="download_chat_history">Save current chat as JSON to Downloads/AIRI/</string>
     <string name="export_success">Chat exported to Downloads/AIRI/</string>
     <string name="export_failed">Export failed — check storage permissions</string>
+    <string name="import_chats">Import Chats</string>
+    <string name="import_chat_history">Load a previously exported JSON chat file</string>
+    <string name="import_success">Imported %1$d messages</string>
+    <string name="import_failed">Import failed — file is empty or not valid JSON</string>
     <string name="clear_chat_history">Clear Chat History</string>
     <string name="remove_from_display">Remove from display (not from DB)</string>
     <string name="delete_account">Delete Account</string>

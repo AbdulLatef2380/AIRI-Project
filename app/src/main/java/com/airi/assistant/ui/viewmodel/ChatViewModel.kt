@@ -1149,6 +1149,56 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         loadModel(model)
     }
 
+    // ── Chat history import (mirror of export) ────────────────────────────────
+    /**
+     * Imports a previously-exported JSON chat file into the *current* session.
+     * Returns the number of messages successfully ingested. The UI refreshes
+     * automatically because messages are appended through MemoryManager and
+     * then re-broadcast via the existing _messages flow.
+     */
+    fun importChatJson(uri: Uri, onResult: (Int) -> Unit) {
+        viewModelScope.launch {
+            val imported = withContext(Dispatchers.IO) {
+                com.airi.assistant.util.ChatImporter.importFromUri(appContext, uri)
+            }
+            if (imported.isEmpty()) {
+                onResult(0)
+                return@launch
+            }
+            // Ensure we have a session to attach the messages to.
+            if (_currentSessionId.value.isBlank()) {
+                Log.w("AIRI_STORAGE", "importChatJson: no active session — creating one")
+                createNewChat()
+            }
+            val targetSession = _currentSessionId.value
+            if (targetSession.isBlank()) {
+                onResult(0)
+                return@launch
+            }
+            var added = 0
+            val newUiMessages = mutableListOf<ChatMessage>()
+            for (m in imported) {
+                runCatching {
+                    val saved = memoryManager.recordChatMessage(targetSession, m.role, m.content)
+                    newUiMessages += ChatMessage(
+                        text = m.content,
+                        isUser = (m.role == "user"),
+                        id = saved.id
+                    )
+                    added++
+                }.onFailure {
+                    Log.w("AIRI_STORAGE", "importChatJson: skipped row reason=${it.message}")
+                }
+            }
+            if (newUiMessages.isNotEmpty()) {
+                _messages.update { it + newUiMessages }
+            }
+            refreshSessions()
+            Log.i("AIRI_PROOF", "CHAT_IMPORTED count=$added session=$targetSession")
+            onResult(added)
+        }
+    }
+
     fun activateDownloadedModel() {
         val file = downloadManager.getModelFile()
         if (!file.exists()) {

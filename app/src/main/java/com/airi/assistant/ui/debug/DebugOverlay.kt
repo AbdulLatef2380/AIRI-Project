@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.debug
 
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -12,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,8 +26,29 @@ private val BLUE   = Color(0xFF42A5F5)
 private val RED    = Color(0xFFFF4444)
 private val MONO   = FontFamily.Monospace
 
+const val DEBUG_OVERLAY_PREFS = "airi_debug"
+const val KEY_DEBUG_OVERLAY_ENABLED = "debug_overlay_enabled"
+
+/** Read once on composition. The overlay defaults to OFF so it cannot block the chat
+ *  view (Bug #14). Power users can flip the flag via:
+ *      adb shell am broadcast -a com.airi.assistant.DEBUG_OVERLAY --ez enabled true
+ *  or any future settings hook (no UI change required for the fix itself).
+ */
+@Composable
+private fun rememberDebugOverlayEnabled(): Boolean {
+    val ctx = LocalContext.current
+    val enabled = remember {
+        val prefs = ctx.getSharedPreferences(DEBUG_OVERLAY_PREFS, Context.MODE_PRIVATE)
+        prefs.getBoolean(KEY_DEBUG_OVERLAY_ENABLED, false)
+    }
+    return enabled
+}
+
 @Composable
 fun DebugOverlay() {
+    val overlayEnabled = rememberDebugOverlayEnabled()
+    if (!overlayEnabled) return                       // ← off by default; never blocks chat
+
     val events by VerificationTracker.events.collectAsState()
     val last   = events.lastOrNull()
 

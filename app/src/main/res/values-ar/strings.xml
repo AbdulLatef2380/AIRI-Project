@@ -44,6 +44,10 @@
     <string name="data_controls">التحكم في البيانات</string>
     <string name="export_chats">تصدير المحادثات</string>
     <string name="download_chat_history">حفظ المحادثة الحالية كـ JSON في Downloads/AIRI/</string>
+    <string name="import_chats">استيراد المحادثات</string>
+    <string name="import_chat_history">تحميل ملف JSON محادثة سبق تصديره</string>
+    <string name="import_success">تم استيراد %1$d رسالة</string>
+    <string name="import_failed">فشل الاستيراد — الملف فارغ أو ليس JSON صالح</string>
     <string name="export_coming_next_update">التصدير قادم في التحديث القادم</string>
     <string name="clear_chat_history">مسح سجل المحادثة</string>
     <string name="remove_from_display">إزالة من العرض (وليس من قاعدة البيانات)</string>

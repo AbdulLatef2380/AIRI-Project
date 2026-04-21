@@ -436,14 +436,18 @@ class LlamaManager(private val context: Context) {
     private fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
 
     private fun warmup() {
-        scope.launch {
-            runCatching {
-                LlamaNative.generateResponse("Hi")
-                Log.d(TAG, "Warmup complete")
-            }.onFailure { e ->
-                Log.w(TAG, "Warmup failed (non-critical): ${e.message}")
-            }
-        }
+        // Warmup intentionally disabled.
+        //
+        // The previous implementation called `LlamaNative.generateResponse("Hi")`
+        // immediately after model load. With the new strict-UTF-8 / KV-checked
+        // bridge this still works, but it consumed several seconds of CPU on
+        // the user's first interaction window and — more importantly — could
+        // crash the load callback if the model file was corrupt in a way
+        // metadata-validation missed.
+        //
+        // First-token latency is now measured directly from the user's first
+        // real prompt (see AIRI_PROOF FIRST_TOKEN). A no-op here is safer.
+        Log.d(TAG, "Warmup skipped (first-token latency now measured on first user prompt)")
     }
 
     private fun defaultSystemPrompt(): String = """

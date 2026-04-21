@@ -87,17 +87,26 @@ class VoiceManager(
     fun startWakeWordDetection() {
         if (isListeningForWakeWord) return
         isListeningForWakeWord = true
-        Log.d(TAG, "Listening for AIRI wake word")
-        // Picovoice integration later
+        Log.d(TAG, "Starting on-device hotword service ('Hey AIRI')")
+        com.airi.assistant.voice.HotwordService.start(context.applicationContext)
+    }
+
+    fun stopWakeWordDetection() {
+        if (!isListeningForWakeWord) return
+        isListeningForWakeWord = false
+        Log.d(TAG, "Stopping on-device hotword service")
+        com.airi.assistant.voice.HotwordService.stop(context.applicationContext)
     }
 
     fun startSpeechToText() {
-        Log.d(TAG, "Speech to text started")
-        // Vosk integration later
+        Log.d(TAG, "Speech-to-text request — handled by ChatScreen launcher (offline-preferred)")
+        // The actual STT capture happens through a RecognizerIntent with
+        // EXTRA_PREFER_OFFLINE = true in ChatScreen. This stub remains for
+        // legacy callers and just no-ops.
     }
 
     fun stopAll() {
-        isListeningForWakeWord = false
+        stopWakeWordDetection()
         tts?.stop()
         Log.d(TAG, "Voice system stopped")
     }

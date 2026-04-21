@@ -44,6 +44,7 @@ import com.airi.assistant.ui.components.PremiumBadge
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.util.ChatExporter
+import com.airi.assistant.util.ChatImporter
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
@@ -88,6 +89,19 @@ fun SettingsScreen(
                 if (success) context.getString(R.string.export_success)
                 else context.getString(R.string.export_failed)
             )
+        }
+    }
+    val importChatLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        viewModel.importChatJson(uri) { count ->
+            scope.launch {
+                snackbarHost.showSnackbar(
+                    if (count > 0) context.getString(R.string.import_success, count)
+                    else context.getString(R.string.import_failed)
+                )
+            }
         }
     }
 
@@ -366,6 +380,13 @@ fun SettingsScreen(
                     sublabel = stringResource(R.string.download_chat_history)
                 ) {
                     exportChatLauncher.launch(ChatExporter.buildFileName())
+                }
+                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                SettingsActionRow(
+                    label = stringResource(R.string.import_chats),
+                    sublabel = stringResource(R.string.import_chat_history)
+                ) {
+                    importChatLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
                 }
                 HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(label = stringResource(R.string.clear_chat_history), sublabel = stringResource(R.string.remove_from_display)) {

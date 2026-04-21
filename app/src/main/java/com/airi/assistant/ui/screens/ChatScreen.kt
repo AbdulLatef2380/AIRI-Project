@@ -156,6 +156,11 @@ fun ChatScreen(
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
                 putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
+                // Force on-device offline recognition when the user has the
+                // Google offline language pack installed (Bug #5 — voice
+                // requires internet). API 23+. Without this flag the system
+                // falls back to a network round-trip.
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             }
             speechLauncher.launch(intent)
         } else {
@@ -206,6 +211,7 @@ fun ChatScreen(
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
                 putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             }
             voiceChatLauncher.launch(intent)
         } else {
@@ -396,6 +402,7 @@ fun ChatScreen(
                                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                                     putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
                                     putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
+                                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
                                 }
                                 speechLauncher.launch(intent)
                             }
@@ -422,6 +429,7 @@ fun ChatScreen(
                                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                                     putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
                                     putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
+                                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
                                 }
                                 voiceChatLauncher.launch(intent)
                             }

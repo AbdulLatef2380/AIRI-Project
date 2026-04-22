@@ -6,8 +6,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
+import androidx.compose.runtime.DisposableEffect
+import com.airi.assistant.voice.VoskEngine
+import com.airi.assistant.voice.VoskModelManager
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.airi.assistant.R
+import com.airi.assistant.WakeWordDispatcher
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.core.VoiceManager
 import com.airi.assistant.domain.retention.RetentionManager
@@ -118,7 +120,6 @@ fun ChatScreen(
     }
 
     var showMenu            by remember { mutableStateOf(false) }
-    var showAttachSheet     by remember { mutableStateOf(false) }
     var showGenSettings     by remember { mutableStateOf(false) }
     var voiceInput          by remember { mutableStateOf("") }
     var voiceChatInput      by remember { mutableStateOf("") }
@@ -128,44 +129,92 @@ fun ChatScreen(
         viewModel.updateVoiceState(voiceState.name)
     }
 
-    // Voice message: fills text field, user presses Send manually
-    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        Log.d("AIRI_VOICE", "STT speechLauncher resultCode=${result.resultCode}")
-        voiceState = VoiceSessionState.IDLE
-        Log.d("AIRI_VOICE", "MicState → IDLE (speechLauncher done)")
-        if (result.resultCode == Activity.RESULT_OK) {
-            val spoken = result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
-                .orEmpty()
-            if (spoken.isNotBlank()) {
-                Log.d("AIRI_VOICE", "STT recognized: '${spoken.take(80)}' len=${spoken.length}")
-                voiceInput = spoken
-            } else {
-                Log.d("AIRI_VOICE", "STT returned blank result")
+    val wakeCounter by WakeWordDispatcher.counter
+
+    // ── In-app speech-to-text (Vosk on-device, NO Google APIs) ──────────────
+    //
+    // This screen used to drive android.speech.SpeechRecognizer, which
+    // requires Google's offline voice-search bundle to actually run
+    // offline. On devices without that bundle (many OEMs, GMS-less
+    // hardware) it either popped a Google dialog or silently failed.
+    //
+    // We now stream microphone audio straight into a Vosk Recognizer
+    // (com.alphacephei:vosk-android) loaded from a model the user
+    // downloads via the in-app downloader (VoskModelManager). No
+    // RecognizerIntent, no SpeechRecognizer, no network, no Google.
+    val voskEngineHolder = remember { mutableStateOf<VoskEngine?>(null) }
+    DisposableEffect(Unit) {
+        onDispose {
+            voskEngineHolder.value?.release()
+            voskEngineHolder.value = null
+        }
+    }
+
+    fun stopInAppStt() {
+        voskEngineHolder.value?.stop()
+    }
+
+    fun startInAppStt(autoSend: Boolean) {
+        if (!VoskModelManager.isReady(context)) {
+            voiceState = VoiceSessionState.IDLE
+            scope.launch {
+                snackbarHost.showSnackbar(
+                    context.getString(R.string.no_voice_model_installed)
+                )
             }
+            return
+        }
+        voskEngineHolder.value?.release()
+        voskEngineHolder.value = null
+        scope.launch {
+            val model = VoskModelManager.loadActiveModel(context)
+            if (model == null) {
+                voiceState = VoiceSessionState.IDLE
+                snackbarHost.showSnackbar(context.getString(R.string.voice_model_load_failed))
+                return@launch
+            }
+            val engine = VoskEngine(context, model)
+            voskEngineHolder.value = engine
+            voiceState = VoiceSessionState.LISTENING
+            engine.start(
+                scope     = this,
+                onPartial = { /* future: surface live partial text */ },
+                onFinal   = { spoken ->
+                    Log.d("AIRI_VOICE", "Vosk STT result len=${spoken.length} autoSend=$autoSend")
+                    voskEngineHolder.value?.release()
+                    voskEngineHolder.value = null
+                    if (spoken.isNotBlank()) {
+                        if (autoSend) {
+                            voiceState     = VoiceSessionState.PROCESSING
+                            voiceChatInput = spoken
+                        } else {
+                            voiceState = VoiceSessionState.IDLE
+                            voiceInput = spoken
+                        }
+                    } else {
+                        voiceState = VoiceSessionState.IDLE
+                    }
+                },
+                onError   = { err ->
+                    Log.w("AIRI_VOICE", "Vosk STT error: $err")
+                    voskEngineHolder.value?.release()
+                    voskEngineHolder.value = null
+                    voiceState = VoiceSessionState.IDLE
+                    scope.launch {
+                        snackbarHost.showSnackbar(
+                            context.getString(R.string.speech_recognition_unavailable)
+                        )
+                    }
+                }
+            )
         }
     }
 
     val micPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
-            voiceState = VoiceSessionState.LISTENING
-            Log.d("AIRI_VOICE", "MicState → LISTENING (mic permission granted)")
-            val locale = java.util.Locale.getDefault().toLanguageTag()
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
-                // Force on-device offline recognition when the user has the
-                // Google offline language pack installed (Bug #5 — voice
-                // requires internet). API 23+. Without this flag the system
-                // falls back to a network round-trip.
-                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            }
-            speechLauncher.launch(intent)
+            startInAppStt(autoSend = false)
         } else {
             voiceState = VoiceSessionState.IDLE
-            Log.d("AIRI_VOICE", "MicState → IDLE (mic permission denied)")
             val isPermanentlyDenied = context is Activity &&
                 !context.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)
             scope.launch {
@@ -179,45 +228,28 @@ fun ChatScreen(
         }
     }
 
-    // Voice chat: fills text field AND auto-sends
-    val voiceChatLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        Log.d("AIRI_VOICE", "voiceChatLauncher resultCode=${result.resultCode}")
-        if (result.resultCode == Activity.RESULT_OK) {
-            val spoken = result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
-                .orEmpty()
-            if (spoken.isNotBlank()) {
-                Log.d("AIRI_VOICE", "STT voiceChat recognized: '${spoken.take(80)}' len=${spoken.length}")
-                voiceState = VoiceSessionState.PROCESSING
-                Log.d("AIRI_VOICE", "MicState → PROCESSING (auto-send pending)")
-                voiceChatInput = spoken
-            } else {
-                voiceState = VoiceSessionState.IDLE
-                Log.d("AIRI_VOICE", "MicState → IDLE (voiceChat blank STT result)")
-            }
+    val voiceChatPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            startInAppStt(autoSend = true)
         } else {
             voiceState = VoiceSessionState.IDLE
-            Log.d("AIRI_VOICE", "MicState → IDLE (voiceChatLauncher cancelled/failed)")
+            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.microphone_permission_required)) }
         }
     }
 
-    val voiceChatPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) {
-            voiceState = VoiceSessionState.LISTENING
-            Log.d("AIRI_VOICE", "MicState → LISTENING (voiceChat mic permission granted)")
-            val locale = java.util.Locale.getDefault().toLanguageTag()
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
-                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            }
-            voiceChatLauncher.launch(intent)
-        } else {
-            voiceState = VoiceSessionState.IDLE
-            Log.d("AIRI_VOICE", "MicState → IDLE (voiceChat mic permission denied)")
-            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.microphone_permission_required)) }
+    // ── Wake-word → in-app dictation bridge ──────────────────────────────────
+    // MainActivity's BroadcastReceiver picks up HotwordService's "Hey AIRI"
+    // intent and bumps WakeWordDispatcher.counter. We observe the bump here
+    // and start a fresh in-app listen turn on the chat input — turning the
+    // wake word from "does nothing" into an actual conversational entry point.
+    LaunchedEffect(wakeCounter) {
+        if (wakeCounter > 0 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED &&
+            VoskModelManager.isReady(context) &&
+            voiceState == VoiceSessionState.IDLE) {
+            Log.d("AIRI_VOICE", "Wake-word dispatcher fired → starting in-app STT (autoSend)")
+            startInAppStt(autoSend = true)
         }
     }
 
@@ -380,7 +412,17 @@ fun ChatScreen(
                     onSend          = { text -> viewModel.sendMessage(text) },
                     onCancel        = { viewModel.cancelGeneration() },
                     onSmartReply    = { reply -> viewModel.clearSmartReplies(); viewModel.sendMessage(reply) },
-                    onAttachClick   = { showAttachSheet = true },
+                    onPickImage     = { imagePicker.launch("image/*") },
+                    onPickFile      = { filePicker.launch("*/*") },
+                    onTakePhoto     = {
+                        when {
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                                PackageManager.PERMISSION_GRANTED ->
+                                cameraLauncher.launch(null)
+                            else ->
+                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    },
                     voiceState        = voiceState,
                     onMicClick      = mic@{
                         // Interrupt TTS if currently speaking
@@ -391,20 +433,17 @@ fun ChatScreen(
                             Log.d("AIRI_VOICE", "TTS interrupted by mic press → IDLE")
                             return@mic
                         }
-                        val locale = java.util.Locale.getDefault().toLanguageTag()
+                        // Tap-while-listening = stop and flush current Vosk session
+                        if (voiceState == VoiceSessionState.LISTENING) {
+                            stopInAppStt()
+                            return@mic
+                        }
                         when {
-                            !SpeechRecognizer.isRecognitionAvailable(context) -> {
-                                scope.launch { snackbarHost.showSnackbar(context.getString(R.string.speech_recognition_unavailable)) }
+                            !VoskModelManager.isReady(context) -> {
+                                scope.launch { snackbarHost.showSnackbar(context.getString(R.string.no_voice_model_installed)) }
                             }
                             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> {
-                                voiceState = VoiceSessionState.LISTENING
-                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
-                                    putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
-                                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-                                }
-                                speechLauncher.launch(intent)
+                                startInAppStt(autoSend = false)
                             }
                             else -> micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
@@ -418,20 +457,16 @@ fun ChatScreen(
                             Log.d("AIRI_VOICE", "TTS interrupted by voice-chat press → IDLE")
                             return@vc
                         }
-                        val locale = java.util.Locale.getDefault().toLanguageTag()
+                        if (voiceState == VoiceSessionState.LISTENING) {
+                            stopInAppStt()
+                            return@vc
+                        }
                         when {
-                            !SpeechRecognizer.isRecognitionAvailable(context) -> {
-                                scope.launch { snackbarHost.showSnackbar(context.getString(R.string.speech_recognition_unavailable)) }
+                            !VoskModelManager.isReady(context) -> {
+                                scope.launch { snackbarHost.showSnackbar(context.getString(R.string.no_voice_model_installed)) }
                             }
                             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> {
-                                voiceState = VoiceSessionState.LISTENING
-                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
-                                    putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.speak_to_airi))
-                                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-                                }
-                                voiceChatLauncher.launch(intent)
+                                startInAppStt(autoSend = true)
                             }
                             else -> voiceChatPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
@@ -500,43 +535,6 @@ fun ChatScreen(
     }
 
     // ── Attach bottom sheet ──────────────────────────────────────────────────
-    if (showAttachSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showAttachSheet = false },
-            containerColor   = Color(0xFF12162E),
-            contentColor     = Color.White,
-            shape            = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(stringResource(R.string.attach), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
-                Spacer(Modifier.height(4.dp))
-                AttachOption(icon = Icons.Outlined.Image, label = stringResource(R.string.pick_image)) {
-                    showAttachSheet = false
-                    imagePicker.launch("image/*")
-                }
-                AttachOption(icon = Icons.Outlined.AttachFile, label = stringResource(R.string.pick_file)) {
-                    showAttachSheet = false
-                    filePicker.launch("*/*")
-                }
-                AttachOption(icon = Icons.Outlined.CameraAlt, label = stringResource(R.string.take_photo)) {
-                    showAttachSheet = false
-                    when {
-                        ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED ->
-                            cameraLauncher.launch(null)
-                        else ->
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
-            }
-        }
-    }
-
     // ── Generation settings dialog ───────────────────────────────────────────
     if (showGenSettings) {
         GenerationSettingsDialog(
@@ -1105,12 +1103,15 @@ fun ChatInputBar(
     onSend: (String) -> Unit,
     onCancel: () -> Unit = {},
     onSmartReply: (String) -> Unit = {},
-    onAttachClick: () -> Unit,
+    onPickImage: () -> Unit = {},
+    onPickFile: () -> Unit = {},
+    onTakePhoto: () -> Unit = {},
     onMicClick: () -> Unit,
     onVoiceChatClick: () -> Unit,
     onVoiceConsumed: () -> Unit,
     onOpenModels: () -> Unit
 ) {
+    var showAttachPopup by remember { mutableStateOf(false) }
     var text by rememberSaveable { mutableStateOf("") }
     val canSend = text.isNotBlank() && modelState.isModelReady && !modelState.isModelLoading && !isGenerating
 
@@ -1147,8 +1148,7 @@ fun ChatInputBar(
     }
 
     Surface(
-        color = InputBarBackground,
-        shadowElevation = 12.dp
+        color = Color.Transparent,
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
 
@@ -1216,7 +1216,7 @@ fun ChatInputBar(
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
+                    modifier = Modifier.padding(bottom = 6.dp, start = 12.dp)
                 ) {
                     Box(
                         modifier = Modifier
@@ -1228,181 +1228,305 @@ fun ChatInputBar(
                     Text(label, color = textColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     if (voiceState == VoiceSessionState.SPEAKING) {
                         Spacer(Modifier.width(6.dp))
-                        Text("(tap mic to stop)", color = Color.White.copy(alpha = 0.35f), fontSize = 11.sp)
+                        Text("(tap to stop)", color = Color.White.copy(alpha = 0.35f), fontSize = 11.sp)
                     }
                 }
             }
 
             // Model status chip
             if (!modelState.isModelReady && !modelState.isModelLoading) {
-                TextButton(onClick = onOpenModels, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)) {
+                TextButton(onClick = onOpenModels, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp)) {
                     Icon(Icons.Outlined.Warning, contentDescription = null, tint = Color(0xFFFFCC00), modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(stringResource(R.string.no_model_tap_select), color = Color(0xFFFFCC00), fontSize = 12.sp)
                 }
             } else if (modelState.isModelLoading) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp, start = 12.dp)) {
                     CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp, color = CosmicAccent)
                     Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.loading_model_name, modelState.selectedModelName), color = CosmicAccent.copy(alpha = 0.8f), fontSize = 12.sp)
                 }
             }
 
+            // ── Floating pill ──────────────────────────────────────────────
+            val isTyping  = text.isNotBlank()
+            val showSend  = isTyping || isGenerating
+            val mainEnabled = if (showSend) (canSend || isGenerating)
+                              else (modelState.isModelReady && !isGenerating)
+
+            // DarkSurface = 0x331A1A1A → dark gray @ 20 % alpha so the
+            // starfield behind the pill stays visible (per spec).
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Bottom
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(Color(0xFF1A1A1A).copy(alpha = 0.20f))
+                    .border(
+                        width = 1.dp,
+                        color = Color.White.copy(alpha = 0.08f),
+                        shape = RoundedCornerShape(32.dp)
+                    )
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // + Attach
-                IconButton(
-                    onClick  = onAttachClick,
-                    modifier = Modifier.size(40.dp)
+
+                // ── Live-Chat / Send morphing circle (left) ─────────────
+                val mainScale = if (!showSend && voiceState != VoiceSessionState.IDLE) micPulse.value else 1f
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .padding(2.dp)
+                        .graphicsLayer { scaleX = mainScale; scaleY = mainScale }
+                        .shadow(
+                            elevation = if (mainEnabled) 14.dp else 0.dp,
+                            shape = CircleShape,
+                            ambientColor = CosmicAccent,
+                            spotColor = CosmicAccent
+                        )
+                        .clip(CircleShape)
+                        .background(
+                            when {
+                                isGenerating -> Color(0xFFFF6B6B)
+                                mainEnabled  -> CosmicAccent
+                                else         -> CosmicAccent.copy(alpha = 0.30f)
+                            }
+                        )
+                        .clickable(enabled = mainEnabled || isGenerating) {
+                            when {
+                                isGenerating -> onCancel()
+                                showSend && canSend -> { onSend(text); text = "" }
+                                !showSend -> onVoiceChatClick()
+                            }
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.attach), tint = Color.White.copy(alpha = 0.6f))
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = when {
+                            isGenerating -> "stop"
+                            showSend     -> "send"
+                            else         -> "live"
+                        },
+                        transitionSpec = {
+                            (androidx.compose.animation.fadeIn(
+                                animationSpec = androidx.compose.animation.core.tween(180)
+                            ) + androidx.compose.animation.scaleIn(
+                                animationSpec = androidx.compose.animation.core.tween(180),
+                                initialScale = 0.7f
+                            )) togetherWith (androidx.compose.animation.fadeOut(
+                                animationSpec = androidx.compose.animation.core.tween(120)
+                            ) + androidx.compose.animation.scaleOut(
+                                animationSpec = androidx.compose.animation.core.tween(120),
+                                targetScale = 0.7f
+                            ))
+                        },
+                        label = "main_btn"
+                    ) { state ->
+                        when (state) {
+                            "stop" -> Icon(
+                                Icons.Default.Stop,
+                                contentDescription = "Stop",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            "send" -> Icon(
+                                Icons.Default.ArrowUpward,
+                                contentDescription = stringResource(R.string.send),
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            else -> Icon(
+                                Icons.Default.GraphicEq,
+                                contentDescription = "Live Chat",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
                 }
 
-                // TextField
-                TextField(
-                    value         = text,
-                    onValueChange = { text = it },
-                    modifier      = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(28.dp))
-                        .background(Color.White.copy(alpha = 0.04f)),
-                    enabled       = modelState.isModelReady && !isGenerating,
-                    placeholder   = {
-                        Text(
-                            when {
-                                isGenerating              -> stringResource(R.string.generating)
-                                modelState.isModelLoading -> stringResource(R.string.model_is_loading)
-                                modelState.isModelReady   -> stringResource(R.string.message_airi)
-                                else                      -> stringResource(R.string.activate_model_first)
-                            },
-                            color = Color.White.copy(alpha = 0.3f),
-                            fontSize = 14.sp
-                        )
-                    },
-                    minLines = 1,
-                    maxLines = 6,
-                    shape    = RoundedCornerShape(28.dp),
-                    colors   = TextFieldDefaults.colors(
-                        focusedContainerColor   = Color.White.copy(alpha = 0.08f),
-                        unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
-                        disabledContainerColor  = Color.White.copy(alpha = 0.03f),
-                        focusedTextColor        = Color.White,
-                        unfocusedTextColor      = Color.White,
-                        disabledTextColor       = Color.White.copy(alpha = 0.3f),
-                        focusedIndicatorColor   = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        disabledIndicatorColor  = Color.Transparent,
-                        cursorColor             = CosmicAccent
+                // ── Mic (hidden when typing or generating) ──────────────
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = !isTyping && !isGenerating,
+                    enter = androidx.compose.animation.fadeIn(
+                        animationSpec = androidx.compose.animation.core.tween(180)
+                    ) + androidx.compose.animation.expandHorizontally(
+                        animationSpec = androidx.compose.animation.core.tween(180)
+                    ),
+                    exit = androidx.compose.animation.fadeOut(
+                        animationSpec = androidx.compose.animation.core.tween(120)
+                    ) + androidx.compose.animation.shrinkHorizontally(
+                        animationSpec = androidx.compose.animation.core.tween(120)
                     )
-                )
-
-                // Mic — voice message (fills field, user sends manually)
-                IconButton(
-                    onClick  = onMicClick,
-                    modifier = Modifier.size(40.dp)
                 ) {
+                    val micActive = voiceState != VoiceSessionState.IDLE
                     Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .clickable(enabled = modelState.isModelReady) { onMicClick() },
+                        contentAlignment = Alignment.Center
                     ) {
-                        if (voiceState != VoiceSessionState.IDLE) {
-                            val pulseColor = when (voiceState) {
-                                VoiceSessionState.LISTENING  -> Color(0xFFFF4444)
-                                VoiceSessionState.PROCESSING -> CosmicAccent
-                                VoiceSessionState.SPEAKING   -> Color(0xFF4FC3F7)
-                                else                         -> Color.Transparent
-                            }
+                        if (micActive) {
                             Box(
                                 modifier = Modifier
-                                    .size((28 * micPulse.value).dp)
+                                    .size((34 * micPulse.value).dp)
                                     .clip(CircleShape)
-                                    .background(pulseColor.copy(alpha = 0.18f))
+                                    .background(CosmicAccent.copy(alpha = 0.18f))
                             )
                         }
                         Icon(
                             Icons.Outlined.Mic,
                             contentDescription = stringResource(R.string.voice_input),
                             tint = when (voiceState) {
-                                VoiceSessionState.LISTENING  -> Color(0xFFFF4444)
-                                VoiceSessionState.PROCESSING -> CosmicAccent
-                                VoiceSessionState.SPEAKING   -> Color(0xFF4FC3F7)
-                                VoiceSessionState.IDLE       -> Color.White.copy(alpha = 0.5f)
+                                VoiceSessionState.LISTENING  -> Color.White
+                                VoiceSessionState.PROCESSING -> Color.White
+                                VoiceSessionState.SPEAKING   -> Color.White
+                                VoiceSessionState.IDLE       ->
+                                    if (modelState.isModelReady) CosmicAccent
+                                    else CosmicAccent.copy(alpha = 0.35f)
                             },
                             modifier = Modifier.size(22.dp)
                         )
                     }
                 }
 
-                // Voice Chat — auto-sends after recognition
-                IconButton(
-                    onClick  = onVoiceChatClick,
-                    enabled  = modelState.isModelReady && !isGenerating,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        Icons.Outlined.RecordVoiceOver,
-                        contentDescription = "Voice Chat",
-                        tint = if (modelState.isModelReady && !isGenerating)
-                            CosmicAccent.copy(alpha = 0.85f)
-                        else
-                            Color.White.copy(alpha = 0.25f)
-                    )
-                }
-
-                // Send / Stop — shows Stop icon while generating for cancel
-                IconButton(
-                    onClick  = {
-                        if (isGenerating) {
-                            onCancel()
-                        } else if (canSend) {
-                            onSend(text)
-                            text = ""
-                        }
-                    },
-                    enabled  = canSend || isGenerating,
+                // ── Text field (transparent — pill provides surface) ───
+                BasicTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    enabled = modelState.isModelReady && !isGenerating,
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(
-                            when {
-                                isGenerating -> Color(0xFFFF4444).copy(alpha = 0.12f)
-                                canSend      -> CosmicAccent.copy(alpha = 0.2f)
-                                else         -> Color.Transparent
+                        .weight(1f)
+                        .padding(horizontal = 10.dp, vertical = 10.dp),
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        color = Color.White,
+                        fontSize = 15.sp
+                    ),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(CosmicAccent),
+                    maxLines = 6,
+                    decorationBox = { inner ->
+                        Box {
+                            if (text.isEmpty()) {
+                                Text(
+                                    text = when {
+                                        isGenerating              -> stringResource(R.string.generating)
+                                        modelState.isModelLoading -> stringResource(R.string.model_is_loading)
+                                        modelState.isModelReady   -> stringResource(R.string.message_airi)
+                                        else                      -> stringResource(R.string.activate_model_first)
+                                    },
+                                    color = Color.White.copy(alpha = 0.40f),
+                                    fontSize = 15.sp
+                                )
                             }
+                            inner()
+                        }
+                    }
+                )
+
+                // ── + Attach (right) with inline popup bubble above ────
+                Box {
+                    val plusInteractive = !isGenerating
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .clickable(enabled = plusInteractive) { showAttachPopup = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = stringResource(R.string.attach),
+                            tint = if (plusInteractive) Color.White else Color.White.copy(alpha = 0.3f),
+                            modifier = Modifier.size(24.dp)
                         )
-                ) {
-                    androidx.compose.animation.AnimatedContent(
-                        targetState = isGenerating,
-                        transitionSpec = {
-                            androidx.compose.animation.fadeIn(
-                                animationSpec = androidx.compose.animation.core.tween(150)
-                            ) togetherWith androidx.compose.animation.fadeOut(
-                                animationSpec = androidx.compose.animation.core.tween(150)
-                            )
-                        },
-                        label = "send_icon"
-                    ) { generating ->
-                        if (generating) {
-                            Icon(
-                                Icons.Default.Stop,
-                                contentDescription = "Stop generation",
-                                tint = Color(0xFFFF6B6B),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        } else {
-                            Icon(
-                                Icons.Default.Send,
-                                contentDescription = stringResource(R.string.send),
-                                tint = if (canSend) CosmicAccent else Color.White.copy(alpha = 0.2f),
-                                modifier = Modifier.size(20.dp)
-                            )
+                    }
+                    if (showAttachPopup) {
+                        val density = androidx.compose.ui.platform.LocalDensity.current
+                        val gapPx = with(density) { 12.dp.roundToPx() }
+                        val provider = remember {
+                            object : androidx.compose.ui.window.PopupPositionProvider {
+                                override fun calculatePosition(
+                                    anchorBounds: androidx.compose.ui.unit.IntRect,
+                                    windowSize: androidx.compose.ui.unit.IntSize,
+                                    layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                                    popupContentSize: androidx.compose.ui.unit.IntSize
+                                ): androidx.compose.ui.unit.IntOffset {
+                                    val x = (anchorBounds.right - popupContentSize.width)
+                                        .coerceAtLeast(8)
+                                    val y = (anchorBounds.top - popupContentSize.height - gapPx)
+                                        .coerceAtLeast(8)
+                                    return androidx.compose.ui.unit.IntOffset(x, y)
+                                }
+                            }
+                        }
+                        androidx.compose.ui.window.Popup(
+                            popupPositionProvider = provider,
+                            onDismissRequest = { showAttachPopup = false },
+                            properties = androidx.compose.ui.window.PopupProperties(focusable = true)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(28.dp),
+                                color = Color(0xFF1A1F35),
+                                shadowElevation = 12.dp,
+                                modifier = Modifier.border(
+                                    1.dp,
+                                    CosmicAccent.copy(alpha = 0.25f),
+                                    RoundedCornerShape(28.dp)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                ) {
+                                    AttachBubble(Icons.Outlined.CameraAlt, stringResource(R.string.take_photo)) {
+                                        showAttachPopup = false; onTakePhoto()
+                                    }
+                                    AttachBubble(Icons.Outlined.Image, stringResource(R.string.pick_image)) {
+                                        showAttachPopup = false; onPickImage()
+                                    }
+                                    AttachBubble(Icons.Outlined.AttachFile, stringResource(R.string.pick_file)) {
+                                        showAttachPopup = false; onPickFile()
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AttachBubble(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(64.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(46.dp)
+                .shadow(8.dp, CircleShape, ambientColor = CosmicAccent, spotColor = CosmicAccent)
+                .clip(CircleShape)
+                .background(CosmicAccent.copy(alpha = 0.18f))
+                .border(1.dp, CosmicAccent.copy(alpha = 0.55f), CircleShape)
+                .clickable { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = label, tint = CosmicAccent, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = 0.7f),
+            fontSize = 10.sp,
+            maxLines = 1
+        )
     }
 }
 
@@ -1624,35 +1748,6 @@ private fun DrawerActionItem(
         colors   = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent),
         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
     )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ATTACH OPTION
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun AttachOption(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    enabled: Boolean = true,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick  = onClick,
-        enabled  = enabled,
-        shape    = RoundedCornerShape(14.dp),
-        color    = Color.White.copy(alpha = if (enabled) 0.07f else 0.03f),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, tint = if (enabled) CosmicAccent else Color.White.copy(alpha = 0.3f), modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(14.dp))
-            Text(label, color = if (enabled) Color.White else Color.White.copy(alpha = 0.3f), fontSize = 15.sp)
-        }
-    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

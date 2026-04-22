@@ -26,6 +26,17 @@ android {
             abiFilters += listOf("arm64-v8a")
         }
 
+        // ── Picovoice Porcupine AccessKey ────────────────────────────────
+        // Read from (in order): -PpicovoiceAccessKey=… gradle prop, then
+        // PICOVOICE_ACCESS_KEY env var. When empty the wake-word service
+        // refuses to start and the Voice Settings screen tells the user
+        // exactly what to do. The user can ALSO paste a key at runtime
+        // (stored in EncryptedSharedPreferences) without a rebuild.
+        val picovoiceKey: String =
+            (project.findProperty("picovoiceAccessKey") as? String).orEmpty()
+                .ifBlank { System.getenv("PICOVOICE_ACCESS_KEY").orEmpty() }
+        buildConfigField("String", "PICOVOICE_ACCESS_KEY", "\"" + picovoiceKey.replace("\"", "\\\"") + "\"")
+
         // Native (llama.cpp + JNI bridge) is built from source — see
         // app/src/main/cpp/CMakeLists.txt. No prebuilt .so is shipped; if
         // libairi_native.so ever appears in jniLibs/ it would shadow the
@@ -133,6 +144,23 @@ dependencies {
 
     // Google Play Billing
     implementation("com.android.billingclient:billing-ktx:6.2.1")
+
+    // ── Voice (fully offline, no Google APIs) ────────────────────────────
+    // Vosk = on-device speech-to-text (Apache 2.0). Models are NOT shipped
+    // in the APK; the in-app downloader (VoskModelManager) fetches a chosen
+    // Vosk model zip into internal storage, verifies SHA-256 (when known),
+    // and extracts it. See VoskModelManager.kt + VoiceSettingsScreen.kt.
+    implementation(libs.vosk.android)
+
+    // Picovoice Porcupine = on-device wake-word ("Hey AIRI"). Requires
+    // (a) a Picovoice AccessKey supplied via PICOVOICE_ACCESS_KEY (gradle
+    //     property, environment variable, or runtime via Settings) and
+    // (b) a custom .ppn keyword file dropped at:
+    //         app/src/main/res/raw/hey_airi.ppn      (preferred)
+    //     or  app/src/main/assets/voice/hey_airi.ppn (fallback)
+    // When either is missing the wake-word service exits cleanly and the
+    // UI shows the user how to enable it. See PorcupineEngine.kt.
+    implementation(libs.porcupine.android)
 }
 
 tasks.register("airiVerifyOptimization") {

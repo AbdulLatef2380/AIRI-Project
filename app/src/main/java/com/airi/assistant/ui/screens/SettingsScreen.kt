@@ -6,7 +6,7 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.speech.SpeechRecognizer
+import com.airi.assistant.voice.VoskModelManager
 import com.airi.assistant.system.DefaultAssistantManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -79,7 +79,7 @@ fun SettingsScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var pendingLanguage by remember { mutableStateOf<LanguageOption?>(null) }
 
-    val isSpeechAvailable = remember { SpeechRecognizer.isRecognitionAvailable(context) }
+    val isSpeechAvailable = remember { VoskModelManager.isReady(context) }
     val exportChatLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
@@ -308,6 +308,12 @@ fun SettingsScreen(
                     voiceEnabled = enabled
                     voicePrefs.edit().putBoolean("voice_enabled", enabled).apply()
                 }
+                Spacer(Modifier.height(8.dp))
+                SettingsNavigationRow(
+                    label = stringResource(R.string.voice_and_wakeword),
+                    sublabel = stringResource(R.string.voice_settings_subtitle),
+                    onClick = { onNavigate(com.airi.assistant.ui.AiriRoute.VOICE_SETTINGS) }
+                )
                 if (voiceEnabled) {
                     Spacer(Modifier.height(4.dp))
                     Text(

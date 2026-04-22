@@ -71,7 +71,7 @@
     <string name="speak_to_airi">تحدث إلى AIRI</string>
     <string name="microphone_permission_required">إذن الميكروفون مطلوب للإدخال الصوتي</string>
     <string name="file_selected_coming_soon">تم اختيار ملف — دعم المرفقات قريبًا</string>
-    <string name="image_selected_coming_soon">تم اختيار صورة — دعم الرؤية قريبًا</string>
+    <string name="image_selected_coming_soon">إرفاق الصور غير مُفعَّل في هذه النسخة</string>
     <string name="export_coming_soon">التصدير قريبًا</string>
     <string name="speech_recognition_unavailable">التعرف على الكلام غير متاح على هذا الجهاز</string>
     <string name="attach">إرفاق</string>
@@ -95,7 +95,7 @@
     <string name="no_model_tap_select">لا يوجد نموذج نشط — اضغط للاختيار</string>
     <string name="loading_model_name">جارٍ تحميل %1$s…</string>
     <string name="model_is_loading">النموذج قيد التحميل…</string>
-    <string name="message_airi">راسل AIRI…</string>
+    <string name="message_airi">تواصل مع AIRI…</string>
     <string name="activate_model_first">فعّل نموذجًا أولًا…</string>
     <string name="voice_input">إدخال صوتي</string>
     <string name="send">إرسال</string>
@@ -292,7 +292,7 @@
     <string name="collapse">طي</string>
     <!-- File/image pick feedback -->
     <string name="file_selected_name">تم اختيار الملف: %1$s</string>
-    <string name="image_selected_vision_soon">تم اختيار الصورة — دعم الرؤية قريبًا</string>
+    <string name="image_selected_vision_soon">إرفاق الصور غير مُفعَّل في هذه النسخة</string>
     <string name="photo_attached">تم إرفاق الصورة</string>
     <!-- Remote model form -->
     <string name="server_url">عنوان الخادم</string>
@@ -303,4 +303,34 @@
     <string name="connection_success">الاتصال ناجح</string>
     <string name="connection_failed">فشل الاتصال</string>
     <string name="testing_connection">جارٍ الاختبار…</string>
+
+    <!-- Voice &amp; wake-word -->
+    <string name="voice_and_wakeword">الصوت وكلمة التنبيه</string>
+    <string name="voice_settings_title">الصوت وكلمة التنبيه</string>
+    <string name="voice_settings_subtitle">إدارة نماذج التعرف على الكلام دون اتصال وكلمة التنبيه «Hey AIRI».</string>
+    <string name="no_voice_model_installed">لا يوجد نموذج صوتي مثبَّت. افتح «الصوت وكلمة التنبيه» لتنزيل واحد.</string>
+    <string name="voice_model_load_failed">تعذّر تحميل نموذج الكلام المحدَّد.</string>
+    <string name="speech_recognition_unavailable">التعرف على الكلام غير متوفر.</string>
+    <string name="vosk_section_title">نماذج تحويل الكلام إلى نص (Vosk)</string>
+    <string name="vosk_section_subtitle">تعمل النماذج بالكامل على الجهاز. نزّلها مرة وحدة وستعمل للأبد بدون إنترنت.</string>
+    <string name="vosk_installed">مُثبَّت</string>
+    <string name="vosk_active">نشط</string>
+    <string name="vosk_set_active">تفعيل</string>
+    <string name="vosk_download">تنزيل</string>
+    <string name="vosk_downloading">جارٍ التنزيل…</string>
+    <string name="vosk_delete">حذف</string>
+    <string name="vosk_no_models">لا توجد نماذج مثبَّتة بعد. اختر واحدًا بالأسفل.</string>
+    <string name="vosk_size_mb">حوالي %1$d م.ب</string>
+    <string name="vosk_download_failed">فشل التنزيل: %1$s</string>
+    <string name="porcupine_section_title">كلمة التنبيه (Porcupine)</string>
+    <string name="porcupine_status_ready">كلمة التنبيه جاهزة («Hey AIRI»).</string>
+    <string name="porcupine_status_missing_key">مفتاح Picovoice AccessKey مفقود. الصقه أدناه أو عيّن PICOVOICE_ACCESS_KEY عند الإنشاء.</string>
+    <string name="porcupine_status_missing_ppn">ملف «hey_airi.ppn» غير مضمَّن. ضعه في res/raw/ أو assets/voice/ وأعد البناء.</string>
+    <string name="porcupine_status_both_missing">كلمة التنبيه معطّلة — المفتاح وملف hey_airi.ppn كلاهما مفقود.</string>
+    <string name="porcupine_access_key_label">مفتاح Picovoice AccessKey</string>
+    <string name="porcupine_access_key_save">حفظ</string>
+    <string name="porcupine_access_key_clear">مسح</string>
+    <string name="porcupine_source_runtime">المصدر: لصق يدوي</string>
+    <string name="porcupine_source_build">المصدر: إعداد البناء</string>
+    <string name="porcupine_help_link">احصل على مفتاح مجاني من console.picovoice.ai</string>
 </resources>

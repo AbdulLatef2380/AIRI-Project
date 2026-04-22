@@ -102,7 +102,7 @@
     <string name="no_model_tap_select">No model active — tap to select</string>
     <string name="loading_model_name">Loading %1$s…</string>
     <string name="model_is_loading">Model is loading…</string>
-    <string name="message_airi">Message AIRI…</string>
+    <string name="message_airi">Contact AIRI…</string>
     <string name="activate_model_first">Activate a model first…</string>
     <string name="voice_input">Voice input</string>
     <string name="send">Send</string>
@@ -285,7 +285,7 @@
     <string name="collapse">Collapse</string>
     <!-- File/image pick feedback -->
     <string name="file_selected_name">File selected: %1$s</string>
-    <string name="image_selected_vision_soon">Image selected — vision support coming soon</string>
+    <string name="image_selected_vision_soon">Image attachments are not enabled in this build</string>
     <string name="photo_attached">Photo attached</string>
     <!-- Remote model form -->
     <string name="server_url">Server URL</string>
@@ -304,6 +304,35 @@
     <string name="voice_mode_prepared">Voice mode is wired up for Vosk (speech-to-text) and Picovoice wake-word.</string>
     <string name="export_coming_next_update">Export coming in next update</string>
     <string name="file_selected_coming_soon">File selected — attachment support coming soon</string>
-    <string name="image_selected_coming_soon">Image selected — vision support coming soon</string>
+    <string name="image_selected_coming_soon">Image attachments are not enabled in this build</string>
     <string name="camera_coming_soon">Camera (coming soon)</string>
-</resources>
+
+    <!-- Voice & wake-word (Vosk + Porcupine, fully offline) -->
+    <string name="voice_and_wakeword">Voice &amp; Wake Word</string>
+    <string name="voice_settings_title">Voice &amp; Wake Word</string>
+    <string name="voice_settings_subtitle">Manage offline speech recognition models and the \"Hey AIRI\" wake word.</string>
+    <string name="no_voice_model_installed">No speech model installed. Open Voice &amp; Wake Word to download one.</string>
+    <string name="voice_model_load_failed">Could not load the selected speech model.</string>
+    <string name="speech_recognition_unavailable">Speech recognition unavailable.</string>
+    <string name="vosk_section_title">Speech-to-text models (Vosk)</string>
+    <string name="vosk_section_subtitle">Models run 100%% on-device. Download once, then use forever — no internet needed.</string>
+    <string name="vosk_installed">Installed</string>
+    <string name="vosk_active">Active</string>
+    <string name="vosk_set_active">Set active</string>
+    <string name="vosk_download">Download</string>
+    <string name="vosk_downloading">Downloading…</string>
+    <string name="vosk_delete">Delete</string>
+    <string name="vosk_no_models">No models installed yet. Pick one below.</string>
+    <string name="vosk_size_mb">~%1$d MB</string>
+    <string name="vosk_download_failed">Download failed: %1$s</string>
+    <string name="porcupine_section_title">Wake word (Porcupine)</string>
+    <string name="porcupine_status_ready">Wake word ready (\"Hey AIRI\").</string>
+    <string name="porcupine_status_missing_key">Picovoice AccessKey is missing. Paste one below or set PICOVOICE_ACCESS_KEY at build time.</string>
+    <string name="porcupine_status_missing_ppn">No \"hey_airi.ppn\" file bundled. Drop one into res/raw/ or assets/voice/ and rebuild.</string>
+    <string name="porcupine_status_both_missing">Wake word disabled — AccessKey and hey_airi.ppn are both missing.</string>
+    <string name="porcupine_access_key_label">Picovoice AccessKey</string>
+    <string name="porcupine_access_key_save">Save</string>
+    <string name="porcupine_access_key_clear">Clear</string>
+    <string name="porcupine_source_runtime">From: paste</string>
+    <string name="porcupine_source_build">From: build config</string>
+    <string name="porcupine_help_link">Get a free AccessKey at console.picovoice.ai</string></resources>

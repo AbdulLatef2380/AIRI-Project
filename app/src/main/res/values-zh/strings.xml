@@ -71,7 +71,7 @@
     <string name="speak_to_airi">对 AIRI 说话</string>
     <string name="microphone_permission_required">语音输入需要麦克风权限</string>
     <string name="file_selected_coming_soon">已选择文件 — 附件支持即将推出</string>
-    <string name="image_selected_coming_soon">已选择图片 — 视觉支持即将推出</string>
+    <string name="image_selected_coming_soon">此版本未启用图片附件功能</string>
     <string name="export_coming_soon">导出功能即将推出</string>
     <string name="speech_recognition_unavailable">此设备不支持语音识别</string>
     <string name="attach">附加</string>

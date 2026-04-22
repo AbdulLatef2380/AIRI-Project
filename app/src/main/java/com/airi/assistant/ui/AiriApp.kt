@@ -68,6 +68,7 @@ object AiriRoute {
     const val PERFORMANCE        = "screen_performance"
     const val DEBUG_PANEL        = "screen_debug_panel"
     const val DEBUG_SCREEN       = "screen_debug_runtime"
+    const val VOICE_SETTINGS     = "screen_voice_settings"
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 }
@@ -201,6 +202,12 @@ fun AiriApp() {
                                 launchSingleTop = true
                             }
                         }
+                    )
+                }
+
+                composable(AiriRoute.VOICE_SETTINGS) {
+                    com.airi.assistant.ui.screens.VoiceSettingsScreen(
+                        onBack = { navController.popBackStack() }
                     )
                 }
 

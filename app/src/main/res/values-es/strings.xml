@@ -71,7 +71,7 @@
     <string name="speak_to_airi">Habla con AIRI</string>
     <string name="microphone_permission_required">Se requiere permiso de micrófono para la entrada de voz</string>
     <string name="file_selected_coming_soon">Archivo seleccionado — el soporte de adjuntos llegará pronto</string>
-    <string name="image_selected_coming_soon">Imagen seleccionada — el soporte de visión llegará pronto</string>
+    <string name="image_selected_coming_soon">Los adjuntos de imagen no están habilitados en esta versión</string>
     <string name="export_coming_soon">La exportación llegará pronto</string>
     <string name="speech_recognition_unavailable">El reconocimiento de voz no está disponible en este dispositivo</string>
     <string name="attach">Adjuntar</string>

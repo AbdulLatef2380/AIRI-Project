@@ -158,6 +158,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _streamingText = MutableStateFlow("")
     val streamingText: StateFlow<String> = _streamingText.asStateFlow()
 
+    /**
+     * True while the active generation has produced at least one token but
+     * hasn't produced a new token for ≥5s (see LlamaManager.STALL_WARNING_MS).
+     * The UI can surface a non-fatal hint while this is true. Auto-resets at
+     * the start of the next generation.
+     */
+    private val _stallActive = MutableStateFlow(false)
+    val stallActive: StateFlow<Boolean> = _stallActive.asStateFlow()
+    fun clearStallHint() { _stallActive.value = false }
+
     private val _agentState = MutableStateFlow(AgentState())
     val agentState: StateFlow<AgentState> = _agentState.asStateFlow()
 
@@ -223,6 +233,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .putInt("gen_max_tokens", mode.maxTokens)
             .putFloat("gen_temperature", mode.temperature)
             .apply()
+        // Hot-swap the native context (n_ctx + threads) without unloading the
+        // model. KV is wiped; next message re-primes via reconcileSession.
+        llamaManager.applyRuntimeMode(mode)
+        Log.i("AIRI_PERF",
+            "PerformanceMode -> ${mode.name} n_ctx=${mode.nCtx} threads=${mode.nThreads}")
     }
 
     // ── Paywall trigger ───────────────────────────────────────────────────────
@@ -660,10 +675,42 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             var tokenCount   = 0
             var firstTokenReceived = false
             var partialCutText = ""
-            llamaManager.setHistory(history)
             val deviceWeak = isDeviceWeak()
             val remote = RemoteModelRegistry.getActive()
-            val systemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType)
+            val baseSystemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType)
+
+            // ── Memory facts: harvest from THIS user message before composing ───
+            // (so "my name is X" said in this turn participates in compression).
+            val newFacts = com.airi.assistant.ai.prompt.MemoryExtractor.extract(trimmedInput)
+            if (newFacts.isNotEmpty()) {
+                com.airi.assistant.ai.prompt.MemoryStore
+                    .mergeFacts(appContext, sessionId, newFacts)
+                Log.i("AIRI_PROMPT_COMPRESS",
+                    "EXTRACTED facts=${newFacts.size} session=$sessionId")
+            }
+
+            // ── Structured prompt compression ───────────────────────────────────
+            // Replaces the old "send last 12 messages verbatim" path with the
+            // 5-section envelope (System / Memory / Summary / Recent / User) plus
+            // a hard 90% n_ctx token-budget cap. We DO NOT change inference logic
+            // — only the prompt envelope and the trimmed history slice.
+            val activeNCtx = perfMode.nCtx
+            val compressed = com.airi.assistant.ai.prompt.PromptCompressor.compose(
+                ctx               = appContext,
+                baseSystemPrompt  = baseSystemPrompt,
+                history           = history,
+                userInput         = trimmedInput,
+                nCtx              = activeNCtx,
+                sessionId         = sessionId
+            )
+            llamaManager.setHistory(compressed.recentMessages)
+            val systemPrompt = compressed.augmentedSystemPrompt
+            // Remember whether we should re-summarize older turns AFTER this
+            // generation completes (sequencing: never run during generation).
+            val needsResummarize = compressed.shouldResummarize
+            val olderToFold = if (needsResummarize)
+                history.dropLast(compressed.recentMessages.size + compressed.stats.droppedRecent)
+                else emptyList()
             val uiPrefs = appContext.getSharedPreferences("airi_ui_state", android.content.Context.MODE_PRIVATE)
             val repeatPenalty    = uiPrefs.getFloat("gen_repeat_penalty",    1.1f)
             val topK             = uiPrefs.getInt  ("gen_top_k",             40)
@@ -823,7 +870,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     frequencyPenalty = frequencyPenalty,
                     // First-token deadline (covers slow CPU prompt decode on phones).
                     // Post-first-token inactivity timeout is owned by LlamaManager.
-                    timeoutMs = 60_000L,
+                    // Bumped to match LlamaManager.DEFAULT_FIRST_TOKEN_TIMEOUT_MS:
+                    // a cold mmap prefill on a 2B Q4 model on a mid-range
+                    // Snapdragon genuinely needs 60-90s. 60s caused false
+                    // ERR_FIRST_TOKEN_TIMEOUT for legitimate slow loads.
+                    timeoutMs = 120_000L,
                     onToken = { tokenBatch ->
                         thinkingJob?.cancel()
                         thinkingJob = null
@@ -867,15 +918,44 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             fullResponse
                         }
                         _isCancelled.set(false)
+                        // Generation finished — clear any active stall hint.
+                        _stallActive.value = false
                         viewModelScope.launch {
                             finish(responseToSave, totalLatency, tokenCount)
+                            // Sequencing: only NOW (after the user-facing
+                            // generation has fully ended) is it safe to reuse
+                            // the single global llama_context for the
+                            // summarization pass. We MUST never run this
+                            // concurrently with generateStream.
+                            if (needsResummarize && olderToFold.isNotEmpty()) {
+                                runCatching {
+                                    val prevSummary = com.airi.assistant.ai.prompt.MemoryStore
+                                        .getSummary(appContext, sessionId)
+                                    com.airi.assistant.ai.prompt.ConversationSummarizer.summarize(
+                                        ctx          = appContext,
+                                        sessionId    = sessionId,
+                                        llamaManager = llamaManager,
+                                        olderTurns   = olderToFold,
+                                        previousSummary = prevSummary
+                                    )
+                                }.onFailure {
+                                    Log.w("AIRI_PROMPT_COMPRESS",
+                                        "summarize failed: ${it.message}")
+                                }
+                            }
                         }
+                    },
+                    onStallWarning = {
+                        // Non-fatal: native decode is slow but still alive.
+                        // Surface as a UI hint via stallActive flow.
+                        _stallActive.value = true
                     },
                     onError = { errorMsg ->
                         viewModelScope.launch {
                             thinkingJob?.cancel()
                             thinkingJob = null
                             _isCancelled.set(false)
+                            _stallActive.value = false
 
                             // Categorize the error code emitted by LlamaManager.
                             // Only INACTIVITY_TIMEOUT (i.e. tokens started flowing then stopped)
@@ -1069,10 +1149,53 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val elapsed = elapsedMs.coerceAtLeast(1L)
         val tps = tokenCount * 1000f / elapsed
         Log.d("AIRI_PERF", "Generation complete: latency=${elapsed}ms tokens=$tokenCount tps=%.2f".format(tps))
+
+        // Pull the native breakdown that LlamaManager just snapshotted and
+        // persist it for the Generation Statistics screen.
+        val m = llamaManager.lastMetrics
+        val effectiveTps = if (m.tokensPerSec > 0f) m.tokensPerSec else tps
         perfPrefs.edit()
-            .putFloat("tokens_per_sec", tps)
-            .putLong("last_latency_ms", elapsed)
+            .putFloat("tokens_per_sec",   effectiveTps)
+            .putLong ("last_latency_ms",  elapsed)
+            .putLong ("last_tokenize_ms", m.tokenizeMs)
+            .putLong ("last_prefill_ms",  m.prefillMs)
+            .putLong ("last_first_tok_ms",m.firstTokenMs)
+            .putLong ("last_decode_ms",   m.decodeMs)
+            .putInt  ("last_decoded_toks",m.decodedTokens)
+            .putInt  ("last_n_past",      m.nPast)
+            .putInt  ("last_n_ctx",       m.nCtx)
             .apply()
+
+        // ── Per-quantization benchmark record ────────────────────────────────
+        // Append a single row to the on-device benchmark store so the
+        // "Model Performance" screen can compare quantizations empirically.
+        runCatching {
+            val meta = com.airi.assistant.perf.ModelMetaProbe.probe()
+            val current = com.airi.assistant.ai.ModelManager.getCurrent()
+            val mode = _performanceMode.value
+            val sizeMb = when {
+                meta != null && meta.sizeBytes > 0 -> meta.sizeBytes / (1024L * 1024L)
+                else -> com.airi.assistant.perf.ModelMetaProbe.fileSizeMb(current?.path)
+            }
+            val rec = com.airi.assistant.perf.ModelBenchmark(
+                timestamp      = System.currentTimeMillis(),
+                modelId        = current?.id ?: "unknown",
+                modelDesc      = meta?.description ?: (current?.name ?: "unknown"),
+                quantLabel     = meta?.quantLabel ?: "UNKNOWN",
+                nParams        = meta?.nParams ?: 0L,
+                modelSizeMb    = sizeMb,
+                nCtx           = if (m.nCtx > 0) m.nCtx else mode.nCtx,
+                nThreads       = mode.nThreads,
+                firstTokenMs   = m.firstTokenMs,
+                totalLatencyMs = elapsed,
+                decodedTokens  = if (m.decodedTokens > 0) m.decodedTokens else tokenCount,
+                tokensPerSec   = effectiveTps,
+                processMemMb   = com.airi.assistant.perf.ModelMetaProbe.processMemoryMb(),
+                perfClass      = com.airi.assistant.perf.PerfClassifier
+                    .classify(effectiveTps, m.firstTokenMs)
+            )
+            com.airi.assistant.perf.ModelBenchmarkRepository.append(appContext, rec)
+        }.onFailure { Log.w("AIRI_BENCH", "record failed: ${it.message}") }
     }
 
     private fun isDeviceWeak(): Boolean {

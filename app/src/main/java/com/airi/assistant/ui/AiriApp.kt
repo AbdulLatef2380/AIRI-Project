@@ -66,6 +66,7 @@ object AiriRoute {
     const val SKILL_MANAGER      = "screen_skill_manager"
     const val SKILL_BUILDER      = "screen_skill_builder"
     const val PERFORMANCE        = "screen_performance"
+    const val MODEL_PERFORMANCE  = "screen_model_performance"
     const val DEBUG_PANEL        = "screen_debug_panel"
     const val DEBUG_SCREEN       = "screen_debug_runtime"
     const val VOICE_SETTINGS     = "screen_voice_settings"
@@ -294,8 +295,13 @@ fun AiriApp() {
                 composable(AiriRoute.PERFORMANCE) {
                     PerformanceScreen(
                         viewModel = chatViewModel,
-                        onBack    = { navController.popBackStack() }
+                        onBack    = { navController.popBackStack() },
+                        onOpenModelPerformance = { navController.navigate(AiriRoute.MODEL_PERFORMANCE) }
                     )
+                }
+
+                composable(AiriRoute.MODEL_PERFORMANCE) {
+                    ModelPerformanceScreen(onBack = { navController.popBackStack() })
                 }
 
                 composable(AiriRoute.SKILL_MANAGER) {

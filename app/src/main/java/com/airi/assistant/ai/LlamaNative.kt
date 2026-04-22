@@ -56,4 +56,42 @@ object LlamaNative {
     external fun generateStream(prompt: String, onToken: (String) -> Unit)
 
     external fun cancel()
+
+    // ── Runtime tuning (no model reload) ─────────────────────────────────────
+    // Hot-swaps the llama_context with the requested n_ctx / n_threads. The
+    // GGUF model stays mmapped; only the KV cache + scheduler are rebuilt.
+    // Wipes KV — caller MUST follow with beginSession() before next message.
+    external fun setRuntimeMode(nCtx: Int, nThreads: Int)
+
+    // ── Telemetry ────────────────────────────────────────────────────────────
+    // Returns [loadMs, tokenizeMs, prefillMs, firstTokenMs, decodeMs,
+    //          decodedTokens, nPast, nCtx]. See LlamaBridge.cpp comment.
+    external fun getLastTimings(): LongArray
+
+    // ── Model metadata (for the on-device quantization benchmark) ────────────
+    // Returns "<llama_model_desc>|<n_params>|<size_bytes>" or "UNAVAILABLE"
+    // if no model is loaded. The desc is the same string llama.cpp prints at
+    // load time and contains the quantization label (Q4_K_M, Q5_K_M, …).
+    external fun getModelDescription(): String
+
+    // ── Speculative decoding (optional, opt-in via SpeculativeManager) ───────
+    // loadDraftModel returns one of:
+    //   "DRAFT_OK", "MAIN_NOT_LOADED", "SAME_AS_MAIN", "FILE_NOT_FOUND",
+    //   "INVALID_GGUF", "VOCAB_MISMATCH", "DRAFT_LOAD_FAILED", "DRAFT_CTX_FAILED"
+    external fun loadDraftModel(modelPath: String): String
+    external fun unloadDraftModel()
+    external fun isDraftLoaded(): Boolean
+
+    // generateNextTokensSpeculative falls back to the standard single-token
+    // path automatically if the draft is missing or out of sync, so callers
+    // can call it unconditionally once the feature flag is on.
+    external fun generateNextTokensSpeculative(
+        maxTokens: Int,
+        draftN: Int,
+        callback: (String) -> Unit
+    )
+
+    // Returns [drafted, accepted, runs]. Acceptance rate = accepted/drafted.
+    external fun getSpecStats(): LongArray
+    external fun resetSpecStats()
 }

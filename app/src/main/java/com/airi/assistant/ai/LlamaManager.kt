@@ -52,15 +52,102 @@ class LlamaManager(private val context: Context) {
 
     companion object {
         private const val TAG = "AIRI_MODEL"
-        private const val TOKEN_BATCH_MS = 50L
-        private const val TOKEN_BATCH_CHARS = 20
+        // Per-token streaming: the native callback already fires once per
+        // UTF-8-valid piece (i.e. per token for ASCII, per 1-2 tokens for
+        // multi-byte Arabic / CJK clusters). We forward each native callback
+        // to the UI immediately. Set TOKEN_BATCH_MS > 0 only if the UI thread
+        // becomes a bottleneck — never as a default.
+        private const val TOKEN_BATCH_MS = 0L
+        private const val TOKEN_BATCH_CHARS = 1
         private const val INACTIVITY_TIMEOUT_MS = 20_000L
-        private const val DEFAULT_FIRST_TOKEN_TIMEOUT_MS = 60_000L
+        // First-token budget bumped 60s -> 120s. On a 2B Q4 model with mmap,
+        // the very first cold prefill of system prompt + history on CPU genuinely
+        // takes 60-90s on mid-range Snapdragon devices; 60s was firing as a
+        // false positive and surfacing as "النموذج لم يبدأ التوليد خلال المهلة".
+        private const val DEFAULT_FIRST_TOKEN_TIMEOUT_MS = 120_000L
+        // Stall warning fires (non-fatal) if no new token arrives for this long
+        // *after* the first token. Surfaces as a UI hint, doesn't abort.
+        private const val STALL_WARNING_MS = 5_000L
 
         const val ERR_FIRST_TOKEN_TIMEOUT = "ERR_FIRST_TOKEN_TIMEOUT"
         const val ERR_INACTIVITY_TIMEOUT  = "ERR_INACTIVITY_TIMEOUT"
         const val ERR_NATIVE              = "ERR_NATIVE"
     }
+
+    /**
+     * Full latency breakdown for the most recent generation, sourced directly
+     * from the native bridge. Surfaces in the Generation Statistics screen.
+     */
+    data class LastInferenceMetrics(
+        val loadMs: Long,
+        val tokenizeMs: Long,
+        val prefillMs: Long,
+        val firstTokenMs: Long,
+        val decodeMs: Long,
+        val decodedTokens: Int,
+        val nPast: Int,
+        val nCtx: Int,
+        val tokensPerSec: Float
+    ) {
+        val kvUsedPct: Int get() = if (nCtx > 0) (100L * nPast / nCtx).toInt() else 0
+        companion object {
+            val EMPTY = LastInferenceMetrics(0, 0, 0, 0, 0, 0, 0, 0, 0f)
+        }
+    }
+
+    @Volatile var lastMetrics: LastInferenceMetrics = LastInferenceMetrics.EMPTY
+        private set
+
+    /** Snapshot the native counters into [lastMetrics] (call after a gen). */
+    private fun refreshMetrics() {
+        runCatching {
+            val a = LlamaNative.getLastTimings()
+            if (a.size >= 8) {
+                val decode = a[4].coerceAtLeast(1L)
+                val tps = if (a[5] > 0) a[5] * 1000f / decode else 0f
+                lastMetrics = LastInferenceMetrics(
+                    loadMs        = a[0],
+                    tokenizeMs    = a[1],
+                    prefillMs     = a[2],
+                    firstTokenMs  = a[3],
+                    decodeMs      = a[4],
+                    decodedTokens = a[5].toInt(),
+                    nPast         = a[6].toInt(),
+                    nCtx          = a[7].toInt(),
+                    tokensPerSec  = tps
+                )
+                Log.i("AIRI_PERF",
+                    "BREAKDOWN load=${a[0]}ms tok=${a[1]}ms prefill=${a[2]}ms " +
+                    "first_tok=${a[3]}ms decode=${a[4]}ms toks=${a[5]} " +
+                    "n_past=${a[6]}/${a[7]} kv_used=${lastMetrics.kvUsedPct}% tps=%.2f"
+                        .format(tps))
+            }
+        }
+    }
+
+    /**
+     * Hot-swap n_ctx + thread count without reloading model weights. Wipes the
+     * native KV; we mark the session as invalidated so the next message
+     * re-primes cleanly. Safe to call while a generation is NOT in flight.
+     */
+    fun applyRuntimeMode(mode: PerformanceMode) {
+        if (!isLoaded) {
+            Log.d(TAG, "applyRuntimeMode skipped — model not loaded yet")
+            return
+        }
+        scope.launch {
+            try {
+                LlamaNative.setRuntimeMode(mode.nCtx, mode.nThreads)
+                invalidateSession()
+                Log.i(TAG, "RUNTIME_MODE_APPLIED mode=${mode.name} n_ctx=${mode.nCtx} threads=${mode.nThreads}")
+            } catch (e: Throwable) {
+                Log.e(TAG, "applyRuntimeMode failed: ${e.message}", e)
+            }
+        }
+    }
+
+    /** Last-known callback for stall warnings (set per generateStream call). */
+    @Volatile private var stallCallback: (() -> Unit)? = null
 
     fun cancelStream() {
         cancelRequested.set(true)
@@ -331,7 +418,8 @@ class LlamaManager(private val context: Context) {
         timeoutMs: Long = DEFAULT_FIRST_TOKEN_TIMEOUT_MS,
         onToken: (String) -> Unit,
         onComplete: (String) -> Unit,
-        onError: (String) -> Unit = {}
+        onError: (String) -> Unit = {},
+        onStallWarning: () -> Unit = {}
     ) {
         val model = ModelManager.getCurrent()
         if (!isLoaded || model == null) {
@@ -352,6 +440,8 @@ class LlamaManager(private val context: Context) {
         val lastTokenAtMs = AtomicLong(System.currentTimeMillis())
 
         // Inactivity-based watchdog (never a wall-clock total deadline).
+        // Also fires a non-fatal stall warning at STALL_WARNING_MS.
+        val stallWarned = AtomicBoolean(false)
         scope.launch {
             while (!finished.get()) {
                 delay(500L)
@@ -359,6 +449,14 @@ class LlamaManager(private val context: Context) {
                 val idle = now - lastTokenAtMs.get()
                 val firstSeen = firstTokenLogged.get()
                 val budget = if (firstSeen) INACTIVITY_TIMEOUT_MS else timeoutMs
+
+                // Non-fatal stall warning (only AFTER first token has flowed).
+                if (firstSeen && idle >= STALL_WARNING_MS && stallWarned.compareAndSet(false, true)) {
+                    Log.w(TAG, "STALL_DETECTED idle=${idle}ms — decode is slow but still alive")
+                    Log.i("AIRI_PROOF", "STALL idle_ms=$idle threshold_ms=$STALL_WARNING_MS")
+                    withContext(Dispatchers.Main) { onStallWarning() }
+                }
+
                 if (idle >= budget) {
                     if (finished.compareAndSet(false, true)) {
                         val errCode = if (firstSeen) ERR_INACTIVITY_TIMEOUT else ERR_FIRST_TOKEN_TIMEOUT
@@ -400,13 +498,28 @@ class LlamaManager(private val context: Context) {
                 )
                 LlamaNative.appendUserTurn(userFragment)
 
-                // Sample until EOG / max_tokens / cancel.
-                LlamaNative.generateNextTokens(maxTokens) { token ->
-                    if (finished.get() || cancelRequested.get()) return@generateNextTokens
+                // Decide whether to use speculative decoding for this generation.
+                // If the user has the feature OFF, OR the draft model is not
+                // currently loaded on the native side, we use the standard
+                // single-token path. The speculative native fn is also internally
+                // self-fallbacking, but checking here lets us avoid a needless
+                // JNI hop and keeps logging clean.
+                val specMgr = SpeculativeManager(context)
+                val useSpec = specMgr.isEnabled() &&
+                              runCatching { LlamaNative.isDraftLoaded() }.getOrDefault(false)
+                if (useSpec) {
+                    Log.i("AIRI_SPEC", "generate via=speculative draftN=${specMgr.getDraftDraftN()}")
+                }
+
+                val tokenCallback: (String) -> Unit = { token ->
+                    if (finished.get() || cancelRequested.get()) return@tokenCallback
                     response.append(token)
                     tokenBuffer.append(token)
                     nativeTokenCount++
                     lastTokenAtMs.set(System.currentTimeMillis())
+                    // Per-token trace — gated to AIRI_TOKEN tag.
+                    // adb shell setprop log.tag.AIRI_TOKEN VERBOSE
+                    Log.v("AIRI_TOKEN", "n=$nativeTokenCount bytes=${token.length}")
 
                     val isFirst = firstTokenLogged.compareAndSet(false, true)
                     if (isFirst) {
@@ -427,6 +540,14 @@ class LlamaManager(private val context: Context) {
                         lastFlushTime = now
                         scope.launch(Dispatchers.Main) { onToken(batch) }
                     }
+                }
+
+                if (useSpec) {
+                    LlamaNative.generateNextTokensSpeculative(
+                        maxTokens, specMgr.getDraftDraftN(), tokenCallback
+                    )
+                } else {
+                    LlamaNative.generateNextTokens(maxTokens, tokenCallback)
                 }
 
                 // Flush any trailing buffered tokens.
@@ -468,6 +589,9 @@ class LlamaManager(private val context: Context) {
                             "GENERATION", false, "empty_response")
                         Log.w("AIRI_PROOF", "GENERATION_EMPTY model=${model.name}")
                     }
+                    // Snapshot the full latency breakdown from the native side
+                    // so the Generation Statistics screen can render it.
+                    refreshMetrics()
                     withContext(Dispatchers.Main) { onComplete(full) }
                 }
             } catch (e: Throwable) {
@@ -482,17 +606,45 @@ class LlamaManager(private val context: Context) {
         }
     }
 
+    /**
+     * Smart history trim: drops oldest *complete user/assistant pairs* until
+     * the projected token usage (history + reserve) fits inside the available
+     * KV budget. Never breaks a pair, never truncates mid-message, and always
+     * preserves the most recent turn so the conversation stays coherent.
+     *
+     * The system prompt is NOT part of [messages] (it's prepended separately
+     * during reconcileSession), so this never drops the system prompt.
+     */
     fun trimContext(messages: List<ChatMessage>, maxApproxTokens: Int = 1500): List<ChatMessage> {
+        // Pull the live n_ctx from native if we can — this lets the trim react
+        // to runtime mode changes (FAST=1024, BALANCED=1536, QUALITY=2048).
+        val nCtx = runCatching { LlamaNative.getNCtx() }.getOrDefault(0)
+        // Reserve = system prompt headroom + max generation budget. We don't
+        // know either exactly here, so pick a safe constant.
+        val reserve = 512
+        val budget = if (nCtx > reserve) (nCtx - reserve).coerceAtMost(maxApproxTokens)
+                     else maxApproxTokens
+
         val recent = messages.takeLast(maxHistory)
-        val trimmed = ArrayDeque<ChatMessage>()
-        var approxTokens = 0
-        for (msg in recent.asReversed()) {
-            val count = estimateTokens(msg.content)
-            if (trimmed.isNotEmpty() && approxTokens + count > maxApproxTokens) break
-            trimmed.addFirst(msg)
-            approxTokens += count
+        if (recent.isEmpty()) return emptyList()
+
+        // Walk backwards in *pairs* so we never split a user without its reply.
+        val kept = ArrayDeque<ChatMessage>()
+        var approx = 0
+        var i = recent.size - 1
+        while (i >= 0) {
+            // Try to consume the (user, assistant) pair ending at i.
+            val tail = recent[i]
+            val head = if (i - 1 >= 0) recent[i - 1] else null
+            val pairCost = estimateTokens(tail.content) +
+                           (head?.let { estimateTokens(it.content) } ?: 0)
+            if (kept.isNotEmpty() && approx + pairCost > budget) break
+            kept.addFirst(tail)
+            if (head != null) kept.addFirst(head)
+            approx += pairCost
+            i -= if (head != null) 2 else 1
         }
-        return trimmed.toList()
+        return kept.toList()
     }
 
     private fun trimHistory() {

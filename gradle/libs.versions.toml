@@ -1,4 +1,6 @@
 [versions]
+vosk = "0.3.47"
+porcupine = "3.0.1"
 agp = "8.2.2"
 kotlin = "1.9.22"
 ksp = "1.9.22-1.0.17"
@@ -14,6 +16,8 @@ okhttp = "4.12.0"
 gson = "2.10.1"
 
 [libraries]
+vosk-android = { group = "com.alphacephei", name = "vosk-android", version.ref = "vosk" }
+porcupine-android = { group = "com.pv", name = "porcupine-android", version.ref = "porcupine" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 

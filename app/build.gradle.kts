@@ -150,7 +150,7 @@ dependencies {
     // in the APK; the in-app downloader (VoskModelManager) fetches a chosen
     // Vosk model zip into internal storage, verifies SHA-256 (when known),
     // and extracts it. See VoskModelManager.kt + VoiceSettingsScreen.kt.
-    implementation(libs.vosk.android)
+    implementation(libs.voskAndroid)
 
     // Picovoice Porcupine = on-device wake-word ("Hey AIRI"). Requires
     // (a) a Picovoice AccessKey supplied via PICOVOICE_ACCESS_KEY (gradle
@@ -160,7 +160,7 @@ dependencies {
     //     or  app/src/main/assets/voice/hey_airi.ppn (fallback)
     // When either is missing the wake-word service exits cleanly and the
     // UI shows the user how to enable it. See PorcupineEngine.kt.
-    implementation(libs.porcupine.android)
+    implementation(libs.porcupineAndroid)
 }
 
 tasks.register("airiVerifyOptimization") {

@@ -671,11 +671,11 @@ Java_com_airi_assistant_ai_LlamaNative_loadModel(
     cparams.n_threads       = airi_pick_threads();
     cparams.n_threads_batch = cparams.n_threads;
 
-    g_ctx = llama_new_context_with_model(g_model, cparams);
+    g_ctx = llama_init_from_model(g_model, cparams);
     if (!g_ctx) {
         llama_model_free(g_model);
         g_model = nullptr;
-        return env->NewStringUTF("NATIVE_LOAD_FAILED:llama_new_context_with_model returned null");
+        return env->NewStringUTF("NATIVE_LOAD_FAILED:llama_init_from_model returned null");
     }
 
     g_model_path = model_path;
@@ -748,12 +748,12 @@ Java_com_airi_assistant_ai_LlamaNative_loadModelWithProgress(
     cparams.n_threads       = airi_pick_threads();
     cparams.n_threads_batch = cparams.n_threads;
 
-    g_ctx = llama_new_context_with_model(g_model, cparams);
+    g_ctx = llama_init_from_model(g_model, cparams);
     if (!g_ctx) {
         llama_model_free(g_model);
         g_model = nullptr;
         env->ThrowNew(env->FindClass("java/lang/RuntimeException"),
-                      "NATIVE_LOAD_FAILED:llama_new_context_with_model returned null");
+                      "NATIVE_LOAD_FAILED:llama_init_from_model returned null");
         return;
     }
 
@@ -989,7 +989,7 @@ Java_com_airi_assistant_ai_LlamaNative_setRuntimeMode(
     cparams.n_threads       = std::max(1, (int)nThreads);
     cparams.n_threads_batch = cparams.n_threads;
 
-    g_ctx = llama_new_context_with_model(g_model, cparams);
+    g_ctx = llama_init_from_model(g_model, cparams);
     if (!g_ctx) {
         env->ThrowNew(env->FindClass("java/lang/RuntimeException"),
                       "CONTEXT_REBUILD_FAILED");
@@ -1122,7 +1122,7 @@ Java_com_airi_assistant_ai_LlamaNative_loadDraftModel(
     cp.n_ubatch        = AIRI_DEFAULT_N_UBATCH;
     cp.n_threads       = airi_pick_threads();
     cp.n_threads_batch = cp.n_threads;
-    g_draft_ctx = llama_new_context_with_model(g_draft_model, cp);
+    g_draft_ctx = llama_init_from_model(g_draft_model, cp);
     if (!g_draft_ctx) {
         llama_model_free(g_draft_model);
         g_draft_model = nullptr;

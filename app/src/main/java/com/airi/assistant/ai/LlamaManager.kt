@@ -511,7 +511,7 @@ class LlamaManager(private val context: Context) {
                     Log.i("AIRI_SPEC", "generate via=speculative draftN=${specMgr.getDraftDraftN()}")
                 }
 
-                val tokenCallback: (String) -> Unit = { token ->
+                val tokenCallback: (String) -> Unit = tokenCallback@ { token ->
                     if (finished.get() || cancelRequested.get()) return@tokenCallback
                     response.append(token)
                     tokenBuffer.append(token)

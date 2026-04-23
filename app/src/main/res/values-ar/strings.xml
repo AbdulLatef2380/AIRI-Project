@@ -73,7 +73,6 @@
     <string name="file_selected_coming_soon">تم اختيار ملف — دعم المرفقات قريبًا</string>
     <string name="image_selected_coming_soon">إرفاق الصور غير مُفعَّل في هذه النسخة</string>
     <string name="export_coming_soon">التصدير قريبًا</string>
-    <string name="speech_recognition_unavailable">التعرف على الكلام غير متاح على هذا الجهاز</string>
     <string name="attach">إرفاق</string>
     <string name="pick_image">اختيار صورة</string>
     <string name="pick_file">اختيار ملف</string>
@@ -345,7 +344,6 @@
     <string name="voice_settings_subtitle">إدارة نماذج التعرف على الكلام دون اتصال وكلمة التنبيه «Hey AIRI».</string>
     <string name="no_voice_model_installed">لا يوجد نموذج صوتي مثبَّت. افتح «الصوت وكلمة التنبيه» لتنزيل واحد.</string>
     <string name="voice_model_load_failed">تعذّر تحميل نموذج الكلام المحدَّد.</string>
-    <string name="speech_recognition_unavailable">التعرف على الكلام غير متوفر.</string>
     <string name="vosk_section_title">نماذج تحويل الكلام إلى نص (Vosk)</string>
     <string name="vosk_section_subtitle">تعمل النماذج بالكامل على الجهاز. نزّلها مرة وحدة وستعمل للأبد بدون إنترنت.</string>
     <string name="vosk_installed">مُثبَّت</string>
@@ -368,4 +366,5 @@
     <string name="porcupine_source_runtime">المصدر: لصق يدوي</string>
     <string name="porcupine_source_build">المصدر: إعداد البناء</string>
     <string name="porcupine_help_link">احصل على مفتاح مجاني من console.picovoice.ai</string>
+    <string name="speech_recognition_unavailable">التعرف على الكلام غير متاح على هذا الجهاز</string>
 </resources>

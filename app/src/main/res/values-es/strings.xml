@@ -73,7 +73,6 @@
     <string name="file_selected_coming_soon">Archivo seleccionado — el soporte de adjuntos llegará pronto</string>
     <string name="image_selected_coming_soon">Los adjuntos de imagen no están habilitados en esta versión</string>
     <string name="export_coming_soon">La exportación llegará pronto</string>
-    <string name="speech_recognition_unavailable">El reconocimiento de voz no está disponible en este dispositivo</string>
     <string name="attach">Adjuntar</string>
     <string name="pick_image">Elegir imagen</string>
     <string name="pick_file">Elegir archivo</string>
@@ -165,4 +164,5 @@
     <string name="accessibility_dialog_steps">To enable: go to Settings → Accessibility → Installed Services → AIRI → toggle ON.</string>
     <string name="open_settings">Open Settings</string>
     <string name="later">Later</string>
+    <string name="speech_recognition_unavailable">El reconocimiento de voz no está disponible en este dispositivo</string>
 </resources>

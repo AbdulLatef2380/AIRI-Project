@@ -79,7 +79,6 @@
     <string name="speak_to_airi">Speak to AIRI</string>
     <string name="microphone_permission_required">Microphone permission is required for voice input</string>
     <string name="export_coming_soon">Export coming soon</string>
-    <string name="speech_recognition_unavailable">Speech recognition is not available on this device</string>
     <string name="attach">Attach</string>
     <string name="pick_image">Pick image</string>
     <string name="pick_file">Pick file</string>
@@ -348,7 +347,6 @@
     <string name="voice_settings_subtitle">Manage offline speech recognition models and the \"Hey AIRI\" wake word.</string>
     <string name="no_voice_model_installed">No speech model installed. Open Voice &amp; Wake Word to download one.</string>
     <string name="voice_model_load_failed">Could not load the selected speech model.</string>
-    <string name="speech_recognition_unavailable">Speech recognition unavailable.</string>
     <string name="vosk_section_title">Speech-to-text models (Vosk)</string>
     <string name="vosk_section_subtitle">Models run 100%% on-device. Download once, then use forever — no internet needed.</string>
     <string name="vosk_installed">Installed</string>
@@ -370,4 +368,5 @@
     <string name="porcupine_access_key_clear">Clear</string>
     <string name="porcupine_source_runtime">From: paste</string>
     <string name="porcupine_source_build">From: build config</string>
+    <string name="speech_recognition_unavailable">Speech recognition is not available on this device</string>
     <string name="porcupine_help_link">Get a free AccessKey at console.picovoice.ai</string></resources>

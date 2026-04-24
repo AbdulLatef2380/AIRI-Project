@@ -5,7 +5,7 @@ on:
     branches: [ "**" ]
   pull_request:
     branches: [ "**" ]
-  workflow_dispatch: # يتيح لك تشغيل البناء يدوياً من واجهة GitHub
+  workflow_dispatch:
 
 jobs:
   build:
@@ -22,17 +22,39 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    # الخطوة السحرية: إعداد الـ SDK لضمان تحميل الـ NDK بدون تلف
+    # إعداد Android SDK
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
+
+    # 🔥 تثبيت NDK + CMake (الحل الحقيقي)
+    - name: Install Android NDK and CMake
+      run: |
+        yes | sdkmanager --licenses
+        sdkmanager "platforms;android-34"
+        sdkmanager "build-tools;34.0.0"
+        sdkmanager "ndk;25.2.9519653"
+        sdkmanager "cmake;3.22.1"
+
+    # تأكيد المسارات (مهم لبعض البيئات)
+    - name: Set Android environment variables
+      run: |
+        echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+        echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Build with Gradle
-      # إضافة --stacktrace للكشف عن أي خطأ خفي
-      run: ./gradlew assembleDebug --stacktrace
+    # 🔍 للتأكد أن Gradle يرى الـ NDK
+    - name: Verify NDK installation
+      run: |
+        ls $ANDROID_SDK_ROOT/ndk
+        ls $ANDROID_SDK_ROOT/cmake
 
+    # 🔥 البناء الحقيقي (يجب أن يشغل CMake)
+    - name: Build with Gradle
+      run: ./gradlew assembleDebug --stacktrace --info
+
+    # رفع الـ APK
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:

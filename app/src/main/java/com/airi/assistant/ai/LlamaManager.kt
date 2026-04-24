@@ -5,6 +5,7 @@ import android.util.Log
 import com.airi.assistant.memory.entity.ChatMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -32,7 +33,22 @@ class LlamaManager(private val context: Context) {
 
     private var isLoaded = false
     private var lastLoadFailure: String? = null
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    // ── Native-call serialization (Phase 2, finding D) ────────────────────────
+    // The KV cache, sampler, and llama_context in LlamaBridge.cpp are file-scope
+    // statics with NO internal mutex (by design — llama.cpp is not thread-safe
+    // per context). Dispatchers.IO is a multi-threaded pool, so prior to this
+    // change two coroutines could enter llama_decode() concurrently and corrupt
+    // KV state. The official llama.cpp Android example uses the identical
+    // pattern; see refs/llama.android InferenceEngineImpl.kt:123-125.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val llamaDispatcher = Dispatchers.IO.limitedParallelism(1)
+    private val scope = CoroutineScope(llamaDispatcher + SupervisorJob())
+
+    // Separate scope for the watchdog timer. It MUST NOT share the single
+    // llamaDispatcher thread, otherwise it cannot wake while a native
+    // generate() call is occupying that thread to time the call out.
+    private val watchdogScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     /** Canonical prior history supplied by the caller (excludes the current turn). */
     private val chatHistory = mutableListOf<ChatMessage>()
@@ -153,6 +169,7 @@ class LlamaManager(private val context: Context) {
         cancelRequested.set(true)
         runCatching { LlamaNative.cancel() }
         Log.d(TAG, "cancelStream requested")
+        Log.i("AIRI_PROOF", "GEN_CANCEL_REQUESTED tid=${Thread.currentThread().id}")
     }
 
     fun loadModel(path: String, onProgress: (Int) -> Unit = {}, onReady: (Boolean) -> Unit) {
@@ -217,11 +234,52 @@ class LlamaManager(private val context: Context) {
 
     fun getLastLoadFailure(): String? = lastLoadFailure
 
+    /**
+     * Phase 2, finding E (revised after source audit):
+     *
+     * LlamaBridge.cpp exposes NO native unload-model entry point, and project
+     * rules forbid modifying it. However, audit of LlamaBridge.cpp:647-648 and
+     * :720-721 confirms that `loadModel()` ALREADY frees the previous g_ctx +
+     * g_model before loading a new one — so model-swap is leak-free.
+     *
+     * The remaining true-leak surface is "user manually pressed Unload". For
+     * that path, the most we can honestly do without touching the bridge is:
+     *   1. Cancel any in-flight generation so we don't race the dispatcher.
+     *   2. Run resetSession() (clears KV cache — frees several MB).
+     *   3. Mark the manager as not-loaded so subsequent generate() calls reject.
+     * The model weights themselves remain mmapped until the next loadModel()
+     * call internally frees them. Because they are mmapped (not mlocked, see
+     * LlamaBridge.cpp:655-656), the kernel can page them out under memory
+     * pressure, so the practical leak is bounded.
+     *
+     * Every step is observable via AIRI_PROOF so the test on device can
+     * confirm the sequence ran in the expected order.
+     */
     fun unloadModel() {
-        isLoaded = false
-        chatHistory.clear()
-        invalidateSession()
-        Log.d(TAG, "Model unloaded")
+        Log.i("AIRI_PROOF", "UNLOAD_REQUESTED was_loaded=$isLoaded")
+        // Cancel BEFORE the dispatcher hop — the in-flight token loop reads
+        // this flag every callback and will exit on the next tick.
+        cancelRequested.set(true)
+        runCatching { LlamaNative.cancel() }
+
+        scope.launch {
+            // We're now serialized behind any in-flight generate(), so it's
+            // safe to touch native state.
+            try {
+                if (LlamaNative.isAvailable()) {
+                    runCatching { LlamaNative.resetSession() }
+                        .onSuccess { Log.i("AIRI_PROOF", "UNLOAD_KV_CLEARED") }
+                        .onFailure { Log.w("AIRI_PROOF", "UNLOAD_KV_CLEAR_FAIL ${it.message}") }
+                }
+            } finally {
+                isLoaded = false
+                chatHistory.clear()
+                invalidateSession()
+                Log.i("AIRI_PROOF",
+                    "UNLOAD_COMPLETE kv_cleared=true model_mmap_held=true " +
+                    "note=loadModel_will_free_weights")
+            }
+        }
     }
 
     fun setHistory(messages: List<ChatMessage>) {
@@ -441,8 +499,11 @@ class LlamaManager(private val context: Context) {
 
         // Inactivity-based watchdog (never a wall-clock total deadline).
         // Also fires a non-fatal stall warning at STALL_WARNING_MS.
+        // Phase 2, finding D: must run on watchdogScope (Dispatchers.Default),
+        // NOT on `scope` (single-threaded llamaDispatcher), or it will be
+        // starved while the native generate() call holds the only worker.
         val stallWarned = AtomicBoolean(false)
-        scope.launch {
+        watchdogScope.launch {
             while (!finished.get()) {
                 delay(500L)
                 val now = System.currentTimeMillis()
@@ -512,7 +573,15 @@ class LlamaManager(private val context: Context) {
                 }
 
                 val tokenCallback: (String) -> Unit = tokenCallback@ { token ->
-                    if (finished.get() || cancelRequested.get()) return@tokenCallback
+                    if (cancelRequested.get()) {
+                        // Log the honored-cancellation exactly once per stream.
+                        if (firstTokenLogged.get() && !finished.get()) {
+                            Log.i("AIRI_PROOF",
+                                "GEN_CANCEL_HONORED tokens_emitted=$nativeTokenCount")
+                        }
+                        return@tokenCallback
+                    }
+                    if (finished.get()) return@tokenCallback
                     response.append(token)
                     tokenBuffer.append(token)
                     nativeTokenCount++

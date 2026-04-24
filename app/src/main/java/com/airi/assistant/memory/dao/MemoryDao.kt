@@ -15,7 +15,15 @@ interface MemoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: ChatMessage)
 
-    @Query("SELECT * FROM episodic_memory WHERE isMemory = 1 ORDER BY timestamp DESC LIMIT :limit")
+    /**
+     * Returns the most recent N chat turns across ALL sessions, regardless of
+     * whether they were tagged as long-term ("isMemory = 1") or normal chat
+     * ("isMemory = 0"). The Memory screen surfaces every interaction so the
+     * user can see a real, persistent history. Was previously filtering on
+     * isMemory = 1 only, which made the screen look empty even after long
+     * conversations (Bug #5 in the user's report).
+     */
+    @Query("SELECT * FROM episodic_memory ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getRecentMemories(limit: Int): List<ChatMessage>
 
     @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0 ORDER BY timestamp DESC LIMIT :limit")
@@ -24,10 +32,12 @@ interface MemoryDao {
     @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0 ORDER BY timestamp ASC")
     suspend fun getSessionMessages(sessionId: String): List<ChatMessage>
 
-    @Query("SELECT COUNT(*) FROM episodic_memory WHERE isMemory = 1")
+    /** Total stored interactions (user + assistant, all sessions). */
+    @Query("SELECT COUNT(*) FROM episodic_memory")
     suspend fun getMemoryCount(): Int
 
-    @Query("DELETE FROM episodic_memory WHERE isMemory = 1")
+    /** Wipe everything the Memory screen displays. */
+    @Query("DELETE FROM episodic_memory")
     suspend fun clearSemanticMemories()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

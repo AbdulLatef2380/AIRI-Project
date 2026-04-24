@@ -7,10 +7,12 @@ import com.airi.assistant.ai.skills.impl.GithubGuardianSkill
 import com.airi.assistant.ai.skills.impl.GmailAssistantSkill
 import com.airi.assistant.ai.skills.impl.TelegramMessengerSkill
 import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.domain.customskill.CustomSkillRepository
 
 class SkillRegistry(private val context: Context) {
 
     private val secureStorage = SecureStorage(context)
+    private val customSkillRepository = CustomSkillRepository(context)
 
     private val disabledSkillsPrefs by lazy {
         context.getSharedPreferences("airi_skill_toggles", Context.MODE_PRIVATE)
@@ -79,20 +81,68 @@ class SkillRegistry(private val context: Context) {
             isConnected = secureStorage.isGoogleConnected(),
             isEnabled = isSkillEnabled("calendar_events")
         )
-    )
+    ) + customSkillRepository.getAllSkills().map { skill ->
+        SkillInfo(
+            name = skill.name,
+            description = skill.description,
+            isConnected = true,
+            isEnabled = true
+        )
+    }
 
     fun buildSkillDescriptionBlock(): String {
         val available = getAvailableSkills()
-        if (available.isEmpty()) return ""
+        val customSkills = customSkillRepository.getAllSkills()
+        if (available.isEmpty() && customSkills.isEmpty()) return ""
         return buildString {
-            append("\n\nYou also have access to the following Skills for high-level tasks:")
+            append("\n\nYou have access to the following Skills for high-level tasks:")
             for (skill in available) {
-                append("\n- Skill[${skill.name}]: ${skill.description}")
+                val meta = SKILL_METADATA[skill.name]
+                append("\n\n- Skill: ${skill.name}")
+                append("\n  Description: ${skill.description}")
+                if (meta != null) {
+                    append("\n  When to use: ${meta.whenToUse}")
+                    append("\n  Expected input: ${meta.expectedInput}")
+                }
+            }
+            for (skill in customSkills) {
+                append("\n\n- CustomSkill: ${skill.name}")
+                append("\n  Description: ${skill.description}")
+                append("\n  Type: ${skill.type.name}")
+                append("\n  When to use: Use this skill when the user's request matches '${skill.name}' or its description.")
+                append("\n  Expected input: user_input (the user's request or message)")
             }
             append(
                 "\n\nUse these skills intelligently when the user's intent matches them. " +
                         "Skills are separate from Tools — prefer skills for known integration tasks."
             )
         }
+    }
+
+    private data class SkillMeta(val whenToUse: String, val expectedInput: String)
+
+    private companion object {
+        private val SKILL_METADATA = mapOf(
+            "github_guardian" to SkillMeta(
+                whenToUse = "When user asks about their GitHub repos, profile, stars, or code activity",
+                expectedInput = "Natural language query about GitHub (e.g. 'show my repos', 'how many stars do I have')"
+            ),
+            "telegram_messenger" to SkillMeta(
+                whenToUse = "When user asks to send a Telegram message or notification",
+                expectedInput = "chat_id and message text (e.g. 'send hello to @mychat')"
+            ),
+            "gmail_assistant" to SkillMeta(
+                whenToUse = "When user asks to read, summarize, or check their emails",
+                expectedInput = "Natural language query about email (e.g. 'show my latest emails')"
+            ),
+            "drive_search" to SkillMeta(
+                whenToUse = "When user wants to find or search files in their Google Drive",
+                expectedInput = "File name or search query (e.g. 'find my resume')"
+            ),
+            "calendar_events" to SkillMeta(
+                whenToUse = "When user asks about upcoming meetings, events, or schedule",
+                expectedInput = "Natural language request for calendar info (e.g. 'what do I have tomorrow')"
+            )
+        )
     }
 }

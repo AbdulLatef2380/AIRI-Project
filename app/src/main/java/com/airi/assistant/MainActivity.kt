@@ -2,12 +2,15 @@ package com.airi.assistant
 
 import android.Manifest
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,23 +24,50 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.airi.assistant.ui.AiriApp
+import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.ui.theme.AIRITheme
+import com.airi.assistant.voice.HotwordService
 
 class MainActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(LanguageManager.applyLocale(newBase))
     }
 
-
     private val notifPermLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* result ignored — we never block the app */ }
 
+    /**
+     * Receives the broadcast emitted by [HotwordService] when "Hey AIRI" is
+     * recognized. Brings the activity to the front and signals the chat input
+     * to start a fresh listen turn. Without this receiver the wake-word
+     * service was firing into the void — Bug #4 in the user report ("the wake
+     * word does nothing").
+     */
+    private val wakeWordReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            Log.d(TAG, "Wake-word broadcast received → bringing chat to front")
+            val launch = Intent(this@MainActivity, MainActivity::class.java).apply {
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                )
+                action = ACTION_WAKE_WORD_TRIGGERED
+            }
+            startActivity(launch)
+        }
+    }
+
+    private var wakeReceiverRegistered = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        ReferralManager.captureReferralIntent(intent)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -99,6 +129,50 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (!wakeReceiverRegistered) {
+            val filter = IntentFilter(HotwordService.ACTION_WAKE_WORD)
+            // RECEIVER_NOT_EXPORTED on API 33+ — the service that emits this
+            // broadcast lives in our own process, no external sender allowed.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.registerReceiver(
+                    this,
+                    wakeWordReceiver,
+                    filter,
+                    ContextCompat.RECEIVER_NOT_EXPORTED
+                )
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(wakeWordReceiver, filter)
+            }
+            wakeReceiverRegistered = true
+            Log.d(TAG, "Wake-word receiver registered")
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (wakeReceiverRegistered) {
+            try { unregisterReceiver(wakeWordReceiver) } catch (_: Throwable) {}
+            wakeReceiverRegistered = false
+            Log.d(TAG, "Wake-word receiver unregistered")
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        ReferralManager.captureReferralIntent(intent)
+        if (intent.action == ACTION_WAKE_WORD_TRIGGERED) {
+            // The chat screen reads this flag from the singleton dispatcher
+            // and triggers a fresh listening turn. Without consuming it the
+            // wake event would only foreground the activity (already useful)
+            // but not re-arm the mic.
+            WakeWordDispatcher.fireTriggered()
+        }
+    }
+
     private fun isAccessibilityServiceEnabled(): Boolean {
         return try {
             val am = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
@@ -108,4 +182,22 @@ class MainActivity : ComponentActivity() {
             false
         }
     }
+
+    private companion object {
+        private const val TAG = "AIRI_MAIN"
+        const val ACTION_WAKE_WORD_TRIGGERED = "com.airi.assistant.action.WAKE_WORD_TRIGGERED"
+    }
+}
+
+/**
+ * Process-scoped, lock-free signal that the wake word fired. The chat screen
+ * observes [counter] in a LaunchedEffect and starts an in-app listen turn.
+ *
+ * Kept in this file (not a separate service) so MainActivity is fully
+ * self-contained for the wake-word path.
+ */
+object WakeWordDispatcher {
+    private val _counter = mutableStateOf(0)
+    val counter: State<Int> get() = _counter
+    fun fireTriggered() { _counter.value = _counter.value + 1 }
 }

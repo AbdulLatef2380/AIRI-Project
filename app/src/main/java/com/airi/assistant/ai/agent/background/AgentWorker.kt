@@ -11,8 +11,10 @@ import androidx.work.WorkerParameters
 import com.airi.assistant.ai.intent.ToolCall
 import com.airi.assistant.ai.tools.ToolExecutor
 import com.airi.assistant.auth.SecureStorage
-import com.airi.assistant.core.AiriLogger
-import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.domain.error.AppErrorHandler
+import com.airi.assistant.domain.logging.LoggingService
+import com.airi.assistant.domain.retention.RetentionManager
 import java.util.concurrent.TimeUnit
 
 class AgentWorker(
@@ -21,13 +23,13 @@ class AgentWorker(
 ) : CoroutineWorker(appContext, workerParams) {
 
     companion object {
+        private const val TAG = "AgentWorker"
         private const val WORK_NAME             = "airi_background_agent"
         private const val REPEAT_INTERVAL_HOURS = 2L
 
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
-                .setRequiresBatteryNotLow(true)
                 .build()
 
             val request = PeriodicWorkRequestBuilder<AgentWorker>(
@@ -49,73 +51,79 @@ class AgentWorker(
     }
 
     override suspend fun doWork(): Result {
+        LoggingService.debug(TAG, "Background agent started")
+
+        // ── Retention check ────────────────────────────────────────────────────
+        if (RetentionManager.isInactive()) {
+            val reEngageMsg = RetentionManager.getReEngagementMessage()
+            LoggingService.info(TAG, "User inactive — re-engagement: $reEngageMsg")
+            saveReEngagementMessage(reEngageMsg)
+        }
+
+        // Check network via NetworkService before doing any work
+        val networkService = runCatching { ServiceLocator.networkService }.getOrNull()
+        if (networkService != null && !networkService.isOnline()) {
+            LoggingService.warn(TAG, "No network — skipping background agent run")
+            saveSummary("No internet connection — skipped.")
+            return Result.success()
+        }
+
         val prefs         = appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
         val secureStorage = SecureStorage(appContext)
         val toolExecutor  = ToolExecutor(appContext)
         val findings      = mutableListOf<String>()
 
-        AiriLogger.agent("BackgroundAgent", "Worker started")
-
-        return try {
-            if (!secureStorage.isGithubConnected() && !secureStorage.isGoogleConnected()) {
-                saveSummary(prefs, "No integrations connected.")
-                AiriLogger.agent("BackgroundAgent", "No integrations — skipping")
-                return Result.success()
-            }
-
-            if (secureStorage.isGithubConnected()) {
-                runCatching {
-                    AiriLogger.agent("BackgroundAgent", "Checking GitHub")
-                    val result = toolExecutor.execute(ToolCall("github_get_user", emptyMap()))
-                    if (result.success && result.data.isNotBlank()) {
-                        findings.add("GitHub: ${result.data.lines().firstOrNull() ?: "Active"}")
-                    } else if (!result.success) {
-                        AiriLogger.apiFail("github_get_user", result.error ?: "unknown")
-                    }
-                }.onFailure { e ->
-                    AiriLogger.e("BackgroundAgent GitHub check failed: ${e.message}", e)
-                    FirebaseCrashlytics.getInstance().recordException(e)
-                }
-            }
-
-            if (secureStorage.isGoogleConnected()) {
-                runCatching {
-                    AiriLogger.agent("BackgroundAgent", "Checking Gmail")
-                    val result = toolExecutor.execute(
-                        ToolCall("gmail_list_emails", mapOf("max" to "3"))
-                    )
-                    if (result.success && result.data.isNotBlank()) {
-                        findings.add("Gmail: ${result.data.take(100)}")
-                    } else if (!result.success) {
-                        AiriLogger.apiFail("gmail_list_emails", result.error ?: "unknown")
-                    }
-                }.onFailure { e ->
-                    AiriLogger.e("BackgroundAgent Gmail check failed: ${e.message}", e)
-                    FirebaseCrashlytics.getInstance().recordException(e)
-                }
-            }
-
-            val summary = if (findings.isEmpty()) "Checked — no updates found."
-                          else findings.joinToString(" | ")
-            saveSummary(prefs, summary)
-            AiriLogger.agent("BackgroundAgent", "Completed: $summary")
-            Result.success()
-
-        } catch (e: Exception) {
-            AiriLogger.e("BackgroundAgent doWork failed: ${e.message}", e)
-            FirebaseCrashlytics.getInstance().recordException(e)
-            saveSummary(prefs, "Error: ${e.message?.take(100) ?: "Unknown error"}")
-            Result.failure()
+        if (!secureStorage.isGithubConnected() && !secureStorage.isGoogleConnected()) {
+            saveSummary("No integrations connected.")
+            return Result.success()
         }
+
+        // ── Check GitHub for updates ─────────────────────────────────────────
+        if (secureStorage.isGithubConnected()) {
+            runCatching {
+                val result = toolExecutor.execute(ToolCall("github_get_user", emptyMap()))
+                if (result.success && result.data.isNotBlank()) {
+                    findings.add("GitHub: ${result.data.lines().firstOrNull() ?: "Active"}")
+                }
+            }.onFailure { e ->
+                AppErrorHandler.capture(e, "AgentWorker.github")
+            }
+        }
+
+        // ── Check Gmail for important messages ───────────────────────────────
+        if (secureStorage.isGoogleConnected()) {
+            runCatching {
+                val result = toolExecutor.execute(
+                    ToolCall("gmail_list_emails", mapOf("max" to "3"))
+                )
+                if (result.success && result.data.isNotBlank()) {
+                    findings.add("Gmail: ${result.data.take(100)}")
+                }
+            }.onFailure { e ->
+                AppErrorHandler.capture(e, "AgentWorker.gmail")
+            }
+        }
+
+        val summary = if (findings.isEmpty()) "Checked — no updates found."
+                      else findings.joinToString(" | ")
+
+        LoggingService.debug(TAG, "Background agent complete: $summary")
+        saveSummary(summary)
+        return Result.success()
     }
 
-    private fun saveSummary(
-        prefs: android.content.SharedPreferences,
-        summary: String
-    ) {
-        prefs.edit()
+    private fun saveSummary(summary: String) {
+        appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
+            .edit()
             .putLong("bg_agent_last_run", System.currentTimeMillis())
             .putString("bg_agent_last_result", summary.take(200))
+            .apply()
+    }
+
+    private fun saveReEngagementMessage(message: String) {
+        appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
+            .edit()
+            .putString("bg_agent_re_engage_msg", message)
             .apply()
     }
 }

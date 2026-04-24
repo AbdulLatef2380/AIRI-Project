@@ -3,7 +3,13 @@ package com.airi.assistant.ui.screens
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.speech.SpeechRecognizer
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import com.airi.assistant.voice.VoskModelManager
+import com.airi.assistant.system.DefaultAssistantManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -31,10 +37,14 @@ import com.airi.assistant.R
 import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.system.LanguageOption
+import com.airi.assistant.analytics.AnalyticsService
+import com.airi.assistant.domain.monetization.PaywallTriggerEngine
 import com.airi.assistant.ui.AiriRoute
+import com.airi.assistant.ui.components.PremiumBadge
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.util.ChatExporter
+import com.airi.assistant.util.ChatImporter
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
@@ -64,11 +74,36 @@ fun SettingsScreen(
     var customInstructions by rememberSaveable { mutableStateOf(systemPrompt) }
     var responseStyle by rememberSaveable { mutableStateOf(responseStyleState) }
     var themeMode by rememberSaveable { mutableStateOf(themeModeState) }
-    var voiceEnabled by rememberSaveable { mutableStateOf(false) }
+    val voicePrefs = remember { context.getSharedPreferences("airi_voice", Context.MODE_PRIVATE) }
+    var voiceEnabled by rememberSaveable { mutableStateOf(voicePrefs.getBoolean("voice_enabled", false)) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var pendingLanguage by remember { mutableStateOf<LanguageOption?>(null) }
 
-    val isSpeechAvailable = remember { SpeechRecognizer.isRecognitionAvailable(context) }
+    val isSpeechAvailable = remember { VoskModelManager.isReady(context) }
+    val exportChatLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        scope.launch {
+            val success = uri != null && ChatExporter.exportToUri(context, uri, messages)
+            snackbarHost.showSnackbar(
+                if (success) context.getString(R.string.export_success)
+                else context.getString(R.string.export_failed)
+            )
+        }
+    }
+    val importChatLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        viewModel.importChatJson(uri) { count ->
+            scope.launch {
+                snackbarHost.showSnackbar(
+                    if (count > 0) context.getString(R.string.import_success, count)
+                    else context.getString(R.string.import_failed)
+                )
+            }
+        }
+    }
 
     val responseStyles = listOf(
         "concise" to stringResource(R.string.style_concise),
@@ -191,9 +226,7 @@ fun SettingsScreen(
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 borderColor = Color.White.copy(alpha = 0.1f),
-                                selectedBorderColor = CosmicAccent.copy(alpha = 0.4f),
-                                enabled = true,
-                                selected = selected
+                                selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
                             )
                         )
                     }
@@ -206,7 +239,7 @@ fun SettingsScreen(
                 SettingsNavigationRow(label = stringResource(R.string.view_stored_memory), sublabel = stringResource(R.string.browse_conversation_history)) {
                     onNavigate(AiriRoute.MEMORY)
                 }
-                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(label = stringResource(R.string.clear_all_memory), sublabel = stringResource(R.string.reset_ai_context), destructive = true) {
                     viewModel.clearMemory()
                 }
@@ -235,9 +268,7 @@ fun SettingsScreen(
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 borderColor = Color.White.copy(alpha = 0.1f),
-                                selectedBorderColor = CosmicAccent.copy(alpha = 0.4f),
-                                enabled = true,
-                                selected = selected
+                                selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
                             )
                         )
                     }
@@ -271,7 +302,14 @@ fun SettingsScreen(
                 Spacer(Modifier.height(8.dp))
                 SettingsSwitchRow(stringResource(R.string.enable_voice_mode), voiceEnabled) { enabled ->
                     voiceEnabled = enabled
+                    voicePrefs.edit().putBoolean("voice_enabled", enabled).apply()
                 }
+                Spacer(Modifier.height(8.dp))
+                SettingsNavigationRow(
+                    label = stringResource(R.string.voice_and_wakeword),
+                    sublabel = stringResource(R.string.voice_settings_subtitle),
+                    onClick = { onNavigate(com.airi.assistant.ui.AiriRoute.VOICE_SETTINGS) }
+                )
                 if (voiceEnabled) {
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -284,22 +322,37 @@ fun SettingsScreen(
                     )
                 }
                 Spacer(Modifier.height(6.dp))
-                // These features are not yet available — shown as disabled info only
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(stringResource(R.string.speech_engine), color = Color.White.copy(alpha = 0.25f), fontSize = 13.sp)
-                    Text("Not available", color = Color.White.copy(alpha = 0.2f), fontSize = 12.sp)
+                    Text(
+                        stringResource(R.string.speech_engine),
+                        color = if (isSpeechAvailable) Color.White.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.35f),
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        if (isSpeechAvailable) stringResource(R.string.speech_engine_value) else "Not installed",
+                        color = if (isSpeechAvailable) CosmicAccent.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.3f),
+                        fontSize = 12.sp
+                    )
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(stringResource(R.string.wake_word), color = Color.White.copy(alpha = 0.25f), fontSize = 13.sp)
-                    Text("Not available", color = Color.White.copy(alpha = 0.2f), fontSize = 12.sp)
+                    Text(
+                        stringResource(R.string.wake_word),
+                        color = if (isSpeechAvailable) Color.White.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.35f),
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        if (isSpeechAvailable) stringResource(R.string.wake_word_value) else "Requires voice engine",
+                        color = if (isSpeechAvailable) CosmicAccent.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.3f),
+                        fontSize = 12.sp
+                    )
                 }
             }
 
@@ -308,8 +361,18 @@ fun SettingsScreen(
             AgentSection(
                 isEnabled  = backgroundAgentEnabled,
                 onToggle   = { viewModel.setBackgroundAgentEnabled(it) },
-                onNavigate = onNavigate
+                onNavigate = onNavigate,
+                isPremium  = viewModel.isPremium()
             )
+
+            SettingsSurface {
+                SettingsCategoryHeader(icon = Icons.Outlined.Speed, title = stringResource(R.string.performance))
+                Spacer(Modifier.height(8.dp))
+                SettingsNavigationRow(
+                    label    = stringResource(R.string.performance_device_info),
+                    sublabel = stringResource(R.string.performance_device_info_sublabel)
+                ) { onNavigate(AiriRoute.PERFORMANCE) }
+            }
 
             SettingsSurface {
                 SettingsCategoryHeader(icon = Icons.Outlined.Security, title = stringResource(R.string.data_controls))
@@ -318,23 +381,30 @@ fun SettingsScreen(
                     label = stringResource(R.string.export_chats),
                     sublabel = stringResource(R.string.download_chat_history)
                 ) {
-                    scope.launch {
-                        val success = ChatExporter.exportToJson(context, messages)
-                        snackbarHost.showSnackbar(
-                            if (success) context.getString(R.string.export_success)
-                            else context.getString(R.string.export_failed)
-                        )
-                    }
+                    exportChatLauncher.launch(ChatExporter.buildFileName())
                 }
-                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                SettingsActionRow(
+                    label = stringResource(R.string.import_chats),
+                    sublabel = stringResource(R.string.import_chat_history)
+                ) {
+                    importChatLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                }
+                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(label = stringResource(R.string.clear_chat_history), sublabel = stringResource(R.string.remove_from_display)) {
                     viewModel.clearMessages()
                 }
-                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(label = stringResource(R.string.delete_account), sublabel = stringResource(R.string.delete_account_sublabel), destructive = true) {
                     showDeleteDialog = true
                 }
             }
+
+            SubscriptionSection(viewModel = viewModel, onNavigate = onNavigate)
+
+            DefaultAssistantSection(activity = activity)
+
+            ObservabilitySection(onNavigate = onNavigate)
 
             SettingsSurface {
                 SettingsCategoryHeader(icon = Icons.Outlined.Info, title = stringResource(R.string.app_info))
@@ -345,20 +415,25 @@ fun SettingsScreen(
                 SettingsInfoRow(stringResource(R.string.ui), stringResource(R.string.ui_value))
                 SettingsInfoRow(stringResource(R.string.database), stringResource(R.string.database_value))
                 SettingsInfoRow(stringResource(R.string.auth), stringResource(R.string.auth_value))
-            }
-
-            SettingsSurface {
-                SettingsCategoryHeader(icon = Icons.Outlined.Gavel, title = "Legal")
-                Spacer(Modifier.height(8.dp))
-                SettingsNavigationRow(
-                    label = "Privacy Policy",
-                    sublabel = "How we handle your data"
-                ) { onNavigate(AiriRoute.PRIVACY_POLICY) }
-                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
-                SettingsNavigationRow(
-                    label = "Terms of Service",
-                    sublabel = "Usage rules and disclaimers"
-                ) { onNavigate(AiriRoute.TERMS) }
+                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                SettingsActionRow(
+                    label    = stringResource(R.string.report_a_problem),
+                    sublabel = stringResource(R.string.report_a_problem_sublabel)
+                ) {
+                    val deviceInfo = buildString {
+                        append("Device: ${Build.MANUFACTURER} ${Build.MODEL}\n")
+                        append("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n")
+                        append("App version: ${context.getString(R.string.app_version_value)}")
+                    }
+                    val body = "Please describe the issue:\n\n\n\n--- Device Info ---\n$deviceInfo"
+                    val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
+                        data = Uri.parse("mailto:")
+                        putExtra(Intent.EXTRA_EMAIL, arrayOf("xwenbrr@gmail.com"))
+                        putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.report_email_subject))
+                        putExtra(Intent.EXTRA_TEXT, body)
+                    }
+                    runCatching { context.startActivity(emailIntent) }
+                }
             }
 
             Button(
@@ -585,7 +660,7 @@ private fun SkillsSection(viewModel: ChatViewModel) {
 
         skillInfos.forEachIndexed { index, info ->
             if (index > 0) {
-                HorizontalDivider(
+                Divider(
                     color = Color.White.copy(alpha = 0.05f),
                     modifier = Modifier.padding(vertical = 6.dp)
                 )
@@ -647,7 +722,8 @@ private fun SkillsSection(viewModel: ChatViewModel) {
 private fun AgentSection(
     isEnabled: Boolean,
     onToggle: (Boolean) -> Unit,
-    onNavigate: (String) -> Unit = {}
+    onNavigate: (String) -> Unit = {},
+    isPremium: Boolean = false
 ) {
     val context = LocalContext.current
     val prefs   = remember { context.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE) }
@@ -676,21 +752,38 @@ private fun AgentSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text  = "Enable Background Agent",
+                        color = Color.White.copy(alpha = 0.88f),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (!isPremium) PremiumBadge()
+                }
                 Text(
-                    text  = "Enable Background Agent",
-                    color = Color.White.copy(alpha = 0.88f),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text  = if (isEnabled) "Runs every 2 hours when connected" else "Background checks are off",
-                    color = if (isEnabled) CosmicAccent.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.35f),
+                    text  = if (!isPremium) "Requires Premium — upgrade to unlock"
+                            else if (isEnabled) "Runs every 2 hours when connected"
+                            else "Background checks are off",
+                    color = if (!isPremium) Color(0xFFFFB300).copy(alpha = 0.6f)
+                            else if (isEnabled) CosmicAccent.copy(alpha = 0.65f)
+                            else Color.White.copy(alpha = 0.35f),
                     fontSize = 11.sp
                 )
             }
             Switch(
                 checked = isEnabled,
-                onCheckedChange = onToggle,
+                onCheckedChange = { enabled ->
+                    if (!isPremium) {
+                        AnalyticsService.premiumFeatureAttempted("background_agent")
+                        if (PaywallTriggerEngine.onPremiumFeatureAttempt() != PaywallTriggerEngine.UpsellLevel.NONE) onNavigate(AiriRoute.PAYWALL)
+                    } else {
+                        onToggle(enabled)
+                    }
+                },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor   = CosmicAccent,
                     checkedTrackColor   = CosmicAccent.copy(alpha = 0.3f),
@@ -699,8 +792,8 @@ private fun AgentSection(
                 )
             )
         }
-        HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
-        SettingsInfoRow(label = "Last Run", value = lastRunFormatted)
+        Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+        SettingsInfoRow(label = stringResource(R.string.last_run), value = lastRunFormatted)
         if (!lastSummary.isNullOrBlank()) {
             Spacer(Modifier.height(4.dp))
             Text(
@@ -710,16 +803,177 @@ private fun AgentSection(
                 lineHeight = 16.sp
             )
         }
-        HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+        Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
         SettingsNavigationRow(
-            label    = "Agent Logs",
-            sublabel = "View execution history and traces",
+            label    = stringResource(R.string.agent_logs),
+            sublabel = stringResource(R.string.agent_logs_description),
             onClick  = { onNavigate(AiriRoute.AGENT_LOGS) }
         )
         SettingsNavigationRow(
-            label    = "Agent Control",
-            sublabel = "Manage skills, tools, and debug mode",
+            label    = stringResource(R.string.agent_control),
+            sublabel = stringResource(R.string.agent_control_description),
             onClick  = { onNavigate(AiriRoute.AGENT_CONTROL) }
+        )
+    }
+}
+
+@Composable
+private fun SubscriptionSection(
+    viewModel: ChatViewModel,
+    onNavigate: (String) -> Unit = {}
+) {
+    val summary   = remember { viewModel.getSubscriptionSummary() }
+    val isPremium = remember { viewModel.isPremium() }
+
+    SettingsSurface {
+        SettingsCategoryHeader(
+            icon  = Icons.Outlined.Star,
+            title = stringResource(R.string.subscription)
+        )
+        Spacer(Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text       = if (isPremium) stringResource(R.string.plan_premium) else stringResource(R.string.plan_free_tier),
+                    color      = if (isPremium) CosmicAccent else Color.White.copy(alpha = 0.75f),
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 15.sp
+                )
+                Text(
+                    text     = if (isPremium) stringResource(R.string.plan_premium_description) else stringResource(R.string.plan_free_description),
+                    color    = Color.White.copy(alpha = 0.42f),
+                    fontSize = 11.sp
+                )
+            }
+            Surface(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                color = if (isPremium) CosmicAccent.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.07f),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (isPremium) CosmicAccent.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.15f)
+                )
+            ) {
+                Text(
+                    text     = if (isPremium) stringResource(R.string.plan_badge_active) else stringResource(R.string.plan_badge_free),
+                    color    = if (isPremium) CosmicAccent else Color.White.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
+        }
+
+        Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
+
+        Text(stringResource(R.string.today_usage), color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+
+        val limit = if (isPremium) "∞" else null
+        SettingsInfoRow(stringResource(R.string.usage_messages),  "${summary.messagesUsed} / ${limit ?: summary.messagesLimit}")
+        SettingsInfoRow(stringResource(R.string.usage_agent_runs),"${summary.agentsUsed} / ${limit ?: summary.agentsLimit}")
+        SettingsInfoRow(stringResource(R.string.usage_skill_uses),"${summary.skillsUsed} / ${limit ?: summary.skillsLimit}")
+
+        if (!isPremium) {
+            Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
+            Button(
+                onClick = { onNavigate(AiriRoute.PAYWALL) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.White),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+            ) {
+                Icon(Icons.Outlined.Star, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.upgrade_premium_price), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DefaultAssistantSection(activity: Activity?) {
+    val context   = LocalContext.current
+    val isDefault = remember { DefaultAssistantManager.isDefaultAssistant(context) }
+
+    SettingsSurface {
+        SettingsCategoryHeader(
+            icon  = Icons.Outlined.Assistant,
+            title = stringResource(R.string.default_assistant)
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text     = stringResource(R.string.default_assistant_description),
+            fontSize = 11.sp,
+            color    = Color.White.copy(alpha = 0.38f),
+            lineHeight = 16.sp
+        )
+        Spacer(Modifier.height(12.dp))
+
+        if (isDefault) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.Check,
+                    contentDescription = null,
+                    tint     = CosmicAccent,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.airi_is_default), color = CosmicAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text     = stringResource(R.string.airi_not_default),
+                    color    = Color(0xFFFF9800).copy(alpha = 0.85f),
+                    fontSize = 12.sp
+                )
+                Button(
+                    onClick = {
+                        if (activity != null) {
+                            DefaultAssistantManager.requestDefaultAssistant(activity)
+                        } else {
+                            DefaultAssistantManager.openAssistantSettings(context)
+                        }
+                    },
+                    colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.Black),
+                    shape    = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.set_as_default_assistant), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+                TextButton(
+                    onClick  = { DefaultAssistantManager.openAssistantSettings(context) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.open_assistant_settings), color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ObservabilitySection(onNavigate: (String) -> Unit) {
+    SettingsSurface {
+        SettingsCategoryHeader(
+            icon  = Icons.Outlined.Timeline,
+            title = stringResource(R.string.observability)
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text     = stringResource(R.string.observability_description),
+            fontSize = 11.sp,
+            color    = Color.White.copy(alpha = 0.38f)
+        )
+        Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
+        SettingsNavigationRow(
+            label    = stringResource(R.string.execution_history),
+            sublabel = stringResource(R.string.execution_history_description),
+            onClick  = { onNavigate(AiriRoute.OBSERVABILITY) }
         )
     }
 }

@@ -49,6 +49,10 @@
     <string name="download_chat_history">Save current chat as JSON to Downloads/AIRI/</string>
     <string name="export_success">Chat exported to Downloads/AIRI/</string>
     <string name="export_failed">Export failed — check storage permissions</string>
+    <string name="import_chats">Import Chats</string>
+    <string name="import_chat_history">Load a previously exported JSON chat file</string>
+    <string name="import_success">Imported %1$d messages</string>
+    <string name="import_failed">Import failed — file is empty or not valid JSON</string>
     <string name="clear_chat_history">Clear Chat History</string>
     <string name="remove_from_display">Remove from display (not from DB)</string>
     <string name="delete_account">Delete Account</string>
@@ -62,30 +66,27 @@
     <string name="database">Database</string>
     <string name="auth">Auth</string>
     <string name="app_full_name">AIRI — Android AI Runtime Interface</string>
-    <string name="app_version_value">1.0.0</string>
+    <string name="app_version_value">1.0.0-alpha</string>
     <string name="engine_value">llama.cpp via LlamaNative JNI</string>
     <string name="ui_value">Jetpack Compose + Material 3</string>
     <string name="database_value">Room (episodic memory)</string>
-    <string name="auth_value">Firebase Email/Password</string>
+    <string name="auth_value">Firebase + GitHub + Google</string>
     <string name="sign_out">Sign Out</string>
     <string name="sign_in">Sign In</string>
     <string name="create_account">Create Account</string>
     <string name="continue_with_google">Continue with Google</string>
-    <string name="continue_with_facebook">Continue with Facebook</string>
-    <string name="facebook_sdk_title">Facebook SDK Not Configured</string>
-    <string name="facebook_sdk_message">To enable Login with Facebook, the developer must configure the Facebook SDK in the project.</string>
+    <string name="continue_with_github">Continue with GitHub</string>
     <string name="speak_to_airi">Speak to AIRI</string>
     <string name="microphone_permission_required">Microphone permission is required for voice input</string>
     <string name="export_coming_soon">Export coming soon</string>
-    <string name="speech_recognition_unavailable">Speech recognition is not available on this device</string>
     <string name="attach">Attach</string>
     <string name="pick_image">Pick image</string>
     <string name="pick_file">Pick file</string>
     <string name="take_photo">Take photo</string>
     <string name="photo_captured">Photo captured</string>
     <string name="menu">Menu</string>
-    <string name="app_agent_title">AIRI Agent</string>
-    <string name="app_agent_mode_title">AIRI Agent • %1$s</string>
+    <string name="app_agent_title">AIRI • Assistant</string>
+    <string name="app_agent_mode_title">AIRI • Assistant</string>
     <string name="generating">Generating…</string>
     <string name="loading_model">Loading model…</string>
     <string name="no_model_active">No model active</string>
@@ -100,7 +101,7 @@
     <string name="no_model_tap_select">No model active — tap to select</string>
     <string name="loading_model_name">Loading %1$s…</string>
     <string name="model_is_loading">Model is loading…</string>
-    <string name="message_airi">Message AIRI…</string>
+    <string name="message_airi">Contact AIRI…</string>
     <string name="activate_model_first">Activate a model first…</string>
     <string name="voice_input">Voice input</string>
     <string name="send">Send</string>
@@ -175,4 +176,197 @@
     <string name="email_read_only">Email (read-only)</string>
     <string name="profile_saved">Profile saved</string>
     <string name="edit_profile">Edit Profile</string>
-</resources>
+    <!-- Bug Report -->
+    <string name="report_a_problem">Report a Problem</string>
+    <string name="report_a_problem_sublabel">Send feedback or bug report via email</string>
+    <string name="report_email_subject">AIRI Bug Report — v1.0.0-alpha</string>
+    <string name="report_email_body">Please describe the issue:\n\n\n\n--- Device Info ---\n</string>
+    <!-- Paywall -->
+    <string name="upgrade_to_premium">Upgrade to Premium</string>
+    <string name="paywall_limit_message">You reached your limit. Upgrade to continue.</string>
+    <!-- Usage limit -->
+    <string name="usage_limit_reached">You reached your limit. Upgrade to continue.</string>
+    <!-- Subscription section -->
+    <string name="subscription">Subscription</string>
+    <string name="plan_premium">Premium</string>
+    <string name="plan_free_tier">Free Tier</string>
+    <string name="plan_premium_description">Unlimited access to all features</string>
+    <string name="plan_free_description">30 messages / 10 agents / 5 skills per day</string>
+    <string name="plan_badge_active">✓ Active</string>
+    <string name="plan_badge_free">Free</string>
+    <string name="today_usage">Today\'s Usage</string>
+    <string name="usage_messages">Messages</string>
+    <string name="usage_agent_runs">Agent runs</string>
+    <string name="usage_skill_uses">Skill uses</string>
+    <string name="upgrade_premium_price">Upgrade to Premium — $4.99/mo</string>
+    <!-- Default assistant section -->
+    <string name="default_assistant">Default Assistant</string>
+    <string name="default_assistant_description">Set AIRI as your device\'s default assistant so it activates when you hold the home button.</string>
+    <string name="airi_is_default">AIRI is your default assistant</string>
+    <string name="airi_not_default">AIRI is not the default assistant on this device.</string>
+    <string name="set_as_default_assistant">Set as Default Assistant</string>
+    <string name="open_assistant_settings">Open Assistant Settings</string>
+    <!-- Observability section -->
+    <string name="observability">Observability</string>
+    <string name="observability_description">Real-time event log for all agent, skill, auth, and policy executions.</string>
+    <string name="execution_history">Execution History</string>
+    <string name="execution_history_description">View live events, policy checks, and agent traces</string>
+    <!-- Agent section -->
+    <string name="agent_logs">Agent Logs</string>
+    <string name="agent_logs_description">View execution history and traces</string>
+    <string name="agent_control">Agent Control</string>
+    <string name="agent_control_description">Manage skills, tools, and debug mode</string>
+    <string name="last_run">Last Run</string>
+    <!-- Model per-card settings dialog -->
+    <string name="model_name_label">Model Name</string>
+    <string name="bos_token">BOS Token</string>
+    <string name="eos_token">EOS Token</string>
+    <string name="add_generation_prompt">Add Generation Prompt</string>
+    <string name="template_editor">Template Editor</string>
+    <string name="leave_blank_for_default">Leave blank for default</string>
+    <string name="stop_words">Stop Words</string>
+    <string name="add_stop_word">Add stop word</string>
+    <string name="settings_saved">Settings saved!</string>
+    <!-- Add model sheet -->
+    <string name="add_model">Add Model</string>
+    <string name="add_local_model">Add Local Model</string>
+    <string name="import_gguf_from_storage">Import a .gguf file from device storage</string>
+    <string name="add_remote_model">Add Remote Model</string>
+    <string name="add_openai_compatible_server">Connect an OpenAI-compatible server</string>
+    <!-- Microphone permission blocked -->
+    <string name="mic_blocked_settings">Microphone blocked — enable it in Settings → App permissions</string>
+    <!-- Generation parameters -->
+    <string name="repeat_penalty">Repeat Penalty</string>
+    <string name="min_p">Min-P</string>
+    <string name="presence_penalty">Presence Penalty</string>
+    <string name="frequency_penalty">Frequency Penalty</string>
+    <string name="min_p_hint">Minimum probability floor for token selection</string>
+    <string name="presence_penalty_hint">Penalizes tokens already present in the response</string>
+    <string name="frequency_penalty_hint">Penalizes tokens based on how often they appear</string>
+    <!-- Share action -->
+    <string name="share">Share</string>
+    <!-- Drawer items — previously hardcoded -->
+    <string name="custom_skills">Custom Skills</string>
+    <string name="invite_friends">Invite friends</string>
+    <!-- Performance screen -->
+    <string name="performance">Performance</string>
+    <string name="performance_device_info">Performance &amp; Device Info</string>
+    <string name="performance_device_info_sublabel">RAM, CPU, token speed, performance mode</string>
+    <string name="performance_device">Performance &amp; Device</string>
+    <string name="performance_mode">Performance Mode</string>
+    <string name="stat_device_info">Device Info</string>
+    <string name="stat_device">Device</string>
+    <string name="stat_android">Android</string>
+    <string name="stat_cpu_abi">CPU ABI</string>
+    <string name="stat_cpu_cores">CPU Cores</string>
+    <string name="stat_memory">Memory</string>
+    <string name="stat_total_ram">Total RAM</string>
+    <string name="stat_available_ram">Available</string>
+    <string name="stat_used_ram">Used RAM</string>
+    <string name="stat_low_memory">Low Memory</string>
+    <string name="stat_low_memory_yes">Yes ⚠</string>
+    <string name="stat_low_memory_no">No ✓</string>
+    <string name="stat_storage">Storage</string>
+    <string name="stat_total_storage">Total Storage</string>
+    <string name="stat_free_storage">Free Storage</string>
+    <string name="stat_inference">Inference Stats</string>
+    <string name="stat_last_load_time">Last load time</string>
+    <string name="stat_tokens_per_sec">Tokens / sec</string>
+    <string name="stat_last_latency">Last latency</string>
+    <string name="stat_breakdown">Latency Breakdown</string>
+    <string name="stat_breakdown_tokenize">Tokenize</string>
+    <string name="stat_breakdown_prefill">Prefill</string>
+    <string name="stat_breakdown_first_token">First token</string>
+    <string name="stat_breakdown_decode">Decode loop</string>
+    <string name="stat_breakdown_decoded">Decoded tokens</string>
+    <string name="stat_breakdown_kv">KV cache</string>
+    <string name="stat_breakdown_kv_value">%1$d / %2$d (%3$d%%)</string>
+    <string name="model_perf_title">Model Performance</string>
+    <string name="model_perf_open">Compare Quantizations</string>
+    <string name="model_perf_empty">No benchmark runs yet — send a message to your local model first.</string>
+    <string name="model_perf_summary_header">Average per quantization</string>
+    <string name="model_perf_runs_header">Recent runs (%1$d total)</string>
+    <string name="model_perf_col_quant">Quant</string>
+    <string name="model_perf_col_runs">Runs</string>
+    <string name="model_perf_col_tps">t/s</string>
+    <string name="model_perf_col_ftl">First tok</string>
+    <string name="model_perf_col_mem">Mem</string>
+    <string name="model_perf_col_class">Class</string>
+    <string name="model_perf_run_line">%1$s t/s • first %2$d ms • total %3$d ms • %4$d toks • %5$d MB • ctx=%6$d • th=%7$d</string>
+    <!-- Speculative decoding (optional, opt-in feature) -->
+    <string name="spec_title">Speculative Decoding</string>
+    <string name="spec_subtitle">Use a small draft model to predict tokens ahead. Verified against the main model so output is unchanged. Forces greedy sampling while enabled.</string>
+    <string name="spec_enable">Enable speculative decoding</string>
+    <string name="spec_status_off">Off — generation uses the standard single-token path.</string>
+    <string name="spec_status_no_draft">On, but no draft model selected. Tap "Auto-pick" to choose one.</string>
+    <string name="spec_status_loaded">Draft loaded: %1$s (%2$d MB)</string>
+    <string name="spec_status_load_failed">Draft load failed: %1$s</string>
+    <string name="spec_status_no_candidate">No other model is registered to use as a draft. Add a smaller model first.</string>
+    <string name="spec_auto_pick">Auto-pick draft</string>
+    <string name="spec_unload">Unload draft</string>
+    <string name="spec_reset_stats">Reset stats</string>
+    <string name="spec_acceptance">Acceptance rate: %1$d%% (%2$d / %3$d drafts across %4$d runs)</string>
+    <string name="spec_acceptance_empty">Acceptance rate: — (no speculative runs yet)</string>
+    <string name="spec_draft_n_label">Tokens drafted per step: %1$d</string>
+    <string name="perf_mode_label_fast">⚡ Fast</string>
+    <string name="perf_mode_label_balanced">⚖ Balanced</string>
+    <string name="perf_mode_label_quality">🎯 Quality</string>
+    <string name="perf_footer_note">Performance Mode affects: context window, max tokens, and truncation strategy. Changes apply to the next message sent.</string>
+    <!-- Model settings content descriptions -->
+    <string name="add_model_fab">Add model</string>
+    <string name="model_settings_icon">Model settings</string>
+    <string name="expand">Expand</string>
+    <string name="collapse">Collapse</string>
+    <!-- File/image pick feedback -->
+    <string name="file_selected_name">File selected: %1$s</string>
+    <string name="image_selected_vision_soon">Image attachments are not enabled in this build</string>
+    <string name="photo_attached">Photo attached</string>
+    <!-- Remote model form -->
+    <string name="server_url">Server URL</string>
+    <string name="api_key_optional">API Key (optional)</string>
+    <string name="test_connection">Test Connection</string>
+    <string name="remote_model_warning">Using a remote model will send your messages out of device. Make sure you trust the server.</string>
+    <string name="enter_server_url_first">Enter a server URL first</string>
+    <string name="connection_success">Connection successful</string>
+    <string name="connection_failed">Connection failed</string>
+    <string name="testing_connection">Testing…</string>
+
+    <!-- Default-locale fallbacks for keys previously only present in translated locales.
+         Required by aapt2 strict-defaults check. -->
+    <string name="dark_theme_always_on">Dark theme (always on)</string>
+    <string name="light_theme_coming">Light theme coming in next update</string>
+    <string name="voice_mode_prepared">Voice mode is wired up for Vosk (speech-to-text) and Picovoice wake-word.</string>
+    <string name="export_coming_next_update">Export coming in next update</string>
+    <string name="file_selected_coming_soon">File selected — attachment support coming soon</string>
+    <string name="image_selected_coming_soon">Image attachments are not enabled in this build</string>
+    <string name="camera_coming_soon">Camera (coming soon)</string>
+
+    <!-- Voice & wake-word (Vosk + Porcupine, fully offline) -->
+    <string name="voice_and_wakeword">Voice &amp; Wake Word</string>
+    <string name="voice_settings_title">Voice &amp; Wake Word</string>
+    <string name="voice_settings_subtitle">Manage offline speech recognition models and the \"Hey AIRI\" wake word.</string>
+    <string name="no_voice_model_installed">No speech model installed. Open Voice &amp; Wake Word to download one.</string>
+    <string name="voice_model_load_failed">Could not load the selected speech model.</string>
+    <string name="vosk_section_title">Speech-to-text models (Vosk)</string>
+    <string name="vosk_section_subtitle">Models run 100%% on-device. Download once, then use forever — no internet needed.</string>
+    <string name="vosk_installed">Installed</string>
+    <string name="vosk_active">Active</string>
+    <string name="vosk_set_active">Set active</string>
+    <string name="vosk_download">Download</string>
+    <string name="vosk_downloading">Downloading…</string>
+    <string name="vosk_delete">Delete</string>
+    <string name="vosk_no_models">No models installed yet. Pick one below.</string>
+    <string name="vosk_size_mb">~%1$d MB</string>
+    <string name="vosk_download_failed">Download failed: %1$s</string>
+    <string name="porcupine_section_title">Wake word (Porcupine)</string>
+    <string name="porcupine_status_ready">Wake word ready (\"Hey AIRI\").</string>
+    <string name="porcupine_status_missing_key">Picovoice AccessKey is missing. Paste one below or set PICOVOICE_ACCESS_KEY at build time.</string>
+    <string name="porcupine_status_missing_ppn">No \"hey_airi.ppn\" file bundled. Drop one into res/raw/ or assets/voice/ and rebuild.</string>
+    <string name="porcupine_status_both_missing">Wake word disabled — AccessKey and hey_airi.ppn are both missing.</string>
+    <string name="porcupine_access_key_label">Picovoice AccessKey</string>
+    <string name="porcupine_access_key_save">Save</string>
+    <string name="porcupine_access_key_clear">Clear</string>
+    <string name="porcupine_source_runtime">From: paste</string>
+    <string name="porcupine_source_build">From: build config</string>
+    <string name="speech_recognition_unavailable">Speech recognition is not available on this device</string>
+    <string name="porcupine_help_link">Get a free AccessKey at console.picovoice.ai</string></resources>

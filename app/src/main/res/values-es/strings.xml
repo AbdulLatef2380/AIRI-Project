@@ -44,6 +44,10 @@
     <string name="data_controls">Controles de datos</string>
     <string name="export_chats">Exportar chats</string>
     <string name="download_chat_history">Descargar tu historial de chat</string>
+    <string name="import_chats">Importar chats</string>
+    <string name="import_chat_history">Cargar un archivo JSON de chat exportado anteriormente</string>
+    <string name="import_success">Se importaron %1$d mensajes</string>
+    <string name="import_failed">Error al importar — archivo vacío o JSON inválido</string>
     <string name="export_coming_next_update">La exportación llegará en la próxima actualización</string>
     <string name="clear_chat_history">Borrar historial de chat</string>
     <string name="remove_from_display">Eliminar mensajes de la vista actual</string>
@@ -67,9 +71,8 @@
     <string name="speak_to_airi">Habla con AIRI</string>
     <string name="microphone_permission_required">Se requiere permiso de micrófono para la entrada de voz</string>
     <string name="file_selected_coming_soon">Archivo seleccionado — el soporte de adjuntos llegará pronto</string>
-    <string name="image_selected_coming_soon">Imagen seleccionada — el soporte de visión llegará pronto</string>
+    <string name="image_selected_coming_soon">Los adjuntos de imagen no están habilitados en esta versión</string>
     <string name="export_coming_soon">La exportación llegará pronto</string>
-    <string name="speech_recognition_unavailable">El reconocimiento de voz no está disponible en este dispositivo</string>
     <string name="attach">Adjuntar</string>
     <string name="pick_image">Elegir imagen</string>
     <string name="pick_file">Elegir archivo</string>
@@ -161,4 +164,5 @@
     <string name="accessibility_dialog_steps">To enable: go to Settings → Accessibility → Installed Services → AIRI → toggle ON.</string>
     <string name="open_settings">Open Settings</string>
     <string name="later">Later</string>
+    <string name="speech_recognition_unavailable">El reconocimiento de voz no está disponible en este dispositivo</string>
 </resources>

@@ -12,82 +12,79 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import com.airi.assistant.analytics.AnalyticsService
+import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.domain.auth.AuthService
+import com.airi.assistant.domain.experiment.ExperimentManager
+import com.airi.assistant.domain.growth.OnboardingManager
+import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.ui.components.StarBackground
 import com.airi.assistant.ui.screens.AgentControlScreen
 import com.airi.assistant.ui.screens.AgentLogsScreen
+import com.airi.assistant.ui.screens.DebugPanelScreen
+import com.airi.assistant.ui.debug.DebugScreen
 import com.airi.assistant.ui.screens.AgentTraceDetailScreen
 import com.airi.assistant.ui.screens.ChatScreen
 import com.airi.assistant.ui.screens.HistoryScreen
 import com.airi.assistant.ui.screens.IntegrationsScreen
 import com.airi.assistant.ui.screens.LoginScreen
 import com.airi.assistant.ui.screens.MemoryScreen
+import com.airi.assistant.ui.screens.ModelPerformanceScreen
 import com.airi.assistant.ui.screens.ModelSettingsScreen
-import com.airi.assistant.ui.screens.PrivacyPolicyScreen
+import com.airi.assistant.ui.screens.ObservabilityScreen
+import com.airi.assistant.ui.screens.PerformanceScreen
+import com.airi.assistant.ui.screens.OnboardingScreen
+import com.airi.assistant.ui.screens.PaywallScreen
 import com.airi.assistant.ui.screens.ProfileScreen
+import com.airi.assistant.ui.screens.ReferralScreen
 import com.airi.assistant.ui.screens.SettingsScreen
-import com.airi.assistant.ui.screens.TermsScreen
+import com.airi.assistant.ui.screens.SkillBuilderScreen
+import com.airi.assistant.ui.screens.SkillManagerScreen
 import com.airi.assistant.ui.screens.WelcomeScreen
 import com.airi.assistant.ui.theme.AIRITheme
 import com.airi.assistant.ui.viewmodel.AgentViewModel
 import com.airi.assistant.ui.viewmodel.ChatViewModel
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseAuthException
 
 object AiriRoute {
-    const val WELCOME             = "screen_welcome"
-    const val LOGIN               = "screen_login"
-    const val CHAT                = "screen_chat"
-    const val HISTORY             = "screen_history"
-    const val MODELS              = "screen_models"
-    const val SETTINGS            = "screen_settings"
-    const val MEMORY              = "screen_memory"
-    const val INTEGRATIONS        = "screen_integrations"
-    const val PROFILE             = "screen_profile"
-    const val AGENT_CONTROL       = "screen_agent_control"
-    const val AGENT_LOGS          = "screen_agent_logs"
-    const val AGENT_TRACE_DETAIL  = "screen_agent_trace_detail"
-    const val PRIVACY_POLICY      = "screen_privacy_policy"
-    const val TERMS               = "screen_terms"
-}
+    const val ONBOARDING         = "screen_onboarding"
+    const val WELCOME            = "screen_welcome"
+    const val LOGIN              = "screen_login"
+    const val CHAT               = "screen_chat"
+    const val HISTORY            = "screen_history"
+    const val MODELS             = "screen_models"
+    const val SETTINGS           = "screen_settings"
+    const val MEMORY             = "screen_memory"
+    const val INTEGRATIONS       = "screen_integrations"
+    const val PROFILE            = "screen_profile"
+    const val AGENT_CONTROL      = "screen_agent_control"
+    const val AGENT_LOGS         = "screen_agent_logs"
+    const val AGENT_TRACE_DETAIL = "screen_agent_trace_detail"
+    const val OBSERVABILITY      = "screen_observability"
+    const val PAYWALL            = "screen_paywall"
+    const val REFERRALS          = "screen_referrals"
+    const val SKILL_MANAGER      = "screen_skill_manager"
+    const val SKILL_BUILDER      = "screen_skill_builder"
+    const val PERFORMANCE        = "screen_performance"
+    const val MODEL_PERFORMANCE  = "screen_model_performance"
+    const val DEBUG_PANEL        = "screen_debug_panel"
+    const val DEBUG_SCREEN       = "screen_debug_runtime"
+    const val VOICE_SETTINGS     = "screen_voice_settings"
 
-private fun mapAuthError(exception: Exception?): String {
-    if (exception == null) return "Authentication failed"
-    if (exception is FirebaseAuthException) {
-        return when (exception.errorCode) {
-            "ERROR_WRONG_PASSWORD"         -> "Incorrect password. Please try again."
-            "ERROR_USER_NOT_FOUND"         -> "No account found with this email."
-            "ERROR_EMAIL_ALREADY_IN_USE"   -> "This email is already registered. Sign in instead."
-            "ERROR_INVALID_EMAIL"          -> "Please enter a valid email address."
-            "ERROR_WEAK_PASSWORD"          -> "Password must be at least 6 characters."
-            "ERROR_USER_DISABLED"          -> "This account has been disabled. Contact support."
-            "ERROR_TOO_MANY_REQUESTS"      -> "Too many attempts. Please wait and try again."
-            "ERROR_NETWORK_REQUEST_FAILED" -> "No internet connection. Check your network."
-            "ERROR_INVALID_CREDENTIAL"     -> "Incorrect email or password."
-            else -> exception.localizedMessage ?: "Authentication failed"
-        }
-    }
-    val msg = exception.localizedMessage ?: ""
-    return when {
-        msg.contains("network", true) || msg.contains("timeout", true) ->
-            "No internet connection. Check your network."
-        else -> msg.ifBlank { "Authentication failed" }
-    }
+    fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 }
 
 @Composable
 fun AiriApp() {
-    val navController        = rememberNavController()
-    val firebaseAuth         = remember { FirebaseAuth.getInstance() }
+    val navController                = rememberNavController()
+    val authService: AuthService     = remember { ServiceLocator.authService }
     val chatViewModel: ChatViewModel = viewModel()
     val agentViewModel: AgentViewModel = viewModel()
-
-    val currentUser = firebaseAuth.currentUser
-    val startDest = if (currentUser != null && currentUser.isEmailVerified) {
-        AiriRoute.CHAT
-    } else if (currentUser != null && !currentUser.isEmailVerified && currentUser.providerData.any { it.providerId == "google.com" }) {
-        AiriRoute.CHAT
-    } else {
-        AiriRoute.WELCOME
+    val startDest = when {
+        authService.isSignedIn() -> AiriRoute.CHAT
+        !OnboardingManager.isCompleted() -> AiriRoute.ONBOARDING
+        else -> AiriRoute.LOGIN
     }
 
     val themeMode by chatViewModel.themeMode.collectAsState()
@@ -103,6 +100,23 @@ fun AiriApp() {
             StarBackground()
             NavHost(navController = navController, startDestination = startDest) {
 
+                composable(AiriRoute.ONBOARDING) {
+                    OnboardingScreen(
+                        onComplete = {
+                            navController.navigate(AiriRoute.LOGIN) {
+                                popUpTo(AiriRoute.ONBOARDING) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        onSkip = {
+                            navController.navigate(AiriRoute.LOGIN) {
+                                popUpTo(AiriRoute.ONBOARDING) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+
                 composable(AiriRoute.WELCOME) {
                     WelcomeScreen(onStart = { navController.navigate(AiriRoute.LOGIN) })
                 }
@@ -110,48 +124,47 @@ fun AiriApp() {
                 composable(AiriRoute.LOGIN) {
                     LoginScreen(
                         onSignIn = { email, password, onResult ->
-                            firebaseAuth.signInWithEmailAndPassword(email, password)
-                                .addOnCompleteListener { task ->
-                                    if (task.isSuccessful) {
-                                        val user = firebaseAuth.currentUser
-                                        val isGoogle = user?.providerData?.any { it.providerId == "google.com" } == true
-                                        if (user != null && !user.isEmailVerified && !isGoogle) {
-                                            firebaseAuth.signOut()
-                                            onResult("Please verify your email first. Check your inbox for a verification link.")
-                                        } else {
-                                            navController.navigate(AiriRoute.CHAT) {
-                                                popUpTo(AiriRoute.WELCOME) { inclusive = true }
-                                                launchSingleTop = true
-                                            }
-                                            onResult(null)
-                                        }
-                                    } else {
-                                        onResult(mapAuthError(task.exception))
+                            authService.signIn(email, password) { error ->
+                                if (error == null) {
+                                    AnalyticsService.login("email")
+                                    AnalyticsService.funnelStep("open_to_login")
+                                    ReferralManager.completePendingReferral(authService.currentUser()?.uid)
+                                    ExperimentManager.init(
+                                        ServiceLocator.context!!,
+                                        authService.currentUser()?.uid ?: "anonymous"
+                                    )
+                                    navController.navigate(AiriRoute.CHAT) {
+                                        popUpTo(AiriRoute.LOGIN) { inclusive = true }
+                                        launchSingleTop = true
                                     }
                                 }
+                                onResult(error)
+                            }
                         },
                         onCreateAccount = { email, password, onResult ->
-                            firebaseAuth.createUserWithEmailAndPassword(email, password)
-                                .addOnCompleteListener { task ->
-                                    if (task.isSuccessful) {
-                                        val user = firebaseAuth.currentUser
-                                        user?.sendEmailVerification()
-                                            ?.addOnCompleteListener {
-                                                firebaseAuth.signOut()
-                                                onResult("VERIFY_EMAIL_SENT:$email")
-                                            }
-                                            ?: run {
-                                                firebaseAuth.signOut()
-                                                onResult("VERIFY_EMAIL_SENT:$email")
-                                            }
-                                    } else {
-                                        onResult(mapAuthError(task.exception))
+                            authService.createAccount(email, password) { error ->
+                                if (error == null) {
+                                    AnalyticsService.signup("email")
+                                    AnalyticsService.funnelStep("open_to_signup")
+                                    ReferralManager.completePendingReferral(authService.currentUser()?.uid)
+                                    ExperimentManager.init(
+                                        ServiceLocator.context!!,
+                                        authService.currentUser()?.uid ?: "anonymous"
+                                    )
+                                    navController.navigate(AiriRoute.CHAT) {
+                                        popUpTo(AiriRoute.LOGIN) { inclusive = true }
+                                        launchSingleTop = true
                                     }
                                 }
+                                onResult(error)
+                            }
                         },
                         onGoogleLoginSuccess = {
+                            AnalyticsService.login("google")
+                            AnalyticsService.funnelStep("open_to_login")
+                            ReferralManager.completePendingReferral(authService.currentUser()?.uid)
                             navController.navigate(AiriRoute.CHAT) {
-                                popUpTo(AiriRoute.WELCOME) { inclusive = true }
+                                popUpTo(AiriRoute.LOGIN) { inclusive = true }
                                 launchSingleTop = true
                             }
                         }
@@ -165,7 +178,7 @@ fun AiriApp() {
                             navController.navigate(route) { launchSingleTop = true }
                         },
                         onLogout = {
-                            firebaseAuth.signOut()
+                            authService.signOut()
                             chatViewModel.clearMessages()
                             navController.navigate(AiriRoute.LOGIN) {
                                 popUpTo(AiriRoute.CHAT) { inclusive = true }
@@ -194,6 +207,12 @@ fun AiriApp() {
                     )
                 }
 
+                composable(AiriRoute.VOICE_SETTINGS) {
+                    com.airi.assistant.ui.screens.VoiceSettingsScreen(
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
                 composable(AiriRoute.SETTINGS) {
                     SettingsScreen(
                         viewModel = chatViewModel,
@@ -202,7 +221,7 @@ fun AiriApp() {
                             navController.navigate(route) { launchSingleTop = true }
                         },
                         onLogout = {
-                            firebaseAuth.signOut()
+                            authService.signOut()
                             chatViewModel.clearMessages()
                             navController.navigate(AiriRoute.LOGIN) {
                                 popUpTo(AiriRoute.CHAT) { inclusive = true }
@@ -257,12 +276,69 @@ fun AiriApp() {
                     )
                 }
 
-                composable(AiriRoute.PRIVACY_POLICY) {
-                    PrivacyPolicyScreen(onBack = { navController.popBackStack() })
+                composable(AiriRoute.OBSERVABILITY) {
+                    ObservabilityScreen(
+                        onBack = { navController.popBackStack() }
+                    )
                 }
 
-                composable(AiriRoute.TERMS) {
-                    TermsScreen(onBack = { navController.popBackStack() })
+                composable(AiriRoute.PAYWALL) {
+                    PaywallScreen(
+                        onBack           = { navController.popBackStack() },
+                        onPurchaseSuccess = { navController.popBackStack() }
+                    )
+                }
+
+                composable(AiriRoute.REFERRALS) {
+                    ReferralScreen(onBack = { navController.popBackStack() })
+                }
+
+                composable(AiriRoute.PERFORMANCE) {
+                    PerformanceScreen(
+                        viewModel = chatViewModel,
+                        onBack    = { navController.popBackStack() },
+                        onOpenModelPerformance = { navController.navigate(AiriRoute.MODEL_PERFORMANCE) }
+                    )
+                }
+
+                composable(AiriRoute.MODEL_PERFORMANCE) {
+                    ModelPerformanceScreen(onBack = { navController.popBackStack() })
+                }
+
+                composable(AiriRoute.SKILL_MANAGER) {
+                    SkillManagerScreen(
+                        onBack = { navController.popBackStack() },
+                        onCreate = { navController.navigate(AiriRoute.skillBuilder()) },
+                        onEdit = { skillId -> navController.navigate(AiriRoute.skillBuilder(skillId)) }
+                    )
+                }
+
+                composable(
+                    route = "${AiriRoute.SKILL_BUILDER}/{skillId}",
+                    arguments = listOf(navArgument("skillId") { type = NavType.StringType })
+                ) { entry ->
+                    val skillId = entry.arguments?.getString("skillId")?.takeIf { it != "new" }
+                    SkillBuilderScreen(
+                        skillId = skillId,
+                        onBack = { navController.popBackStack() },
+                        onSaved = {
+                            navController.navigate(AiriRoute.SKILL_MANAGER) {
+                                popUpTo(AiriRoute.SKILL_MANAGER) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+
+                composable(AiriRoute.DEBUG_PANEL) {
+                    DebugPanelScreen(
+                        viewModel = chatViewModel,
+                        onBack    = { navController.popBackStack() }
+                    )
+                }
+
+                composable(AiriRoute.DEBUG_SCREEN) {
+                    DebugScreen(onBack = { navController.popBackStack() })
                 }
             }
         }

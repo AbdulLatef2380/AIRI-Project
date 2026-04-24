@@ -1,0 +1,213 @@
+package com.airi.assistant.voice
+
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
+import android.os.Build
+import android.os.IBinder
+import android.util.Log
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import ai.picovoice.porcupine.Porcupine
+import com.airi.assistant.R
+import kotlin.concurrent.thread
+
+/**
+ * Foreground service that runs the Picovoice Porcupine on-device wake-word
+ * engine and broadcasts [ACTION_WAKE_WORD] when the user says "Hey AIRI".
+ *
+ * Strict offline guarantee: this service uses NO network, NO Google APIs,
+ * and NO RecognizerIntent. Mic audio never leaves the device.
+ *
+ * If either the AccessKey or the bundled .ppn keyword file is missing the
+ * service writes a clear log line and stops itself immediately. The Voice
+ * Settings screen surfaces the same status to the user with instructions.
+ */
+class HotwordService : Service() {
+
+    @Volatile private var porcupine: Porcupine? = null
+    @Volatile private var audioRecord: AudioRecord? = null
+    @Volatile private var captureThread: Thread? = null
+    @Volatile private var running = false
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        Log.i(TAG, "HotwordService onCreate")
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startInForeground()
+        if (running) return START_STICKY
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "Hotword: RECORD_AUDIO not granted — stopping")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        val accessKey = PorcupineEngine.accessKey(this)
+        val ppnFile   = PorcupineEngine.resolvePpnFile(this)
+        if (accessKey.isBlank()) {
+            Log.w(TAG, "AIRI_PROOF HOTWORD_DISABLED reason=missing_access_key — see VoiceSettings")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (ppnFile == null) {
+            Log.w(TAG, "AIRI_PROOF HOTWORD_DISABLED reason=missing_ppn — drop hey_airi.ppn into res/raw or assets/voice")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        val pp = try {
+            Porcupine.Builder()
+                .setAccessKey(accessKey)
+                .setKeywordPath(ppnFile.absolutePath)
+                .setSensitivity(0.6f)
+                .build(applicationContext)
+        } catch (t: Throwable) {
+            Log.w(TAG, "Porcupine init failed: ${t.message}", t)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        porcupine = pp
+
+        val frameLength = pp.frameLength
+        val sampleRate  = pp.sampleRate
+
+        val minBuf = AudioRecord.getMinBufferSize(
+            sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
+        )
+        val bufSize = maxOf(minBuf, frameLength * 2 * 4) // shorts → bytes ×2
+
+        val rec = try {
+            AudioRecord(
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                sampleRate,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                bufSize
+            )
+        } catch (t: Throwable) {
+            Log.w(TAG, "AudioRecord create failed: ${t.message}", t)
+            try { pp.delete() } catch (_: Throwable) {}
+            porcupine = null
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (rec.state != AudioRecord.STATE_INITIALIZED) {
+            try { rec.release() } catch (_: Throwable) {}
+            try { pp.delete() } catch (_: Throwable) {}
+            porcupine = null
+            Log.w(TAG, "AudioRecord not initialized — stopping")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        audioRecord = rec
+        running = true
+
+        captureThread = thread(name = "AiriPorcupine", isDaemon = true) {
+            try {
+                rec.startRecording()
+                Log.i(TAG, "AIRI_PROOF HOTWORD_STARTED engine=porcupine frameLength=$frameLength sampleRate=$sampleRate")
+                val frame = ShortArray(frameLength)
+                while (running) {
+                    val read = rec.read(frame, 0, frameLength)
+                    if (read <= 0) continue
+                    if (read < frameLength) continue
+                    val keywordIndex = try {
+                        pp.process(frame)
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "porcupine.process failed: ${t.message}")
+                        -1
+                    }
+                    if (keywordIndex >= 0) fireWake()
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "Capture loop failed: ${t.message}", t)
+            } finally {
+                try { rec.stop() } catch (_: Throwable) {}
+            }
+        }
+        return START_STICKY
+    }
+
+    private fun fireWake() {
+        Log.i(TAG, "AIRI_PROOF HOTWORD_DETECTED engine=porcupine")
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            putExtra(EXTRA_FROM_WAKE_WORD, true)
+        }
+        if (launchIntent != null) {
+            try { startActivity(launchIntent) } catch (_: Throwable) {}
+        }
+        sendBroadcast(Intent(ACTION_WAKE_WORD).setPackage(packageName))
+    }
+
+    private fun startInForeground() {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val ch = NotificationChannel(
+                CHANNEL_ID, "AIRI Wake Word", NotificationManager.IMPORTANCE_LOW
+            ).apply { setShowBadge(false) }
+            nm.createNotificationChannel(ch)
+        }
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+        val pi = launchIntent?.let {
+            PendingIntent.getActivity(
+                this, 0, it,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+        val notif: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("AIRI is listening for \"Hey AIRI\"")
+            .setContentText("Tap to open AIRI")
+            .setOngoing(true)
+            .setContentIntent(pi)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+        startForeground(NOTIF_ID, notif)
+    }
+
+    override fun onDestroy() {
+        running = false
+        try { captureThread?.join(500) } catch (_: Throwable) {}
+        captureThread = null
+        try { audioRecord?.release() } catch (_: Throwable) {}
+        audioRecord = null
+        try { porcupine?.delete() } catch (_: Throwable) {}
+        porcupine = null
+        Log.i(TAG, "HotwordService destroyed")
+        super.onDestroy()
+    }
+
+    companion object {
+        private const val TAG = "AIRI_VOICE"
+        private const val CHANNEL_ID = "airi_hotword"
+        private const val NOTIF_ID   = 4711
+
+        const val ACTION_WAKE_WORD     = "com.airi.assistant.HOTWORD_DETECTED"
+        const val EXTRA_FROM_WAKE_WORD = "com.airi.assistant.FROM_WAKE_WORD"
+
+        fun start(ctx: Context) {
+            val i = Intent(ctx, HotwordService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ctx.startForegroundService(i)
+            else ctx.startService(i)
+        }
+
+        fun stop(ctx: Context) {
+            ctx.stopService(Intent(ctx, HotwordService::class.java))
+        }
+    }
+}

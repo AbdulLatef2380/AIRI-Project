@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -31,10 +30,6 @@ fun AgentControlScreen(
     val skillInfos  = remember { viewModel.getSkillInfos().toMutableStateList() }
     val toolList    = remember { viewModel.getToolList() }
     val debugMode   by viewModel.debugMode.collectAsState()
-
-    val bgEnabled       = viewModel.backgroundAgentEnabled
-    val lastRunFormatted = viewModel.lastWorkerRunTimeFormatted
-    val lastSummary     = viewModel.lastWorkerSummary
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -67,64 +62,6 @@ fun AgentControlScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
-            // ── Background Agent Status ─────────────────────────────────────
-            AgentControlCard {
-                AgentSectionHeader(icon = Icons.Outlined.CloudSync, title = "Background Agent")
-                Spacer(Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(if (bgEnabled) Color(0xFF00C853) else Color(0xFFFF5252))
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = if (bgEnabled) "Background agent is active" else "Background agent is off",
-                        color = if (bgEnabled) Color(0xFF00C853) else Color.White.copy(alpha = 0.5f),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                Spacer(Modifier.height(10.dp))
-                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
-                Spacer(Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Last run", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
-                    Text(lastRunFormatted, color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
-                }
-
-                Spacer(Modifier.height(6.dp))
-
-                Column {
-                    Text("Last result", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = lastSummary,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
-                    )
-                }
-
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = "Runs every 2 hours • Requires internet • Safe limits enforced",
-                    fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.3f)
-                )
-            }
-
             // ── Skills Control ──────────────────────────────────────────────
             AgentControlCard {
                 AgentSectionHeader(icon = Icons.Outlined.AutoAwesome, title = "Skills")
@@ -135,84 +72,68 @@ fun AgentControlScreen(
                     color = Color.White.copy(alpha = 0.35f),
                     modifier = Modifier.padding(bottom = 10.dp)
                 )
-
-                if (skillInfos.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "No skills available",
-                            color = Color.White.copy(alpha = 0.3f),
-                            fontSize = 13.sp
+                skillInfos.forEachIndexed { index, info ->
+                    if (index > 0) {
+                        Divider(
+                            color = Color.White.copy(alpha = 0.05f),
+                            modifier = Modifier.padding(vertical = 6.dp)
                         )
                     }
-                } else {
-                    skillInfos.forEachIndexed { index, info ->
-                        if (index > 0) {
-                            HorizontalDivider(
-                                color = Color.White.copy(alpha = 0.05f),
-                                modifier = Modifier.padding(vertical = 6.dp)
-                            )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = controlSkillDisplayName(info.name),
-                                        color = if (info.isConnected) Color.White.copy(alpha = 0.9f)
-                                                else Color.White.copy(alpha = 0.35f),
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = if (info.isConnected)
-                                                    Color(0xFF00C853).copy(alpha = 0.15f)
-                                                else Color(0xFFFF5252).copy(alpha = 0.12f)
-                                    ) {
-                                        Text(
-                                            text = if (info.isConnected) "Connected" else "Not Connected",
-                                            fontSize = 9.sp,
-                                            color = if (info.isConnected) Color(0xFF00C853)
-                                                    else Color(0xFFFF5252),
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = info.description,
-                                    color = Color.White.copy(alpha = 0.4f),
-                                    fontSize = 11.sp
+                                    text = controlSkillDisplayName(info.name),
+                                    color = if (info.isConnected) Color.White.copy(alpha = 0.9f)
+                                            else Color.White.copy(alpha = 0.35f),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
                                 )
+                                Spacer(Modifier.width(8.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (info.isConnected)
+                                                Color(0xFF00C853).copy(alpha = 0.15f)
+                                            else Color(0xFFFF5252).copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = if (info.isConnected) "Connected" else "Not Connected",
+                                        fontSize = 9.sp,
+                                        color = if (info.isConnected) Color(0xFF00C853)
+                                                else Color(0xFFFF5252),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
                             }
-                            Switch(
-                                checked = info.isEnabled && info.isConnected,
-                                onCheckedChange = { enabled ->
-                                    if (info.isConnected) {
-                                        skillInfos[index] = info.copy(isEnabled = enabled)
-                                        viewModel.setSkillEnabled(info.name, enabled)
-                                    }
-                                },
-                                enabled = info.isConnected,
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor   = CosmicAccent,
-                                    checkedTrackColor   = CosmicAccent.copy(alpha = 0.3f),
-                                    uncheckedThumbColor = Color.White.copy(alpha = 0.4f),
-                                    uncheckedTrackColor = Color.White.copy(alpha = 0.1f),
-                                    disabledCheckedThumbColor   = Color.White.copy(alpha = 0.2f),
-                                    disabledUncheckedThumbColor = Color.White.copy(alpha = 0.15f),
-                                    disabledCheckedTrackColor   = Color.White.copy(alpha = 0.08f),
-                                    disabledUncheckedTrackColor = Color.White.copy(alpha = 0.05f)
-                                )
+                            Text(
+                                text = info.description,
+                                color = Color.White.copy(alpha = 0.4f),
+                                fontSize = 11.sp
                             )
                         }
+                        Switch(
+                            checked = info.isEnabled && info.isConnected,
+                            onCheckedChange = { enabled ->
+                                if (info.isConnected) {
+                                    skillInfos[index] = info.copy(isEnabled = enabled)
+                                    viewModel.setSkillEnabled(info.name, enabled)
+                                }
+                            },
+                            enabled = info.isConnected,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor   = CosmicAccent,
+                                checkedTrackColor   = CosmicAccent.copy(alpha = 0.3f),
+                                uncheckedThumbColor = Color.White.copy(alpha = 0.4f),
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.1f),
+                                disabledCheckedThumbColor   = Color.White.copy(alpha = 0.2f),
+                                disabledUncheckedThumbColor = Color.White.copy(alpha = 0.15f),
+                                disabledCheckedTrackColor   = Color.White.copy(alpha = 0.08f),
+                                disabledUncheckedTrackColor = Color.White.copy(alpha = 0.05f)
+                            )
+                        )
                     }
                 }
             }
@@ -227,52 +148,34 @@ fun AgentControlScreen(
                     color = Color.White.copy(alpha = 0.35f),
                     modifier = Modifier.padding(bottom = 10.dp)
                 )
-
-                if (toolList.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 16.dp),
-                        contentAlignment = Alignment.Center
+                toolList.forEachIndexed { index, (toolName, source) ->
+                    if (index > 0) Divider(
+                        color = Color.White.copy(alpha = 0.04f),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            "No tools registered",
-                            color = Color.White.copy(alpha = 0.3f),
-                            fontSize = 13.sp
-                        )
-                    }
-                } else {
-                    toolList.forEachIndexed { index, (toolName, source) ->
-                        if (index > 0) HorizontalDivider(
-                            color = Color.White.copy(alpha = 0.04f),
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 2.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = toolName.replace("_", " "),
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = CosmicAccent.copy(alpha = 0.1f)
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = toolName.replace("_", " "),
-                                    color = Color.White.copy(alpha = 0.8f),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = CosmicAccent.copy(alpha = 0.1f)
-                            ) {
-                                Text(
-                                    text = source,
-                                    fontSize = 10.sp,
-                                    color = CosmicAccent.copy(alpha = 0.85f),
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
-                                )
-                            }
+                            Text(
+                                text = source,
+                                fontSize = 10.sp,
+                                color = CosmicAccent.copy(alpha = 0.85f),
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                            )
                         }
                     }
                 }
@@ -318,8 +221,6 @@ fun AgentControlScreen(
                     )
                 }
             }
-
-            Spacer(Modifier.height(8.dp))
         }
     }
 }

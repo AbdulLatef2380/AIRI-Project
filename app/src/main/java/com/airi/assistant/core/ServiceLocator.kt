@@ -1,9 +1,17 @@
 package com.airi.assistant.core
 
 import android.content.Context
-import com.airi.assistant.memory.repository.MemoryManager
-import com.airi.assistant.world.WorldStateManager
-import com.airi.assistant.tools.ToolRegistry
+import com.airi.assistant.domain.agent.AgentService
+import com.airi.assistant.domain.auth.AuthService
+import com.airi.assistant.domain.error.AppErrorHandler
+import com.airi.assistant.domain.event.AgentEventStream
+import com.airi.assistant.domain.event.ExecutionHistoryStore
+import com.airi.assistant.domain.monetization.SubscriptionManager
+import com.airi.assistant.domain.network.NetworkService
+import com.airi.assistant.domain.permission.PermissionService
+import com.airi.assistant.domain.policy.PolicyEngine
+import com.airi.assistant.domain.prompt.PromptService
+import com.airi.assistant.domain.skill.SkillService
 
 object ServiceLocator {
 
@@ -13,21 +21,58 @@ object ServiceLocator {
         appContext = context.applicationContext
     }
 
-    // Expose context property for classes that need it (e.g. UnifiedCognitiveLoop)
     var context: Context?
         get() = appContext
         set(value) {
             if (value != null) appContext = value.applicationContext
         }
 
-    val memoryManager: MemoryManager by lazy {
-        MemoryManager(requireNotNull(appContext) { "ServiceLocator not initialized" })
+    private fun requireContext(): Context =
+        requireNotNull(appContext) { "ServiceLocator.init() was not called before use" }
+
+    // ── Infrastructure ────────────────────────────────────────────────────────
+
+    val networkService: NetworkService by lazy {
+        NetworkService(requireContext())
     }
 
-    val worldStateManager: WorldStateManager by lazy {
-        WorldStateManager(requireNotNull(appContext) { "ServiceLocator not initialized" })
+    val authService: AuthService by lazy {
+        AuthService()
     }
 
-    val toolRegistry: ToolRegistry
-        get() = ToolRegistry
+    val permissionService: PermissionService by lazy {
+        PermissionService(requireContext())
+    }
+
+    // Singleton objects — accessed by reference
+    val policyEngine get() = PolicyEngine
+    val errorHandler get() = AppErrorHandler
+
+    // ── Monetization ──────────────────────────────────────────────────────────
+
+    val subscriptionManager: SubscriptionManager by lazy {
+        SubscriptionManager(requireContext())
+    }
+
+    // ── Event / Observability ─────────────────────────────────────────────────
+
+    val executionHistoryStore: ExecutionHistoryStore by lazy {
+        ExecutionHistoryStore(requireContext())
+    }
+
+    val agentEventStream: AgentEventStream = AgentEventStream
+
+    // ── Domain: Execution ─────────────────────────────────────────────────────
+
+    val agentService: AgentService by lazy {
+        AgentService(requireContext())
+    }
+
+    val skillService: SkillService by lazy {
+        SkillService(requireContext())
+    }
+
+    val promptService: PromptService by lazy {
+        PromptService(requireContext())
+    }
 }

@@ -3,42 +3,95 @@ package com.airi.assistant.ai
 import android.util.Log
 
 object LlamaNative {
+    private var available = false
+    private var loadFailure: String? = null
 
     init {
         try {
             System.loadLibrary("airi_native")
+            available = true
+            Log.i("LlamaNative", "Native library airi_native loaded")
         } catch (e: UnsatisfiedLinkError) {
-            Log.e("LlamaNative", "Native library airi_native not found: ${e.message}")
+            available = false
+            loadFailure = e.message
+            Log.e("LlamaNative", "Native library airi_native not found: ${e.message}", e)
         }
     }
 
-    /**
-     * واجهة لاستقبال تحديثات التقدم من محرك C++
-     */
+    fun isAvailable(): Boolean = available
+
+    fun loadFailureMessage(): String? = loadFailure
+
     interface ProgressCallback {
         fun onProgress(percent: Int)
     }
 
-    /**
-     * تحميل النموذج مع متابعة نسبة التقدم (حقيقي)
-     */
-    external fun loadModelWithProgress(
-        modelPath: String,
-        callback: ProgressCallback
-    )
-
-    /**
-     * التحميل القديم (للتوافق أو الاختبار)
-     */
+    // ── Model load ───────────────────────────────────────────────────────────
+    external fun loadModelWithProgress(modelPath: String, callback: ProgressCallback)
     external fun loadModel(modelPath: String): String
 
-    /**
-     * توليد رد من AIRI بناءً على النص المدخل
-     */
-    external fun generateResponse(prompt: String): String
+    // ── Session API (incremental, KV-cache reuse) ────────────────────────────
+    // Lifecycle:
+    //   beginSession()                     // wipes KV, n_past = 0
+    //   appendUserTurn("…<|im_end|>\n…")   // tokenizes JUST this fragment,
+    //                                      // decodes at n_past, n_past += k.
+    //                                      // Last token decoded with logits=true.
+    //   generateNextTokens(N) { chunk -> } // samples; each token decoded into KV.
+    //   appendAssistantTurn("<|im_end|>\n")// closes the assistant turn.
+    //   …repeat appendUserTurn / generateNextTokens / appendAssistantTurn…
+    //   resetSession()                     // wipes KV when conversation ends.
+    external fun beginSession()
+    external fun resetSession()
+    external fun appendUserTurn(text: String)
+    external fun appendAssistantTurn(text: String)
+    external fun generateNextTokens(maxTokens: Int, callback: (String) -> Unit)
+    external fun getKvPosition(): Int
+    external fun getNCtx(): Int
 
-    /**
-     * توليد الرد بشكل متدفق (Streaming)
-     */
+    // ── Legacy one-shot API (resets session per call). Kept for tool-call
+    //    follow-up paths that need a stateless reformulation. Calling these
+    //    DESTROYS the in-flight session — callers must mark their session as
+    //    invalidated after use. ────────────────────────────────────────────
+    external fun generateResponse(prompt: String): String
     external fun generateStream(prompt: String, onToken: (String) -> Unit)
+
+    external fun cancel()
+
+    // ── Runtime tuning (no model reload) ─────────────────────────────────────
+    // Hot-swaps the llama_context with the requested n_ctx / n_threads. The
+    // GGUF model stays mmapped; only the KV cache + scheduler are rebuilt.
+    // Wipes KV — caller MUST follow with beginSession() before next message.
+    external fun setRuntimeMode(nCtx: Int, nThreads: Int)
+
+    // ── Telemetry ────────────────────────────────────────────────────────────
+    // Returns [loadMs, tokenizeMs, prefillMs, firstTokenMs, decodeMs,
+    //          decodedTokens, nPast, nCtx]. See LlamaBridge.cpp comment.
+    external fun getLastTimings(): LongArray
+
+    // ── Model metadata (for the on-device quantization benchmark) ────────────
+    // Returns "<llama_model_desc>|<n_params>|<size_bytes>" or "UNAVAILABLE"
+    // if no model is loaded. The desc is the same string llama.cpp prints at
+    // load time and contains the quantization label (Q4_K_M, Q5_K_M, …).
+    external fun getModelDescription(): String
+
+    // ── Speculative decoding (optional, opt-in via SpeculativeManager) ───────
+    // loadDraftModel returns one of:
+    //   "DRAFT_OK", "MAIN_NOT_LOADED", "SAME_AS_MAIN", "FILE_NOT_FOUND",
+    //   "INVALID_GGUF", "VOCAB_MISMATCH", "DRAFT_LOAD_FAILED", "DRAFT_CTX_FAILED"
+    external fun loadDraftModel(modelPath: String): String
+    external fun unloadDraftModel()
+    external fun isDraftLoaded(): Boolean
+
+    // generateNextTokensSpeculative falls back to the standard single-token
+    // path automatically if the draft is missing or out of sync, so callers
+    // can call it unconditionally once the feature flag is on.
+    external fun generateNextTokensSpeculative(
+        maxTokens: Int,
+        draftN: Int,
+        callback: (String) -> Unit
+    )
+
+    // Returns [drafted, accepted, runs]. Acceptance rate = accepted/drafted.
+    external fun getSpecStats(): LongArray
+    external fun resetSpecStats()
 }

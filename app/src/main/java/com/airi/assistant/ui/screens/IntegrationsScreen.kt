@@ -4,9 +4,15 @@ import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -154,7 +161,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
                             "github" -> vm.openGithubDialog()
                             "telegram" -> vm.openTelegramDialog()
                             "google" -> googleLauncher.launch(
-                                vm.googleAuthService.getSignInIntent()
+                                vm.getGoogleSignInIntent()
                             )
                         }
                     },
@@ -230,8 +237,10 @@ private fun IntegrationCard(
     else Color.White.copy(alpha = 0.08f)
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(0.5.dp, borderColor, RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
         color = Color.White.copy(alpha = cardAlpha),
         contentColor = Color.White,
         tonalElevation = 0.dp
@@ -248,19 +257,20 @@ private fun IntegrationCard(
                 }
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.08f)),
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .border(0.5.dp, Color.White.copy(alpha = 0.12f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     if (iconResId != null) {
                         Image(
                             painter = painterResource(id = iconResId),
                             contentDescription = item.name,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(26.dp)
                         )
                     } else {
-                        Text(item.emoji, fontSize = 22.sp)
+                        Text(item.emoji, fontSize = 24.sp)
                     }
                 }
                 Spacer(Modifier.width(12.dp))
@@ -268,7 +278,10 @@ private fun IntegrationCard(
                     Text(
                         item.name,
                         fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 20.sp
                     )
                     Text(
                         item.description,
@@ -278,7 +291,7 @@ private fun IntegrationCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(10.dp))
                 StatusBadge(connected)
             }
 
@@ -292,7 +305,13 @@ private fun IntegrationCard(
                     Spacer(Modifier.height(10.dp))
                     Divider(color = Color.White.copy(alpha = 0.08f))
                     Spacer(Modifier.height(10.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            "Connected as",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.42f)
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Default.CheckCircle,
                             contentDescription = null,
@@ -301,10 +320,14 @@ private fun IntegrationCard(
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            "Connected as ${item.connectedAs}",
+                            item.connectedAs,
                             style = MaterialTheme.typography.labelMedium,
-                            color = Color(0xFF4ADE80)
+                            color = Color(0xFF4ADE80),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
+                        }
                     }
                     if (item.lastUpdated > 0L) {
                         Spacer(Modifier.height(2.dp))
@@ -355,14 +378,40 @@ private fun StatusBadge(connected: Boolean) {
     val bgColor = if (connected) Color(0xFF4ADE80).copy(alpha = 0.15f)
     else Color.White.copy(alpha = 0.07f)
     val textColor = if (connected) Color(0xFF4ADE80) else Color.White.copy(alpha = 0.45f)
-    val label = if (connected) "● Connected" else "○ Not connected"
+    val transition = rememberInfiniteTransition(label = "integration_status")
+    val pulse = transition.animateFloat(
+        initialValue = 1f,
+        targetValue = if (connected) 1.5f else 1f,
+        animationSpec = infiniteRepeatable(animation = tween(1200), repeatMode = RepeatMode.Reverse),
+        label = "status_pulse"
+    ).value
+    val label = if (connected) "Connected" else "Offline"
 
-    Box(
+    Row(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
             .background(bgColor)
-            .padding(horizontal = 10.dp, vertical = 4.dp)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        Box(contentAlignment = Alignment.Center) {
+            if (connected) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .scale(pulse)
+                        .clip(CircleShape)
+                        .background(Color(0xFF4ADE80).copy(alpha = 0.22f))
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(if (connected) Color(0xFF4ADE80) else Color.White.copy(alpha = 0.35f))
+            )
+        }
         Text(
             label,
             style = MaterialTheme.typography.labelSmall,

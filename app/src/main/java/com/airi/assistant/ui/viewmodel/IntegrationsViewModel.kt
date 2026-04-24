@@ -1,9 +1,11 @@
 package com.airi.assistant.ui.viewmodel
 
 import android.app.Application
+import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.integrations.github.GithubService
 import com.airi.assistant.integrations.google.GoogleAuthService
 import com.airi.assistant.integrations.telegram.TelegramService
@@ -15,12 +17,13 @@ import kotlinx.coroutines.launch
 
 class IntegrationsViewModel(application: Application) : AndroidViewModel(application) {
 
-    val secureStorage = SecureStorage(application)
-    val githubService = GithubService(secureStorage)
-    val telegramService = TelegramService(secureStorage)
-    val googleAuthService = GoogleAuthService(application, secureStorage)
+    // ── Private services (internal domain — ViewModels do not expose services) ─
+    private val secureStorage    = SecureStorage(application)
+    private val githubService    = GithubService(secureStorage)
+    private val telegramService  = TelegramService(secureStorage)
+    private val googleAuthService = GoogleAuthService(application, secureStorage)
 
-    // ─── Integration UI State ──────────────────────────────────────────────────
+    // ── Integration UI State ──────────────────────────────────────────────────
 
     data class IntegrationItem(
         val id: String,
@@ -41,35 +44,35 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     private fun buildItems(): List<IntegrationItem> = listOf(
         IntegrationItem(
-            id = "github",
-            name = "GitHub",
+            id          = "github",
+            name        = "GitHub",
             description = "Connect repositories, issues, and coding context.",
-            emoji = "🐙",
+            emoji       = "🐙",
             isConnected = secureStorage.isGithubConnected(),
             connectedAs = secureStorage.getGithubUsername(),
             lastUpdated = secureStorage.getGithubUpdated()
         ),
         IntegrationItem(
-            id = "telegram",
-            name = "Telegram",
+            id          = "telegram",
+            name        = "Telegram",
             description = "Link a Telegram bot for messaging workflows.",
-            emoji = "✈️",
+            emoji       = "✈️",
             isConnected = secureStorage.isTelegramConnected(),
             connectedAs = secureStorage.getTelegramUsername(),
             lastUpdated = secureStorage.getTelegramUpdated()
         ),
         IntegrationItem(
-            id = "google",
-            name = "Google",
+            id          = "google",
+            name        = "Google",
             description = "Access Gmail, Drive, and Calendar (read-only).",
-            emoji = "🔵",
+            emoji       = "🔵",
             isConnected = secureStorage.isGoogleConnected(),
             connectedAs = secureStorage.getGoogleEmail() ?: "",
             lastUpdated = secureStorage.getGoogleUpdated()
         )
     )
 
-    // ─── Dialog State ─────────────────────────────────────────────────────────
+    // ── Dialog State ──────────────────────────────────────────────────────────
 
     sealed class DialogState {
         object None : DialogState()
@@ -88,9 +91,9 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     private val _dialog = MutableStateFlow<DialogState>(DialogState.None)
     val dialog: StateFlow<DialogState> = _dialog.asStateFlow()
 
-    fun openGithubDialog() { _dialog.value = DialogState.Github() }
+    fun openGithubDialog()   { _dialog.value = DialogState.Github() }
     fun openTelegramDialog() { _dialog.value = DialogState.Telegram() }
-    fun closeDialog() { _dialog.value = DialogState.None }
+    fun closeDialog()        { _dialog.value = DialogState.None }
 
     fun updateGithubToken(token: String) {
         val current = _dialog.value as? DialogState.Github ?: return
@@ -102,7 +105,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         _dialog.value = current.copy(token = token, error = null)
     }
 
-    // ─── Connect / Disconnect ─────────────────────────────────────────────────
+    // ── Google Sign-In Intent ─────────────────────────────────────────────────
+
+    fun getGoogleSignInIntent(): Intent = googleAuthService.getSignInIntent()
+
+    // ── Connect / Disconnect ──────────────────────────────────────────────────
 
     fun connectGithub() {
         val current = _dialog.value as? DialogState.Github ?: return
@@ -118,6 +125,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                     refresh()
                 }
                 .onFailure { e ->
+                    AppErrorHandler.capture(e, "IntegrationsViewModel.connectGithub")
                     _dialog.value = current.copy(loading = false, error = e.message ?: "Connection failed")
                 }
         }
@@ -137,6 +145,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                     refresh()
                 }
                 .onFailure { e ->
+                    AppErrorHandler.capture(e, "IntegrationsViewModel.connectTelegram")
                     _dialog.value = current.copy(loading = false, error = e.message ?: "Connection failed")
                 }
         }
@@ -154,7 +163,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     fun disconnect(id: String) {
         when (id) {
             "google" -> googleAuthService.disconnect()
-            else -> secureStorage.disconnect(id)
+            else     -> secureStorage.disconnect(id)
         }
         refresh()
     }

@@ -38,12 +38,16 @@
     <string name="enable_voice_mode">تفعيل وضع الصوت</string>
     <string name="voice_mode_prepared">وضع الصوت مجهز لتكامل Vosk (تحويل الكلام إلى نص) وكلمة التنبيه Picovoice.</string>
     <string name="speech_engine">محرك الكلام</string>
-    <string name="speech_engine_value">Vosk — قريبًا</string>
+    <string name="speech_engine_value">STT النظام</string>
     <string name="wake_word">كلمة التنبيه</string>
-    <string name="wake_word_value">Hey AIRI — قريبًا</string>
+    <string name="wake_word_value">Hey AIRI</string>
     <string name="data_controls">التحكم في البيانات</string>
     <string name="export_chats">تصدير المحادثات</string>
-    <string name="download_chat_history">تنزيل سجل المحادثات كنص</string>
+    <string name="download_chat_history">حفظ المحادثة الحالية كـ JSON في Downloads/AIRI/</string>
+    <string name="import_chats">استيراد المحادثات</string>
+    <string name="import_chat_history">تحميل ملف JSON محادثة سبق تصديره</string>
+    <string name="import_success">تم استيراد %1$d رسالة</string>
+    <string name="import_failed">فشل الاستيراد — الملف فارغ أو ليس JSON صالح</string>
     <string name="export_coming_next_update">التصدير قادم في التحديث القادم</string>
     <string name="clear_chat_history">مسح سجل المحادثة</string>
     <string name="remove_from_display">إزالة من العرض (وليس من قاعدة البيانات)</string>
@@ -67,9 +71,8 @@
     <string name="speak_to_airi">تحدث إلى AIRI</string>
     <string name="microphone_permission_required">إذن الميكروفون مطلوب للإدخال الصوتي</string>
     <string name="file_selected_coming_soon">تم اختيار ملف — دعم المرفقات قريبًا</string>
-    <string name="image_selected_coming_soon">تم اختيار صورة — دعم الرؤية قريبًا</string>
+    <string name="image_selected_coming_soon">إرفاق الصور غير مُفعَّل في هذه النسخة</string>
     <string name="export_coming_soon">التصدير قريبًا</string>
-    <string name="speech_recognition_unavailable">التعرف على الكلام غير متاح على هذا الجهاز</string>
     <string name="attach">إرفاق</string>
     <string name="pick_image">اختيار صورة</string>
     <string name="pick_file">اختيار ملف</string>
@@ -91,7 +94,7 @@
     <string name="no_model_tap_select">لا يوجد نموذج نشط — اضغط للاختيار</string>
     <string name="loading_model_name">جارٍ تحميل %1$s…</string>
     <string name="model_is_loading">النموذج قيد التحميل…</string>
-    <string name="message_airi">راسل AIRI…</string>
+    <string name="message_airi">تواصل مع AIRI…</string>
     <string name="activate_model_first">فعّل نموذجًا أولًا…</string>
     <string name="voice_input">إدخال صوتي</string>
     <string name="send">إرسال</string>
@@ -161,4 +164,207 @@
     <string name="accessibility_dialog_steps">للتفعيل: انتقل إلى الإعدادات ← إمكانية الوصول ← الخدمات المثبتة ← AIRI ← تشغيل.</string>
     <string name="open_settings">فتح الإعدادات</string>
     <string name="later">لاحقًا</string>
+    <string name="display_name">الاسم المعروض</string>
+    <string name="username">اسم المستخدم</string>
+    <string name="email_read_only">البريد الإلكتروني (للقراءة فقط)</string>
+    <string name="profile_saved">تم حفظ الملف الشخصي</string>
+    <string name="edit_profile">تعديل الملف الشخصي</string>
+    <string name="report_a_problem">الإبلاغ عن مشكلة</string>
+    <string name="report_a_problem_sublabel">أرسل ملاحظة أو بلاغ عن خطأ عبر البريد الإلكتروني</string>
+    <string name="report_email_subject">تقرير خطأ AIRI — v1.0.0-alpha</string>
+    <string name="report_email_body">يرجى وصف المشكلة:\n\n\n\n--- معلومات الجهاز ---\n</string>
+    <string name="upgrade_to_premium">الترقية إلى Premium</string>
+    <string name="paywall_limit_message">لقد بلغت الحد المسموح به. قم بالترقية للمتابعة.</string>
+    <string name="usage_limit_reached">لقد بلغت الحد المسموح به. قم بالترقية للمتابعة.</string>
+    <!-- Subscription section -->
+    <string name="subscription">الاشتراك</string>
+    <string name="plan_premium">Premium</string>
+    <string name="plan_free_tier">الخطة المجانية</string>
+    <string name="plan_premium_description">وصول غير محدود لجميع الميزات</string>
+    <string name="plan_free_description">30 رسالة / 10 وكلاء / 5 مهارات يوميًا</string>
+    <string name="plan_badge_active">✓ نشط</string>
+    <string name="plan_badge_free">مجاني</string>
+    <string name="today_usage">الاستخدام اليوم</string>
+    <string name="usage_messages">الرسائل</string>
+    <string name="usage_agent_runs">تشغيل الوكيل</string>
+    <string name="usage_skill_uses">استخدام المهارات</string>
+    <string name="upgrade_premium_price">الترقية إلى Premium — 4.99$/شهر</string>
+    <!-- Default assistant section -->
+    <string name="default_assistant">المساعد الافتراضي</string>
+    <string name="default_assistant_description">عيّن AIRI مساعدًا افتراضيًا لجهازك حتى يتفعل عند الضغط المطوّل على زر الرئيسية.</string>
+    <string name="airi_is_default">AIRI هو مساعدك الافتراضي</string>
+    <string name="airi_not_default">AIRI ليس المساعد الافتراضي على هذا الجهاز.</string>
+    <string name="set_as_default_assistant">تعيين كمساعد افتراضي</string>
+    <string name="open_assistant_settings">فتح إعدادات المساعد</string>
+    <!-- Observability section -->
+    <string name="observability">المراقبة</string>
+    <string name="observability_description">سجل أحداث في الوقت الفعلي لجميع تنفيذات الوكيل والمهارات والمصادقة والسياسات.</string>
+    <string name="execution_history">سجل التنفيذ</string>
+    <string name="execution_history_description">عرض الأحداث الحية وفحوصات السياسات وتتبعات الوكيل</string>
+    <!-- Agent section -->
+    <string name="agent_logs">سجلات الوكيل</string>
+    <string name="agent_logs_description">عرض سجل التنفيذ والتتبعات</string>
+    <string name="agent_control">التحكم في الوكيل</string>
+    <string name="agent_control_description">إدارة المهارات والأدوات ووضع التصحيح</string>
+    <string name="last_run">آخر تشغيل</string>
+    <!-- Model per-card settings dialog -->
+    <string name="model_name_label">اسم النموذج</string>
+    <string name="bos_token">رمز البداية BOS</string>
+    <string name="eos_token">رمز النهاية EOS</string>
+    <string name="add_generation_prompt">إضافة موجه التوليد</string>
+    <string name="template_editor">محرر القالب</string>
+    <string name="leave_blank_for_default">اتركه فارغًا للافتراضي</string>
+    <string name="stop_words">كلمات الإيقاف</string>
+    <string name="add_stop_word">إضافة كلمة إيقاف</string>
+    <string name="settings_saved">تم حفظ الإعدادات!</string>
+    <!-- Add model sheet -->
+    <string name="add_model">إضافة نموذج</string>
+    <string name="add_local_model">إضافة نموذج محلي</string>
+    <string name="import_gguf_from_storage">استيراد ملف .gguf من تخزين الجهاز</string>
+    <string name="add_remote_model">إضافة نموذج عن بُعد</string>
+    <string name="add_openai_compatible_server">ربط خادم متوافق مع OpenAI</string>
+    <!-- Microphone permission blocked -->
+    <string name="mic_blocked_settings">الميكروفون محظور — فعّله من الإعدادات ← صلاحيات التطبيق</string>
+    <!-- Generation parameters -->
+    <string name="repeat_penalty">عقوبة التكرار</string>
+    <string name="min_p">الحد الأدنى P</string>
+    <string name="presence_penalty">عقوبة الحضور</string>
+    <string name="frequency_penalty">عقوبة التكرار المتكرر</string>
+    <string name="min_p_hint">الحد الأدنى لاحتمالية اختيار الرمز</string>
+    <string name="presence_penalty_hint">عقوبة الرموز الموجودة بالفعل في الرد</string>
+    <string name="frequency_penalty_hint">عقوبة الرموز بناءً على تكرار ظهورها</string>
+    <!-- Take photo / camera -->
+    <string name="take_photo">التقاط صورة</string>
+    <string name="photo_captured">تم التقاط الصورة</string>
+    <!-- Sign in / account -->
+    <string name="sign_in">تسجيل الدخول</string>
+    <string name="create_account">إنشاء حساب</string>
+    <string name="continue_with_google">المتابعة مع Google</string>
+    <string name="continue_with_github">المتابعة مع GitHub</string>
+    <!-- Voice -->
+    <string name="voice_recognition_ready">التعرف على الكلام جاهز</string>
+    <!-- Export -->
+    <string name="export_success">تم تصدير المحادثة إلى Downloads/AIRI/</string>
+    <string name="export_failed">فشل التصدير — تحقق من صلاحيات التخزين</string>
+    <!-- Theme -->
+    <string name="theme">السمة</string>
+    <string name="theme_dark">داكن</string>
+    <string name="theme_light">فاتح</string>
+    <string name="theme_system">النظام</string>
+    <string name="share">مشاركة</string>
+    <!-- Drawer items — previously hardcoded -->
+    <string name="custom_skills">المهارات المخصصة</string>
+    <string name="invite_friends">دعوة الأصدقاء</string>
+    <!-- Performance screen -->
+    <string name="performance">الأداء</string>
+    <string name="performance_device_info">معلومات الأداء والجهاز</string>
+    <string name="performance_device_info_sublabel">الذاكرة، المعالج، سرعة الرموز، وضع الأداء</string>
+    <string name="performance_device">الأداء والجهاز</string>
+    <string name="performance_mode">وضع الأداء</string>
+    <string name="stat_device_info">معلومات الجهاز</string>
+    <string name="stat_device">الجهاز</string>
+    <string name="stat_android">أندرويد</string>
+    <string name="stat_cpu_abi">معمارية المعالج</string>
+    <string name="stat_cpu_cores">أنوية المعالج</string>
+    <string name="stat_memory">الذاكرة</string>
+    <string name="stat_total_ram">إجمالي الذاكرة</string>
+    <string name="stat_available_ram">المتاح</string>
+    <string name="stat_used_ram">الذاكرة المستخدمة</string>
+    <string name="stat_low_memory">ذاكرة منخفضة</string>
+    <string name="stat_low_memory_yes">نعم ⚠</string>
+    <string name="stat_low_memory_no">لا ✓</string>
+    <string name="stat_storage">التخزين</string>
+    <string name="stat_total_storage">إجمالي التخزين</string>
+    <string name="stat_free_storage">التخزين المتاح</string>
+    <string name="stat_inference">إحصاءات الاستنتاج</string>
+    <string name="stat_last_load_time">آخر وقت تحميل</string>
+    <string name="stat_tokens_per_sec">رمز / ثانية</string>
+    <string name="stat_last_latency">آخر زمن استجابة</string>
+    <string name="stat_breakdown">تفصيل الزمن</string>
+    <string name="stat_breakdown_tokenize">التقطيع</string>
+    <string name="stat_breakdown_prefill">التهيئة المسبقة</string>
+    <string name="stat_breakdown_first_token">أول رمز</string>
+    <string name="stat_breakdown_decode">حلقة التوليد</string>
+    <string name="stat_breakdown_decoded">عدد الرموز</string>
+    <string name="stat_breakdown_kv">ذاكرة المفاتيح</string>
+    <string name="stat_breakdown_kv_value">%1$d / %2$d (%3$d%%)</string>
+    <string name="model_perf_title">أداء النموذج</string>
+    <string name="model_perf_open">مقارنة تكميم النماذج</string>
+    <string name="model_perf_empty">لا توجد قياسات بعد — أرسل رسالة إلى نموذجك المحلي أولاً.</string>
+    <string name="model_perf_summary_header">المتوسط لكل نوع تكميم</string>
+    <string name="model_perf_runs_header">آخر القياسات (%1$d إجمالي)</string>
+    <string name="model_perf_col_quant">التكميم</string>
+    <string name="model_perf_col_runs">عدد</string>
+    <string name="model_perf_col_tps">رمز/ث</string>
+    <string name="model_perf_col_ftl">أول رمز</string>
+    <string name="model_perf_col_mem">ذاكرة</string>
+    <string name="model_perf_col_class">التصنيف</string>
+    <string name="model_perf_run_line">%1$s رمز/ث • أول %2$d مل/ث • إجمالي %3$d مل/ث • %4$d رمز • %5$d م.ب • ctx=%6$d • th=%7$d</string>
+    <!-- التوليد الاستباقي (ميزة اختيارية) -->
+    <string name="spec_title">التوليد الاستباقي</string>
+    <string name="spec_subtitle">يستخدم نموذجًا صغيرًا للتنبؤ بالرموز مقدمًا، ثم يتحقق منها بالنموذج الرئيسي. النتيجة لا تتغير. يُفرض أخذ العينات الجشع (greedy) عند التفعيل.</string>
+    <string name="spec_enable">تفعيل التوليد الاستباقي</string>
+    <string name="spec_status_off">معطل — يستخدم التوليد المسار العادي رمزًا برمز.</string>
+    <string name="spec_status_no_draft">مفعّل، لكن لم يتم اختيار نموذج مسوّدة. اضغط "اختيار تلقائي".</string>
+    <string name="spec_status_loaded">تم تحميل المسوّدة: %1$s (%2$d م.ب)</string>
+    <string name="spec_status_load_failed">فشل تحميل المسوّدة: %1$s</string>
+    <string name="spec_status_no_candidate">لا يوجد نموذج آخر مسجّل لاستخدامه كمسوّدة. أضف نموذجًا أصغر أولاً.</string>
+    <string name="spec_auto_pick">اختيار تلقائي</string>
+    <string name="spec_unload">إلغاء تحميل المسوّدة</string>
+    <string name="spec_reset_stats">إعادة ضبط الإحصائيات</string>
+    <string name="spec_acceptance">معدل القبول: %1$d%% (%2$d / %3$d اقتراحات عبر %4$d تشغيل)</string>
+    <string name="spec_acceptance_empty">معدل القبول: — (لا توجد عمليات استباقية بعد)</string>
+    <string name="spec_draft_n_label">رموز كل خطوة: %1$d</string>
+    <string name="perf_mode_label_fast">⚡ سريع</string>
+    <string name="perf_mode_label_balanced">⚖ متوازن</string>
+    <string name="perf_mode_label_quality">🎯 جودة</string>
+    <string name="perf_footer_note">يؤثر وضع الأداء على: نافذة السياق، والحد الأقصى للرموز، واستراتيجية الاقتطاع. تُطبق التغييرات على الرسالة التالية.</string>
+    <!-- Model settings content descriptions -->
+    <string name="add_model_fab">إضافة نموذج</string>
+    <string name="model_settings_icon">إعدادات النموذج</string>
+    <string name="expand">توسيع</string>
+    <string name="collapse">طي</string>
+    <!-- File/image pick feedback -->
+    <string name="file_selected_name">تم اختيار الملف: %1$s</string>
+    <string name="image_selected_vision_soon">إرفاق الصور غير مُفعَّل في هذه النسخة</string>
+    <string name="photo_attached">تم إرفاق الصورة</string>
+    <!-- Remote model form -->
+    <string name="server_url">عنوان الخادم</string>
+    <string name="api_key_optional">مفتاح API (اختياري)</string>
+    <string name="test_connection">اختبار الاتصال</string>
+    <string name="remote_model_warning">استخدام نموذج عن بُعد سيُرسل رسائلك خارج الجهاز. تأكد من ثقتك بالخادم.</string>
+    <string name="enter_server_url_first">أدخل عنوان الخادم أولًا</string>
+    <string name="connection_success">الاتصال ناجح</string>
+    <string name="connection_failed">فشل الاتصال</string>
+    <string name="testing_connection">جارٍ الاختبار…</string>
+
+    <!-- Voice &amp; wake-word -->
+    <string name="voice_and_wakeword">الصوت وكلمة التنبيه</string>
+    <string name="voice_settings_title">الصوت وكلمة التنبيه</string>
+    <string name="voice_settings_subtitle">إدارة نماذج التعرف على الكلام دون اتصال وكلمة التنبيه «Hey AIRI».</string>
+    <string name="no_voice_model_installed">لا يوجد نموذج صوتي مثبَّت. افتح «الصوت وكلمة التنبيه» لتنزيل واحد.</string>
+    <string name="voice_model_load_failed">تعذّر تحميل نموذج الكلام المحدَّد.</string>
+    <string name="vosk_section_title">نماذج تحويل الكلام إلى نص (Vosk)</string>
+    <string name="vosk_section_subtitle">تعمل النماذج بالكامل على الجهاز. نزّلها مرة وحدة وستعمل للأبد بدون إنترنت.</string>
+    <string name="vosk_installed">مُثبَّت</string>
+    <string name="vosk_active">نشط</string>
+    <string name="vosk_set_active">تفعيل</string>
+    <string name="vosk_download">تنزيل</string>
+    <string name="vosk_downloading">جارٍ التنزيل…</string>
+    <string name="vosk_delete">حذف</string>
+    <string name="vosk_no_models">لا توجد نماذج مثبَّتة بعد. اختر واحدًا بالأسفل.</string>
+    <string name="vosk_size_mb">حوالي %1$d م.ب</string>
+    <string name="vosk_download_failed">فشل التنزيل: %1$s</string>
+    <string name="porcupine_section_title">كلمة التنبيه (Porcupine)</string>
+    <string name="porcupine_status_ready">كلمة التنبيه جاهزة («Hey AIRI»).</string>
+    <string name="porcupine_status_missing_key">مفتاح Picovoice AccessKey مفقود. الصقه أدناه أو عيّن PICOVOICE_ACCESS_KEY عند الإنشاء.</string>
+    <string name="porcupine_status_missing_ppn">ملف «hey_airi.ppn» غير مضمَّن. ضعه في res/raw/ أو assets/voice/ وأعد البناء.</string>
+    <string name="porcupine_status_both_missing">كلمة التنبيه معطّلة — المفتاح وملف hey_airi.ppn كلاهما مفقود.</string>
+    <string name="porcupine_access_key_label">مفتاح Picovoice AccessKey</string>
+    <string name="porcupine_access_key_save">حفظ</string>
+    <string name="porcupine_access_key_clear">مسح</string>
+    <string name="porcupine_source_runtime">المصدر: لصق يدوي</string>
+    <string name="porcupine_source_build">المصدر: إعداد البناء</string>
+    <string name="porcupine_help_link">احصل على مفتاح مجاني من console.picovoice.ai</string>
+    <string name="speech_recognition_unavailable">التعرف على الكلام غير متاح على هذا الجهاز</string>
 </resources>

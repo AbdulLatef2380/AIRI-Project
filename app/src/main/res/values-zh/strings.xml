@@ -44,6 +44,10 @@
     <string name="data_controls">数据控制</string>
     <string name="export_chats">导出聊天</string>
     <string name="download_chat_history">下载你的聊天历史</string>
+    <string name="import_chats">导入聊天</string>
+    <string name="import_chat_history">加载之前导出的 JSON 聊天文件</string>
+    <string name="import_success">已导入 %1$d 条消息</string>
+    <string name="import_failed">导入失败 — 文件为空或不是有效的 JSON</string>
     <string name="export_coming_next_update">导出功能将在下一次更新中推出</string>
     <string name="clear_chat_history">清除聊天历史</string>
     <string name="remove_from_display">从当前显示中移除消息</string>
@@ -67,9 +71,8 @@
     <string name="speak_to_airi">对 AIRI 说话</string>
     <string name="microphone_permission_required">语音输入需要麦克风权限</string>
     <string name="file_selected_coming_soon">已选择文件 — 附件支持即将推出</string>
-    <string name="image_selected_coming_soon">已选择图片 — 视觉支持即将推出</string>
+    <string name="image_selected_coming_soon">此版本未启用图片附件功能</string>
     <string name="export_coming_soon">导出功能即将推出</string>
-    <string name="speech_recognition_unavailable">此设备不支持语音识别</string>
     <string name="attach">附加</string>
     <string name="pick_image">选择图片</string>
     <string name="pick_file">选择文件</string>
@@ -161,4 +164,5 @@
     <string name="accessibility_dialog_steps">To enable: go to Settings → Accessibility → Installed Services → AIRI → toggle ON.</string>
     <string name="open_settings">Open Settings</string>
     <string name="later">Later</string>
+    <string name="speech_recognition_unavailable">此设备不支持语音识别</string>
 </resources>

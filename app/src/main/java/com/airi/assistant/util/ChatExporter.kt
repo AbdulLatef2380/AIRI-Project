@@ -1,53 +1,47 @@
 package com.airi.assistant.util
 
-import android.content.ContentValues
 import android.content.Context
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
+import android.content.Intent
+import android.net.Uri
+import android.util.Log
 import com.airi.assistant.ui.viewmodel.ChatMessage
-import java.io.File
+import java.io.IOException
 
 object ChatExporter {
+    private const val TAG = "AIRI_STORAGE"
 
     fun exportToJson(context: Context, messages: List<ChatMessage>): Boolean {
+        Log.e(TAG, "EXPORT_FAILED reason=SAF_CREATE_DOCUMENT_REQUIRED")
+        return false
+    }
+
+    fun createExportIntent(fileName: String = buildFileName()): Intent {
+        return Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+            putExtra(Intent.EXTRA_TITLE, fileName)
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        }
+    }
+
+    fun buildFileName(): String = "airi_chat_${System.currentTimeMillis()}.json"
+
+    fun exportToUri(context: Context, uri: Uri, messages: List<ChatMessage>): Boolean {
         if (messages.isEmpty()) return false
         return try {
-            val fileName = "airi_chat_${System.currentTimeMillis()}.json"
             val jsonContent = buildJson(messages)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                writeViaMediaStore(context, fileName, jsonContent)
-            } else {
-                writeLegacy(fileName, jsonContent)
-            }
+            context.contentResolver.openOutputStream(uri, "wt")?.use { stream ->
+                stream.write(jsonContent.toByteArray(Charsets.UTF_8))
+                stream.flush()
+            } ?: throw IOException("Cannot open export URI for writing")
+            Log.i(TAG, "EXPORT_SUCCESS uri=$uri bytes=${jsonContent.toByteArray(Charsets.UTF_8).size}")
+            com.airi.assistant.domain.verification.VerificationTracker.recordCheck("EXPORT", true, "uri=$uri")
+            true
         } catch (e: Exception) {
+            Log.e(TAG, "EXPORT_FAILED reason=${e.message}", e)
+            com.airi.assistant.domain.verification.VerificationTracker.recordCheck("EXPORT", false, e.message ?: "unknown")
             false
         }
-    }
-
-    private fun writeViaMediaStore(context: Context, fileName: String, content: String): Boolean {
-        val resolver = context.contentResolver
-        val values = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-            put(MediaStore.Downloads.MIME_TYPE, "application/json")
-            put(MediaStore.Downloads.RELATIVE_PATH, "Download/AIRI")
-        }
-        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            ?: return false
-        resolver.openOutputStream(uri)?.use { stream ->
-            stream.write(content.toByteArray(Charsets.UTF_8))
-        }
-        return true
-    }
-
-    private fun writeLegacy(fileName: String, content: String): Boolean {
-        val dir = File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            "AIRI"
-        )
-        dir.mkdirs()
-        File(dir, fileName).writeText(content, Charsets.UTF_8)
-        return true
     }
 
     private fun buildJson(messages: List<ChatMessage>): String {

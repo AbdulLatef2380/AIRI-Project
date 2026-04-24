@@ -226,9 +226,7 @@ fun SettingsScreen(
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 borderColor = Color.White.copy(alpha = 0.1f),
-                                selectedBorderColor = CosmicAccent.copy(alpha = 0.4f),
-                                enabled = true,
-                                selected = selected
+                                selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
                             )
                         )
                     }
@@ -241,7 +239,7 @@ fun SettingsScreen(
                 SettingsNavigationRow(label = stringResource(R.string.view_stored_memory), sublabel = stringResource(R.string.browse_conversation_history)) {
                     onNavigate(AiriRoute.MEMORY)
                 }
-                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(label = stringResource(R.string.clear_all_memory), sublabel = stringResource(R.string.reset_ai_context), destructive = true) {
                     viewModel.clearMemory()
                 }
@@ -270,9 +268,7 @@ fun SettingsScreen(
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 borderColor = Color.White.copy(alpha = 0.1f),
-                                selectedBorderColor = CosmicAccent.copy(alpha = 0.4f),
-                                enabled = true,
-                                selected = selected
+                                selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
                             )
                         )
                     }
@@ -387,18 +383,18 @@ fun SettingsScreen(
                 ) {
                     exportChatLauncher.launch(ChatExporter.buildFileName())
                 }
-                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(
                     label = stringResource(R.string.import_chats),
                     sublabel = stringResource(R.string.import_chat_history)
                 ) {
                     importChatLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
                 }
-                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(label = stringResource(R.string.clear_chat_history), sublabel = stringResource(R.string.remove_from_display)) {
                     viewModel.clearMessages()
                 }
-                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(label = stringResource(R.string.delete_account), sublabel = stringResource(R.string.delete_account_sublabel), destructive = true) {
                     showDeleteDialog = true
                 }
@@ -419,7 +415,7 @@ fun SettingsScreen(
                 SettingsInfoRow(stringResource(R.string.ui), stringResource(R.string.ui_value))
                 SettingsInfoRow(stringResource(R.string.database), stringResource(R.string.database_value))
                 SettingsInfoRow(stringResource(R.string.auth), stringResource(R.string.auth_value))
-                HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(
                     label    = stringResource(R.string.report_a_problem),
                     sublabel = stringResource(R.string.report_a_problem_sublabel)
@@ -664,7 +660,7 @@ private fun SkillsSection(viewModel: ChatViewModel) {
 
         skillInfos.forEachIndexed { index, info ->
             if (index > 0) {
-                HorizontalDivider(
+                Divider(
                     color = Color.White.copy(alpha = 0.05f),
                     modifier = Modifier.padding(vertical = 6.dp)
                 )
@@ -796,7 +792,7 @@ private fun AgentSection(
                 )
             )
         }
-        HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+        Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
         SettingsInfoRow(label = stringResource(R.string.last_run), value = lastRunFormatted)
         if (!lastSummary.isNullOrBlank()) {
             Spacer(Modifier.height(4.dp))
@@ -807,7 +803,7 @@ private fun AgentSection(
                 lineHeight = 16.sp
             )
         }
-        HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
+        Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
         SettingsNavigationRow(
             label    = stringResource(R.string.agent_logs),
             sublabel = stringResource(R.string.agent_logs_description),
@@ -872,7 +868,7 @@ private fun SubscriptionSection(
             }
         }
 
-        HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
+        Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
 
         Text(stringResource(R.string.today_usage), color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
@@ -883,7 +879,7 @@ private fun SubscriptionSection(
         SettingsInfoRow(stringResource(R.string.usage_skill_uses),"${summary.skillsUsed} / ${limit ?: summary.skillsLimit}")
 
         if (!isPremium) {
-            HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
+            Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
             Button(
                 onClick = { onNavigate(AiriRoute.PAYWALL) },
                 modifier = Modifier.fillMaxWidth(),
@@ -973,7 +969,7 @@ private fun ObservabilitySection(onNavigate: (String) -> Unit) {
             fontSize = 11.sp,
             color    = Color.White.copy(alpha = 0.38f)
         )
-        HorizontalDivider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
+        Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 10.dp))
         SettingsNavigationRow(
             label    = stringResource(R.string.execution_history),
             sublabel = stringResource(R.string.execution_history_description),

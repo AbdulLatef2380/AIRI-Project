@@ -228,7 +228,7 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                         }
                         if (isDownloading) {
                             LinearProgressIndicator(
-                                progress = { progress / 100f },
+                                progress = progress / 100f,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Text(

@@ -190,7 +190,7 @@ fun PaywallScreen(
                             )
                         }
                         androidx.compose.material3.LinearProgressIndicator(
-                            progress = { (1f - usagePercent / 100f).coerceIn(0f, 1f) },
+                            progress = (1f - usagePercent / 100f).coerceIn(0f, 1f),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(4.dp)

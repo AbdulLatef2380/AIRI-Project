@@ -951,7 +951,7 @@ fun AiBubble(
                             )
                         }
                         if (traceExpanded) {
-                            HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+                            Divider(color = Color.White.copy(alpha = 0.05f))
                             Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                                 trace.steps.forEachIndexed { i, step ->
                                     Row(

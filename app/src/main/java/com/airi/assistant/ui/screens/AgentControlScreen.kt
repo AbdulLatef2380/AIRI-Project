@@ -74,7 +74,7 @@ fun AgentControlScreen(
                 )
                 skillInfos.forEachIndexed { index, info ->
                     if (index > 0) {
-                        HorizontalDivider(
+                        Divider(
                             color = Color.White.copy(alpha = 0.05f),
                             modifier = Modifier.padding(vertical = 6.dp)
                         )
@@ -149,7 +149,7 @@ fun AgentControlScreen(
                     modifier = Modifier.padding(bottom = 10.dp)
                 )
                 toolList.forEachIndexed { index, (toolName, source) ->
-                    if (index > 0) HorizontalDivider(
+                    if (index > 0) Divider(
                         color = Color.White.copy(alpha = 0.04f),
                         modifier = Modifier.padding(vertical = 4.dp)
                     )

@@ -610,7 +610,7 @@ fun RefDownloadedModelCard(
             if (isLoading) {
                 if (loadProgress in 0..100) {
                     LinearProgressIndicator(
-                        progress = { loadProgress / 100f },
+                        progress = loadProgress / 100f,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 18.dp)
@@ -1262,7 +1262,7 @@ fun ActiveModelSummaryCard(state: ModelUiState, onOpenGenerationSettings: () -> 
             }
             if (state.isModelLoading) {
                 if (state.loadProgress in 0..100) {
-                    LinearProgressIndicator(progress = { state.loadProgress / 100f }, modifier = Modifier.fillMaxWidth())
+                    LinearProgressIndicator(progress = state.loadProgress / 100f, modifier = Modifier.fillMaxWidth())
                 } else {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
@@ -1410,7 +1410,7 @@ fun CatalogCard(
 
             if (isLoadingThisEntry) {
                 if (loadProgress in 0..100) {
-                    LinearProgressIndicator(progress = { loadProgress / 100f }, modifier = Modifier.fillMaxWidth())
+                    LinearProgressIndicator(progress = loadProgress / 100f, modifier = Modifier.fillMaxWidth())
                 } else {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
@@ -1418,7 +1418,7 @@ fun CatalogCard(
 
             AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                    Divider(color = Color.White.copy(alpha = 0.08f))
                     DetailRow("parameters", "CTX ${entry.contextSize.contextLabel()} • ${entry.quantization}")
                     DetailRow("last update", "Catalog verified")
                     DetailRow("architecture", entry.type.label)
@@ -1672,7 +1672,7 @@ fun ModelCard(
 
             when {
                 isLoadingThis && loadProgress in 0..100 -> LinearProgressIndicator(
-                    progress = { loadProgress / 100f },
+                    progress = loadProgress / 100f,
                     modifier = Modifier.fillMaxWidth()
                 )
                 isLoadingThis -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -1701,7 +1701,7 @@ fun ModelCard(
 
             AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                    Divider(color = Color.White.copy(alpha = 0.1f))
                     Text(
                         subtitle,
                         style = MaterialTheme.typography.labelSmall,
@@ -1731,6 +1731,7 @@ fun ModelCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdvancedGenerationSettingsDialog(
     viewModel: ChatViewModel,

@@ -320,6 +320,8 @@
     <!-- File/image pick feedback -->
     <string name="file_selected_name">File selected: %1$s</string>
     <string name="image_selected_vision_soon">Image attachments are not enabled in this build</string>
+    <string name="image_attached_no_vision">Vision model not loaded — text marker will be sent</string>
+    <string name="remove_image_cd">Remove attached image</string>
     <string name="photo_attached">Photo attached</string>
     <!-- Remote model form -->
     <string name="server_url">Server URL</string>

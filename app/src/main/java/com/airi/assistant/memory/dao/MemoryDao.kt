@@ -36,6 +36,32 @@ interface MemoryDao {
     @Query("SELECT COUNT(*) FROM episodic_memory")
     suspend fun getMemoryCount(): Int
 
+    /** How many non-memory chat rows belong to this session. */
+    @Query("SELECT COUNT(*) FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0")
+    suspend fun countSessionMessages(sessionId: String): Int
+
+    /**
+     * Sliding-window pruning. Deletes the OLDEST non-memory rows of [sessionId]
+     * when the session has more than [keepRecent] entries. We never delete
+     * rows tagged isMemory = 1 (long-term memories surfaced by the Memory
+     * screen) so the user's important interactions are preserved.
+     *
+     * Implemented as: keep the IDs of the most recent [keepRecent] rows in a
+     * subquery, then delete everything else for this session.
+     */
+    @Query("""
+        DELETE FROM episodic_memory
+        WHERE sessionId = :sessionId
+          AND isMemory = 0
+          AND timestamp NOT IN (
+              SELECT timestamp FROM episodic_memory
+              WHERE sessionId = :sessionId AND isMemory = 0
+              ORDER BY timestamp DESC
+              LIMIT :keepRecent
+          )
+    """)
+    suspend fun pruneOldSessionMessages(sessionId: String, keepRecent: Int)
+
     /** Wipe everything the Memory screen displays. */
     @Query("DELETE FROM episodic_memory")
     suspend fun clearSemanticMemories()

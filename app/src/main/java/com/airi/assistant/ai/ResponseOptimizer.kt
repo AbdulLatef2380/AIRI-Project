@@ -117,9 +117,25 @@ object ResponseOptimizer {
         val lower = raw.lowercase()
         if (lower.isEmpty()) return null
 
-        // Tokenize on whitespace + Arabic-aware punctuation so we can do
-        // word-boundary matching for short keys.
+        // ── Bug A fix (was: greeting fallback for long prompts) ───────────
+        // The previous logic used `tokens.contains("hi")` for single-word
+        // keys, which meant ANY long prompt that happened to contain "hi"
+        // or "hey" as a standalone token (e.g. "Hi, can you explain
+        // recursion with example?") returned "Hi! Ask me anything." instead
+        // of going to the LLM. The fast-path is meant only for genuine
+        // SHORT casual replies — apply hard length gates BEFORE matching.
+        //
+        // Empirically: greetings/thanks/identity questions are at most
+        // ~30 chars / ~5 tokens. Anything longer is a real prompt and must
+        // hit the model. We special-case multi-word phrases so something
+        // like "what are your capabilities" still works.
         val tokens = lower.split(Regex("[\\s\\p{Punct}،؛؟]+")).filter { it.isNotBlank() }
+        val isShort = lower.length <= 32 && tokens.size <= 5
+        if (!isShort) {
+            Log.d(TAG, "fast_response BYPASS reason=long_input len=${lower.length} tokens=${tokens.size}")
+            Log.i("AIRI_PROOF", "FAST_PATH_BYPASSED reason=long_input len=${lower.length}")
+            return null
+        }
 
         for (entry in fastTable) {
             val matched = entry.keys.any { key ->
@@ -127,16 +143,22 @@ object ResponseOptimizer {
                 if (k.isEmpty()) return@any false
                 val isMultiWord = k.contains(' ')
                 if (isMultiWord) {
-                    // Multi-word phrase — keep substring semantics.
+                    // Multi-word phrase — keep substring semantics. Safe now
+                    // because we already gated by total length above.
                     lower.contains(k)
                 } else {
-                    // Single-word key — exact whole input OR a standalone token.
-                    lower == k || tokens.contains(k)
+                    // Single-word key — only exact whole-input match. We
+                    // dropped the `tokens.contains(k)` clause because at
+                    // this point the input is already <=5 tokens AND we
+                    // want "hi" to ONLY trigger on literally "hi" or
+                    // "hi!" / "hi.", not on "hi mom what time is it".
+                    lower == k || lower == "$k!" || lower == "$k." || lower == "$k?"
                 }
             }
             if (matched) {
                 val reply = entry.replies.random()()
                 Log.d(TAG, "fast_response matched len=${input.length} reply_len=${reply.length}")
+                Log.i("AIRI_PROOF", "FAST_PATH_HIT input_len=${input.length} reply_len=${reply.length}")
                 return reply
             }
         }

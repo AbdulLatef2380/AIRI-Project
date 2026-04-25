@@ -27,6 +27,19 @@ class ModelDownloadService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Issue #9 — user-initiated cancel. ChatViewModel / Models UI sends
+        // an Intent with action ACTION_CANCEL_DOWNLOAD; we flip the static
+        // flag and the running download thread observes it inside its read
+        // loop. The partial .part file is then deleted in the catch handler.
+        if (intent?.action == ACTION_CANCEL_DOWNLOAD) {
+            cancelRequested.set(true)
+            Log.i(TAG, "CANCEL requested via intent")
+            Log.i("AIRI_PROOF", "DOWNLOAD_CANCEL_REQUESTED source=intent")
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        cancelRequested.set(false)
         val url = intent?.getStringExtra(EXTRA_DOWNLOAD_URL) ?: defaultUrl
         val fileName = intent?.getStringExtra(EXTRA_FILENAME) ?: defaultFileName
         val expectedSize = intent?.getLongExtra(EXTRA_EXPECTED_SIZE_BYTES, defaultExpectedSize) ?: defaultExpectedSize
@@ -57,7 +70,9 @@ class ModelDownloadService : Service() {
             for (attempt in 1..3) {
                 try {
                     if (tempFile.exists()) tempFile.delete()
+                    if (cancelRequested.get()) throw InterruptedException("user_cancel_pre_start")
                     Log.i(TAG, "START attempt=$attempt file=$fileName expected=$expectedSize url=$url")
+                    Log.i("AIRI_PROOF", "DOWNLOAD_START fileName=$fileName expected=$expectedSize attempt=$attempt")
                     downloadToFile(url, tempFile)
                     val actual = tempFile.length()
                     if (actual < 100_000_000L) throw IllegalStateException("download too small actual=$actual")
@@ -80,17 +95,30 @@ class ModelDownloadService : Service() {
                         Toast.makeText(applicationContext, "تم تحميل $fileName بنجاح!", Toast.LENGTH_LONG).show()
                     }
                     break
+                } catch (e: InterruptedException) {
+                    lastError = "cancelled"
+                    Log.i(TAG, "CANCELLED attempt=$attempt file=$fileName reason=${e.message}")
+                    Log.i("AIRI_PROOF", "DOWNLOAD_CANCELLED fileName=$fileName partial_bytes=${tempFile.length()}")
+                    tempFile.delete()
+                    break
                 } catch (e: Exception) {
                     lastError = e.message ?: e.javaClass.simpleName
                     Log.e(TAG, "FAILED reason=$lastError attempt=$attempt file=$fileName", e)
                     tempFile.delete()
+                    if (cancelRequested.get()) {
+                        Log.i("AIRI_PROOF", "DOWNLOAD_CANCELLED fileName=$fileName reason=cancel_during_retry")
+                        break
+                    }
                     if (attempt < 3) Thread.sleep(1500L * attempt)
                 }
             }
             if (!success) {
-                com.airi.assistant.domain.verification.VerificationTracker.recordCheck("DOWNLOAD", false, lastError ?: "unknown")
-                Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(applicationContext, "فشل تحميل $fileName: ${lastError ?: "unknown"}", Toast.LENGTH_LONG).show()
+                val finalReason = if (cancelRequested.get()) "cancelled" else (lastError ?: "unknown")
+                com.airi.assistant.domain.verification.VerificationTracker.recordCheck("DOWNLOAD", false, finalReason)
+                if (finalReason != "cancelled") {
+                    Handler(Looper.getMainLooper()).post {
+                        Toast.makeText(applicationContext, "فشل تحميل $fileName: $finalReason", Toast.LENGTH_LONG).show()
+                    }
                 }
             }
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -111,10 +139,29 @@ class ModelDownloadService : Service() {
             connection.inputStream.use { input ->
                 FileOutputStream(destination, false).use { output ->
                     val buffer = ByteArray(1024 * 1024)
+                    var totalBytes = 0L
+                    var lastProofMs = System.currentTimeMillis()
                     while (true) {
+                        // Issue #9 — observe cancel inside the read loop so a
+                        // tap on the Cancel button stops the transfer within
+                        // ~one buffer's worth of bytes (1 MB ≈ <1s on cellular).
+                        if (cancelRequested.get()) {
+                            throw InterruptedException("user_cancel_during_read bytes=$totalBytes")
+                        }
                         val read = input.read(buffer)
                         if (read == -1) break
                         output.write(buffer, 0, read)
+                        totalBytes += read
+                        // Heart-beat proof every 5s so we can SEE progress in
+                        // logcat without polluting the log on every chunk.
+                        val now = System.currentTimeMillis()
+                        if (now - lastProofMs >= 5000) {
+                            android.util.Log.i(
+                                "AIRI_PROOF",
+                                "DOWNLOAD_PROGRESS bytes=$totalBytes mb=${totalBytes / 1_048_576}"
+                            )
+                            lastProofMs = now
+                        }
                     }
                     output.fd.sync()
                 }
@@ -129,7 +176,24 @@ class ModelDownloadService : Service() {
         const val EXTRA_FILENAME = "download_filename"
         const val EXTRA_EXPECTED_SIZE_BYTES = "download_expected_size_bytes"
         const val ACTION_DOWNLOAD_COMPLETE = "com.airi.assistant.ACTION_DOWNLOAD_COMPLETE"
+        const val ACTION_CANCEL_DOWNLOAD = "com.airi.assistant.ACTION_CANCEL_DOWNLOAD"
         const val EXTRA_RESULT_FILENAME = "result_filename"
         const val EXTRA_RESULT_PATH = "result_path"
+
+        // Static cancel flag — read inside the worker thread's tight read
+        // loop. AtomicBoolean is overkill for a single producer/consumer
+        // but it documents the cross-thread intent clearly.
+        @JvmStatic
+        val cancelRequested: java.util.concurrent.atomic.AtomicBoolean =
+            java.util.concurrent.atomic.AtomicBoolean(false)
+
+        /** Convenience for callers that don't want to build an Intent. */
+        fun cancel(context: Context) {
+            cancelRequested.set(true)
+            val intent = Intent(context, ModelDownloadService::class.java).apply {
+                action = ACTION_CANCEL_DOWNLOAD
+            }
+            context.startService(intent)
+        }
     }
 }

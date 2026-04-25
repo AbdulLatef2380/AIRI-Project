@@ -258,12 +258,26 @@ fun ChatScreen(
 
     // ── VoiceManager (TTS) ───────────────────────────────────────────────────
     val voiceStateRef = remember { androidx.compose.runtime.mutableStateOf(VoiceSessionState.IDLE) }
+    // Issue #2 — continuous live-voice loop. When the user taps the
+    // live-chat button, we set this to TRUE; the TTS done-callback then
+    // automatically re-arms Vosk so the assistant feels like a real
+    // back-and-forth conversation instead of a single-shot voice command.
+    // Reset to FALSE when the user explicitly stops, when generation errors,
+    // or when ChatScreen leaves the composition.
+    val liveChatActiveRef = remember { androidx.compose.runtime.mutableStateOf(false) }
+    val voiceLoopRearmTick = remember { androidx.compose.runtime.mutableStateOf(0) }
     val voiceManager = remember {
         VoiceManager(context, object : VoiceManager.VoiceListener {
             override fun onWakeWordDetected() {}
             override fun onSpeechResult(text: String) {}
             override fun onError(error: String) {
                 scope.launch { snackbarHost.showSnackbar("Voice error: $error") }
+                // Hard-stop the loop on any voice error so we don't spin
+                // re-arming Vosk against a broken mic / missing model.
+                if (liveChatActiveRef.value) {
+                    Log.i("AIRI_PROOF", "VOICE_LOOP_STOPPED reason=error err=$error")
+                    liveChatActiveRef.value = false
+                }
             }
             override fun onSpeakingStarted() {
                 Log.d("AIRI_VOICE", "TTS speaking started → VoiceSessionState.SPEAKING")
@@ -272,10 +286,35 @@ fun ChatScreen(
             override fun onSpeakingDone() {
                 Log.d("AIRI_VOICE", "TTS speaking done → VoiceSessionState.IDLE")
                 voiceStateRef.value = VoiceSessionState.IDLE
+                // Re-arm STT iff we are in continuous-conversation mode.
+                if (liveChatActiveRef.value) {
+                    Log.i("AIRI_PROOF", "VOICE_LOOP_REARM_REQUESTED tick=${voiceLoopRearmTick.value + 1}")
+                    voiceLoopRearmTick.value = voiceLoopRearmTick.value + 1
+                }
             }
         })
     }
     DisposableEffect(Unit) { onDispose { voiceManager.destroy() } }
+    // Issue #2 — consume the re-arm tick that the TTS done-callback bumps
+    // when liveChatActive is true. We pause briefly so the user can hear
+    // the tail of the response settle before the mic starts listening
+    // again, otherwise the re-arm feels jarring.
+    LaunchedEffect(voiceLoopRearmTick.value) {
+        if (voiceLoopRearmTick.value > 0 &&
+            liveChatActiveRef.value &&
+            modelState.isModelReady &&
+            !agentState.isWorking
+        ) {
+            kotlinx.coroutines.delay(350)
+            // Re-check after the delay — the user may have tapped to exit.
+            if (liveChatActiveRef.value && !agentState.isWorking) {
+                Log.i("AIRI_PROOF", "VOICE_LOOP_REARM_FIRED tick=${voiceLoopRearmTick.value}")
+                startInAppStt(autoSend = true)
+            } else {
+                Log.i("AIRI_PROOF", "VOICE_LOOP_REARM_ABORTED reason=user_exit_or_busy")
+            }
+        }
+    }
     // Sync the TTS-driven state updates back to the UI state variable
     LaunchedEffect(voiceStateRef.value) {
         val ttsState = voiceStateRef.value
@@ -335,10 +374,17 @@ fun ChatScreen(
             scope.launch { snackbarHost.showSnackbar(context.getString(R.string.file_selected_name, fileName)) }
         }
     }
+    // Issue #1 — selected-image state (held in saveable so config-change
+    // doesn't drop the user's pick). The current LLM is text-only; this
+    // chip is a visible acknowledgement that we received the file. The
+    // chat send-handler appends a "[image attached: <name>]" marker so the
+    // assistant can at least respond to the fact something was attached.
+    var selectedImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
             Log.d("AIRI_UI", "Image picked: $uri")
-            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.image_selected_vision_soon)) }
+            Log.i("AIRI_PROOF", "IMAGE_ATTACHED uri=$uri model_text_only=true")
+            selectedImageUri = uri
         }
     }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
@@ -407,12 +453,94 @@ fun ChatScreen(
                 )
             },
             bottomBar = {
+              Column(modifier = Modifier.fillMaxWidth()) {
+                // Issue #1 — honest image preview chip. Appears above the
+                // input pill when the user has picked an image. Tap × to
+                // remove. We do NOT pretend to do vision: the chip text
+                // explicitly says "Vision model required".
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = selectedImageUri != null,
+                    enter = androidx.compose.animation.fadeIn() +
+                            androidx.compose.animation.expandVertically(),
+                    exit = androidx.compose.animation.fadeOut() +
+                           androidx.compose.animation.shrinkVertically()
+                ) {
+                    val uri = selectedImageUri
+                    if (uri != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF1A1A1A).copy(alpha = 0.45f))
+                                .border(1.dp, CosmicAccent.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(CosmicAccent.copy(alpha = 0.18f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Image,
+                                    contentDescription = null,
+                                    tint = CosmicAccent,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = uri.lastPathSegment ?: uri.toString().takeLast(28),
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = stringResource(R.string.image_attached_no_vision),
+                                    color = Color.White.copy(alpha = 0.55f),
+                                    fontSize = 10.sp,
+                                    maxLines = 2,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
+                            IconButton(onClick = {
+                                Log.i("AIRI_PROOF", "IMAGE_REMOVED")
+                                selectedImageUri = null
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = stringResource(R.string.remove_image_cd),
+                                    tint = Color.White.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
                 ChatInputBar(
                     modelState      = modelState,
                     isGenerating    = agentState.isWorking,
                     voiceInput      = voiceInput,
                     smartReplies    = smartReplies,
-                    onSend          = { text -> viewModel.sendMessage(text) },
+                    onSend          = { text ->
+                        // Wrap send so we can append an honest "[image attached]"
+                        // marker AND clear the preview chip after the message
+                        // is dispatched. The model is still text-only — but at
+                        // least it now knows the user attached a file.
+                        val attachedUri = selectedImageUri
+                        val finalText = if (attachedUri != null) {
+                            val name = attachedUri.lastPathSegment ?: "image"
+                            Log.i("AIRI_PROOF", "IMAGE_SENT_AS_TEXT_MARKER name=$name")
+                            "$text\n\n[user attached image: $name — vision model not loaded, describe based on filename only]"
+                        } else text
+                        viewModel.sendMessage(finalText)
+                        if (attachedUri != null) selectedImageUri = null
+                    },
                     onCancel        = { viewModel.cancelGeneration() },
                     onSmartReply    = { reply -> viewModel.clearSmartReplies(); viewModel.sendMessage(reply) },
                     onPickImage     = { imagePicker.launch("image/*") },
@@ -452,15 +580,26 @@ fun ChatScreen(
                         }
                     },
                     onVoiceChatClick = vc@{
-                        // Interrupt TTS if currently speaking
+                        // Interrupt TTS if currently speaking — and EXIT the
+                        // continuous loop, because tapping during TTS is the
+                        // user's signal that they want out.
                         if (voiceState == VoiceSessionState.SPEAKING) {
                             voiceManager.stopSpeaking()
                             voiceStateRef.value = VoiceSessionState.IDLE
                             voiceState = VoiceSessionState.IDLE
+                            if (liveChatActiveRef.value) {
+                                liveChatActiveRef.value = false
+                                Log.i("AIRI_PROOF", "VOICE_LOOP_STOPPED reason=tap_during_speaking")
+                            }
                             Log.d("AIRI_VOICE", "TTS interrupted by voice-chat press → IDLE")
                             return@vc
                         }
+                        // Tap while listening → stop AND exit loop
                         if (voiceState == VoiceSessionState.LISTENING) {
+                            if (liveChatActiveRef.value) {
+                                liveChatActiveRef.value = false
+                                Log.i("AIRI_PROOF", "VOICE_LOOP_STOPPED reason=tap_during_listening")
+                            }
                             stopInAppStt()
                             return@vc
                         }
@@ -469,6 +608,9 @@ fun ChatScreen(
                                 scope.launch { snackbarHost.showSnackbar(context.getString(R.string.no_voice_model_installed)) }
                             }
                             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> {
+                                // Enter continuous loop mode and arm Vosk.
+                                liveChatActiveRef.value = true
+                                Log.i("AIRI_PROOF", "VOICE_LOOP_STARTED")
                                 startInAppStt(autoSend = true)
                             }
                             else -> voiceChatPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -477,6 +619,7 @@ fun ChatScreen(
                     onVoiceConsumed = { voiceInput = ""; voiceState = VoiceSessionState.IDLE },
                     onOpenModels    = { onNavigate(AiriRoute.MODELS) }
                 )
+              } // end of bottomBar Column (image-preview chip + ChatInputBar)
             }
         ) { padding ->
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -742,7 +885,7 @@ fun ChatMessageList(
             if (streamingText.isNotEmpty() && isGenerating) {
                 item(key = "streaming") { AiStreamingBubble(text = streamingText) }
             }
-            itemsIndexed(messages.reversed(), key = { _, msg -> "${msg.hashCode()}_${msg.isUser}" }) { index, msg ->
+            itemsIndexed(messages.reversed(), key = { _, msg -> msg.uid }) { index, msg ->
                 val prevMsg = messages.reversed().getOrNull(index + 1)
                 val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
                 if (msg.isUser) {
@@ -1081,13 +1224,47 @@ fun AiStreamingBubble(text: String) {
                 fontStyle  = if (isThinkingStage) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
             )
             if (isThinkingStage) {
-                Spacer(Modifier.height(6.dp))
-                LinearProgressIndicator(
-                    modifier   = Modifier.fillMaxWidth().height(2.dp),
-                    color      = CosmicAccent.copy(alpha = 0.7f),
-                    trackColor = Color.White.copy(alpha = 0.08f)
-                )
+                Spacer(Modifier.height(8.dp))
+                AiriThinkingPulse()
             }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THINKING PULSE — replaces the old LinearProgressIndicator that the user
+// (correctly) flagged as ugly UX. Three dots that pulse in sequence with
+// AIRI's accent color. Pure Compose, no images, no extra deps.
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun AiriThinkingPulse(
+    modifier: Modifier = Modifier,
+    dotSize: Dp = 6.dp,
+    color: Color = CosmicAccent
+) {
+    val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "airi_pulse")
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        for (i in 0..2) {
+            val alpha by infinite.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    animation = androidx.compose.animation.core.tween(
+                        durationMillis = 700,
+                        delayMillis = i * 180,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    ),
+                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                ),
+                label = "airi_pulse_dot_$i"
+            )
+            Box(
+                modifier = Modifier
+                    .padding(end = if (i < 2) 5.dp else 0.dp)
+                    .size(dotSize)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = alpha))
+            )
         }
     }
 }

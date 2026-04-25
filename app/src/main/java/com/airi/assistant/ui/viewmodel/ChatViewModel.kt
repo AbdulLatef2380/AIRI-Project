@@ -74,7 +74,17 @@ data class ChatMessage(
     val isUser: Boolean,
     val id: Long = System.currentTimeMillis(),
     val agentTag: String? = null,
-    val traceId: String? = null
+    val traceId: String? = null,
+    // Phase 1 crash fix: stable per-instance UUID for LazyColumn keys.
+    // Previously the list used `msg.hashCode()` as the key. Two messages
+    // with identical text+isUser produced an identical hashCode, which made
+    // Compose throw `IllegalArgumentException: Key … was already used` and
+    // tear down the screen — surfacing as a hard crash mid-conversation.
+    // The Long `id` could ALSO collide on rapid-fire system messages built
+    // without a Room id (default = currentTimeMillis). UUID is collision-
+    // free by construction. This field is NOT persisted; it lives only for
+    // the lifetime of the in-memory list.
+    val uid: String = java.util.UUID.randomUUID().toString()
 )
 
 data class AgentState(
@@ -304,10 +314,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _isCancelled.set(true)
             llamaManager.cancelStream()
             Log.d("AIRI_SPEED", "cancelGeneration: user triggered")
+            // Phase-1 instrumentation: surface the user-triggered cancel as a
+            // first-class proof tag so we can confirm the Stop button → JNI
+            // cancel pipeline end-to-end from logcat alone. The matching
+            // GEN_CANCEL_HONORED tag is emitted by LlamaManager when the
+            // native token-callback observes cancelRequested == true.
+            Log.i("AIRI_PROOF", "GEN_CANCEL_REQUESTED source=user_button")
             com.airi.assistant.domain.logging.ProofLogger.streamCancelled(
                 byUser = true,
                 tokensStreamed = 0
             )
+        } else {
+            Log.i("AIRI_PROOF", "GEN_CANCEL_NOOP reason=not_generating")
         }
     }
 

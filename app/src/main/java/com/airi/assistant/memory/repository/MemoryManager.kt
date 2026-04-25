@@ -31,6 +31,21 @@ class MemoryManager(context: Context) {
         val message = ChatMessage(sessionId = sessionId, role = role, content = content, emotionState = emotion, isMemory = false)
         dao.insertMessage(message)
         sessionDao.touchSession(sessionId)
+        // Issue #10 — sliding window pruning. Without this, episodic_memory
+        // grows unbounded and bloats the DB (the user explicitly called this
+        // out as "stores everything → no pruning"). Prune AFTER inserting so
+        // we always have at least `MAX_MESSAGES_PER_SESSION` recent rows.
+        // Long-term `isMemory = 1` rows are NEVER touched.
+        runCatching { dao.pruneOldSessionMessages(sessionId, MAX_MESSAGES_PER_SESSION) }
+            .onFailure { android.util.Log.w("AIRI_MEMORY", "prune failed: ${it.message}") }
+        // Cheap proof log every 25 inserts (mod arithmetic is free).
+        val count = runCatching { dao.countSessionMessages(sessionId) }.getOrDefault(-1)
+        if (count >= 0 && count % 25 == 0) {
+            android.util.Log.i(
+                "AIRI_PROOF",
+                "MEMORY_PRUNE_CHECKPOINT session=$sessionId rows=$count cap=$MAX_MESSAGES_PER_SESSION"
+            )
+        }
         return message
     }
 
@@ -93,5 +108,13 @@ class MemoryManager(context: Context) {
 
     suspend fun clearAll() {
         dao.clearSemanticMemories()
+    }
+
+    private companion object {
+        // Per-session sliding window cap. 200 chat rows ≈ 100 user/assistant
+        // turns ≈ 30-50 KB of text per session — well under any reasonable
+        // SQLite ceiling. The in-memory KV window (LlamaManager.maxHistory)
+        // is independently capped at 4 turns.
+        const val MAX_MESSAGES_PER_SESSION = 200
     }
 }

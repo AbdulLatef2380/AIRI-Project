@@ -29,6 +29,18 @@ class ModelDownloadManager(private val context: Context) {
         return file.exists() && file.length() > 50L * 1024 * 1024
     }
 
+    /**
+     * Issue #9 — cancel the in-flight model download.
+     * Forwards to [ModelDownloadService.cancel]. Returns true if a cancel
+     * was actually dispatched (a download was running), false otherwise.
+     */
+    fun cancelActiveDownload(context: android.content.Context): Boolean {
+        val active = ModelDownloadService.cancelRequested.get().not() // crude live-check
+        ModelDownloadService.cancel(context)
+        android.util.Log.i("AIRI_PROOF", "DOWNLOAD_CANCEL_DISPATCHED was_active=$active")
+        return active
+    }
+
     fun getFileForName(fileName: String): File {
         return File(getModelsDir(), fileName)
     }

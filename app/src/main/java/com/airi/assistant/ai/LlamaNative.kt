@@ -11,10 +11,25 @@ object LlamaNative {
             System.loadLibrary("airi_native")
             available = true
             Log.i("LlamaNative", "Native library airi_native loaded")
+            // AIRI_PROOF: this single line, present in logcat at app start,
+            // is a positive proof that lib/arm64-v8a/libairi_native.so is in
+            // the installed APK and dlopen() succeeded. If it is MISSING from
+            // logcat, the failure is at the build/packaging layer — not in
+            // any of the runtime code paths. See:
+            //   .github/workflows/android_build.yml (CI verification)
+            //   app/build.gradle.kts task airiVerifyNativeInApk
+            Log.i("AIRI_PROOF", "NATIVE_LIB_LOADED lib=airi_native abi=arm64-v8a")
         } catch (e: UnsatisfiedLinkError) {
             available = false
             loadFailure = e.message
             Log.e("LlamaNative", "Native library airi_native not found: ${e.message}", e)
+            // AIRI_PROOF: explicit failure tag so the user (or test harness)
+            // can grep logcat for ONE string and decide which layer is broken.
+            // If you see this line, no inference path will ever work — the
+            // .so is missing from the installed APK. Fix the BUILD, not the
+            // runtime code.
+            Log.e("AIRI_PROOF",
+                "NATIVE_LIB_MISSING lib=airi_native abi=arm64-v8a reason=${e.message}")
         }
     }
 

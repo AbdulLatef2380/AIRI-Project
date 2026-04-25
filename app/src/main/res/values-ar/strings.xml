@@ -327,6 +327,8 @@
     <!-- File/image pick feedback -->
     <string name="file_selected_name">تم اختيار الملف: %1$s</string>
     <string name="image_selected_vision_soon">إرفاق الصور غير مُفعَّل في هذه النسخة</string>
+    <string name="image_attached_no_vision">نموذج الرؤية غير مُحمَّل — سيتم إرسال إشارة نصية</string>
+    <string name="remove_image_cd">إزالة الصورة المُرفقة</string>
     <string name="photo_attached">تم إرفاق الصورة</string>
     <!-- Remote model form -->
     <string name="server_url">عنوان الخادم</string>

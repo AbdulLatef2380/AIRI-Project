@@ -235,8 +235,69 @@ tasks.register("airiVerifyOptimization") {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// airiVerifyNativeInApk — fails the build if the freshly-assembled APK
+// does NOT contain lib/arm64-v8a/libairi_native.so (or contains a 0-byte
+// stub). This is a hard guard against the failure mode where Gradle
+// silently produces an APK without the JNI library — runtime then falls
+// back to "model did not start in time" and looks like an inference bug
+// when in fact the engine never loaded.
+//
+// Wired as a finalizer of assembleDebug below so it runs after the APK
+// is in place. Use:  ./gradlew assembleDebug
+// ─────────────────────────────────────────────────────────────────────────
+tasks.register("airiVerifyNativeInApk") {
+    group = "verification"
+    description = "Asserts lib/arm64-v8a/libairi_native.so is present in the debug APK."
+    doLast {
+        val apkDir = layout.buildDirectory.dir("outputs/apk/debug").get().asFile
+        val apks = apkDir.listFiles { f -> f.extension == "apk" }
+            ?.toList().orEmpty()
+        if (apks.isEmpty()) {
+            error("AIRI_VERIFY_NATIVE: no APK found at ${apkDir.absolutePath}")
+        }
+        val apk = apks.first()
+        val target = "lib/arm64-v8a/libairi_native.so"
+        java.util.zip.ZipFile(apk).use { zf ->
+            val entry = zf.getEntry(target)
+                ?: error(
+                    "AIRI_VERIFY_NATIVE: ❌ $target is NOT in ${apk.name}.\n" +
+                    "    CMake either did not run or produced no library.\n" +
+                    "    Re-run with --info and look for 'Building CXX object'\n" +
+                    "    lines. If absent, check that NDK 25.2.9519653 + CMake\n" +
+                    "    3.22.1 are installed (Android Studio → SDK Manager →\n" +
+                    "    SDK Tools, or in CI via android-actions/setup-android@v3\n" +
+                    "    with packages='ndk;25.2.9519653 cmake;3.22.1')."
+                )
+            val bytes = entry.size
+            println("AIRI_VERIFY_NATIVE: found $target size=${bytes} bytes")
+            if (bytes < 1_000_000) {
+                error(
+                    "AIRI_VERIFY_NATIVE: ❌ $target is suspiciously small ($bytes bytes).\n" +
+                    "    A real llama.cpp arm64-v8a build is typically 8-15 MB after strip.\n" +
+                    "    A tiny .so usually means CMake compiled a stub or the wrong target."
+                )
+            }
+            // Print a few sibling .so entries so we can see what else is in there.
+            zf.entries().asSequence()
+                .filter { it.name.startsWith("lib/") && it.name.endsWith(".so") }
+                .forEach { println("AIRI_VERIFY_NATIVE: APK contains ${it.name} (${it.size} bytes)") }
+            println("AIRI_VERIFY_NATIVE: ✅ $target present and non-trivial.")
+        }
+    }
+}
+
 afterEvaluate {
     tasks.named("assembleDebug").configure {
         dependsOn("airiVerifyOptimization")
+        // finalizedBy: runs after assembleDebug, even if airiVerifyOptimization
+        // (a dependsOn) succeeded. The verification only makes sense AFTER the
+        // APK is on disk.
+        finalizedBy("airiVerifyNativeInApk")
+    }
+    tasks.named("assembleRelease").configure {
+        // Release path also needs the same guard. assembleRelease intentionally
+        // does NOT depend on airiVerifyOptimization (that's a debug-flow check).
+        finalizedBy("airiVerifyNativeInApk")
     }
 }

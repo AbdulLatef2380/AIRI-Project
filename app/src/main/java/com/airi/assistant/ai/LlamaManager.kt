@@ -52,7 +52,13 @@ class LlamaManager(private val context: Context) {
 
     /** Canonical prior history supplied by the caller (excludes the current turn). */
     private val chatHistory = mutableListOf<ChatMessage>()
-    private val maxHistory = 6
+    // Bug B fix (was: 6). With 6 messages of typical Arabic content the
+    // cold-restart replay (sys + 6 msgs ≈ 1500-2000 tokens) takes 30-90s on
+    // mid-range CPUs and was tripping ERR_FIRST_TOKEN_TIMEOUT after a few
+    // turns. 4 messages (= 2 full turns) keeps coherence + halves cold-start
+    // time. The full repository chat history is independently persisted in
+    // Room — this is just the in-memory window we keep in KV.
+    private val maxHistory = 4
 
     private val cancelRequested = AtomicBoolean(false)
 
@@ -542,12 +548,28 @@ class LlamaManager(private val context: Context) {
             var firstTokenMs = -1L
             var nativeTokenCount = 0
 
+            // PHASE 1 instrumentation (per spec): one tag per lifecycle stage
+            // so logcat can prove WHERE the pipeline stops if it ever does.
+            // adb logcat | grep AIRI_PROOF should show this exact sequence
+            // for every successful turn:
+            //   GEN_START → CONTEXT_READY → PROMPT_TOKENIZED → FIRST_TOKEN
+            //     → GENERATION_SUCCESS → GEN_END
+            Log.i("AIRI_PROOF",
+                "GEN_START model=${model.name} prompt_len=${prompt.length} " +
+                "primed_history=${primedHistory.size} chat_history=${chatHistory.size}")
+
             try {
                 // Reconcile native KV with the requested system prompt + history.
+                val reconcileStart = System.currentTimeMillis()
                 val replayedTurns = reconcileSession(model.path, model.type, systemPrompt)
+                val reconcileMs = System.currentTimeMillis() - reconcileStart
                 if (replayedTurns > 0) {
-                    Log.d("AIRI_STREAM", "session_reconcile replayed_turns=$replayedTurns")
+                    Log.d("AIRI_STREAM", "session_reconcile replayed_turns=$replayedTurns ms=$reconcileMs")
                 }
+                Log.i("AIRI_PROOF",
+                    "CONTEXT_READY replayed_turns=$replayedTurns reconcile_ms=$reconcileMs " +
+                    "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
+                    "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
 
                 // Append the new user turn (logits=true on its last token).
                 val isFirstUserOfSession = primedHistory.none { it.role == "user" }
@@ -558,6 +580,19 @@ class LlamaManager(private val context: Context) {
                     embedSystem = isFirstUserOfSession
                 )
                 LlamaNative.appendUserTurn(userFragment)
+                Log.i("AIRI_PROOF",
+                    "PROMPT_TOKENIZED user_fragment_chars=${userFragment.length} " +
+                    "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
+                    "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
+
+                // Bug B fix: reset the watchdog clock NOW, after all prefill
+                // work (reconcile + appendUserTurn) has finished. Prior to
+                // this fix lastTokenAtMs was set before reconcile started, so
+                // a 60-90s cold-reset replay counted against the 120s
+                // first-token budget and tripped ERR_FIRST_TOKEN_TIMEOUT
+                // during legitimate slow prefill on mid-range CPUs.
+                // From here, the watchdog only times the actual decode loop.
+                lastTokenAtMs.set(System.currentTimeMillis())
 
                 // Decide whether to use speculative decoding for this generation.
                 // If the user has the feature OFF, OR the draft model is not
@@ -638,6 +673,16 @@ class LlamaManager(private val context: Context) {
                     chatHistory.add(ChatMessage(role = "user",      content = prompt))
                     chatHistory.add(ChatMessage(role = "assistant", content = full))
                     trimHistory()
+                    // Bug B fix part 2: keep primedHistory size aligned with
+                    // chatHistory after a trim. If chatHistory just dropped
+                    // its oldest pair, primedHistory is now LONGER than
+                    // chatHistory and the next reconcile will hard-reset
+                    // (which is correct, but invisible to ops). Surface it.
+                    if (primedHistory.size > chatHistory.size) {
+                        Log.i("AIRI_PROOF",
+                            "PRIMED_DRIFT primed=${primedHistory.size} chat=${chatHistory.size} " +
+                            "next_turn_will_hard_reset=true")
+                    }
 
                     // ── Hard logging line per spec ───────────────────────────
                     val nPast = runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)
@@ -661,6 +706,9 @@ class LlamaManager(private val context: Context) {
                     // Snapshot the full latency breakdown from the native side
                     // so the Generation Statistics screen can render it.
                     refreshMetrics()
+                    Log.i("AIRI_PROOF",
+                        "GEN_END tokens=$nativeTokenCount elapsed_ms=$totalElapsed " +
+                        "first_token_ms=$firstTokenMs tps=%.2f cancelled=${cancelRequested.get()}".format(tps))
                     withContext(Dispatchers.Main) { onComplete(full) }
                 }
             } catch (e: Throwable) {

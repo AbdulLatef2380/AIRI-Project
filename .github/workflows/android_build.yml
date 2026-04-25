@@ -3,8 +3,6 @@ name: AIRI Android CI
 on:
   push:
     branches: [ "**" ]
-  pull_request:
-    branches: [ "**" ]
   workflow_dispatch:
 
 jobs:
@@ -20,41 +18,44 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
 
-    # إعداد Android SDK
-    - name: Setup Android SDK
+    - name: Setup Android SDK + NDK + CMake
       uses: android-actions/setup-android@v3
 
-    # 🔥 تثبيت NDK + CMake (الحل الحقيقي)
-    - name: Install Android NDK and CMake
+    - name: Install NDK & CMake
       run: |
-        yes | sdkmanager --licenses
-        sdkmanager "platforms;android-34"
-        sdkmanager "build-tools;34.0.0"
-        sdkmanager "ndk;25.2.9519653"
-        sdkmanager "cmake;3.22.1"
+        sdkmanager --install "ndk;25.2.9519653"
+        sdkmanager --install "cmake;3.22.1"
+        sdkmanager --install "platforms;android-34"
+        sdkmanager --install "build-tools;34.0.0"
 
-    # تأكيد المسارات (مهم لبعض البيئات)
-    - name: Set Android environment variables
-      run: |
-        echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
-
-    - name: Grant execute permission for gradlew
+    - name: Grant execute permission
       run: chmod +x gradlew
 
-    # 🔍 للتأكد أن Gradle يرى الـ NDK
-    - name: Verify NDK installation
+    # 🔥 تنظيف كامل (مهم جداً)
+    - name: Clean project
+      run: ./gradlew clean
+
+    # 🔥 بناء مع إجبار native
+    - name: Build APK (with native)
       run: |
-        ls $ANDROID_SDK_ROOT/ndk
-        ls $ANDROID_SDK_ROOT/cmake
+        ./gradlew assembleDebug \
+        -Pandroid.native.buildOutput=verbose \
+        --stacktrace
 
-    # 🔥 البناء الحقيقي (يجب أن يشغل CMake)
-    - name: Build with Gradle
-      run: ./gradlew assembleDebug --stacktrace --info
+    # 🔥 تحقق من وجود .so (أهم خطوة)
+    - name: Verify native library
+      run: |
+        echo "Checking for libairi_native.so..."
+        find . -name "libairi_native.so"
 
-    # رفع الـ APK
+        if ! find . -name "libairi_native.so" | grep -q .; then
+          echo "❌ ERROR: Native library NOT built!"
+          exit 1
+        else
+          echo "✅ Native library found"
+        fi
+
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:

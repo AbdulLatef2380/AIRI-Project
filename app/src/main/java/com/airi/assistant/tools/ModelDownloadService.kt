@@ -40,6 +40,11 @@ class ModelDownloadService : Service() {
             return START_NOT_STICKY
         }
         cancelRequested.set(false)
+        // Authoritative "is a download in progress" flag — set BEFORE the
+        // worker thread starts so callers polling cancelActiveDownload()
+        // never see a stale FALSE between onStartCommand and the worker's
+        // first iteration. Cleared in the worker's finally block.
+        isDownloading.set(true)
         val url = intent?.getStringExtra(EXTRA_DOWNLOAD_URL) ?: defaultUrl
         val fileName = intent?.getStringExtra(EXTRA_FILENAME) ?: defaultFileName
         val expectedSize = intent?.getLongExtra(EXTRA_EXPECTED_SIZE_BYTES, defaultExpectedSize) ?: defaultExpectedSize
@@ -121,6 +126,11 @@ class ModelDownloadService : Service() {
                     }
                 }
             }
+            // Worker is exiting for any reason (success / cancel / failure):
+            // clear the authoritative "in progress" flag so the next caller
+            // of cancelActiveDownload() gets the truth.
+            isDownloading.set(false)
+            Log.i("AIRI_PROOF", "DOWNLOAD_WORKER_EXIT success=$success reason=${lastError ?: "ok"}")
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }.start()
@@ -185,6 +195,19 @@ class ModelDownloadService : Service() {
         // but it documents the cross-thread intent clearly.
         @JvmStatic
         val cancelRequested: java.util.concurrent.atomic.AtomicBoolean =
+            java.util.concurrent.atomic.AtomicBoolean(false)
+
+        /**
+         * Authoritative "a download is in progress" flag. Set TRUE in
+         * onStartCommand the moment a real download intent arrives, set
+         * FALSE in the worker's finally block when the worker exits for
+         * ANY reason (success, cancel, exhaustion). Read by
+         * ModelDownloadManager.cancelActiveDownload() so the UI can render
+         * an accurate "Cancel" / "Download" button without inferring state
+         * from the cancel flag.
+         */
+        @JvmStatic
+        val isDownloading: java.util.concurrent.atomic.AtomicBoolean =
             java.util.concurrent.atomic.AtomicBoolean(false)
 
         /** Convenience for callers that don't want to build an Intent. */

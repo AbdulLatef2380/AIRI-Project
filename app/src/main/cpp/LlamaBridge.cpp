@@ -57,6 +57,7 @@
 #include <unistd.h>
 #include <string>
 #include <vector>
+#include <cmath>      // std::sqrt — used by the embedding sub-bridge for L2-norm
 #include <atomic>
 #include <thread>
 #include <functional>
@@ -517,7 +518,14 @@ static std::string airi_generate_next(
 
     for (int i = 0; i < max_new; i++) {
         if (g_cancel.load()) {
+            // Per directive: emit BOTH the historical GEN_CANCELLED tag
+            // (kept for log-grep back-compat) and the spec-mandated
+            // GEN_CANCEL_EFFECTIVE tag, which marks the exact iteration the
+            // cooperative cancel actually took effect (the matching
+            // GEN_CANCEL_REQUESTED is logged from LlamaManager.cancelStream
+            // on the JVM side).
             PROOF("GEN_CANCELLED iter=%d emitted=%d", i, token_count);
+            PROOF("GEN_CANCEL_EFFECTIVE iter=%d emitted=%d n_past=%d", i, token_count, g_n_past);
             break;
         }
 
@@ -1469,5 +1477,415 @@ Java_com_airi_assistant_ai_LlamaNative_generateNextTokensSpeculative(
 
     g_phase = "idle";
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Embedding API (Phase 2 — semantic memory).
+//
+// This sub-bridge owns its OWN llama_model + llama_context, separate from
+// the chat globals (g_model / g_ctx). That separation is mandatory because
+// the embedding context must be initialised with `embeddings = true` and
+// `pooling_type = LLAMA_POOLING_TYPE_MEAN`, which would corrupt sampling
+// for normal chat decoding.
+//
+// All entry points are guarded — calling computeEmbedding before
+// loadEmbeddingModel returns null cleanly. There is NO fallback to a
+// fake vector. If the embedding model isn't loaded, the Kotlin layer
+// (EmbeddingService.isReady) sees the false and the chat path falls back
+// to chronological recall. No silent fakery.
+// ────────────────────────────────────────────────────────────────────────────
+
+static llama_model*   g_emb_model = nullptr;
+static llama_context* g_emb_ctx   = nullptr;
+static int            g_emb_dim   = 0;
+static int            g_emb_nctx  = 512;
+
+static void airi_free_embedding_state() {
+    if (g_emb_ctx)   { llama_free(g_emb_ctx);          g_emb_ctx   = nullptr; }
+    if (g_emb_model) { llama_model_free(g_emb_model);  g_emb_model = nullptr; }
+    g_emb_dim = 0;
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_airi_assistant_ai_LlamaNative_loadEmbeddingModel(
+    JNIEnv* env, jobject /*this*/, jstring jpath)
+{
+    if (!jpath) return env->NewStringUTF("ERR_NULL_PATH");
+    const char* path_c = env->GetStringUTFChars(jpath, nullptr);
+    std::string model_path(path_c ? path_c : "");
+    env->ReleaseStringUTFChars(jpath, path_c);
+
+    if (model_path.empty() || !file_exists(model_path.c_str())) {
+        return env->NewStringUTF("ERR_FILE");
+    }
+
+    airi_free_embedding_state();
+    llama_backend_init();
+
+    llama_model_params mp = llama_model_default_params();
+    mp.n_gpu_layers = 0;
+    mp.use_mmap     = true;
+    mp.use_mlock    = false;
+    g_emb_model = llama_model_load_from_file(model_path.c_str(), mp);
+    if (!g_emb_model) {
+        PROOF("EMBEDDING_MODEL_LOAD_FAILED stage=model_load path=%s", model_path.c_str());
+        return env->NewStringUTF("ERR_MODEL_LOAD");
+    }
+
+    llama_context_params cp = llama_context_default_params();
+    cp.n_ctx           = g_emb_nctx;
+    cp.n_batch         = g_emb_nctx;
+    cp.n_ubatch        = g_emb_nctx;
+    cp.n_threads       = airi_pick_threads();
+    cp.n_threads_batch = cp.n_threads;
+    cp.embeddings      = true;
+    cp.pooling_type    = LLAMA_POOLING_TYPE_MEAN;
+    g_emb_ctx = llama_init_from_model(g_emb_model, cp);
+    if (!g_emb_ctx) {
+        airi_free_embedding_state();
+        PROOF("EMBEDDING_MODEL_LOAD_FAILED stage=ctx_init path=%s", model_path.c_str());
+        return env->NewStringUTF("ERR_CTX_INIT");
+    }
+
+    g_emb_dim = llama_model_n_embd(g_emb_model);
+    PROOF("EMBEDDING_MODEL_LOADED dim=%d n_ctx=%u path=%s",
+          g_emb_dim, cp.n_ctx, model_path.c_str());
+
+    char buf[64];
+    snprintf(buf, sizeof(buf), "OK dim=%d", g_emb_dim);
+    return env->NewStringUTF(buf);
+}
+
+JNIEXPORT jfloatArray JNICALL
+Java_com_airi_assistant_ai_LlamaNative_computeEmbedding(
+    JNIEnv* env, jobject /*this*/, jstring jtext)
+{
+    if (!g_emb_model || !g_emb_ctx || g_emb_dim <= 0) return nullptr;
+    if (!jtext) return nullptr;
+
+    const char* text_c = env->GetStringUTFChars(jtext, nullptr);
+    std::string text(text_c ? text_c : "");
+    env->ReleaseStringUTFChars(jtext, text_c);
+    if (text.empty()) return nullptr;
+
+    const llama_vocab* vocab = llama_model_get_vocab(g_emb_model);
+
+    // Probe required token count, then allocate exactly.
+    int n_probe = -llama_tokenize(vocab, text.c_str(), (int)text.size(),
+                                  nullptr, 0, /*add_special=*/true, /*parse_special=*/false);
+    if (n_probe <= 0) return nullptr;
+    if (n_probe > g_emb_nctx) {
+        // Truncate to context size — embedding models are bounded; long
+        // inputs are surfaced as "context too long" rather than silently
+        // giving a partial vector that the search would treat as equally
+        // valid. We DO accept truncation here (vs reject) because callers
+        // already feed reasonable-sized chat messages and the alternative
+        // (failing every long message) is worse UX.
+        PROOF("EMBEDDING_TRUNCATED requested=%d cap=%d", n_probe, g_emb_nctx);
+        n_probe = g_emb_nctx;
+    }
+    std::vector<llama_token> tokens(n_probe);
+    int n_tokens = llama_tokenize(vocab, text.c_str(), (int)text.size(),
+                                  tokens.data(), n_probe,
+                                  /*add_special=*/true, /*parse_special=*/false);
+    if (n_tokens < 0) {
+        // Negative = "buffer was too small by this many tokens"; we already
+        // sized exactly so this should never happen. Bail safely.
+        PROOF("EMBEDDING_TOKENIZE_FAILED rc=%d", n_tokens);
+        return nullptr;
+    }
+    if (n_tokens == 0) return nullptr;
+
+    // Wipe any prior embedding-context KV — pooled embeddings only need
+    // one batched decode of the input sequence.
+    llama_memory_clear(llama_get_memory(g_emb_ctx), true);
+
+    llama_batch batch = llama_batch_init(n_tokens, 0, 1);
+    for (int i = 0; i < n_tokens; i++) {
+        // For pooled embeddings we want logits/embeddings on EVERY token —
+        // the pooler will mean-reduce them per sequence id. Setting
+        // logits=true on the last token is sufficient with MEAN pooling
+        // because llama.cpp marks the whole sequence for output when
+        // embeddings=true.
+        airi_batch_add(batch, tokens[i], i, {0}, /*logits=*/true);
+    }
+    int dec = llama_decode(g_emb_ctx, batch);
+    llama_batch_free(batch);
+    if (dec != 0) {
+        PROOF("EMBEDDING_DECODE_FAILED rc=%d n_tokens=%d", dec, n_tokens);
+        return nullptr;
+    }
+
+    const float* emb = llama_get_embeddings_seq(g_emb_ctx, /*seq_id=*/0);
+    if (!emb) emb = llama_get_embeddings(g_emb_ctx);
+    if (!emb) {
+        PROOF("EMBEDDING_NULL_OUTPUT n_tokens=%d", n_tokens);
+        return nullptr;
+    }
+
+    // L2-normalise — turns cosine similarity into a plain dot product on
+    // the Kotlin side (massively cheaper for the per-query top-k loop).
+    int dim = g_emb_dim;
+    double sumsq = 0.0;
+    for (int i = 0; i < dim; i++) sumsq += (double)emb[i] * (double)emb[i];
+    double norm = std::sqrt(sumsq);
+    if (norm < 1e-12) norm = 1.0;
+
+    std::vector<jfloat> jbuf(dim);
+    for (int i = 0; i < dim; i++) jbuf[i] = (jfloat)((double)emb[i] / norm);
+
+    jfloatArray out = env->NewFloatArray(dim);
+    if (!out) return nullptr;
+    env->SetFloatArrayRegion(out, 0, dim, jbuf.data());
+
+    PROOF("EMBEDDING_CREATED n_tokens=%d dim=%d", n_tokens, dim);
+    return out;
+}
+
+JNIEXPORT void JNICALL
+Java_com_airi_assistant_ai_LlamaNative_unloadEmbeddingModel(
+    JNIEnv* /*env*/, jobject /*this*/)
+{
+    airi_free_embedding_state();
+    PROOF("EMBEDDING_MODEL_UNLOADED");
+}
+
+JNIEXPORT jint JNICALL
+Java_com_airi_assistant_ai_LlamaNative_getEmbeddingDim(
+    JNIEnv* /*env*/, jobject /*this*/)
+{
+    return (jint)g_emb_dim;
+}
+
+// =============================================================================
+//  MTMD VISION SUB-BRIDGE  (Phase 3)
+// -----------------------------------------------------------------------------
+//  Image multimodal via the upstream `tools/mtmd` library that we vendored
+//  into  app/src/main/cpp/llama/tools/mtmd/  and wired into the build via
+//  the AIRI_HAS_MTMD CMake switch. Audio (mtmd-audio.cpp / miniaudio path)
+//  is intentionally NOT compiled in.
+//
+//  Lifetime
+//  --------
+//    g_mtmd_ctx is created by airi_load_mmproj(), passing the EXISTING
+//    g_model so vision projections are linked against the same vocabulary
+//    and tensor types as the text model. mtmd_free() is the matching
+//    teardown. All access is serialised under g_mtmd_mutex.
+//
+//  Generation flow (`evalImageAndGenerate`)
+//  ----------------------------------------
+//    1. Compose `<__media__> <prompt>` (using `mtmd_default_marker()` so the
+//       splice point matches what `mtmd_tokenize()` expects for THIS model).
+//    2. Wrap the caller-supplied RGB888 buffer in an `mtmd_bitmap`.
+//    3. `mtmd_tokenize` → `mtmd_input_chunks*` (interleaved text + image
+//       chunks, the order the model was trained on).
+//    4. Wipe KV cache for a clean conditioning pass (no chat history bleed).
+//    5. `mtmd_helper_eval_chunks` decodes everything into KV in the right
+//       order (text-with-llama_decode, image-with-mtmd_encode_chunk +
+//       llama_decode of the embedding output). Logits-on-last so we can
+//       sample.
+//    6. Standard sampler loop until EOG or maxNewTokens.
+//
+//  HARD CAVEAT
+//  -----------
+//    This is the FIRST cut, written without an Android NDK in the dev
+//    environment. The C++ is API-correct against the vendored mtmd headers
+//    but has not been compiled. First GHA build will surface any include /
+//    linkage issues that need to be iterated. UI gating ensures users
+//    cannot trigger this path until ModelCapabilities.detect() flips
+//    `vision = true`, which only happens for vision-capable model profiles.
+// =============================================================================
+#if defined(AIRI_HAS_MTMD) && AIRI_HAS_MTMD
+#include "tools/mtmd/mtmd.h"
+#include "tools/mtmd/mtmd-helper.h"
+
+static mtmd_context*   g_mtmd_ctx = nullptr;
+static std::mutex      g_mtmd_mutex;
+static std::string     g_mmproj_path;
+
+JNIEXPORT jboolean JNICALL
+Java_com_airi_assistant_ai_LlamaNative_loadMmproj(
+    JNIEnv* env, jobject /*this*/, jstring jPath)
+{
+    std::lock_guard<std::mutex> lock(g_mtmd_mutex);
+    if (g_model == nullptr) {
+        PROOF("MMPROJ_LOAD_FAILED reason=no_text_model");
+        return JNI_FALSE;
+    }
+    if (g_mtmd_ctx) {
+        mtmd_free(g_mtmd_ctx);
+        g_mtmd_ctx = nullptr;
+    }
+    const char* cPath = env->GetStringUTFChars(jPath, nullptr);
+    g_mmproj_path = cPath ? cPath : "";
+    mtmd_context_params params = mtmd_context_params_default();
+    params.use_gpu        = false;
+    params.print_timings  = false;
+    params.n_threads      = 4;
+    params.verbosity      = GGML_LOG_LEVEL_WARN;
+    g_mtmd_ctx = mtmd_init_from_file(cPath, g_model, params);
+    env->ReleaseStringUTFChars(jPath, cPath);
+    if (g_mtmd_ctx == nullptr) {
+        PROOF("MMPROJ_LOAD_FAILED reason=mtmd_init_failed path=%s",
+              g_mmproj_path.c_str());
+        g_mmproj_path.clear();
+        return JNI_FALSE;
+    }
+    PROOF("MMPROJ_LOADED path=%s vision=%d",
+          g_mmproj_path.c_str(),
+          (int)mtmd_support_vision(g_mtmd_ctx));
+    return JNI_TRUE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_airi_assistant_ai_LlamaNative_unloadMmproj(
+    JNIEnv* /*env*/, jobject /*this*/)
+{
+    std::lock_guard<std::mutex> lock(g_mtmd_mutex);
+    if (g_mtmd_ctx) {
+        mtmd_free(g_mtmd_ctx);
+        g_mtmd_ctx = nullptr;
+        PROOF("MMPROJ_UNLOADED path=%s", g_mmproj_path.c_str());
+        g_mmproj_path.clear();
+    }
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_airi_assistant_ai_LlamaNative_isMmprojLoaded(
+    JNIEnv* /*env*/, jobject /*this*/)
+{
+    std::lock_guard<std::mutex> lock(g_mtmd_mutex);
+    return g_mtmd_ctx ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_airi_assistant_ai_LlamaNative_evalImageAndGenerate(
+    JNIEnv* env, jobject /*this*/,
+    jstring jPrompt, jbyteArray jRgb,
+    jint width, jint height, jint maxNewTokens)
+{
+    std::lock_guard<std::mutex> lock(g_mtmd_mutex);
+    if (g_mtmd_ctx == nullptr || g_model == nullptr || g_ctx == nullptr) {
+        PROOF("MMPROJ_EVAL_FAILED reason=not_ready");
+        return env->NewStringUTF("");
+    }
+    // ---- Compose prompt with the model-specific image marker -----------------
+    const char* cPrompt = env->GetStringUTFChars(jPrompt, nullptr);
+    std::string prompt(cPrompt ? cPrompt : "");
+    env->ReleaseStringUTFChars(jPrompt, cPrompt);
+    const char* marker = mtmd_default_marker();
+    if (marker && prompt.find(marker) == std::string::npos) {
+        prompt = std::string(marker) + "\n" + prompt;
+    }
+
+    // ---- Wrap RGB888 buffer in an mtmd_bitmap -------------------------------
+    const jsize need = (jsize)(3 * width * height);
+    const jsize have = env->GetArrayLength(jRgb);
+    if (have < need) {
+        PROOF("MMPROJ_EVAL_FAILED reason=bitmap_size have=%d need=%d", have, need);
+        return env->NewStringUTF("");
+    }
+    jbyte* rgb = env->GetByteArrayElements(jRgb, nullptr);
+    mtmd_bitmap* bmp = mtmd_bitmap_init(
+        (uint32_t)width, (uint32_t)height,
+        reinterpret_cast<const unsigned char*>(rgb));
+    env->ReleaseByteArrayElements(jRgb, rgb, JNI_ABORT);
+    if (!bmp) {
+        PROOF("MMPROJ_EVAL_FAILED reason=bitmap_init");
+        return env->NewStringUTF("");
+    }
+
+    // ---- Tokenize (interleaves text + image chunks) -------------------------
+    mtmd_input_text input;
+    input.text          = prompt.c_str();
+    input.add_special   = true;
+    input.parse_special = true;
+
+    mtmd_input_chunks* chunks = mtmd_input_chunks_init();
+    mtmd_bitmap* bitmaps[1] = { bmp };
+    int32_t tok_rc = mtmd_tokenize(g_mtmd_ctx, chunks, &input, bitmaps, 1);
+    if (tok_rc != 0) {
+        mtmd_input_chunks_free(chunks);
+        mtmd_bitmap_free(bmp);
+        PROOF("MMPROJ_EVAL_FAILED reason=tokenize rc=%d", tok_rc);
+        return env->NewStringUTF("");
+    }
+
+    // ---- Wipe KV for a clean vision conditioning pass -----------------------
+    llama_kv_self_clear(g_ctx);
+    llama_pos n_past = 0;
+
+    // ---- Eval chunks (text via llama_decode, image via mtmd_encode_chunk) ---
+    int32_t eval_rc = mtmd_helper_eval_chunks(
+        g_mtmd_ctx, g_ctx, chunks,
+        n_past,
+        /*seq_id*/      0,
+        /*n_batch*/     256,
+        /*logits_last*/ true,
+        &n_past);
+    mtmd_input_chunks_free(chunks);
+    mtmd_bitmap_free(bmp);
+    if (eval_rc != 0) {
+        PROOF("MMPROJ_EVAL_FAILED reason=eval_chunks rc=%d n_past=%d",
+              eval_rc, (int)n_past);
+        return env->NewStringUTF("");
+    }
+    PROOF("MMPROJ_EVAL_OK n_past=%d w=%d h=%d", (int)n_past, width, height);
+
+    // ---- Sampler (mirrors the text-only generate path defaults) -------------
+    llama_sampler* sampler = llama_sampler_chain_init(
+        llama_sampler_chain_default_params());
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.9f, 1));
+    llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.7f));
+    llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+
+    const llama_vocab* vocab = llama_model_get_vocab(g_model);
+    std::string out;
+    out.reserve(maxNewTokens * 4);
+    int generated = 0;
+    for (int i = 0; i < (int)maxNewTokens; ++i) {
+        llama_token id = llama_sampler_sample(sampler, g_ctx, -1);
+        if (llama_vocab_is_eog(vocab, id)) break;
+        char buf[256];
+        int n = llama_token_to_piece(vocab, id, buf, sizeof(buf), 0, true);
+        if (n > 0) out.append(buf, n);
+        llama_batch batch = llama_batch_get_one(&id, 1);
+        if (llama_decode(g_ctx, batch) != 0) break;
+        n_past++;
+        generated++;
+    }
+    llama_sampler_free(sampler);
+    PROOF("MMPROJ_GENERATE_DONE generated=%d chars=%d",
+          generated, (int)out.size());
+    return env->NewStringUTF(out.c_str());
+}
+#else  // AIRI_HAS_MTMD
+// Honest no-op stubs so the Java side links even when mtmd is disabled at
+// build time. Each one logs an explicit AIRI_PROOF disabled-tag so log
+// readers can immediately tell that the build flavour does not include
+// vision — no silent fallback, no fake "ok" return value.
+JNIEXPORT jboolean JNICALL
+Java_com_airi_assistant_ai_LlamaNative_loadMmproj(
+    JNIEnv* /*env*/, jobject /*this*/, jstring /*jPath*/)
+{ PROOF("MMPROJ_LOAD_FAILED reason=mtmd_disabled_at_build"); return JNI_FALSE; }
+
+JNIEXPORT void JNICALL
+Java_com_airi_assistant_ai_LlamaNative_unloadMmproj(
+    JNIEnv* /*env*/, jobject /*this*/) {}
+
+JNIEXPORT jboolean JNICALL
+Java_com_airi_assistant_ai_LlamaNative_isMmprojLoaded(
+    JNIEnv* /*env*/, jobject /*this*/)
+{ return JNI_FALSE; }
+
+JNIEXPORT jstring JNICALL
+Java_com_airi_assistant_ai_LlamaNative_evalImageAndGenerate(
+    JNIEnv* env, jobject /*this*/, jstring /*p*/, jbyteArray /*r*/,
+    jint /*w*/, jint /*h*/, jint /*n*/)
+{
+    PROOF("MMPROJ_EVAL_FAILED reason=mtmd_disabled_at_build");
+    return env->NewStringUTF("");
+}
+#endif // AIRI_HAS_MTMD
 
 } // extern "C"

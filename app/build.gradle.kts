@@ -1,3 +1,6 @@
+import java.util.zip.ZipFile
+import java.util.zip.ZipEntry
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -258,9 +261,10 @@ tasks.register("airiVerifyNativeInApk") {
         }
         val apk = apks.first()
         val target = "lib/arm64-v8a/libairi_native.so"
-        java.util.zip.ZipFile(apk).use { zf ->
-            val entry = zf.getEntry(target)
-                ?: error(
+        ZipFile(apk).use { zf: ZipFile ->
+            val entry: ZipEntry? = zf.getEntry(target)
+            if (entry == null) {
+                error(
                     "AIRI_VERIFY_NATIVE: ❌ $target is NOT in ${apk.name}.\n" +
                     "    CMake either did not run or produced no library.\n" +
                     "    Re-run with --info and look for 'Building CXX object'\n" +
@@ -269,6 +273,7 @@ tasks.register("airiVerifyNativeInApk") {
                     "    SDK Tools, or in CI via android-actions/setup-android@v3\n" +
                     "    with packages='ndk;25.2.9519653 cmake;3.22.1')."
                 )
+            }
             val bytes = entry.size
             println("AIRI_VERIFY_NATIVE: found $target size=${bytes} bytes")
             if (bytes < 1_000_000) {
@@ -279,12 +284,23 @@ tasks.register("airiVerifyNativeInApk") {
                 )
             }
             // Print a few sibling .so entries so we can see what else is in there.
-            zf.entries().asSequence()
-                .filter { it.name.startsWith("lib/") && it.name.endsWith(".so") }
-                .forEach { println("AIRI_VERIFY_NATIVE: APK contains ${it.name} (${it.size} bytes)") }
+            val entries: List<ZipEntry> = zf.entries().toList()
+            entries
+                .filter { e: ZipEntry -> e.name.startsWith("lib/") && e.name.endsWith(".so") }
+                .forEach { e: ZipEntry ->
+                    println("AIRI_VERIFY_NATIVE: APK contains ${e.name} (${e.size} bytes)")
+                }
             println("AIRI_VERIFY_NATIVE: ✅ $target present and non-trivial.")
         }
     }
+}
+
+fun <T> java.util.Enumeration<T>.toList(): List<T> {
+    val list = mutableListOf<T>()
+    while (this.hasMoreElements()) {
+        list.add(this.nextElement())
+    }
+    return list
 }
 
 afterEvaluate {

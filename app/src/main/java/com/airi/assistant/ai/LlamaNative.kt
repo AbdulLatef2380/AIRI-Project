@@ -109,4 +109,55 @@ object LlamaNative {
     // Returns [drafted, accepted, runs]. Acceptance rate = accepted/drafted.
     external fun getSpecStats(): LongArray
     external fun resetSpecStats()
+
+    // ── Embedding API (semantic memory, Phase 2) ─────────────────────────────
+    // Uses a SECOND llama_model + llama_context inside the native bridge,
+    // initialised with `embeddings = true` and `pooling_type = MEAN`. This
+    // is independent of the chat context — calling these methods does NOT
+    // touch the chat KV cache. Intended companion model is a small
+    // sentence-embedding GGUF (e.g. bge-small-en-v1.5 ≈ 30MB, dim=384).
+    //
+    // loadEmbeddingModel returns:
+    //   "OK dim=<N>"        – success, vector dimension is N
+    //   "ERR_NULL_PATH"     – jstring was null
+    //   "ERR_FILE"          – file_exists / size check failed
+    //   "ERR_MODEL_LOAD"    – llama_model_load_from_file returned null
+    //   "ERR_CTX_INIT"      – llama_init_from_model returned null
+    //
+    // computeEmbedding returns the L2-normalised pooled vector, or null
+    // on any failure (decode error, no model loaded, empty input).
+    external fun loadEmbeddingModel(modelPath: String): String
+    external fun computeEmbedding(text: String): FloatArray?
+    external fun unloadEmbeddingModel()
+    external fun getEmbeddingDim(): Int
+
+    // ── Vision / multimodal API (mmproj + mtmd, Phase 3) ─────────────────────
+    // Wraps the upstream `tools/mtmd` library that we vendored under
+    //   app/src/main/cpp/llama/tools/mtmd/
+    // and gated behind the AIRI_HAS_MTMD CMake switch. The native bridge
+    // uses the SAME g_model that loadModel() created, so:
+    //   1. loadModel("…llama.gguf")
+    //   2. loadMmproj("…llava-mmproj.gguf")  ← associates vision projector
+    //   3. evalImageAndGenerate(prompt, rgb888, w, h, maxTokens)
+    //
+    // RGB byte layout MUST be packed RGB888, exactly width*height*3 bytes,
+    // row-major top-down. The caller (ChatViewModel.generateWithImage) is
+    // responsible for downscaling to a sensible dimension first — there is
+    // no internal cap, so passing a 12 MP camera bitmap will OOM.
+    //
+    // AIRI_PROOF tags emitted from the native side:
+    //   MMPROJ_LOADED / MMPROJ_LOAD_FAILED
+    //   MMPROJ_UNLOADED
+    //   MMPROJ_EVAL_OK / MMPROJ_EVAL_FAILED
+    //   MMPROJ_GENERATE_DONE
+    external fun loadMmproj(mmprojPath: String): Boolean
+    external fun unloadMmproj()
+    external fun isMmprojLoaded(): Boolean
+    external fun evalImageAndGenerate(
+        prompt: String,
+        rgb888: ByteArray,
+        width: Int,
+        height: Int,
+        maxNewTokens: Int
+    ): String
 }

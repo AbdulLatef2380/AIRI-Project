@@ -36,6 +36,8 @@ include_directories(
     ${LLAMA_DIR}/ggml/src
     ${LLAMA_DIR}/ggml/src/ggml-cpu
     ${LLAMA_DIR}/vendor
+    ${LLAMA_DIR}/tools/mtmd
+    ${LLAMA_DIR}/tools/mtmd/models
     ${CMAKE_SOURCE_DIR}
 )
 
@@ -125,6 +127,35 @@ set(LLAMA_SOURCES
     ${LLAMA_MODEL_SOURCES}
 )
 
+# === MTMD multimodal (Phase 3 — vision) ============================================
+# Vendored from upstream tools/mtmd at the same commit family as our llama core.
+# AUDIO is intentionally excluded: only image multimodal is wired in this phase.
+# Build is OPT-OUT via -DAIRI_DISABLE_MTMD=ON so we can fall back if the upstream
+# headers ever drift; capability detection on the Kotlin side already gates the
+# picker by the loaded model's profile, so a no-mtmd build still ships honestly.
+set(MTMD_DIR ${LLAMA_DIR}/tools/mtmd)
+set(AIRI_DISABLE_MTMD OFF CACHE BOOL "Disable multimodal (mtmd) build")
+set(MTMD_SOURCES "")
+set(AIRI_HAS_MTMD 0)
+if(NOT AIRI_DISABLE_MTMD AND EXISTS ${MTMD_DIR}/mtmd.cpp)
+    file(GLOB MTMD_MODEL_SOURCES "${MTMD_DIR}/models/*.cpp")
+    set(MTMD_SOURCES
+        ${MTMD_DIR}/mtmd.cpp
+        ${MTMD_DIR}/mtmd-image.cpp
+        ${MTMD_DIR}/mtmd-helper.cpp
+        ${MTMD_DIR}/clip.cpp
+        ${MTMD_MODEL_SOURCES}
+    )
+    set(AIRI_HAS_MTMD 1)
+    add_compile_definitions(AIRI_HAS_MTMD=1)
+    # mtmd uses stb_image / miniaudio in helper — silence the upstream warnings
+    # that already require -Wno-* in their own CMakeLists.
+    add_compile_options(-Wno-cast-qual -Wno-missing-prototypes
+                        -Wno-unused-function -Wno-unused-variable)
+else()
+    add_compile_definitions(AIRI_HAS_MTMD=0)
+endif()
+
 # === JNI Bridge ===
 set(JNI_SOURCES
     ${CMAKE_SOURCE_DIR}/LlamaBridge.cpp
@@ -138,6 +169,7 @@ add_library(
     ${GGML_CPU_SOURCES}
     ${GGML_ARCH_SOURCES}
     ${LLAMA_SOURCES}
+    ${MTMD_SOURCES}
     ${JNI_SOURCES}
 )
 

@@ -73,7 +73,12 @@ object ConversationSummarizer {
                 maxTokens    = SUMMARY_MAX_TOKENS,
                 temperature  = SUMMARY_TEMP
             ) { out ->
-                cont.resume(out.takeIf { it.isNotBlank() })
+                // Guard against IllegalStateException when the caller cancels
+                // the parent coroutine before the LLM callback fires. Without
+                // this, a cancelled summary would crash the dispatcher.
+                if (cont.isActive) cont.resume(out.takeIf { it.isNotBlank() })
+                else Log.d("AIRI_PROMPT_COMPRESS",
+                    "SUMMARIZE callback dropped — coroutine already cancelled")
             }
         }
 

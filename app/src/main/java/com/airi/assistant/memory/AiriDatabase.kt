@@ -8,6 +8,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.airi.assistant.memory.dao.BehaviorStatsDao
 import com.airi.assistant.memory.dao.ContextCacheDao
+import com.airi.assistant.memory.dao.EmbeddingDao
 import com.airi.assistant.memory.dao.MemoryDao
 import com.airi.assistant.memory.dao.SessionDao
 import com.airi.assistant.memory.dao.UsageStatsDao
@@ -15,6 +16,7 @@ import com.airi.assistant.memory.entity.BehaviorStatsEntity
 import com.airi.assistant.memory.entity.ChatMessage
 import com.airi.assistant.memory.entity.ChatSession
 import com.airi.assistant.memory.entity.ContextCacheEntity
+import com.airi.assistant.memory.entity.MessageEmbedding
 import com.airi.assistant.memory.entity.UsageStatEntity
 import com.airi.assistant.memory.entity.UserPreference
 
@@ -25,9 +27,10 @@ import com.airi.assistant.memory.entity.UserPreference
         UserPreference::class,
         BehaviorStatsEntity::class,
         ContextCacheEntity::class,
-        UsageStatEntity::class
+        UsageStatEntity::class,
+        MessageEmbedding::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AiriDatabase : RoomDatabase() {
@@ -36,6 +39,7 @@ abstract class AiriDatabase : RoomDatabase() {
     abstract fun behaviorStatsDao(): BehaviorStatsDao
     abstract fun contextCacheDao(): ContextCacheDao
     abstract fun usageStatsDao(): UsageStatsDao
+    abstract fun embeddingDao(): EmbeddingDao
 
     companion object {
         @Volatile
@@ -51,13 +55,41 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
+        // v3 — adds the message_embedding table for semantic memory. The
+        // foreign key onto episodic_memory uses ON DELETE CASCADE so
+        // pruning a chat row also removes its vector (no orphan rows).
+        // Two indices are created up-front: one unique on messageId
+        // (one vector per message) and one on sessionId (the search
+        // hot path filters by session).
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS message_embedding (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        messageId INTEGER NOT NULL,
+                        sessionId TEXT NOT NULL,
+                        role TEXT NOT NULL,
+                        dim INTEGER NOT NULL,
+                        vector BLOB NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        FOREIGN KEY(messageId) REFERENCES episodic_memory(id) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_message_embedding_messageId ON message_embedding(messageId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_message_embedding_sessionId ON message_embedding(sessionId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_message_embedding_dim ON message_embedding(dim)")
+            }
+        }
+
         fun getDatabase(context: Context): AiriDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AiriDatabase::class.java,
                     "airi_memory_db"
-                ).addMigrations(MIGRATION_1_2).build()
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
                 INSTANCE = instance
                 instance
             }

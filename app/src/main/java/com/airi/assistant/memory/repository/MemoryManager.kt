@@ -3,11 +3,13 @@ package com.airi.assistant.memory.repository
 import android.content.Context
 import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.memory.dao.ChatSessionSummary
+import com.airi.assistant.memory.embedding.EmbeddingService
 import com.airi.assistant.memory.entity.ChatMessage
 import com.airi.assistant.memory.entity.ChatSession
 import com.airi.assistant.memory.entity.UserPreference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -16,6 +18,18 @@ class MemoryManager(context: Context) {
     private val dao = db.memoryDao()
     private val sessionDao = db.sessionDao()
     private val scope = CoroutineScope(Dispatchers.IO)
+    /**
+     * Real semantic-memory backend (Phase 2). The chat path calls
+     * [recordChatMessage] which fires-and-forgets [embeddingService.embedAndStore]
+     * on a supervisor scope so a failed embed cannot block the chat insert.
+     * If no embedding model is loaded, the embed is a logged no-op.
+     *
+     * Exposed (`internal`) so [com.airi.assistant.ui.viewmodel.ChatViewModel]
+     * can call the token-budget aware [EmbeddingService.formatContextWithBudget]
+     * during prompt assembly without needing to duplicate the singleton lookup.
+     */
+    internal val embeddingService = EmbeddingService.getInstance(context)
+    private val embedScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     fun recordInteraction(role: String, content: String, emotion: String? = null) {
         recordImportantMemory(role, content, emotion)
@@ -29,8 +43,26 @@ class MemoryManager(context: Context) {
 
     suspend fun recordChatMessage(sessionId: String, role: String, content: String, emotion: String? = null): ChatMessage {
         val message = ChatMessage(sessionId = sessionId, role = role, content = content, emotionState = emotion, isMemory = false)
+        // Room's @Insert returns Unit for autoGenerate=true PKs unless we
+        // change the DAO signature; instead we re-read the row's assigned
+        // id by fetching the most recent insert via touchSession's
+        // companion semantics. Cleaner: insert and then look up the row
+        // we know is the newest for this (session, timestamp).
         dao.insertMessage(message)
         sessionDao.touchSession(sessionId)
+        // Fire-and-forget embedding compute. The dao auto-generates the
+        // PK; we re-fetch the just-inserted row by (sessionId, timestamp)
+        // tail, which is guaranteed unique because timestamp is millis +
+        // we just inserted exactly one row for this session.
+        embedScope.launch {
+            runCatching {
+                val recents = dao.getRecentMessages(sessionId, 1)
+                val stored = recents.firstOrNull() ?: return@launch
+                embeddingService.embedAndStore(stored)
+            }.onFailure {
+                android.util.Log.w("AIRI_MEMORY", "fire-and-forget embed failed: ${it.message}")
+            }
+        }
         // Issue #10 — sliding window pruning. Without this, episodic_memory
         // grows unbounded and bloats the DB (the user explicitly called this
         // out as "stores everything → no pruning"). Prune AFTER inserting so
@@ -97,6 +129,31 @@ class MemoryManager(context: Context) {
     suspend fun getSemanticMemories(limit: Int = 200): List<ChatMessage> {
         return dao.getRecentMemories(limit)
     }
+
+    /**
+     * REAL semantic search (Phase 2). Returns the top-k most similar
+     * prior messages to [query] for [sessionId], ranked by cosine
+     * similarity over L2-normalised vectors. Empty list if no embedding
+     * model is loaded — caller can then fall back to chronological
+     * recall via [getRecentMessages].
+     *
+     * Emits AIRI_PROOF VECTOR_SEARCH_HIT (or _SKIPPED / _EMPTY).
+     */
+    suspend fun semanticSearch(sessionId: String, query: String, k: Int = 5):
+        List<EmbeddingService.RankedMessage> =
+            embeddingService.topKSimilar(sessionId, query, k)
+
+    /**
+     * Build a "Relevant prior context" block for splicing into a system
+     * prompt. Returns "" if no hits — caller can append unconditionally.
+     */
+    suspend fun buildSemanticContext(sessionId: String, query: String, k: Int = 5): String {
+        val hits = semanticSearch(sessionId, query, k)
+        return embeddingService.formatContext(hits)
+    }
+
+    /** Whether the embedding backend is loaded and ready. */
+    fun isSemanticMemoryReady(): Boolean = embeddingService.isReady()
 
     suspend fun getRecentMessages(limit: Int = 10): List<ChatMessage> {
         return getSemanticMemories(limit)

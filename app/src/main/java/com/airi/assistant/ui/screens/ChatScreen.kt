@@ -309,6 +309,7 @@ fun ChatScreen(
             // Re-check after the delay — the user may have tapped to exit.
             if (liveChatActiveRef.value && !agentState.isWorking) {
                 Log.i("AIRI_PROOF", "VOICE_LOOP_REARM_FIRED tick=${voiceLoopRearmTick.value}")
+                Log.i("AIRI_PROOF", "VOICE_REARMED tick=${voiceLoopRearmTick.value}")
                 startInAppStt(autoSend = true)
             } else {
                 Log.i("AIRI_PROOF", "VOICE_LOOP_REARM_ABORTED reason=user_exit_or_busy")
@@ -348,7 +349,17 @@ fun ChatScreen(
             voiceState = VoiceSessionState.IDLE
             Log.d("AIRI_VOICE", "MicState → IDLE (auto-send dispatched)")
             viewModel.sendMessage(input)
-            if (voicePrefs.getBoolean("voice_enabled", false)) speakNextResponse = true
+            // Phase 2 — when the continuous live-chat loop is armed, ALWAYS
+            // speak the response so the loop can advance via onSpeakingDone
+            // and re-arm Vosk for the next turn. Otherwise honour the user's
+            // global voice toggle. Without this, enabling live-chat without
+            // the voice toggle leaves the loop stuck in PROCESSING forever.
+            if (liveChatActiveRef.value || voicePrefs.getBoolean("voice_enabled", false)) {
+                speakNextResponse = true
+                if (liveChatActiveRef.value) {
+                    Log.i("AIRI_PROOF", "VOICE_LOOP_ACTIVE forcing_tts=true reason=continuous_mode")
+                }
+            }
         }
     }
 
@@ -360,6 +371,7 @@ fun ChatScreen(
                 speakNextResponse = false
                 voiceState = VoiceSessionState.SPEAKING
                 Log.d("AIRI_VOICE", "TTS triggered → SPEAKING msgId=${lastMsg.id} text_len=${lastMsg.text.length}")
+                Log.i("AIRI_PROOF", "VOICE_RESPONSE_COMPLETE msgId=${lastMsg.id} chars=${lastMsg.text.length} loop_active=${liveChatActiveRef.value}")
                 voiceManager.speak(lastMsg.text)
             }
         }
@@ -383,6 +395,9 @@ fun ChatScreen(
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
             Log.d("AIRI_UI", "Image picked: $uri")
+            // Spec-mandated proof tag (also keep the historical IMAGE_ATTACHED
+            // line for back-compat with existing log parsers).
+            Log.i("AIRI_PROOF", "ATTACHMENT_SELECTED type=image name=${uri.lastPathSegment ?: "unknown"} uri=$uri vision_backend=none")
             Log.i("AIRI_PROOF", "IMAGE_ATTACHED uri=$uri model_text_only=true")
             selectedImageUri = uri
         }
@@ -509,6 +524,7 @@ fun ChatScreen(
                                 )
                             }
                             IconButton(onClick = {
+                                Log.i("AIRI_PROOF", "ATTACHMENT_REMOVED type=image name=${uri.lastPathSegment ?: "unknown"}")
                                 Log.i("AIRI_PROOF", "IMAGE_REMOVED")
                                 selectedImageUri = null
                             }) {
@@ -535,8 +551,14 @@ fun ChatScreen(
                         val attachedUri = selectedImageUri
                         val finalText = if (attachedUri != null) {
                             val name = attachedUri.lastPathSegment ?: "image"
+                            // Spec-mandated structured marker + proof tag. The
+                            // marker format is intentionally machine-greppable
+                            // ("[ATTACHMENT: <type>: <name>]") so future
+                            // tools / vision pipelines can detect and rewrite
+                            // it without a regex update.
+                            Log.i("AIRI_PROOF", "ATTACHMENT_SENT type=image name=$name vision_backend=none")
                             Log.i("AIRI_PROOF", "IMAGE_SENT_AS_TEXT_MARKER name=$name")
-                            "$text\n\n[user attached image: $name — vision model not loaded, describe based on filename only]"
+                            "$text\n\n[ATTACHMENT: image: $name] (vision model not loaded — respond based on filename only)"
                         } else text
                         viewModel.sendMessage(finalText)
                         if (attachedUri != null) selectedImageUri = null
@@ -587,6 +609,10 @@ fun ChatScreen(
                             voiceManager.stopSpeaking()
                             voiceStateRef.value = VoiceSessionState.IDLE
                             voiceState = VoiceSessionState.IDLE
+                            // Phase 2 — explicit barge-in proof tag (the user
+                            // tapped while TTS was speaking, that's a real
+                            // interrupt event, not just a stop).
+                            Log.i("AIRI_PROOF", "VOICE_INTERRUPTED reason=tap_during_speaking loop_active=${liveChatActiveRef.value}")
                             if (liveChatActiveRef.value) {
                                 liveChatActiveRef.value = false
                                 Log.i("AIRI_PROOF", "VOICE_LOOP_STOPPED reason=tap_during_speaking")
@@ -611,6 +637,7 @@ fun ChatScreen(
                                 // Enter continuous loop mode and arm Vosk.
                                 liveChatActiveRef.value = true
                                 Log.i("AIRI_PROOF", "VOICE_LOOP_STARTED")
+                                Log.i("AIRI_PROOF", "VOICE_LOOP_ACTIVE state=listening turn=initial")
                                 startInAppStt(autoSend = true)
                             }
                             else -> voiceChatPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)

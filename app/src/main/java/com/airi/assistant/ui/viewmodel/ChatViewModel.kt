@@ -120,7 +120,16 @@ data class ModelUiState(
     val catalogModels: List<CatalogEntry> = ModelCatalog.entries,
     val recommendedModels: List<CatalogEntry> = emptyList(),
     val isScanning: Boolean = false,
-    val scannedModelIds: Set<String> = emptySet()
+    val scannedModelIds: Set<String> = emptySet(),
+    /**
+     * Auto-detected capability profile of the *currently loaded* model.
+     * Populated in the loadModel success branch via
+     * [com.airi.assistant.ai.ModelCapabilities.detect]. Drives the
+     * "Vision: yes/no" badge in the UI so the user can never mistake
+     * "I attached an image" for "the model understood the image".
+     */
+    val capabilities: com.airi.assistant.ai.ModelCapabilities =
+        com.airi.assistant.ai.ModelCapabilities.textOnlyFallback()
 )
 
 data class UpgradePrompt(
@@ -695,7 +704,32 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             var partialCutText = ""
             val deviceWeak = isDeviceWeak()
             val remote = RemoteModelRegistry.getActive()
-            val baseSystemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType)
+            val baseSystemPromptCore = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType)
+
+            // ── Phase 1.5 — semantic memory injection ────────────────────────────
+            // The user demanded: "Connect semantic memory to the prompt". We do
+            // it HERE, BEFORE PromptCompressor.compose, so the compressor's
+            // existing 90% n_ctx budget cap is the ultimate guard against KV
+            // overflow. We additionally cap the semantic block at SEMANTIC_PCT
+            // (20%) of n_ctx — semantic memory must never starve the user
+            // prompt or the recent-history slice.
+            //
+            // Budgeting math (anchored to PromptCompressor.estimateTokens =
+            // chars/4): at nCtx=2048 → 20% = 410 tokens ≈ 1640 chars, which
+            // comfortably fits 5 hits at ≤220 chars each.
+            //
+            // ⚠ HARD GUARD: if the embedding model isn't loaded the call
+            // returns "" silently (with VECTOR_SEARCH_SKIPPED already logged)
+            // so we never block the chat path on memory work.
+            val baseSystemPrompt = run {
+                val semanticBudgetTokens = (perfMode.nCtx * SEMANTIC_BUDGET_PCT) / 100
+                val hits = memoryManager.semanticSearch(sessionId, trimmedInput, k = SEMANTIC_TOP_K)
+                val (semBlock, _, _) = memoryManager.embeddingService.formatContextWithBudget(
+                    hits = hits, maxTokens = semanticBudgetTokens
+                )
+                if (semBlock.isBlank()) baseSystemPromptCore
+                else baseSystemPromptCore.trimEnd() + "\n\n" + semBlock
+            }
 
             // ── Memory facts: harvest from THIS user message before composing ───
             // (so "my name is X" said in this turn participates in compression).
@@ -1562,11 +1596,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e("AIRI_PROOF", "MODEL_LOAD_FAILURE name=${model.name} type=${model.type.label} reason=$failure path=${model.path}")
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", false, failure)
             }
+            // Auto-detect capabilities ONLY on success. On failure we keep
+            // the prior (or fallback) capability profile so the UI doesn't
+            // claim "vision: no" for a load that never finished.
+            val newCaps = if (success) {
+                com.airi.assistant.ai.ModelCapabilities.detect(model)
+            } else {
+                _modelState.value.capabilities
+            }
             _modelState.update {
                 it.copy(isModelLoading = false, isModelReady = success,
                     loadError = if (success) null else "فشل تحميل النموذج في محرك الاستنتاج: ${llamaManager.getLastLoadFailure() ?: "سبب غير معروف"}",
                     loadErrorType = if (success) LoadErrorType.NONE else LoadErrorType.LOAD_FAILED,
-                    loadProgress = -1, availableModels = ModelManager.getAllModels())
+                    loadProgress = -1, availableModels = ModelManager.getAllModels(),
+                    capabilities = newCaps)
             }
         }
     }
@@ -1685,5 +1728,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val KEY_MODEL_REGISTRY = "model_registry_json"
         const val KEY_SCANNED_IDS    = "scanned_model_ids"
         const val KEY_SESSION_ID     = "current_session_id"
+        // ── Phase 1.5 — semantic memory injection budget ────────────────────────
+        // Hard cap on the share of n_ctx that semantic recall is allowed to
+        // consume. PromptCompressor keeps its own 90% n_ctx budget; this is
+        // an EARLIER, tighter cap so memory cannot starve the user prompt or
+        // the recent-history slice. 20% means at nCtx=2048 → ≤410 tokens of
+        // recall; at nCtx=4096 → ≤819. Both leave ample room for everything
+        // else and stay well under the llama.cpp KV ceiling that the user
+        // explicitly warned about ("crashes easily with large contexts").
+        const val SEMANTIC_BUDGET_PCT = 20
+        const val SEMANTIC_TOP_K      = 5
     }
 }

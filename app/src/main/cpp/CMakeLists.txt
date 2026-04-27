@@ -26,6 +26,28 @@ set_property(GLOBAL PROPERTY JOB_POOLS airi_compile_pool=2 airi_link_pool=1)
 set(CMAKE_JOB_POOL_COMPILE airi_compile_pool)
 set(CMAKE_JOB_POOL_LINK    airi_link_pool)
 
+# ─────────────────────────────────────────────────────────────────────────────
+# HARD-PRUNED native build (no opt-in/opt-out toggles).
+#
+# AIRI ships a fixed, minimal set of LLM architectures: LLaMA family
+# (LLaMA, LLaMA4), Qwen family text + vision (Qwen, Qwen2, Qwen3,
+# Qwen2-VL, Qwen3-VL), and Gemma family (Gemma, Gemma3 incl. vision via
+# SigLIP/Gemma4V projector). Every other architecture has been physically
+# removed from the source tree's build target — both the model `.cpp`
+# files (LLAMA_MODEL_SOURCES below) AND every `case LLM_ARCH_*:` arm in
+# `llama-model.cpp`, `llama-arch.cpp`, and `tools/mtmd/clip.cpp`.
+#
+# The reduction is enforced statically — there is no runtime toggle and
+# no `option()` to re-enable a dropped architecture. To re-introduce one
+# you must:
+#   1. Add the `.cpp` back to LLAMA_MODEL_SOURCES (or MTMD_MODEL_SOURCES).
+#   2. Re-add its `case LLM_ARCH_*:` arms in llama-model.cpp +
+#      llama-arch.cpp (or `case PROJECTOR_TYPE_*:` in clip.cpp).
+#   3. Re-add its enum to the LLM_ARCH_NAMES table in llama-arch.cpp.
+# Run `python3 scripts/prune_native.py` from the repo root to regenerate
+# this set if the keep-list in that script is edited.
+# ─────────────────────────────────────────────────────────────────────────────
+
 # ARM NEON (required on arm64-v8a)
 if(ANDROID_ABI STREQUAL "arm64-v8a")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv8-a+fp+simd")
@@ -110,141 +132,35 @@ if(EXISTS ${LLAMA_DIR}/ggml/src/ggml-cpu/llamafile/sgemm.cpp)
 endif()
 
 # ─────────────────────────────────────────────────────────────────────────────
-# === llama core sources ===
+# === llama model sources — HARD-PRUNED minimal set (9 of the original 113) ===
 #
-# Replaces the prior `file(GLOB ... /src/models/*.cpp)` with an explicit,
-# alphabetised allowlist. Rationale:
+# This is the ONLY source-of-truth list of model architectures compiled into
+# `airi_native.so`. Adding a file here without also patching the dispatcher
+# in llama-model.cpp / llama-arch.cpp will leave the new `case LLM_ARCH_*:`
+# arms dangling (or, if missing, the loaded GGUF will resolve to UNKNOWN).
 #
-#   • Reproducibility — a `git pull` of the upstream subtree no longer
-#     silently inflates the build target with newly-added architectures.
-#   • Auditability — anyone reviewing this file can see, line-by-line,
-#     which model architectures are linked into the .so.
-#   • Future pruning — to drop an architecture, comment out its line here
-#     AND ALSO patch the matching `case LLM_ARCH_*:` in
-#     `llama/src/llama-model.cpp` (the dispatcher takes the symbol via
-#     `new llm_build_<arch>(…)`; removing the .cpp without removing the
-#     case yields a linker error). We do NOT prune any here yet because
-#     dispatcher patches need on-device validation that this Replit
-#     environment cannot perform — that work belongs in a follow-up PR
-#     that is built and run on the user's machine.
-#
-# All 113 architecture files in the vendored tree are listed below so the
-# behaviour is byte-identical to the prior GLOB.
+# The 104 architectures NOT in this list have been physically removed from
+# the dispatcher (zero `case LLM_ARCH_*:` arms remain that reference their
+# `llm_build_X` symbols), so the linker has no incoming edge that could
+# pull their .o back in even if a stray reference slipped through.
 # ─────────────────────────────────────────────────────────────────────────────
 set(LLAMA_MODEL_SOURCES
-    ${LLAMA_DIR}/src/models/afmoe.cpp
-    ${LLAMA_DIR}/src/models/apertus.cpp
-    ${LLAMA_DIR}/src/models/arcee.cpp
-    ${LLAMA_DIR}/src/models/arctic.cpp
-    ${LLAMA_DIR}/src/models/arwkv7.cpp
-    ${LLAMA_DIR}/src/models/baichuan.cpp
-    ${LLAMA_DIR}/src/models/bailingmoe.cpp
-    ${LLAMA_DIR}/src/models/bailingmoe2.cpp
-    ${LLAMA_DIR}/src/models/bert.cpp
-    ${LLAMA_DIR}/src/models/bitnet.cpp
-    ${LLAMA_DIR}/src/models/bloom.cpp
-    ${LLAMA_DIR}/src/models/chameleon.cpp
-    ${LLAMA_DIR}/src/models/chatglm.cpp
-    ${LLAMA_DIR}/src/models/codeshell.cpp
-    ${LLAMA_DIR}/src/models/cogvlm.cpp
-    ${LLAMA_DIR}/src/models/cohere2-iswa.cpp
-    ${LLAMA_DIR}/src/models/command-r.cpp
-    ${LLAMA_DIR}/src/models/dbrx.cpp
-    ${LLAMA_DIR}/src/models/deci.cpp
-    ${LLAMA_DIR}/src/models/deepseek.cpp
-    ${LLAMA_DIR}/src/models/deepseek2.cpp
-    ${LLAMA_DIR}/src/models/delta-net-base.cpp
-    ${LLAMA_DIR}/src/models/dots1.cpp
-    ${LLAMA_DIR}/src/models/dream.cpp
-    ${LLAMA_DIR}/src/models/ernie4-5.cpp
-    ${LLAMA_DIR}/src/models/ernie4-5-moe.cpp
-    ${LLAMA_DIR}/src/models/eurobert.cpp
-    ${LLAMA_DIR}/src/models/exaone.cpp
-    ${LLAMA_DIR}/src/models/exaone4.cpp
-    ${LLAMA_DIR}/src/models/exaone-moe.cpp
-    ${LLAMA_DIR}/src/models/falcon.cpp
-    ${LLAMA_DIR}/src/models/falcon-h1.cpp
-    ${LLAMA_DIR}/src/models/gemma.cpp
-    ${LLAMA_DIR}/src/models/gemma2-iswa.cpp
-    ${LLAMA_DIR}/src/models/gemma3.cpp
-    ${LLAMA_DIR}/src/models/gemma3n-iswa.cpp
-    ${LLAMA_DIR}/src/models/gemma4-iswa.cpp
-    ${LLAMA_DIR}/src/models/gemma-embedding.cpp
-    ${LLAMA_DIR}/src/models/glm4.cpp
-    ${LLAMA_DIR}/src/models/glm4-moe.cpp
-    ${LLAMA_DIR}/src/models/gpt2.cpp
-    ${LLAMA_DIR}/src/models/gptneox.cpp
-    ${LLAMA_DIR}/src/models/granite.cpp
-    ${LLAMA_DIR}/src/models/granite-hybrid.cpp
-    ${LLAMA_DIR}/src/models/grok.cpp
-    ${LLAMA_DIR}/src/models/grovemoe.cpp
-    ${LLAMA_DIR}/src/models/hunyuan-dense.cpp
-    ${LLAMA_DIR}/src/models/hunyuan-moe.cpp
-    ${LLAMA_DIR}/src/models/internlm2.cpp
-    ${LLAMA_DIR}/src/models/jais.cpp
-    ${LLAMA_DIR}/src/models/jais2.cpp
-    ${LLAMA_DIR}/src/models/jamba.cpp
-    ${LLAMA_DIR}/src/models/kimi-linear.cpp
-    ${LLAMA_DIR}/src/models/lfm2.cpp
-    ${LLAMA_DIR}/src/models/llada.cpp
-    ${LLAMA_DIR}/src/models/llada-moe.cpp
+    # LLaMA family (text)
     ${LLAMA_DIR}/src/models/llama.cpp
     ${LLAMA_DIR}/src/models/llama4.cpp
-    ${LLAMA_DIR}/src/models/maincoder.cpp
-    ${LLAMA_DIR}/src/models/mamba.cpp
-    ${LLAMA_DIR}/src/models/mamba-base.cpp
-    ${LLAMA_DIR}/src/models/mimo2-iswa.cpp
-    ${LLAMA_DIR}/src/models/minicpm3.cpp
-    ${LLAMA_DIR}/src/models/minimax-m2.cpp
-    ${LLAMA_DIR}/src/models/mistral3.cpp
-    ${LLAMA_DIR}/src/models/modern-bert.cpp
-    ${LLAMA_DIR}/src/models/mpt.cpp
-    ${LLAMA_DIR}/src/models/nemotron.cpp
-    ${LLAMA_DIR}/src/models/nemotron-h.cpp
-    ${LLAMA_DIR}/src/models/neo-bert.cpp
-    ${LLAMA_DIR}/src/models/olmo.cpp
-    ${LLAMA_DIR}/src/models/olmo2.cpp
-    ${LLAMA_DIR}/src/models/olmoe.cpp
-    ${LLAMA_DIR}/src/models/openai-moe-iswa.cpp
-    ${LLAMA_DIR}/src/models/openelm.cpp
-    ${LLAMA_DIR}/src/models/orion.cpp
-    ${LLAMA_DIR}/src/models/paddleocr.cpp
-    ${LLAMA_DIR}/src/models/pangu-embedded.cpp
-    ${LLAMA_DIR}/src/models/phi2.cpp
-    ${LLAMA_DIR}/src/models/phi3.cpp
-    ${LLAMA_DIR}/src/models/plamo.cpp
-    ${LLAMA_DIR}/src/models/plamo2.cpp
-    ${LLAMA_DIR}/src/models/plamo3.cpp
-    ${LLAMA_DIR}/src/models/plm.cpp
+
+    # Qwen family (text)
     ${LLAMA_DIR}/src/models/qwen.cpp
     ${LLAMA_DIR}/src/models/qwen2.cpp
-    ${LLAMA_DIR}/src/models/qwen2moe.cpp
-    ${LLAMA_DIR}/src/models/qwen2vl.cpp
     ${LLAMA_DIR}/src/models/qwen3.cpp
-    ${LLAMA_DIR}/src/models/qwen3moe.cpp
-    ${LLAMA_DIR}/src/models/qwen3next.cpp
+
+    # Qwen family (vision)
+    ${LLAMA_DIR}/src/models/qwen2vl.cpp
     ${LLAMA_DIR}/src/models/qwen3vl.cpp
-    ${LLAMA_DIR}/src/models/qwen3vl-moe.cpp
-    ${LLAMA_DIR}/src/models/qwen35.cpp
-    ${LLAMA_DIR}/src/models/qwen35moe.cpp
-    ${LLAMA_DIR}/src/models/refact.cpp
-    ${LLAMA_DIR}/src/models/rnd1.cpp
-    ${LLAMA_DIR}/src/models/rwkv6.cpp
-    ${LLAMA_DIR}/src/models/rwkv6-base.cpp
-    ${LLAMA_DIR}/src/models/rwkv6qwen2.cpp
-    ${LLAMA_DIR}/src/models/rwkv7.cpp
-    ${LLAMA_DIR}/src/models/rwkv7-base.cpp
-    ${LLAMA_DIR}/src/models/seed-oss.cpp
-    ${LLAMA_DIR}/src/models/smallthinker.cpp
-    ${LLAMA_DIR}/src/models/smollm3.cpp
-    ${LLAMA_DIR}/src/models/stablelm.cpp
-    ${LLAMA_DIR}/src/models/starcoder.cpp
-    ${LLAMA_DIR}/src/models/starcoder2.cpp
-    ${LLAMA_DIR}/src/models/step35-iswa.cpp
-    ${LLAMA_DIR}/src/models/t5.cpp
-    ${LLAMA_DIR}/src/models/t5encoder.cpp
-    ${LLAMA_DIR}/src/models/wavtokenizer-dec.cpp
-    ${LLAMA_DIR}/src/models/xverse.cpp
+
+    # Gemma family (text + vision via Gemma3)
+    ${LLAMA_DIR}/src/models/gemma.cpp
+    ${LLAMA_DIR}/src/models/gemma3.cpp
 )
 
 set(LLAMA_SOURCES
@@ -279,17 +195,19 @@ set(LLAMA_SOURCES
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# === MTMD multimodal (Phase 3 — vision) ===
+# === MTMD multimodal (vision-only) — HARD-PRUNED to 5 of the original 26 ===
 #
-# Vendored from upstream tools/mtmd at the same commit family as our llama
-# core. AUDIO is intentionally excluded: only image multimodal is wired.
-#
-# As with LLAMA_MODEL_SOURCES above, we replaced the prior `file(GLOB ...)`
-# with an explicit allowlist. The mtmd dispatcher in clip.cpp instantiates
-# each `clip_graph_<arch>` directly, so removing a .cpp REQUIRES removing
-# the matching `case PROJECTOR_TYPE_*:` in clip.cpp at the same time
-# (otherwise the link fails). All 26 currently-vendored vision archs are
-# listed for behaviour parity with the GLOB.
+# Audio multimodal architectures (whisper-enc, conformer, qwen3a, gemma4a,
+# kimik25, ultravox, voxtral, music-flamingo, etc.) are excluded entirely.
+# Vision architectures kept correspond 1:1 to LLM models we ship:
+#   llava.cpp    → MLP / MLP_NORM (legacy LLaVA-family fallback)
+#   siglip.cpp   → SigLIP encoder (Gemma3 vision)
+#   gemma4v.cpp  → Gemma3/Gemma4V projector
+#   qwen2vl.cpp  → Qwen2-VL / Qwen2.5-VL projector
+#   qwen3vl.cpp  → Qwen3-VL projector
+# Every other `case PROJECTOR_TYPE_*:` in clip.cpp's dispatcher has been
+# physically removed; no `clip_graph_X` symbol survives that points at a
+# dropped translation unit.
 # ─────────────────────────────────────────────────────────────────────────────
 set(MTMD_DIR ${LLAMA_DIR}/tools/mtmd)
 set(AIRI_DISABLE_MTMD OFF CACHE BOOL "Disable multimodal (mtmd) build")
@@ -297,32 +215,11 @@ set(MTMD_SOURCES "")
 set(AIRI_HAS_MTMD 0)
 if(NOT AIRI_DISABLE_MTMD AND EXISTS ${MTMD_DIR}/mtmd.cpp)
     set(MTMD_MODEL_SOURCES
-        ${MTMD_DIR}/models/cogvlm.cpp
-        ${MTMD_DIR}/models/conformer.cpp
-        ${MTMD_DIR}/models/deepseekocr.cpp
-        ${MTMD_DIR}/models/dotsocr.cpp
-        ${MTMD_DIR}/models/gemma4a.cpp
-        ${MTMD_DIR}/models/gemma4v.cpp
-        ${MTMD_DIR}/models/glm4v.cpp
-        ${MTMD_DIR}/models/hunyuanocr.cpp
-        ${MTMD_DIR}/models/internvl.cpp
-        ${MTMD_DIR}/models/kimik25.cpp
-        ${MTMD_DIR}/models/kimivl.cpp
-        ${MTMD_DIR}/models/llama4.cpp
         ${MTMD_DIR}/models/llava.cpp
-        ${MTMD_DIR}/models/minicpmv.cpp
-        ${MTMD_DIR}/models/mobilenetv5.cpp
-        ${MTMD_DIR}/models/nemotron-v2-vl.cpp
-        ${MTMD_DIR}/models/paddleocr.cpp
-        ${MTMD_DIR}/models/pixtral.cpp
-        ${MTMD_DIR}/models/qwen2vl.cpp
-        ${MTMD_DIR}/models/qwen3a.cpp
-        ${MTMD_DIR}/models/qwen3vl.cpp
         ${MTMD_DIR}/models/siglip.cpp
-        ${MTMD_DIR}/models/step3vl.cpp
-        ${MTMD_DIR}/models/whisper-enc.cpp
-        ${MTMD_DIR}/models/yasa2.cpp
-        ${MTMD_DIR}/models/youtuvl.cpp
+        ${MTMD_DIR}/models/gemma4v.cpp
+        ${MTMD_DIR}/models/qwen2vl.cpp
+        ${MTMD_DIR}/models/qwen3vl.cpp
     )
     set(MTMD_SOURCES
         ${MTMD_DIR}/mtmd.cpp
@@ -373,9 +270,9 @@ target_link_libraries(
     Threads::Threads
 )
 
-# Reduce binary size — gc-sections keeps the .so lean even with the full
-# 113-arch model set linked in, since the linker drops every llm_build_*
-# constructor that nothing actually references at runtime.
+# Reduce binary size — with the dispatcher hard-pruned to 9 model archs and
+# 5 vision projectors, gc-sections + --strip-all squeeze any remaining dead
+# helpers out of the .so on top of the source-level reduction.
 set_target_properties(airi_native PROPERTIES
     LINK_FLAGS "-Wl,--gc-sections -Wl,--strip-all"
 )

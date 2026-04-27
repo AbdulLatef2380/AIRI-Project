@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22.1)
+Cmake_minimum_required(VERSION 3.22.1)
 project("airi_native" CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -87,6 +87,9 @@ add_compile_definitions(
     GGML_VERSION="airi-b5399"
     GGML_COMMIT="airi"
 )
+
+# Force-disable MTMD audio pipeline (header not vendored)
+add_compile_definitions(MTMD_DISABLE_AUDIO)
 
 # === GGML core sources ===
 set(GGML_SOURCES

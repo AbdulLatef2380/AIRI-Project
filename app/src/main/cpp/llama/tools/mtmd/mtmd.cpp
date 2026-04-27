@@ -1,7 +1,7 @@
 #include "clip.h"
 #include "clip-impl.h"
 #include "mtmd.h"
-#ifdef MTMD_ENABLE_AUDIO
+#if defined(MTMD_ENABLE_AUDIO) && !defined(MTMD_DISABLE_AUDIO)
 #include "mtmd-audio.h"
 #endif
 #include "mtmd-image.h"

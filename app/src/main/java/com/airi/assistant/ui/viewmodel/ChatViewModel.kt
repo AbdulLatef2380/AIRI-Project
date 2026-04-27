@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.util.Log
@@ -16,7 +17,10 @@ import com.airi.assistant.ai.ModelConfigManager
 import com.airi.assistant.ai.PerformanceMode
 import com.airi.assistant.ai.DeviceTier
 import com.airi.assistant.ai.LlamaManager
+import com.airi.assistant.ai.LlamaNative
+import com.airi.assistant.ai.ModelCapabilities
 import com.airi.assistant.ai.ModelCatalog
+import com.airi.assistant.ai.VisionImage
 import com.airi.assistant.ai.ModelInfo
 import com.airi.assistant.ai.ModelLoader
 import com.airi.assistant.ai.ModelManager
@@ -1253,6 +1257,240 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun isDeviceWeak(): Boolean {
         val profile = DeviceProfiler.profile(appContext)
         return profile.tier == DeviceTier.LOW || profile.availableRamMb < 1500 || profile.cpuCores <= 4
+    }
+
+    // ── Vision pipeline (Phase 3 — wired end-to-end) ─────────────────────────
+    //
+    // Two public entry points:
+    //
+    //   loadMmproj(uri)
+    //     User-driven: pick a *.gguf projector file from storage. We copy it
+    //     into the app's cache (the native loader needs a real filesystem
+    //     path, not a content:// URI), call the serialized loader on the
+    //     llama dispatcher, and re-detect ModelCapabilities so the UI badge
+    //     flips to "vision: yes" the moment the projector is wired up.
+    //
+    //   sendMessageWithImage(text, imageUri, capturedBitmap)
+    //     Replaces the old "[ATTACHMENT: image: name]" text-marker hack.
+    //     If the loaded model has vision==true (which now requires a
+    //     projector), we decode → downscale (≤672px) → RGB888 → call the
+    //     native bridge and surface the reply in the chat. If vision is
+    //     NOT available (no projector loaded, or model isn't multimodal),
+    //     we fall back to the existing text-marker path so the chat still
+    //     accepts the user's message with an honest acknowledgement.
+    //
+    // Both paths emit AIRI_PROOF tags so the on-device debug log can prove
+    // exactly which branch ran.
+
+    /** UI hook: the vision badge should turn green only when this is true. */
+    fun isVisionReady(): Boolean = _modelState.value.capabilities.vision
+
+    fun loadMmproj(uri: Uri) {
+        val current = ModelManager.getCurrent()
+        if (current == null) {
+            Log.w("AIRI_PROOF", "MMPROJ_LOAD_REJECTED reason=no_model_loaded")
+            _messages.update {
+                it + ChatMessage("حمّل النموذج النصي أولاً قبل تحميل ملف الرؤية.", isUser = false)
+            }
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            // Step 1 — materialize the URI to a real path we can mmap.
+            // The native loader is path-based; copying once into cache is
+            // correct (and lets us re-load after process death).
+            val cacheFile = File(appContext.cacheDir, "mmproj_active.gguf")
+            val ok = runCatching {
+                appContext.contentResolver.openInputStream(uri)?.use { input ->
+                    cacheFile.outputStream().use { out -> input.copyTo(out) }
+                } != null
+            }.getOrElse { e ->
+                Log.e("AIRI_PROOF", "MMPROJ_COPY_FAILED ${e.javaClass.simpleName}: ${e.message}")
+                false
+            }
+            if (!ok || !cacheFile.exists() || cacheFile.length() < 1_000_000L) {
+                withContext(Dispatchers.Main) {
+                    _messages.update {
+                        it + ChatMessage(
+                            "تعذر نسخ ملف ال mmproj. تحقق من الصلاحيات وأعد المحاولة.",
+                            isUser = false
+                        )
+                    }
+                }
+                Log.w("AIRI_PROOF", "MMPROJ_COPY_INSUFFICIENT bytes=${cacheFile.length()}")
+                return@launch
+            }
+            Log.i("AIRI_PROOF",
+                "MMPROJ_COPY_OK bytes=${cacheFile.length()} path=${cacheFile.absolutePath}")
+
+            // Step 2 — load through the serialized dispatcher (must not race
+            // against an in-flight generate).
+            val loaded = llamaManager.loadMmprojSerialized(cacheFile.absolutePath)
+
+            // Step 3 — re-detect capabilities NOW that the projector is in
+            // place. Fixes the prior bug where vision was always false
+            // because detect() ran at model-load time before any mmproj.
+            val newCaps = if (loaded) ModelCapabilities.detect(current)
+                          else _modelState.value.capabilities
+            withContext(Dispatchers.Main) {
+                _modelState.update { it.copy(capabilities = newCaps) }
+                if (loaded && newCaps.vision) {
+                    _messages.update {
+                        it + ChatMessage("تم تحميل ملف الرؤية بنجاح. الآن يمكنك إرسال صور.", isUser = false)
+                    }
+                } else if (loaded) {
+                    _messages.update {
+                        it + ChatMessage(
+                            "تم تحميل ملف الرؤية، لكن النموذج النصي الحالي ليس من النماذج المدعومة لتحليل الصور.",
+                            isUser = false
+                        )
+                    }
+                } else {
+                    _messages.update {
+                        it + ChatMessage("فشل تحميل ملف الرؤية. تأكد أن الملف هو mmproj صالح.", isUser = false)
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Image-aware send. Three branches:
+     *
+     *   (A) No image attached → forwards to the standard text [sendMessage].
+     *   (B) Image attached AND vision wired → real native vision pipeline.
+     *   (C) Image attached but vision NOT wired → text-marker fallback so
+     *       the user's message still goes through (no UI dead-end).
+     *
+     * Vision generation does NOT stream tokens (the JNI returns the full
+     * reply at once), so we drive [_streamingText] with an "Analyzing image…"
+     * stage hint until the native call returns.
+     *
+     * Hard guards (per spec — limits on size, RAM, time):
+     *   • Image is downscaled to ≤672px longest side BEFORE allocation.
+     *   • RGB byte array is capped at 4MB by VisionImage.MAX_RGB_BYTES.
+     *   • Token cap is min(perfMode.maxTokens, 256) — vision prefill
+     *     eats the latency budget so long replies aren't worth it.
+     *   • Native call has a 180s wall-clock deadline (LlamaManager).
+     */
+    fun sendMessageWithImage(input: String, imageUri: Uri?, capturedBitmap: Bitmap?) {
+        val trimmedInput = input.trim()
+        // Branch A: nothing attached → existing text path.
+        if (imageUri == null && capturedBitmap == null) {
+            sendMessage(trimmedInput)
+            return
+        }
+        if (_modelState.value.isModelLoading) return
+
+        val visionReady = _modelState.value.capabilities.vision &&
+                          runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
+        val attachmentName = imageUri?.lastPathSegment ?: "camera_capture"
+
+        // Branch C: image present but vision NOT wired → marker fallback.
+        if (!visionReady) {
+            Log.i("AIRI_PROOF",
+                "VISION_FALLBACK_TEXT_MARKER reason=no_vision_wired name=$attachmentName")
+            val finalText = buildString {
+                append(trimmedInput)
+                append("\n\n[ATTACHMENT: image: ").append(attachmentName)
+                append("] (vision model not loaded — respond based on filename only)")
+            }
+            sendMessage(finalText)
+            return
+        }
+
+        // Branch B: real vision call.
+        val current = ModelManager.getCurrent()
+        if (current == null || !_modelState.value.isModelReady) {
+            _messages.update {
+                it + ChatMessage("قم بتحميل النموذج النصي أولاً.", isUser = false)
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            val sessionId = currentSessionOrCreate()
+            val wasEmpty = _messages.value.isEmpty()
+
+            // Record the user's turn FIRST (with a structured marker so the
+            // chat history stays text-serializable for memory/export).
+            val userMarker = if (trimmedInput.isBlank()) "[image: $attachmentName]"
+                             else "$trimmedInput\n\n[image: $attachmentName]"
+            val userMsg = memoryManager.recordChatMessage(sessionId, "user", userMarker)
+            if (wasEmpty) memoryManager.renameSession(sessionId, "Image: ${attachmentName.take(40)}")
+            _messages.update { it + ChatMessage(userMarker, isUser = true, id = userMsg.id) }
+
+            subscriptionManager.recordMessage()
+            AnalyticsService.messageSent()
+
+            _agentState.value = AgentState(isWorking = true, currentAction = "Analyzing image...")
+            _streamingText.value = "Analyzing image..."
+            _isCancelled.set(false)
+
+            // ── Bitmap prep (off the main thread) ────────────────────────
+            val rgbBundle = withContext(Dispatchers.Default) {
+                val bmp: Bitmap? = when {
+                    capturedBitmap != null -> VisionImage.downscaleBitmap(capturedBitmap)
+                    imageUri != null      -> VisionImage.decodeAndDownscale(appContext, imageUri)
+                    else                  -> null
+                }
+                bmp?.let { ready ->
+                    val rgb = VisionImage.bitmapToRgb888(ready)
+                    if (rgb != null) Triple(rgb, ready.width, ready.height) else null
+                }
+            }
+
+            if (rgbBundle == null) {
+                _agentState.value = AgentState()
+                _streamingText.value = ""
+                _messages.update {
+                    it + ChatMessage("تعذر معالجة الصورة (تأكد من تنسيقها وحجمها).", isUser = false)
+                }
+                Log.w("AIRI_PROOF", "VISION_PREP_FAILED name=$attachmentName")
+                return@launch
+            }
+            val (rgb888, w, h) = rgbBundle
+
+            // Token cap: vision prefill is expensive, no point asking for
+            // 1k tokens — clip to 256.
+            val visionTokens = minOf(_performanceMode.value.maxTokens, 256)
+            val visionPrompt = trimmedInput.ifBlank { "Describe this image in detail." }
+
+            val visionStart = System.currentTimeMillis()
+            llamaManager.generateWithImage(
+                prompt    = visionPrompt,
+                rgb888    = rgb888,
+                width     = w,
+                height    = h,
+                maxTokens = visionTokens,
+                onComplete = { fullText ->
+                    val elapsed = System.currentTimeMillis() - visionStart
+                    Log.i("AIRI_PROOF",
+                        "VISION_REPLY_DELIVERED elapsed_ms=$elapsed reply_len=${fullText.length}")
+                    viewModelScope.launch {
+                        val asstMsg = memoryManager.recordChatMessage(
+                            sessionId, "assistant", fullText
+                        )
+                        _messages.update {
+                            it + ChatMessage(fullText, isUser = false, id = asstMsg.id)
+                        }
+                        _streamingText.value = ""
+                        _agentState.value = AgentState()
+                        refreshSessions()
+                        refreshPowerLevel()
+                    }
+                },
+                onError = { errMsg ->
+                    Log.w("AIRI_PROOF", "VISION_REPLY_FAILED $errMsg")
+                    viewModelScope.launch {
+                        _messages.update {
+                            it + ChatMessage("تعذر تحليل الصورة: $errMsg", isUser = false)
+                        }
+                        _streamingText.value = ""
+                        _agentState.value = AgentState()
+                    }
+                }
+            )
+        }
     }
 
     // ── Skill management (delegates to SkillService) ──────────────────────────

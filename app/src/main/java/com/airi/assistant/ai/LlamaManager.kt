@@ -777,6 +777,144 @@ class LlamaManager(private val context: Context) {
 
     private fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
 
+    // ── Vision: load / unload mmproj projector on the serialized dispatcher ──
+    //
+    // CRITICAL: the projector touches the SAME native llama_model that
+    // generateStream uses. It MUST therefore go through `scope` so we can
+    // never race with an in-flight decode (which would corrupt the KV
+    // cache and crash inside ggml). We do NOT cache the loaded path here —
+    // ModelCapabilities re-detects via LlamaNative.isMmprojLoaded() so
+    // there is exactly one source of truth.
+    suspend fun loadMmprojSerialized(mmprojPath: String): Boolean = withContext(llamaDispatcher) {
+        Log.i("AIRI_PROOF", "MMPROJ_LOAD_REQUESTED path=$mmprojPath")
+        val ok = runCatching { LlamaNative.loadMmproj(mmprojPath) }.getOrElse { e ->
+            Log.e(TAG, "loadMmproj threw: ${e.message}", e)
+            false
+        }
+        Log.i("AIRI_PROOF", "MMPROJ_LOAD_RESULT ok=$ok")
+        ok
+    }
+
+    suspend fun unloadMmprojSerialized() = withContext(llamaDispatcher) {
+        runCatching { LlamaNative.unloadMmproj() }
+        Log.i("AIRI_PROOF", "MMPROJ_UNLOADED via=manager")
+    }
+
+    /**
+     * Vision-only generation. The native side does NOT stream tokens for
+     * `evalImageAndGenerate` — it returns the full reply string when done.
+     * We therefore expose `onComplete`/`onError` only (no token callback)
+     * and the UI shows an "Analyzing image…" stage hint while we wait.
+     *
+     * Serialization, watchdog, and AIRI_PROOF logging mirror generateStream
+     * so on-device debugging is identical between the two pipelines.
+     *
+     * @param prompt      The user's text question about the image.
+     * @param rgb888      Packed RGB byte array (width*height*3, row-major
+     *                    top-down). Caller is responsible for downscale.
+     * @param width       Image width in pixels (must match rgb888 length).
+     * @param height      Image height in pixels (must match rgb888 length).
+     * @param maxTokens   Hard cap on generated tokens. Recommended ≤ 256
+     *                    for vision because vision prefill already eats
+     *                    most of the latency budget.
+     * @param timeoutMs   Wall-clock deadline for the whole call. Vision
+     *                    prefill is much slower than text on CPU (typically
+     *                    8-30s on mid-range), so the default 180s is
+     *                    intentionally larger than the text path's 120s.
+     */
+    fun generateWithImage(
+        prompt: String,
+        rgb888: ByteArray,
+        width: Int,
+        height: Int,
+        maxTokens: Int,
+        timeoutMs: Long = 180_000L,
+        onComplete: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        // Defensive contract: refuse degenerate inputs at the boundary so
+        // the native side never sees them.
+        val expectedBytes = width * height * 3
+        if (width <= 0 || height <= 0 || rgb888.size != expectedBytes) {
+            val msg = "ERR_VISION_BAD_INPUT w=$width h=$height bytes=${rgb888.size} expected=$expectedBytes"
+            Log.e(TAG, msg)
+            onError(msg)
+            return
+        }
+        if (maxTokens <= 0) {
+            onError("ERR_VISION_BAD_INPUT maxTokens=$maxTokens")
+            return
+        }
+
+        val finished = AtomicBoolean(false)
+
+        // Wall-clock deadline (vision has no streaming → there is no
+        // "first-token" milestone to gate inactivity on). If native call
+        // runs past timeoutMs we still cancel and report ERR_VISION_TIMEOUT.
+        // Note: the underlying llama_decode honors LlamaNative.cancel()
+        // through cancelRequested — same path text generation uses.
+        watchdogScope.launch {
+            val deadline = System.currentTimeMillis() + timeoutMs
+            while (!finished.get()) {
+                delay(500L)
+                if (System.currentTimeMillis() >= deadline) {
+                    if (finished.compareAndSet(false, true)) {
+                        Log.w(TAG, "generateWithImage timed out after ${timeoutMs}ms")
+                        Log.i("AIRI_PROOF", "VISION_TIMEOUT timeout_ms=$timeoutMs")
+                        cancelRequested.set(true)
+                        runCatching { LlamaNative.cancel() }
+                        withContext(Dispatchers.Main) {
+                            onError("ERR_VISION_TIMEOUT timeout_ms=$timeoutMs")
+                        }
+                    }
+                    return@launch
+                }
+            }
+        }
+
+        scope.launch {
+            cancelRequested.set(false)
+            val start = System.currentTimeMillis()
+            Log.i(
+                "AIRI_PROOF",
+                "VISION_GEN_START prompt_len=${prompt.length} w=$width h=$height " +
+                    "bytes=${rgb888.size} max_tokens=$maxTokens"
+            )
+            try {
+                val full = LlamaNative.evalImageAndGenerate(
+                    prompt, rgb888, width, height, maxTokens
+                )
+                if (finished.compareAndSet(false, true)) {
+                    val elapsed = System.currentTimeMillis() - start
+                    val cancelled = cancelRequested.get()
+                    Log.i(
+                        "AIRI_PROOF",
+                        "VISION_GEN_END elapsed_ms=$elapsed reply_len=${full.length} cancelled=$cancelled"
+                    )
+                    // Native side returns "" on internal failure; surface
+                    // that as an explicit error so the UI doesn't silently
+                    // show a blank assistant turn.
+                    if (full.isBlank()) {
+                        withContext(Dispatchers.Main) {
+                            onError("ERR_VISION_EMPTY native returned blank reply")
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) { onComplete(full) }
+                    }
+                }
+            } catch (e: Throwable) {
+                Log.e(TAG, "generateWithImage native error: ${e.javaClass.simpleName}: ${e.message}", e)
+                // Vision call probably left llama_context KV in a torn
+                // state — force re-prime on the next text turn.
+                invalidateSession()
+                if (finished.compareAndSet(false, true)) {
+                    val msg = "$ERR_NATIVE ${e.javaClass.simpleName}: ${e.message ?: "unknown"}"
+                    withContext(Dispatchers.Main) { onError(msg) }
+                }
+            }
+        }
+    }
+
     private fun defaultSystemPrompt(): String = """
         أنت AIRI، المساعد الذكي المتطور بنظام Android.
         هويتك: ذكي، مرح، ومفيد جداً.

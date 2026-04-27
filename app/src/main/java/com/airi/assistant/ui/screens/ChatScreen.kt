@@ -396,10 +396,24 @@ fun ChatScreen(
         if (uri != null) {
             Log.d("AIRI_UI", "Image picked: $uri")
             // Spec-mandated proof tag (also keep the historical IMAGE_ATTACHED
-            // line for back-compat with existing log parsers).
-            Log.i("AIRI_PROOF", "ATTACHMENT_SELECTED type=image name=${uri.lastPathSegment ?: "unknown"} uri=$uri vision_backend=none")
-            Log.i("AIRI_PROOF", "IMAGE_ATTACHED uri=$uri model_text_only=true")
+            // line for back-compat with existing log parsers). The
+            // vision_backend field now reflects the *runtime* mmproj state,
+            // not a build-time constant — so logcat tells the truth about
+            // whether this attachment will hit the real vision pipeline.
+            val visionReady = viewModel.isVisionReady()
+            Log.i("AIRI_PROOF", "ATTACHMENT_SELECTED type=image name=${uri.lastPathSegment ?: "unknown"} uri=$uri vision_backend=${if (visionReady) "mtmd" else "none"}")
+            Log.i("AIRI_PROOF", "IMAGE_ATTACHED uri=$uri vision_ready=$visionReady")
             selectedImageUri = uri
+        }
+    }
+    // Phase 3 — mmproj projector picker. The user picks a *.gguf projector
+    // file (typically named ...-mmproj-...gguf) from storage; the VM copies
+    // it to cache, calls the serialized native loader, and re-detects
+    // ModelCapabilities so the vision badge flips to "ready".
+    val mmprojPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            Log.i("AIRI_PROOF", "MMPROJ_PICKED uri=$uri name=${uri.lastPathSegment ?: "unknown"}")
+            viewModel.loadMmproj(uri)
         }
     }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
@@ -544,29 +558,33 @@ fun ChatScreen(
                     voiceInput      = voiceInput,
                     smartReplies    = smartReplies,
                     onSend          = { text ->
-                        // Wrap send so we can append an honest "[image attached]"
-                        // marker AND clear the preview chip after the message
-                        // is dispatched. The model is still text-only — but at
-                        // least it now knows the user attached a file.
+                        // Phase 3 — vision pipeline: hand off both the typed
+                        // text AND any pending image artefact to the VM. The
+                        // VM decides whether to invoke the real vision path
+                        // (mmproj loaded + capability detected) or fall back
+                        // to the historical "[ATTACHMENT: image: name]" text
+                        // marker. Either way, we clear the preview chip
+                        // immediately so the user can keep typing.
                         val attachedUri = selectedImageUri
-                        val finalText = if (attachedUri != null) {
-                            val name = attachedUri.lastPathSegment ?: "image"
-                            // Spec-mandated structured marker + proof tag. The
-                            // marker format is intentionally machine-greppable
-                            // ("[ATTACHMENT: <type>: <name>]") so future
-                            // tools / vision pipelines can detect and rewrite
-                            // it without a regex update.
-                            Log.i("AIRI_PROOF", "ATTACHMENT_SENT type=image name=$name vision_backend=none")
-                            Log.i("AIRI_PROOF", "IMAGE_SENT_AS_TEXT_MARKER name=$name")
-                            "$text\n\n[ATTACHMENT: image: $name] (vision model not loaded — respond based on filename only)"
-                        } else text
-                        viewModel.sendMessage(finalText)
-                        if (attachedUri != null) selectedImageUri = null
+                        val attachedBmp = capturedBitmap
+                        if (attachedUri != null || attachedBmp != null) {
+                            val name = attachedUri?.lastPathSegment
+                                ?: "camera_${System.currentTimeMillis()}"
+                            Log.i("AIRI_PROOF",
+                                "ATTACHMENT_SENT type=image name=$name " +
+                                "vision_ready=${viewModel.isVisionReady()}")
+                            viewModel.sendMessageWithImage(text, attachedUri, attachedBmp)
+                            selectedImageUri = null
+                            capturedBitmap = null
+                        } else {
+                            viewModel.sendMessage(text)
+                        }
                     },
                     onCancel        = { viewModel.cancelGeneration() },
                     onSmartReply    = { reply -> viewModel.clearSmartReplies(); viewModel.sendMessage(reply) },
                     onPickImage     = { imagePicker.launch("image/*") },
                     onPickFile      = { filePicker.launch("*/*") },
+                    onPickMmproj    = { mmprojPicker.launch("*/*") },
                     onTakePhoto     = {
                         when {
                             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
@@ -1311,6 +1329,7 @@ fun ChatInputBar(
     onCancel: () -> Unit = {},
     onSmartReply: (String) -> Unit = {},
     onPickImage: () -> Unit = {},
+    onPickMmproj: () -> Unit = {},
     onPickFile: () -> Unit = {},
     onTakePhoto: () -> Unit = {},
     onMicClick: () -> Unit,
@@ -1694,6 +1713,14 @@ fun ChatInputBar(
                                     }
                                     AttachBubble(Icons.Outlined.AttachFile, stringResource(R.string.pick_file)) {
                                         showAttachPopup = false; onPickFile()
+                                    }
+                                    // Phase 3 — vision projector picker. Shows
+                                    // up alongside camera/image/file. Tapping
+                                    // it opens a *.gguf file picker; the VM
+                                    // copies the selection to cache and loads
+                                    // it through the serialized native bridge.
+                                    AttachBubble(Icons.Outlined.AttachFile, stringResource(R.string.pick_mmproj)) {
+                                        showAttachPopup = false; onPickMmproj()
                                     }
                                 }
                             }

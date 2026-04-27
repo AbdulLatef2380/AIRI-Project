@@ -12,6 +12,8 @@ import com.airi.assistant.voice.VoskModelManager
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.unit.dp
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

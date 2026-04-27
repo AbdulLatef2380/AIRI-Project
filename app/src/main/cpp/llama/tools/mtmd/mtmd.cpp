@@ -1,7 +1,9 @@
 #include "clip.h"
 #include "clip-impl.h"
 #include "mtmd.h"
+#ifdef MTMD_ENABLE_AUDIO
 #include "mtmd-audio.h"
+#endif
 #include "mtmd-image.h"
 #include "debug/mtmd-debug.h"
 

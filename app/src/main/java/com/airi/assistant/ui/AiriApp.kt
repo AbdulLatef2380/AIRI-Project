@@ -28,6 +28,7 @@ import com.airi.assistant.ui.debug.DebugScreen
 import com.airi.assistant.ui.screens.AgentTraceDetailScreen
 import com.airi.assistant.ui.screens.ChatScreen
 import com.airi.assistant.ui.screens.HistoryScreen
+import com.airi.assistant.ui.screens.ConnectorsScreen
 import com.airi.assistant.ui.screens.IntegrationsScreen
 import com.airi.assistant.ui.screens.LoginScreen
 import com.airi.assistant.ui.screens.MemoryScreen
@@ -57,6 +58,7 @@ object AiriRoute {
     const val SETTINGS           = "screen_settings"
     const val MEMORY             = "screen_memory"
     const val INTEGRATIONS       = "screen_integrations"
+    const val CONNECTORS         = "screen_connectors"
     const val PROFILE            = "screen_profile"
     const val AGENT_CONTROL      = "screen_agent_control"
     const val AGENT_LOGS         = "screen_agent_logs"
@@ -240,6 +242,12 @@ fun AiriApp() {
 
                 composable(AiriRoute.INTEGRATIONS) {
                     IntegrationsScreen(
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(AiriRoute.CONNECTORS) {
+                    ConnectorsScreen(
                         onBack = { navController.popBackStack() }
                     )
                 }

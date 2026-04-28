@@ -78,6 +78,23 @@ class SecureStorage(context: Context) {
     fun getGoogleEmail(): String? = prefs.getString(KEY_GOOGLE_EMAIL, null)
     fun getGoogleUpdated(): Long = prefs.getLong(KEY_GOOGLE_UPDATED, 0L)
 
+    // ─── LLM provider API keys ─────────────────────────────────────────────────
+    // Used by RemoteLlmConnector providers (OpenAI / Anthropic / Gemini).
+    // Keys are read at provider-call time via () -> String? so they can
+    // be rotated without restarting the registry.
+
+    fun saveLlmKey(provider: String, key: String) =
+        prefs.edit().putString(llmKeyPrefName(provider), key).apply()
+
+    fun getLlmKey(provider: String): String? =
+        prefs.getString(llmKeyPrefName(provider), null)
+
+    fun clearLlmKey(provider: String) =
+        prefs.edit().remove(llmKeyPrefName(provider)).apply()
+
+    private fun llmKeyPrefName(provider: String): String =
+        "llm_key_${provider.lowercase()}"
+
     // ─── Generic disconnect ────────────────────────────────────────────────────
 
     fun disconnect(id: String) {
@@ -102,6 +119,8 @@ class SecureStorage(context: Context) {
                 .remove(KEY_GOOGLE_ID_TOKEN)
                 .putLong(KEY_GOOGLE_UPDATED, System.currentTimeMillis())
                 .apply()
+
+            "openai", "anthropic", "gemini" -> clearLlmKey(id)
         }
     }
 

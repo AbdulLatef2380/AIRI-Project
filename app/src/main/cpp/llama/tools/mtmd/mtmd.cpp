@@ -1,11 +1,49 @@
 #include "clip.h"
 #include "clip-impl.h"
 #include "mtmd.h"
-#if defined(MTMD_ENABLE_AUDIO) && !defined(MTMD_DISABLE_AUDIO)
+// `mtmd-audio.h` is included unconditionally. Upstream wraps this include in
+// `#if defined(MTMD_ENABLE_AUDIO) && !defined(MTMD_DISABLE_AUDIO)`, but the
+// rest of `mtmd.cpp` references the audio preprocessor types in unguarded
+// code (member declaration at ~L207, `init_audio()` body, the audio branch
+// of preprocess(), and `mtmd_debug_preprocess_audio()`). In the AIRI tree
+// `mtmd-audio.h` is a no-op stub whose `preprocess()` always returns false,
+// so making the include unconditional has zero runtime impact for builds
+// that pass `-DMTMD_DISABLE_AUDIO` (audio mmproj is never loaded, the audio
+// branches are never entered) while letting the translation unit compile.
 #include "mtmd-audio.h"
-#endif
 #include "mtmd-image.h"
-#include "debug/mtmd-debug.h"
+
+// ─── Optional debug instrumentation ──────────────────────────────────────────
+// `debug/mtmd-debug.h` is an OPT-IN tracing/assert overlay used during local
+// development. The in-tree copy at `tools/mtmd/debug/mtmd-debug.h` is a
+// release-safe stub that expands every MTMD_DEBUG_* macro to a no-op, so
+// release builds compile clean without pulling in dev-only code.
+//
+// Two layers of protection prevent a missing or stripped header from ever
+// breaking the build again (root cause of the prior arm64-v8a Release fault):
+//
+//   1. `__has_include` makes the include itself optional — if the file is
+//      deleted or excluded by a downstream fork, the source still compiles.
+//   2. The header itself is a stub by default, so even when included it adds
+//      zero runtime overhead. To enable real instrumentation, define
+//      `MTMD_ENABLE_DEBUG_INSTRUMENTATION` (Debug builds set this via
+//      CMake generator expression) AND overlay a populated header.
+// ─────────────────────────────────────────────────────────────────────────────
+#if defined(__has_include)
+#  if __has_include("debug/mtmd-debug.h")
+#    include "debug/mtmd-debug.h"
+#    define MTMD_HAVE_DEBUG_HEADER 1
+#  endif
+#endif
+#ifndef MTMD_DEBUG_LOG
+#  define MTMD_DEBUG_LOG(...)         ((void)0)
+#endif
+#ifndef MTMD_DEBUG_ASSERT
+#  define MTMD_DEBUG_ASSERT(...)      ((void)0)
+#endif
+#ifndef MTMD_DEBUG_TRACE_SCOPE
+#  define MTMD_DEBUG_TRACE_SCOPE(...) ((void)0)
+#endif
 
 #include "llama.h"
 

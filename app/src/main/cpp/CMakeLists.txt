@@ -237,6 +237,35 @@ if(NOT AIRI_DISABLE_MTMD AND EXISTS ${MTMD_DIR}/mtmd.cpp)
     # that already require -Wno-* in their own CMakeLists.
     add_compile_options(-Wno-cast-qual -Wno-missing-prototypes
                         -Wno-unused-function -Wno-unused-variable)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # MTMD debug-instrumentation overlay scoping.
+    #
+    # Background: `mtmd.cpp` historically did `#include "debug/mtmd-debug.h"`
+    # unconditionally, but that header was a developer-local file that was
+    # never committed. Result: every clean Release CI build of arm64-v8a
+    # failed with "fatal error: 'debug/mtmd-debug.h' file not found".
+    #
+    # Fix is layered:
+    #   (a) `mtmd.cpp` now wraps the include in __has_include + provides
+    #       no-op fallback macros.
+    #   (b) An in-tree release-safe stub lives at
+    #       `tools/mtmd/debug/mtmd-debug.h`. The MTMD_DIR include path
+    #       (already added at the top of this file) makes
+    #       `#include "debug/mtmd-debug.h"` resolve to it.
+    #   (c) Debug builds get MTMD_ENABLE_DEBUG_INSTRUMENTATION defined so
+    #       a developer who replaces the stub with a real overlay gets
+    #       their tracing wired up automatically — and Release builds
+    #       never see that define, so even a bad overlay can't leak in.
+    #
+    # The generator expression `$<$<CONFIG:Debug>:...>` is evaluated by
+    # CMake at build time per-configuration, so the same buildsystem
+    # serves both `assembleDebug` and `assembleRelease` cleanly without
+    # cross-contamination.
+    # ─────────────────────────────────────────────────────────────────────────
+    add_compile_definitions(
+        $<$<CONFIG:Debug>:MTMD_ENABLE_DEBUG_INSTRUMENTATION>
+    )
 else()
     add_compile_definitions(AIRI_HAS_MTMD=0)
 endif()

@@ -2430,6 +2430,20 @@ llama_rope_type llama_model_rope_type(const llama_model * model) {
         // all model arches should be listed explicitly here
         case LLM_ARCH_UNKNOWN:
             GGML_ABORT("unknown architecture");
+
+        // ─────────────────────────────────────────────────────────────────
+        // Pruned-out architectures (LLM_ARCH_DECI, LLM_ARCH_FALCON,
+        // LLM_ARCH_BERT, etc.). The build statically excludes their
+        // sources via LLAMA_MODEL_SOURCES in CMakeLists.txt — see the
+        // "HARD-PRUNED native build" header in that file. Their enum
+        // values still exist in `enum llm_arch`, so a `default:` arm is
+        // required for `-Wswitch` / `-Wswitch-enum` to stay silent. We
+        // fall through to LLAMA_ROPE_TYPE_NONE below: the model loader
+        // already rejects unknown architectures upstream, so this is a
+        // belt-and-braces guard, not a behavioral change.
+        // ─────────────────────────────────────────────────────────────────
+        default:
+            break;
     }
 
     return LLAMA_ROPE_TYPE_NONE;

@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.ai.skills.SkillRegistry
+import com.airi.assistant.auth.SecureStorage
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.system.LanguageOption
 import com.airi.assistant.analytics.AnalyticsService
@@ -364,6 +365,8 @@ fun SettingsScreen(
                 onNavigate = onNavigate,
                 isPremium  = viewModel.isPremium()
             )
+
+            ApiKeysSection()
 
             SettingsSurface {
                 SettingsCategoryHeader(icon = Icons.Outlined.Speed, title = stringResource(R.string.performance))
@@ -953,6 +956,142 @@ private fun DefaultAssistantSection(activity: Activity?) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ApiKeysSection() {
+    val context = LocalContext.current
+    val storage = remember { SecureStorage(context) }
+
+    // Initial load from SecureStorage. Each save/clear updates the field
+    // immediately so the UI reflects the new key state without a re-launch.
+    var openaiKey    by rememberSaveable { mutableStateOf(storage.getLlmKey("openai")    ?: "") }
+    var anthropicKey by rememberSaveable { mutableStateOf(storage.getLlmKey("anthropic") ?: "") }
+    var geminiKey    by rememberSaveable { mutableStateOf(storage.getLlmKey("gemini")    ?: "") }
+
+    var openaiVisible    by remember { mutableStateOf(false) }
+    var anthropicVisible by remember { mutableStateOf(false) }
+    var geminiVisible    by remember { mutableStateOf(false) }
+
+    SettingsSurface {
+        SettingsCategoryHeader(
+            icon  = Icons.Outlined.Key,
+            title = "Cloud LLM API keys"
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text       = "Keys are stored on this device only (EncryptedSharedPreferences). Adding a key activates the matching cloud provider — removing it falls back to the on-device model.",
+            fontSize   = 11.sp,
+            color      = Color.White.copy(alpha = 0.50f),
+            lineHeight = 16.sp
+        )
+        Spacer(Modifier.height(12.dp))
+
+        ApiKeyField(
+            label       = "OpenAI",
+            placeholder = "sk-…",
+            value       = openaiKey,
+            visible     = openaiVisible,
+            onVisibilityToggle = { openaiVisible = !openaiVisible },
+            onChange    = { openaiKey = it },
+            onSave      = { storage.saveLlmKey("openai", openaiKey.trim()) },
+            onClear     = { storage.clearLlmKey("openai"); openaiKey = "" },
+        )
+        Spacer(Modifier.height(8.dp))
+        ApiKeyField(
+            label       = "Anthropic",
+            placeholder = "sk-ant-…",
+            value       = anthropicKey,
+            visible     = anthropicVisible,
+            onVisibilityToggle = { anthropicVisible = !anthropicVisible },
+            onChange    = { anthropicKey = it },
+            onSave      = { storage.saveLlmKey("anthropic", anthropicKey.trim()) },
+            onClear     = { storage.clearLlmKey("anthropic"); anthropicKey = "" },
+        )
+        Spacer(Modifier.height(8.dp))
+        ApiKeyField(
+            label       = "Google Gemini",
+            placeholder = "AIza…",
+            value       = geminiKey,
+            visible     = geminiVisible,
+            onVisibilityToggle = { geminiVisible = !geminiVisible },
+            onChange    = { geminiKey = it },
+            onSave      = { storage.saveLlmKey("gemini", geminiKey.trim()) },
+            onClear     = { storage.clearLlmKey("gemini"); geminiKey = "" },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ApiKeyField(
+    label: String,
+    placeholder: String,
+    value: String,
+    visible: Boolean,
+    onVisibilityToggle: () -> Unit,
+    onChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onClear: () -> Unit,
+) {
+    val hasKey = value.isNotBlank()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(if (hasKey) CosmicAccent else Color.White.copy(alpha = 0.20f))
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.85f))
+        Spacer(Modifier.weight(1f))
+        if (hasKey) {
+            Text("active", fontSize = 11.sp, color = CosmicAccent)
+        }
+    }
+    Spacer(Modifier.height(6.dp))
+    OutlinedTextField(
+        value             = value,
+        onValueChange     = onChange,
+        placeholder       = { Text(placeholder, color = Color.White.copy(alpha = 0.30f), fontSize = 12.sp) },
+        singleLine        = true,
+        visualTransformation = if (visible) androidx.compose.ui.text.input.VisualTransformation.None
+                               else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        trailingIcon = {
+            Row {
+                IconButton(onClick = onVisibilityToggle) {
+                    Icon(
+                        imageVector = if (visible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                        contentDescription = if (visible) "Hide" else "Show",
+                        tint = Color.White.copy(alpha = 0.55f)
+                    )
+                }
+            }
+        },
+        textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor   = CosmicAccent,
+            unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+            cursorColor          = CosmicAccent,
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(6.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(
+            onClick  = onSave,
+            enabled  = value.isNotBlank(),
+            colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.Black),
+            shape    = RoundedCornerShape(12.dp),
+            modifier = Modifier.weight(1f),
+        ) { Text("Save", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+        OutlinedButton(
+            onClick  = onClear,
+            enabled  = hasKey,
+            shape    = RoundedCornerShape(12.dp),
+            modifier = Modifier.weight(1f),
+        ) { Text("Clear", fontSize = 12.sp, color = Color.White.copy(alpha = 0.75f)) }
     }
 }
 

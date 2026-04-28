@@ -83,6 +83,44 @@ static llama_context*    g_ctx         = nullptr;
 static std::atomic<bool> g_cancel{false};
 static std::string       g_model_path;
 
+// ─── concurrency primitives ──────────────────────────────────────────────────
+//
+// Threading model
+// ---------------
+// All JNI entry points that touch the chat pipeline globals (g_model, g_ctx,
+// g_n_past, g_extra_stop_ids, g_draft_*) acquire `g_llama_mutex` at the JNI
+// boundary and hold it for the duration of the call. This is enforced by the
+// `LLAMA_LOCK()` macro placed at the top of every such entry.
+//
+// Why the JNI boundary (not finer-grained locks):
+//   - Internal helpers (`decode_text_chunk`, `gen_loop`, `kv_trim_to_fit`,
+//     `update_draft_with_main_segment`, …) all assume the caller already
+//     holds the lock, so they can read/mutate g_ctx / g_n_past freely.
+//     Putting the lock at the boundary means there's exactly ONE lock site
+//     per call site type; no helper needs to know about locking.
+//   - Cancellation is intentionally LOCK-FREE — `Java_..._cancel` only
+//     stores into `g_cancel` (atomic) and does NOT acquire the mutex.
+//     If cancel had to wait on the mutex, it would block until the
+//     in-flight decode ran to completion, defeating the point of cancel.
+//   - The generation loop reads `g_cancel` every iteration without holding
+//     any extra lock, so cancel has the same latency as a normal atomic load.
+//
+// Embedding pipeline (g_emb_*) has its own mutex `g_emb_mutex`. Embedding
+// compute is a separate context with no shared KV state, so it should not
+// block chat decode (and vice versa).
+//
+// MTMD pipeline (g_mtmd_*) keeps its existing `g_mtmd_mutex` AND now
+// additionally acquires `g_llama_mutex` because mtmd_encode_chunk feeds
+// the result into `llama_decode(g_ctx, …)` which mutates g_ctx/g_n_past.
+// Lock order is ALWAYS `g_llama_mutex` → `g_mtmd_mutex` (outer → inner) to
+// guarantee no deadlock vs chat callers (which only take g_llama_mutex).
+//
+static std::mutex g_llama_mutex;
+static std::mutex g_emb_mutex;
+
+#define LLAMA_LOCK() std::lock_guard<std::mutex> _llama_lock(g_llama_mutex)
+#define EMB_LOCK()   std::lock_guard<std::mutex> _emb_lock(g_emb_mutex)
+
 // Session state — persists across messages.
 static int               g_n_past      = 0;       // absolute KV position
 static const int         KV_KEEP_HEAD  = 128;     // never trim the first N tokens
@@ -631,6 +669,7 @@ JNIEXPORT jstring JNICALL
 Java_com_airi_assistant_ai_LlamaNative_loadModel(
     JNIEnv* env, jobject /*this*/, jstring jModelPath)
 {
+    LLAMA_LOCK();
     g_phase = "loadModel";
     const char* path = env->GetStringUTFChars(jModelPath, nullptr);
     std::string model_path(path);
@@ -701,6 +740,7 @@ JNIEXPORT void JNICALL
 Java_com_airi_assistant_ai_LlamaNative_loadModelWithProgress(
     JNIEnv* env, jobject /*this*/, jstring jModelPath, jobject callback)
 {
+    LLAMA_LOCK();
     g_phase = "loadModelWithProgress";
     const char* path = env->GetStringUTFChars(jModelPath, nullptr);
     std::string model_path(path);
@@ -778,6 +818,7 @@ Java_com_airi_assistant_ai_LlamaNative_loadModelWithProgress(
 // ----------------------------------------------------------------------------
 JNIEXPORT void JNICALL
 Java_com_airi_assistant_ai_LlamaNative_beginSession(JNIEnv* env, jobject /*this*/) {
+    LLAMA_LOCK();
     if (!g_model || !g_ctx) {
         env->ThrowNew(env->FindClass("java/lang/RuntimeException"), "MODEL_NOT_LOADED");
         return;
@@ -795,6 +836,7 @@ Java_com_airi_assistant_ai_LlamaNative_beginSession(JNIEnv* env, jobject /*this*
 
 JNIEXPORT void JNICALL
 Java_com_airi_assistant_ai_LlamaNative_resetSession(JNIEnv* /*env*/, jobject /*this*/) {
+    LLAMA_LOCK();
     if (!g_ctx) return;
     g_phase = "resetSession";
     llama_memory_clear(llama_get_memory(g_ctx), true);
@@ -809,6 +851,7 @@ JNIEXPORT void JNICALL
 Java_com_airi_assistant_ai_LlamaNative_appendUserTurn(
     JNIEnv* env, jobject /*this*/, jstring jText)
 {
+    LLAMA_LOCK();
     if (!g_model || !g_ctx) {
         env->ThrowNew(env->FindClass("java/lang/RuntimeException"), "MODEL_NOT_LOADED");
         return;
@@ -832,6 +875,7 @@ JNIEXPORT void JNICALL
 Java_com_airi_assistant_ai_LlamaNative_appendAssistantTurn(
     JNIEnv* env, jobject /*this*/, jstring jText)
 {
+    LLAMA_LOCK();
     if (!g_model || !g_ctx) {
         env->ThrowNew(env->FindClass("java/lang/RuntimeException"), "MODEL_NOT_LOADED");
         return;
@@ -854,6 +898,7 @@ JNIEXPORT void JNICALL
 Java_com_airi_assistant_ai_LlamaNative_generateNextTokens(
     JNIEnv* env, jobject /*this*/, jint maxTokens, jobject callback)
 {
+    LLAMA_LOCK();
     if (!g_model || !g_ctx) {
         env->ThrowNew(env->FindClass("java/lang/RuntimeException"), "MODEL_NOT_LOADED");
         return;
@@ -885,11 +930,13 @@ Java_com_airi_assistant_ai_LlamaNative_generateNextTokens(
 
 JNIEXPORT jint JNICALL
 Java_com_airi_assistant_ai_LlamaNative_getKvPosition(JNIEnv*, jobject) {
+    LLAMA_LOCK();
     return (jint)g_n_past;
 }
 
 JNIEXPORT jint JNICALL
 Java_com_airi_assistant_ai_LlamaNative_getNCtx(JNIEnv*, jobject) {
+    LLAMA_LOCK();
     if (!g_ctx) return 0;
     return (jint)llama_n_ctx(g_ctx);
 }
@@ -902,6 +949,7 @@ JNIEXPORT jstring JNICALL
 Java_com_airi_assistant_ai_LlamaNative_generateResponse(
     JNIEnv* env, jobject /*this*/, jstring jPrompt)
 {
+    LLAMA_LOCK();
     if (!g_model || !g_ctx) {
         LOGE("generateResponse: no model loaded");
         return env->NewStringUTF("");
@@ -929,6 +977,7 @@ JNIEXPORT void JNICALL
 Java_com_airi_assistant_ai_LlamaNative_generateStream(
     JNIEnv* env, jobject /*this*/, jstring jPrompt, jobject callback)
 {
+    LLAMA_LOCK();
     if (!g_model || !g_ctx) {
         LOGE("generateStream: no model loaded");
         env->ThrowNew(env->FindClass("java/lang/RuntimeException"), "MODEL_NOT_LOADED");
@@ -980,6 +1029,7 @@ JNIEXPORT void JNICALL
 Java_com_airi_assistant_ai_LlamaNative_setRuntimeMode(
     JNIEnv* env, jobject /*this*/, jint nCtx, jint nThreads)
 {
+    LLAMA_LOCK();
     if (!g_model) {
         env->ThrowNew(env->FindClass("java/lang/RuntimeException"), "MODEL_NOT_LOADED");
         return;
@@ -1034,6 +1084,7 @@ Java_com_airi_assistant_ai_LlamaNative_setRuntimeMode(
 JNIEXPORT jstring JNICALL
 Java_com_airi_assistant_ai_LlamaNative_getModelDescription(JNIEnv* env, jobject /*this*/)
 {
+    LLAMA_LOCK();
     if (!g_model) return env->NewStringUTF("UNAVAILABLE");
     char desc[256] = {0};
     llama_model_desc(g_model, desc, sizeof(desc));
@@ -1082,6 +1133,7 @@ JNIEXPORT jstring JNICALL
 Java_com_airi_assistant_ai_LlamaNative_loadDraftModel(
     JNIEnv* env, jobject /*this*/, jstring jPath)
 {
+    LLAMA_LOCK();
     if (!g_model || !g_ctx) return env->NewStringUTF("MAIN_NOT_LOADED");
 
     const char* p = env->GetStringUTFChars(jPath, nullptr);
@@ -1147,6 +1199,7 @@ Java_com_airi_assistant_ai_LlamaNative_loadDraftModel(
 
 JNIEXPORT void JNICALL
 Java_com_airi_assistant_ai_LlamaNative_unloadDraftModel(JNIEnv* /*env*/, jobject /*this*/) {
+    LLAMA_LOCK();
     if (g_draft_ctx)   { llama_free(g_draft_ctx);         g_draft_ctx   = nullptr; }
     if (g_draft_model) { llama_model_free(g_draft_model); g_draft_model = nullptr; }
     g_draft_n_past = 0;
@@ -1186,6 +1239,7 @@ JNIEXPORT void JNICALL
 Java_com_airi_assistant_ai_LlamaNative_generateNextTokensSpeculative(
     JNIEnv* env, jobject /*this*/, jint maxTokens, jint draftN, jobject callback)
 {
+    LLAMA_LOCK();
     if (!g_model || !g_ctx) {
         env->ThrowNew(env->FindClass("java/lang/RuntimeException"), "MODEL_NOT_LOADED");
         return;
@@ -1509,6 +1563,7 @@ JNIEXPORT jstring JNICALL
 Java_com_airi_assistant_ai_LlamaNative_loadEmbeddingModel(
     JNIEnv* env, jobject /*this*/, jstring jpath)
 {
+    EMB_LOCK();
     if (!jpath) return env->NewStringUTF("ERR_NULL_PATH");
     const char* path_c = env->GetStringUTFChars(jpath, nullptr);
     std::string model_path(path_c ? path_c : "");
@@ -1559,6 +1614,7 @@ JNIEXPORT jfloatArray JNICALL
 Java_com_airi_assistant_ai_LlamaNative_computeEmbedding(
     JNIEnv* env, jobject /*this*/, jstring jtext)
 {
+    EMB_LOCK();
     if (!g_emb_model || !g_emb_ctx || g_emb_dim <= 0) return nullptr;
     if (!jtext) return nullptr;
 
@@ -1645,6 +1701,7 @@ JNIEXPORT void JNICALL
 Java_com_airi_assistant_ai_LlamaNative_unloadEmbeddingModel(
     JNIEnv* /*env*/, jobject /*this*/)
 {
+    EMB_LOCK();
     airi_free_embedding_state();
     PROOF("EMBEDDING_MODEL_UNLOADED");
 }
@@ -1653,6 +1710,7 @@ JNIEXPORT jint JNICALL
 Java_com_airi_assistant_ai_LlamaNative_getEmbeddingDim(
     JNIEnv* /*env*/, jobject /*this*/)
 {
+    EMB_LOCK();
     return (jint)g_emb_dim;
 }
 
@@ -1695,8 +1753,12 @@ Java_com_airi_assistant_ai_LlamaNative_getEmbeddingDim(
 //    `vision = true`, which only happens for vision-capable model profiles.
 // =============================================================================
 #if defined(AIRI_HAS_MTMD) && AIRI_HAS_MTMD
-#include "tools/mtmd/mtmd.h"
-#include "tools/mtmd/mtmd-helper.h"
+// `mtmd.h` and `mtmd-helper.h` are reachable via the
+// `app/src/main/cpp/llama/tools/mtmd` include directory added by
+// CMakeLists. The previous `tools/mtmd/...` prefix would only resolve if
+// `app/src/main/cpp/llama` was on the search path, which it isn't.
+#include "mtmd.h"
+#include "mtmd-helper.h"
 
 static mtmd_context*   g_mtmd_ctx = nullptr;
 static std::mutex      g_mtmd_mutex;
@@ -1706,6 +1768,7 @@ JNIEXPORT jboolean JNICALL
 Java_com_airi_assistant_ai_LlamaNative_loadMmproj(
     JNIEnv* env, jobject /*this*/, jstring jPath)
 {
+    LLAMA_LOCK();
     std::lock_guard<std::mutex> lock(g_mtmd_mutex);
     if (g_model == nullptr) {
         PROOF("MMPROJ_LOAD_FAILED reason=no_text_model");
@@ -1721,7 +1784,9 @@ Java_com_airi_assistant_ai_LlamaNative_loadMmproj(
     params.use_gpu        = false;
     params.print_timings  = false;
     params.n_threads      = 4;
-    params.verbosity      = GGML_LOG_LEVEL_WARN;
+    // NOTE: `verbosity` was removed from `mtmd_context_params` upstream;
+    // log level is now controlled globally via the GGML log callback,
+    // which the rest of LlamaBridge already configures elsewhere.
     g_mtmd_ctx = mtmd_init_from_file(cPath, g_model, params);
     env->ReleaseStringUTFChars(jPath, cPath);
     if (g_mtmd_ctx == nullptr) {
@@ -1740,6 +1805,7 @@ JNIEXPORT void JNICALL
 Java_com_airi_assistant_ai_LlamaNative_unloadMmproj(
     JNIEnv* /*env*/, jobject /*this*/)
 {
+    LLAMA_LOCK();
     std::lock_guard<std::mutex> lock(g_mtmd_mutex);
     if (g_mtmd_ctx) {
         mtmd_free(g_mtmd_ctx);
@@ -1753,6 +1819,7 @@ JNIEXPORT jboolean JNICALL
 Java_com_airi_assistant_ai_LlamaNative_isMmprojLoaded(
     JNIEnv* /*env*/, jobject /*this*/)
 {
+    LLAMA_LOCK();
     std::lock_guard<std::mutex> lock(g_mtmd_mutex);
     return g_mtmd_ctx ? JNI_TRUE : JNI_FALSE;
 }
@@ -1763,6 +1830,7 @@ Java_com_airi_assistant_ai_LlamaNative_evalImageAndGenerate(
     jstring jPrompt, jbyteArray jRgb,
     jint width, jint height, jint maxNewTokens)
 {
+    LLAMA_LOCK();
     std::lock_guard<std::mutex> lock(g_mtmd_mutex);
     if (g_mtmd_ctx == nullptr || g_model == nullptr || g_ctx == nullptr) {
         PROOF("MMPROJ_EVAL_FAILED reason=not_ready");
@@ -1801,7 +1869,10 @@ Java_com_airi_assistant_ai_LlamaNative_evalImageAndGenerate(
     input.parse_special = true;
 
     mtmd_input_chunks* chunks = mtmd_input_chunks_init();
-    mtmd_bitmap* bitmaps[1] = { bmp };
+    // mtmd_tokenize takes `const mtmd_bitmap **`; declaring the array as
+    // `const mtmd_bitmap *[1]` lets the array decay to that pointer type
+    // implicitly. The bitmap itself is still owned by us and freed below.
+    const mtmd_bitmap* bitmaps[1] = { bmp };
     int32_t tok_rc = mtmd_tokenize(g_mtmd_ctx, chunks, &input, bitmaps, 1);
     if (tok_rc != 0) {
         mtmd_input_chunks_free(chunks);
@@ -1811,7 +1882,10 @@ Java_com_airi_assistant_ai_LlamaNative_evalImageAndGenerate(
     }
 
     // ---- Wipe KV for a clean vision conditioning pass -----------------------
-    llama_kv_self_clear(g_ctx);
+    // Upstream renamed `llama_kv_self_clear(ctx)` to a two-step call against
+    // the new memory abstraction. `data=true` matches the old behavior of
+    // wiping both metadata and the underlying KV buffers.
+    llama_memory_clear(llama_get_memory(g_ctx), /*data=*/true);
     llama_pos n_past = 0;
 
     // ---- Eval chunks (text via llama_decode, image via mtmd_encode_chunk) ---

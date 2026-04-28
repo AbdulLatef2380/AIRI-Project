@@ -294,6 +294,10 @@ fun ModelSettingsScreen(
                             onDownload = {
                                 downloadingIds = downloadingIds + entry.id
                                 viewModel.downloadCatalogModel(entry)
+                            },
+                            onCancel = {
+                                viewModel.cancelCatalogDownload()
+                                downloadingIds = downloadingIds - entry.id
                             }
                         )
                     }
@@ -816,7 +820,8 @@ fun RefDownloadedModelCard(
 fun RefCatalogModelCard(
     entry: CatalogEntry,
     isDownloading: Boolean,
-    onDownload: () -> Unit
+    onDownload: () -> Unit,
+    onCancel: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val profile = remember { DeviceProfiler.profile(context) }
@@ -970,8 +975,8 @@ fun RefCatalogModelCard(
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = Color(0xFF007AFF).copy(alpha = 0.10f),
                         contentColor   = Color(0xFF007AFF),
-                        disabledContainerColor = Color.White.copy(alpha = 0.04f),
-                        disabledContentColor   = Color.White.copy(alpha = 0.25f)
+                        disabledContainerColor = Color(0xFF007AFF).copy(alpha = 0.10f),
+                        disabledContentColor   = Color(0xFF007AFF)
                     ),
                     contentPadding = PaddingValues(horizontal = 12.dp)
                 ) {
@@ -996,6 +1001,28 @@ fun RefCatalogModelCard(
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1
                         )
+                    }
+                }
+
+                // Cancel button — only shown while a download is in progress
+                if (isDownloading) {
+                    OutlinedButton(
+                        onClick = onCancel,
+                        modifier = Modifier.height(40.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color(0xFFFF3B30).copy(alpha = 0.10f),
+                            contentColor   = Color(0xFFFF3B30)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Close,
+                            contentDescription = "Cancel download",
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text("Cancel", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     }
                 }
 

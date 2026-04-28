@@ -67,14 +67,12 @@ fun SettingsScreen(
 
     val systemPrompt by viewModel.systemPrompt.collectAsState()
     val responseStyleState by viewModel.responseStyle.collectAsState()
-    val themeModeState by viewModel.themeMode.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val backgroundAgentEnabled by viewModel.backgroundAgentEnabled.collectAsState()
     val currentLanguage = remember { mutableStateOf(LanguageManager.getCurrentLanguage(context)) }
 
     var customInstructions by rememberSaveable { mutableStateOf(systemPrompt) }
     var responseStyle by rememberSaveable { mutableStateOf(responseStyleState) }
-    var themeMode by rememberSaveable { mutableStateOf(themeModeState) }
     val voicePrefs = remember { context.getSharedPreferences("airi_voice", Context.MODE_PRIVATE) }
     var voiceEnabled by rememberSaveable { mutableStateOf(voicePrefs.getBoolean("voice_enabled", false)) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -111,12 +109,6 @@ fun SettingsScreen(
         "balanced" to stringResource(R.string.style_balanced),
         "detailed" to stringResource(R.string.style_detailed)
     )
-    val themeOptions = listOf(
-        "dark" to stringResource(R.string.theme_dark),
-        "light" to stringResource(R.string.theme_light),
-        "system" to stringResource(R.string.theme_system)
-    )
-
     fun applySelectedLanguage(language: LanguageOption) {
         currentLanguage.value = language.code
         if (activity != null) {
@@ -243,36 +235,6 @@ fun SettingsScreen(
                 Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 8.dp))
                 SettingsActionRow(label = stringResource(R.string.clear_all_memory), sublabel = stringResource(R.string.reset_ai_context), destructive = true) {
                     viewModel.clearMemory()
-                }
-            }
-
-            SettingsSurface {
-                SettingsCategoryHeader(icon = Icons.Outlined.Palette, title = stringResource(R.string.appearance))
-                Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.theme), fontSize = 13.sp, color = Color.White.copy(alpha = 0.7f))
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    themeOptions.forEach { (code, label) ->
-                        val selected = themeMode == code
-                        FilterChip(
-                            selected = selected,
-                            onClick = {
-                                themeMode = code
-                                viewModel.setThemeMode(code)
-                            },
-                            label = { Text(label, fontSize = 12.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
-                                selectedLabelColor = CosmicAccent,
-                                containerColor = Color.White.copy(alpha = 0.06f),
-                                labelColor = Color.White.copy(alpha = 0.6f)
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                borderColor = Color.White.copy(alpha = 0.1f),
-                                selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
-                            )
-                        )
-                    }
                 }
             }
 

@@ -63,6 +63,8 @@
 #include <functional>
 #include <cstring>
 #include <cstdio>
+#include <cstdarg>
+#include <cerrno>
 #include <algorithm>
 #include <stdexcept>
 #include <sys/stat.h>
@@ -245,14 +247,111 @@ static long file_size(const char* path) {
     return (long)st.st_size;
 }
 
+// Stronger GGUF header validation than just the 4-byte magic. A truncated
+// download will still pass the magic check (those 4 bytes land first), so we
+// also verify:
+//   • GGUF version is one of {1, 2, 3}        (anything else = corruption)
+//   • tensor_count fits a sane range          (1..1_000_000)
+//   • metadata_kv_count fits a sane range     (0..1_000_000)
+// All multi-byte fields in the GGUF header are little-endian (per the spec).
+// On any read or sanity failure we write the reason into the thread-local
+// error buffer so loadModel() can surface it back to Java.
+static thread_local char g_last_native_error[512] = {0};
+static void airi_set_native_error(const char* fmt, ...) {
+    va_list ap; va_start(ap, fmt);
+    vsnprintf(g_last_native_error, sizeof(g_last_native_error), fmt, ap);
+    va_end(ap);
+}
+static const char* airi_get_native_error() {
+    return g_last_native_error[0] ? g_last_native_error : nullptr;
+}
+
 static bool is_valid_gguf(const char* path) {
     FILE* f = fopen(path, "rb");
-    if (!f) return false;
-    uint8_t magic[4] = {};
-    size_t n = fread(magic, 1, 4, f);
+    if (!f) {
+        airi_set_native_error("fopen failed: %s", strerror(errno));
+        return false;
+    }
+    // GGUF v3 header layout (little-endian):
+    //   uint32 magic            "GGUF"
+    //   uint32 version          1, 2, or 3
+    //   uint64 tensor_count
+    //   uint64 metadata_kv_count
+    uint8_t hdr[24] = {};
+    size_t n = fread(hdr, 1, sizeof(hdr), f);
     fclose(f);
-    if (n < 4) return false;
-    return magic[0] == 'G' && magic[1] == 'G' && magic[2] == 'U' && magic[3] == 'F';
+    if (n < sizeof(hdr)) {
+        airi_set_native_error("file too short: read %zu of %zu header bytes", n, sizeof(hdr));
+        return false;
+    }
+    if (!(hdr[0] == 'G' && hdr[1] == 'G' && hdr[2] == 'U' && hdr[3] == 'F')) {
+        airi_set_native_error("bad GGUF magic: %02x %02x %02x %02x", hdr[0], hdr[1], hdr[2], hdr[3]);
+        return false;
+    }
+    uint32_t version = (uint32_t)hdr[4]
+                     | ((uint32_t)hdr[5] << 8)
+                     | ((uint32_t)hdr[6] << 16)
+                     | ((uint32_t)hdr[7] << 24);
+    if (version < 1 || version > 3) {
+        airi_set_native_error("unsupported GGUF version %u (this build supports 1..3)", version);
+        return false;
+    }
+    uint64_t tensor_count = 0, kv_count = 0;
+    for (int i = 0; i < 8; i++) {
+        tensor_count |= ((uint64_t)hdr[8 + i])  << (i * 8);
+        kv_count     |= ((uint64_t)hdr[16 + i]) << (i * 8);
+    }
+    if (tensor_count == 0 || tensor_count > 1000000ULL) {
+        airi_set_native_error("implausible tensor_count=%llu (file likely truncated or corrupted)",
+                              (unsigned long long)tensor_count);
+        return false;
+    }
+    if (kv_count > 1000000ULL) {
+        airi_set_native_error("implausible metadata_kv_count=%llu (file likely corrupted)",
+                              (unsigned long long)kv_count);
+        return false;
+    }
+    g_last_native_error[0] = 0;  // clear stale errors on success
+    return true;
+}
+
+// Capture llama.cpp's internal log messages so we can surface the *actual*
+// failure reason (e.g. "unknown architecture", "tensor 'foo' has wrong shape")
+// instead of the useless "llama_model_load_from_file returned null" string.
+// We only record ERROR-level messages — INFO/DEBUG would otherwise overwrite
+// the genuine error during the rest of the load sequence.
+static void airi_llama_log_callback(ggml_log_level level, const char* text, void* /*user*/) {
+    if (!text) return;
+    // Always echo to logcat so a developer attaching adb sees the full stream.
+    int prio = ANDROID_LOG_INFO;
+    switch (level) {
+        case GGML_LOG_LEVEL_ERROR: prio = ANDROID_LOG_ERROR; break;
+        case GGML_LOG_LEVEL_WARN:  prio = ANDROID_LOG_WARN;  break;
+        case GGML_LOG_LEVEL_INFO:  prio = ANDROID_LOG_INFO;  break;
+        case GGML_LOG_LEVEL_DEBUG: prio = ANDROID_LOG_DEBUG; break;
+        default: break;
+    }
+    __android_log_print(prio, "LLAMA_CPP", "%s", text);
+    if (level == GGML_LOG_LEVEL_ERROR) {
+        // Strip any trailing newline so the surfaced error reads cleanly.
+        size_t len = strlen(text);
+        char buf[480];
+        size_t copy = len < sizeof(buf) - 1 ? len : sizeof(buf) - 1;
+        memcpy(buf, text, copy);
+        buf[copy] = 0;
+        while (copy > 0 && (buf[copy - 1] == '\n' || buf[copy - 1] == '\r')) {
+            buf[--copy] = 0;
+        }
+        airi_set_native_error("llama.cpp: %s", buf);
+    }
+}
+
+static std::atomic<bool> g_log_callback_installed{false};
+static void airi_install_log_callback_once() {
+    bool expected = false;
+    if (g_log_callback_installed.compare_exchange_strong(expected, true)) {
+        llama_log_set(airi_llama_log_callback, nullptr);
+    }
 }
 
 // Validate that `s` is a *complete* UTF-8 string (no truncated codepoint at end).
@@ -677,6 +776,9 @@ Java_com_airi_assistant_ai_LlamaNative_loadModel(
 
     LOGI("loadModel: path=%s", model_path.c_str());
 
+    airi_install_log_callback_once();
+    g_last_native_error[0] = 0;
+
     if (!file_exists(model_path.c_str())) {
         LOGE("loadModel: FILE_NOT_FOUND %s", model_path.c_str());
         return env->NewStringUTF("FILE_NOT_FOUND");
@@ -684,11 +786,14 @@ Java_com_airi_assistant_ai_LlamaNative_loadModel(
     long sz = file_size(model_path.c_str());
     if (sz < 100 * 1024 * 1024L) {
         LOGE("loadModel: file too small (%ld bytes) — INVALID_GGUF", sz);
-        return env->NewStringUTF("INVALID_GGUF");
+        std::string out = "INVALID_GGUF:file too small (" + std::to_string(sz) + " bytes)";
+        return env->NewStringUTF(out.c_str());
     }
     if (!is_valid_gguf(model_path.c_str())) {
-        LOGE("loadModel: bad GGUF magic — INVALID_GGUF");
-        return env->NewStringUTF("INVALID_GGUF");
+        const char* why = airi_get_native_error();
+        LOGE("loadModel: INVALID_GGUF — %s", why ? why : "bad header");
+        std::string out = std::string("INVALID_GGUF:") + (why ? why : "bad header");
+        return env->NewStringUTF(out.c_str());
     }
 
     if (g_ctx)   { llama_free(g_ctx);          g_ctx   = nullptr; }
@@ -707,7 +812,12 @@ Java_com_airi_assistant_ai_LlamaNative_loadModel(
     long t_load1 = (long)(ggml_time_us() / 1000LL);
     g_t_load_ms.store(t_load1 - t_load0);
     if (!g_model) {
-        return env->NewStringUTF("NATIVE_LOAD_FAILED:llama_model_load_from_file returned null");
+        const char* why = airi_get_native_error();
+        std::string out = "NATIVE_LOAD_FAILED:";
+        out += (why ? why : "llama_model_load_from_file returned null (no diagnostic captured)");
+        out += " path=" + model_path + " size=" + std::to_string(sz);
+        LOGE("loadModel: %s", out.c_str());
+        return env->NewStringUTF(out.c_str());
     }
     airi_resolve_stop_tokens(g_model);
 
@@ -722,7 +832,10 @@ Java_com_airi_assistant_ai_LlamaNative_loadModel(
     if (!g_ctx) {
         llama_model_free(g_model);
         g_model = nullptr;
-        return env->NewStringUTF("NATIVE_LOAD_FAILED:llama_init_from_model returned null");
+        const char* why = airi_get_native_error();
+        std::string out = "NATIVE_LOAD_FAILED:llama_init_from_model returned null";
+        if (why) { out += " ("; out += why; out += ")"; }
+        return env->NewStringUTF(out.c_str());
     }
 
     g_model_path = model_path;
@@ -748,6 +861,9 @@ Java_com_airi_assistant_ai_LlamaNative_loadModelWithProgress(
 
     LOGI("loadModelWithProgress: path=%s", model_path.c_str());
 
+    airi_install_log_callback_once();
+    g_last_native_error[0] = 0;
+
     jclass cbClass   = env->GetObjectClass(callback);
     jmethodID onProg = env->GetMethodID(cbClass, "onProgress", "(I)V");
     if (onProg) env->CallVoidMethod(callback, onProg, 5);
@@ -758,8 +874,15 @@ Java_com_airi_assistant_ai_LlamaNative_loadModelWithProgress(
         return;
     }
     long sz = file_size(model_path.c_str());
-    if (sz < 100 * 1024 * 1024L || !is_valid_gguf(model_path.c_str())) {
-        env->ThrowNew(env->FindClass("java/lang/RuntimeException"), "INVALID_GGUF");
+    if (sz < 100 * 1024 * 1024L) {
+        std::string out = "INVALID_GGUF:file too small (" + std::to_string(sz) + " bytes)";
+        env->ThrowNew(env->FindClass("java/lang/RuntimeException"), out.c_str());
+        return;
+    }
+    if (!is_valid_gguf(model_path.c_str())) {
+        const char* why = airi_get_native_error();
+        std::string out = std::string("INVALID_GGUF:") + (why ? why : "bad header");
+        env->ThrowNew(env->FindClass("java/lang/RuntimeException"), out.c_str());
         return;
     }
 
@@ -784,8 +907,12 @@ Java_com_airi_assistant_ai_LlamaNative_loadModelWithProgress(
     if (onProg) env->CallVoidMethod(callback, onProg, 90);
 
     if (!g_model) {
-        env->ThrowNew(env->FindClass("java/lang/RuntimeException"),
-                      "NATIVE_LOAD_FAILED:llama_model_load_from_file returned null");
+        const char* why = airi_get_native_error();
+        std::string out = "NATIVE_LOAD_FAILED:";
+        out += (why ? why : "llama_model_load_from_file returned null (no diagnostic captured)");
+        out += " path=" + model_path + " size=" + std::to_string(sz);
+        LOGE("loadModelWithProgress: %s", out.c_str());
+        env->ThrowNew(env->FindClass("java/lang/RuntimeException"), out.c_str());
         return;
     }
 
@@ -800,8 +927,10 @@ Java_com_airi_assistant_ai_LlamaNative_loadModelWithProgress(
     if (!g_ctx) {
         llama_model_free(g_model);
         g_model = nullptr;
-        env->ThrowNew(env->FindClass("java/lang/RuntimeException"),
-                      "NATIVE_LOAD_FAILED:llama_init_from_model returned null");
+        const char* why = airi_get_native_error();
+        std::string out = "NATIVE_LOAD_FAILED:llama_init_from_model returned null";
+        if (why) { out += " ("; out += why; out += ")"; }
+        env->ThrowNew(env->FindClass("java/lang/RuntimeException"), out.c_str());
         return;
     }
 

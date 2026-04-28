@@ -228,11 +228,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     )
     val responseStyle: StateFlow<String> = _responseStyle.asStateFlow()
 
-    private val _themeMode = MutableStateFlow(
-        preferences.getString("app_theme_mode", "dark") ?: "dark"
-    )
-    val themeMode: StateFlow<String> = _themeMode.asStateFlow()
-
     private val _memoryEntries = MutableStateFlow<List<MemoryChatMessage>>(emptyList())
     val memoryEntries: StateFlow<List<MemoryChatMessage>> = _memoryEntries.asStateFlow()
 
@@ -1538,11 +1533,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         preferences.edit().putString("gen_response_style", style).apply()
     }
 
-    fun setThemeMode(mode: String) {
-        _themeMode.value = mode
-        preferences.edit().putString("app_theme_mode", mode).apply()
-    }
-
     fun clearMessages()  { createNewSession() }
 
     fun clearMemory() {
@@ -1677,6 +1667,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) appContext.startForegroundService(intent)
         else appContext.startService(intent)
+    }
+
+    /**
+     * Cancels any in-flight catalog download started via
+     * [downloadCatalogModel]. Safe to call when no download is active —
+     * the worker simply re-checks the cancel flag and exits cleanly.
+     * Triggered from the "Cancel" button rendered on each catalog card
+     * while a download is in progress (see ModelSettingsScreen).
+     */
+    fun cancelCatalogDownload() {
+        ModelDownloadService.cancel(appContext)
+        Log.i("AIRI_MODEL_DOWNLOAD", "USER_CANCEL_REQUESTED")
     }
 
     fun activateCatalogDownload(entry: CatalogEntry) {
@@ -1843,8 +1845,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _modelState.value.capabilities
             }
             _modelState.update {
+                val nativeReason = llamaManager.getLastLoadFailure() ?: "unknown reason / سبب غير معروف"
                 it.copy(isModelLoading = false, isModelReady = success,
-                    loadError = if (success) null else "فشل تحميل النموذج في محرك الاستنتاج: ${llamaManager.getLastLoadFailure() ?: "سبب غير معروف"}",
+                    loadError = if (success) null
+                                else "Model failed to load: $nativeReason\nفشل تحميل النموذج: $nativeReason",
                     loadErrorType = if (success) LoadErrorType.NONE else LoadErrorType.LOAD_FAILED,
                     loadProgress = -1, availableModels = ModelManager.getAllModels(),
                     capabilities = newCaps)

@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.airi.assistant.R
 import com.airi.assistant.auth.SecureStorage
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.integrations.github.GithubService
@@ -42,35 +43,40 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         _items.value = buildItems()
     }
 
-    private fun buildItems(): List<IntegrationItem> = listOf(
-        IntegrationItem(
-            id          = "github",
-            name        = "GitHub",
-            description = "Connect repositories, issues, and coding context.",
-            emoji       = "🐙",
-            isConnected = secureStorage.isGithubConnected(),
-            connectedAs = secureStorage.getGithubUsername(),
-            lastUpdated = secureStorage.getGithubUpdated()
-        ),
-        IntegrationItem(
-            id          = "telegram",
-            name        = "Telegram",
-            description = "Link a Telegram bot for messaging workflows.",
-            emoji       = "✈️",
-            isConnected = secureStorage.isTelegramConnected(),
-            connectedAs = secureStorage.getTelegramUsername(),
-            lastUpdated = secureStorage.getTelegramUpdated()
-        ),
-        IntegrationItem(
-            id          = "google",
-            name        = "Google",
-            description = "Access Gmail, Drive, and Calendar (read-only).",
-            emoji       = "🔵",
-            isConnected = secureStorage.isGoogleConnected(),
-            connectedAs = secureStorage.getGoogleEmail() ?: "",
-            lastUpdated = secureStorage.getGoogleUpdated()
+    private fun buildItems(): List<IntegrationItem> {
+        // Resolve all user-facing strings through the Application context so
+        // they pick up the active locale (en / ar) instead of being hardcoded.
+        val ctx = getApplication<Application>()
+        return listOf(
+            IntegrationItem(
+                id          = "github",
+                name        = ctx.getString(R.string.integration_github_name),
+                description = ctx.getString(R.string.integration_github_description),
+                emoji       = "🐙",
+                isConnected = secureStorage.isGithubConnected(),
+                connectedAs = secureStorage.getGithubUsername(),
+                lastUpdated = secureStorage.getGithubUpdated()
+            ),
+            IntegrationItem(
+                id          = "telegram",
+                name        = ctx.getString(R.string.integration_telegram_name),
+                description = ctx.getString(R.string.integration_telegram_description),
+                emoji       = "✈️",
+                isConnected = secureStorage.isTelegramConnected(),
+                connectedAs = secureStorage.getTelegramUsername(),
+                lastUpdated = secureStorage.getTelegramUpdated()
+            ),
+            IntegrationItem(
+                id          = "google",
+                name        = ctx.getString(R.string.integration_google_name),
+                description = ctx.getString(R.string.integration_google_description),
+                emoji       = "🔵",
+                isConnected = secureStorage.isGoogleConnected(),
+                connectedAs = secureStorage.getGoogleEmail() ?: "",
+                lastUpdated = secureStorage.getGoogleUpdated()
+            )
         )
-    )
+    }
 
     // ── Dialog State ──────────────────────────────────────────────────────────
 
@@ -114,7 +120,9 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     fun connectGithub() {
         val current = _dialog.value as? DialogState.Github ?: return
         if (current.token.isBlank()) {
-            _dialog.value = current.copy(error = "Please paste your GitHub token")
+            _dialog.value = current.copy(
+                error = getApplication<Application>().getString(R.string.integration_error_paste_github)
+            )
             return
         }
         _dialog.value = current.copy(loading = true, error = null)
@@ -134,7 +142,9 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     fun connectTelegram() {
         val current = _dialog.value as? DialogState.Telegram ?: return
         if (current.token.isBlank()) {
-            _dialog.value = current.copy(error = "Please paste your bot token")
+            _dialog.value = current.copy(
+                error = getApplication<Application>().getString(R.string.integration_error_paste_telegram)
+            )
             return
         }
         _dialog.value = current.copy(loading = true, error = null)

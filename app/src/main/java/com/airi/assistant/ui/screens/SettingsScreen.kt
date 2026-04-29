@@ -141,6 +141,108 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // ─────────────────────────────────────────────────────────────────
+            // GROUP 1 — AI & Models
+            //   Everything that drives generation: skills (capabilities),
+            //   cloud LLM keys, the background agent, on-device performance,
+            //   and subscription/usage limits.
+            // ─────────────────────────────────────────────────────────────────
+            SettingsGroupHeader(stringResource(R.string.settings_group_ai_models))
+
+            SkillsSection(viewModel = viewModel)
+
+            ApiKeysSection()
+
+            AgentSection(
+                isEnabled  = backgroundAgentEnabled,
+                onToggle   = { viewModel.setBackgroundAgentEnabled(it) },
+                onNavigate = onNavigate,
+                isPremium  = viewModel.isPremium()
+            )
+
+            SettingsSurface {
+                SettingsCategoryHeader(icon = Icons.Outlined.Speed, title = stringResource(R.string.performance))
+                Spacer(Modifier.height(8.dp))
+                SettingsNavigationRow(
+                    label    = stringResource(R.string.performance_device_info),
+                    sublabel = stringResource(R.string.performance_device_info_sublabel)
+                ) { onNavigate(AiriRoute.PERFORMANCE) }
+            }
+
+            SubscriptionSection(viewModel = viewModel, onNavigate = onNavigate)
+
+            // ─────────────────────────────────────────────────────────────────
+            // GROUP 2 — Voice & Audio
+            //   Speech-to-text, wake word, and voice-mode toggle.
+            // ─────────────────────────────────────────────────────────────────
+            SettingsGroupHeader(stringResource(R.string.settings_group_voice_audio))
+
+            SettingsSurface {
+                SettingsCategoryHeader(icon = Icons.Outlined.Mic, title = stringResource(R.string.voice))
+                Spacer(Modifier.height(8.dp))
+                SettingsSwitchRow(stringResource(R.string.enable_voice_mode), voiceEnabled) { enabled ->
+                    voiceEnabled = enabled
+                    voicePrefs.edit().putBoolean("voice_enabled", enabled).apply()
+                }
+                Spacer(Modifier.height(8.dp))
+                SettingsNavigationRow(
+                    label = stringResource(R.string.voice_and_wakeword),
+                    sublabel = stringResource(R.string.voice_settings_subtitle),
+                    onClick = { onNavigate(com.airi.assistant.ui.AiriRoute.VOICE_SETTINGS) }
+                )
+                if (voiceEnabled) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = if (isSpeechAvailable)
+                            stringResource(R.string.voice_recognition_ready)
+                        else
+                            stringResource(R.string.voice_engine_not_installed),
+                        fontSize = 11.sp,
+                        color = if (isSpeechAvailable) CosmicAccent.copy(alpha = 0.7f) else Color(0xFFFF6B6B).copy(alpha = 0.8f)
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.speech_engine),
+                        color = if (isSpeechAvailable) Color.White.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.35f),
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        if (isSpeechAvailable) stringResource(R.string.speech_engine_value) else "Not installed",
+                        color = if (isSpeechAvailable) CosmicAccent.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.3f),
+                        fontSize = 12.sp
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.wake_word),
+                        color = if (isSpeechAvailable) Color.White.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.35f),
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        if (isSpeechAvailable) stringResource(R.string.wake_word_value) else "Requires voice engine",
+                        color = if (isSpeechAvailable) CosmicAccent.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.3f),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            // ─────────────────────────────────────────────────────────────────
+            // GROUP 3 — Personalization
+            //   Profile, custom instructions / response style, memory, and
+            //   UI language. These all describe "who AIRI is" for this user.
+            // ─────────────────────────────────────────────────────────────────
+            SettingsGroupHeader(stringResource(R.string.settings_group_personalization))
+
             SettingsSurface {
                 SettingsCategoryHeader(icon = Icons.Outlined.Person, title = stringResource(R.string.profile))
                 Spacer(Modifier.height(12.dp))
@@ -260,84 +362,14 @@ fun SettingsScreen(
                 Text(stringResource(R.string.recommended_english), fontSize = 11.sp, color = CosmicAccent.copy(alpha = 0.65f))
             }
 
-            SettingsSurface {
-                SettingsCategoryHeader(icon = Icons.Outlined.Mic, title = stringResource(R.string.voice))
-                Spacer(Modifier.height(8.dp))
-                SettingsSwitchRow(stringResource(R.string.enable_voice_mode), voiceEnabled) { enabled ->
-                    voiceEnabled = enabled
-                    voicePrefs.edit().putBoolean("voice_enabled", enabled).apply()
-                }
-                Spacer(Modifier.height(8.dp))
-                SettingsNavigationRow(
-                    label = stringResource(R.string.voice_and_wakeword),
-                    sublabel = stringResource(R.string.voice_settings_subtitle),
-                    onClick = { onNavigate(com.airi.assistant.ui.AiriRoute.VOICE_SETTINGS) }
-                )
-                if (voiceEnabled) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = if (isSpeechAvailable)
-                            stringResource(R.string.voice_recognition_ready)
-                        else
-                            stringResource(R.string.voice_engine_not_installed),
-                        fontSize = 11.sp,
-                        color = if (isSpeechAvailable) CosmicAccent.copy(alpha = 0.7f) else Color(0xFFFF6B6B).copy(alpha = 0.8f)
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.speech_engine),
-                        color = if (isSpeechAvailable) Color.White.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.35f),
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        if (isSpeechAvailable) stringResource(R.string.speech_engine_value) else "Not installed",
-                        color = if (isSpeechAvailable) CosmicAccent.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.3f),
-                        fontSize = 12.sp
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.wake_word),
-                        color = if (isSpeechAvailable) Color.White.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.35f),
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        if (isSpeechAvailable) stringResource(R.string.wake_word_value) else "Requires voice engine",
-                        color = if (isSpeechAvailable) CosmicAccent.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.3f),
-                        fontSize = 12.sp
-                    )
-                }
-            }
+            // ─────────────────────────────────────────────────────────────────
+            // GROUP 4 — System & Permissions
+            //   OS-level integration (default assistant), data export/clear/
+            //   account deletion, observability, and app metadata.
+            // ─────────────────────────────────────────────────────────────────
+            SettingsGroupHeader(stringResource(R.string.settings_group_system_permissions))
 
-            SkillsSection(viewModel = viewModel)
-
-            AgentSection(
-                isEnabled  = backgroundAgentEnabled,
-                onToggle   = { viewModel.setBackgroundAgentEnabled(it) },
-                onNavigate = onNavigate,
-                isPremium  = viewModel.isPremium()
-            )
-
-            ApiKeysSection()
-
-            SettingsSurface {
-                SettingsCategoryHeader(icon = Icons.Outlined.Speed, title = stringResource(R.string.performance))
-                Spacer(Modifier.height(8.dp))
-                SettingsNavigationRow(
-                    label    = stringResource(R.string.performance_device_info),
-                    sublabel = stringResource(R.string.performance_device_info_sublabel)
-                ) { onNavigate(AiriRoute.PERFORMANCE) }
-            }
+            DefaultAssistantSection(activity = activity)
 
             SettingsSurface {
                 SettingsCategoryHeader(icon = Icons.Outlined.Security, title = stringResource(R.string.data_controls))
@@ -364,10 +396,6 @@ fun SettingsScreen(
                     showDeleteDialog = true
                 }
             }
-
-            SubscriptionSection(viewModel = viewModel, onNavigate = onNavigate)
-
-            DefaultAssistantSection(activity = activity)
 
             ObservabilitySection(onNavigate = onNavigate)
 
@@ -524,6 +552,28 @@ fun SettingsCategoryHeader(icon: ImageVector, title: String) {
         Icon(icon, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Text(title, fontWeight = FontWeight.Bold, color = CosmicAccent, fontSize = 13.sp)
+    }
+}
+
+/**
+ * Top-level group divider used by [SettingsScreen] to break the long settings
+ * list into the four user-facing categories: AI & Models, Voice & Audio,
+ * Personalization, and System & Permissions. Renders an all-caps label above a
+ * thin accent rule so groups feel visually distinct from the per-card
+ * [SettingsCategoryHeader] without adding another bordered surface.
+ */
+@Composable
+fun SettingsGroupHeader(title: String) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp)) {
+        Text(
+            text = title.uppercase(),
+            color = CosmicAccent,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.5.sp
+        )
+        Spacer(Modifier.height(6.dp))
+        Divider(color = CosmicAccent.copy(alpha = 0.25f), thickness = 1.dp)
     }
 }
 

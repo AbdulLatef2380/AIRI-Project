@@ -9,6 +9,37 @@
     <string name="ok">OK</string>
     <string name="save">Save</string>
     <string name="settings">Settings</string>
+
+    <!-- Settings group headers (Phase 5 restructure) -->
+    <string name="settings_group_ai_models">AI &amp; Models</string>
+    <string name="settings_group_voice_audio">Voice &amp; Audio</string>
+    <string name="settings_group_personalization">Personalization</string>
+    <string name="settings_group_system_permissions">System &amp; Permissions</string>
+
+    <!-- Integrations screen (Phase 6) -->
+    <string name="integrations_title">Integrations</string>
+    <string name="integrations_section_title">Connected tools</string>
+    <string name="integrations_section_description">Connect external services using your own credentials. All tokens are stored securely on this device.</string>
+    <string name="integration_github_name">GitHub</string>
+    <string name="integration_github_description">Connect repositories, issues, and coding context.</string>
+    <string name="integration_telegram_name">Telegram</string>
+    <string name="integration_telegram_description">Link a Telegram bot for messaging workflows.</string>
+    <string name="integration_google_name">Google</string>
+    <string name="integration_google_description">Access Gmail, Drive, and Calendar (read-only).</string>
+    <string name="integration_connect">Connect</string>
+    <string name="integration_disconnect">Disconnect</string>
+    <string name="integration_status_connected">Connected</string>
+    <string name="integration_status_offline">Offline</string>
+    <string name="integration_connected_as">Connected as</string>
+    <string name="integration_last_updated">Last updated %1$s</string>
+    <string name="integration_dialog_steps_title">Follow these steps to get your token:</string>
+    <string name="integration_dialog_validating">Validating token…</string>
+    <string name="integration_github_dialog_title">Connect GitHub</string>
+    <string name="integration_telegram_dialog_title">Connect Telegram</string>
+    <string name="integration_github_token_label">Personal Access Token</string>
+    <string name="integration_telegram_token_label">Bot Token</string>
+    <string name="integration_error_paste_github">Please paste your GitHub token</string>
+    <string name="integration_error_paste_telegram">Please paste your Telegram bot token</string>
     <string name="profile">Profile</string>
     <string name="firebase_account">Firebase account</string>
     <string name="personalization">Personalization</string>
@@ -86,7 +117,13 @@
     <string name="photo_captured">Photo captured</string>
     <string name="menu">Menu</string>
     <string name="app_agent_title">AIRI • Assistant</string>
-    <string name="app_agent_mode_title">AIRI • Assistant</string>
+    <!--
+        Note: this string is rendered via stringResource() WITHOUT formatArgs
+        in ChatScreen.kt; do NOT add a %1$s placeholder here or it will leak
+        as literal "%1$s" in the UI. The active model name is shown on the
+        subtitle line directly underneath.
+    -->
+    <string name="app_agent_mode_title">AIRI</string>
     <string name="generating">Generating…</string>
     <string name="loading_model">Loading model…</string>
     <string name="no_model_active">No model active</string>

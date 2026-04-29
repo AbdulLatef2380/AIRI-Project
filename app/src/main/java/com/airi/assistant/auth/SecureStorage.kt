@@ -2,6 +2,7 @@ package com.airi.assistant.auth
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -22,17 +23,39 @@ class SecureStorage(context: Context) {
         context.getSharedPreferences("airi_secure_integrations_fallback", Context.MODE_PRIVATE)
     }
 
+    /**
+     * Safe writer for EncryptedSharedPreferences:
+     *   • Drops writes when the key is blank (the underlying Tink layer
+     *     refuses empty keys with an opaque exception).
+     *   • Removes the entry instead of storing an empty / blank value
+     *     (some EncryptedSharedPreferences implementations crash on "" too).
+     *   • Catches and swallows any backing-store exception so a single bad
+     *     entry can never crash the Settings screen.
+     */
+    private fun SharedPreferences.Editor.safePutString(key: String, value: String?): SharedPreferences.Editor {
+        if (key.isBlank()) {
+            Log.w("SecureStorage", "safePutString: ignored blank key")
+            return this
+        }
+        return try {
+            if (value.isNullOrBlank()) remove(key) else putString(key, value)
+        } catch (t: Throwable) {
+            Log.w("SecureStorage", "safePutString($key) failed: ${t.message}")
+            this
+        }
+    }
+
     // ─── GitHub ────────────────────────────────────────────────────────────────
 
     fun saveGithubToken(token: String) =
-        prefs.edit().putString(KEY_GITHUB_TOKEN, token).apply()
+        prefs.edit().safePutString(KEY_GITHUB_TOKEN, token).apply()
 
     fun getGithubToken(): String? = prefs.getString(KEY_GITHUB_TOKEN, null)
 
     fun saveGithubConnected(connected: Boolean, username: String = "") {
         prefs.edit()
             .putBoolean(KEY_GITHUB_CONNECTED, connected)
-            .putString(KEY_GITHUB_USERNAME, username)
+            .safePutString(KEY_GITHUB_USERNAME, username)
             .putLong(KEY_GITHUB_UPDATED, System.currentTimeMillis())
             .apply()
     }
@@ -44,14 +67,14 @@ class SecureStorage(context: Context) {
     // ─── Telegram ──────────────────────────────────────────────────────────────
 
     fun saveTelegramToken(token: String) =
-        prefs.edit().putString(KEY_TELEGRAM_TOKEN, token).apply()
+        prefs.edit().safePutString(KEY_TELEGRAM_TOKEN, token).apply()
 
     fun getTelegramToken(): String? = prefs.getString(KEY_TELEGRAM_TOKEN, null)
 
     fun saveTelegramConnected(connected: Boolean, username: String = "") {
         prefs.edit()
             .putBoolean(KEY_TELEGRAM_CONNECTED, connected)
-            .putString(KEY_TELEGRAM_USERNAME, username)
+            .safePutString(KEY_TELEGRAM_USERNAME, username)
             .putLong(KEY_TELEGRAM_UPDATED, System.currentTimeMillis())
             .apply()
     }
@@ -65,13 +88,13 @@ class SecureStorage(context: Context) {
     fun saveGoogleConnected(connected: Boolean, email: String = "") {
         prefs.edit()
             .putBoolean(KEY_GOOGLE_CONNECTED, connected)
-            .putString(KEY_GOOGLE_EMAIL, email)
+            .safePutString(KEY_GOOGLE_EMAIL, email)
             .putLong(KEY_GOOGLE_UPDATED, System.currentTimeMillis())
             .apply()
     }
 
     fun saveGoogleIdToken(token: String) =
-        prefs.edit().putString(KEY_GOOGLE_ID_TOKEN, token).apply()
+        prefs.edit().safePutString(KEY_GOOGLE_ID_TOKEN, token).apply()
 
     fun getGoogleIdToken(): String? = prefs.getString(KEY_GOOGLE_ID_TOKEN, null)
     fun isGoogleConnected(): Boolean = prefs.getBoolean(KEY_GOOGLE_CONNECTED, false)
@@ -84,7 +107,7 @@ class SecureStorage(context: Context) {
     // be rotated without restarting the registry.
 
     fun saveLlmKey(provider: String, key: String) =
-        prefs.edit().putString(llmKeyPrefName(provider), key).apply()
+        prefs.edit().safePutString(llmKeyPrefName(provider), key).apply()
 
     fun getLlmKey(provider: String): String? =
         prefs.getString(llmKeyPrefName(provider), null)

@@ -1,5 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
-    android:src="@drawable/ic_launcher_fg"
-    android:gravity="center"
-    android:tileMode="disabled" />
+<!--
+    Adaptive icon foreground.
+
+    The Android adaptive-icon spec uses a 108×108 dp canvas, but only the
+    inner 72×72 dp circle/square is guaranteed visible — every Launcher applies
+    its own mask (round, squircle, teardrop, etc.) and crops the outer ~18 dp
+    ring.
+
+    The previous version of this file was a bare <bitmap> that filled the full
+    108 dp canvas, so the AIRI logo's edges were getting clipped on most
+    launchers. We now wrap the bitmap in a layer-list with a 22 dp inset on
+    every side, which keeps the artwork well inside the safe zone without
+    modifying the source PNG.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:left="22dp"
+        android:top="22dp"
+        android:right="22dp"
+        android:bottom="22dp">
+        <bitmap
+            android:src="@drawable/ic_launcher_fg"
+            android:gravity="center"
+            android:tileMode="disabled" />
+    </item>
+</layer-list>

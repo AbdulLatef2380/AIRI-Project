@@ -57,19 +57,25 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.airi.assistant.R
 import com.airi.assistant.ui.viewmodel.IntegrationsViewModel
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
@@ -111,7 +117,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
                 ),
                 title = {
                     Text(
-                        "Integrations",
+                        stringResource(R.string.integrations_title),
                         color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
@@ -120,7 +126,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.Default.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.back),
                             tint = Color.White
                         )
                     }
@@ -138,14 +144,14 @@ fun IntegrationsScreen(onBack: () -> Unit) {
             item {
                 Column {
                     Text(
-                        "Connected tools",
+                        stringResource(R.string.integrations_section_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Connect external services using your own credentials. All tokens are stored securely on-device.",
+                        stringResource(R.string.integrations_section_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.55f),
                         lineHeight = 18.sp
@@ -177,8 +183,11 @@ fun IntegrationsScreen(onBack: () -> Unit) {
     if (dialog is IntegrationsViewModel.DialogState.Github) {
         val state = dialog as IntegrationsViewModel.DialogState.Github
         TokenDialog(
-            title = "Connect GitHub",
+            title = stringResource(R.string.integration_github_dialog_title),
             emoji = "🐙",
+            // Token-acquisition steps stay in English because every label they
+            // reference (GitHub menu names, scopes) is itself English in the
+            // GitHub UI — translating them would make the steps unfollowable.
             steps = listOf(
                 "Open github.com and sign in",
                 "Go to Settings → Developer Settings",
@@ -187,7 +196,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
                 "Enable scopes: repo, read:user",
                 "Generate and copy the token"
             ),
-            inputLabel = "Personal Access Token",
+            inputLabel = stringResource(R.string.integration_github_token_label),
             inputHint = "ghp_xxxxxxxxxxxxxxxxxxxx",
             token = state.token,
             loading = state.loading,
@@ -202,7 +211,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
     if (dialog is IntegrationsViewModel.DialogState.Telegram) {
         val state = dialog as IntegrationsViewModel.DialogState.Telegram
         TokenDialog(
-            title = "Connect Telegram",
+            title = stringResource(R.string.integration_telegram_dialog_title),
             emoji = "✈️",
             steps = listOf(
                 "Open Telegram and search for @BotFather",
@@ -211,7 +220,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
                 "BotFather will send you a token",
                 "Copy the token and paste it below"
             ),
-            inputLabel = "Bot Token",
+            inputLabel = stringResource(R.string.integration_telegram_token_label),
             inputHint = "123456789:AAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
             token = state.token,
             loading = state.loading,
@@ -264,10 +273,16 @@ private fun IntegrationCard(
                     contentAlignment = Alignment.Center
                 ) {
                     if (iconResId != null) {
+                        // Clip the brand-icon PNG itself to a circle as well so any
+                        // white square background (e.g. the Google "G" sheet) is
+                        // masked instead of bleeding into the dark surface.
                         Image(
                             painter = painterResource(id = iconResId),
                             contentDescription = item.name,
-                            modifier = Modifier.size(26.dp)
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
                         )
                     } else {
                         Text(item.emoji, fontSize = 24.sp)
@@ -307,7 +322,7 @@ private fun IntegrationCard(
                     Spacer(Modifier.height(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            "Connected as",
+                            stringResource(R.string.integration_connected_as),
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White.copy(alpha = 0.42f)
                         )
@@ -319,20 +334,25 @@ private fun IntegrationCard(
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(Modifier.width(6.dp))
-                        Text(
-                            item.connectedAs,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color(0xFF4ADE80),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
+                        // Force LTR for the connected-as identifier so usernames
+                        // such as "@octocat" render in their natural direction
+                        // even when the device is in an RTL locale.
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                            Text(
+                                item.connectedAs,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color(0xFF4ADE80),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                         }
                     }
                     if (item.lastUpdated > 0L) {
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            "Last updated ${formatTime(item.lastUpdated)}",
+                            stringResource(R.string.integration_last_updated, formatTime(item.lastUpdated)),
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White.copy(alpha = 0.35f),
                             modifier = Modifier.padding(start = 20.dp)
@@ -342,29 +362,31 @@ private fun IntegrationCard(
             }
 
             // ── Action button ──────────────────────────────────────────────────
+            // Use a full-width button (instead of Arrangement.End) so the
+            // "Connect" / "Disconnect" affordance is reliably tappable even on
+            // small screens and in RTL layouts.
             Spacer(Modifier.height(14.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                if (connected) {
-                    OutlinedButton(
-                        onClick = onDisconnect,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFFFF6B6B)
-                        )
-                    ) {
-                        Text("Disconnect")
-                    }
-                } else {
-                    Button(
-                        onClick = onConnect,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF6D28D9)
-                        )
-                    ) {
-                        Text("Connect")
-                    }
+            if (connected) {
+                OutlinedButton(
+                    onClick  = onDisconnect,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors   = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFFFF6B6B)
+                    ),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(stringResource(R.string.integration_disconnect))
+                }
+            } else {
+                Button(
+                    onClick  = onConnect,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors   = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF6D28D9)
+                    ),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(stringResource(R.string.integration_connect), color = Color.White, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -385,7 +407,8 @@ private fun StatusBadge(connected: Boolean) {
         animationSpec = infiniteRepeatable(animation = tween(1200), repeatMode = RepeatMode.Reverse),
         label = "status_pulse"
     ).value
-    val label = if (connected) "Connected" else "Offline"
+    val label = if (connected) stringResource(R.string.integration_status_connected)
+                else stringResource(R.string.integration_status_offline)
 
     Row(
         modifier = Modifier
@@ -457,7 +480,7 @@ private fun TokenDialog(
             Column {
                 // Instructions
                 Text(
-                    "Follow these steps to get your token:",
+                    stringResource(R.string.integration_dialog_steps_title),
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.6f)
                 )
@@ -497,34 +520,38 @@ private fun TokenDialog(
                 Divider(color = Color.White.copy(alpha = 0.08f))
                 Spacer(Modifier.height(16.dp))
 
-                // Token input
-                OutlinedTextField(
-                    value = token,
-                    onValueChange = onTokenChange,
-                    label = { Text(inputLabel, color = Color.White.copy(alpha = 0.6f)) },
-                    placeholder = {
-                        Text(
-                            inputHint,
-                            color = Color.White.copy(alpha = 0.25f),
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp
+                // Token input — forced to LTR so the placeholder examples
+                // ("ghp_…", "123456789:AA…") and any pasted token render in
+                // their natural left-to-right form even on RTL devices.
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    OutlinedTextField(
+                        value = token,
+                        onValueChange = onTokenChange,
+                        label = { Text(inputLabel, color = Color.White.copy(alpha = 0.6f)) },
+                        placeholder = {
+                            Text(
+                                inputHint,
+                                color = Color.White.copy(alpha = 0.25f),
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp
+                            )
+                        },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        enabled = !loading,
+                        isError = error != null,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFF7C3AED),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.25f),
+                            errorBorderColor = Color(0xFFFF6B6B),
+                            cursorColor = Color(0xFF7C3AED)
                         )
-                    },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    enabled = !loading,
-                    isError = error != null,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFF7C3AED),
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.25f),
-                        errorBorderColor = Color(0xFFFF6B6B),
-                        cursorColor = Color(0xFF7C3AED)
                     )
-                )
+                }
 
                 // Error message
                 AnimatedVisibility(visible = error != null) {
@@ -563,7 +590,7 @@ private fun TokenDialog(
                         )
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            "Validating token…",
+                            stringResource(R.string.integration_dialog_validating),
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White.copy(alpha = 0.6f)
                         )
@@ -580,7 +607,7 @@ private fun TokenDialog(
                     disabledContainerColor = Color(0xFF6D28D9).copy(alpha = 0.35f)
                 )
             ) {
-                Text("Connect", color = Color.White)
+                Text(stringResource(R.string.integration_connect), color = Color.White)
             }
         },
         dismissButton = {
@@ -588,7 +615,7 @@ private fun TokenDialog(
                 onClick = onDismiss,
                 enabled = !loading
             ) {
-                Text("Cancel", color = Color.White.copy(alpha = 0.55f))
+                Text(stringResource(R.string.cancel), color = Color.White.copy(alpha = 0.55f))
             }
         }
     )

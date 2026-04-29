@@ -267,14 +267,19 @@ static const char* airi_get_native_error() {
 }
 
 static bool is_valid_gguf(const char* path) {
+    // Pre-flight check: HARD-FAIL only on bad magic / unreadable file.
+    // Everything else (version range, tensor count, kv count) is logged as a
+    // soft warning so that llama.cpp itself gets the chance to produce the
+    // authoritative diagnostic — many real-world GGUFs have version=4 or
+    // unusual counts and load just fine.
     FILE* f = fopen(path, "rb");
     if (!f) {
         airi_set_native_error("fopen failed: %s", strerror(errno));
         return false;
     }
-    // GGUF v3 header layout (little-endian):
+    // GGUF header layout (little-endian):
     //   uint32 magic            "GGUF"
-    //   uint32 version          1, 2, or 3
+    //   uint32 version
     //   uint64 tensor_count
     //   uint64 metadata_kv_count
     uint8_t hdr[24] = {};
@@ -292,24 +297,25 @@ static bool is_valid_gguf(const char* path) {
                      | ((uint32_t)hdr[5] << 8)
                      | ((uint32_t)hdr[6] << 16)
                      | ((uint32_t)hdr[7] << 24);
-    if (version < 1 || version > 3) {
-        airi_set_native_error("unsupported GGUF version %u (this build supports 1..3)", version);
-        return false;
-    }
     uint64_t tensor_count = 0, kv_count = 0;
     for (int i = 0; i < 8; i++) {
         tensor_count |= ((uint64_t)hdr[8 + i])  << (i * 8);
         kv_count     |= ((uint64_t)hdr[16 + i]) << (i * 8);
     }
+    if (version < 1 || version > 4) {
+        __android_log_print(ANDROID_LOG_WARN, "LLAMA_BRIDGE",
+                            "is_valid_gguf: unusual GGUF version %u (continuing — llama.cpp will decide)",
+                            version);
+    }
     if (tensor_count == 0 || tensor_count > 1000000ULL) {
-        airi_set_native_error("implausible tensor_count=%llu (file likely truncated or corrupted)",
-                              (unsigned long long)tensor_count);
-        return false;
+        __android_log_print(ANDROID_LOG_WARN, "LLAMA_BRIDGE",
+                            "is_valid_gguf: unusual tensor_count=%llu (continuing — llama.cpp will decide)",
+                            (unsigned long long)tensor_count);
     }
     if (kv_count > 1000000ULL) {
-        airi_set_native_error("implausible metadata_kv_count=%llu (file likely corrupted)",
-                              (unsigned long long)kv_count);
-        return false;
+        __android_log_print(ANDROID_LOG_WARN, "LLAMA_BRIDGE",
+                            "is_valid_gguf: unusual metadata_kv_count=%llu (continuing — llama.cpp will decide)",
+                            (unsigned long long)kv_count);
     }
     g_last_native_error[0] = 0;  // clear stale errors on success
     return true;
@@ -318,8 +324,9 @@ static bool is_valid_gguf(const char* path) {
 // Capture llama.cpp's internal log messages so we can surface the *actual*
 // failure reason (e.g. "unknown architecture", "tensor 'foo' has wrong shape")
 // instead of the useless "llama_model_load_from_file returned null" string.
-// We only record ERROR-level messages — INFO/DEBUG would otherwise overwrite
-// the genuine error during the rest of the load sequence.
+// We APPEND every ERROR line into g_last_native_error (separated by " | ")
+// so the full chain of root cause + intermediate context survives all the
+// way up to Kotlin — overwriting only kept the final useless summary.
 static void airi_llama_log_callback(ggml_log_level level, const char* text, void* /*user*/) {
     if (!text) return;
     // Always echo to logcat so a developer attaching adb sees the full stream.
@@ -332,17 +339,33 @@ static void airi_llama_log_callback(ggml_log_level level, const char* text, void
         default: break;
     }
     __android_log_print(prio, "LLAMA_CPP", "%s", text);
-    if (level == GGML_LOG_LEVEL_ERROR) {
-        // Strip any trailing newline so the surfaced error reads cleanly.
-        size_t len = strlen(text);
-        char buf[480];
-        size_t copy = len < sizeof(buf) - 1 ? len : sizeof(buf) - 1;
-        memcpy(buf, text, copy);
-        buf[copy] = 0;
-        while (copy > 0 && (buf[copy - 1] == '\n' || buf[copy - 1] == '\r')) {
-            buf[--copy] = 0;
-        }
-        airi_set_native_error("llama.cpp: %s", buf);
+    if (level != GGML_LOG_LEVEL_ERROR) return;
+
+    // Trim trailing newline / whitespace from the captured text so the
+    // accumulated message reads cleanly.
+    size_t len = strlen(text);
+    char trimmed[480];
+    size_t copy = len < sizeof(trimmed) - 1 ? len : sizeof(trimmed) - 1;
+    memcpy(trimmed, text, copy);
+    trimmed[copy] = 0;
+    while (copy > 0 && (trimmed[copy - 1] == '\n' || trimmed[copy - 1] == '\r' || trimmed[copy - 1] == ' ')) {
+        trimmed[--copy] = 0;
+    }
+    if (copy == 0) return;
+
+    // APPEND to g_last_native_error rather than overwrite so the FIRST
+    // (most informative) error survives. Stop appending when the buffer is
+    // nearly full to avoid a partial/garbled tail.
+    size_t cur = strlen(g_last_native_error);
+    const size_t cap = sizeof(g_last_native_error);
+    if (cur == 0) {
+        // First error: prefix with "llama.cpp: " for clarity in the UI.
+        snprintf(g_last_native_error, cap, "llama.cpp: %s", trimmed);
+    } else if (cur + 4 < cap) {
+        // Subsequent errors: separate with " | " so each diagnostic is
+        // visually distinct without breaking single-line UI rendering.
+        size_t remaining = cap - cur - 1;
+        snprintf(g_last_native_error + cur, remaining, " | %s", trimmed);
     }
 }
 

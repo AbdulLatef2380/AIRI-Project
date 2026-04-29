@@ -9,6 +9,37 @@
     <string name="ok">موافق</string>
     <string name="save">حفظ</string>
     <string name="settings">الإعدادات</string>
+
+    <!-- عناوين مجموعات الإعدادات (إعادة هيكلة المرحلة 5) -->
+    <string name="settings_group_ai_models">الذكاء الاصطناعي والنماذج</string>
+    <string name="settings_group_voice_audio">الصوت والكلام</string>
+    <string name="settings_group_personalization">التخصيص</string>
+    <string name="settings_group_system_permissions">النظام والأذونات</string>
+
+    <!-- شاشة التكاملات (المرحلة 6) -->
+    <string name="integrations_title">التكاملات</string>
+    <string name="integrations_section_title">الأدوات المتصلة</string>
+    <string name="integrations_section_description">قم بربط الخدمات الخارجية باستخدام بياناتك الخاصة. تُحفظ جميع الرموز بشكل آمن على هذا الجهاز.</string>
+    <string name="integration_github_name">GitHub</string>
+    <string name="integration_github_description">ربط المستودعات والمشكلات وسياق البرمجة.</string>
+    <string name="integration_telegram_name">Telegram</string>
+    <string name="integration_telegram_description">ربط بوت Telegram لسير عمل المراسلة.</string>
+    <string name="integration_google_name">Google</string>
+    <string name="integration_google_description">الوصول إلى Gmail و Drive و Calendar (قراءة فقط).</string>
+    <string name="integration_connect">اتصال</string>
+    <string name="integration_disconnect">قطع الاتصال</string>
+    <string name="integration_status_connected">متصل</string>
+    <string name="integration_status_offline">غير متصل</string>
+    <string name="integration_connected_as">متصل بصفة</string>
+    <string name="integration_last_updated">آخر تحديث %1$s</string>
+    <string name="integration_dialog_steps_title">اتبع هذه الخطوات للحصول على الرمز:</string>
+    <string name="integration_dialog_validating">جارٍ التحقق من الرمز…</string>
+    <string name="integration_github_dialog_title">ربط GitHub</string>
+    <string name="integration_telegram_dialog_title">ربط Telegram</string>
+    <string name="integration_github_token_label">رمز الوصول الشخصي</string>
+    <string name="integration_telegram_token_label">رمز البوت</string>
+    <string name="integration_error_paste_github">الرجاء لصق رمز GitHub الخاص بك</string>
+    <string name="integration_error_paste_telegram">الرجاء لصق رمز بوت Telegram الخاص بك</string>
     <string name="profile">الملف الشخصي</string>
     <string name="firebase_account">حساب Firebase</string>
     <string name="personalization">التخصيص</string>
@@ -79,7 +110,8 @@
     <string name="camera_coming_soon">الكاميرا (قريبًا)</string>
     <string name="menu">القائمة</string>
     <string name="app_agent_title">وكيل AIRI</string>
-    <string name="app_agent_mode_title">وكيل AIRI • %1$s</string>
+    <!-- لا تُضِف %1$s هنا — يُستدعى بدون formatArgs ويظهر اسم النموذج في السطر الفرعي -->
+    <string name="app_agent_mode_title">وكيل AIRI</string>
     <string name="generating">جارٍ التوليد…</string>
     <string name="loading_model">جارٍ تحميل النموذج…</string>
     <string name="no_model_active">لا يوجد نموذج نشط</string>
@@ -243,6 +275,7 @@
     <string name="continue_with_github">المتابعة مع GitHub</string>
     <!-- Voice -->
     <string name="voice_recognition_ready">التعرف على الكلام جاهز</string>
+    <string name="voice_engine_not_installed">محرك الصوت غير مثبت</string>
     <!-- Export -->
     <string name="export_success">تم تصدير المحادثة إلى Downloads/AIRI/</string>
     <string name="export_failed">فشل التصدير — تحقق من صلاحيات التخزين</string>

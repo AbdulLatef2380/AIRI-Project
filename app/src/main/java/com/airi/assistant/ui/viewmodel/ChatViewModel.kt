@@ -88,7 +88,19 @@ data class ChatMessage(
     // without a Room id (default = currentTimeMillis). UUID is collision-
     // free by construction. This field is NOT persisted; it lives only for
     // the lifetime of the in-memory list.
-    val uid: String = java.util.UUID.randomUUID().toString()
+    val uid: String = java.util.UUID.randomUUID().toString(),
+    /**
+     * Optional in-memory thumbnail reference for messages the user sent
+     * with an attached image. UI-only — never persisted to Room (the
+     * memory layer continues to store an `[image: name]` text marker).
+     * `null` for every other message (default), so existing call sites
+     * remain source-compatible.
+     *
+     * Format: either a `content://` URI from the picker, a `file://` URI,
+     * or a raw `bitmap://<id>` sentinel for camera captures (the actual
+     * Bitmap is held by the ViewModel's [transientCameraBitmaps] map).
+     */
+    val imageUri: String? = null
 )
 
 data class AgentState(
@@ -176,6 +188,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // ── UI State ──────────────────────────────────────────────────────────────
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
+
+    /**
+     * One-shot URI handed off from [sendMessageWithImage]'s text-fallback
+     * branch (no vision model loaded) to the next [sendMessage] call so the
+     * user's bubble can still render the picked thumbnail. Consumed exactly
+     * once at the message-add site (line ~556) and then cleared. Always
+     * `null` for plain text sends, so default behaviour is unchanged.
+     */
+    private var pendingImageUriForNextSend: String? = null
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
     private val _streamingText = MutableStateFlow("")
@@ -541,7 +562,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val paywallLevel = PaywallTriggerEngine.onMessageSent(subscriptionManager.isPremium())
             val triggerPaywallAfterSend = paywallLevel != UpsellLevel.NONE
             refreshPowerLevel()
-            _messages.update { it + ChatMessage(trimmedInput, true, userMessage.id) }
+            // Consume the one-shot attachment hand-off (if any) so the
+            // user's bubble can render the picked thumbnail even on the
+            // text-marker fallback path. Cleared in the same step so it
+            // never leaks into a subsequent plain text send.
+            val attachedForBubble = pendingImageUriForNextSend
+            pendingImageUriForNextSend = null
+            _messages.update {
+                it + ChatMessage(
+                    text = trimmedInput,
+                    isUser = true,
+                    id = userMessage.id,
+                    imageUri = attachedForBubble
+                )
+            }
 
             // ── Phase 1 & 5 — Soft limit: degrade quality + add delay for free users ──
             val softPhase = subscriptionManager.getSoftLimitPhase()
@@ -1367,6 +1401,71 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      *     eats the latency budget so long replies aren't worth it.
      *   • Native call has a 180s wall-clock deadline (LlamaManager).
      */
+    /**
+     * PHASE 3 (actual fix): single, unified attachment dispatcher. Every
+     * attachment the user adds — image, camera capture, or file — comes
+     * through this one function as a [com.airi.assistant.domain.ChatAttachment].
+     * The historical [sendMessageWithImage] is preserved as a one-image
+     * delegate so existing callers (and the speech tests) keep working,
+     * but **all new UI code goes through this function**.
+     *
+     * Capability decision (the *only* fork in the unified path):
+     *   1. If at least one attachment is an image AND vision is ready
+     *      (mmproj loaded + capability flag) → call the native vision
+     *      pipeline with the first image. Any *additional* attachments
+     *      become text markers appended after the prompt so the model
+     *      still knows about them.
+     *   2. Otherwise → every attachment becomes a `[image: …]` /
+     *      `[file: …]` text marker and the message goes through the
+     *      normal text [sendMessage] path. This matches the old
+     *      "[ATTACHMENT: image: name]" fallback but works for files too.
+     *
+     * No hidden forks: the only branching is this one block.
+     */
+    fun sendMessageWithAttachments(
+        input: String,
+        attachments: List<com.airi.assistant.domain.ChatAttachment>
+    ) {
+        if (attachments.isEmpty()) {
+            sendMessage(input.trim())
+            return
+        }
+        if (_modelState.value.isModelLoading) return
+
+        val trimmed = input.trim()
+        val visionReady = _modelState.value.capabilities.vision &&
+            runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
+
+        // Find the first visual image attachment, if any.
+        val primaryImage = attachments.firstOrNull { it.isVisualImage }
+        val extras       = attachments - listOfNotNull(primaryImage).toSet()
+
+        Log.i(
+            "AIRI_PROOF",
+            "ATTACHMENTS_DISPATCH count=${attachments.size} " +
+                "image_primary=${primaryImage?.kind?.name ?: "none"} " +
+                "extras=${extras.size} vision_ready=$visionReady"
+        )
+
+        if (primaryImage != null && visionReady) {
+            // Vision path — keep extras visible to the model as text markers.
+            val markers = extras.joinToString(separator = "\n") { it.toTextMarker() }
+            val fullText = if (markers.isBlank()) trimmed
+                           else if (trimmed.isBlank()) markers
+                           else "$trimmed\n\n$markers"
+            sendMessageWithImage(fullText, primaryImage.uri, primaryImage.bitmap)
+        } else {
+            // Text-marker path — every attachment becomes one [image:]/[file:] line.
+            val markers = attachments.joinToString(separator = "\n") { it.toTextMarker() }
+            val fullText = if (trimmed.isBlank()) markers else "$trimmed\n\n$markers"
+            // PHASE 3: when there's an image we still want the user bubble
+            // to display the thumbnail, so re-use the existing single-shot
+            // pendingImageUriForNextSend hand-off used by the old fallback.
+            primaryImage?.uri?.let { pendingImageUriForNextSend = it.toString() }
+            sendMessage(fullText)
+        }
+    }
+
     fun sendMessageWithImage(input: String, imageUri: Uri?, capturedBitmap: Bitmap?) {
         val trimmedInput = input.trim()
         // Branch A: nothing attached → existing text path.
@@ -1380,6 +1479,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                           runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
         val attachmentName = imageUri?.lastPathSegment ?: "camera_capture"
 
+        // Resolve an in-memory displayable URI ONCE so the user's chat
+        // bubble can render the actual thumbnail (Phase 1 spec). For a
+        // camera capture we persist the Bitmap to the cache dir as JPEG
+        // and use the resulting file URI; for a picker URI we just stringify.
+        // Failures are swallowed — a missing thumbnail is degraded UX,
+        // never a crash.
+        val displayableUri: String? = runCatching {
+            when {
+                imageUri != null -> imageUri.toString()
+                capturedBitmap != null -> {
+                    val dir = File(appContext.cacheDir, "chat_attachments").apply { mkdirs() }
+                    val out = File(dir, "cam_${System.currentTimeMillis()}.jpg")
+                    out.outputStream().use { os ->
+                        capturedBitmap.compress(Bitmap.CompressFormat.JPEG, 90, os)
+                    }
+                    Uri.fromFile(out).toString()
+                }
+                else -> null
+            }
+        }.getOrNull()
+
         // Branch C: image present but vision NOT wired → marker fallback.
         if (!visionReady) {
             Log.i("AIRI_PROOF",
@@ -1389,6 +1509,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 append("\n\n[ATTACHMENT: image: ").append(attachmentName)
                 append("] (vision model not loaded — respond based on filename only)")
             }
+            // Hand off the thumbnail to sendMessage so the user's bubble
+            // still shows the picked image (consumed exactly once).
+            pendingImageUriForNextSend = displayableUri
             sendMessage(finalText)
             return
         }
@@ -1412,7 +1535,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                              else "$trimmedInput\n\n[image: $attachmentName]"
             val userMsg = memoryManager.recordChatMessage(sessionId, "user", userMarker)
             if (wasEmpty) memoryManager.renameSession(sessionId, "Image: ${attachmentName.take(40)}")
-            _messages.update { it + ChatMessage(userMarker, isUser = true, id = userMsg.id) }
+            _messages.update {
+                it + ChatMessage(
+                    text = userMarker,
+                    isUser = true,
+                    id = userMsg.id,
+                    imageUri = displayableUri
+                )
+            }
 
             subscriptionManager.recordMessage()
             AnalyticsService.messageSent()
@@ -1852,6 +1982,64 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     loadErrorType = if (success) LoadErrorType.NONE else LoadErrorType.LOAD_FAILED,
                     loadProgress = -1, availableModels = ModelManager.getAllModels(),
                     capabilities = newCaps)
+            }
+            // Vision is auto-managed: when a text model finishes loading we
+            // silently try to re-attach any previously cached projector or a
+            // bundled asset. No user action required; if nothing's there the
+            // chat simply runs in text-only mode.
+            if (success) autoLoadVisionProjectorIfPresent(model)
+        }
+    }
+
+    /**
+     * Silently rehydrates the vision projector after a text model loads.
+     *
+     * Order of preference:
+     *   1. `cacheDir/mmproj_active.gguf`         (sticky from last session)
+     *   2. `filesDir/vision/mmproj.gguf`         (auto-installed projector)
+     *   3. `assets/vision/mmproj.gguf`           (APK-bundled fallback,
+     *                                             copied to cache once)
+     *
+     * Never prompts the user, never opens a picker, never writes a chat
+     * message on absence. The previous manual [loadMmproj] entry point is
+     * preserved for power users who want to point at a specific file.
+     */
+    private fun autoLoadVisionProjectorIfPresent(model: ModelInfo) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val cached = File(appContext.cacheDir, "mmproj_active.gguf")
+            val files  = File(appContext.filesDir, "vision/mmproj.gguf")
+            val source: File? = when {
+                cached.exists() && cached.length() > 1_000_000L -> cached
+                files.exists()  && files.length()  > 1_000_000L -> {
+                    // Promote to the cache path so the existing loader
+                    // contract stays unchanged.
+                    runCatching { files.copyTo(cached, overwrite = true) }.getOrNull()
+                }
+                else -> {
+                    // APK asset fallback (only attempted on first run after
+                    // an install that ships a bundled projector).
+                    runCatching {
+                        appContext.assets.open("vision/mmproj.gguf").use { input ->
+                            cached.outputStream().use { out -> input.copyTo(out) }
+                        }
+                        cached.takeIf { it.length() > 1_000_000L }
+                    }.getOrNull()
+                }
+            }
+            if (source == null) {
+                Log.d("AIRI_PROOF", "MMPROJ_AUTO_SKIP reason=no_projector_present model=${model.name}")
+                return@launch
+            }
+            Log.i("AIRI_PROOF", "MMPROJ_AUTO_TRY path=${source.absolutePath} bytes=${source.length()}")
+            val loaded = llamaManager.loadMmprojSerialized(source.absolutePath)
+            if (loaded) {
+                val caps = com.airi.assistant.ai.ModelCapabilities.detect(model)
+                withContext(Dispatchers.Main) {
+                    _modelState.update { it.copy(capabilities = caps) }
+                }
+                Log.i("AIRI_PROOF", "MMPROJ_AUTO_SUCCESS vision=${caps.vision}")
+            } else {
+                Log.w("AIRI_PROOF", "MMPROJ_AUTO_FAILED path=${source.absolutePath}")
             }
         }
     }

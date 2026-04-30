@@ -211,6 +211,14 @@ class LlamaManager(private val context: Context) {
                 isLoaded = true
                 Log.i(TAG, "LOAD SUCCESS path=${modelFile.absolutePath}")
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", true, "path=${modelFile.absolutePath}")
+                // PHASE 3: opportunistically attach the matching mmproj
+                // sidecar so the unified attach flow can do real vision
+                // inference without the user touching a separate button.
+                maybeAutoLoadMmproj(modelFile.absolutePath)
+                // PHASE 5: opportunistically attach a matching embedding
+                // GGUF so the Memory pipeline produces real pooled vectors
+                // instead of falling back to chat-context approximations.
+                maybeAutoLoadEmbeddingModel(modelFile.absolutePath)
                 withContext(Dispatchers.Main) { onReady(true) }
             } catch (e: UnsatisfiedLinkError) {
                 Log.w(TAG, "loadModelWithProgress unavailable — falling back: ${e.message}", e)
@@ -223,6 +231,10 @@ class LlamaManager(private val context: Context) {
                 if (isLoaded) {
                     Log.i(TAG, "LOAD SUCCESS path=${modelFile.absolutePath}")
                     com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", true, "path=${modelFile.absolutePath}")
+                    // PHASE 3: same auto-mmproj wiring as the primary path.
+                    maybeAutoLoadMmproj(modelFile.absolutePath)
+                    // PHASE 5: same auto-embedding wiring as the primary path.
+                    maybeAutoLoadEmbeddingModel(modelFile.absolutePath)
                 } else {
                     lastLoadFailure = "native loader returned $result for architecture=${inspection.architecture}"
                     com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", false, lastLoadFailure ?: "unknown")
@@ -487,9 +499,18 @@ class LlamaManager(private val context: Context) {
     ) {
         val model = ModelManager.getCurrent()
         if (!isLoaded || model == null) {
+            // PHASE 6: even the early "engine not loaded" path must
+            // contain user-supplied callbacks so an exception inside
+            // onToken/onComplete cannot crash the app.
             scope.launch(Dispatchers.Main) {
-                onToken("المحرك غير مفعل")
-                onComplete("")
+                try { onToken("المحرك غير مفعل") }
+                catch (t: Throwable) {
+                    Log.w(TAG, "onToken(early) threw (swallowed): ${t.message}", t)
+                }
+                try { onComplete("") }
+                catch (t: Throwable) {
+                    Log.w(TAG, "onComplete(early) threw (swallowed): ${t.message}", t)
+                }
             }
             return
         }
@@ -531,8 +552,12 @@ class LlamaManager(private val context: Context) {
                         Log.i("AIRI_PROOF", "TIMEOUT phase=${if (firstSeen) "INACTIVITY" else "FIRST_TOKEN"} idle_ms=$idle budget_ms=$budget")
                         cancelRequested.set(true)
                         runCatching { LlamaNative.cancel() }
+                        // PHASE 6: contain watchdog onError too.
                         withContext(Dispatchers.Main) {
-                            onError("$errCode idle_ms=$idle budget_ms=$budget")
+                            try { onError("$errCode idle_ms=$idle budget_ms=$budget") }
+                            catch (t: Throwable) {
+                                Log.w(TAG, "watchdog onError threw: ${t.message}", t)
+                            }
                         }
                     }
                     return@launch
@@ -579,7 +604,92 @@ class LlamaManager(private val context: Context) {
                     systemPrompt = systemPrompt,
                     embedSystem = isFirstUserOfSession
                 )
-                LlamaNative.appendUserTurn(userFragment)
+
+                // ── PHASE 1 fix: KV pre-flight before appendUserTurn ────────
+                // Root cause (RC-3, RC-4): the native trim helper only fires
+                // INSIDE airi_append_text after we've already committed to a
+                // specific replay. For a long user message arriving when
+                // history is already 60-80% of n_ctx, the trim can't free
+                // enough room and KV_OVERFLOW is thrown — leaving the user
+                // looking at "Generating..." until the watchdog fires.
+                //
+                // We pre-flight here from JVM where we still have the option
+                // to drop history pairs, force a hard re-prime, and surface
+                // a clean PREFLIGHT_* tag for on-device verification.
+                val nPastBefore = runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)
+                val nCtxNow     = runCatching { LlamaNative.getNCtx() }.getOrDefault(0)
+                val estUserNew  = estimateTokens(userFragment)
+                val estNeeded   = estUserNew + maxTokens + 64
+                val freeRoom    = if (nCtxNow > 0 && nPastBefore >= 0)
+                                      (nCtxNow - nPastBefore).coerceAtLeast(0)
+                                  else Int.MAX_VALUE
+
+                if (nCtxNow > 0 && estNeeded > freeRoom) {
+                    Log.i("AIRI_PROOF",
+                        "PREFLIGHT_TIGHT n_past=$nPastBefore n_ctx=$nCtxNow " +
+                        "user_est=$estUserNew max_new=$maxTokens needed=$estNeeded free=$freeRoom")
+                    // Strategy: drop oldest history pairs from the LOGICAL
+                    // history (chatHistory + primedHistory) until projected
+                    // usage fits. Then force a hard re-prime so the native
+                    // KV is rebuilt from the trimmed history. This is the
+                    // same end-state the native trim would have produced if
+                    // it were reserve-aware enough — but done in JVM so we
+                    // can't lose the just-appended user turn's logits.
+                    val sysCost = estimateTokens(systemBlock(model.type, systemPrompt))
+                    var dropped = 0
+                    while (chatHistory.size >= 2 &&
+                           sysCost + estimateHistoryTokens(chatHistory, model.type) + estNeeded > nCtxNow) {
+                        // Drop the oldest user/assistant PAIR (never split).
+                        chatHistory.removeAt(0)
+                        if (chatHistory.isNotEmpty() && chatHistory[0].role == "assistant") {
+                            chatHistory.removeAt(0)
+                        }
+                        dropped += 2
+                    }
+                    Log.i("AIRI_PROOF",
+                        "PREFLIGHT_RECOVERED dropped_msgs=$dropped " +
+                        "remaining_history=${chatHistory.size}")
+                    // Force a hard re-prime so native KV matches the new shorter history.
+                    invalidateSession()
+                    val replayed2 = reconcileSession(model.path, model.type, systemPrompt)
+                    Log.i("AIRI_PROOF",
+                        "PREFLIGHT_REPRIMED replayed=$replayed2 " +
+                        "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
+                        "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
+                } else {
+                    Log.d("AIRI_PROOF",
+                        "PREFLIGHT_OK n_past=$nPastBefore n_ctx=$nCtxNow " +
+                        "user_est=$estUserNew needed=$estNeeded free=$freeRoom")
+                }
+
+                // ── Append user turn with one-shot retry on KV_OVERFLOW ─────
+                try {
+                    LlamaNative.appendUserTurn(userFragment)
+                } catch (e: Throwable) {
+                    val msg = e.message ?: ""
+                    val isOverflow = msg.contains("KV_OVERFLOW") ||
+                                     msg.contains("APPEND_DECODE_FAILED")
+                    if (!isOverflow) throw e
+                    Log.w("AIRI_PROOF",
+                        "PREFLIGHT_OVERFLOW_RETRY first_attempt_failed=${e.javaClass.simpleName}: $msg")
+                    // Last-resort recovery: hard reset, drop ALL history,
+                    // re-prime with system + user only. Never fail on a single
+                    // user message just because earlier history was too big.
+                    chatHistory.clear()
+                    invalidateSession()
+                    LlamaNative.beginSession()
+                    primedHistory.clear()
+                    val sys = systemBlock(model.type, systemPrompt)
+                    if (sys.isNotEmpty()) LlamaNative.appendAssistantTurn(sys)
+                    primedModelPath = model.path
+                    primedSystemPrompt = systemPrompt
+                    sessionPrimed = true
+                    LlamaNative.appendUserTurn(userFragment)
+                    Log.i("AIRI_PROOF",
+                        "KV_RECOVERED via=hard_reset_and_reprime " +
+                        "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
+                        "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
+                }
                 Log.i("AIRI_PROOF",
                     "PROMPT_TOKENIZED user_fragment_chars=${userFragment.length} " +
                     "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
@@ -642,7 +752,18 @@ class LlamaManager(private val context: Context) {
                         val batch = tokenBuffer.toString()
                         tokenBuffer.clear()
                         lastFlushTime = now
-                        scope.launch(Dispatchers.Main) { onToken(batch) }
+                        // PHASE 6: harden the Main-dispatched callback. A UI
+                        // exception (Compose state update after disposal,
+                        // unexpected substring index from a downstream
+                        // listener, etc.) must NOT escape and tear down the
+                        // process — it would also leave the native KV in a
+                        // half-decoded state on the next request.
+                        scope.launch(Dispatchers.Main) {
+                            try { onToken(batch) }
+                            catch (t: Throwable) {
+                                Log.w(TAG, "onToken threw (swallowed): ${t.message}", t)
+                            }
+                        }
                     }
                 }
 
@@ -657,7 +778,13 @@ class LlamaManager(private val context: Context) {
                 // Flush any trailing buffered tokens.
                 val tail = tokenBuffer.toString()
                 if (tail.isNotEmpty() && !cancelRequested.get()) {
-                    scope.launch(Dispatchers.Main) { onToken(tail) }
+                    // PHASE 6: same hardening as the per-batch callback above.
+                    scope.launch(Dispatchers.Main) {
+                        try { onToken(tail) }
+                        catch (t: Throwable) {
+                            Log.w(TAG, "onToken(tail) threw (swallowed): ${t.message}", t)
+                        }
+                    }
                 }
 
                 // Close the assistant turn in KV so the next user turn aligns.
@@ -709,7 +836,13 @@ class LlamaManager(private val context: Context) {
                     Log.i("AIRI_PROOF",
                         "GEN_END tokens=$nativeTokenCount elapsed_ms=$totalElapsed " +
                         "first_token_ms=$firstTokenMs tps=%.2f cancelled=${cancelRequested.get()}".format(tps))
-                    withContext(Dispatchers.Main) { onComplete(full) }
+                    // PHASE 6: completion handler is user code → contain it.
+                    withContext(Dispatchers.Main) {
+                        try { onComplete(full) }
+                        catch (t: Throwable) {
+                            Log.w(TAG, "onComplete threw (swallowed): ${t.message}", t)
+                        }
+                    }
                 }
             } catch (e: Throwable) {
                 Log.e(TAG, "generateStream native error: ${e.javaClass.simpleName}: ${e.message}", e)
@@ -717,7 +850,15 @@ class LlamaManager(private val context: Context) {
                 invalidateSession()
                 if (finished.compareAndSet(false, true)) {
                     val msg = "$ERR_NATIVE ${e.javaClass.simpleName}: ${e.message ?: "unknown"}"
-                    withContext(Dispatchers.Main) { onError(msg) }
+                    // PHASE 6: even the error reporter must not be allowed
+                    // to throw — otherwise an exception in the error path
+                    // becomes an unhandled exception on Main and crashes.
+                    withContext(Dispatchers.Main) {
+                        try { onError(msg) }
+                        catch (t: Throwable) {
+                            Log.w(TAG, "onError threw (swallowed): ${t.message}", t)
+                        }
+                    }
                 }
             }
         }
@@ -777,6 +918,24 @@ class LlamaManager(private val context: Context) {
 
     private fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
 
+    /**
+     * PHASE 1 helper: approximate token cost of replaying [history] under the
+     * given chat template. Conservative — over-estimates rather than under,
+     * so the pre-flight stays on the safe side of n_ctx.
+     */
+    private fun estimateHistoryTokens(history: List<ChatMessage>, type: ModelType): Int {
+        var total = 0
+        for (msg in history) {
+            val rendered = when (msg.role) {
+                "user"      -> userBody(type, msg.content)
+                "assistant" -> assistantBody(type, msg.content)
+                else        -> msg.content
+            }
+            total += estimateTokens(rendered)
+        }
+        return total
+    }
+
     // ── Vision: load / unload mmproj projector on the serialized dispatcher ──
     //
     // CRITICAL: the projector touches the SAME native llama_model that
@@ -785,6 +944,163 @@ class LlamaManager(private val context: Context) {
     // cache and crash inside ggml). We do NOT cache the loaded path here —
     // ModelCapabilities re-detects via LlamaNative.isMmprojLoaded() so
     // there is exactly one source of truth.
+    /**
+     * PHASE 3: auto-discover and load an mmproj sidecar living next to the
+     * just-loaded GGUF. Convention: any file in the same directory whose
+     * name contains "mmproj" or "mm-proj" (case-insensitive) and ends in
+     * .gguf is treated as the projector for the active model.
+     *
+     * Safe to call after [loadModel] succeeds. No-op if:
+     *   • the active model is not on the VISION_TAGS list (don't waste
+     *     RAM loading a projector for a text-only model), or
+     *   • a projector is already loaded (idempotent).
+     *
+     * Always emits AIRI_PROOF MMPROJ_AUTOLOAD_* tags so the decision is
+     * visible from logcat without enabling verbose logs.
+     */
+    fun maybeAutoLoadMmproj(modelPath: String) {
+        if (!isLoaded) {
+            Log.i("AIRI_PROOF", "MMPROJ_AUTOLOAD_SKIPPED reason=model_not_loaded")
+            return
+        }
+        scope.launch {
+            try {
+                if (runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)) {
+                    Log.i("AIRI_PROOF", "MMPROJ_AUTOLOAD_SKIPPED reason=already_loaded")
+                    return@launch
+                }
+                val parent = File(modelPath).parentFile ?: run {
+                    Log.i("AIRI_PROOF", "MMPROJ_AUTOLOAD_SKIPPED reason=no_parent_dir")
+                    return@launch
+                }
+                val candidates = parent.listFiles { f ->
+                    val n = f.name.lowercase()
+                    f.isFile && n.endsWith(".gguf") &&
+                        (n.contains("mmproj") || n.contains("mm-proj") || n.contains("projector"))
+                }?.toList().orEmpty()
+                if (candidates.isEmpty()) {
+                    Log.i("AIRI_PROOF",
+                        "MMPROJ_AUTOLOAD_SKIPPED reason=no_sidecar_in dir=${parent.absolutePath}")
+                    return@launch
+                }
+                // Prefer f16 over q4 if multiple are present.
+                val pick = candidates.sortedByDescending { f ->
+                    val n = f.name.lowercase(); when {
+                        "f16" in n  -> 3
+                        "f32" in n  -> 2
+                        "q8" in n   -> 1
+                        else        -> 0
+                    }
+                }.first()
+                Log.i("AIRI_PROOF",
+                    "MMPROJ_AUTOLOAD_REQUESTED path=${pick.absolutePath} " +
+                    "candidates=${candidates.size}")
+                val ok = runCatching { LlamaNative.loadMmproj(pick.absolutePath) }
+                    .getOrElse { e ->
+                        Log.e(TAG, "MMPROJ_AUTOLOAD threw: ${e.message}", e); false
+                    }
+                Log.i("AIRI_PROOF", "MMPROJ_AUTOLOAD_RESULT ok=$ok")
+            } catch (e: Throwable) {
+                Log.w(TAG, "maybeAutoLoadMmproj failed: ${e.message}")
+                Log.i("AIRI_PROOF", "MMPROJ_AUTOLOAD_FAILED ${e.javaClass.simpleName}: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * PHASE 5: auto-discover and load a dedicated embedding GGUF living in
+     * the same directory as the active chat model (or any of its sub-dirs).
+     * The embedding context is independent from the chat context — both can
+     * be loaded simultaneously — so the Memory pipeline can produce real
+     * pooled vectors without forcing the user to manually pick a second
+     * model.
+     *
+     * Selection rules:
+     *  • file is .gguf
+     *  • lowercase name contains any of [ModelCapabilities.EMBEDDING_TAGS]
+     *    (bge-, e5-, gte-, nomic-embed, all-minilm, snowflake-arctic-embed,
+     *    mxbai-embed, jina-embed)
+     *  • not the chat model itself
+     *
+     * Idempotent: re-checks LlamaNative.loadEmbeddingModel which itself
+     * unloads any previously-loaded embedding model before loading the new
+     * one (see native impl). We still skip if the same path was already
+     * loaded successfully in this process.
+     *
+     * Emits AIRI_PROOF EMBEDDING_AUTOLOAD_* tags so the decision is
+     * observable from logcat without verbose logging.
+     */
+    @Volatile private var loadedEmbeddingPath: String? = null
+    fun maybeAutoLoadEmbeddingModel(modelPath: String) {
+        if (!isLoaded) {
+            Log.i("AIRI_PROOF", "EMBEDDING_AUTOLOAD_SKIPPED reason=model_not_loaded")
+            return
+        }
+        scope.launch {
+            try {
+                val parent = File(modelPath).parentFile ?: run {
+                    Log.i("AIRI_PROOF", "EMBEDDING_AUTOLOAD_SKIPPED reason=no_parent_dir")
+                    return@launch
+                }
+                // Conservative tag list mirrored from ModelCapabilities so
+                // both the auto-loader and the capability detector agree
+                // about what counts as an "embedding model".
+                val tags = listOf(
+                    "bge-", "e5-", "gte-", "nomic-embed", "all-minilm",
+                    "snowflake-arctic-embed", "mxbai-embed", "jina-embed"
+                )
+                val chatName = File(modelPath).name.lowercase()
+                // Walk one level deep so a "models/embeddings/" sub-dir
+                // also gets picked up — some users organise that way.
+                val pool = (parent.listFiles().orEmpty().toList() +
+                    parent.listFiles { f -> f.isDirectory }
+                        .orEmpty().flatMap { it.listFiles().orEmpty().toList() })
+                val candidates = pool.filter { f ->
+                    val n = f.name.lowercase()
+                    f.isFile && n.endsWith(".gguf") &&
+                        n != chatName &&
+                        tags.any { it in n }
+                }
+                if (candidates.isEmpty()) {
+                    Log.i("AIRI_PROOF",
+                        "EMBEDDING_AUTOLOAD_SKIPPED reason=no_candidate_in dir=${parent.absolutePath}")
+                    return@launch
+                }
+                // Prefer higher-fidelity quantisations: f16 > f32 > q8 > q5 > q4.
+                val pick = candidates.sortedByDescending { f ->
+                    val n = f.name.lowercase(); when {
+                        "f16" in n -> 5
+                        "f32" in n -> 4
+                        "q8"  in n -> 3
+                        "q5"  in n -> 2
+                        "q4"  in n -> 1
+                        else       -> 0
+                    }
+                }.first()
+                if (pick.absolutePath == loadedEmbeddingPath) {
+                    Log.i("AIRI_PROOF",
+                        "EMBEDDING_AUTOLOAD_SKIPPED reason=already_loaded path=${pick.absolutePath}")
+                    return@launch
+                }
+                Log.i("AIRI_PROOF",
+                    "EMBEDDING_AUTOLOAD_REQUESTED path=${pick.absolutePath} " +
+                    "candidates=${candidates.size}")
+                val result = runCatching { LlamaNative.loadEmbeddingModel(pick.absolutePath) }
+                    .getOrElse { e ->
+                        Log.e(TAG, "EMBEDDING_AUTOLOAD threw: ${e.message}", e)
+                        "EXCEPTION:${e.javaClass.simpleName}"
+                    }
+                val ok = result == "LOAD_SUCCESS" || result == "Success"
+                if (ok) loadedEmbeddingPath = pick.absolutePath
+                Log.i("AIRI_PROOF", "EMBEDDING_AUTOLOAD_RESULT ok=$ok native_result=$result")
+            } catch (e: Throwable) {
+                Log.w(TAG, "maybeAutoLoadEmbeddingModel failed: ${e.message}")
+                Log.i("AIRI_PROOF",
+                    "EMBEDDING_AUTOLOAD_FAILED ${e.javaClass.simpleName}: ${e.message}")
+            }
+        }
+    }
+
     suspend fun loadMmprojSerialized(mmprojPath: String): Boolean = withContext(llamaDispatcher) {
         Log.i("AIRI_PROOF", "MMPROJ_LOAD_REQUESTED path=$mmprojPath")
         val ok = runCatching { LlamaNative.loadMmproj(mmprojPath) }.getOrElse { e ->
@@ -863,8 +1179,12 @@ class LlamaManager(private val context: Context) {
                         Log.i("AIRI_PROOF", "VISION_TIMEOUT timeout_ms=$timeoutMs")
                         cancelRequested.set(true)
                         runCatching { LlamaNative.cancel() }
+                        // PHASE 6: contain user error callback.
                         withContext(Dispatchers.Main) {
-                            onError("ERR_VISION_TIMEOUT timeout_ms=$timeoutMs")
+                            try { onError("ERR_VISION_TIMEOUT timeout_ms=$timeoutMs") }
+                            catch (t: Throwable) {
+                                Log.w(TAG, "vision onError(timeout) threw: ${t.message}", t)
+                            }
                         }
                     }
                     return@launch
@@ -895,11 +1215,21 @@ class LlamaManager(private val context: Context) {
                     // that as an explicit error so the UI doesn't silently
                     // show a blank assistant turn.
                     if (full.isBlank()) {
+                        // PHASE 6: contain user error callback.
                         withContext(Dispatchers.Main) {
-                            onError("ERR_VISION_EMPTY native returned blank reply")
+                            try { onError("ERR_VISION_EMPTY native returned blank reply") }
+                            catch (t: Throwable) {
+                                Log.w(TAG, "vision onError(empty) threw: ${t.message}", t)
+                            }
                         }
                     } else {
-                        withContext(Dispatchers.Main) { onComplete(full) }
+                        // PHASE 6: contain user completion callback.
+                        withContext(Dispatchers.Main) {
+                            try { onComplete(full) }
+                            catch (t: Throwable) {
+                                Log.w(TAG, "vision onComplete threw: ${t.message}", t)
+                            }
+                        }
                     }
                 }
             } catch (e: Throwable) {
@@ -909,7 +1239,13 @@ class LlamaManager(private val context: Context) {
                 invalidateSession()
                 if (finished.compareAndSet(false, true)) {
                     val msg = "$ERR_NATIVE ${e.javaClass.simpleName}: ${e.message ?: "unknown"}"
-                    withContext(Dispatchers.Main) { onError(msg) }
+                    // PHASE 6: contain user error callback.
+                    withContext(Dispatchers.Main) {
+                        try { onError(msg) }
+                        catch (t: Throwable) {
+                            Log.w(TAG, "vision onError(native) threw: ${t.message}", t)
+                        }
+                    }
                 }
             }
         }

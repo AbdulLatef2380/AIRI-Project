@@ -16,6 +16,7 @@ static const std::map<llm_arch, const char *> LLM_ARCH_NAMES = {
     { LLM_ARCH_QWEN3,            "qwen3"            },
     { LLM_ARCH_QWEN3VL,          "qwen3vl"          },
     { LLM_ARCH_GEMMA,            "gemma"            },
+    { LLM_ARCH_GEMMA2,           "gemma2"           },
     { LLM_ARCH_GEMMA3,           "gemma3"           },
     { LLM_ARCH_UNKNOWN,          "(unknown)"        },
 };

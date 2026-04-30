@@ -998,6 +998,32 @@ void llama_model::load_hparams(llama_model_loader & ml) {
                     default: type = LLM_TYPE_UNKNOWN;
                }
             } break;
+        case LLM_ARCH_GEMMA2:
+            {
+                hparams.f_attn_logit_softcapping  = 50.0f;
+                hparams.f_final_logit_softcapping = 30.0f;
+                ml.get_key(LLM_KV_ATTN_LOGIT_SOFTCAPPING,      hparams.f_attn_logit_softcapping,  false);
+                ml.get_key(LLM_KV_FINAL_LOGIT_SOFTCAPPING,     hparams.f_final_logit_softcapping, false);
+                ml.get_key(LLM_KV_ATTENTION_LAYERNORM_RMS_EPS, hparams.f_norm_rms_eps);
+
+                // Gemma2 always uses interleaved sliding-window attention (alternating SWA/full each layer)
+                hparams.swa_type = LLAMA_SWA_TYPE_STANDARD;
+                hparams.n_swa    = 4096;
+                ml.get_key(LLM_KV_ATTENTION_SLIDING_WINDOW, hparams.n_swa, false);
+                hparams.set_swa_pattern(2);
+
+                switch (hparams.n_layer) {
+                    case 26: type = LLM_TYPE_2B;  break;
+                    case 42: type = LLM_TYPE_9B;  break;
+                    case 46: type = LLM_TYPE_27B; break;
+                    default: type = LLM_TYPE_UNKNOWN;
+                }
+
+                // ref: https://github.com/google/gemma_pytorch/blob/main/gemma/config.py
+                hparams.f_attention_scale = type == LLM_TYPE_27B
+                    ? 1.0f / std::sqrt(float(hparams.n_embd / hparams.n_head(0)))
+                    : 1.0f / std::sqrt(float(hparams.n_embd_head_k()));
+            } break;
         case LLM_ARCH_GEMMA3:
             {
                 const bool found_swa = ml.get_key(LLM_KV_ATTENTION_SLIDING_WINDOW, hparams.n_swa, false);
@@ -1421,6 +1447,30 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                         layer.ffn_gate = create_tensor(tn(LLM_TENSOR_FFN_GATE, "weight", i), {n_embd,   n_ff}, 0);
                         layer.ffn_up   = create_tensor(tn(LLM_TENSOR_FFN_UP,   "weight", i), {n_embd,   n_ff}, 0);
                         layer.ffn_down = create_tensor(tn(LLM_TENSOR_FFN_DOWN, "weight", i), {  n_ff, n_embd}, 0);
+                    }
+                } break;
+            case LLM_ARCH_GEMMA2:
+                {
+                    tok_embd = create_tensor(tn(LLM_TENSOR_TOKEN_EMBD, "weight"), {n_embd, n_vocab}, 0);
+
+                    // output
+                    output_norm = create_tensor(tn(LLM_TENSOR_OUTPUT_NORM, "weight"), {n_embd}, 0);
+                    output      = create_tensor(tn(LLM_TENSOR_TOKEN_EMBD,  "weight"), {n_embd, n_vocab}, TENSOR_DUPLICATED); // tied embeddings
+
+                    for (int i = 0; i < n_layer; ++i) {
+                        auto & layer = layers[i];
+
+                        layer.attn_norm      = create_tensor(tn(LLM_TENSOR_ATTN_NORM,      "weight", i), {n_embd}, 0);
+
+                        create_tensor_qkv(layer, i, n_embd, n_embd_head_k * n_head, n_embd_k_gqa, n_embd_v_gqa, 0);
+                        layer.wo             = create_tensor(tn(LLM_TENSOR_ATTN_OUT,       "weight", i), {n_embd_head_k * n_head, n_embd}, 0);
+                        layer.attn_post_norm = create_tensor(tn(LLM_TENSOR_ATTN_POST_NORM, "weight", i), {n_embd}, 0);
+
+                        layer.ffn_norm       = create_tensor(tn(LLM_TENSOR_FFN_NORM,       "weight", i), {n_embd}, 0);
+                        layer.ffn_gate       = create_tensor(tn(LLM_TENSOR_FFN_GATE,       "weight", i), {n_embd,   n_ff}, 0);
+                        layer.ffn_up         = create_tensor(tn(LLM_TENSOR_FFN_UP,         "weight", i), {n_embd,   n_ff}, 0);
+                        layer.ffn_down       = create_tensor(tn(LLM_TENSOR_FFN_DOWN,       "weight", i), {  n_ff, n_embd}, 0);
+                        layer.ffn_post_norm  = create_tensor(tn(LLM_TENSOR_FFN_POST_NORM,  "weight", i), {n_embd}, 0);
                     }
                 } break;
             case LLM_ARCH_GEMMA3:
@@ -2270,6 +2320,10 @@ ggml_cgraph * llama_model::build_graph(const llm_graph_params & params) const {
             {
                 llm = std::make_unique<llm_build_gemma>(*this, params);
             } break;
+        case LLM_ARCH_GEMMA2:
+            {
+                llm = std::make_unique<llm_build_gemma2_iswa>(*this, params);
+            } break;
         case LLM_ARCH_GEMMA3:
             {
                 if (hparams.swa_type == LLAMA_SWA_TYPE_STANDARD) {
@@ -2418,6 +2472,7 @@ llama_rope_type llama_model_rope_type(const llama_model * model) {
         case LLM_ARCH_QWEN2:
         case LLM_ARCH_QWEN3:
         case LLM_ARCH_GEMMA:
+        case LLM_ARCH_GEMMA2:
         case LLM_ARCH_GEMMA3:
             return LLAMA_ROPE_TYPE_NEOX;
 

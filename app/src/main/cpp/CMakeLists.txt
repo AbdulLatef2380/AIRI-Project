@@ -163,6 +163,7 @@ set(LLAMA_MODEL_SOURCES
 
     # Gemma family (text + vision via Gemma3)
     ${LLAMA_DIR}/src/models/gemma.cpp
+    ${LLAMA_DIR}/src/models/gemma2-iswa.cpp
     ${LLAMA_DIR}/src/models/gemma3.cpp
 )
 

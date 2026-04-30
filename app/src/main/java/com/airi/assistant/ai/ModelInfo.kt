@@ -19,6 +19,22 @@ enum class ModelType(val label: String) {
     }
 }
 
+/**
+ * Architectures the vendored llama.cpp build can actually load.
+ * The native CMake prune currently compiles: llama, llama4, qwen, qwen2,
+ * qwen3, qwen2vl, qwen3vl, gemma, gemma2, gemma3.
+ *
+ * Anything outside this set (e.g. phi3, mistral-as-mistral-arch) will fail
+ * with "unknown model architecture: '...'" at load time. The catalog and
+ * "Available to Download" UI use [SUPPORTED_ARCHS] to hide entries we
+ * cannot honor, instead of letting the user download a broken file.
+ */
+val SUPPORTED_ARCHS: Set<String> = setOf(
+    "llama", "llama4",
+    "qwen", "qwen2", "qwen3", "qwen2vl", "qwen3vl",
+    "gemma", "gemma2", "gemma3",
+)
+
 data class ModelInfo(
     val name: String,
     val fileName: String,

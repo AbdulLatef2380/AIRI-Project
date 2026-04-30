@@ -48,6 +48,7 @@ import com.airi.assistant.ai.ModelInfo
 import com.airi.assistant.ai.ModelManager
 import com.airi.assistant.ai.ModelSource
 import com.airi.assistant.ai.ModelType
+import com.airi.assistant.ai.SUPPORTED_ARCHS
 import com.airi.assistant.ai.remote.RemoteModel
 import com.airi.assistant.ai.remote.RemoteModelExecutor
 import com.airi.assistant.ai.remote.RemoteModelRegistry
@@ -104,6 +105,8 @@ fun ModelSettingsScreen(
 
     val filteredCatalog = remember(modelState.catalogModels, downloadedFileNames, selectedCategory) {
         modelState.catalogModels
+            // Hide entries the native build can't load and entries the spec excludes.
+            .filter { entry -> entry.supported && entry.architecture in SUPPORTED_ARCHS }
             .filter { entry -> !downloadedFileNames.contains(entry.fileName) }
             .filter { entry ->
                 when (selectedCategory) {

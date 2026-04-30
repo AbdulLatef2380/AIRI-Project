@@ -155,6 +155,14 @@ dependencies {
     // and extracts it. See VoskModelManager.kt + VoiceSettingsScreen.kt.
     implementation(libs.voskAndroid)
 
+    // ── Image loading (chat attachment thumbnails) ───────────────────────
+    // Coil is the Compose-native image loader (Apache-2.0). Used by the
+    // chat screen to render the attachment preview chip and the in-bubble
+    // image thumbnail. It decodes off the main thread, has built-in
+    // memory + disk caching, and degrades gracefully (no crash) when an
+    // image cannot be opened. See gradle/libs.versions.toml for version.
+    implementation(libs.coil.compose)
+
     // Picovoice Porcupine = on-device wake-word ("Hey AIRI"). Requires
     // (a) a Picovoice AccessKey supplied via PICOVOICE_ACCESS_KEY (gradle
     //     property, environment variable, or runtime via Settings) and

@@ -66,6 +66,8 @@ import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.AgentMode
 import com.airi.assistant.ui.viewmodel.ChatMessage
 import com.airi.assistant.ui.viewmodel.ChatViewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.airi.assistant.ui.viewmodel.ModelUiState
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
@@ -367,6 +369,13 @@ fun ChatScreen(
         }
     }
 
+    // ── PHASE 4: streaming TTS state (declared BEFORE the speak effect that
+    // reads it). [ttsStreamingActive] tracks whether mid-stream TTS chunks
+    // have already been queued for the in-flight assistant turn so the
+    // post-stream completion handler doesn't double-speak.
+    var ttsStreamingActive by rememberSaveable { mutableStateOf(false) }
+    var lastTtsStreamLen   by rememberSaveable { mutableStateOf(0) }
+
     LaunchedEffect(agentState.isWorking) {
         if (speakNextResponse && !agentState.isWorking) {
             val lastMsg = messages.lastOrNull { !it.isUser }
@@ -376,44 +385,129 @@ fun ChatScreen(
                 voiceState = VoiceSessionState.SPEAKING
                 Log.d("AIRI_VOICE", "TTS triggered → SPEAKING msgId=${lastMsg.id} text_len=${lastMsg.text.length}")
                 Log.i("AIRI_PROOF", "VOICE_RESPONSE_COMPLETE msgId=${lastMsg.id} chars=${lastMsg.text.length} loop_active=${liveChatActiveRef.value}")
-                voiceManager.speak(lastMsg.text)
+                // PHASE 2/4: if streaming TTS already spoke chunks, just
+                // flush the tail; else fall back to full one-shot speak.
+                if (ttsStreamingActive) {
+                    voiceManager.ttsStreamFlush()
+                    ttsStreamingActive = false
+                } else {
+                    voiceManager.speak(lastMsg.text)
+                }
             }
         }
     }
 
-    var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    // PHASE 4: observe streamingText and feed deltas to VoiceManager.
+    LaunchedEffect(streamingText, speakNextResponse, agentState.isWorking) {
+        if (!speakNextResponse) {
+            // Reset bookkeeping when voice mode is off.
+            if (ttsStreamingActive) {
+                voiceManager.ttsStreamFlush()
+                ttsStreamingActive = false
+            }
+            lastTtsStreamLen = 0
+            return@LaunchedEffect
+        }
+        val current = streamingText
+        // Skip placeholder thinking strings — they're never speech.
+        val isPlaceholder = current.isBlank() ||
+            current == "Thinking..." || current == "Analyzing image..."
+        if (isPlaceholder) {
+            if (ttsStreamingActive) {
+                voiceManager.ttsStreamFlush()
+                ttsStreamingActive = false
+            }
+            lastTtsStreamLen = 0
+            return@LaunchedEffect
+        }
+        // Detect a brand-new streaming session: text shrunk or restarted.
+        if (current.length < lastTtsStreamLen) {
+            voiceManager.ttsStreamReset()
+            ttsStreamingActive = true
+            lastTtsStreamLen = 0
+        }
+        if (!ttsStreamingActive) {
+            voiceManager.ttsStreamReset()
+            ttsStreamingActive = true
+        }
+        if (current.length > lastTtsStreamLen) {
+            val delta = current.substring(lastTtsStreamLen)
+            voiceManager.ttsStreamAppend(delta)
+            lastTtsStreamLen = current.length
+        }
+    }
+
+    // ── PHASE 3 (actual fix): unified attachment list ───────────────────────
+    // Replaces the previous fragmented state (selectedImageUri, capturedBitmap,
+    // an orphan filePicker that did nothing). All four pickers (gallery
+    // image, camera capture, generic file, mmproj if re-enabled) now append
+    // to this single list. Removing a chip drops it from the list. On send
+    // we hand the list to ChatViewModel.sendMessageWithAttachments which
+    // makes one explicit capability decision — no hidden forks downstream.
+    var pendingAttachments by remember {
+        mutableStateOf<List<com.airi.assistant.domain.ChatAttachment>>(emptyList())
+    }
+
+    fun addAttachment(att: com.airi.assistant.domain.ChatAttachment) {
+        // Cap at 6 attachments per turn so the chip row never overflows
+        // the input area on small devices.
+        if (pendingAttachments.size >= 6) {
+            scope.launch { snackbarHost.showSnackbar("Maximum 6 attachments per message") }
+            return
+        }
+        pendingAttachments = pendingAttachments + att
+        Log.i("AIRI_PROOF",
+            "ATTACHMENT_ADDED kind=${att.kind} name=${att.displayName} " +
+            "total=${pendingAttachments.size}")
+    }
+    fun removeAttachment(id: String) {
+        pendingAttachments = pendingAttachments.filterNot { it.id == id }
+        Log.i("AIRI_PROOF", "ATTACHMENT_REMOVED id=$id remaining=${pendingAttachments.size}")
+    }
 
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
             val fileName = uri.lastPathSegment ?: uri.toString()
-            Log.d("AIRI_UI", "File picked: $fileName uri=$uri")
-            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.file_selected_name, fileName)) }
+            val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+            val size = runCatching {
+                context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
+            }.getOrNull()?.takeIf { it >= 0 }
+            Log.i("AIRI_PROOF",
+                "ATTACHMENT_SELECTED kind=FILE name=$fileName mime=$mime size=$size")
+            addAttachment(
+                com.airi.assistant.domain.ChatAttachment(
+                    kind = com.airi.assistant.domain.ChatAttachment.Kind.FILE,
+                    uri = uri,
+                    displayName = fileName,
+                    mimeType = mime,
+                    sizeBytes = size
+                )
+            )
         }
     }
-    // Issue #1 — selected-image state (held in saveable so config-change
-    // doesn't drop the user's pick). The current LLM is text-only; this
-    // chip is a visible acknowledgement that we received the file. The
-    // chat send-handler appends a "[image attached: <name>]" marker so the
-    // assistant can at least respond to the fact something was attached.
-    var selectedImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
-            Log.d("AIRI_UI", "Image picked: $uri")
-            // Spec-mandated proof tag (also keep the historical IMAGE_ATTACHED
-            // line for back-compat with existing log parsers). The
-            // vision_backend field now reflects the *runtime* mmproj state,
-            // not a build-time constant — so logcat tells the truth about
-            // whether this attachment will hit the real vision pipeline.
+            val name = uri.lastPathSegment ?: "image_${System.currentTimeMillis()}"
+            val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
             val visionReady = viewModel.isVisionReady()
-            Log.i("AIRI_PROOF", "ATTACHMENT_SELECTED type=image name=${uri.lastPathSegment ?: "unknown"} uri=$uri vision_backend=${if (visionReady) "mtmd" else "none"}")
+            Log.i("AIRI_PROOF",
+                "ATTACHMENT_SELECTED kind=IMAGE name=$name uri=$uri " +
+                "vision_backend=${if (visionReady) "mtmd" else "none"}")
+            // Keep the historical IMAGE_ATTACHED tag for back-compat parsers.
             Log.i("AIRI_PROOF", "IMAGE_ATTACHED uri=$uri vision_ready=$visionReady")
-            selectedImageUri = uri
+            addAttachment(
+                com.airi.assistant.domain.ChatAttachment(
+                    kind = com.airi.assistant.domain.ChatAttachment.Kind.IMAGE,
+                    uri = uri,
+                    displayName = name,
+                    mimeType = mime
+                )
+            )
         }
     }
-    // Phase 3 — mmproj projector picker. The user picks a *.gguf projector
-    // file (typically named ...-mmproj-...gguf) from storage; the VM copies
-    // it to cache, calls the serialized native loader, and re-detects
-    // ModelCapabilities so the vision badge flips to "ready".
+    // Phase 3 — mmproj projector picker. UI is hidden (auto-load handles
+    // the common case in LlamaManager.maybeAutoLoadMmproj), but the wiring
+    // is preserved so re-enabling the bubble is a one-literal flip.
     val mmprojPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
             Log.i("AIRI_PROOF", "MMPROJ_PICKED uri=$uri name=${uri.lastPathSegment ?: "unknown"}")
@@ -422,7 +516,16 @@ fun ChatScreen(
     }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
         if (bitmap != null) {
-            capturedBitmap = bitmap
+            val name = "camera_${System.currentTimeMillis()}.jpg"
+            Log.i("AIRI_PROOF", "ATTACHMENT_SELECTED kind=CAMERA name=$name")
+            addAttachment(
+                com.airi.assistant.domain.ChatAttachment(
+                    kind = com.airi.assistant.domain.ChatAttachment.Kind.CAMERA,
+                    bitmap = bitmap,
+                    displayName = name,
+                    mimeType = "image/jpeg"
+                )
+            )
             scope.launch { snackbarHost.showSnackbar(context.getString(R.string.photo_captured)) }
         }
     }
@@ -487,72 +590,28 @@ fun ChatScreen(
             },
             bottomBar = {
               Column(modifier = Modifier.fillMaxWidth()) {
-                // Issue #1 — honest image preview chip. Appears above the
-                // input pill when the user has picked an image. Tap × to
-                // remove. We do NOT pretend to do vision: the chip text
-                // explicitly says "Vision model required".
+                // ── PHASE 3 (actual fix): unified attachment chip row ──────────
+                // One row, one chip per attachment, regardless of kind. The
+                // image-vs-file-vs-camera distinction is now just an icon +
+                // a label, not a separate code path.
                 androidx.compose.animation.AnimatedVisibility(
-                    visible = selectedImageUri != null,
+                    visible = pendingAttachments.isNotEmpty(),
                     enter = androidx.compose.animation.fadeIn() +
                             androidx.compose.animation.expandVertically(),
                     exit = androidx.compose.animation.fadeOut() +
                            androidx.compose.animation.shrinkVertically()
                 ) {
-                    val uri = selectedImageUri
-                    if (uri != null) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 6.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF1A1A1A).copy(alpha = 0.45f))
-                                .border(1.dp, CosmicAccent.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(CosmicAccent.copy(alpha = 0.18f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Image,
-                                    contentDescription = null,
-                                    tint = CosmicAccent,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                            Spacer(Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = uri.lastPathSegment ?: uri.toString().takeLast(28),
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = stringResource(R.string.image_attached_no_vision),
-                                    color = Color.White.copy(alpha = 0.55f),
-                                    fontSize = 10.sp,
-                                    maxLines = 2,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                            }
-                            IconButton(onClick = {
-                                Log.i("AIRI_PROOF", "ATTACHMENT_REMOVED type=image name=${uri.lastPathSegment ?: "unknown"}")
-                                Log.i("AIRI_PROOF", "IMAGE_REMOVED")
-                                selectedImageUri = null
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = stringResource(R.string.remove_image_cd),
-                                    tint = Color.White.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
+                    androidx.compose.foundation.lazy.LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(pendingAttachments, key = { it.id }) { att ->
+                            AttachmentChip(
+                                attachment = att,
+                                onRemove = { removeAttachment(att.id) }
+                            )
                         }
                     }
                 }
@@ -562,24 +621,17 @@ fun ChatScreen(
                     voiceInput      = voiceInput,
                     smartReplies    = smartReplies,
                     onSend          = { text ->
-                        // Phase 3 — vision pipeline: hand off both the typed
-                        // text AND any pending image artefact to the VM. The
-                        // VM decides whether to invoke the real vision path
-                        // (mmproj loaded + capability detected) or fall back
-                        // to the historical "[ATTACHMENT: image: name]" text
-                        // marker. Either way, we clear the preview chip
-                        // immediately so the user can keep typing.
-                        val attachedUri = selectedImageUri
-                        val attachedBmp = capturedBitmap
-                        if (attachedUri != null || attachedBmp != null) {
-                            val name = attachedUri?.lastPathSegment
-                                ?: "camera_${System.currentTimeMillis()}"
+                        // PHASE 3 (actual fix): one entry point for everything.
+                        // The view-model makes the single capability decision
+                        // (vision vs. text-marker) — the UI never branches.
+                        val toSend = pendingAttachments
+                        if (toSend.isNotEmpty()) {
                             Log.i("AIRI_PROOF",
-                                "ATTACHMENT_SENT type=image name=$name " +
+                                "ATTACHMENTS_SENT count=${toSend.size} " +
+                                "kinds=${toSend.joinToString(",") { it.kind.name }} " +
                                 "vision_ready=${viewModel.isVisionReady()}")
-                            viewModel.sendMessageWithImage(text, attachedUri, attachedBmp)
-                            selectedImageUri = null
-                            capturedBitmap = null
+                            viewModel.sendMessageWithAttachments(text, toSend)
+                            pendingAttachments = emptyList()
                         } else {
                             viewModel.sendMessage(text)
                         }
@@ -666,7 +718,22 @@ fun ChatScreen(
                         }
                     },
                     onVoiceConsumed = { voiceInput = ""; voiceState = VoiceSessionState.IDLE },
-                    onOpenModels    = { onNavigate(AiriRoute.MODELS) }
+                    onOpenModels    = { onNavigate(AiriRoute.MODELS) },
+                    onUserStartedTyping = {
+                        // PHASE 4 (audio polish): user typing == intent to take
+                        // the floor. Stop TTS instantly so we don't talk over
+                        // them. Also drop out of the continuous live-chat loop
+                        // so we don't auto-re-arm the mic mid-typing.
+                        if (voiceState == VoiceSessionState.SPEAKING) {
+                            Log.i("AIRI_PROOF", "TTS_INTERRUPTED reason=user_typing")
+                            voiceManager.stopSpeaking()
+                            voiceState = VoiceSessionState.IDLE
+                        }
+                        if (liveChatActiveRef.value) {
+                            Log.i("AIRI_PROOF", "VOICE_LOOP_STOPPED reason=user_typing")
+                            liveChatActiveRef.value = false
+                        }
+                    }
                 )
               } // end of bottomBar Column (image-preview chip + ChatInputBar)
             }
@@ -873,9 +940,56 @@ fun ChatMessageList(
     val listState = rememberLazyListState()
     val scope     = rememberCoroutineScope()
 
-    LaunchedEffect(messages.size, streamingText.length) {
-        if (messages.isNotEmpty() || streamingText.isNotEmpty()) {
+    // ── PHASE 4 (verification): scroll stability ────────────────────────────
+    // Old behaviour fired animateScrollToItem(0) on every streaming token.
+    // With reverseLayout=true and a 10-30 fps token rate that produced:
+    //   • animation-interrupting-itself flicker on every emission,
+    //   • wrestled the user's manual scroll up away from them, and
+    //   • ~3-5ms of extra Choreographer work per token.
+    //
+    // The fix is the pattern used by mature streaming chat UIs (ChatGPT,
+    // Claude, Telegram livestream): only auto-scroll if the user is
+    // already pinned to the bottom; use *non-animated* scroll during
+    // streaming (animation conflicts → jank); throttle to roughly one
+    // scroll per frame using a per-message append heuristic.
+    //
+    // With reverseLayout=true, "bottom" means firstVisibleItemIndex == 0.
+    // We give the user a 1-item slack so they can scroll up one bubble
+    // without immediately losing their place.
+    val isPinnedToBottom by remember {
+        derivedStateOf { listState.firstVisibleItemIndex <= 1 }
+    }
+    // Track the last streaming length we scrolled for so we can decide to
+    // scroll only when growth is meaningful (every ~24 chars ≈ one render).
+    var lastScrolledStreamLen by remember { mutableStateOf(0) }
+    LaunchedEffect(messages.size) {
+        // New message arrived (user just sent or assistant turn closed).
+        // Use ANIMATED scroll here — it's a single event, not per-token.
+        if (isPinnedToBottom && (messages.isNotEmpty() || streamingText.isNotEmpty())) {
             scope.launch { listState.animateScrollToItem(0) }
+        }
+        lastScrolledStreamLen = 0
+    }
+    LaunchedEffect(streamingText.length) {
+        // Per-token growth: only scroll if the user is at the bottom and
+        // the text actually grew enough that the bottom moved off-screen.
+        if (!isPinnedToBottom) return@LaunchedEffect
+        val len = streamingText.length
+        if (len == 0) {
+            lastScrolledStreamLen = 0
+            return@LaunchedEffect
+        }
+        val grew = len - lastScrolledStreamLen
+        // Threshold of 24 chars ≈ one wrapped line of Arabic/English text.
+        // Smaller deltas don't change visible layout enough to be worth a
+        // scroll, and skipping them eliminates the per-token jank without
+        // visible lag for the user.
+        if (grew >= 24 || (grew in 1..23 && len < 60)) {
+            lastScrolledStreamLen = len
+            // NOTE: scrollToItem is the snap variant — no animation. This
+            // is critical: animateScrollToItem launching every ~24 chars
+            // would trigger animation cancellation on every emission.
+            scope.launch { listState.scrollToItem(0) }
         }
     }
 
@@ -938,7 +1052,7 @@ fun ChatMessageList(
                 val prevMsg = messages.reversed().getOrNull(index + 1)
                 val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
                 if (msg.isUser) {
-                    UserBubble(msg.text)
+                    UserBubble(msg.text, msg.imageUri)
                 } else {
                     AiBubble(
                         text      = msg.text,
@@ -955,12 +1069,21 @@ fun ChatMessageList(
 }
 
 @Composable
-fun UserBubble(text: String) {
+fun UserBubble(text: String, imageUri: String? = null) {
+    // Strip the trailing "[image: name]" marker that the ViewModel appends
+    // for memory persistence — the marker is meant for the prompt, not the
+    // user's eyes. When the bubble shows the actual image we don't need the
+    // text reminder either.
+    val displayText = remember(text, imageUri) {
+        if (imageUri != null) {
+            text.replace(Regex("""\s*\n*\[image:[^\]]*\]\s*$"""), "").trim()
+        } else text
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .widthIn(max = 300.dp)
                 .clip(RoundedCornerShape(18.dp, 4.dp, 18.dp, 18.dp))
@@ -970,9 +1093,34 @@ fun UserBubble(text: String) {
                     )
                 )
                 .border(1.dp, CosmicAccent.copy(alpha = 0.35f), RoundedCornerShape(18.dp, 4.dp, 18.dp, 18.dp))
-                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .padding(6.dp),
+            horizontalAlignment = Alignment.End
         ) {
-            Text(text, color = Color.White, fontSize = 14.sp, lineHeight = 20.sp)
+            if (imageUri != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(imageUri)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 220.dp)
+                        .clip(RoundedCornerShape(14.dp, 4.dp, 14.dp, 14.dp))
+                        .background(Color.Black.copy(alpha = 0.25f)),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                )
+                if (displayText.isNotBlank()) Spacer(Modifier.height(6.dp))
+            }
+            if (displayText.isNotBlank() || imageUri == null) {
+                Text(
+                    displayText,
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                )
+            }
         }
     }
 }
@@ -1232,14 +1380,6 @@ fun AiStreamingBubble(text: String) {
         "Thinking...", "Analyzing...", "Planning...", "Generating...",
         "Preparing...", "Imagining...", "Reasoning...", "Creating..."
     )
-    var cursorOn by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.delay(530L)
-            cursorOn = !cursorOn
-        }
-    }
-    val displayText = if (!isThinkingStage && cursorOn) "$text▋" else text
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1265,19 +1405,144 @@ fun AiStreamingBubble(text: String) {
                 .border(1.dp, CosmicAccent.copy(alpha = 0.25f), RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
-            Text(
-                text  = displayText,
-                color = Color.White.copy(alpha = if (isThinkingStage) 0.55f else 0.92f),
-                fontSize   = 14.sp,
-                lineHeight = 21.sp,
-                fontStyle  = if (isThinkingStage) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal
-            )
+            // PHASE 4 (verification): split the streaming body and the
+            // blinking cursor into two separate composables. The body Text
+            // only recomposes when [text] actually changes; the cursor
+            // recomposes every 530ms in its own scope and never re-measures
+            // the (potentially long) body Text. This eliminates the
+            // per-blink layout pass that would otherwise compound with
+            // per-token recomposition during streaming.
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text  = text,
+                    color = Color.White.copy(alpha = if (isThinkingStage) 0.55f else 0.92f),
+                    fontSize   = 14.sp,
+                    lineHeight = 21.sp,
+                    fontStyle  = if (isThinkingStage) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (!isThinkingStage) BlinkingCursor()
+            }
             if (isThinkingStage) {
                 Spacer(Modifier.height(8.dp))
                 AiriThinkingPulse()
             }
         }
     }
+}
+
+/**
+ * PHASE 3 (actual fix): single chip composable for ALL attachment kinds.
+ * Renders a 40dp leading visual (image thumbnail for images/cameras, file
+ * icon for files), the display name, a one-line subtitle (MIME or vision
+ * status), and a remove button. The chip never collapses on load failure
+ * because the leading box has a solid fallback background + icon.
+ */
+@Composable
+private fun AttachmentChip(
+    attachment: com.airi.assistant.domain.ChatAttachment,
+    onRemove: () -> Unit
+) {
+    val accent = CosmicAccent
+    val subtitle = when (attachment.kind) {
+        com.airi.assistant.domain.ChatAttachment.Kind.IMAGE,
+        com.airi.assistant.domain.ChatAttachment.Kind.CAMERA ->
+            attachment.mimeType ?: "image"
+        com.airi.assistant.domain.ChatAttachment.Kind.FILE ->
+            attachment.mimeType ?: "file"
+    }
+    Row(
+        modifier = Modifier
+            .widthIn(min = 140.dp, max = 240.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF1A1A1A).copy(alpha = 0.55f))
+            .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(accent.copy(alpha = 0.18f)),
+            contentAlignment = Alignment.Center
+        ) {
+            // Fallback icon shown beneath any image so the chip never collapses.
+            val fallback = when (attachment.kind) {
+                com.airi.assistant.domain.ChatAttachment.Kind.IMAGE,
+                com.airi.assistant.domain.ChatAttachment.Kind.CAMERA -> Icons.Default.Image
+                com.airi.assistant.domain.ChatAttachment.Kind.FILE   -> Icons.Default.AttachFile
+            }
+            Icon(
+                imageVector = fallback,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(18.dp)
+            )
+            // Real thumbnail for image attachments (gallery URI or in-mem bitmap).
+            val thumbModel: Any? = attachment.uri ?: attachment.bitmap
+            if (attachment.isVisualImage && thumbModel != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(thumbModel)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = attachment.displayName,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = attachment.displayName,
+                color = Color.White,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            Text(
+                text = subtitle,
+                color = Color.White.copy(alpha = 0.55f),
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+        IconButton(
+            onClick = onRemove,
+            modifier = Modifier.size(28.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Remove attachment",
+                tint = Color.White.copy(alpha = 0.7f),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun BlinkingCursor() {
+    // PHASE 4 (verification): isolated cursor — only this 1-char Text
+    // recomposes every 530ms, the streaming body above is untouched.
+    var cursorOn by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(530L)
+            cursorOn = !cursorOn
+        }
+    }
+    Text(
+        text = if (cursorOn) "▋" else " ",
+        color = Color.White.copy(alpha = 0.92f),
+        fontSize = 14.sp,
+        lineHeight = 21.sp
+    )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1339,7 +1604,12 @@ fun ChatInputBar(
     onMicClick: () -> Unit,
     onVoiceChatClick: () -> Unit,
     onVoiceConsumed: () -> Unit,
-    onOpenModels: () -> Unit
+    onOpenModels: () -> Unit,
+    // PHASE 4 (audio polish): fires the first time the user starts typing
+    // a brand-new message after the input was empty. ChatScreen uses it
+    // to interrupt any in-flight TTS so the user is never talked over —
+    // matching the behaviour of ChatGPT / Gemini voice modes.
+    onUserStartedTyping: () -> Unit = {}
 ) {
     var showAttachPopup by remember { mutableStateOf(false) }
     var text by rememberSaveable { mutableStateOf("") }
@@ -1624,7 +1894,16 @@ fun ChatInputBar(
                 // ── Text field (transparent — pill provides surface) ───
                 BasicTextField(
                     value = text,
-                    onValueChange = { text = it },
+                    onValueChange = { newValue ->
+                        // PHASE 4 (audio polish): interrupt TTS on the very
+                        // first character of a new turn — but only on the
+                        // empty→non-empty transition so we don't spam the
+                        // callback (and thus stop()) on every keystroke.
+                        if (text.isEmpty() && newValue.isNotEmpty()) {
+                            onUserStartedTyping()
+                        }
+                        text = newValue
+                    },
                     enabled = modelState.isModelReady && !isGenerating,
                     modifier = Modifier
                         .weight(1f)
@@ -1718,13 +1997,21 @@ fun ChatInputBar(
                                     AttachBubble(Icons.Outlined.AttachFile, stringResource(R.string.pick_file)) {
                                         showAttachPopup = false; onPickFile()
                                     }
-                                    // Phase 3 — vision projector picker. Shows
-                                    // up alongside camera/image/file. Tapping
-                                    // it opens a *.gguf file picker; the VM
-                                    // copies the selection to cache and loads
-                                    // it through the serialized native bridge.
-                                    AttachBubble(Icons.Outlined.AttachFile, stringResource(R.string.pick_mmproj)) {
-                                        showAttachPopup = false; onPickMmproj()
+                                    // PHASE 3 (revised) — the dedicated vision-
+                                    // projector attach button is intentionally
+                                    // HIDDEN from the chat attach popup. The
+                                    // unified attachment flow (Camera / Image
+                                    // / File) is the only thing the user
+                                    // touches; mmproj is auto-loaded by
+                                    // LlamaManager.maybeAutoLoadMmproj() at
+                                    // model-load time and is also reachable
+                                    // from Settings → Advanced for power
+                                    // users. Wiring (`onPickMmproj`) is
+                                    // preserved so Settings can call it.
+                                    if (false) {
+                                        AttachBubble(Icons.Outlined.AttachFile, stringResource(R.string.pick_mmproj)) {
+                                            showAttachPopup = false; onPickMmproj()
+                                        }
                                     }
                                 }
                             }

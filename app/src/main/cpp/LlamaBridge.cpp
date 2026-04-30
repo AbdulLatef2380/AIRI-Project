@@ -499,11 +499,23 @@ static void airi_kv_trim_if_needed(int reserve) {
     if ((uint32_t)(g_n_past + reserve) <= n_ctx) return;
 
     const int safe_keep_head = std::min((int)KV_KEEP_HEAD, g_n_past / 2);
-    const int keep_tail      = std::max(64, (int)(n_ctx / 2));
+    // PHASE 1 fix (RC-1): reserve-aware tail.
+    //   Old behaviour: keep_tail was fixed at n_ctx/2 regardless of how big
+    //   `reserve` was. For a large incoming user turn (e.g. ~700 tokens of
+    //   Arabic + chat-template overhead) on n_ctx=1536, that left only
+    //   ~640 tokens of headroom and we threw KV_OVERFLOW.
+    //   New behaviour: shrink keep_tail just enough so that
+    //       safe_keep_head + keep_tail + reserve + margin ≤ n_ctx
+    //   while still keeping a sane minimum so coherence isn't destroyed.
+    //   We intentionally never grow keep_tail above n_ctx/2 (the previous
+    //   default) — only shrink, never expand.
+    const int reserve_room   = std::max(0, (int)n_ctx - safe_keep_head - reserve - 16);
+    const int default_tail   = std::max(64, (int)(n_ctx / 2));
+    const int keep_tail      = std::max(64, std::min(default_tail, reserve_room));
     if (g_n_past - safe_keep_head <= keep_tail) {
         // Not enough trimmable space; only option is a hard reset.
-        PROOF("KV_TRIM_FORCE_RESET n_past=%d n_ctx=%u safe_keep=%d keep_tail=%d",
-              g_n_past, n_ctx, safe_keep_head, keep_tail);
+        PROOF("KV_TRIM_FORCE_RESET n_past=%d n_ctx=%u safe_keep=%d keep_tail=%d reserve=%d",
+              g_n_past, n_ctx, safe_keep_head, keep_tail, reserve);
         llama_memory_clear(llama_get_memory(g_ctx), true);
         g_n_past = 0;
         return;

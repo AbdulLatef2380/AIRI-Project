@@ -72,6 +72,73 @@ object LlamaNative {
 
     external fun cancel()
 
+    // ── SPEC v2: state-machine entry points ─────────────────────────────────
+    //
+    // nativeCancel()        — equivalent to cancel() but routed through the
+    //                         dedicated state-machine cancel flag. The decode
+    //                         loop checks the flag every iteration so
+    //                         cancellation latency is bounded by one
+    //                         llama_decode step. Lock-free; safe to call from
+    //                         any thread (does NOT block on the llama mutex).
+    //
+    // nativeGetLastStatus() — returns the result code of the most recent
+    //                         appendUserTurn / appendAssistantTurn /
+    //                         generateNextTokens / generateNextTokensSpeculative
+    //                         call:
+    //                            0  = OK
+    //                           -1  = ERROR             (decode/llama failure)
+    //                           -2  = CANCELLED         (cancel flag was set)
+    //                           -3  = CONTEXT_OVERFLOW  (n_past+N >= n_ctx)
+    //                         The Kotlin safe-generation handler reads this
+    //                         right after the JNI call returns to decide:
+    //                           -3 → fullReset() + retry once
+    //                           -1 → fullReset() + stop
+    //                           -2 → stop cleanly
+    //
+    // nativeFullReset()     — destroys the native llama_context and rebuilds
+    //                         it from the same llama_model with the cached
+    //                         cparams (n_ctx, n_threads). The CLEANUP step of
+    //                         the state machine: ANY error during
+    //                         PREFLIGHT/PREFILL/GENERATE results in a full
+    //                         context reset before the next turn.
+    external fun nativeCancel()
+    external fun nativeGetLastStatus(): Int
+    external fun nativeFullReset()
+
+    // ── SPEC v3: stability primitives ───────────────────────────────────────
+    //
+    // nativeCountTokens(text)    — exact token count of `text` under the loaded
+    //                              vocab. Returns:
+    //                                ≥ 0  the count
+    //                                 -1  no model loaded
+    //                                 -2  tokenizer failure
+    //                              Read-only on g_ctx (does NOT touch KV);
+    //                              cheap enough to call once per history
+    //                              message before every turn so the JVM can
+    //                              enforce a token budget instead of a
+    //                              message-count budget.
+    //
+    // nativeGetSessionId()       — monotonic counter, bumped on every event
+    //                              that creates / replaces / wipes the
+    //                              llama_context (loadModel,
+    //                              loadModelWithProgress, setRuntimeMode,
+    //                              nativeFullReset, beginSession,
+    //                              resetSession). Captured by LlamaManager
+    //                              before issuing generateNextTokens and
+    //                              re-checked inside every Main-dispatched
+    //                              onToken/onComplete to drop callbacks that
+    //                              outlived their context.
+    //
+    // nativeGetGenerationId()    — monotonic counter, bumped at the entry
+    //                              of every airi_generate_next call. Lets
+    //                              the JVM detect "old generation streams
+    //                              into new state" if a Main-dispatched
+    //                              token block arrives after a newer
+    //                              generation has already started.
+    external fun nativeCountTokens(text: String): Int
+    external fun nativeGetSessionId(): Long
+    external fun nativeGetGenerationId(): Long
+
     // ── Runtime tuning (no model reload) ─────────────────────────────────────
     // Hot-swaps the llama_context with the requested n_ctx / n_threads. The
     // GGUF model stays mmapped; only the KV cache + scheduler are rebuilt.

@@ -13,6 +13,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Session-based wrapper around the native llama.cpp engine.
@@ -62,6 +64,33 @@ class LlamaManager(private val context: Context) {
 
     private val cancelRequested = AtomicBoolean(false)
 
+    // ── SPEC v3 — STRICT LIFECYCLE MUTEX ────────────────────────────────────
+    // Defensive belt-and-braces mutex around the full
+    //   fullReset() → generateStream() body
+    // even though `llamaDispatcher` is single-threaded and already serializes
+    // every coroutine that enters this manager. Rationale:
+    //   1. The PocketPal AI / official llama.cpp Android example InferenceEngine
+    //      pattern (see InferenceEngineImpl.kt:123-125) wraps the whole turn
+    //      in a JVM mutex so that a context-destroying call CANNOT interleave
+    //      with a decoding call even if a future refactor introduces a second
+    //      dispatcher or a misplaced withContext.
+    //   2. kotlinx.coroutines.sync.Mutex (NOT java.util.concurrent ReentrantLock)
+    //      — the critical section contains `withContext(Dispatchers.Main)`
+    //      suspensions inside `onComplete` / `onError` dispatch. ReentrantLock
+    //      is thread-owned: when the coroutine suspends and a different
+    //      coroutine is later scheduled on the same single-threaded
+    //      llamaDispatcher thread, ReentrantLock would re-enter (same thread)
+    //      and silently break mutual exclusion. Mutex is coroutine-owned
+    //      (suspension-safe) and is the correct primitive here.
+    //   3. The native side (LLAMA_LOCK in LlamaBridge.cpp) is a SEPARATE std::mutex
+    //      that protects g_ctx at JNI granularity; this Kotlin mutex protects
+    //      the *Kotlin-visible* lifecycle (sessionPrimed, primedHistory, the
+    //      "fullReset then immediately re-prime then generate" sequence).
+    //   4. cancelGeneration() and cancelOutsideGenerate() must NEVER take this
+    //      mutex — they MUST be callable from the UI thread mid-generation; they
+    //      only flip atomics and call the lock-free nativeCancel().
+    private val lifecycleLock = Mutex()
+
     // ── Session bookkeeping ──────────────────────────────────────────────────
     /** Native KV is currently primed with a coherent session. */
     private var sessionPrimed = false
@@ -94,6 +123,29 @@ class LlamaManager(private val context: Context) {
         const val ERR_FIRST_TOKEN_TIMEOUT = "ERR_FIRST_TOKEN_TIMEOUT"
         const val ERR_INACTIVITY_TIMEOUT  = "ERR_INACTIVITY_TIMEOUT"
         const val ERR_NATIVE              = "ERR_NATIVE"
+
+        // ── TOKEN-BASED HISTORY BUDGET ──────────────────────────────────────
+        // Hard ceiling on the CONTENT token count of chat history messages.
+        // System prompt, template markers, user fragment, and generation tokens
+        // are budgeted SEPARATELY by the preflight and are NOT counted here.
+        //
+        // Budget derivation for n_ctx = 1536 (AIRI_DEFAULT_N_CTX):
+        //   system block          ~200 tok  (QWEN Arabic system prompt)
+        //   history CONTENT        750 tok  ← this constant
+        //   template overhead       80 tok  (~15 tok × 4 msgs × 2 roles)
+        //   new user fragment       80 tok
+        //   generation reserve     256 tok
+        //   ─────────────────────────────
+        //   total                 1366 tok  < 1536  (170 tok headroom)
+        //
+        // The former value of 1024 omitted template overhead and system block,
+        // making estimated usage 1024+200+80+80+256 = 1640 > 1536. This caused
+        // reconcileSession to throw CONTEXT_OVERFLOW on turn 2–3 of a typical
+        // Arabic conversation, which the user experienced as "prompt corruption".
+        //
+        // Token-based — NOT message-count-based — because a single Arabic /
+        // CJK message can be 200-400 tokens while an English yes/no is 5.
+        const val MAX_HISTORY_TOKENS = 750
     }
 
     /**
@@ -173,9 +225,118 @@ class LlamaManager(private val context: Context) {
 
     fun cancelStream() {
         cancelRequested.set(true)
+        // SPEC v2 — route cancellation through BOTH the legacy cancel() and
+        // the new nativeCancel() entry points. They share the same underlying
+        // atomic flag (g_cancel_requested is a reference to g_cancel) so the
+        // double-call is free; calling both keeps the logging tags consistent
+        // and means any future divergence between the two paths cannot leave
+        // a cancellation request unacknowledged.
         runCatching { LlamaNative.cancel() }
+        runCatching { LlamaNative.nativeCancel() }
         Log.d(TAG, "cancelStream requested")
         Log.i("AIRI_PROOF", "GEN_CANCEL_REQUESTED tid=${Thread.currentThread().id}")
+    }
+
+    /**
+     * SPEC v2 — CLEANUP step of the inference state machine.
+     *
+     * Tears the native llama_context down to the model and rebuilds it. Any
+     * error during PREFLIGHT/PREFILL/GENERATE flows through here so the next
+     * turn always starts from a known-good empty KV. After this call the
+     * Kotlin session bookkeeping is also invalidated so the next turn will
+     * re-prime cleanly via [reconcileSession].
+     *
+     * Safe to call while NO generation is in flight (callers run this on the
+     * single-threaded llamaDispatcher, so it is automatically serialized
+     * behind any in-flight generate()).
+     */
+    private fun fullReset(reason: String) {
+        // SPEC v3 — canonical JVM-side reset marker. Pairs with the native
+        // CONTEXT_RESET emitted from inside nativeFullReset(); the JVM marker
+        // is logged FIRST so a crash inside nativeFullReset() can still be
+        // attributed to the requesting reason from a single log scrape.
+        val sidBefore = runCatching { LlamaNative.nativeGetSessionId() }.getOrNull() ?: -1L
+        val genBefore = runCatching { LlamaNative.nativeGetGenerationId() }.getOrNull() ?: -1L
+        Log.i("AIRI_PROOF",
+            "CONTEXT_RESET origin=jvm reason=$reason " +
+            "session_id_before=$sidBefore gen_id_before=$genBefore " +
+            "primed_history=${primedHistory.size} session_primed=$sessionPrimed")
+        Log.i("AIRI_PROOF", "FULL_RESET_REQUESTED reason=$reason")
+        // 1. Raise the cancel flag in case anything is still mid-decode.
+        runCatching { LlamaNative.nativeCancel() }
+        // 2. Destroy + rebuild the native context with cached cparams.
+        runCatching { LlamaNative.nativeFullReset() }
+            .onSuccess  {
+                val sidAfter = runCatching { LlamaNative.nativeGetSessionId() }.getOrNull() ?: -1L
+                Log.i("AIRI_PROOF",
+                    "FULL_RESET_OK reason=$reason session_id_after=$sidAfter")
+            }
+            .onFailure  { Log.e("AIRI_PROOF", "FULL_RESET_FAIL reason=$reason err=${it.message}") }
+        // 3. Mark the JVM session as needing a fresh re-prime.
+        invalidateSession()
+        // 4. Clear the in-flight cancel latch — the next turn starts fresh.
+        cancelRequested.set(false)
+    }
+
+    /**
+     * SPEC v3 — TOKEN-BUDGET HISTORY TRIM
+     *
+     * Drops the OLDEST messages from `messages` until the running total of
+     * `nativeCountTokens(content)` is ≤ MAX_HISTORY_TOKENS. Always preserves
+     * the youngest message even if it alone exceeds the budget — the
+     * preflight in `generateStream` is the safety net for that case (it will
+     * fullReset on PREFLIGHT_OVERFLOW and re-prime from a clean slate).
+     *
+     * Pairs are NOT preserved deliberately: the model can handle a bare
+     * `assistant` reply at the top of the window, and pair-preservation
+     * either over-trims (drops two messages instead of one) or under-trims
+     * (keeps a stale pair past budget). Token accuracy wins over chat-pair
+     * symmetry — the alternative is a fixed-message-count budget which we
+     * already ruled out (see MAX_HISTORY_TOKENS doc).
+     *
+     * Returns the trimmed list. Pure: never mutates `messages` in place.
+     * Falls back to the input unchanged if the native tokenizer is
+     * unavailable (no model loaded yet) — this path is only reachable from
+     * the very first turn before loadModel completes, where there is no
+     * history to trim anyway.
+     */
+    private fun trimHistoryByTokens(messages: List<ChatMessage>): List<ChatMessage> {
+        if (messages.isEmpty()) return messages
+        val counts = IntArray(messages.size)
+        var total = 0
+        for (i in messages.indices) {
+            val n = runCatching { LlamaNative.nativeCountTokens(messages[i].content) }
+                .getOrDefault(-1)
+            if (n < 0) {
+                // Tokenizer not ready (no model loaded) or vocab failure.
+                // The PREFLIGHT_OVERFLOW path will catch any actual overflow
+                // downstream; do not invent counts.
+                Log.w("AIRI_PROOF",
+                    "TRIM_TOKENS_SKIP reason=tokenizer_unavailable status=$n " +
+                    "messages=${messages.size}")
+                return messages
+            }
+            counts[i] = n
+            total += n
+        }
+        if (total <= MAX_HISTORY_TOKENS) {
+            Log.i("AIRI_PROOF",
+                "TRIM_TOKENS_NOOP total=$total budget=$MAX_HISTORY_TOKENS " +
+                "messages=${messages.size}")
+            return messages
+        }
+        // Drop oldest until under budget OR only the youngest remains.
+        var firstKept = 0
+        var running = total
+        while (firstKept < messages.size - 1 && running > MAX_HISTORY_TOKENS) {
+            running -= counts[firstKept]
+            firstKept++
+        }
+        val kept = messages.subList(firstKept, messages.size).toList()
+        Log.i("AIRI_PROOF",
+            "TRIM_TOKENS_APPLIED dropped=$firstKept kept=${kept.size} " +
+            "total_before=$total total_after=$running budget=$MAX_HISTORY_TOKENS")
+        return kept
     }
 
     fun loadModel(path: String, onProgress: (Int) -> Unit = {}, onReady: (Boolean) -> Unit) {
@@ -583,7 +744,52 @@ class LlamaManager(private val context: Context) {
                 "GEN_START model=${model.name} prompt_len=${prompt.length} " +
                 "primed_history=${primedHistory.size} chat_history=${chatHistory.size}")
 
+            // ── SPEC v3 — STRICT LIFECYCLE LOCK ─────────────────────────────
+            // The entire turn (reconcile + prefill + decode + cleanup +
+            // exception-recovery fullReset) is wrapped in lifecycleLock.
+            // While this body runs, the parallel fullReset path in any
+            // OTHER coroutine that enters this manager (e.g. from a future
+            // multi-dispatcher refactor) cannot tear down the context
+            // mid-decode. The native-side LLAMA_LOCK provides the same
+            // guarantee at the JNI boundary; this is the JVM-level mirror
+            // so the invariant holds even if a refactor moves work off
+            // llamaDispatcher.
+            //
+            // cancelGeneration() / cancelOutsideGenerate() must NOT touch
+            // this lock — they are intentionally lock-free, only flip
+            // atomics + call lock-free nativeCancel().
+            lifecycleLock.withLock {
             try {
+                // ── SPEC v3 — STATE MACHINE: PREFLIGHT ───────────────────────
+                // STATE_PREFLIGHT: session bookkeeping invalidation + token-based
+                // history trim + KV reconcile + preflight overflow check.
+                // On any exception from this block the catch route is taken and
+                // STATE_ERROR is emitted before fullReset.
+                Log.i("AIRI_PROOF", "STATE_PREFLIGHT session_primed=$sessionPrimed " +
+                    "primed_history=${primedHistory.size} chat_history=${chatHistory.size}")
+
+                // ── TOKEN-BASED HISTORY BUDGET ────────────────────────────────
+                // Trim chatHistory so the raw content tokens stay within
+                // MAX_HISTORY_TOKENS. This accounts for the fact that a single
+                // Arabic / CJK message can be 200-400 tokens, so a fixed
+                // message-count cap (maxHistory=4) is insufficient on its own.
+                // Template overhead (~15 tok/msg) and system + user + generate
+                // headroom are NOT counted by nativeCountTokens — MAX_HISTORY_TOKENS
+                // is set conservatively (750) to leave room for all of those.
+                // If trimming removes any messages the KV is now a SUPERSET of
+                // the new chatHistory; invalidate so reconcileSession hard-resets.
+                val historyBeforeTrim = chatHistory.size
+                val trimmedByTokens = trimHistoryByTokens(chatHistory.toList())
+                if (trimmedByTokens.size != historyBeforeTrim) {
+                    chatHistory.clear()
+                    chatHistory.addAll(trimmedByTokens)
+                    Log.i("AIRI_PROOF",
+                        "HISTORY_TOKEN_TRIM dropped=${historyBeforeTrim - chatHistory.size} " +
+                        "kept=${chatHistory.size} budget_tokens=$MAX_HISTORY_TOKENS " +
+                        "→ invalidating session (KV superset of new history)")
+                    invalidateSession()
+                }
+
                 // Reconcile native KV with the requested system prompt + history.
                 val reconcileStart = System.currentTimeMillis()
                 val replayedTurns = reconcileSession(model.path, model.type, systemPrompt)
@@ -605,52 +811,37 @@ class LlamaManager(private val context: Context) {
                     embedSystem = isFirstUserOfSession
                 )
 
-                // ── PHASE 1 fix: KV pre-flight before appendUserTurn ────────
-                // Root cause (RC-3, RC-4): the native trim helper only fires
-                // INSIDE airi_append_text after we've already committed to a
-                // specific replay. For a long user message arriving when
-                // history is already 60-80% of n_ctx, the trim can't free
-                // enough room and KV_OVERFLOW is thrown — leaving the user
-                // looking at "Generating..." until the watchdog fires.
+                // ── SPEC v2 — PREFLIGHT (JVM side) ────────────────────────
+                // Per the state-machine spec the preflight check is:
+                //   IF (n_past + input_tokens + 128 >= n_ctx) → fullReset()
+                // i.e. instead of trimming history pairs, we tear down the
+                // native context completely and rebuild from the last 3-4
+                // messages already capped by maxHistory. This is the only way
+                // to guarantee KV is never left in a half-trimmed state.
                 //
-                // We pre-flight here from JVM where we still have the option
-                // to drop history pairs, force a hard re-prime, and surface
-                // a clean PREFLIGHT_* tag for on-device verification.
+                // Note: the +128 reserve covers max_new sampling headroom plus
+                // template overhead and matches the native overflow check
+                // (which uses n_past + n_tokens >= n_ctx with no reserve, so
+                // the JVM check fires FIRST and routes through fullReset).
                 val nPastBefore = runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)
                 val nCtxNow     = runCatching { LlamaNative.getNCtx() }.getOrDefault(0)
                 val estUserNew  = estimateTokens(userFragment)
-                val estNeeded   = estUserNew + maxTokens + 64
+                val estNeeded   = estUserNew + 128
                 val freeRoom    = if (nCtxNow > 0 && nPastBefore >= 0)
                                       (nCtxNow - nPastBefore).coerceAtLeast(0)
                                   else Int.MAX_VALUE
 
-                if (nCtxNow > 0 && estNeeded > freeRoom) {
+                if (nCtxNow > 0 && estNeeded >= freeRoom) {
                     Log.i("AIRI_PROOF",
-                        "PREFLIGHT_TIGHT n_past=$nPastBefore n_ctx=$nCtxNow " +
-                        "user_est=$estUserNew max_new=$maxTokens needed=$estNeeded free=$freeRoom")
-                    // Strategy: drop oldest history pairs from the LOGICAL
-                    // history (chatHistory + primedHistory) until projected
-                    // usage fits. Then force a hard re-prime so the native
-                    // KV is rebuilt from the trimmed history. This is the
-                    // same end-state the native trim would have produced if
-                    // it were reserve-aware enough — but done in JVM so we
-                    // can't lose the just-appended user turn's logits.
-                    val sysCost = estimateTokens(systemBlock(model.type, systemPrompt))
-                    var dropped = 0
-                    while (chatHistory.size >= 2 &&
-                           sysCost + estimateHistoryTokens(chatHistory, model.type) + estNeeded > nCtxNow) {
-                        // Drop the oldest user/assistant PAIR (never split).
-                        chatHistory.removeAt(0)
-                        if (chatHistory.isNotEmpty() && chatHistory[0].role == "assistant") {
-                            chatHistory.removeAt(0)
-                        }
-                        dropped += 2
-                    }
-                    Log.i("AIRI_PROOF",
-                        "PREFLIGHT_RECOVERED dropped_msgs=$dropped " +
-                        "remaining_history=${chatHistory.size}")
-                    // Force a hard re-prime so native KV matches the new shorter history.
-                    invalidateSession()
+                        "PREFLIGHT_OVERFLOW n_past=$nPastBefore n_ctx=$nCtxNow " +
+                        "user_est=$estUserNew reserve=128 needed=$estNeeded " +
+                        "free=$freeRoom → fullReset")
+                    fullReset("PREFLIGHT_OVERFLOW")
+                    // After a full reset, KV is empty. Re-prime from the last
+                    // 3-4 messages (already capped by maxHistory) via the
+                    // standard reconcile path. This rebuilds prompt cleanly
+                    // per Phase 3 spec ("rebuild prompt every turn using last
+                    // 3-4 messages ONLY; discard older history").
                     val replayed2 = reconcileSession(model.path, model.type, systemPrompt)
                     Log.i("AIRI_PROOF",
                         "PREFLIGHT_REPRIMED replayed=$replayed2 " +
@@ -662,34 +853,28 @@ class LlamaManager(private val context: Context) {
                         "user_est=$estUserNew needed=$estNeeded free=$freeRoom")
                 }
 
-                // ── Append user turn with one-shot retry on KV_OVERFLOW ─────
-                try {
-                    LlamaNative.appendUserTurn(userFragment)
-                } catch (e: Throwable) {
-                    val msg = e.message ?: ""
-                    val isOverflow = msg.contains("KV_OVERFLOW") ||
-                                     msg.contains("APPEND_DECODE_FAILED")
-                    if (!isOverflow) throw e
-                    Log.w("AIRI_PROOF",
-                        "PREFLIGHT_OVERFLOW_RETRY first_attempt_failed=${e.javaClass.simpleName}: $msg")
-                    // Last-resort recovery: hard reset, drop ALL history,
-                    // re-prime with system + user only. Never fail on a single
-                    // user message just because earlier history was too big.
-                    chatHistory.clear()
-                    invalidateSession()
-                    LlamaNative.beginSession()
-                    primedHistory.clear()
-                    val sys = systemBlock(model.type, systemPrompt)
-                    if (sys.isNotEmpty()) LlamaNative.appendAssistantTurn(sys)
-                    primedModelPath = model.path
-                    primedSystemPrompt = systemPrompt
-                    sessionPrimed = true
-                    LlamaNative.appendUserTurn(userFragment)
-                    Log.i("AIRI_PROOF",
-                        "KV_RECOVERED via=hard_reset_and_reprime " +
-                        "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
-                        "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
-                }
+                // ── SPEC v3 — STATE MACHINE: PREFILL ────────────────────────
+                // STATE_PREFILL: user turn is being tokenised + fed into the
+                // native KV. runAppendWithSafeHandler blocks until the last
+                // token's logit is ready. Any cancel raised between this log
+                // and STATE_GENERATE will surface as a -2 CANCELLED status
+                // or as a thrown exception routed to STATE_ERROR.
+                Log.i("AIRI_PROOF", "STATE_PREFILL fragment_chars=${userFragment.length} " +
+                    "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
+                    "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
+
+                // ── SPEC v2 — APPEND with status-driven recovery ────────────
+                // The new airi_append_text returns one of:
+                //    0 = ok, -1 = decode error, -2 = cancelled, -3 = overflow
+                // (via nativeGetLastStatus()) and throws on the same -1/-2/-3
+                // exit paths. -3 OVERFLOW is recoverable ONCE: fullReset and
+                // re-prime with system + last user only. -1 ERROR is a hard
+                // failure. -2 CANCELLED is propagated cleanly.
+                runAppendWithSafeHandler(
+                    fragment = userFragment,
+                    model = model,
+                    systemPrompt = systemPrompt
+                )
                 Log.i("AIRI_PROOF",
                     "PROMPT_TOKENIZED user_fragment_chars=${userFragment.length} " +
                     "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
@@ -717,7 +902,48 @@ class LlamaManager(private val context: Context) {
                     Log.i("AIRI_SPEC", "generate via=speculative draftN=${specMgr.getDraftDraftN()}")
                 }
 
+                // ── SPEC v3 — STATE MACHINE: GENERATE ───────────────────────
+                // STATE_GENERATE: the decode loop is about to start. From
+                // this point the native thread is running llama_decode in a
+                // tight loop. Cancellation via nativeCancel() is the only
+                // async-safe way to interrupt it; all other paths wait for
+                // generateNextTokens to return before taking action.
+                //
+                // SESSION-ID CAPTURE: snapshot the native session id RIGHT
+                // BEFORE the decode call. Any callback delivered after a
+                // session bump (fullReset, setRuntimeMode, …) is stale and
+                // must be dropped — see tokenCallback body below.
+                val sessionIdAtStart = runCatching { LlamaNative.nativeGetSessionId() }
+                    .getOrDefault(-1L)
+                val genIdAtStart = runCatching { LlamaNative.nativeGetGenerationId() }
+                    .getOrDefault(-1L)
+                Log.i("AIRI_PROOF",
+                    "STATE_GENERATE session_id=$sessionIdAtStart gen_id=$genIdAtStart " +
+                    "max_tokens=$maxTokens " +
+                    "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
+                    "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
+
                 val tokenCallback: (String) -> Unit = tokenCallback@ { token ->
+                    // SPEC v3 — STALE-CALLBACK DROP. If the native session
+                    // was replaced (fullReset, setRuntimeMode, …) between
+                    // when we captured sessionIdAtStart and now, this
+                    // callback is from a destroyed context. Drop silently;
+                    // do NOT mutate response/tokenBuffer/nativeTokenCount,
+                    // do NOT advance lastTokenAtMs (let watchdog fire),
+                    // do NOT dispatch to Main. Log once per drop so an
+                    // operator can grep STALE_TOKEN_DROPPED.
+                    val sidNow = runCatching { LlamaNative.nativeGetSessionId() }
+                        .getOrDefault(sessionIdAtStart)
+                    if (sidNow != sessionIdAtStart) {
+                        Log.w("AIRI_PROOF",
+                            "STALE_TOKEN_DROPPED phase=native_callback " +
+                            "captured_session=$sessionIdAtStart " +
+                            "current_session=$sidNow " +
+                            "tokens_so_far=$nativeTokenCount " +
+                            "bytes=${token.length}")
+                        return@tokenCallback
+                    }
+
                     if (cancelRequested.get()) {
                         // Log the honored-cancellation exactly once per stream.
                         if (firstTokenLogged.get() && !finished.get()) {
@@ -741,7 +967,7 @@ class LlamaManager(private val context: Context) {
                         com.airi.assistant.domain.verification.VerificationTracker.recordCheck(
                             "FIRST_TOKEN", true, "streaming token emitted"
                         )
-                        Log.i("AIRI_PROOF", "FIRST_TOKEN token_emitted=true model=${model.name} first_token_ms=$firstTokenMs")
+                        Log.i("AIRI_PROOF", "FIRST_TOKEN token_emitted=true model=${model.name} first_token_ms=$firstTokenMs session_id=$sessionIdAtStart gen_id=$genIdAtStart")
                     }
 
                     val now = System.currentTimeMillis()
@@ -759,6 +985,24 @@ class LlamaManager(private val context: Context) {
                         // process — it would also leave the native KV in a
                         // half-decoded state on the next request.
                         scope.launch(Dispatchers.Main) {
+                            // SPEC v3 — re-check session id on the Main
+                            // dispatch boundary. Between the synchronous
+                            // tokenCallback emitting `batch` and Main
+                            // actually running this block, a fullReset
+                            // can have raced through (e.g. user pressed
+                            // "new chat"). Drop the dispatch silently to
+                            // prevent cross-generation streaming into a
+                            // fresh response buffer in the UI layer.
+                            val sidOnMain = runCatching { LlamaNative.nativeGetSessionId() }
+                                .getOrDefault(sessionIdAtStart)
+                            if (sidOnMain != sessionIdAtStart) {
+                                Log.w("AIRI_PROOF",
+                                    "STALE_TOKEN_DROPPED phase=main_dispatch " +
+                                    "captured_session=$sessionIdAtStart " +
+                                    "current_session=$sidOnMain " +
+                                    "batch_chars=${batch.length}")
+                                return@launch
+                            }
                             try { onToken(batch) }
                             catch (t: Throwable) {
                                 Log.w(TAG, "onToken threw (swallowed): ${t.message}", t)
@@ -775,84 +1019,278 @@ class LlamaManager(private val context: Context) {
                     LlamaNative.generateNextTokens(maxTokens, tokenCallback)
                 }
 
-                // Flush any trailing buffered tokens.
-                val tail = tokenBuffer.toString()
-                if (tail.isNotEmpty() && !cancelRequested.get()) {
-                    // PHASE 6: same hardening as the per-batch callback above.
-                    scope.launch(Dispatchers.Main) {
-                        try { onToken(tail) }
-                        catch (t: Throwable) {
-                            Log.w(TAG, "onToken(tail) threw (swallowed): ${t.message}", t)
-                        }
-                    }
-                }
+                // ── SPEC v3 — STRICT STATUS-DRIVEN STATE MACHINE ────────────
+                //
+                // generateNextTokens has returned. g_last_gen_status holds the
+                // exit code; the JVM must now route through the correct state
+                // and, critically, MUST NOT touch the native context or the
+                // streaming buffers in ways that are invalid for that state.
+                //
+                // AUDIT FINDINGS (fixed here):
+                //   BUG-A: fullReset() sets cancelRequested=false; the old tail-
+                //           flush guard (!cancelRequested) was therefore TRUE
+                //           after ERROR/OVERFLOW, causing stale tokens to be
+                //           dispatched to the UI even after a context tear-down.
+                //   BUG-B: appendAssistantTurn() was called unconditionally,
+                //           including after fullReset() which already wiped the
+                //           native ctx — this corrupted the freshly-rebuilt ctx.
+                //   BUG-C: finished.compareAndSet(false,true) was reachable from
+                //           ERROR and OVERFLOW paths so onComplete(partial) fired
+                //           instead of onError.
+                //   BUG-D: tokenBuffer and response were never explicitly cleared
+                //           in non-success paths — a future refactor could read
+                //           stale state from them.
+                //   BUG-F: the tail flush had no session-id guard, unlike the
+                //           per-batch callback.
+                //
+                // The fix: each status routes through its own branch. Non-success
+                // branches hard-clear tokenBuffer, set finished=true, do NOT
+                // flush the tail, do NOT call appendAssistantTurn, and call
+                // onError (for ERROR/OVERFLOW) or onComplete-with-partial (for
+                // CANCELLED). Only the OK (status==0) branch reaches the tail-
+                // flush, appendAssistantTurn, and onComplete calls below.
+                val genStatus = runCatching { LlamaNative.nativeGetLastStatus() }
+                    .getOrDefault(0)
 
-                // Close the assistant turn in KV so the next user turn aligns.
-                runCatching { LlamaNative.appendAssistantTurn(assistantCloseTag(model.type)) }
-
-                if (finished.compareAndSet(false, true)) {
-                    val full = response.toString()
-
-                    // Update primed history with both the new user turn AND the
-                    // generated assistant turn, so future calls don't replay them.
-                    primedHistory.add(ChatMessage(role = "user",      content = prompt))
-                    primedHistory.add(ChatMessage(role = "assistant", content = full))
-                    chatHistory.add(ChatMessage(role = "user",      content = prompt))
-                    chatHistory.add(ChatMessage(role = "assistant", content = full))
-                    trimHistory()
-                    // Bug B fix part 2: keep primedHistory size aligned with
-                    // chatHistory after a trim. If chatHistory just dropped
-                    // its oldest pair, primedHistory is now LONGER than
-                    // chatHistory and the next reconcile will hard-reset
-                    // (which is correct, but invisible to ops). Surface it.
-                    if (primedHistory.size > chatHistory.size) {
+                when (genStatus) {
+                    -1 -> {
+                        // ── STATE_ERROR ────────────────────────────────────────
+                        // The decode loop hit an unrecoverable native error. KV
+                        // is potentially torn. Hard-clear all streaming state,
+                        // full-reset the native context, then surface onError.
+                        // MUST NOT fall through to tail flush / appendAssistantTurn
+                        // / onComplete — the context no longer holds valid state.
+                        Log.e("AIRI_PROOF",
+                            "STATE_ERROR status=-1 emitted=$nativeTokenCount → fullReset+onError")
                         Log.i("AIRI_PROOF",
-                            "PRIMED_DRIFT primed=${primedHistory.size} chat=${chatHistory.size} " +
-                            "next_turn_will_hard_reset=true")
-                    }
-
-                    // ── Hard logging line per spec ───────────────────────────
-                    val nPast = runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)
-                    val nCtx  = runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)
-                    val totalElapsed = System.currentTimeMillis() - firstTokenStart
-                    val tps = if (totalElapsed > 0 && nativeTokenCount > 0)
-                        nativeTokenCount * 1000f / totalElapsed else 0f
-                    Log.i("AIRI_STREAM",
-                        "n_past=$nPast n_ctx=$nCtx tokens=$nativeTokenCount tps=%.2f first_token_ms=$firstTokenMs elapsed_ms=$totalElapsed model=${model.name}"
-                            .format(tps))
-
-                    if (full.isNotBlank()) {
-                        com.airi.assistant.domain.verification.VerificationTracker.recordCheck(
-                            "GENERATION", true, "tokens=$nativeTokenCount tps=%.2f".format(tps))
-                        Log.i("AIRI_PROOF", "GENERATION_SUCCESS tokens=$nativeTokenCount model=${model.name}")
-                    } else {
-                        com.airi.assistant.domain.verification.VerificationTracker.recordCheck(
-                            "GENERATION", false, "empty_response")
-                        Log.w("AIRI_PROOF", "GENERATION_EMPTY model=${model.name}")
-                    }
-                    // Snapshot the full latency breakdown from the native side
-                    // so the Generation Statistics screen can render it.
-                    refreshMetrics()
-                    Log.i("AIRI_PROOF",
-                        "GEN_END tokens=$nativeTokenCount elapsed_ms=$totalElapsed " +
-                        "first_token_ms=$firstTokenMs tps=%.2f cancelled=${cancelRequested.get()}".format(tps))
-                    // PHASE 6: completion handler is user code → contain it.
-                    withContext(Dispatchers.Main) {
-                        try { onComplete(full) }
-                        catch (t: Throwable) {
-                            Log.w(TAG, "onComplete threw (swallowed): ${t.message}", t)
+                            "STATE_CLEANUP reason=gen_error " +
+                            "clearing: tokenBuffer(${tokenBuffer.length}B) " +
+                            "nativeTokenCount=$nativeTokenCount")
+                        tokenBuffer.clear()
+                        response.setLength(0)
+                        nativeTokenCount = 0
+                        fullReset("GEN_STATUS_ERROR")
+                        if (finished.compareAndSet(false, true)) {
+                            withContext(Dispatchers.Main) {
+                                try { onError("$ERR_NATIVE decode_error status=-1") }
+                                catch (t: Throwable) {
+                                    Log.w(TAG, "onError(gen_error) threw: ${t.message}", t)
+                                }
+                            }
                         }
+                        Log.i("AIRI_PROOF", "STATE_IDLE after=gen_error")
+                    }
+
+                    -3 -> {
+                        // ── STATE_ERROR (OVERFLOW) ─────────────────────────────
+                        // KV overflow during decode — ran out of context slots
+                        // mid-generation. Partial output was already streamed
+                        // to the UI. Hard-clear streaming state, full-reset,
+                        // then surface onError so the caller can show a recovery
+                        // message. The next turn will re-prime from trimmed
+                        // chatHistory (which Phase 3 rebuilds every turn).
+                        // MUST NOT call appendAssistantTurn on the just-reset ctx.
+                        Log.w("AIRI_PROOF",
+                            "STATE_ERROR status=-3 overflow emitted=$nativeTokenCount → fullReset+onError")
+                        Log.i("AIRI_PROOF",
+                            "STATE_CLEANUP reason=gen_overflow " +
+                            "clearing: tokenBuffer(${tokenBuffer.length}B) " +
+                            "nativeTokenCount=$nativeTokenCount")
+                        tokenBuffer.clear()
+                        response.setLength(0)
+                        nativeTokenCount = 0
+                        fullReset("GEN_STATUS_OVERFLOW")
+                        if (finished.compareAndSet(false, true)) {
+                            withContext(Dispatchers.Main) {
+                                try { onError("$ERR_NATIVE context_overflow status=-3") }
+                                catch (t: Throwable) {
+                                    Log.w(TAG, "onError(overflow) threw: ${t.message}", t)
+                                }
+                            }
+                        }
+                        Log.i("AIRI_PROOF", "STATE_IDLE after=gen_overflow")
+                    }
+
+                    -2 -> {
+                        // ── STATE_CANCELLED ────────────────────────────────────
+                        // User or watchdog triggered cancellation. The decode loop
+                        // exited cleanly (no KV tear, no llama_decode in flight).
+                        // Partial tokens streamed so far are the visible response.
+                        // Hard-clear the token buffer (anything buffered but not
+                        // yet dispatched is stale — the Main dispatch may already
+                        // be in the queue; the session-id guard in the dispatch
+                        // block will drop it). Do NOT call appendAssistantTurn —
+                        // the cancelled context is not at a well-defined KV
+                        // position; Phase 3 will rebuild from scratch next turn.
+                        val partialResponse = response.toString()
+                        Log.i("AIRI_PROOF",
+                            "STATE_CANCELLED status=-2 emitted=$nativeTokenCount " +
+                            "partial_chars=${partialResponse.length}")
+                        Log.i("AIRI_PROOF",
+                            "STATE_CLEANUP reason=cancelled " +
+                            "clearing: tokenBuffer(${tokenBuffer.length}B)")
+                        tokenBuffer.clear()
+                        // Invalidate the session: the decode was stopped mid-stream,
+                        // so g_n_past is at an arbitrary position and the KV tail
+                        // is incomplete. Without this, a restored incremental path
+                        // would call appendUserTurn on top of the dangling state,
+                        // corrupting the next turn's context. beginSession() on the
+                        // next reconcileSession clears and resets everything.
+                        invalidateSession()
+                        // response is preserved — the UI already rendered it.
+                        // Surface it via onComplete so the chat bubble closes.
+                        if (finished.compareAndSet(false, true)) {
+                            withContext(Dispatchers.Main) {
+                                try { onComplete(partialResponse) }
+                                catch (t: Throwable) {
+                                    Log.w(TAG, "onComplete(cancelled) threw: ${t.message}", t)
+                                }
+                            }
+                        }
+                        Log.i("AIRI_PROOF", "STATE_IDLE after=cancelled")
+                    }
+
+                    else -> {
+                        // ── STATE_COMPLETE ─────────────────────────────────────
+                        // Normal completion: EOS token reached or max_new_tokens
+                        // exhausted. The decode loop exited cleanly.
+                        //
+                        // Flush any trailing bytes still in tokenBuffer. The tail
+                        // may exist when TOKEN_BATCH_MS > 0 (batched mode) or
+                        // when a multi-byte UTF-8 cluster was being assembled at
+                        // the moment the loop ended. Apply the session-id guard
+                        // (same as the per-batch dispatch) to prevent a tail from
+                        // a generation that raced a reset from reaching the UI.
+                        val tail = tokenBuffer.toString()
+                        if (tail.isNotEmpty()) {
+                            val sidForTail = runCatching { LlamaNative.nativeGetSessionId() }
+                                .getOrDefault(sessionIdAtStart)
+                            if (sidForTail == sessionIdAtStart) {
+                                scope.launch(Dispatchers.Main) {
+                                    val sidOnMain = runCatching { LlamaNative.nativeGetSessionId() }
+                                        .getOrDefault(sessionIdAtStart)
+                                    if (sidOnMain != sessionIdAtStart) {
+                                        Log.w("AIRI_PROOF",
+                                            "STALE_TOKEN_DROPPED phase=tail_dispatch " +
+                                            "captured_session=$sessionIdAtStart " +
+                                            "current_session=$sidOnMain " +
+                                            "tail_chars=${tail.length}")
+                                        return@launch
+                                    }
+                                    try { onToken(tail) }
+                                    catch (t: Throwable) {
+                                        Log.w(TAG, "onToken(tail) threw: ${t.message}", t)
+                                    }
+                                }
+                            } else {
+                                Log.w("AIRI_PROOF",
+                                    "STALE_TOKEN_DROPPED phase=tail_pre_dispatch " +
+                                    "captured_session=$sessionIdAtStart " +
+                                    "current_session=$sidForTail " +
+                                    "tail_chars=${tail.length}")
+                            }
+                        }
+                        tokenBuffer.clear()
+
+                        // Close the assistant turn in KV so the next user turn
+                        // aligns. Safe here because status==0 means the native
+                        // context is intact (no fullReset was called above).
+                        runCatching {
+                            LlamaNative.appendAssistantTurn(assistantCloseTag(model.type))
+                        }
+
+                        if (finished.compareAndSet(false, true)) {
+                            val full = response.toString()
+
+                            // Update primed history with both the new user turn AND
+                            // the generated assistant turn.
+                            primedHistory.add(ChatMessage(role = "user",      content = prompt))
+                            primedHistory.add(ChatMessage(role = "assistant", content = full))
+                            chatHistory.add(ChatMessage(role = "user",      content = prompt))
+                            chatHistory.add(ChatMessage(role = "assistant", content = full))
+                            trimHistory()
+                            if (primedHistory.size > chatHistory.size) {
+                                // trimHistory() removed messages that are still
+                                // in KV: the incremental path would falsely think
+                                // nothing new needs to be appended and call
+                                // appendUserTurn on stale KV. Force a hard-reset
+                                // on the next turn so reconcileSession rebuilds
+                                // from the trimmed chatHistory.
+                                invalidateSession()
+                                Log.i("AIRI_PROOF",
+                                    "PRIMED_DRIFT primed_was=${primedHistory.size} " +
+                                    "chat=${chatHistory.size} " +
+                                    "→ invalidated (KV has trimmed-out messages)")
+                            }
+
+                            val nPast = runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)
+                            val nCtx  = runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)
+                            val totalElapsed = System.currentTimeMillis() - firstTokenStart
+                            val tps = if (totalElapsed > 0 && nativeTokenCount > 0)
+                                nativeTokenCount * 1000f / totalElapsed else 0f
+                            Log.i("AIRI_STREAM",
+                                "n_past=$nPast n_ctx=$nCtx tokens=$nativeTokenCount " +
+                                "tps=%.2f first_token_ms=$firstTokenMs " +
+                                "elapsed_ms=$totalElapsed model=${model.name}".format(tps))
+
+                            if (full.isNotBlank()) {
+                                com.airi.assistant.domain.verification.VerificationTracker
+                                    .recordCheck("GENERATION", true,
+                                        "tokens=$nativeTokenCount tps=%.2f".format(tps))
+                                Log.i("AIRI_PROOF",
+                                    "GENERATION_SUCCESS tokens=$nativeTokenCount model=${model.name}")
+                            } else {
+                                com.airi.assistant.domain.verification.VerificationTracker
+                                    .recordCheck("GENERATION", false, "empty_response")
+                                Log.w("AIRI_PROOF", "GENERATION_EMPTY model=${model.name}")
+                            }
+                            refreshMetrics()
+                            Log.i("AIRI_PROOF",
+                                "STATE_COMPLETE tokens=$nativeTokenCount " +
+                                "elapsed_ms=$totalElapsed " +
+                                "first_token_ms=$firstTokenMs " +
+                                "tps=%.2f".format(tps))
+                            Log.i("AIRI_PROOF",
+                                "GEN_END tokens=$nativeTokenCount elapsed_ms=$totalElapsed " +
+                                "first_token_ms=$firstTokenMs " +
+                                "tps=%.2f cancelled=${cancelRequested.get()}".format(tps))
+                            withContext(Dispatchers.Main) {
+                                try { onComplete(full) }
+                                catch (t: Throwable) {
+                                    Log.w(TAG, "onComplete threw: ${t.message}", t)
+                                }
+                            }
+                        }
+                        Log.i("AIRI_PROOF", "STATE_IDLE after=complete")
                     }
                 }
             } catch (e: Throwable) {
                 Log.e(TAG, "generateStream native error: ${e.javaClass.simpleName}: ${e.message}", e)
-                // Native error → KV state is unknown; force re-prime next time.
-                invalidateSession()
+                // ── STATE_ERROR (exception) ────────────────────────────────────
+                // Any Kotlin exception (thrown by runAppendWithSafeHandler,
+                // reconcileSession, a native JNI call, etc.) routes here.
+                // KV state is unknown. Hard-clear all streaming buffers FIRST,
+                // then full-reset the native context, then surface onError.
+                // This order matters: clear buffers BEFORE fullReset so any
+                // pending Main-dispatch sees a stale session_id (due to the
+                // fullReset session bump) and drops its token.
+                val nativeStatus = runCatching { LlamaNative.nativeGetLastStatus() }
+                    .getOrDefault(0)
+                Log.i("AIRI_PROOF",
+                    "STATE_ERROR origin=exception exc=${e.javaClass.simpleName} " +
+                    "msg=${e.message} native_status=$nativeStatus " +
+                    "emitted=$nativeTokenCount")
+                Log.i("AIRI_PROOF",
+                    "STATE_CLEANUP reason=exception " +
+                    "clearing: tokenBuffer(${tokenBuffer.length}B) " +
+                    "response(${response.length}B) nativeTokenCount=$nativeTokenCount")
+                tokenBuffer.clear()
+                response.setLength(0)
+                nativeTokenCount = 0
+                fullReset("GEN_EXCEPTION:${e.javaClass.simpleName}")
+                Log.i("AIRI_PROOF", "STATE_IDLE after=exception_reset")
                 if (finished.compareAndSet(false, true)) {
                     val msg = "$ERR_NATIVE ${e.javaClass.simpleName}: ${e.message ?: "unknown"}"
-                    // PHASE 6: even the error reporter must not be allowed
-                    // to throw — otherwise an exception in the error path
-                    // becomes an unhandled exception on Main and crashes.
                     withContext(Dispatchers.Main) {
                         try { onError(msg) }
                         catch (t: Throwable) {
@@ -860,6 +1298,103 @@ class LlamaManager(private val context: Context) {
                         }
                     }
                 }
+            }
+            } // ← closes lifecycleLock.withLock { ... }
+        }
+    }
+
+    /**
+     * SPEC v2 — APPEND with status-driven recovery.
+     *
+     * Wraps [LlamaNative.appendUserTurn] so the JVM layer can react to the
+     * native return codes:
+     *
+     *   -3 CONTEXT_OVERFLOW → fullReset + drop history + retry ONCE with
+     *                         system + user only. Per spec: "Retry generation
+     *                         after reset (max 1 retry per turn)."
+     *   -1 ERROR             → fullReset + propagate the exception so the
+     *                         outer catch logs ERR_NATIVE.
+     *   -2 CANCELLED         → propagate the exception (the outer try/catch
+     *                         logs the clean stop). fullReset is still safe
+     *                         because the next turn will re-prime.
+     *
+     * The native side throws on all three error paths AND sets
+     * [LlamaNative.nativeGetLastStatus] before throwing, so we can
+     * disambiguate purely from the status code (more reliable than parsing
+     * exception messages, which is what the legacy retry path did).
+     */
+    private fun runAppendWithSafeHandler(
+        fragment: String,
+        model: ModelInfo,
+        systemPrompt: String
+    ) {
+        try {
+            LlamaNative.appendUserTurn(fragment)
+            // Defensive: if the native side ever returns without throwing
+            // but with a non-zero status, treat it as a hard failure.
+            val s = runCatching { LlamaNative.nativeGetLastStatus() }.getOrDefault(0)
+            if (s != 0) {
+                Log.w("AIRI_PROOF",
+                    "APPEND_STATUS_NONZERO status=$s (treating as overflow if -3, error otherwise)")
+                throw RuntimeException(
+                    if (s == -3) "CONTEXT_OVERFLOW"
+                    else "APPEND_NONZERO_STATUS=$s"
+                )
+            }
+        } catch (e: Throwable) {
+            val status = runCatching { LlamaNative.nativeGetLastStatus() }
+                .getOrDefault(0)
+            val msg = e.message ?: ""
+            val isOverflow = status == -3 ||
+                msg.contains("CONTEXT_OVERFLOW") ||
+                msg.contains("KV_OVERFLOW")
+            val isCancelled = status == -2 || msg.contains("CANCELLED")
+
+            if (isCancelled) {
+                Log.i("AIRI_PROOF", "APPEND_CANCELLED status=$status — propagating clean stop")
+                throw e
+            }
+
+            if (!isOverflow) {
+                Log.e("AIRI_PROOF",
+                    "APPEND_ERROR status=$status exc=${e.javaClass.simpleName}: $msg → fullReset+stop")
+                fullReset("APPEND_ERROR")
+                throw e
+            }
+
+            // ─── SPEC v2 — single retry on overflow ─────────────────────────
+            // Tear down the context, drop ALL history, re-prime with system +
+            // current user only, retry exactly ONCE. If the second attempt
+            // also fails we surface the original exception so the outer
+            // handler can run its CLEANUP path.
+            Log.w("AIRI_PROOF",
+                "APPEND_OVERFLOW status=$status — fullReset+retry (1/1) " +
+                "first_failure=${e.javaClass.simpleName}: $msg")
+            fullReset("APPEND_OVERFLOW")
+            chatHistory.clear()
+            // Re-prime: beginSession + system block only.
+            try {
+                LlamaNative.beginSession()
+                primedHistory.clear()
+                val sys = systemBlock(model.type, systemPrompt)
+                if (sys.isNotEmpty()) LlamaNative.appendAssistantTurn(sys)
+                primedModelPath = model.path
+                primedSystemPrompt = systemPrompt
+                sessionPrimed = true
+                LlamaNative.appendUserTurn(fragment)
+                val s2 = runCatching { LlamaNative.nativeGetLastStatus() }.getOrDefault(0)
+                if (s2 != 0) {
+                    throw RuntimeException("APPEND_RETRY_STATUS=$s2")
+                }
+                Log.i("AIRI_PROOF",
+                    "APPEND_OVERFLOW_RECOVERED via=fullReset+reprime " +
+                    "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
+                    "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
+            } catch (e2: Throwable) {
+                Log.e("AIRI_PROOF",
+                    "APPEND_OVERFLOW_RETRY_FAILED exc=${e2.javaClass.simpleName}: ${e2.message}")
+                fullReset("APPEND_OVERFLOW_RETRY_FAILED")
+                throw e2
             }
         }
     }

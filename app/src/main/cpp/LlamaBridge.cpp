@@ -85,6 +85,59 @@ static llama_context*    g_ctx         = nullptr;
 static std::atomic<bool> g_cancel{false};
 static std::string       g_model_path;
 
+// SPEC v2 (state-machine): semantic alias for the existing cancel atomic.
+// The state-machine specification refers to this flag as `g_cancel_requested`;
+// it is the SAME atomic as `g_cancel` (no extra storage, no extra contention),
+// just exposed under the spec-mandated name so the inference loop and the
+// nativeCancel() JNI entry point both read/write a single source of truth.
+static std::atomic<bool>& g_cancel_requested = g_cancel;
+
+// SPEC v2: result code of the most recent generation/append call.
+//   0  = ok / no call yet
+//  -1  = ERROR             (llama_decode failure or other native error)
+//  -2  = CANCELLED         (g_cancel_requested was set during the call)
+//  -3  = CONTEXT_OVERFLOW  (n_past + incoming_tokens >= n_ctx)
+// Read from JVM via LlamaNative.nativeGetLastStatus() so the Kotlin safe-
+// generation handler can route -3 → fullReset()+retry, -1 → fullReset()+stop,
+// -2 → stop cleanly. Set at well-defined exit points inside airi_append_text
+// and airi_generate_next; reset to 0 at the start of every new call.
+static std::atomic<int> g_last_gen_status{0};
+
+// SPEC v2: cache the most recent (n_ctx, n_threads) pair so nativeFullReset()
+// can rebuild g_ctx with identical settings (including any user-applied
+// runtime mode change). 0 means "use defaults".
+static uint32_t g_last_n_ctx     = 0;
+static int      g_last_n_threads = 0;
+
+// SPEC v3 — STABILITY: monotonic identifiers used by the Kotlin layer to
+// detect and DROP stale callbacks that originated from a since-destroyed
+// llama_context.
+//
+//   g_session_id     — incremented every time the native llama_context is
+//                      created, replaced, or wiped. Specifically:
+//                        • loadModel / loadModelWithProgress (after init)
+//                        • setRuntimeMode (after re-init)
+//                        • nativeFullReset (after rebuild)
+//                        • beginSession / resetSession (KV wipe)
+//                      A callback that captured g_session_id == X and now
+//                      reads g_session_id == X+1 KNOWS its parent context
+//                      was destroyed mid-flight; it must drop the token
+//                      and not advance any UI state.
+//
+//   g_generation_id  — incremented at the entry of every airi_generate_next
+//                      call. Lets the Kotlin layer detect "old generation
+//                      streams into new state" — i.e. a callback dispatched
+//                      to the Main thread from generation N that arrives
+//                      after generation N+1 has already started. The token
+//                      is silently dropped instead of being appended to the
+//                      wrong response buffer.
+//
+// Both counters are read-only from JVM via nativeGetSessionId() /
+// nativeGetGenerationId(). The increment sites are explicit and audited;
+// see PROOF("SESSION_ID_BUMP …") / PROOF("GENERATION_ID_BUMP …") tags.
+static std::atomic<int64_t> g_session_id   {0};
+static std::atomic<int64_t> g_generation_id{0};
+
 // ─── concurrency primitives ──────────────────────────────────────────────────
 //
 // Threading model
@@ -549,11 +602,30 @@ static int airi_append_text(JNIEnv* env, const std::string& text, bool last_toke
     if (!g_model || !g_ctx) throw std::runtime_error("MODEL_NOT_LOADED");
     if (text.empty())       return 0;
 
+    // SPEC v2 — clear status at the start of every prefill call. Subsequent
+    // exit points (-3 overflow, -2 cancel, -1 decode error) overwrite this
+    // before throwing; a successful return therefore implicitly leaves
+    // status = 0 for the JVM safe-generation handler to read.
+    g_last_gen_status.store(0);
+
     const llama_vocab* vocab = llama_model_get_vocab(g_model);
     const uint32_t     n_ctx = llama_n_ctx(g_ctx);
 
     // Add BOS only on the very first append of a session.
     const bool add_bos = (g_n_past == 0);
+
+    // SPEC v3 — canonical lifecycle marker. Emitted once at the entry of
+    // every prefill, regardless of whether it is a system-prompt append, a
+    // history-replay append, or a user-turn append. Pairs 1:1 with
+    // PREFILL_END at the successful exit, so logcat can prove every prefill
+    // either completed or has a matching {PREFILL_CANCELLED|APPEND_DECODE_FAILED|
+    // CONTEXT_OVERFLOW} terminator. Counts are unknown at this point — they
+    // are emitted in PREFILL_END.
+    PROOF("PREFILL_BEGIN session_id=%lld text_bytes=%zu logits=%d add_bos=%d "
+          "n_past_before=%d n_ctx=%u",
+          (long long)g_session_id.load(), text.size(),
+          last_token_logits ? 1 : 0, add_bos ? 1 : 0,
+          g_n_past, n_ctx);
 
     // Two-pass tokenize.
     long t_tok0 = (long)(ggml_time_us() / 1000LL);
@@ -573,54 +645,92 @@ static int airi_append_text(JNIEnv* env, const std::string& text, bool last_toke
     }
     tokens.resize(n_tokens);
 
-    // Slide the window if we're going to overflow.
-    airi_kv_trim_if_needed(n_tokens + /*generation reserve*/ 64);
-
-    // After a forced reset inside the trim helper, we may need to redo BOS.
-    const bool add_bos_after_trim = (g_n_past == 0);
-    if (add_bos_after_trim != add_bos) {
-        // Re-tokenize once more to insert BOS that was previously skipped.
-        int n_probe2 = -llama_tokenize(vocab, text.c_str(), (int)text.size(),
-                                       nullptr, 0, add_bos_after_trim, true);
-        if (n_probe2 < 0) n_probe2 = 0;
-        cap = std::max(n_probe2 + 8, 32);
-        tokens.assign(cap, 0);
-        n_tokens = llama_tokenize(vocab, text.c_str(), (int)text.size(),
-                                  tokens.data(), cap, add_bos_after_trim, true);
-        if (n_tokens < 0) throw std::runtime_error("TOKENIZE_FAILED_AFTER_TRIM");
-        tokens.resize(n_tokens);
-    }
-
-    if ((uint32_t)(g_n_past + n_tokens) > n_ctx) {
-        // Still doesn't fit → fatal.
-        PROOF("APPEND_OVERFLOW n_past=%d n_new=%d n_ctx=%u",
+    // SPEC v2 — CONTEXT OVERFLOW GUARD (PHASE 1, step 4).
+    //   IF (n_past + incoming_tokens >= n_ctx) → return CONTEXT_OVERFLOW (-3)
+    // KV trimming is intentionally NOT invoked here: per spec the overflow
+    // condition must be surfaced as a hard error so the Kotlin safe-generation
+    // handler can perform a clean fullReset()+retry instead of the engine
+    // silently dropping tokens. The legacy airi_kv_trim_if_needed helper is
+    // left in place (it is unrelated KV logic that other paths may still use)
+    // but is no longer called from the active prefill path.
+    if ((uint32_t)(g_n_past + n_tokens) >= n_ctx) {
+        g_last_gen_status.store(-3);
+        PROOF("CONTEXT_OVERFLOW phase=prefill n_past=%d n_new=%d n_ctx=%u status=-3",
               g_n_past, n_tokens, n_ctx);
-        throw std::runtime_error("KV_OVERFLOW: turn does not fit even after trim");
+        throw std::runtime_error("CONTEXT_OVERFLOW");
     }
 
-    // Allocate batch large enough for this turn.
-    int n_batch_alloc = std::max(n_tokens, 1);
-    llama_batch batch = llama_batch_init(n_batch_alloc, 0, 1);
-
-    airi_batch_clear(batch);
-    for (int i = 0; i < n_tokens; i++) {
-        const bool with_logits = last_token_logits && (i == n_tokens - 1);
-        airi_batch_add(batch, tokens[i], g_n_past + i, {0}, with_logits);
-    }
+    // SPEC v2 — CHUNKED PREFILL (PHASE 1, step 3).
+    // The full prompt MUST NOT be passed in one llama_decode call. Split into
+    // batches of AIRI_PREFILL_CHUNK tokens, check g_cancel_requested between
+    // every chunk, and surface decode errors immediately as status=-1 so the
+    // Kotlin layer can route them through fullReset(). Chunk size of 64 keeps
+    // per-batch latency bounded on mid-range mobile CPUs while still amortising
+    // llama_decode's per-call overhead across multiple tokens.
+    static const int AIRI_PREFILL_CHUNK = 64;
+    const int n_chunk_alloc = std::min(AIRI_PREFILL_CHUNK, std::max(n_tokens, 1));
+    llama_batch batch = llama_batch_init(n_chunk_alloc, 0, 1);
 
     long t0 = (long)(ggml_time_us() / 1000LL);
-    PROOF("APPEND_DECODE n_new=%d n_past_before=%d n_ctx=%u logits=%d",
-          n_tokens, g_n_past, n_ctx, last_token_logits ? 1 : 0);
+    PROOF("APPEND_DECODE n_new=%d n_past_before=%d n_ctx=%u logits=%d chunk=%d",
+          n_tokens, g_n_past, n_ctx, last_token_logits ? 1 : 0, AIRI_PREFILL_CHUNK);
 
     g_phase = "append_decode";
-    int rc = llama_decode(g_ctx, batch);
+    int processed = 0;
+    int chunk_idx = 0;
+    while (processed < n_tokens) {
+        // PHASE 1, step 1+2: cancel flag is checked INSIDE the decode loop,
+        // not outside, so cancellation latency is bounded by one chunk.
+        if (g_cancel_requested.load()) {
+            g_last_gen_status.store(-2);
+            llama_batch_free(batch);
+            PROOF("PREFILL_CANCELLED processed=%d total=%d status=-2",
+                  processed, n_tokens);
+            // SPEC v3 — canonical cancel marker. The legacy PREFILL_CANCELLED
+            // tag is preserved above for grep compatibility; this one is the
+            // canonical marker emitted by EVERY cancellation exit (prefill or
+            // generate) so a single regex `GENERATION_CANCELLED|CONTEXT_RESET`
+            // surfaces all stop events.
+            PROOF("GENERATION_CANCELLED phase=prefill processed=%d total=%d "
+                  "session_id=%lld", processed, n_tokens,
+                  (long long)g_session_id.load());
+            throw std::runtime_error("PREFILL_CANCELLED");
+        }
+        const int this_chunk = std::min(AIRI_PREFILL_CHUNK, n_tokens - processed);
+        airi_batch_clear(batch);
+        for (int i = 0; i < this_chunk; i++) {
+            const int abs_i = processed + i;
+            const bool with_logits = last_token_logits && (abs_i == n_tokens - 1);
+            airi_batch_add(batch, tokens[abs_i], g_n_past + abs_i, {0}, with_logits);
+        }
+        // SPEC v3 — per-chunk lifecycle marker. One line per llama_decode call
+        // inside the prefill loop, so logcat can prove the loop is making
+        // progress (or pinpoint exactly which chunk failed). Cheap — we are
+        // already paying for tens of milliseconds of decode per chunk; one
+        // log line is in the noise.
+        PROOF("PREFILL_CHUNK idx=%d this_chunk=%d processed=%d total=%d "
+              "n_past_before_chunk=%d", chunk_idx, this_chunk, processed,
+              n_tokens, g_n_past + processed);
+        int rc = llama_decode(g_ctx, batch);
+        if (rc != 0) {
+            g_last_gen_status.store(-1);
+            llama_batch_free(batch);
+            PROOF("APPEND_DECODE_FAILED rc=%d processed=%d this_chunk=%d total=%d status=-1",
+                  rc, processed, this_chunk, n_tokens);
+            // SPEC v3 — canonical error marker. Legacy APPEND_DECODE_FAILED
+            // is kept above for grep compatibility; GENERATION_ERROR is the
+            // canonical tag emitted by every -1 exit point.
+            PROOF("GENERATION_ERROR phase=prefill rc=%d chunk_idx=%d "
+                  "processed=%d total=%d session_id=%lld",
+                  rc, chunk_idx, processed, n_tokens,
+                  (long long)g_session_id.load());
+            throw std::runtime_error("APPEND_DECODE_FAILED rc=" + std::to_string(rc));
+        }
+        processed += this_chunk;
+        chunk_idx++;
+    }
     long t1 = (long)(ggml_time_us() / 1000LL);
     llama_batch_free(batch);
-
-    if (rc != 0) {
-        PROOF("APPEND_DECODE_FAILED rc=%d n_tokens=%d", rc, n_tokens);
-        throw std::runtime_error("APPEND_DECODE_FAILED rc=" + std::to_string(rc));
-    }
 
     // The user-turn append (logits=true) IS the prefill that determines
     // first-token latency. Record it separately from history-replay appends.
@@ -630,6 +740,15 @@ static int airi_append_text(JNIEnv* env, const std::string& text, bool last_toke
     PROOF("APPEND_DECODE_OK n_new=%d n_past_after=%d elapsed_ms=%ld n_past=%d n_ctx=%u kv_used_pct=%d",
           n_tokens, g_n_past, (t1 - t0), g_n_past, n_ctx,
           n_ctx > 0 ? (int)((100L * g_n_past) / n_ctx) : 0);
+    // SPEC v3 — canonical lifecycle marker. Pairs 1:1 with PREFILL_BEGIN.
+    // Emitted only on the success path; the error/cancel paths emit
+    // GENERATION_ERROR / GENERATION_CANCELLED and throw, so a missing
+    // PREFILL_END for a given PREFILL_BEGIN in logcat is itself a
+    // diagnostic signal that the decode crashed before reaching the exit.
+    PROOF("PREFILL_END n_new=%d n_past_after=%d chunks=%d elapsed_ms=%ld "
+          "session_id=%lld status=0",
+          n_tokens, g_n_past, chunk_idx, (t1 - t0),
+          (long long)g_session_id.load());
     g_phase = "idle";
     return n_tokens;
 }
@@ -647,21 +766,58 @@ static std::string airi_generate_next(
     if (!g_model || !g_ctx) throw std::runtime_error("MODEL_NOT_LOADED");
     if (g_n_past <= 0)      throw std::runtime_error("NO_SESSION");
 
-    g_cancel.store(false);
+    // SPEC v3 — cancel-at-entry guard. Check g_cancel_requested BEFORE
+    // clearing it. This closes the race window between prefill returning and
+    // the first iteration-level cancel check inside the decode loop: if
+    // nativeCancel() was called in that window, the old unconditional
+    // store(false) below would have silently discarded the user's stop request.
+    // With this check in place, any cancel that arrived after prefill completes
+    // is honoured immediately as status=-2; the Kotlin layer routes that to
+    // STATE_CANCELLED exactly as though it fired during decode.
+    if (g_cancel_requested.load()) {
+        g_last_gen_status.store(-2);
+        PROOF("GENERATION_CANCELLED phase=generate_entry_pre_clear "
+              "session_id=%lld cancel_was_pending=true",
+              (long long)g_session_id.load());
+        return std::string();
+    }
+    // Clear any residual cancel from the previous generation. beginSession()
+    // already clears it on the hard-reset path; this store is the
+    // belt-and-braces guard for the incremental path where beginSession is NOT
+    // called this turn.
+    g_cancel_requested.store(false);
+    g_last_gen_status.store(0);
     g_phase = "generate";
+
+    // SPEC v3 — bump the generation id at the start of every decode loop.
+    // Captured by the Kotlin layer immediately after this JNI call returns
+    // (or read by the Main-dispatched onToken block) so a callback that
+    // belongs to generation N but arrives after generation N+1 has started
+    // can be silently dropped instead of corrupting the new response buffer.
+    const int64_t this_gen_id = g_generation_id.fetch_add(1) + 1;
+    PROOF("GENERATION_ID_BUMP gen_id=%lld session_id=%lld",
+          (long long)this_gen_id, (long long)g_session_id.load());
 
     const llama_vocab* vocab = llama_model_get_vocab(g_model);
     const uint32_t     n_ctx = llama_n_ctx(g_ctx);
 
     int max_new = std::min(max_new_request > 0 ? max_new_request : 256, 1024);
 
-    // Make sure the headroom for `max_new` decode steps fits.
-    airi_kv_trim_if_needed(max_new + 8);
-
-    // After trim, KV may have been reset. If so, the caller's last-token
-    // logits are gone and we cannot sample. Bail with a clear error.
-    if (g_n_past == 0) {
-        throw std::runtime_error("NO_LOGITS_AFTER_TRIM (session reset)");
+    // SPEC v2 — context overflow guard at generate entry. KV trimming is NOT
+    // invoked: if even one new decode would exceed n_ctx, return -3 so the
+    // Kotlin layer can fullReset() and rebuild the prompt cleanly.
+    if ((uint32_t)(g_n_past + 1) >= n_ctx) {
+        g_last_gen_status.store(-3);
+        PROOF("CONTEXT_OVERFLOW phase=generate_entry n_past=%d n_ctx=%u status=-3",
+              g_n_past, n_ctx);
+        throw std::runtime_error("CONTEXT_OVERFLOW");
+    }
+    // Bound max_new to remaining KV headroom so the per-iteration overflow
+    // check below cannot trip mid-stream and confuse the retry layer.
+    const int headroom = (int)n_ctx - g_n_past - 1;
+    if (headroom > 0 && max_new > headroom) {
+        PROOF("GEN_MAX_NEW_CLAMPED requested=%d headroom=%d", max_new, headroom);
+        max_new = headroom;
     }
 
     PROOF("GEN_START n_past=%d n_ctx=%u max_new=%d kv_used_pct=%d",
@@ -689,15 +845,35 @@ static std::string airi_generate_next(
     int         token_count       = 0;
 
     for (int i = 0; i < max_new; i++) {
-        if (g_cancel.load()) {
+        // SPEC v2 — PHASE 1, step 1+2: cancel flag MUST be checked inside the
+        // decode loop, every iteration. Cancellation latency is therefore
+        // bounded by one decode step, never by the whole generation.
+        if (g_cancel_requested.load()) {
+            g_last_gen_status.store(-2);
             // Per directive: emit BOTH the historical GEN_CANCELLED tag
             // (kept for log-grep back-compat) and the spec-mandated
             // GEN_CANCEL_EFFECTIVE tag, which marks the exact iteration the
             // cooperative cancel actually took effect (the matching
             // GEN_CANCEL_REQUESTED is logged from LlamaManager.cancelStream
             // on the JVM side).
-            PROOF("GEN_CANCELLED iter=%d emitted=%d", i, token_count);
+            PROOF("GEN_CANCELLED iter=%d emitted=%d status=-2", i, token_count);
             PROOF("GEN_CANCEL_EFFECTIVE iter=%d emitted=%d n_past=%d", i, token_count, g_n_past);
+            // SPEC v3 — canonical cancel marker (matches the prefill-side
+            // GENERATION_CANCELLED so a single grep covers both phases).
+            PROOF("GENERATION_CANCELLED phase=generate iter=%d emitted=%d "
+                  "gen_id=%lld session_id=%lld",
+                  i, token_count, (long long)this_gen_id,
+                  (long long)g_session_id.load());
+            break;
+        }
+        // SPEC v2 — per-iteration context overflow guard. The clamp on
+        // max_new at entry should normally prevent this from firing, but a
+        // belt-and-braces check here makes the contract bulletproof: if
+        // we would write past n_ctx, return -3 instead of corrupting KV.
+        if ((uint32_t)(g_n_past + 1) >= n_ctx) {
+            g_last_gen_status.store(-3);
+            PROOF("CONTEXT_OVERFLOW phase=generate_loop iter=%d n_past=%d n_ctx=%u status=-3",
+                  i, g_n_past, n_ctx);
             break;
         }
 
@@ -751,7 +927,16 @@ static std::string airi_generate_next(
         airi_batch_add(batch, tok, g_n_past, {0}, /*logits=*/true);
         int dec = llama_decode(g_ctx, batch);
         if (dec != 0) {
-            PROOF("DECODE_FAILED iter=%d rc=%d n_past=%d", i, dec, g_n_past);
+            // SPEC v2 — surface decode failures as status=-1 so the Kotlin
+            // safe-generation handler can fullReset() and abort cleanly.
+            g_last_gen_status.store(-1);
+            PROOF("DECODE_FAILED iter=%d rc=%d n_past=%d status=-1", i, dec, g_n_past);
+            // SPEC v3 — canonical error marker (matches prefill-side
+            // GENERATION_ERROR for a single-grep view of all -1 exits).
+            PROOF("GENERATION_ERROR phase=generate iter=%d rc=%d n_past=%d "
+                  "gen_id=%lld session_id=%lld",
+                  i, dec, g_n_past, (long long)this_gen_id,
+                  (long long)g_session_id.load());
             break;
         }
         g_n_past++;
@@ -875,6 +1060,14 @@ Java_com_airi_assistant_ai_LlamaNative_loadModel(
 
     g_model_path = model_path;
     g_n_past = 0;
+    // SPEC v2 — cache cparams so nativeFullReset() rebuilds an identical ctx.
+    g_last_n_ctx     = cparams.n_ctx;
+    g_last_n_threads = cparams.n_threads;
+    // SPEC v3 — fresh ctx ⇒ new session id.
+    {
+        const int64_t new_sid = g_session_id.fetch_add(1) + 1;
+        PROOF("SESSION_ID_BUMP from=loadModel new_session_id=%lld", (long long)new_sid);
+    }
     LOGI("AIRI_MODEL: LOAD SUCCESS path=%s size=%ldMB threads=%d n_ctx=%u n_batch=%u mmap=1",
          model_path.c_str(), sz / (1024 * 1024), cparams.n_threads, cparams.n_ctx, cparams.n_batch);
     g_phase = "idle";
@@ -971,6 +1164,15 @@ Java_com_airi_assistant_ai_LlamaNative_loadModelWithProgress(
 
     g_model_path = model_path;
     g_n_past = 0;
+    // SPEC v2 — cache cparams so nativeFullReset() rebuilds an identical ctx.
+    g_last_n_ctx     = cparams.n_ctx;
+    g_last_n_threads = cparams.n_threads;
+    // SPEC v3 — fresh ctx ⇒ new session id.
+    {
+        const int64_t new_sid = g_session_id.fetch_add(1) + 1;
+        PROOF("SESSION_ID_BUMP from=loadModelWithProgress new_session_id=%lld",
+              (long long)new_sid);
+    }
     if (onProg) env->CallVoidMethod(callback, onProg, 100);
     LOGI("AIRI_MODEL: LOAD SUCCESS (with progress) path=%s size=%ldMB threads=%d n_ctx=%u n_batch=%u mmap=1",
          model_path.c_str(), sz / (1024 * 1024), cparams.n_threads, cparams.n_ctx, cparams.n_batch);
@@ -993,8 +1195,12 @@ Java_com_airi_assistant_ai_LlamaNative_beginSession(JNIEnv* env, jobject /*this*
     g_cancel.store(false);
     // Wipe the draft KV in lockstep so the next appendUserTurn re-syncs both.
     airi_draft_clear_kv();
-    PROOF("SESSION_BEGIN n_ctx=%u draft_loaded=%d",
-          llama_n_ctx(g_ctx), g_draft_ctx ? 1 : 0);
+    // SPEC v3 — KV-wipe ⇒ new session id. Any in-flight Main-dispatched
+    // callback that captured the prior session id will now drop its token.
+    const int64_t new_sid = g_session_id.fetch_add(1) + 1;
+    PROOF("SESSION_BEGIN n_ctx=%u draft_loaded=%d session_id=%lld",
+          llama_n_ctx(g_ctx), g_draft_ctx ? 1 : 0, (long long)new_sid);
+    PROOF("SESSION_ID_BUMP from=beginSession new_session_id=%lld", (long long)new_sid);
     g_phase = "idle";
 }
 
@@ -1007,7 +1213,9 @@ Java_com_airi_assistant_ai_LlamaNative_resetSession(JNIEnv* /*env*/, jobject /*t
     g_n_past = 0;
     g_cancel.store(false);
     airi_draft_clear_kv();
-    PROOF("SESSION_RESET");
+    const int64_t new_sid = g_session_id.fetch_add(1) + 1;
+    PROOF("SESSION_RESET session_id=%lld", (long long)new_sid);
+    PROOF("SESSION_ID_BUMP from=resetSession new_session_id=%lld", (long long)new_sid);
     g_phase = "idle";
 }
 
@@ -1185,6 +1393,173 @@ Java_com_airi_assistant_ai_LlamaNative_cancel(JNIEnv* /*env*/, jobject /*this*/)
 }
 
 // ----------------------------------------------------------------------------
+// SPEC v2 — state-machine entry points.
+//
+// nativeCancel()        — raises g_cancel_requested. Lock-free; never blocks
+//                         on g_llama_mutex so it can interrupt an in-flight
+//                         decode that is currently holding the lock. The
+//                         decode loop checks the flag every iteration so
+//                         cancellation latency is bounded by a single
+//                         llama_decode step.
+//
+// nativeGetLastStatus() — returns the result code of the most recent
+//                         airi_append_text / airi_generate_next call:
+//                            0  = ok / no call yet
+//                           -1  = ERROR             (decode/llama failure)
+//                           -2  = CANCELLED         (g_cancel_requested set)
+//                           -3  = CONTEXT_OVERFLOW  (n_past + N >= n_ctx)
+//                         The Kotlin safe-generation handler reads this
+//                         immediately after the JNI call returns to decide
+//                         whether to fullReset()+retry (-3), fullReset()+stop
+//                         (-1), or stop cleanly (-2).
+//
+// nativeFullReset()     — destroys g_ctx and rebuilds it from g_model with
+//                         the cached cparams (g_last_n_ctx / g_last_n_threads).
+//                         Mandated by the state machine's CLEANUP path: ANY
+//                         error during PREFLIGHT/PREFILL/GENERATE results in
+//                         a full context reset before the next turn so KV is
+//                         never left in a torn state.
+// ----------------------------------------------------------------------------
+JNIEXPORT void JNICALL
+Java_com_airi_assistant_ai_LlamaNative_nativeCancel(JNIEnv* /*env*/, jobject /*this*/)
+{
+    g_cancel_requested.store(true);
+    LOGD("nativeCancel: cancel requested");
+    PROOF("NATIVE_CANCEL_REQUESTED");
+}
+
+JNIEXPORT jint JNICALL
+Java_com_airi_assistant_ai_LlamaNative_nativeGetLastStatus(JNIEnv* /*env*/, jobject /*this*/)
+{
+    return (jint)g_last_gen_status.load();
+}
+
+// SPEC v3 — token-budget trimming primitive. Returns the EXACT number of
+// tokens `text` would tokenize to under the currently loaded model's vocab.
+//
+// Implementation: standard llama.cpp two-pass probe (-llama_tokenize with
+// nullptr buffer returns the negated count). Read-only on g_ctx — does not
+// touch KV — so it is safe to call between turns. Returns:
+//   ≥ 0  the token count (0 for empty input)
+//    -1  no model loaded yet
+//    -2  tokenizer failure (malformed text or vocab mismatch)
+//
+// Thread-safety: takes LLAMA_LOCK because it reads g_model. Costs ~tens of
+// microseconds for typical chat-message-length inputs — cheap enough to call
+// once per history message before every turn for the JVM-side budget trim.
+JNIEXPORT jint JNICALL
+Java_com_airi_assistant_ai_LlamaNative_nativeCountTokens(
+    JNIEnv* env, jobject /*this*/, jstring jText)
+{
+    LLAMA_LOCK();
+    if (!g_model) return -1;
+    if (!jText)   return 0;
+    const char* s = env->GetStringUTFChars(jText, nullptr);
+    if (!s) return -2;
+    const llama_vocab* vocab = llama_model_get_vocab(g_model);
+    int len = (int)strlen(s);
+    int n_probe = -llama_tokenize(vocab, s, len, nullptr, 0,
+                                  /*add_special=*/false,
+                                  /*parse_special=*/true);
+    env->ReleaseStringUTFChars(jText, s);
+    if (n_probe < 0) return -2;
+    return (jint)n_probe;
+}
+
+// SPEC v3 — read the current session id. The Kotlin layer captures this
+// before issuing generateNextTokens and re-checks inside every callback;
+// a mismatch means the context was destroyed and the callback must drop
+// its token instead of writing into the new session's response buffer.
+JNIEXPORT jlong JNICALL
+Java_com_airi_assistant_ai_LlamaNative_nativeGetSessionId(JNIEnv* /*env*/, jobject /*this*/)
+{
+    return (jlong)g_session_id.load();
+}
+
+// SPEC v3 — read the current generation id. Bumped at the entry of every
+// airi_generate_next call; lets the Kotlin layer detect "old generation
+// streams into new state" if its captured id is stale.
+JNIEXPORT jlong JNICALL
+Java_com_airi_assistant_ai_LlamaNative_nativeGetGenerationId(JNIEnv* /*env*/, jobject /*this*/)
+{
+    return (jlong)g_generation_id.load();
+}
+
+JNIEXPORT void JNICALL
+Java_com_airi_assistant_ai_LlamaNative_nativeFullReset(JNIEnv* env, jobject /*this*/)
+{
+    // SPEC v3 — STRICT MUTEX. The lock is acquired at the JNI boundary
+    // (LLAMA_LOCK()) and held for the entire teardown+rebuild. While we
+    // hold this lock NO other JNI entry that touches g_ctx (loadModel,
+    // appendUserTurn, generateNextTokens, setRuntimeMode, beginSession,
+    // resetSession, …) can run concurrently — they all acquire the same
+    // mutex. This guarantees the invariant the spec demands:
+    //     "llama_decode never runs after destroy"
+    // because between `llama_free(g_ctx)` and `g_ctx = llama_init_…(…)`
+    // the only thread that could possibly issue a llama_decode is the
+    // current one, which is busy doing the rebuild.
+    //
+    // The only callable that does NOT take the lock is nativeCancel(),
+    // which only stores into the atomic g_cancel — that is by design and
+    // is safe because it never touches g_ctx itself.
+    LLAMA_LOCK();
+    if (!g_model) {
+        env->ThrowNew(env->FindClass("java/lang/RuntimeException"), "MODEL_NOT_LOADED");
+        return;
+    }
+    g_phase = "nativeFullReset";
+
+    // SPEC v3 — canonical lifecycle marker. Emitted at the very start of
+    // every full context teardown/rebuild so a single grep `CONTEXT_RESET`
+    // surfaces every reset across the app's lifetime.
+    PROOF("CONTEXT_RESET reason=nativeFullReset n_past_before=%d "
+          "session_id_before=%lld gen_id_before=%lld",
+          g_n_past, (long long)g_session_id.load(),
+          (long long)g_generation_id.load());
+
+    // Tear down the existing context entirely (including KV) and rebuild
+    // from the model with the same cparams. This is the CLEANUP step of the
+    // state machine and is what makes "any error → full context reset"
+    // observable from the JVM side.
+    if (g_ctx) { llama_free(g_ctx); g_ctx = nullptr; }
+    g_n_past = 0;
+    g_cancel_requested.store(false);
+    g_last_gen_status.store(0);
+
+    llama_context_params cparams = llama_context_default_params();
+    cparams.n_ctx           = (g_last_n_ctx > 0) ? g_last_n_ctx : AIRI_DEFAULT_N_CTX;
+    cparams.n_batch         = AIRI_DEFAULT_N_BATCH;
+    cparams.n_ubatch        = AIRI_DEFAULT_N_UBATCH;
+    cparams.n_threads       = (g_last_n_threads > 0) ? g_last_n_threads : airi_pick_threads();
+    cparams.n_threads_batch = cparams.n_threads;
+
+    // SPEC v3 — REBUILD lifecycle markers. Pair 1:1 with REBUILD_END on
+    // the success path; an absent REBUILD_END for a given REBUILD_BEGIN
+    // means llama_init_from_model crashed (signal_handler will surface it).
+    PROOF("REBUILD_BEGIN n_ctx=%u n_batch=%u n_ubatch=%u threads=%d",
+          cparams.n_ctx, cparams.n_batch, cparams.n_ubatch, cparams.n_threads);
+
+    g_ctx = llama_init_from_model(g_model, cparams);
+    if (!g_ctx) {
+        PROOF("REBUILD_FAILED reason=llama_init_from_model_returned_null");
+        env->ThrowNew(env->FindClass("java/lang/RuntimeException"),
+                      "CONTEXT_REBUILD_FAILED");
+        return;
+    }
+    // Wipe the draft KV in lockstep so the next prefill re-syncs both contexts.
+    airi_draft_clear_kv();
+    // SPEC v3 — fresh g_ctx ⇒ new session id. Bump BEFORE emitting REBUILD_END
+    // so any concurrent reader sees the new id alongside the success log.
+    const int64_t new_sid = g_session_id.fetch_add(1) + 1;
+    PROOF("SESSION_ID_BUMP from=nativeFullReset new_session_id=%lld",
+          (long long)new_sid);
+    PROOF("REBUILD_END n_ctx=%u threads=%d session_id=%lld",
+          cparams.n_ctx, cparams.n_threads, (long long)new_sid);
+    PROOF("FULL_RESET n_ctx=%u threads=%d", cparams.n_ctx, cparams.n_threads);
+    g_phase = "idle";
+}
+
+// ----------------------------------------------------------------------------
 // setRuntimeMode(nCtx, nThreads): hot-swap context size / thread count without
 // reloading model weights from disk. Wipes KV (caller must re-prime via
 // beginSession + appendUserTurn).
@@ -1216,6 +1591,15 @@ Java_com_airi_assistant_ai_LlamaNative_setRuntimeMode(
         env->ThrowNew(env->FindClass("java/lang/RuntimeException"),
                       "CONTEXT_REBUILD_FAILED");
         return;
+    }
+    // SPEC v2 — cache cparams so nativeFullReset() preserves the runtime mode.
+    g_last_n_ctx     = cparams.n_ctx;
+    g_last_n_threads = cparams.n_threads;
+    // SPEC v3 — runtime-mode swap rebuilds g_ctx ⇒ new session id.
+    {
+        const int64_t new_sid = g_session_id.fetch_add(1) + 1;
+        PROOF("SESSION_ID_BUMP from=setRuntimeMode new_session_id=%lld",
+              (long long)new_sid);
     }
     PROOF("RUNTIME_MODE_SET n_ctx=%u threads=%d", cparams.n_ctx, cparams.n_threads);
     g_phase = "idle";

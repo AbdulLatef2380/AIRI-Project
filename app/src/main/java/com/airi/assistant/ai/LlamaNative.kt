@@ -102,6 +102,15 @@ object LlamaNative {
     //                         PREFLIGHT/PREFILL/GENERATE results in a full
     //                         context reset before the next turn.
     external fun nativeCancel()
+
+    // nativeClearCancel() — atomically clears the native cancel flag. Called
+    // at the START of every generation cycle (inside lifecycleLock, before
+    // reconcileSession) to ensure no stale flag from a previous timeout,
+    // user cancel, or generate-entry early exit poisons the incremental-
+    // session path (which skips beginSession() and its implicit clear).
+    // Lock-free — safe to call from any thread.
+    external fun nativeClearCancel()
+
     external fun nativeGetLastStatus(): Int
     external fun nativeFullReset()
 

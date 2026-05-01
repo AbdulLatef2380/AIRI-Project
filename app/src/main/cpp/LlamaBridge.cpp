@@ -1428,6 +1428,31 @@ Java_com_airi_assistant_ai_LlamaNative_nativeCancel(JNIEnv* /*env*/, jobject /*t
     PROOF("NATIVE_CANCEL_REQUESTED");
 }
 
+// SPEC v3 — cancel-flag clear.
+//
+// Called from the JVM layer at the START of every new generation cycle,
+// BEFORE reconcileSession, to erase any stale cancel flag left by:
+//
+//   (a) a user-triggered cancel        (cancelStream → nativeCancel sets flag)
+//   (b) a watchdog timeout             (watchdogScope → cancel() sets flag)
+//   (c) the generate-entry early exit  (airi_generate_next lines 777–783
+//       return status=-2 WITHOUT reaching the store(false) at line 788,
+//       so the flag remains true for the next turn)
+//
+// Without this call the INCREMENTAL session path (sessionPrimed=true →
+// beginSession() is NOT called → g_cancel_requested is never cleared)
+// immediately throws PREFILL_CANCELLED on the very next appendUserTurn,
+// causing the conversation to freeze after 1–3 messages.
+//
+// Lock-free: writes a single std::atomic<bool>, exactly as nativeCancel
+// does in the set direction.  Safe to call from any thread.
+JNIEXPORT void JNICALL
+Java_com_airi_assistant_ai_LlamaNative_nativeClearCancel(JNIEnv* /*env*/, jobject /*this*/)
+{
+    g_cancel_requested.store(false);
+    PROOF("NATIVE_CANCEL_CLEARED phase=gen_start");
+}
+
 JNIEXPORT jint JNICALL
 Java_com_airi_assistant_ai_LlamaNative_nativeGetLastStatus(JNIEnv* /*env*/, jobject /*this*/)
 {

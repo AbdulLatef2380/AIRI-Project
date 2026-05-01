@@ -560,16 +560,22 @@ class LlamaManager(private val context: Context) {
             if (sys.isNotEmpty()) {
                 LlamaNative.appendAssistantTurn(sys)
             }
-            // Replay all historical turns as one big non-logits block.
-            val replay = StringBuilder()
+            // Replay historical turns ONE MESSAGE AT A TIME. Splitting prevents
+            // a single massive tokenise+decode call that can OOM or overflow the
+            // KV on long histories, and allows the native cancel check to fire
+            // between messages instead of only within a 64-token chunk of a
+            // giant combined string. If any individual message throws
+            // CONTEXT_OVERFLOW the exception propagates to the outer catch,
+            // which calls fullReset() and surfaces an error; the next turn then
+            // re-primes from the trimmed chatHistory (which by then will be
+            // shorter due to MAX_HISTORY_TOKENS trimming).
             for (msg in chatHistory) {
-                when (msg.role) {
-                    "user"      -> replay.append(userBody(modelType, msg.content))
-                    "assistant" -> replay.append(assistantBody(modelType, msg.content))
+                val fragment = when (msg.role) {
+                    "user"      -> userBody(modelType, msg.content)
+                    "assistant" -> assistantBody(modelType, msg.content)
+                    else        -> null
                 }
-            }
-            if (replay.isNotEmpty()) {
-                LlamaNative.appendAssistantTurn(replay.toString())
+                if (fragment != null) LlamaNative.appendAssistantTurn(fragment)
             }
 
             primedHistory.addAll(chatHistory)
@@ -585,14 +591,16 @@ class LlamaManager(private val context: Context) {
         // Incremental: replay any new turns that arrived since last time.
         val newTurns = chatHistory.subList(primedHistory.size, chatHistory.size)
         if (newTurns.isNotEmpty()) {
-            val replay = StringBuilder()
+            // Per-message replay — same rationale as the hard-reset path above:
+            // avoids one giant tokenise call and allows inter-message cancel checks.
             for (msg in newTurns) {
-                when (msg.role) {
-                    "user"      -> replay.append(userBody(modelType, msg.content))
-                    "assistant" -> replay.append(assistantBody(modelType, msg.content))
+                val fragment = when (msg.role) {
+                    "user"      -> userBody(modelType, msg.content)
+                    "assistant" -> assistantBody(modelType, msg.content)
+                    else        -> null
                 }
+                if (fragment != null) LlamaNative.appendAssistantTurn(fragment)
             }
-            LlamaNative.appendAssistantTurn(replay.toString())
             primedHistory.addAll(newTurns)
             Log.i("AIRI_PROOF",
                 "SESSION_INCREMENT delta=${newTurns.size} kv=${LlamaNative.getKvPosition()}/${LlamaNative.getNCtx()}")
@@ -767,6 +775,24 @@ class LlamaManager(private val context: Context) {
                 // STATE_ERROR is emitted before fullReset.
                 Log.i("AIRI_PROOF", "STATE_PREFLIGHT session_primed=$sessionPrimed " +
                     "primed_history=${primedHistory.size} chat_history=${chatHistory.size}")
+
+                // ── CANCEL FLAG SANITISE ──────────────────────────────────────
+                // Clear any stale native cancel from the previous turn. This is
+                // the FIRST native call in every generation cycle. Without it a
+                // cancel flag left by (a) a user cancel, (b) a watchdog timeout,
+                // or (c) the generate-entry early-exit in airi_generate_next
+                // (which returns status=-2 WITHOUT reaching the store(false) that
+                // would clear the flag) survives into the INCREMENTAL session
+                // path (sessionPrimed=true → beginSession() NOT called → native
+                // cancel never cleared) and immediately throws PREFILL_CANCELLED
+                // on the very next appendUserTurn — freezing the conversation
+                // after 1–3 messages.
+                runCatching { LlamaNative.nativeClearCancel() }
+                    .onFailure { t ->
+                        Log.w("AIRI_PROOF", "CLEAR_CANCEL_FAIL reason=${t.message}")
+                    }
+                Log.i("AIRI_PROOF",
+                    "CANCEL_SANITISED session_primed=$sessionPrimed")
 
                 // ── TOKEN-BASED HISTORY BUDGET ────────────────────────────────
                 // Trim chatHistory so the raw content tokens stay within
@@ -1137,6 +1163,16 @@ class LlamaManager(private val context: Context) {
                         // corrupting the next turn's context. beginSession() on the
                         // next reconcileSession clears and resets everything.
                         invalidateSession()
+                        // Belt-and-suspenders: clear the native cancel flag NOW so
+                        // it does not persist until the next generation's
+                        // nativeClearCancel() call. Since we are inside
+                        // lifecycleLock and on the single-threaded llamaDispatcher,
+                        // no generate can race this write.
+                        runCatching { LlamaNative.nativeClearCancel() }
+                            .onFailure { t ->
+                                Log.w("AIRI_PROOF",
+                                    "STATE_CANCELLED clear_cancel_fail=${t.message}")
+                            }
                         // response is preserved — the UI already rendered it.
                         // Surface it via onComplete so the chat bubble closes.
                         if (finished.compareAndSet(false, true)) {

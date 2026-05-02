@@ -117,6 +117,7 @@ dependencies {
 
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)   // provides LocalLifecycleOwner (compose)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
@@ -154,6 +155,14 @@ dependencies {
     // Vosk model zip into internal storage, verifies SHA-256 (when known),
     // and extracts it. See VoskModelManager.kt + VoiceSettingsScreen.kt.
     implementation(libs.voskAndroid)
+
+    // Silero VAD — on-device Voice Activity Detection (Apache 2.0).
+    // Drives the full-duplex interruption loop: a 320-sample (20 ms @ 16 kHz)
+    // AudioRecord frame is tested per-chunk while TTS is playing; isSpeech()
+    // returns true within ~20 ms of the user starting to talk, which then
+    // stops TTS instantly and hands control back to STT.
+    // No network, no cloud, no API key. Model runs via ONNX Runtime on-device.
+    implementation(libs.androidVadSilero)
 
     // ── Image loading (chat attachment thumbnails) ───────────────────────
     // Coil is the Compose-native image loader (Apache-2.0). Used by the

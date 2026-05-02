@@ -21,6 +21,7 @@ import com.airi.assistant.ui.components.StarBackground
 import com.airi.assistant.ui.screens.AgentControlScreen
 import com.airi.assistant.ui.screens.AgentLogsScreen
 import com.airi.assistant.ui.screens.DebugPanelScreen
+import com.airi.assistant.ui.screens.ExecDiagnosticsScreen
 import com.airi.assistant.ui.debug.DebugScreen
 import com.airi.assistant.ui.screens.AgentTraceDetailScreen
 import com.airi.assistant.ui.screens.ChatScreen
@@ -69,6 +70,7 @@ object AiriRoute {
     const val MODEL_PERFORMANCE  = "screen_model_performance"
     const val DEBUG_PANEL        = "screen_debug_panel"
     const val DEBUG_SCREEN       = "screen_debug_runtime"
+    const val EXEC_DIAGNOSTICS   = "screen_exec_diagnostics"
     const val VOICE_SETTINGS     = "screen_voice_settings"
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
@@ -336,6 +338,13 @@ fun AiriApp() {
 
                 composable(AiriRoute.DEBUG_SCREEN) {
                     DebugScreen(onBack = { navController.popBackStack() })
+                }
+
+                composable(AiriRoute.EXEC_DIAGNOSTICS) {
+                    ExecDiagnosticsScreen(
+                        viewModel = chatViewModel,
+                        onBack    = { navController.popBackStack() }
+                    )
                 }
             }
         }

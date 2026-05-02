@@ -1784,6 +1784,7 @@ fun AdvancedGenerationSettingsDialog(
     var topK             by remember { mutableStateOf(prefs.getInt  ("gen_top_k",             40)) }
     var topP             by remember { mutableStateOf(prefs.getFloat("gen_top_p",             0.9f)) }
     var repeatPenalty    by remember { mutableStateOf(prefs.getFloat("gen_repeat_penalty",    1.1f)) }
+    var penaltyLastN     by remember { mutableStateOf(prefs.getInt  ("gen_penalty_last_n",    64)) }
     var minP             by remember { mutableStateOf(prefs.getFloat("gen_min_p",             0.05f)) }
     var presencePenalty  by remember { mutableStateOf(prefs.getFloat("gen_presence_penalty",  0.0f)) }
     var frequencyPenalty by remember { mutableStateOf(prefs.getFloat("gen_frequency_penalty", 0.0f)) }
@@ -1873,6 +1874,21 @@ fun AdvancedGenerationSettingsDialog(
                     onValueChange = {
                         repeatPenalty = it
                         prefs.edit().putFloat("gen_repeat_penalty", it).apply()
+                    }
+                )
+
+                // Repeat-penalty look-back window. Maps directly to
+                // llama_sampler_init_penalties(penalty_last_n, …). Step size of
+                // 16 tokens keeps the slider manageable (0..256 = 17 stops).
+                SettingSlider(
+                    title = stringResource(R.string.penalty_last_n),
+                    valueLabel = if (penaltyLastN == 0) "off" else "$penaltyLastN",
+                    value = penaltyLastN.toFloat(),
+                    valueRange = 0f..256f,
+                    steps = 15,
+                    onValueChange = {
+                        penaltyLastN = (it / 16f).toInt() * 16
+                        prefs.edit().putInt("gen_penalty_last_n", penaltyLastN).apply()
                     }
                 )
 

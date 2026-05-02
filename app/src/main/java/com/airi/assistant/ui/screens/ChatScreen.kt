@@ -71,6 +71,14 @@ import coil.request.ImageRequest
 import com.airi.assistant.ui.viewmodel.ModelUiState
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.airi.assistant.ui.theme.AiBubbleSurface
+import com.airi.assistant.ui.theme.AiBubbleBorder
+import com.airi.assistant.ui.theme.UserBubbleSurface
+import com.airi.assistant.ui.theme.SemanticSuccess
+import com.airi.assistant.ui.util.MarkdownText
+import androidx.compose.runtime.snapshotFlow
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
 
@@ -262,24 +270,36 @@ fun ChatScreen(
         }
     }
 
-    // ── VoiceManager (TTS) ───────────────────────────────────────────────────
+    // ── VoiceManager (TTS + full-duplex VAD) ────────────────────────────────
     val voiceStateRef = remember { androidx.compose.runtime.mutableStateOf(VoiceSessionState.IDLE) }
-    // Issue #2 — continuous live-voice loop. When the user taps the
-    // live-chat button, we set this to TRUE; the TTS done-callback then
-    // automatically re-arms Vosk so the assistant feels like a real
-    // back-and-forth conversation instead of a single-shot voice command.
-    // Reset to FALSE when the user explicitly stops, when generation errors,
-    // or when ChatScreen leaves the composition.
+
+    // liveChatActiveRef: TRUE while the continuous live-chat loop is armed.
+    // The TTS done-callback re-arms Vosk automatically when this is true.
     val liveChatActiveRef = remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    // voiceLoopRearmTick: bumped by onSpeakingDone() to trigger STT re-arm
+    // via LaunchedEffect (avoids calling startInAppStt from a callback).
     val voiceLoopRearmTick = remember { androidx.compose.runtime.mutableStateOf(0) }
+
+    // vadInterruptedTick: bumped by onVadInterrupted() to trigger instant
+    // STT start via LaunchedEffect (same safe pattern as rearmTick).
+    // Using a tick rather than a Boolean means repeated rapid interruptions
+    // each get their own LaunchedEffect recomposition and can't be lost.
+    val vadInterruptedTick = remember { androidx.compose.runtime.mutableStateOf(0) }
+
+    // isVadInterrupting: true for the brief window between VAD detecting speech
+    // and STT actually starting (typically <50 ms). Drives the "interrupt glow"
+    // visual treatment — a warm amber pulse on the waveform banner so the user
+    // gets sub-100 ms feedback that they've been heard, even before the mic icon
+    // transitions. Cleared as soon as startInAppStt() is called.
+    val isVadInterrupting = remember { androidx.compose.runtime.mutableStateOf(false) }
+
     val voiceManager = remember {
         VoiceManager(context, object : VoiceManager.VoiceListener {
             override fun onWakeWordDetected() {}
             override fun onSpeechResult(text: String) {}
             override fun onError(error: String) {
                 scope.launch { snackbarHost.showSnackbar("Voice error: $error") }
-                // Hard-stop the loop on any voice error so we don't spin
-                // re-arming Vosk against a broken mic / missing model.
                 if (liveChatActiveRef.value) {
                     Log.i("AIRI_PROOF", "VOICE_LOOP_STOPPED reason=error err=$error")
                     liveChatActiveRef.value = false
@@ -292,19 +312,96 @@ fun ChatScreen(
             override fun onSpeakingDone() {
                 Log.d("AIRI_VOICE", "TTS speaking done → VoiceSessionState.IDLE")
                 voiceStateRef.value = VoiceSessionState.IDLE
-                // Re-arm STT iff we are in continuous-conversation mode.
                 if (liveChatActiveRef.value) {
                     Log.i("AIRI_PROOF", "VOICE_LOOP_REARM_REQUESTED tick=${voiceLoopRearmTick.value + 1}")
                     voiceLoopRearmTick.value = voiceLoopRearmTick.value + 1
                 }
             }
+            // ── FULL-DUPLEX INTERRUPTION ────────────────────────────────
+            // Called on Main by FullDuplexVadEngine after Silero confirms
+            // speech (~20 ms latency). TTS has ALREADY been stopped inside
+            // VoiceManager.startVad() before this callback fires, so there
+            // is no audible tail. We just need to update UI state and arm STT.
+            override fun onVadInterrupted() {
+                Log.i("AIRI_PROOF", "VAD_INTERRUPTED_CB tick=${vadInterruptedTick.value + 1} loop=${liveChatActiveRef.value}")
+                // Issue 7 — micro-latency glow: arm the amber interrupt pulse
+                // BEFORE the tick bump so the first recomposition frame shows it.
+                isVadInterrupting.value = true
+                // Snap voice state to LISTENING immediately. voiceStateRef is
+                // the TTS-owned state; writing LISTENING here prevents the
+                // voiceStateRef LaunchedEffect from reverting us to IDLE.
+                voiceStateRef.value = VoiceSessionState.LISTENING
+                // Bump tick — LaunchedEffect(vadInterruptedTick.value) below
+                // will start STT on the Compose coroutine context.
+                vadInterruptedTick.value = vadInterruptedTick.value + 1
+            }
         })
     }
     DisposableEffect(Unit) { onDispose { voiceManager.destroy() } }
-    // Issue #2 — consume the re-arm tick that the TTS done-callback bumps
-    // when liveChatActive is true. We pause briefly so the user can hear
-    // the tail of the response settle before the mic starts listening
-    // again, otherwise the re-arm feels jarring.
+
+    // ── Issue 6: Lifecycle gap — Android 15 mic-lock prevention ──────────
+    // When the app is backgrounded (ON_PAUSE), stop ALL audio subsystems
+    // immediately. Without this, on Android 14/15 the OS may revoke the
+    // microphone grant mid-session causing AudioRecord to return ERROR_DEAD_OBJECT
+    // permanently, or keep a ghost recording thread draining the battery.
+    val _lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(_lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                Log.i("AIRI_PROOF", "LIFECYCLE_ON_PAUSE → releasing all audio resources")
+                voiceManager.stopVadIfRunning()
+                stopInAppStt()
+                isVadInterrupting.value = false
+                voiceStateRef.value = VoiceSessionState.IDLE
+                voiceState = VoiceSessionState.IDLE
+                if (liveChatActiveRef.value) {
+                    liveChatActiveRef.value = false
+                    Log.i("AIRI_PROOF", "VOICE_LOOP_PAUSED reason=app_backgrounded")
+                }
+            }
+        }
+        _lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { _lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // ── VAD interruption handler ─────────────────────────────────────────
+    // Reacts to vadInterruptedTick bumps from onVadInterrupted().
+    // Runs on the Compose coroutine scope (Main thread), safe to call
+    // startInAppStt which mutates Compose state.
+    // No delay needed — the interruption should feel INSTANT.
+    LaunchedEffect(vadInterruptedTick.value) {
+        if (vadInterruptedTick.value > 0) {
+            Log.i("AIRI_PROOF", "VAD_INTERRUPT_EFFECT tick=${vadInterruptedTick.value} loop=${liveChatActiveRef.value}")
+            // Always set state to LISTENING + arm STT after VAD interrupt,
+            // regardless of liveChatActiveRef — the user clearly wants to speak.
+            voiceState = VoiceSessionState.LISTENING
+            // autoSend: in live-chat mode or when speakNextResponse is primed,
+            // send the STT result automatically. Otherwise just fill the text field.
+            val autoSend = liveChatActiveRef.value || speakNextResponse
+            // Also reset speakNextResponse so the PREVIOUS AI response is not
+            // re-spoken after the interrupt (the user is taking the floor).
+            speakNextResponse = false
+            ttsStreamingActive = false
+            lastTtsStreamLen = 0
+            if (!agentState.isWorking) {
+                Log.i("AIRI_PROOF", "VAD_INTERRUPT_STT_START autoSend=$autoSend")
+                // Clear glow BEFORE startInAppStt so the waveform banner
+                // transitions: amber glow → normal listening state.
+                isVadInterrupting.value = false
+                startInAppStt(autoSend = autoSend)
+            } else {
+                // Generation still running — cancel it then start listening.
+                Log.i("AIRI_PROOF", "VAD_INTERRUPT_CANCEL_GEN then STT autoSend=$autoSend")
+                viewModel.cancelGeneration()
+                kotlinx.coroutines.delay(100)
+                isVadInterrupting.value = false
+                if (!agentState.isWorking) startInAppStt(autoSend = autoSend)
+            }
+        }
+    }
+
+    // ── Normal TTS-done loop rearm ───────────────────────────────────────
+    // (Unchanged from original — fires when TTS completes normally, no VAD)
     LaunchedEffect(voiceLoopRearmTick.value) {
         if (voiceLoopRearmTick.value > 0 &&
             liveChatActiveRef.value &&
@@ -312,17 +409,15 @@ fun ChatScreen(
             !agentState.isWorking
         ) {
             kotlinx.coroutines.delay(350)
-            // Re-check after the delay — the user may have tapped to exit.
             if (liveChatActiveRef.value && !agentState.isWorking) {
                 Log.i("AIRI_PROOF", "VOICE_LOOP_REARM_FIRED tick=${voiceLoopRearmTick.value}")
-                Log.i("AIRI_PROOF", "VOICE_REARMED tick=${voiceLoopRearmTick.value}")
                 startInAppStt(autoSend = true)
             } else {
                 Log.i("AIRI_PROOF", "VOICE_LOOP_REARM_ABORTED reason=user_exit_or_busy")
             }
         }
     }
-    // Sync the TTS-driven state updates back to the UI state variable
+    // Sync TTS-driven state back to UI state variable
     LaunchedEffect(voiceStateRef.value) {
         val ttsState = voiceStateRef.value
         if (ttsState == VoiceSessionState.SPEAKING || ttsState == VoiceSessionState.IDLE) {
@@ -331,13 +426,20 @@ fun ChatScreen(
             }
         }
     }
-    // Auto-stop: if still LISTENING after 7s with no result, revert to IDLE
+    // Auto-stop: if still LISTENING after 7s with no result, revert to IDLE.
+    // PRODUCTION FIX: also call stopInAppStt() so the underlying VoskEngine
+    // AudioRecord capture loop is signalled to exit. Without this, only
+    // voiceState changes to IDLE while the microphone and Vosk recognizer
+    // keep running — wasting battery and creating a window where a delayed
+    // onFinal callback can fire into the wrong UI state.
     LaunchedEffect(voiceState) {
         if (voiceState == VoiceSessionState.LISTENING) {
             kotlinx.coroutines.delay(7_000L)
             if (voiceState == VoiceSessionState.LISTENING) {
+                Log.d("AIRI_VOICE", "Auto-stop: 7s silence → stopping engine + IDLE")
+                Log.i("AIRI_PROOF", "AUTO_STOP_TIMEOUT 7s elapsed → stopping VoskEngine")
+                stopInAppStt()
                 voiceState = VoiceSessionState.IDLE
-                Log.d("AIRI_VOICE", "Auto-stop: 7s silence → IDLE")
             }
         }
     }
@@ -397,43 +499,46 @@ fun ChatScreen(
         }
     }
 
-    // PHASE 4: observe streamingText and feed deltas to VoiceManager.
-    LaunchedEffect(streamingText, speakNextResponse, agentState.isWorking) {
-        if (!speakNextResponse) {
-            // Reset bookkeeping when voice mode is off.
-            if (ttsStreamingActive) {
-                voiceManager.ttsStreamFlush()
-                ttsStreamingActive = false
+    // PHASE 5 (perf): observe streamingText via snapshotFlow so this coroutine
+    // stays alive for the entire session and we never pay for coroutine
+    // cancel/restart on every individual token emission. Previous approach used
+    // LaunchedEffect(streamingText, ...) which cancelled and relaunched the
+    // coroutine on each token — O(tokens) coroutine churn. snapshotFlow collects
+    // inside a single long-lived coroutine that only acts when state actually changes.
+    LaunchedEffect(speakNextResponse, agentState.isWorking) {
+        snapshotFlow { streamingText }.collect { current ->
+            if (!speakNextResponse) {
+                if (ttsStreamingActive) {
+                    voiceManager.ttsStreamFlush()
+                    ttsStreamingActive = false
+                }
+                lastTtsStreamLen = 0
+                return@collect
             }
-            lastTtsStreamLen = 0
-            return@LaunchedEffect
-        }
-        val current = streamingText
-        // Skip placeholder thinking strings — they're never speech.
-        val isPlaceholder = current.isBlank() ||
-            current == "Thinking..." || current == "Analyzing image..."
-        if (isPlaceholder) {
-            if (ttsStreamingActive) {
-                voiceManager.ttsStreamFlush()
-                ttsStreamingActive = false
+            val isPlaceholder = current.isBlank() ||
+                current == "Thinking..." || current == "Analyzing image..."
+            if (isPlaceholder) {
+                if (ttsStreamingActive) {
+                    voiceManager.ttsStreamFlush()
+                    ttsStreamingActive = false
+                }
+                lastTtsStreamLen = 0
+                return@collect
             }
-            lastTtsStreamLen = 0
-            return@LaunchedEffect
-        }
-        // Detect a brand-new streaming session: text shrunk or restarted.
-        if (current.length < lastTtsStreamLen) {
-            voiceManager.ttsStreamReset()
-            ttsStreamingActive = true
-            lastTtsStreamLen = 0
-        }
-        if (!ttsStreamingActive) {
-            voiceManager.ttsStreamReset()
-            ttsStreamingActive = true
-        }
-        if (current.length > lastTtsStreamLen) {
-            val delta = current.substring(lastTtsStreamLen)
-            voiceManager.ttsStreamAppend(delta)
-            lastTtsStreamLen = current.length
+            if (current.length < lastTtsStreamLen) {
+                voiceManager.ttsStreamReset()
+                ttsStreamingActive = true
+                lastTtsStreamLen = 0
+            }
+            if (!ttsStreamingActive) {
+                voiceManager.ttsStreamReset()
+                ttsStreamingActive = true
+            }
+            if (current.length > lastTtsStreamLen) {
+                val delta = current.substring(lastTtsStreamLen)
+                voiceManager.ttsStreamAppend(delta)
+                lastTtsStreamLen = current.length
+            }
         }
     }
 
@@ -589,7 +694,7 @@ fun ChatScreen(
                 )
             },
             bottomBar = {
-              Column(modifier = Modifier.fillMaxWidth()) {
+              Column(modifier = Modifier.fillMaxWidth().imePadding()) {
                 // ── PHASE 3 (actual fix): unified attachment chip row ──────────
                 // One row, one chip per attachment, regardless of kind. The
                 // image-vs-file-vs-camera distinction is now just an icon +
@@ -651,10 +756,13 @@ fun ChatScreen(
                         }
                     },
                     voiceState        = voiceState,
+                    isVadInterrupting = isVadInterrupting.value,
                     onMicClick      = mic@{
                         // Interrupt TTS if currently speaking
                         if (voiceState == VoiceSessionState.SPEAKING) {
+                            voiceManager.stopVadIfRunning()   // Issue 2: stop VAD before TTS
                             voiceManager.stopSpeaking()
+                            isVadInterrupting.value = false
                             voiceStateRef.value = VoiceSessionState.IDLE
                             voiceState = VoiceSessionState.IDLE
                             Log.d("AIRI_VOICE", "TTS interrupted by mic press → IDLE")
@@ -680,12 +788,11 @@ fun ChatScreen(
                         // continuous loop, because tapping during TTS is the
                         // user's signal that they want out.
                         if (voiceState == VoiceSessionState.SPEAKING) {
+                            voiceManager.stopVadIfRunning()   // Issue 2: stop VAD before TTS
                             voiceManager.stopSpeaking()
+                            isVadInterrupting.value = false
                             voiceStateRef.value = VoiceSessionState.IDLE
                             voiceState = VoiceSessionState.IDLE
-                            // Phase 2 — explicit barge-in proof tag (the user
-                            // tapped while TTS was speaking, that's a real
-                            // interrupt event, not just a stop).
                             Log.i("AIRI_PROOF", "VOICE_INTERRUPTED reason=tap_during_speaking loop_active=${liveChatActiveRef.value}")
                             if (liveChatActiveRef.value) {
                                 liveChatActiveRef.value = false
@@ -720,13 +827,15 @@ fun ChatScreen(
                     onVoiceConsumed = { voiceInput = ""; voiceState = VoiceSessionState.IDLE },
                     onOpenModels    = { onNavigate(AiriRoute.MODELS) },
                     onUserStartedTyping = {
-                        // PHASE 4 (audio polish): user typing == intent to take
-                        // the floor. Stop TTS instantly so we don't talk over
-                        // them. Also drop out of the continuous live-chat loop
-                        // so we don't auto-re-arm the mic mid-typing.
+                        // User typing == intent to take the floor. Stop TTS
+                        // instantly. Also stop VAD so it doesn't fire an
+                        // interrupt after the user has already interrupted by
+                        // typing (prevents spurious STT re-arm mid-keypress).
                         if (voiceState == VoiceSessionState.SPEAKING) {
                             Log.i("AIRI_PROOF", "TTS_INTERRUPTED reason=user_typing")
+                            voiceManager.stopVadIfRunning()   // Issue 2: stop VAD before TTS
                             voiceManager.stopSpeaking()
+                            isVadInterrupting.value = false
                             voiceState = VoiceSessionState.IDLE
                         }
                         if (liveChatActiveRef.value) {
@@ -747,12 +856,15 @@ fun ChatScreen(
                     onOpenModels  = { onNavigate(AiriRoute.MODELS) },
                     onShareAiResponse = { response -> shareAiResponse(context, response) },
                     onSpeak = { text ->
+                        voiceManager.stopVadIfRunning()   // Issue 2: stop VAD before TTS
                         voiceManager.stopSpeaking()
+                        isVadInterrupting.value = false
                         voiceState = VoiceSessionState.SPEAKING
                         voiceStateRef.value = VoiceSessionState.SPEAKING
                         voiceManager.speak(text)
                         Log.d("AIRI_VOICE", "Speak-action triggered from message → SPEAKING")
                     },
+                    onSuggestionClick = { suggestion -> viewModel.sendMessage(suggestion) },
                     modifier = Modifier.fillMaxSize()
                 )
                 if (com.airi.assistant.BuildConfig.DEBUG) {
@@ -935,61 +1047,39 @@ fun ChatMessageList(
     onOpenModels: () -> Unit = {},
     onShareAiResponse: (String) -> Unit = {},
     onSpeak: (String) -> Unit = {},
+    onSuggestionClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
     val scope     = rememberCoroutineScope()
 
-    // ── PHASE 4 (verification): scroll stability ────────────────────────────
-    // Old behaviour fired animateScrollToItem(0) on every streaming token.
-    // With reverseLayout=true and a 10-30 fps token rate that produced:
-    //   • animation-interrupting-itself flicker on every emission,
-    //   • wrestled the user's manual scroll up away from them, and
-    //   • ~3-5ms of extra Choreographer work per token.
-    //
-    // The fix is the pattern used by mature streaming chat UIs (ChatGPT,
-    // Claude, Telegram livestream): only auto-scroll if the user is
-    // already pinned to the bottom; use *non-animated* scroll during
-    // streaming (animation conflicts → jank); throttle to roughly one
-    // scroll per frame using a per-message append heuristic.
-    //
-    // With reverseLayout=true, "bottom" means firstVisibleItemIndex == 0.
-    // We give the user a 1-item slack so they can scroll up one bubble
-    // without immediately losing their place.
+    // Pre-reverse the list once per messages-list change (not on every
+    // streaming token), eliminating O(n) allocation on each recomposition.
+    val reversedMessages = remember(messages) { messages.reversed() }
+
     val isPinnedToBottom by remember {
         derivedStateOf { listState.firstVisibleItemIndex <= 1 }
     }
-    // Track the last streaming length we scrolled for so we can decide to
-    // scroll only when growth is meaningful (every ~24 chars ≈ one render).
     var lastScrolledStreamLen by remember { mutableStateOf(0) }
     LaunchedEffect(messages.size) {
-        // New message arrived (user just sent or assistant turn closed).
-        // Use ANIMATED scroll here — it's a single event, not per-token.
         if (isPinnedToBottom && (messages.isNotEmpty() || streamingText.isNotEmpty())) {
             scope.launch { listState.animateScrollToItem(0) }
         }
         lastScrolledStreamLen = 0
     }
-    LaunchedEffect(streamingText.length) {
-        // Per-token growth: only scroll if the user is at the bottom and
-        // the text actually grew enough that the bottom moved off-screen.
-        if (!isPinnedToBottom) return@LaunchedEffect
-        val len = streamingText.length
-        if (len == 0) {
-            lastScrolledStreamLen = 0
-            return@LaunchedEffect
-        }
-        val grew = len - lastScrolledStreamLen
-        // Threshold of 24 chars ≈ one wrapped line of Arabic/English text.
-        // Smaller deltas don't change visible layout enough to be worth a
-        // scroll, and skipping them eliminates the per-token jank without
-        // visible lag for the user.
-        if (grew >= 24 || (grew in 1..23 && len < 60)) {
-            lastScrolledStreamLen = len
-            // NOTE: scrollToItem is the snap variant — no animation. This
-            // is critical: animateScrollToItem launching every ~24 chars
-            // would trigger animation cancellation on every emission.
-            scope.launch { listState.scrollToItem(0) }
+    // PHASE 5 (perf): use snapshotFlow so the scroll-to-bottom observer lives in
+    // one long-running coroutine instead of cancelling/restarting on every token.
+    // Also use scrollToItem (instant) for mid-stream (fast tokens) and only
+    // animateScrollToItem on the final scroll triggered by message count change.
+    LaunchedEffect(Unit) {
+        snapshotFlow { streamingText.length }.collect { len ->
+            if (!isPinnedToBottom) return@collect
+            if (len == 0) { lastScrolledStreamLen = 0; return@collect }
+            val grew = len - lastScrolledStreamLen
+            if (grew >= 24 || (grew in 1..23 && len < 60)) {
+                lastScrolledStreamLen = len
+                listState.scrollToItem(0)
+            }
         }
     }
 
@@ -997,129 +1087,211 @@ fun ChatMessageList(
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(horizontal = 24.dp)
+                modifier = Modifier.padding(horizontal = 28.dp)
             ) {
-                Icon(
-                    Icons.Outlined.SmartToy,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.20f),
-                    modifier = Modifier.size(96.dp)
+                // Pulsing avatar icon
+                val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "idle_pulse")
+                val idleAlpha by infinite.animateFloat(
+                    initialValue = 0.15f,
+                    targetValue  = 0.28f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(1800, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                    ),
+                    label = "idle_alpha"
                 )
-                Spacer(Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(CosmicAccent.copy(alpha = idleAlpha), Color.Transparent)
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Outlined.SmartToy,
+                        contentDescription = null,
+                        tint = CosmicAccent.copy(alpha = idleAlpha + 0.10f),
+                        modifier = Modifier.size(44.dp)
+                    )
+                }
+                Spacer(Modifier.height(20.dp))
                 Text(
-                    if (isModelReady) stringResource(R.string.airi_ready) else "تفعيل عقل AIRI",
-                    color = Color.White.copy(alpha = 0.75f),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    if (isModelReady) stringResource(R.string.airi_ready) else stringResource(R.string.app_name),
+                    color = Color.White.copy(alpha = 0.80f),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 24.sp,
+                    letterSpacing = (-0.3).sp,
+                    maxLines = 1
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 Text(
                     if (isModelReady) stringResource(R.string.ask_anything_model_active)
                     else stringResource(R.string.activate_model_gallery_first),
-                    color = Color.White.copy(alpha = 0.4f),
+                    color = Color.White.copy(alpha = 0.38f),
                     fontSize = 13.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    lineHeight = 18.sp
+                    lineHeight = 19.sp
                 )
                 if (!isModelReady) {
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(20.dp))
                     Button(
                         onClick = onOpenModels,
-                        shape = RoundedCornerShape(20.dp),
+                        shape = RoundedCornerShape(24.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.Black)
                     ) {
                         Icon(Icons.Outlined.SmartToy, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("تفعيل عقل AIRI", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.model_gallery), fontWeight = FontWeight.SemiBold)
+                    }
+                } else {
+                    // Suggestion chips
+                    Spacer(Modifier.height(28.dp))
+                    val suggestions = listOf(
+                        stringResource(R.string.suggestion_what_can_you_do),
+                        stringResource(R.string.suggestion_explain_ai),
+                        stringResource(R.string.suggestion_write_poem),
+                        stringResource(R.string.suggestion_brainstorm)
+                    )
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        suggestions.chunked(2).forEach { pair ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                pair.forEach { s ->
+                                    Surface(
+                                        onClick = { onSuggestionClick(s) },
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = CosmicAccent.copy(alpha = 0.08f),
+                                        modifier = Modifier.border(
+                                            1.dp, CosmicAccent.copy(alpha = 0.28f), RoundedCornerShape(20.dp)
+                                        )
+                                    ) {
+                                        Text(
+                                            text = s,
+                                            color = Color.White.copy(alpha = 0.72f),
+                                            fontSize = 12.sp,
+                                            lineHeight = 16.sp,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     } else {
-        LazyColumn(
-            state            = listState,
-            modifier         = modifier,
-            reverseLayout    = true,
-            contentPadding   = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            if (streamingText.isNotEmpty() && isGenerating) {
-                item(key = "streaming") { AiStreamingBubble(text = streamingText) }
-            }
-            itemsIndexed(messages.reversed(), key = { _, msg -> msg.uid }) { index, msg ->
-                val prevMsg = messages.reversed().getOrNull(index + 1)
-                val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
-                if (msg.isUser) {
-                    UserBubble(msg.text, msg.imageUri)
-                } else {
-                    AiBubble(
-                        text      = msg.text,
-                        agentTag  = msg.agentTag,
-                        traceId   = msg.traceId,
-                        hideAvatar = hideAvatar,
-                        onShare   = onShareAiResponse,
-                        onSpeak   = onSpeak
-                    )
+        Box(modifier = modifier) {
+            LazyColumn(
+                state            = listState,
+                modifier         = Modifier.fillMaxSize(),
+                reverseLayout    = true,
+                contentPadding   = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (streamingText.isNotEmpty() && isGenerating) {
+                    item(key = "streaming") { AiStreamingBubble(text = streamingText) }
+                }
+                itemsIndexed(reversedMessages, key = { _, msg -> msg.uid }) { index, msg ->
+                    val prevMsg = reversedMessages.getOrNull(index + 1)
+                    val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
+                    if (msg.isUser) {
+                        UserBubble(msg.text, msg.imageUri)
+                    } else {
+                        AiBubble(
+                            text       = msg.text,
+                            agentTag   = msg.agentTag,
+                            traceId    = msg.traceId,
+                            hideAvatar = hideAvatar,
+                            onShare    = onShareAiResponse,
+                            onSpeak    = onSpeak,
+                            execOrigin = msg.execOrigin
+                        )
+                    }
                 }
             }
+            // Scroll-to-bottom FAB — surfaces when the user scrolls up
+            ScrollToBottomFab(
+                visible  = !isPinnedToBottom,
+                onClick  = { scope.launch { listState.animateScrollToItem(0) } },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 14.dp)
+            )
         }
     }
 }
 
 @Composable
 fun UserBubble(text: String, imageUri: String? = null) {
-    // Strip the trailing "[image: name]" marker that the ViewModel appends
-    // for memory persistence — the marker is meant for the prompt, not the
-    // user's eyes. When the bubble shows the actual image we don't need the
-    // text reminder either.
     val displayText = remember(text, imageUri) {
-        if (imageUri != null) {
-            text.replace(Regex("""\s*\n*\[image:[^\]]*\]\s*$"""), "").trim()
-        } else text
+        if (imageUri != null) text.replace(Regex("""\s*\n*\[image:[^\]]*\]\s*$"""), "").trim()
+        else text
     }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End
+    val context = LocalContext.current
+    val haptic  = LocalHapticFeedback.current
+
+    val transition = remember {
+        androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
+    }
+    androidx.compose.animation.AnimatedVisibility(
+        visibleState = transition,
+        enter = androidx.compose.animation.fadeIn(
+            animationSpec = androidx.compose.animation.core.tween(200)
+        ) + androidx.compose.animation.slideInHorizontally(
+            animationSpec = androidx.compose.animation.core.tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+        ) { it / 5 }
     ) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = 300.dp)
-                .clip(RoundedCornerShape(18.dp, 4.dp, 18.dp, 18.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(CosmicAccent.copy(alpha = 0.25f), CosmicAccent.copy(alpha = 0.12f))
-                    )
-                )
-                .border(1.dp, CosmicAccent.copy(alpha = 0.35f), RoundedCornerShape(18.dp, 4.dp, 18.dp, 18.dp))
-                .padding(6.dp),
-            horizontalAlignment = Alignment.End
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
         ) {
-            if (imageUri != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(imageUri)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 220.dp)
-                        .clip(RoundedCornerShape(14.dp, 4.dp, 14.dp, 14.dp))
-                        .background(Color.Black.copy(alpha = 0.25f)),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                )
-                if (displayText.isNotBlank()) Spacer(Modifier.height(6.dp))
-            }
-            if (displayText.isNotBlank() || imageUri == null) {
-                Text(
-                    displayText,
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                )
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 340.dp)
+                    .clip(RoundedCornerShape(20.dp, 4.dp, 20.dp, 20.dp))
+                    .background(UserBubbleSurface)
+                    .border(1.dp, CosmicAccent.copy(alpha = 0.28f), RoundedCornerShape(20.dp, 4.dp, 20.dp, 20.dp))
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                            as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", displayText))
+                    }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalAlignment = Alignment.End
+            ) {
+                if (imageUri != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(imageUri)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 220.dp)
+                            .clip(RoundedCornerShape(14.dp, 4.dp, 14.dp, 14.dp))
+                            .background(Color.Black.copy(alpha = 0.25f)),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                    )
+                    if (displayText.isNotBlank()) Spacer(Modifier.height(8.dp))
+                }
+                if (displayText.isNotBlank() || imageUri == null) {
+                    Text(
+                        text       = displayText,
+                        color      = Color.White,
+                        fontSize   = 15.sp,
+                        lineHeight = 23.sp
+                    )
+                }
             }
         }
     }
@@ -1132,119 +1304,112 @@ fun AiBubble(
     traceId: String? = null,
     hideAvatar: Boolean = false,
     onShare: (String) -> Unit = {},
-    onSpeak: (String) -> Unit = {}
+    onSpeak: (String) -> Unit = {},
+    execOrigin: com.airi.assistant.execution.ExecOrigin = com.airi.assistant.execution.ExecOrigin.NONE
 ) {
-    val context   = androidx.compose.ui.platform.LocalContext.current
+    val context   = LocalContext.current
+    val haptic    = LocalHapticFeedback.current
     val allTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsState()
     val trace = remember(traceId, allTraces) {
         if (traceId != null) allTraces.find { it.id == traceId } else null
     }
-    var traceExpanded  by remember { mutableStateOf(false) }
-    var showActions    by remember { mutableStateOf(false) }
+    var traceExpanded by remember { mutableStateOf(false) }
 
-    // Slide-in animation on first composition
     val transition = remember {
         androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
     }
-
     androidx.compose.animation.AnimatedVisibility(
         visibleState = transition,
         enter = androidx.compose.animation.fadeIn(
-            animationSpec = androidx.compose.animation.core.tween(220)
+            animationSpec = androidx.compose.animation.core.tween(240)
         ) + androidx.compose.animation.slideInVertically(
-            animationSpec = androidx.compose.animation.core.tween(220)
-        ) { it / 4 }
+            animationSpec = androidx.compose.animation.core.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+        ) { it / 5 }
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(end = 44.dp),
             horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.Top
         ) {
-            // Avatar — hidden when consecutive AI messages (grouping)
             if (!hideAvatar) {
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(30.dp)
                         .clip(CircleShape)
-                        .background(CosmicAccent.copy(alpha = 0.15f))
-                        .border(1.dp, CosmicAccent.copy(alpha = 0.4f), CircleShape),
+                        .background(
+                            Brush.radialGradient(
+                                listOf(CosmicAccent.copy(alpha = 0.22f), CosmicAccent.copy(alpha = 0.06f))
+                            )
+                        )
+                        .border(1.dp, CosmicAccent.copy(alpha = 0.45f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("A", color = CosmicAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("A", color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(10.dp))
             } else {
-                Spacer(Modifier.width(36.dp))
+                Spacer(Modifier.width(40.dp))
             }
 
-            Column(modifier = Modifier.widthIn(max = 300.dp)) {
-                Box {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                            .background(Color.White.copy(alpha = 0.06f))
-                            .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                            .pointerInput(text) {
-                                detectTapGestures(onLongPress = { showActions = true })
-                            }
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                    ) {
-                        Text(text, color = Color.White.copy(alpha = 0.92f), fontSize = 14.sp, lineHeight = 21.sp)
-                    }
+            Column {
+                // ── Bubble ────────────────────────────────────────────────────
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(4.dp, 20.dp, 20.dp, 20.dp))
+                        .background(AiBubbleSurface)
+                        .border(1.dp, AiBubbleBorder, RoundedCornerShape(4.dp, 20.dp, 20.dp, 20.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    MarkdownText(
+                        rawText     = text,
+                        modifier    = Modifier.fillMaxWidth(),
+                        baseFontSp  = 15f,
+                        lineHeightSp = 23f
+                    )
+                }
 
-                    // Long-press action menu
-                    DropdownMenu(
-                        expanded = showActions,
-                        onDismissRequest = { showActions = false },
-                        modifier = Modifier.background(Color(0xFF1A1F38))
+                // ── Inline action row ─────────────────────────────────────────
+                Row(
+                    modifier = Modifier.padding(start = 2.dp, top = 1.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                                as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
+                            Log.d("AIRI_UI", "Message copied len=${text.length}")
+                        },
+                        modifier = Modifier.size(32.dp)
                     ) {
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Outlined.ContentCopy, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Copy", color = Color.White, fontSize = 14.sp)
-                                }
-                            },
-                            onClick = {
-                                showActions = false
-                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI message", text))
-                                Log.d("AIRI_UI", "Message copied len=${text.length}")
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Outlined.VolumeUp, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Speak", color = Color.White, fontSize = 14.sp)
-                                }
-                            },
-                            onClick = {
-                                showActions = false
-                                onSpeak(text)
-                                Log.d("AIRI_UI", "Speak action triggered len=${text.length}")
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Outlined.Share, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Share", color = Color.White, fontSize = 14.sp)
-                                }
-                            },
-                            onClick = {
-                                showActions = false
-                                onShare(text)
-                            }
-                        )
+                        Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy", tint = Color.White.copy(alpha = 0.38f), modifier = Modifier.size(15.dp))
+                    }
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onSpeak(text)
+                            Log.d("AIRI_UI", "Speak action triggered len=${text.length}")
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Outlined.VolumeUp, contentDescription = "Speak", tint = Color.White.copy(alpha = 0.38f), modifier = Modifier.size(15.dp))
+                    }
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onShare(text)
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Outlined.Share, contentDescription = "Share", tint = Color.White.copy(alpha = 0.38f), modifier = Modifier.size(15.dp))
                     }
                 }
 
-                // ── Agent Trace Card ───────────────────────────────────────────
+                // ── Agent Trace Card ──────────────────────────────────────────
                 if (trace != null) {
                     Spacer(Modifier.height(6.dp))
                     Column(
@@ -1268,12 +1433,7 @@ fun AiBubble(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Outlined.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = CosmicAccent,
-                                    modifier = Modifier.size(13.dp)
-                                )
+                                Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(13.dp))
                                 Spacer(Modifier.width(5.dp))
                                 Text(
                                     text = if (agentTag != null) "⚙ $agentTag · ${trace.stepCount} step${if (trace.stepCount != 1) "s" else ""}  ${if (traceExpanded) "▲" else "▼"}"
@@ -1294,10 +1454,7 @@ fun AiBubble(
                             Divider(color = Color.White.copy(alpha = 0.05f))
                             Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                                 trace.steps.forEachIndexed { i, step ->
-                                    Row(
-                                        verticalAlignment = Alignment.Top,
-                                        modifier = Modifier.padding(vertical = 3.dp)
-                                    ) {
+                                    Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 3.dp)) {
                                         Text(
                                             text = "${i + 1}.",
                                             color = CosmicAccent.copy(alpha = 0.6f),
@@ -1312,12 +1469,7 @@ fun AiBubble(
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
-                                                Text(
-                                                    text = step.displayName,
-                                                    color = Color.White.copy(alpha = 0.85f),
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Medium
-                                                )
+                                                Text(text = step.displayName, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
                                                 Icon(
                                                     if (step.success) Icons.Outlined.CheckCircle else Icons.Outlined.Cancel,
                                                     contentDescription = null,
@@ -1331,8 +1483,7 @@ fun AiBubble(
                                             if (detail.isNotBlank()) {
                                                 Text(
                                                     text = detail,
-                                                    color = if (step.error != null) Color(0xFFFF5252).copy(alpha = 0.8f)
-                                                            else Color.White.copy(alpha = 0.4f),
+                                                    color = if (step.error != null) Color(0xFFFF5252).copy(alpha = 0.8f) else Color.White.copy(alpha = 0.4f),
                                                     fontSize = 10.sp,
                                                     lineHeight = 14.sp
                                                 )
@@ -1352,22 +1503,14 @@ fun AiBubble(
                             .border(0.5.dp, CosmicAccent.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
-                        Text(
-                            text = "⚙ $agentTag",
-                            color = CosmicAccent.copy(alpha = 0.85f),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Text(text = "⚙ $agentTag", color = CosmicAccent.copy(alpha = 0.85f), fontSize = 10.sp, fontWeight = FontWeight.Medium)
                     }
                 }
-
-                TextButton(
-                    onClick = { onShare(text) },
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                ) {
-                    Icon(Icons.Outlined.Share, contentDescription = null, tint = CosmicAccent.copy(alpha = 0.72f), modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.share), color = CosmicAccent.copy(alpha = 0.72f), fontSize = 11.sp)
+                // Execution origin badge — always visible on assistant messages.
+                // LOCAL / CLOUD / HYBRID — AIRI never hides where the answer came from.
+                if (execOrigin.isVisible) {
+                    Spacer(Modifier.height(3.dp))
+                    ExecOriginBadge(origin = execOrigin)
                 }
             }
         }
@@ -1380,51 +1523,49 @@ fun AiStreamingBubble(text: String) {
         "Thinking...", "Analyzing...", "Planning...", "Generating...",
         "Preparing...", "Imagining...", "Reasoning...", "Creating..."
     )
-
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(end = 44.dp),
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.Top
     ) {
         Box(
             modifier = Modifier
-                .size(28.dp)
+                .size(30.dp)
                 .clip(CircleShape)
-                .background(CosmicAccent.copy(alpha = 0.2f))
-                .border(1.dp, CosmicAccent.copy(alpha = 0.6f), CircleShape),
+                .background(
+                    Brush.radialGradient(
+                        listOf(CosmicAccent.copy(alpha = 0.22f), CosmicAccent.copy(alpha = 0.06f))
+                    )
+                )
+                .border(1.dp, CosmicAccent.copy(alpha = 0.55f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text("A", color = CosmicAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text("A", color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(10.dp))
         Column(
             modifier = Modifier
-                .widthIn(max = 300.dp)
-                .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                .background(Color.White.copy(alpha = 0.06f))
-                .border(1.dp, CosmicAccent.copy(alpha = 0.25f), RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(4.dp, 20.dp, 20.dp, 20.dp))
+                .background(AiBubbleSurface)
+                .border(1.dp, CosmicAccent.copy(alpha = 0.22f), RoundedCornerShape(4.dp, 20.dp, 20.dp, 20.dp))
+                .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
-            // PHASE 4 (verification): split the streaming body and the
-            // blinking cursor into two separate composables. The body Text
-            // only recomposes when [text] actually changes; the cursor
-            // recomposes every 530ms in its own scope and never re-measures
-            // the (potentially long) body Text. This eliminates the
-            // per-blink layout pass that would otherwise compound with
-            // per-token recomposition during streaming.
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text  = text,
-                    color = Color.White.copy(alpha = if (isThinkingStage) 0.55f else 0.92f),
-                    fontSize   = 14.sp,
-                    lineHeight = 21.sp,
+                    text       = text,
+                    color      = Color.White.copy(alpha = if (isThinkingStage) 0.50f else 0.93f),
+                    fontSize   = 15.sp,
+                    lineHeight = 23.sp,
                     fontStyle  = if (isThinkingStage) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
-                    modifier = Modifier.weight(1f, fill = false)
+                    modifier   = Modifier.weight(1f, fill = false)
                 )
                 if (!isThinkingStage) BlinkingCursor()
             }
             if (isThinkingStage) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(10.dp))
                 AiriThinkingPulse()
             }
         }
@@ -1528,21 +1669,31 @@ private fun AttachmentChip(
 
 @Composable
 private fun BlinkingCursor() {
-    // PHASE 4 (verification): isolated cursor — only this 1-char Text
-    // recomposes every 530ms, the streaming body above is untouched.
     var cursorOn by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) {
         while (true) {
-            kotlinx.coroutines.delay(530L)
+            kotlinx.coroutines.delay(500L)
             cursorOn = !cursorOn
         }
     }
-    Text(
-        text = if (cursorOn) "▋" else " ",
-        color = Color.White.copy(alpha = 0.92f),
-        fontSize = 14.sp,
-        lineHeight = 21.sp
-    )
+    androidx.compose.animation.AnimatedContent(
+        targetState = cursorOn,
+        transitionSpec = {
+            androidx.compose.animation.fadeIn(
+                animationSpec = androidx.compose.animation.core.tween(80)
+            ) togetherWith androidx.compose.animation.fadeOut(
+                animationSpec = androidx.compose.animation.core.tween(80)
+            )
+        },
+        label = "cursor_blink"
+    ) { on ->
+        Text(
+            text      = if (on) "▍" else " ",
+            color     = CosmicAccent.copy(alpha = 0.85f),
+            fontSize  = 15.sp,
+            lineHeight = 23.sp
+        )
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1553,31 +1704,49 @@ private fun BlinkingCursor() {
 @Composable
 private fun AiriThinkingPulse(
     modifier: Modifier = Modifier,
-    dotSize: Dp = 6.dp,
+    dotSize: Dp = 7.dp,
     color: Color = CosmicAccent
 ) {
     val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "airi_pulse")
+    // PERF: both alpha and scale are driven via graphicsLayer, which is a
+    // draw-phase-only property — zero layout passes. Background color uses a
+    // stable base color; only graphicsLayer alpha varies, avoiding Color
+    // allocation on every frame (color.copy(alpha=…) allocates a new Color).
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         for (i in 0..2) {
-            val alpha by infinite.animateFloat(
-                initialValue = 0.25f,
-                targetValue = 1f,
+            val alphaPct by infinite.animateFloat(
+                initialValue = 0.20f,
+                targetValue  = 1f,
                 animationSpec = androidx.compose.animation.core.infiniteRepeatable(
                     animation = androidx.compose.animation.core.tween(
-                        durationMillis = 700,
-                        delayMillis = i * 180,
+                        durationMillis = 600,
                         easing = androidx.compose.animation.core.FastOutSlowInEasing
                     ),
-                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                    repeatMode   = androidx.compose.animation.core.RepeatMode.Reverse,
+                    initialStartOffset = androidx.compose.animation.core.StartOffset(i * 160)
                 ),
-                label = "airi_pulse_dot_$i"
+                label = "airi_pulse_a_$i"
+            )
+            val scale by infinite.animateFloat(
+                initialValue = 0.70f,
+                targetValue  = 1f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    animation = androidx.compose.animation.core.tween(
+                        durationMillis = 600,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    ),
+                    repeatMode   = androidx.compose.animation.core.RepeatMode.Reverse,
+                    initialStartOffset = androidx.compose.animation.core.StartOffset(i * 160)
+                ),
+                label = "airi_pulse_s_$i"
             )
             Box(
                 modifier = Modifier
-                    .padding(end = if (i < 2) 5.dp else 0.dp)
+                    .padding(end = if (i < 2) 6.dp else 0.dp)
+                    .graphicsLayer { scaleX = scale; scaleY = scale; alpha = alphaPct }
                     .size(dotSize)
                     .clip(CircleShape)
-                    .background(color.copy(alpha = alpha))
+                    .background(color)
             )
         }
     }
@@ -1593,6 +1762,10 @@ fun ChatInputBar(
     isGenerating: Boolean,
     voiceInput: String,
     voiceState: VoiceSessionState = VoiceSessionState.IDLE,
+    // When true: VAD just detected user speech and we're in the ~50 ms
+    // transition window before STT starts. Renders amber "Interrupting…"
+    // glow so the user sees instant feedback even before the mic icon changes.
+    isVadInterrupting: Boolean = false,
     smartReplies: List<String> = emptyList(),
     onSend: (String) -> Unit,
     onCancel: () -> Unit = {},
@@ -1605,10 +1778,8 @@ fun ChatInputBar(
     onVoiceChatClick: () -> Unit,
     onVoiceConsumed: () -> Unit,
     onOpenModels: () -> Unit,
-    // PHASE 4 (audio polish): fires the first time the user starts typing
-    // a brand-new message after the input was empty. ChatScreen uses it
-    // to interrupt any in-flight TTS so the user is never talked over —
-    // matching the behaviour of ChatGPT / Gemini voice modes.
+    // Fires the first time the user starts typing a brand-new message after
+    // the input was empty. ChatScreen uses it to interrupt in-flight TTS.
     onUserStartedTyping: () -> Unit = {}
 ) {
     var showAttachPopup by remember { mutableStateOf(false) }
@@ -1694,7 +1865,7 @@ fun ChatInputBar(
                 }
             }
 
-            // Voice state indicator banner
+            // Voice state indicator banner — animated waveform bars
             androidx.compose.animation.AnimatedVisibility(
                 visible = voiceState != VoiceSessionState.IDLE,
                 enter = androidx.compose.animation.fadeIn(
@@ -1708,27 +1879,36 @@ fun ChatInputBar(
                     animationSpec = androidx.compose.animation.core.tween(150)
                 )
             ) {
-                val (dotColor, label, textColor) = when (voiceState) {
-                    VoiceSessionState.LISTENING   -> Triple(Color(0xFFFF4444), "Listening…",  Color(0xFFFF6666))
-                    VoiceSessionState.PROCESSING  -> Triple(CosmicAccent,      "Processing…", CosmicAccent)
-                    VoiceSessionState.SPEAKING    -> Triple(Color(0xFF4FC3F7),  "Speaking…",   Color(0xFF4FC3F7))
-                    else                          -> Triple(Color.Transparent, "",             Color.Transparent)
+                // Interrupt glow: amber pulse when VAD fires, before STT starts.
+                // Regular LISTENING = coral red. PROCESSING = cosmic accent.
+                // SPEAKING = sky blue. isVadInterrupting overrides LISTENING.
+                val waveColor = when {
+                    isVadInterrupting                        -> Color(0xFFFFB347)  // amber
+                    voiceState == VoiceSessionState.LISTENING  -> Color(0xFFFF6B6B)  // coral
+                    voiceState == VoiceSessionState.PROCESSING -> CosmicAccent
+                    voiceState == VoiceSessionState.SPEAKING   -> Color(0xFF4FC3F7)  // sky blue
+                    else                                       -> CosmicAccent
+                }
+                val label = when {
+                    isVadInterrupting                          -> "Interrupting…"
+                    voiceState == VoiceSessionState.LISTENING  -> "Listening…"
+                    voiceState == VoiceSessionState.PROCESSING -> "Processing…"
+                    voiceState == VoiceSessionState.SPEAKING   -> "Speaking…"
+                    else                                       -> ""
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 6.dp, start = 12.dp)
+                    modifier = Modifier.padding(bottom = 6.dp, start = 14.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(dotColor)
+                    VoiceWaveformBars(
+                        active = voiceState == VoiceSessionState.LISTENING || isVadInterrupting,
+                        color  = waveColor
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text(label, color = textColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.width(8.dp))
+                    Text(label, color = waveColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     if (voiceState == VoiceSessionState.SPEAKING) {
-                        Spacer(Modifier.width(6.dp))
-                        Text("(tap to stop)", color = Color.White.copy(alpha = 0.35f), fontSize = 11.sp)
+                        Spacer(Modifier.width(5.dp))
+                        Text("· tap to stop", color = Color.White.copy(alpha = 0.32f), fontSize = 11.sp)
                     }
                 }
             }
@@ -2359,4 +2539,106 @@ private fun GenerationSettingsDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = Color.White.copy(alpha = 0.6f)) }
         }
     )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VOICE WAVEFORM BARS
+// Five bars that animate their height in staggered sequence, conveying live
+// audio activity. Used in the voice-state indicator banner inside ChatInputBar.
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun VoiceWaveformBars(
+    active: Boolean,
+    color: Color,
+    barCount: Int = 5,
+    modifier: Modifier = Modifier
+) {
+    // PERF: single InfiniteTransition owns all bar animators — one Choreographer
+    // callback drives all 5 bars instead of 5 separate animation clocks.
+    // Background uses stable color; graphicsLayer alpha avoids Color allocation per frame.
+    val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "voice_waveform")
+    val barAlpha = if (active) 0.88f else 0.40f
+    Row(
+        modifier = modifier.height(18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        for (i in 0 until barCount) {
+            val maxH = when (i % 3) { 0 -> 14f; 1 -> 18f; else -> 10f }
+            val barH by infinite.animateFloat(
+                initialValue = 3f,
+                targetValue  = if (active) maxH else 4f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    animation = androidx.compose.animation.core.tween(
+                        durationMillis = 280 + i * 70,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    ),
+                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+                    initialStartOffset = androidx.compose.animation.core.StartOffset(i * 75)
+                ),
+                label = "waveform_bar_$i"
+            )
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(barH.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .graphicsLayer { alpha = barAlpha }
+                    .background(color)
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SCROLL-TO-BOTTOM FAB
+// Appears with a spring-pop animation when the user has scrolled up away from
+// the latest message. Tapping snaps the list back to the bottom.
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ScrollToBottomFab(
+    visible: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        enter = androidx.compose.animation.fadeIn(
+            animationSpec = androidx.compose.animation.core.tween(200)
+        ) + androidx.compose.animation.scaleIn(
+            animationSpec = androidx.compose.animation.core.spring(
+                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                stiffness    = androidx.compose.animation.core.Spring.StiffnessMedium
+            ),
+            initialScale = 0.55f
+        ),
+        exit = androidx.compose.animation.fadeOut(
+            animationSpec = androidx.compose.animation.core.tween(140)
+        ) + androidx.compose.animation.scaleOut(
+            animationSpec = androidx.compose.animation.core.tween(140),
+            targetScale = 0.55f
+        ),
+        modifier = modifier
+    ) {
+        // PERF: no shadow here — colored shadows force a GPU compositing layer.
+        // The FAB is only visible when the user is mid-scroll so visual weight
+        // is sufficient without the overdraw penalty.
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(CosmicAccent.copy(alpha = 0.90f))
+                .clickable { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.KeyboardArrowDown,
+                contentDescription = "Scroll to latest",
+                tint = Color.Black,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
 }

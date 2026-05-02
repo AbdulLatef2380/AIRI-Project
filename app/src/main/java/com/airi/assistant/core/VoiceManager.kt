@@ -11,6 +11,7 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import com.airi.assistant.voice.FullDuplexVadEngine
 import com.airi.assistant.voice.HotwordService
 import com.airi.assistant.voice.VoskEngine
 import com.airi.assistant.voice.VoskModelManager
@@ -22,54 +23,163 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.vosk.Model
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Owns three voice subsystems:
+ * VoiceManager — single owner of all real-time audio for AIRI.
  *
- *   1. TextToSpeech — uses the platform engine (no network).
+ * Subsystems:
+ *   1. TextToSpeech        — platform TTS, no network.
+ *   2. Wake-word           — Porcupine via HotwordService.
+ *   3. Speech-to-text      — VoskEngine (on-device) or platform SpeechRecognizer.
+ *   4. Full-duplex VAD     — FullDuplexVadEngine (Silero ONNX on-device).
  *
- *   2. Wake-word ("Hey AIRI") — delegated to [HotwordService], which runs
- *      Picovoice Porcupine on a foreground microphone. When either the
- *      AccessKey or the bundled .ppn keyword file is missing the service
- *      refuses to start and the Voice Settings UI explains why.
+ * ─────────────────────────────────────────────────────────────────────────
+ * FULL-DUPLEX VAD STATE MACHINE
+ * ─────────────────────────────────────────────────────────────────────────
  *
- *   3. Speech-to-text — driven by [VoskEngine] using a model installed via
- *      [VoskModelManager]. NO RecognizerIntent, NO SpeechRecognizer, NO
- *      Google Voice Search. When no model is installed, [startSpeechToText]
- *      surfaces a clear error so the UI can route the user to the model
- *      downloader.
+ *   TTS speaks      →  startVad() creates FullDuplexVadEngine (VOICE_COMMUNICATION)
+ *   User speaks     →  Silero isSpeech() → onVoiceDetected on Main
+ *   Interrupt fired →  1. thisEngine.stop()     ← MIC RELEASED SYNCHRONOUSLY
+ *                      2. tts.stop()            ← TTS STOPPED
+ *                      3. listener.onVadInterrupted()  ← caller starts STT
+ *                      (VoskEngine can now safely open VOICE_RECOGNITION)
+ *   TTS ends naturally → stopVad("tts_done") stops engine
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * RACE CONDITION PREVENTION
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ *   [vadEngineRef]    — AtomicReference<FullDuplexVadEngine?>.
+ *                       Identity check in onVoiceDetected: compareAndSet
+ *                       ensures only the CURRENT engine can fire an interrupt.
+ *                       Stale callbacks from replaced engines are dropped.
+ *
+ *   [vadInterruptFired] — AtomicBoolean CAS gate per TTS turn.
+ *                         First speech frame wins. All subsequent frames from
+ *                         the same or overlapping detections are dropped.
+ *
+ *   These two guards together prevent:
+ *     a) Double-interrupt within the same Silero session
+ *     b) Late-arriving callback from a stopped engine
+ *     c) Natural TTS-end racing against a VAD detection
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * STREAMING TTS — lastQueuedUtteranceId + ttsStreamActive
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ *   onDone fires for EVERY QUEUE_ADD utterance, not just the last.
+ *   We fire onSpeakingDone() only when BOTH conditions hold:
+ *     (a) utteranceId == lastQueuedUtteranceId (this is the final chunk)
+ *     (b) !ttsStreamActive (ttsStreamFlush() has been called)
+ *
+ *   ttsStreamFlush() always queues a sentinel utterance (even for empty
+ *   tail) so lastQueuedUtteranceId always points to a real onDone event.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * AUDIO SOURCE EXCLUSIVITY
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ *   VAD    uses VOICE_COMMUNICATION (AEC pipeline, HW echo cancellation).
+ *   Vosk   uses VOICE_RECOGNITION   (different DSP path, different handle).
+ *   They NEVER overlap — VAD is created only when TTS is playing (Vosk idle),
+ *   and its AudioRecord is released SYNCHRONOUSLY in stop() before the
+ *   onVadInterrupted() callback even returns.
  */
 class VoiceManager(
     private val context: Context,
     private val listener: VoiceListener
 ) {
 
+    // ─────────────────────────────────────────────────────────────────────
+    // Public listener interface
+    // ─────────────────────────────────────────────────────────────────────
+
     interface VoiceListener {
         fun onWakeWordDetected()
         fun onSpeechResult(text: String)
         fun onError(error: String)
-        fun onSpeakingStarted() = Unit
-        fun onSpeakingDone()    = Unit
-        fun onListeningStarted() = Unit
-        fun onListeningStopped() = Unit
+        fun onSpeakingStarted()           = Unit
+        fun onSpeakingDone()              = Unit
+        fun onListeningStarted()          = Unit
+        fun onListeningStopped()          = Unit
         fun onPartialResult(text: String) = Unit
+        /**
+         * Fired on the MAIN thread when full-duplex VAD confirms user speech
+         * during TTS playback. TTS has ALREADY been stopped and the VAD
+         * microphone has ALREADY been released before this is called.
+         * The caller should immediately start STT.
+         *
+         * onSpeakingDone() is NOT fired for the interrupted utterance.
+         */
+        fun onVadInterrupted() = Unit
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // TTS
+    // ─────────────────────────────────────────────────────────────────────
+
     private var tts: TextToSpeech? = null
-    private var ttsReady = false
-    private var isListeningForWakeWord = false
+    @Volatile private var ttsReady = false
+
+    // Tracks the utteranceId of the most-recently queued TTS chunk.
+    // onSpeakingDone fires only when onDone receives this exact id AND
+    // ttsStreamActive is false (ttsStreamFlush has been called).
+    private val lastQueuedUtteranceId = AtomicReference<String?>(null)
+
+    // Monotonic generation counter. Incremented on every new TTS turn
+    // (speak() or ttsStreamReset()). Future use: stale-callback detection.
+    private val ttsGeneration = AtomicInteger(0)
+
+    private val ttsStreamBuffer = StringBuilder()
+    @Volatile private var ttsStreamActive = false
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Threading
+    // ─────────────────────────────────────────────────────────────────────
+
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // PHASE 4 (audio polish): STT scope runs on IO so the Vosk model load
-    // (~30-90 MB unzip + native init) and the audio-capture loop never
-    // block the UI thread. Listener callbacks that touch UI marshal back
-    // through `mainHandler` themselves; nothing here needs Main.
-    private val sttScope: CoroutineScope =
-        CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // ─────────────────────────────────────────────────────────────────────
+    // STT
+    // ─────────────────────────────────────────────────────────────────────
+
+    private val sttScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     @Volatile private var sttEngine: VoskEngine? = null
     @Volatile private var sttModel: Model? = null
     @Volatile private var sttJob: Job? = null
     @Volatile private var sttActive = false
+    @Volatile private var platformRecognizer: SpeechRecognizer? = null
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Full-duplex VAD
+    // ─────────────────────────────────────────────────────────────────────
+
+    // AtomicReference for thread-safe engine swap and identity checks.
+    private val vadEngineRef = AtomicReference<FullDuplexVadEngine?>(null)
+
+    // Separate scope so cancellation of STT never reaches VAD and vice versa.
+    private val vadScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // Per-turn CAS gate. Set to false in startVad(), true on first detection
+    // or in stopVad(). Prevents double-interrupt within the same session.
+    private val vadInterruptFired = AtomicBoolean(true) // starts "fired" (inactive)
+
+    // Prevents double-startVad during rapid TTS resets.
+    @Volatile private var vadArmed = false
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Wake-word
+    // ─────────────────────────────────────────────────────────────────────
+
+    private var isListeningForWakeWord = false
+
+    // ─────────────────────────────────────────────────────────────────────
+    // INIT
+    // ─────────────────────────────────────────────────────────────────────
 
     init {
         VoskModelManager.init(context.applicationContext)
@@ -79,149 +189,322 @@ class VoiceManager(
                 ttsReady = result != TextToSpeech.LANG_MISSING_DATA &&
                            result != TextToSpeech.LANG_NOT_SUPPORTED
                 if (!ttsReady) {
-                    Log.w(TAG, "TTS language not supported — falling back to ENGLISH")
                     tts?.setLanguage(Locale.ENGLISH)
                     ttsReady = true
                 }
-                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) { listener.onSpeakingStarted() }
-                    override fun onDone(utteranceId: String?)  { listener.onSpeakingDone() }
-                    @Deprecated("Deprecated in Java")
-                    override fun onError(utteranceId: String?) { listener.onSpeakingDone() }
-                })
-                Log.d(TAG, "TextToSpeech initialized successfully")
+                tts?.setOnUtteranceProgressListener(buildUtteranceProgressListener())
+                Log.d(TAG, "TextToSpeech initialized")
             } else {
                 ttsReady = false
-                Log.w(TAG, "TextToSpeech initialization failed (status=$status)")
+                Log.w(TAG, "TextToSpeech init failed status=$status")
             }
         }
     }
 
-    // ── TTS ──────────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // UTTERANCE PROGRESS LISTENER
+    // ─────────────────────────────────────────────────────────────────────
+
+    private fun buildUtteranceProgressListener() = object : UtteranceProgressListener() {
+
+        override fun onStart(utteranceId: String?) {
+            Log.d(TAG, "AIRI_PROOF TTS_UTTERANCE_START id=$utteranceId")
+            postToMain { listener.onSpeakingStarted() }
+        }
+
+        override fun onDone(utteranceId: String?) {
+            val last = lastQueuedUtteranceId.get()
+            val streamDone = !ttsStreamActive  // snapshot before any state changes
+            Log.d(TAG, "AIRI_PROOF TTS_UTTERANCE_DONE id=$utteranceId last=$last streamDone=$streamDone")
+
+            // Fire onSpeakingDone only when:
+            //   (a) this is the final queued utterance, AND
+            //   (b) streaming has been flushed (no more chunks coming).
+            //
+            // Without (b): if TTS plays chunk N faster than LLM generates
+            // chunk N+1, onDone for N fires while ttsStreamActive is still
+            // true. Firing onSpeakingDone here would re-arm Vosk prematurely.
+            if (utteranceId != null && utteranceId == last && streamDone) {
+                stopVad("tts_done_final_utterance")
+                postToMain {
+                    com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "IDLE")
+                    com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
+                    listener.onSpeakingDone()
+                }
+            }
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun onError(utteranceId: String?) {
+            Log.w(TAG, "AIRI_PROOF TTS_UTTERANCE_ERROR id=$utteranceId")
+            stopVad("tts_error")
+            postToMain {
+                com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "IDLE")
+                com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
+                listener.onSpeakingDone()
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // TTS — ONE-SHOT
+    // ─────────────────────────────────────────────────────────────────────
 
     fun speak(text: String) {
         if (!ttsReady || tts == null) {
-            Log.w(TAG, "TTS not ready — skipping speak")
+            Log.w(TAG, "TTS not ready — speak() skipped")
             return
         }
+        ttsGeneration.incrementAndGet()
         val utteranceId = "airi_${System.currentTimeMillis()}"
+        lastQueuedUtteranceId.set(utteranceId)
+        // QUEUE_FLUSH clears any stale streaming chunks before speaking.
         tts!!.speak(text.trim(), TextToSpeech.QUEUE_FLUSH, null, utteranceId)
         com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "SPEAKING")
         com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "SPEAKING") }
+        Log.i(TAG, "AIRI_PROOF TTS_SPEAK chars=${text.length} utteranceId=$utteranceId")
+        startVad()
     }
 
-    // ── PHASE 2: Streaming TTS ───────────────────────────────────────────────
-    //
-    // The chat path streams tokens into `_streamingText`. Until now the user
-    // had to wait for the complete reply before TTS started. With streaming
-    // TTS we accumulate tokens here, flush at sentence boundaries
-    // (.!?؟،\n) so the engine speaks naturally, and use QUEUE_ADD so chunks
-    // play back-to-back without re-synthesizing.
-    //
-    // Lifecycle:
-    //   ttsStreamReset()   — call when a fresh assistant turn starts
-    //   ttsStreamAppend(s) — call with each streamed delta
-    //   ttsStreamFlush()   — call when the assistant turn completes
-    private val ttsStreamBuffer = StringBuilder()
-    @Volatile private var ttsStreamActive = false
+    // ─────────────────────────────────────────────────────────────────────
+    // TTS — STREAMING
+    // ─────────────────────────────────────────────────────────────────────
 
     fun ttsStreamReset() {
         ttsStreamBuffer.setLength(0)
         ttsStreamActive = true
-        Log.i("AIRI_PROOF", "TTS_STREAM_RESET")
+        ttsGeneration.incrementAndGet()
+        Log.i(TAG, "AIRI_PROOF TTS_STREAM_RESET")
     }
 
     fun ttsStreamAppend(delta: String) {
         if (!ttsReady || tts == null || !ttsStreamActive) return
         ttsStreamBuffer.append(delta)
-        // Flush any complete sentence(s) currently in the buffer.
+
         var flushed = 0
         while (true) {
             val s = ttsStreamBuffer
-            // Find the earliest sentence terminator. Includes Arabic
-            // question mark (؟) and Arabic comma (،) so RTL replies feel
-            // natural — Arabic full-stop is the same '.' as Latin.
             var idx = -1
             for (i in 0 until s.length) {
                 val c = s[i]
                 if (c == '.' || c == '!' || c == '?' || c == '؟' ||
-                    c == '،' || c == '\n') { idx = i; break }
+                    c == '،' || c == ',' || c == '\n') {
+                    idx = i; break
+                }
+            }
+            if (idx < 0 && s.length >= 80) {
+                for (wi in minOf(79, s.length - 1) downTo 20) {
+                    if (s[wi] == ' ') { idx = wi; break }
+                }
             }
             if (idx < 0) break
             val sentence = s.substring(0, idx + 1).trim()
             s.delete(0, idx + 1)
             if (sentence.isNotEmpty()) {
                 val utteranceId = "airi_stream_${System.currentTimeMillis()}_$flushed"
+                lastQueuedUtteranceId.set(utteranceId)
                 tts!!.speak(sentence, TextToSpeech.QUEUE_ADD, null, utteranceId)
                 flushed++
             }
         }
+
         if (flushed > 0) {
             com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "SPEAKING")
             com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "SPEAKING") }
-            Log.i("AIRI_PROOF", "TTS_STREAM_FLUSH chunks=$flushed remaining_buf=${ttsStreamBuffer.length}")
+            Log.i(TAG, "AIRI_PROOF TTS_STREAM_FLUSH chunks=$flushed remaining=${ttsStreamBuffer.length}")
+            startVad()
         }
     }
 
-    /** Flush any tail not terminated by punctuation. Safe to call multiple times. */
+    /**
+     * Flushes any tail not yet terminated by punctuation. ALWAYS queues a
+     * sentinel utterance (even if the tail is empty, using a zero-width
+     * space) so [lastQueuedUtteranceId] always points to a real onDone
+     * event. Without the sentinel, an empty tail would leave
+     * [lastQueuedUtteranceId] pointing to the last streaming chunk — which
+     * may have already had its onDone fire while [ttsStreamActive] was still
+     * true, silently dropping the [onSpeakingDone] callback.
+     */
     fun ttsStreamFlush() {
         if (!ttsReady || tts == null || !ttsStreamActive) return
         val tail = ttsStreamBuffer.toString().trim()
         ttsStreamBuffer.setLength(0)
-        ttsStreamActive = false
-        if (tail.isNotEmpty()) {
-            val utteranceId = "airi_stream_tail_${System.currentTimeMillis()}"
-            tts!!.speak(tail, TextToSpeech.QUEUE_ADD, null, utteranceId)
-            Log.i("AIRI_PROOF", "TTS_STREAM_TAIL chars=${tail.length}")
-        }
-        Log.i("AIRI_PROOF", "TTS_STREAM_DONE")
+        ttsStreamActive = false  // mark streaming complete BEFORE queueing sentinel
+
+        // Always queue something so onDone fires for this exact utteranceId.
+        // Zero-width space is inaudible but processes through the TTS queue.
+        val content = tail.ifEmpty { "\u200B" }
+        val utteranceId = "airi_stream_tail_${System.currentTimeMillis()}"
+        lastQueuedUtteranceId.set(utteranceId)
+        tts!!.speak(content, TextToSpeech.QUEUE_ADD, null, utteranceId)
+        Log.i(TAG, "AIRI_PROOF TTS_STREAM_TAIL chars=${content.length} sentinel=${tail.isEmpty()} id=$utteranceId")
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // TTS — STOP
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Stops TTS and VAD immediately. Does NOT fire onSpeakingDone —
+     * callers (ChatScreen) handle state transitions directly.
+     */
     fun stopSpeaking() {
-        if (tts?.isSpeaking == true) {
-            tts?.stop()
-            listener.onSpeakingDone()
-        } else {
-            tts?.stop()
-        }
+        stopVad("stop_speaking")
+        ttsStreamActive = false
+        ttsStreamBuffer.setLength(0)
+        val wasSpeaking = tts?.isSpeaking == true
+        tts?.stop()
         com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "IDLE")
         com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
+        Log.i(TAG, "AIRI_PROOF TTS_STOPPED wasSpeaking=$wasSpeaking")
     }
 
     fun isSpeaking(): Boolean = tts?.isSpeaking == true
 
-    // ── Wake word (Porcupine via HotwordService) ─────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // FULL-DUPLEX VAD — internal
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Arms the VAD for the current TTS turn. Idempotent — no-op if already
+     * armed. Called by speak() and ttsStreamAppend() on first flush.
+     *
+     * INTERRUPT HANDLER ORDERING (critical for audio-source exclusivity):
+     *   1. thisEngine.stop()        — releases VOICE_COMMUNICATION AudioRecord SYNCHRONOUSLY
+     *   2. vadEngineRef.set(null)   — prevent stale callbacks
+     *   3. tts.stop()               — halt TTS playback
+     *   4. listener.onVadInterrupted() — caller opens VOICE_RECOGNITION (Vosk)
+     *
+     * VoskEngine can safely open its AudioRecord in step 4 because step 1
+     * has ALREADY completed before this lambda returns.
+     */
+    private fun startVad() {
+        if (vadArmed) return
+        if (!ttsReady) return
+        vadArmed = true
+        vadInterruptFired.set(false)  // reset CAS gate for this turn
+
+        // Stop any lingering engine from the previous turn (safety net).
+        val old = vadEngineRef.getAndSet(null)
+        old?.stop()
+
+        Log.i(TAG, "AIRI_PROOF VAD_ARMING")
+
+        // Capture `thisEngine` for the identity check inside the callback.
+        // The lambda below captures it by reference, and the reference is
+        // assigned after construction (chicken-and-egg resolved by the local var).
+        var thisEngine: FullDuplexVadEngine? = null
+
+        val engine = FullDuplexVadEngine(
+            context = context.applicationContext,
+            onVoiceDetected = {
+                // Called on Main thread by FullDuplexVadEngine.
+
+                // ── Guard 1: CAS gate ───────────────────────────────────
+                // Only the FIRST speech frame per turn proceeds.
+                // Subsequent frames from the same voice burst are dropped.
+                if (!vadInterruptFired.compareAndSet(false, true)) {
+                    Log.w(TAG, "VAD_DOUBLE_INTERRUPT_DROPPED — CAS already fired")
+                    return@FullDuplexVadEngine
+                }
+
+                // ── Guard 2: Engine identity check ──────────────────────
+                // If stopVad() was called between detection and this callback
+                // (natural TTS end racing against VAD), vadEngineRef will have
+                // been cleared. compareAndSet fails → stale callback dropped.
+                val me = thisEngine
+                if (me == null || !vadEngineRef.compareAndSet(me, null)) {
+                    Log.w(TAG, "VAD_STALE_CALLBACK_DROPPED — engine already replaced or cleared")
+                    return@FullDuplexVadEngine
+                }
+
+                vadArmed = false
+                Log.i(TAG, "AIRI_PROOF VAD_INTERRUPT_EXECUTING")
+
+                // ── Step 1: SYNCHRONOUS mic release ─────────────────────
+                // me.stop() calls AudioRecord.stop() + release() synchronously
+                // and returns. The VOICE_COMMUNICATION hardware path is free.
+                // VoskEngine can now safely open VOICE_RECOGNITION.
+                me.stop()
+
+                // ── Step 2: Stop TTS ────────────────────────────────────
+                val wasSpeaking = tts?.isSpeaking == true
+                tts?.stop()
+                ttsStreamActive = false
+                ttsStreamBuffer.setLength(0)
+                com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "INTERRUPTING")
+                com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "INTERRUPTING") }
+                Log.i(TAG, "AIRI_PROOF TTS_STOPPED_BY_VAD wasSpeaking=$wasSpeaking")
+
+                // ── Step 3: Notify listener ─────────────────────────────
+                // Mic is guaranteed free. Caller (ChatScreen) will call
+                // startInAppStt() which opens VOICE_RECOGNITION AudioRecord.
+                listener.onVadInterrupted()
+            },
+            onStopped = { reason ->
+                // Called on Main when VAD exits without detection.
+                // Clear engine reference and reset armed flag for next turn.
+                val me = thisEngine
+                if (me != null) vadEngineRef.compareAndSet(me, null)
+                vadArmed = false
+                Log.i(TAG, "AIRI_PROOF VAD_STOPPED_NO_INTERRUPT reason=$reason")
+            }
+        )
+
+        thisEngine = engine
+        vadEngineRef.set(engine)
+        engine.start(vadScope)
+    }
+
+    /**
+     * Stops and nullifies the current VAD engine. Idempotent.
+     *
+     * Sets [vadInterruptFired] to true FIRST so any in-flight detection
+     * racing on the IO thread sees the CAS already consumed and drops.
+     */
+    private fun stopVad(reason: String) {
+        vadInterruptFired.set(true)  // block any racing detection
+        vadArmed = false
+        val e = vadEngineRef.getAndSet(null) ?: return
+        e.stop()
+        Log.i(TAG, "AIRI_PROOF VAD_STOP reason=$reason")
+    }
+
+    /**
+     * Public API called by ChatScreen at ALL manual stop-speaking sites
+     * (mic tap, voice-chat tap, user typing, manual replay) to prevent
+     * lingering VAD loops after TTS is externally interrupted.
+     */
+    fun stopVadIfRunning() {
+        stopVad("external_stop")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // WAKE-WORD
+    // ─────────────────────────────────────────────────────────────────────
 
     fun startWakeWordDetection() {
         if (isListeningForWakeWord) return
         isListeningForWakeWord = true
-        Log.d(TAG, "Starting on-device hotword service ('Hey AIRI')")
         HotwordService.start(context.applicationContext)
+        Log.d(TAG, "Hotword service started")
     }
 
     fun stopWakeWordDetection() {
         if (!isListeningForWakeWord) return
         isListeningForWakeWord = false
-        Log.d(TAG, "Stopping on-device hotword service")
         HotwordService.stop(context.applicationContext)
+        Log.d(TAG, "Hotword service stopped")
     }
 
-    // ── Speech-to-text (Vosk only) ───────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // STT — VOSK + PLATFORM FALLBACK
+    // ─────────────────────────────────────────────────────────────────────
 
-    /**
-     * True iff *some* speech-recognition path is available — either:
-     *   1. A Vosk model is installed (preferred, fully offline), or
-     *   2. The platform [SpeechRecognizer] reports it is available
-     *      (Android built-in / Google offline / OEM engine).
-     *
-     * The UI only needs to know "can we listen at all"; pick of the
-     * concrete engine happens inside [startSpeechToText].
-     */
     fun isSpeechRecognitionAvailable(): Boolean =
         VoskModelManager.isReady(context.applicationContext) ||
         SpeechRecognizer.isRecognitionAvailable(context.applicationContext)
 
-    /** True iff the advanced (Vosk) path is wired. */
     fun isVoskAvailable(): Boolean =
         VoskModelManager.isReady(context.applicationContext)
 
@@ -230,35 +513,25 @@ class VoiceManager(
             Log.d(TAG, "STT already active — ignoring duplicate start")
             return
         }
-        // PHASE 2 fix: Android SpeechRecognizer is now the PREFERRED path.
-        //   • Zero-download — works on every Pixel/Samsung/Xiaomi out of box.
-        //   • Honors EXTRA_PREFER_OFFLINE on devices with offline assets.
-        //   • Vosk remains the fully-offline fallback (no deletion).
-        // Fallback ladder: Android STT → Vosk → error.
-        val androidAvailable =
-            SpeechRecognizer.isRecognitionAvailable(context.applicationContext)
-        Log.i("AIRI_PROOF",
-            "STT_AVAILABILITY android=$androidAvailable vosk=${isVoskAvailable()}")
-        if (androidAvailable) {
-            Log.i("AIRI_PROOF", "STT_ENGINE_PICKED engine=android_native")
-            startPlatformSpeechToText()
-            return
+        // Stop VAD BEFORE opening any AudioRecord for STT.
+        stopVad("stt_starting")
+
+        val androidAvail = SpeechRecognizer.isRecognitionAvailable(context.applicationContext)
+        Log.i(TAG, "AIRI_PROOF STT_AVAILABILITY android=$androidAvail vosk=${isVoskAvailable()}")
+
+        if (androidAvail) {
+            startPlatformSpeechToText(); return
         }
         if (!isVoskAvailable()) {
-            Log.i("AIRI_PROOF", "STT_ENGINE_PICKED engine=none reason=both_unavailable")
-            // Distinct code so UI can route the user to install Vosk OR
-            // enable Google's speech service (whichever they have access to).
-            listener.onError("stt_unavailable")
-            return
+            listener.onError("stt_unavailable"); return
         }
-        Log.i("AIRI_PROOF", "STT_ENGINE_PICKED engine=vosk reason=android_unavailable")
+
         sttActive = true
         listener.onListeningStarted()
         com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "LISTENING")
         com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "LISTENING") }
 
         sttJob = sttScope.launch {
-            // PHASE 4: model load now happens off the main thread (sttScope = IO).
             val model = sttModel ?: VoskModelManager.loadActiveModel(context.applicationContext)
             if (model == null) {
                 sttActive = false
@@ -271,14 +544,10 @@ class VoiceManager(
             sttEngine = engine
             engine.start(
                 scope     = sttScope,
-                // PHASE 4: marshal every Vosk callback to the main thread.
-                // Without this the listener (Compose state writes, snackbar
-                // posts, etc.) would mutate UI state from the audio worker.
-                onPartial = { partial -> postToMain { listener.onPartialResult(partial) } },
+                onPartial = { p -> postToMain { listener.onPartialResult(p) } },
                 onFinal   = { text ->
                     sttActive = false
-                    sttEngine?.release()
-                    sttEngine = null
+                    sttEngine?.release(); sttEngine = null
                     postToMain {
                         listener.onListeningStopped()
                         if (text.isNotBlank()) listener.onSpeechResult(text)
@@ -288,43 +557,22 @@ class VoiceManager(
                 },
                 onError   = { err ->
                     sttActive = false
-                    sttEngine?.release()
-                    sttEngine = null
-                    postToMain {
-                        listener.onListeningStopped()
-                        listener.onError(err)
-                    }
+                    sttEngine?.release(); sttEngine = null
+                    postToMain { listener.onListeningStopped(); listener.onError(err) }
                     com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
                 }
             )
         }
     }
 
-    /** PHASE 4 helper: run [block] on the main thread (no-op detour if
-     *  we're already there) so callers don't pay for a Handler post when
-     *  the caller is already UI-bound. */
-    private inline fun postToMain(crossinline block: () -> Unit) {
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            block()
-        } else {
-            mainHandler.post { block() }
-        }
-    }
-
     fun stopSpeechToText() {
-        // Engine flushes a final result on stop()
         sttEngine?.stop()
-        platformRecognizer?.let {
-            try { it.stopListening() } catch (_: Throwable) {}
-        }
+        platformRecognizer?.let { r -> try { r.stopListening() } catch (_: Throwable) {} }
     }
 
-    // ── Platform SpeechRecognizer fallback (no model download) ───────────────
-    //
-    // Used when no Vosk model is installed. Backed by Android's built-in
-    // recognizer (Google offline voice typing, Samsung Bixby STT, or OEM
-    // service). May require network on devices without offline assets.
-    @Volatile private var platformRecognizer: SpeechRecognizer? = null
+    // ─────────────────────────────────────────────────────────────────────
+    // PLATFORM STT FALLBACK
+    // ─────────────────────────────────────────────────────────────────────
 
     private fun startPlatformSpeechToText() {
         sttActive = true
@@ -333,47 +581,44 @@ class VoiceManager(
         com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "LISTENING") }
 
         mainHandler.post {
-            val recognizer = try {
+            val rec = try {
                 SpeechRecognizer.createSpeechRecognizer(context.applicationContext)
-            } catch (e: Throwable) {
-                Log.w(TAG, "Platform SpeechRecognizer.create failed: ${e.message}")
+            } catch (t: Throwable) {
                 sttActive = false
                 listener.onListeningStopped()
                 listener.onError("stt_unavailable")
                 return@post
             }
-            platformRecognizer = recognizer
-            recognizer.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {}
+            platformRecognizer = rec
+            rec.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(p: Bundle?) {}
                 override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onRmsChanged(v: Float) {}
+                override fun onBufferReceived(b: ByteArray?) {}
                 override fun onEndOfSpeech() {}
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-                override fun onPartialResults(partialResults: Bundle?) {
-                    val text = partialResults
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                override fun onEvent(t: Int, p: Bundle?) {}
+                override fun onPartialResults(r: Bundle?) {
+                    val text = r?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull().orEmpty()
                     if (text.isNotBlank()) listener.onPartialResult(text)
                 }
-                override fun onResults(results: Bundle?) {
-                    val text = results
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                override fun onResults(r: Bundle?) {
+                    val text = r?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull().orEmpty()
                     sttActive = false
-                    try { recognizer.destroy() } catch (_: Throwable) {}
-                    if (platformRecognizer === recognizer) platformRecognizer = null
+                    try { rec.destroy() } catch (_: Throwable) {}
+                    if (platformRecognizer === rec) platformRecognizer = null
                     listener.onListeningStopped()
                     if (text.isNotBlank()) listener.onSpeechResult(text)
                     else listener.onError("stt_empty_result")
                     com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
                 }
-                override fun onError(error: Int) {
+                override fun onError(code: Int) {
                     sttActive = false
-                    try { recognizer.destroy() } catch (_: Throwable) {}
-                    if (platformRecognizer === recognizer) platformRecognizer = null
+                    try { rec.destroy() } catch (_: Throwable) {}
+                    if (platformRecognizer === rec) platformRecognizer = null
                     listener.onListeningStopped()
-                    listener.onError("stt_platform_error_$error")
+                    listener.onError("stt_platform_error_$code")
                     com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
                 }
             })
@@ -383,15 +628,13 @@ class VoiceManager(
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-                // Prefer offline if the engine supports it (no-op on engines that don't).
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             }
             try {
-                recognizer.startListening(intent)
-            } catch (e: Throwable) {
-                Log.w(TAG, "Platform recognizer startListening failed: ${e.message}")
+                rec.startListening(intent)
+            } catch (t: Throwable) {
                 sttActive = false
-                try { recognizer.destroy() } catch (_: Throwable) {}
+                try { rec.destroy() } catch (_: Throwable) {}
                 platformRecognizer = null
                 listener.onListeningStopped()
                 listener.onError("stt_unavailable")
@@ -399,31 +642,52 @@ class VoiceManager(
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // STOP ALL / DESTROY
+    // ─────────────────────────────────────────────────────────────────────
+
     fun stopAll() {
         stopWakeWordDetection()
         stopSpeechToText()
+        stopVad("stop_all")
         tts?.stop()
-        Log.d(TAG, "Voice system stopped")
     }
 
     fun destroy() {
+        Log.d(TAG, "VoiceManager destroying...")
         isListeningForWakeWord = false
+
         sttJob?.cancel()
-        sttEngine?.release()
-        sttEngine = null
+        sttEngine?.release(); sttEngine = null
         try { sttModel?.close() } catch (_: Throwable) {}
         sttModel = null
         platformRecognizer?.let { r -> try { r.destroy() } catch (_: Throwable) {} }
         platformRecognizer = null
         sttScope.cancel()
+
+        stopVad("destroy")
+        vadScope.cancel()
+
+        ttsStreamActive = false
+        ttsStreamBuffer.setLength(0)
         tts?.stop()
         tts?.shutdown()
         tts = null
         ttsReady = false
-        Log.d(TAG, "VoiceManager destroyed")
+
+        Log.i(TAG, "AIRI_PROOF VOICE_MANAGER_DESTROYED")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Utility
+    // ─────────────────────────────────────────────────────────────────────
+
+    private inline fun postToMain(crossinline block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) block()
+        else mainHandler.post { block() }
     }
 
     private companion object {
-        private const val TAG = "AIRI_VOICE"
+        const val TAG = "AIRI_VOICE"
     }
 }

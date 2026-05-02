@@ -51,9 +51,24 @@ fun PerformanceScreen(
     val deviceInfo = remember { collectDeviceInfo(context) }
     val perfStats  = remember { collectPerfStats(context) }
 
+    // ── Runtime Diagnostics state — collected once, driven by ViewModel StateFlows
+    val diagnostics by viewModel.runtimeDiagnostics.collectAsState()
+    val runtimeEvents by viewModel.runtimeEventLog.collectAsState()
+
+    // ── Execution Mode state ──────────────────────────────────────────────────
+    val executionMode    by viewModel.executionMode.collectAsState()
+    val execPrefs        = remember { viewModel.getExecModePrefs() }
+    var privacyLevel     by remember { mutableStateOf(execPrefs.privacyLevel) }
+    var internetGranted  by remember { mutableStateOf(execPrefs.internetPermissionGranted) }
+    var offlineFallback  by remember { mutableStateOf(execPrefs.offlineFallbackEnabled) }
+    var preferredProvider by remember { mutableStateOf(execPrefs.preferredProvider) }
+
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         visible = true
+        // Trigger a one-shot fresh snapshot so the diagnostics panel
+        // shows live data the moment the screen is opened.
+        viewModel.onDiagnosticsScreenVisible()
         AnalyticsService.featureDiscovered("performance_screen")
     }
 
@@ -93,6 +108,29 @@ fun PerformanceScreen(
                             viewModel.setPerformanceMode(mode)
                             AnalyticsService.featureDiscovered("performance_mode_${mode.name.lowercase()}")
                         }
+                    )
+
+                    // ── Live Runtime Diagnostics ──────────────────────────────
+                    // Backed by ViewModel-owned StateFlows — no polling here.
+                    // Snapshots are emitted at lifecycle boundaries only
+                    // (model load, generation start/end, supervisor override).
+                    RuntimeStatusPanel(diagnostics = diagnostics)
+                    RuntimeWarningsPanel(warnings = diagnostics.warnings)
+
+                    // ── Execution Mode Panel ──────────────────────────────────
+                    ExecutionModePanel(
+                        currentMode           = executionMode,
+                        currentPrivacy        = privacyLevel,
+                        internetGranted       = internetGranted,
+                        offlineFallback       = offlineFallback,
+                        preferredProvider     = preferredProvider,
+                        cloudTokensUsed       = execPrefs.cloudTokensUsedToday,
+                        cloudTokensCap        = execPrefs.maxDailyCloudTokens,
+                        onModeChange          = { viewModel.setExecutionMode(it) },
+                        onPrivacyChange       = { privacyLevel = it; viewModel.setPrivacyLevel(it) },
+                        onInternetPermChange  = { internetGranted = it; viewModel.grantInternetPermission(it) },
+                        onOfflineFallbackChange = { offlineFallback = it; execPrefs.offlineFallbackEnabled = it },
+                        onProviderChange      = { preferredProvider = it; execPrefs.preferredProvider = it }
                     )
 
                     PerfStatCard(
@@ -156,6 +194,10 @@ fun PerformanceScreen(
 
                     // Speculative decoding controls (optional, opt-in).
                     SpecDecodingCard()
+
+                    // ── Collapsible diagnostics panels ────────────────────────
+                    RuntimeEventTimeline(events = runtimeEvents)
+                    AdvancedDiagnosticsSection(diagnostics = diagnostics)
 
                     // Entry point to the empirical per-quantization comparison screen.
                     OutlinedButton(

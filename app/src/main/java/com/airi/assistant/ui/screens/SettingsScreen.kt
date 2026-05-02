@@ -71,6 +71,14 @@ fun SettingsScreen(
     val backgroundAgentEnabled by viewModel.backgroundAgentEnabled.collectAsState()
     val currentLanguage = remember { mutableStateOf(LanguageManager.getCurrentLanguage(context)) }
 
+    // ── Execution Mode panel state ─────────────────────────────────────────────
+    val executionMode     by viewModel.executionMode.collectAsState()
+    val execPrefs         = remember { viewModel.getExecModePrefs() }
+    var privacyLevel      by remember { mutableStateOf(execPrefs.privacyLevel) }
+    var internetGranted   by remember { mutableStateOf(execPrefs.internetPermissionGranted) }
+    var offlineFallback   by remember { mutableStateOf(execPrefs.offlineFallbackEnabled) }
+    var preferredProvider by remember { mutableStateOf(execPrefs.preferredProvider) }
+
     var customInstructions by rememberSaveable { mutableStateOf(systemPrompt) }
     var responseStyle by rememberSaveable { mutableStateOf(responseStyleState) }
     val voicePrefs = remember { context.getSharedPreferences("airi_voice", Context.MODE_PRIVATE) }
@@ -153,6 +161,25 @@ fun SettingsScreen(
 
             ApiKeysSection()
 
+            // ── Execution Mode Panel ──────────────────────────────────────────
+            // User controls: LOCAL / CLOUD / HYBRID mode, privacy level,
+            // internet permission, provider preference, offline fallback,
+            // and daily cloud token budget.
+            ExecutionModePanel(
+                currentMode           = executionMode,
+                currentPrivacy        = privacyLevel,
+                internetGranted       = internetGranted,
+                offlineFallback       = offlineFallback,
+                preferredProvider     = preferredProvider,
+                cloudTokensUsed       = execPrefs.cloudTokensUsedToday,
+                cloudTokensCap        = execPrefs.maxDailyCloudTokens,
+                onModeChange          = { viewModel.setExecutionMode(it) },
+                onPrivacyChange       = { privacyLevel = it; viewModel.setPrivacyLevel(it) },
+                onInternetPermChange  = { internetGranted = it; viewModel.grantInternetPermission(it) },
+                onOfflineFallbackChange = { offlineFallback = it; execPrefs.offlineFallbackEnabled = it },
+                onProviderChange      = { preferredProvider = it; execPrefs.preferredProvider = it }
+            )
+
             AgentSection(
                 isEnabled  = backgroundAgentEnabled,
                 onToggle   = { viewModel.setBackgroundAgentEnabled(it) },
@@ -167,6 +194,11 @@ fun SettingsScreen(
                     label    = stringResource(R.string.performance_device_info),
                     sublabel = stringResource(R.string.performance_device_info_sublabel)
                 ) { onNavigate(AiriRoute.PERFORMANCE) }
+                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 4.dp))
+                SettingsNavigationRow(
+                    label    = "Execution Diagnostics",
+                    sublabel = "Cloud adapters · token budget · failover history"
+                ) { onNavigate(AiriRoute.EXEC_DIAGNOSTICS) }
             }
 
             SubscriptionSection(viewModel = viewModel, onNavigate = onNavigate)
@@ -1125,6 +1157,12 @@ private fun ObservabilitySection(onNavigate: (String) -> Unit) {
             label    = stringResource(R.string.execution_history),
             sublabel = stringResource(R.string.execution_history_description),
             onClick  = { onNavigate(AiriRoute.OBSERVABILITY) }
+        )
+        Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 4.dp))
+        SettingsNavigationRow(
+            label    = "Execution Diagnostics",
+            sublabel = "Live hybrid engine status · daily cloud token usage",
+            onClick  = { onNavigate(AiriRoute.EXEC_DIAGNOSTICS) }
         )
     }
 }

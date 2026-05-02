@@ -148,6 +148,29 @@ object LlamaNative {
     external fun nativeGetSessionId(): Long
     external fun nativeGetGenerationId(): Long
 
+    // ── SPEC v4: sampling parameter push ─────────────────────────────────────
+    //
+    // Must be called BEFORE every generateNextTokens / generateNextTokensSpeculative
+    // invocation so the native sampler chain uses the values the user configured
+    // (temperature, top_k, top_p, min_p, repeat_penalty, presence_penalty,
+    // frequency_penalty) instead of the compile-time defaults embedded in
+    // airi_generate_next().
+    //
+    // Called from LlamaManager.generateStream() on the single-threaded
+    // llamaDispatcher immediately before the generate call, so it is already
+    // serialised behind any in-flight decode.  The native side additionally
+    // takes LLAMA_LOCK as a belt-and-braces guard.
+    external fun nativeSetSamplingParams(
+        temperature: Float,
+        topK: Int,
+        topP: Float,
+        minP: Float,
+        repeatPenalty: Float,
+        presencePenalty: Float,
+        frequencyPenalty: Float,
+        penaltyLastN: Int
+    )
+
     // ── Runtime tuning (no model reload) ─────────────────────────────────────
     // Hot-swaps the llama_context with the requested n_ctx / n_threads. The
     // GGUF model stays mmapped; only the KV cache + scheduler are rebuilt.

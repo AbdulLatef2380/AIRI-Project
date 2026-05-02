@@ -71,7 +71,12 @@ object AiriRoute {
     const val DEBUG_PANEL        = "screen_debug_panel"
     const val DEBUG_SCREEN       = "screen_debug_runtime"
     const val EXEC_DIAGNOSTICS   = "screen_exec_diagnostics"
-    const val VOICE_SETTINGS     = "screen_voice_settings"
+    const val VOICE_SETTINGS          = "screen_voice_settings"
+    const val SETTINGS_GENERAL       = "screen_settings_general"
+    const val SETTINGS_AI_MODELS     = "screen_settings_ai_models"
+    const val SETTINGS_CUSTOMIZATION = "screen_settings_customization"
+    const val SETTINGS_PRIVACY       = "screen_settings_privacy"
+    const val SETTINGS_ABOUT         = "screen_settings_about"
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 }
@@ -221,6 +226,50 @@ fun AiriApp() {
                                 launchSingleTop = true
                             }
                         }
+                    )
+                }
+
+                composable(AiriRoute.SETTINGS_GENERAL) {
+                    GeneralSettingsScreen(
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(AiriRoute.SETTINGS_AI_MODELS) {
+                    AIModelsSettingsScreen(
+                        viewModel  = chatViewModel,
+                        onBack     = { navController.popBackStack() },
+                        onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } }
+                    )
+                }
+
+                composable(AiriRoute.SETTINGS_CUSTOMIZATION) {
+                    CustomizationSettingsScreen(
+                        viewModel  = chatViewModel,
+                        onBack     = { navController.popBackStack() },
+                        onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } }
+                    )
+                }
+
+                composable(AiriRoute.SETTINGS_PRIVACY) {
+                    PrivacyDataSettingsScreen(
+                        viewModel  = chatViewModel,
+                        onBack     = { navController.popBackStack() },
+                        onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } },
+                        onLogout   = {
+                            authService.signOut()
+                            chatViewModel.clearMessages()
+                            navController.navigate(AiriRoute.LOGIN) {
+                                popUpTo(AiriRoute.CHAT) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+
+                composable(AiriRoute.SETTINGS_ABOUT) {
+                    AboutScreen(
+                        onBack = { navController.popBackStack() }
                     )
                 }
 

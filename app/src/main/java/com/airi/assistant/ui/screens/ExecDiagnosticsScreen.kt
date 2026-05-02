@@ -79,6 +79,7 @@ fun ExecDiagnosticsScreen(
     val execDiag   by viewModel.execDiagnostics.collectAsState()
     val tokenStats       by viewModel.tokenAccountant.stats.collectAsState()
     val tokenRateHistory by viewModel.tokenRateHistory.collectAsState()
+    val runtimeDiag      by viewModel.runtimeDiagnostics.collectAsState()
     val scope             = rememberCoroutineScope()
 
     var selectedTab     by remember { mutableStateOf(DiagTab.LIVE) }
@@ -198,7 +199,12 @@ fun ExecDiagnosticsScreen(
 
             // ── Tab content ───────────────────────────────────────────────────
             when (selectedTab) {
-                DiagTab.LIVE    -> LiveTab(state = execDiag, tokenRateHistory = tokenRateHistory)
+                DiagTab.LIVE    -> LiveTab(
+                    state            = execDiag,
+                    tokenRateHistory = tokenRateHistory,
+                    kvUsed           = runtimeDiag.kvUsed,
+                    kvMax            = runtimeDiag.kvMax
+                )
                 DiagTab.BUDGET  -> BudgetTab(
                     stats       = tokenStats,
                     viewModel   = viewModel,
@@ -216,7 +222,12 @@ fun ExecDiagnosticsScreen(
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun LiveTab(state: ExecutionDiagnosticsState, tokenRateHistory: List<Float>) {
+private fun LiveTab(
+    state:            ExecutionDiagnosticsState,
+    tokenRateHistory: List<Float>,
+    kvUsed:           Int,
+    kvMax:            Int
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -339,6 +350,69 @@ private fun LiveTab(state: ExecutionDiagnosticsState, tokenRateHistory: List<Flo
                         "max %.1f".format(tokenRateHistory.max()),
                         color    = ExSubtle,
                         fontSize = 10.sp
+                    )
+                }
+            }
+        }
+
+        // ── Context Window (KV-cache) occupancy ──────────────────────────────
+        // Hidden when kvMax == 0 (no model loaded or diagnostics not yet pushed).
+        // Bar color grades: green < 60 % → amber < 85 % → red ≥ 85 %.
+        if (kvMax > 0) {
+            SettingsSurface {
+                ExSection(icon = Icons.Outlined.Memory, title = "Context Window")
+                Spacer(Modifier.height(10.dp))
+
+                val kvPct = (kvUsed.toFloat() / kvMax.toFloat()).coerceIn(0f, 1f)
+                val barColor = when {
+                    kvPct < 0.60f -> ExOk
+                    kvPct < 0.85f -> ExWarn
+                    else           -> ExError
+                }
+
+                // Occupancy bar
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.White.copy(alpha = 0.08f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(kvPct)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(barColor)
+                    )
+                }
+
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "$kvUsed / $kvMax tokens",
+                        color    = ExSubtle,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        "%.0f%%".format(kvPct * 100f),
+                        color      = barColor,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize   = 12.sp
+                    )
+                }
+
+                if (kvPct >= 0.85f) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        if (kvPct >= 1.0f) "Context full — next turn will trigger a reset"
+                        else               "Context nearly full — history will be trimmed soon",
+                        color      = ExWarn,
+                        fontSize   = 10.sp,
+                        lineHeight = 14.sp
                     )
                 }
             }

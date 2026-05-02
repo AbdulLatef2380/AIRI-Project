@@ -52,6 +52,159 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    viewModel:  ChatViewModel,
+    onBack:     () -> Unit,
+    onNavigate: (String) -> Unit,
+    onLogout:   () -> Unit
+) {
+    val user      = remember { FirebaseAuth.getInstance().currentUser }
+    val email     = user?.email ?: "guest"
+    val initial   = email.firstOrNull()?.uppercaseChar()?.toString() ?: "A"
+    val isPremium = remember { viewModel.isPremium() }
+
+    Scaffold(
+        containerColor = Color.Transparent,
+        topBar = {
+            TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Black.copy(alpha = 0.65f)
+                ),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+                },
+                title = {
+                    Text(
+                        stringResource(R.string.settings),
+                        fontWeight = FontWeight.Bold,
+                        color      = Color.White
+                    )
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Spacer(Modifier.height(4.dp))
+
+            SettingsHubProfileCard(
+                email     = email,
+                initial   = initial,
+                isPremium = isPremium
+            ) { onNavigate(AiriRoute.PROFILE) }
+
+            // ── PERSONALIZATION ────────────────────────────────────────────
+            SettingsHubSectionLabel("Personalization")
+            SettingsHubCard {
+                SettingsHubRow(
+                    icon     = Icons.Outlined.Palette,
+                    title    = "Customization",
+                    subtitle = "AI persona, memory, response style"
+                ) { onNavigate(AiriRoute.SETTINGS_CUSTOMIZATION) }
+            }
+
+            // ── AI & RUNTIME ───────────────────────────────────────────────
+            SettingsHubSectionLabel("AI & Runtime")
+            SettingsHubCard {
+                SettingsHubRow(
+                    icon     = Icons.Outlined.Psychology,
+                    title    = "AI & Models",
+                    subtitle = "API keys, execution mode, skills"
+                ) { onNavigate(AiriRoute.SETTINGS_AI_MODELS) }
+                SettingsHubDivider()
+                SettingsHubRow(
+                    icon     = Icons.Outlined.Mic,
+                    title    = "Voice",
+                    subtitle = "Speech recognition, wake word"
+                ) { onNavigate(AiriRoute.VOICE_SETTINGS) }
+                SettingsHubDivider()
+                SettingsHubRow(
+                    icon     = Icons.Outlined.SmartToy,
+                    title    = "Agent",
+                    subtitle = "Background automation"
+                ) { onNavigate(AiriRoute.AGENT_CONTROL) }
+            }
+
+            // ── SYSTEM ─────────────────────────────────────────────────────
+            SettingsHubSectionLabel("System")
+            SettingsHubCard {
+                SettingsHubRow(
+                    icon     = Icons.Outlined.Tune,
+                    title    = "General",
+                    subtitle = "Language, default assistant"
+                ) { onNavigate(AiriRoute.SETTINGS_GENERAL) }
+                SettingsHubDivider()
+                SettingsHubRow(
+                    icon     = Icons.Outlined.Shield,
+                    title    = "Privacy & Data",
+                    subtitle = "Export, import, data controls"
+                ) { onNavigate(AiriRoute.SETTINGS_PRIVACY) }
+                SettingsHubDivider()
+                SettingsHubRow(
+                    icon     = Icons.Outlined.Speed,
+                    title    = "Performance",
+                    subtitle = "Device info, diagnostics"
+                ) { onNavigate(AiriRoute.PERFORMANCE) }
+            }
+
+            // ── ACCOUNT ────────────────────────────────────────────────────
+            SettingsHubSectionLabel("Account")
+            SettingsHubCard {
+                SettingsHubRow(
+                    icon     = Icons.Outlined.Star,
+                    title    = "Subscription",
+                    subtitle = if (isPremium) "Premium · Active" else "Free tier · Upgrade available"
+                ) { onNavigate(AiriRoute.PAYWALL) }
+                SettingsHubDivider()
+                SettingsHubRow(
+                    icon     = Icons.Outlined.Info,
+                    title    = "About AIRI",
+                    subtitle = "App info, terms of use"
+                ) { onNavigate(AiriRoute.SETTINGS_ABOUT) }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Button(
+                onClick  = onLogout,
+                modifier = Modifier.fillMaxWidth(),
+                colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A2E)),
+                shape    = RoundedCornerShape(14.dp),
+                border   = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    Color(0xFFFF6B6B).copy(alpha = 0.4f)
+                )
+            ) {
+                Icon(
+                    Icons.Outlined.Logout,
+                    contentDescription = null,
+                    tint     = Color(0xFFFF6B6B),
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.sign_out), color = Color(0xFFFF6B6B))
+            }
+
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+@Suppress("unused")
+private fun SettingsScreenLegacy(
     viewModel: ChatViewModel,
     onBack: () -> Unit,
     onNavigate: (String) -> Unit,
@@ -532,7 +685,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun LanguageSelector(
+internal fun LanguageSelector(
     selectedLanguage: String,
     onLanguageSelected: (LanguageOption) -> Unit
 ) {
@@ -689,7 +842,7 @@ fun SettingsActionRow(label: String, sublabel: String, destructive: Boolean = fa
 }
 
 @Composable
-private fun SkillsSection(viewModel: ChatViewModel) {
+internal fun SkillsSection(viewModel: ChatViewModel) {
     val skillInfos = remember { viewModel.getSkillInfos().toMutableStateList() }
 
     SettingsSurface {
@@ -766,7 +919,7 @@ private fun SkillsSection(viewModel: ChatViewModel) {
 }
 
 @Composable
-private fun AgentSection(
+internal fun AgentSection(
     isEnabled: Boolean,
     onToggle: (Boolean) -> Unit,
     onNavigate: (String) -> Unit = {},
@@ -865,7 +1018,7 @@ private fun AgentSection(
 }
 
 @Composable
-private fun SubscriptionSection(
+internal fun SubscriptionSection(
     viewModel: ChatViewModel,
     onNavigate: (String) -> Unit = {}
 ) {
@@ -942,7 +1095,7 @@ private fun SubscriptionSection(
 }
 
 @Composable
-private fun DefaultAssistantSection(activity: Activity?) {
+internal fun DefaultAssistantSection(activity: Activity?) {
     val context   = LocalContext.current
     val isDefault = remember { DefaultAssistantManager.isDefaultAssistant(context) }
 
@@ -1004,7 +1157,7 @@ private fun DefaultAssistantSection(activity: Activity?) {
 }
 
 @Composable
-private fun ApiKeysSection() {
+internal fun ApiKeysSection() {
     val context = LocalContext.current
     val storage = remember { SecureStorage(context) }
 
@@ -1069,7 +1222,7 @@ private fun ApiKeysSection() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ApiKeyField(
+internal fun ApiKeyField(
     label: String,
     placeholder: String,
     value: String,
@@ -1140,7 +1293,7 @@ private fun ApiKeyField(
 }
 
 @Composable
-private fun ObservabilitySection(onNavigate: (String) -> Unit) {
+internal fun ObservabilitySection(onNavigate: (String) -> Unit) {
     SettingsSurface {
         SettingsCategoryHeader(
             icon  = Icons.Outlined.Timeline,
@@ -1176,10 +1329,151 @@ private fun skillDisplayName(name: String): String = when (name) {
     else                 -> name.replace("_", " ").split(" ").joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
 }
 
-private tailrec fun Context.findActivity(): Activity? {
+internal tailrec fun Context.findActivity(): Activity? {
     return when (this) {
         is Activity -> this
         is ContextWrapper -> baseContext.findActivity()
         else -> null
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hub helpers — used exclusively by the hub SettingsScreen composable above.
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun SettingsHubProfileCard(
+    email:     String,
+    initial:   String,
+    isPremium: Boolean,
+    onClick:   () -> Unit
+) {
+    Surface(
+        onClick  = onClick,
+        color    = Color.White.copy(alpha = 0.05f),
+        shape    = RoundedCornerShape(18.dp),
+        border   = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier          = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier         = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(CosmicAccent.copy(alpha = 0.18f))
+                    .border(1.5.dp, CosmicAccent.copy(alpha = 0.5f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(initial, color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    email,
+                    color      = Color.White,
+                    fontWeight = FontWeight.Medium,
+                    fontSize   = 15.sp,
+                    maxLines   = 1
+                )
+                Spacer(Modifier.height(3.dp))
+                Surface(
+                    shape  = RoundedCornerShape(8.dp),
+                    color  = if (isPremium) CosmicAccent.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.06f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isPremium) CosmicAccent.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.12f)
+                    )
+                ) {
+                    Text(
+                        text       = if (isPremium) "Premium" else "Free",
+                        color      = if (isPremium) CosmicAccent else Color.White.copy(alpha = 0.5f),
+                        fontSize   = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier   = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+            Icon(
+                Icons.Outlined.ChevronRight,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.3f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsHubSectionLabel(title: String) {
+    Text(
+        text          = title.uppercase(),
+        color         = CosmicAccent,
+        fontSize      = 11.sp,
+        fontWeight    = FontWeight.Bold,
+        letterSpacing = 1.5.sp,
+        modifier      = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 2.dp)
+    )
+}
+
+@Composable
+private fun SettingsHubCard(content: @Composable ColumnScope.() -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+            .padding(vertical = 4.dp)
+    ) {
+        Column(content = content)
+    }
+}
+
+@Composable
+private fun SettingsHubRow(
+    icon:     ImageVector,
+    title:    String,
+    subtitle: String,
+    onClick:  () -> Unit
+) {
+    Surface(
+        onClick  = onClick,
+        color    = Color.Transparent,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier          = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier         = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(CosmicAccent.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title,    color = Color.White.copy(alpha = 0.9f), fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                Text(subtitle, color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
+            }
+            Icon(
+                Icons.Outlined.ChevronRight,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.28f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsHubDivider() {
+    Divider(
+        color    = Color.White.copy(alpha = 0.05f),
+        modifier = Modifier.padding(start = 64.dp)
+    )
 }

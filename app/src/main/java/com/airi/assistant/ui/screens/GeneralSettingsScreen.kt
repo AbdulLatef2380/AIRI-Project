@@ -1,0 +1,145 @@
+package com.airi.assistant.ui.screens
+
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.airi.assistant.R
+import com.airi.assistant.system.LanguageManager
+import com.airi.assistant.system.LanguageOption
+import com.airi.assistant.ui.theme.CosmicAccent
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GeneralSettingsScreen(onBack: () -> Unit) {
+    val context         = LocalContext.current
+    val activity        = context.findActivity()
+    val currentLanguage = remember { mutableStateOf(LanguageManager.getCurrentLanguage(context)) }
+    var pendingLanguage by remember { mutableStateOf<LanguageOption?>(null) }
+
+    fun applySelectedLanguage(language: LanguageOption) {
+        currentLanguage.value = language.code
+        if (activity != null) {
+            LanguageManager.applyLanguage(activity, language.code)
+        } else {
+            LanguageManager.saveLanguage(context, language.code)
+        }
+    }
+
+    Scaffold(
+        containerColor = Color.Transparent,
+        topBar = {
+            TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Black.copy(alpha = 0.65f)
+                ),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                },
+                title = {
+                    Text("General", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SettingsSurface {
+                SettingsCategoryHeader(
+                    icon  = Icons.Outlined.Language,
+                    title = stringResource(R.string.language)
+                )
+                Spacer(Modifier.height(8.dp))
+                SettingsInfoRow(
+                    stringResource(R.string.ui_language),
+                    LanguageManager.getLanguageOption(currentLanguage.value).displayName
+                )
+                Spacer(Modifier.height(8.dp))
+                LanguageSelector(
+                    selectedLanguage   = currentLanguage.value,
+                    onLanguageSelected = { language ->
+                        if (language.code == currentLanguage.value) return@LanguageSelector
+                        if (LanguageManager.shouldShowPerformanceWarning(context, language.code)) {
+                            pendingLanguage = language
+                        } else {
+                            applySelectedLanguage(language)
+                        }
+                    }
+                )
+                Spacer(Modifier.height(8.dp))
+                SettingsInfoRow(
+                    stringResource(R.string.model_language),
+                    stringResource(R.string.model_language_prompt_controlled)
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.recommended_english),
+                    fontSize = 11.sp,
+                    color    = CosmicAccent.copy(alpha = 0.65f)
+                )
+            }
+
+            DefaultAssistantSection(activity = activity)
+
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+
+    pendingLanguage?.let { language ->
+        AlertDialog(
+            onDismissRequest  = { pendingLanguage = null },
+            containerColor    = Color(0xFF12162E),
+            titleContentColor = Color.White,
+            textContentColor  = Color.White.copy(alpha = 0.75f),
+            shape             = RoundedCornerShape(20.dp),
+            title = {
+                Text(
+                    stringResource(R.string.performance_notice_title),
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text           = { Text(stringResource(R.string.performance_notice_message)) },
+            confirmButton  = {
+                Button(
+                    onClick = {
+                        LanguageManager.markPerformanceWarningShown(context, language.code)
+                        pendingLanguage = null
+                        applySelectedLanguage(language)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CosmicAccent,
+                        contentColor   = Color.Black
+                    )
+                ) { Text(stringResource(R.string.continue_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingLanguage = null }) {
+                    Text(stringResource(R.string.cancel), color = Color.White.copy(alpha = 0.6f))
+                }
+            }
+        )
+    }
+}

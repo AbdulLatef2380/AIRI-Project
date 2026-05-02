@@ -720,7 +720,13 @@ class LlamaManager(private val context: Context) {
                         Log.w(TAG, "generateStream timed out: code=$errCode idle=${idle}ms budget=${budget}ms")
                         Log.i("AIRI_PROOF", "TIMEOUT phase=${if (firstSeen) "INACTIVITY" else "FIRST_TOKEN"} idle_ms=$idle budget_ms=$budget")
                         cancelRequested.set(true)
+                        // Call BOTH cancel routes for belt-and-suspenders parity
+                        // with cancelStream(). cancel() and nativeCancel() write
+                        // the same g_cancel atomic, but calling both means any
+                        // future divergence between the two entry points cannot
+                        // silently leave a cancel request unacknowledged.
                         runCatching { LlamaNative.cancel() }
+                        runCatching { LlamaNative.nativeCancel() }
                         // PHASE 6: contain watchdog onError too.
                         withContext(Dispatchers.Main) {
                             try { onError("$errCode idle_ms=$idle budget_ms=$budget") }
@@ -1011,21 +1017,35 @@ class LlamaManager(private val context: Context) {
                         // process — it would also leave the native KV in a
                         // half-decoded state on the next request.
                         scope.launch(Dispatchers.Main) {
-                            // SPEC v3 — re-check session id on the Main
-                            // dispatch boundary. Between the synchronous
-                            // tokenCallback emitting `batch` and Main
-                            // actually running this block, a fullReset
-                            // can have raced through (e.g. user pressed
-                            // "new chat"). Drop the dispatch silently to
-                            // prevent cross-generation streaming into a
-                            // fresh response buffer in the UI layer.
+                            // SPEC v3 — re-check BOTH session id AND generation
+                            // id on the Main dispatch boundary.
+                            //
+                            // Session-id alone is insufficient: for incremental
+                            // sessions (no beginSession() between turns) the
+                            // session id stays constant, so a stale Main-dispatch
+                            // from generation N arrives at generation N+1 with
+                            // an identical sessionIdAtStart and would NOT be
+                            // dropped by the session-id check alone.
+                            //
+                            // Generation id: g_generation_id is bumped at entry
+                            // of every airi_generate_next() call.  The value we
+                            // captured before calling generateNextTokens() is
+                            // genIdAtStart; the active generation's id is
+                            // genIdAtStart+1.  A callback from an older
+                            // generation will read genIdAtStart+2 or higher and
+                            // must be dropped.
                             val sidOnMain = runCatching { LlamaNative.nativeGetSessionId() }
                                 .getOrDefault(sessionIdAtStart)
-                            if (sidOnMain != sessionIdAtStart) {
+                            val genIdExpected = genIdAtStart + 1L
+                            val genIdOnMain   = runCatching { LlamaNative.nativeGetGenerationId() }
+                                .getOrDefault(genIdExpected)
+                            if (sidOnMain != sessionIdAtStart || genIdOnMain != genIdExpected) {
                                 Log.w("AIRI_PROOF",
                                     "STALE_TOKEN_DROPPED phase=main_dispatch " +
                                     "captured_session=$sessionIdAtStart " +
                                     "current_session=$sidOnMain " +
+                                    "gen_expected=$genIdExpected " +
+                                    "gen_current=$genIdOnMain " +
                                     "batch_chars=${batch.length}")
                                 return@launch
                             }
@@ -1199,17 +1219,27 @@ class LlamaManager(private val context: Context) {
                         // a generation that raced a reset from reaching the UI.
                         val tail = tokenBuffer.toString()
                         if (tail.isNotEmpty()) {
-                            val sidForTail = runCatching { LlamaNative.nativeGetSessionId() }
+                            val sidForTail    = runCatching { LlamaNative.nativeGetSessionId() }
                                 .getOrDefault(sessionIdAtStart)
-                            if (sidForTail == sessionIdAtStart) {
+                            val genIdExpectedTail = genIdAtStart + 1L
+                            val genIdForTail  = runCatching { LlamaNative.nativeGetGenerationId() }
+                                .getOrDefault(genIdExpectedTail)
+                            val tailStale = sidForTail != sessionIdAtStart ||
+                                            genIdForTail != genIdExpectedTail
+                            if (!tailStale) {
                                 scope.launch(Dispatchers.Main) {
-                                    val sidOnMain = runCatching { LlamaNative.nativeGetSessionId() }
+                                    val sidOnMain    = runCatching { LlamaNative.nativeGetSessionId() }
                                         .getOrDefault(sessionIdAtStart)
-                                    if (sidOnMain != sessionIdAtStart) {
+                                    val genIdOnMain2 = runCatching { LlamaNative.nativeGetGenerationId() }
+                                        .getOrDefault(genIdExpectedTail)
+                                    if (sidOnMain != sessionIdAtStart ||
+                                        genIdOnMain2 != genIdExpectedTail) {
                                         Log.w("AIRI_PROOF",
                                             "STALE_TOKEN_DROPPED phase=tail_dispatch " +
                                             "captured_session=$sessionIdAtStart " +
                                             "current_session=$sidOnMain " +
+                                            "gen_expected=$genIdExpectedTail " +
+                                            "gen_current=$genIdOnMain2 " +
                                             "tail_chars=${tail.length}")
                                         return@launch
                                     }
@@ -1223,6 +1253,8 @@ class LlamaManager(private val context: Context) {
                                     "STALE_TOKEN_DROPPED phase=tail_pre_dispatch " +
                                     "captured_session=$sessionIdAtStart " +
                                     "current_session=$sidForTail " +
+                                    "gen_expected=$genIdExpectedTail " +
+                                    "gen_current=$genIdForTail " +
                                     "tail_chars=${tail.length}")
                             }
                         }

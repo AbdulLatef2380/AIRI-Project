@@ -81,6 +81,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.airi.assistant.execution.ExecOrigin
+import com.airi.assistant.execution.ExecutionMode
+import com.airi.assistant.execution.PrivacyLevel
+import com.airi.assistant.execution.backend.CloudBackend
+import com.airi.assistant.execution.backend.LocalLlamaBackend
+import com.airi.assistant.execution.prefs.ExecModePreferences
+import com.airi.assistant.execution.router.RuntimeRouter
 
 data class ChatMessage(
     val text: String,
@@ -109,7 +116,13 @@ data class ChatMessage(
      * or a raw `bitmap://<id>` sentinel for camera captures (the actual
      * Bitmap is held by the ViewModel's [transientCameraBitmaps] map).
      */
-    val imageUri: String? = null
+    val imageUri: String? = null,
+    /**
+     * Which runtime produced this assistant response.
+     * [ExecOrigin.NONE] for user messages and untagged system messages.
+     * Used by [ExecOriginBadge] in the chat UI — AIRI never hides origin.
+     */
+    val execOrigin: ExecOrigin = ExecOrigin.NONE
 )
 
 data class AgentState(
@@ -221,6 +234,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val remoteExecutor    = RemoteModelExecutor()
     private val gson              = Gson()
 
+    // ── Hybrid Execution layer ────────────────────────────────────────────────
+    // ExecModePreferences is the source of truth for execution mode, privacy
+    // level, and internet permission. All preference mutations go through it.
+    private val execModePrefs  = ExecModePreferences(appContext)
+    private val localBackend   = LocalLlamaBackend(llamaManager)
+    private val cloudBackend   = CloudBackend(remoteExecutor)
+    private val runtimeRouter  = RuntimeRouter(localBackend, cloudBackend, execModePrefs)
+
     // ── Domain services ───────────────────────────────────────────────────────
     private val agentService         = ServiceLocator.agentService
     private val skillService         = ServiceLocator.skillService
@@ -262,6 +283,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _stallActive = MutableStateFlow(false)
     val stallActive: StateFlow<Boolean> = _stallActive.asStateFlow()
     fun clearStallHint() { _stallActive.value = false }
+
+    // ── Execution mode / origin state ─────────────────────────────────────────
+    // Tracks the user's chosen execution mode and which backend produced the
+    // most recent response. Exposed as StateFlows so the UI can react without
+    // polling. Both are backed by ExecModePreferences (durable across process
+    // death) but the StateFlows are the authoritative in-memory values.
+    private val _executionMode  = MutableStateFlow(execModePrefs.executionMode)
+    val executionMode: StateFlow<ExecutionMode> = _executionMode.asStateFlow()
+
+    private val _lastExecOrigin = MutableStateFlow(ExecOrigin.NONE)
+    val lastExecOrigin: StateFlow<ExecOrigin> = _lastExecOrigin.asStateFlow()
 
     // ── Runtime Diagnostics ───────────────────────────────────────────────────
     // Generation phase and mode source are updated at lifecycle boundaries only
@@ -613,7 +645,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        val activeRemote = RemoteModelRegistry.getActive()
+        // LOCAL_ONLY mode: treat remote as unavailable even if one is configured.
+        val activeRemote = if (execModePrefs.effectiveMode == ExecutionMode.LOCAL_ONLY) null
+                           else RemoteModelRegistry.getActive()
         if ((ModelManager.getCurrent() == null || !_modelState.value.isModelReady) && activeRemote == null) {
             _messages.update {
                 it + ChatMessage("قم باختيار نموذج محلي أو Remote Model أولاً.", isUser = false)
@@ -814,8 +848,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             var tokenCount   = 0
             var firstTokenReceived = false
             var partialCutText = ""
-            val deviceWeak = isDeviceWeak()
-            val remote = RemoteModelRegistry.getActive()
+            // ── ExecutionMode-aware routing ───────────────────────────────────
+            // CLOUD_ONLY → always route to remote (deviceWeak=true).
+            // LOCAL_ONLY → always route to local (remote=null).
+            // HYBRID     → use existing isDeviceWeak() heuristic + RuntimeRouter signals.
+            val execMode = execModePrefs.effectiveMode
+            val deviceWeak = when (execMode) {
+                ExecutionMode.CLOUD_ONLY -> true
+                ExecutionMode.LOCAL_ONLY -> false
+                ExecutionMode.HYBRID     -> isDeviceWeak()
+            }
+            val remote = when (execMode) {
+                ExecutionMode.LOCAL_ONLY -> null
+                else                     -> RemoteModelRegistry.getActive()
+            }
+            _lastExecOrigin.value = if (deviceWeak && remote != null) ExecOrigin.CLOUD else ExecOrigin.LOCAL
             val baseSystemPromptCore = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType)
 
             // ── Phase 1.5 — semantic memory injection ────────────────────────────
@@ -966,7 +1013,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     val wasToolCall = handleToolIfNeeded(fullResponse, sessionId)
                     if (!wasToolCall) {
                         val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fullResponse)
-                        _messages.update { it + ChatMessage(fullResponse, isUser = false, assistantMessage.id) }
+                        _messages.update { it + ChatMessage(fullResponse, isUser = false, assistantMessage.id, execOrigin = _lastExecOrigin.value) }
                     }
                     refreshSessions()
                     refreshPowerLevel()
@@ -1185,7 +1232,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 return@launch
                             }
 
-                            val fallbackRemote = RemoteModelRegistry.getActive()
+                            // Respect LOCAL_ONLY: never fall back to cloud when local is the only permitted backend.
+                            val fallbackRemote = if (execModePrefs.effectiveMode == ExecutionMode.LOCAL_ONLY) null
+                                                 else RemoteModelRegistry.getActive()
                             if (fallbackRemote != null) {
                                 _streamingText.value = "Thinking..."
                                 streamRemoteResponse(fallbackRemote, trimmedInput, systemPrompt, perfMode, streamStart, finish)
@@ -1304,6 +1353,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         streamStart: Long,
         finish: suspend (String, Long, Int) -> Unit
     ) {
+        _lastExecOrigin.value = ExecOrigin.CLOUD   // tag origin before first token
         var tokenCount = 0
         val result = remoteExecutor.generateStream(
             model = remote,
@@ -1410,6 +1460,54 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val profile = DeviceProfiler.profile(appContext)
         return profile.tier == DeviceTier.LOW || profile.availableRamMb < 1500 || profile.cpuCores <= 4
     }
+
+    // ── Hybrid Execution public API ───────────────────────────────────────────
+    // All execution-mode mutations must go through these methods so that both
+    // the in-memory StateFlow and the durable ExecModePreferences stay in sync.
+
+    /**
+     * Switch the execution mode. Persists immediately to SharedPreferences.
+     * Safe to call from any thread; the StateFlow update is dispatched to Main.
+     */
+    fun setExecutionMode(mode: ExecutionMode) {
+        execModePrefs.executionMode = mode
+        _executionMode.value = mode
+        RuntimeEventLog.post(
+            subsystem = "EXEC_MODE",
+            severity  = EventSeverity.INFO,
+            reason    = "User set execution mode → ${mode.name}"
+        )
+    }
+
+    /**
+     * Change the privacy level. MAXIMUM overrides HYBRID/CLOUD modes to
+     * keep all traffic local — this is enforced in [ExecModePreferences.effectiveMode].
+     */
+    fun setPrivacyLevel(level: PrivacyLevel) {
+        execModePrefs.privacyLevel = level
+        RuntimeEventLog.post(
+            subsystem = "EXEC_MODE",
+            severity  = EventSeverity.INFO,
+            reason    = "Privacy level → ${level.name}"
+        )
+    }
+
+    /**
+     * Grant or revoke AIRI's permission to make internet requests for AI inference.
+     * Revoking this is a hard gate — cloud calls stop immediately on the next request
+     * regardless of the current [ExecutionMode].
+     */
+    fun grantInternetPermission(granted: Boolean) {
+        execModePrefs.internetPermissionGranted = granted
+        RuntimeEventLog.post(
+            subsystem = "EXEC_MODE",
+            severity  = if (granted) EventSeverity.INFO else EventSeverity.WARN,
+            reason    = "Internet permission → $granted"
+        )
+    }
+
+    /** Expose current execution preferences snapshot (read-only) to the UI. */
+    fun getExecModePrefs(): ExecModePreferences = execModePrefs
 
     // ── Vision pipeline (Phase 3 — wired end-to-end) ─────────────────────────
     //

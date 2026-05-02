@@ -55,6 +55,14 @@ fun PerformanceScreen(
     val diagnostics by viewModel.runtimeDiagnostics.collectAsState()
     val runtimeEvents by viewModel.runtimeEventLog.collectAsState()
 
+    // ── Execution Mode state ──────────────────────────────────────────────────
+    val executionMode    by viewModel.executionMode.collectAsState()
+    val execPrefs        = remember { viewModel.getExecModePrefs() }
+    var privacyLevel     by remember { mutableStateOf(execPrefs.privacyLevel) }
+    var internetGranted  by remember { mutableStateOf(execPrefs.internetPermissionGranted) }
+    var offlineFallback  by remember { mutableStateOf(execPrefs.offlineFallbackEnabled) }
+    var preferredProvider by remember { mutableStateOf(execPrefs.preferredProvider) }
+
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         visible = true
@@ -108,6 +116,22 @@ fun PerformanceScreen(
                     // (model load, generation start/end, supervisor override).
                     RuntimeStatusPanel(diagnostics = diagnostics)
                     RuntimeWarningsPanel(warnings = diagnostics.warnings)
+
+                    // ── Execution Mode Panel ──────────────────────────────────
+                    ExecutionModePanel(
+                        currentMode           = executionMode,
+                        currentPrivacy        = privacyLevel,
+                        internetGranted       = internetGranted,
+                        offlineFallback       = offlineFallback,
+                        preferredProvider     = preferredProvider,
+                        cloudTokensUsed       = execPrefs.cloudTokensUsedToday,
+                        cloudTokensCap        = execPrefs.maxDailyCloudTokens,
+                        onModeChange          = { viewModel.setExecutionMode(it) },
+                        onPrivacyChange       = { privacyLevel = it; viewModel.setPrivacyLevel(it) },
+                        onInternetPermChange  = { internetGranted = it; viewModel.grantInternetPermission(it) },
+                        onOfflineFallbackChange = { offlineFallback = it; execPrefs.offlineFallbackEnabled = it },
+                        onProviderChange      = { preferredProvider = it; execPrefs.preferredProvider = it }
+                    )
 
                     PerfStatCard(
                         title = stringResource(R.string.stat_device_info),

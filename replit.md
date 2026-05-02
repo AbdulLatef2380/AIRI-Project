@@ -361,9 +361,80 @@ Polls Android thermal status (API 29+) and available RAM every 15 seconds and au
 
 ---
 
+## Hybrid Execution Architecture (Session — Final)
+
+Multi-runtime AI operating layer. Three execution modes, capability-aware routing, privacy guard, origin tagging, and full user control UI.
+
+### Execution Package: `com.airi.assistant.execution`
+
+| File | Purpose |
+|------|---------|
+| `ExecutionMode.kt` | `ExecutionMode` (LOCAL_ONLY/CLOUD_ONLY/HYBRID), `PrivacyLevel` (STANDARD/ENHANCED/MAXIMUM), `CloudProvider` (OPENAI/ANTHROPIC/GOOGLE/CUSTOM), `ExecOrigin` (NONE/LOCAL/CLOUD/HYBRID) enums |
+| `CapabilityProfile.kt` | `ModelCapabilities`-backed runtime capability descriptor; `contextWindow`, `toolCalling`, `imageUnderstanding`, `multiLanguage`, `parameterCount`, `supportsStreaming` |
+| `ExecutionRequest.kt` | Per-turn request envelope: prompt, queryType, attachments, requiredCapabilities, timeoutMs |
+| `ExecutionResult.kt` | Per-turn result envelope: text, origin, latencyMs, tokensUsed, error |
+| `HybridOrchestrator.kt` | Top-level entry point; calls `RuntimeRouter`, dispatches to backend(s), applies HYBRID fan-out, returns tagged `ExecutionResult` |
+| `prefs/ExecModePreferences.kt` | SharedPrefs-backed user settings: mode, privacy, provider, token budget, offline fallback, internet permission |
+| `privacy/PrivacyGuard.kt` | Pre-flight PII check; sanitizes prompts before cloud dispatch; blocks cloud in MAXIMUM privacy mode |
+| `privacy/SanitizationResult.kt` | Sanitization outcome (ALLOWED/SANITIZED/BLOCKED) with redacted prompt |
+| `router/DeviceSignals.kt` | Snapshot of on-device runtime signals: battery, thermal, RAM, network, model loaded |
+| `router/RoutingPolicy.kt` | Pure-function rules engine: `decide()` returns `List<RuntimeBackend>` based on mode, signals, capabilities, privacy |
+| `router/RuntimeRouter.kt` | Collects `DeviceSignals` + `ExecModePreferences`, calls `RoutingPolicy`, returns `RoutingDecision` |
+| `backend/RuntimeBackend.kt` | Interface: `isAvailable`, `capabilities`, `execute(request)` |
+| `backend/LocalLlamaBackend.kt` | Wraps `LlamaManager.generateStream` via `LlamaNative`; detects capabilities via `ModelCapabilities.detect()` |
+| `backend/CloudBackend.kt` | Wraps existing `RemoteApiConnector`-style streaming; routes by `CloudProvider` preference |
+
+### Routing Logic (RoutingPolicy)
+
+| Mode | Policy |
+|------|--------|
+| `LOCAL_ONLY` | Always returns `[local]`. Falls back to `[]` if model not loaded. |
+| `CLOUD_ONLY` | Returns `[cloud]` if internet granted + privacy allows. Else `[]`. |
+| `HYBRID` | Tries local first if device is strong. Routes cloud for deep-query types (ANALYTICAL/CREATIVE) or when local is weak. Falls back gracefully. |
+
+### Privacy Guard
+
+| Privacy Level | Behavior |
+|---|---|
+| `STANDARD` | No PII stripping; cloud dispatch allowed |
+| `ENHANCED` | PII patterns redacted (email, phone, SSN, card numbers) before cloud dispatch |
+| `MAXIMUM` | Cloud dispatch fully blocked; all requests forced to local |
+
+### ChatViewModel Integration Points
+
+| Location | What was wired |
+|---|---|
+| Fields (~line 292) | `execModePrefs`, `localLlamaBackend`, `cloudBackend`, `runtimeRouter`, `_executionMode`, `_lastExecOrigin` |
+| LOCAL_ONLY branch | Routes through `HybridOrchestrator`, tags `ExecOrigin.LOCAL` |
+| CLOUD_ONLY branch | Routes through `HybridOrchestrator`, tags `ExecOrigin.CLOUD` |
+| HYBRID branch | Tries local; falls back to cloud; tags origin accordingly |
+| `streamRemoteResponse` | Tags `_lastExecOrigin.value = ExecOrigin.CLOUD` before first token |
+| `ChatMessage` | Added `execOrigin: ExecOrigin = ExecOrigin.NONE` field |
+| `setExecutionMode()` | Public method — persists + updates StateFlow |
+| `setPrivacyLevel()` | Public method — persists |
+| `grantInternetPermission()` | Public method — persists |
+| `getExecModePrefs()` | Public accessor for UI panels |
+
+### UI Components
+
+**`ExecutionModePanel.kt`** — Full user control panel embedded in both `SettingsScreen` (after `ApiKeysSection`) and `PerformanceScreen` (after `RuntimeWarningsPanel`):
+- 3-way mode toggle: LOCAL / HYBRID / CLOUD with icon badges
+- Privacy level picker: STANDARD / ENHANCED / MAXIMUM
+- Internet permission toggle (required for CLOUD/HYBRID)
+- Offline fallback toggle
+- Cloud provider selector (OpenAI / Anthropic / Google / Custom)
+- Daily cloud token budget display with progress bar
+
+**`ExecOriginBadge.kt`** — Compact per-message badge showing `🖥 LOCAL`, `☁ CLOUD`, or `⚡ HYBRID` with appropriate tint. Visible on all assistant messages where `execOrigin != NONE`.
+
+**`AiBubble` in `ChatScreen.kt`** — Added `execOrigin` parameter; renders `ExecOriginBadge` below the message footer when `execOrigin.isVisible`.
+
+---
+
 ## Known Gaps / Future Work
 - Draft model speculative decoding path (`SpeculativeManager`) is wired but requires a companion draft GGUF to activate.
 - Accessibility: TalkBack labels for voice state indicator and streaming progress are not set.
 - `AiBubble` inline action "Copy" shows no visual confirmation toast (snackbar not yet wired to copy action).
 - VAD adaptive noise threshold: currently logs ambient RMS but does not dynamically adjust `speechDurationMs`. Future: increase durationMs in noisy environments.
 - VAD `MAX_SESSION_MS = 50s` hard timeout: protects against eternal mic lock but means extremely long AI monologues (>50s) lose VAD coverage for the tail. Future: restart VAD at the 45s mark.
+- Hybrid execution token budget tracking (`cloudTokensUsedToday`) currently only incremented manually; future: hook into `CloudBackend.execute()` to count tokens automatically.

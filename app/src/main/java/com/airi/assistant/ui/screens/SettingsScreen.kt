@@ -71,6 +71,14 @@ fun SettingsScreen(
     val backgroundAgentEnabled by viewModel.backgroundAgentEnabled.collectAsState()
     val currentLanguage = remember { mutableStateOf(LanguageManager.getCurrentLanguage(context)) }
 
+    // ── Execution Mode panel state ─────────────────────────────────────────────
+    val executionMode     by viewModel.executionMode.collectAsState()
+    val execPrefs         = remember { viewModel.getExecModePrefs() }
+    var privacyLevel      by remember { mutableStateOf(execPrefs.privacyLevel) }
+    var internetGranted   by remember { mutableStateOf(execPrefs.internetPermissionGranted) }
+    var offlineFallback   by remember { mutableStateOf(execPrefs.offlineFallbackEnabled) }
+    var preferredProvider by remember { mutableStateOf(execPrefs.preferredProvider) }
+
     var customInstructions by rememberSaveable { mutableStateOf(systemPrompt) }
     var responseStyle by rememberSaveable { mutableStateOf(responseStyleState) }
     val voicePrefs = remember { context.getSharedPreferences("airi_voice", Context.MODE_PRIVATE) }
@@ -152,6 +160,25 @@ fun SettingsScreen(
             SkillsSection(viewModel = viewModel)
 
             ApiKeysSection()
+
+            // ── Execution Mode Panel ──────────────────────────────────────────
+            // User controls: LOCAL / CLOUD / HYBRID mode, privacy level,
+            // internet permission, provider preference, offline fallback,
+            // and daily cloud token budget.
+            ExecutionModePanel(
+                currentMode           = executionMode,
+                currentPrivacy        = privacyLevel,
+                internetGranted       = internetGranted,
+                offlineFallback       = offlineFallback,
+                preferredProvider     = preferredProvider,
+                cloudTokensUsed       = execPrefs.cloudTokensUsedToday,
+                cloudTokensCap        = execPrefs.maxDailyCloudTokens,
+                onModeChange          = { viewModel.setExecutionMode(it) },
+                onPrivacyChange       = { privacyLevel = it; viewModel.setPrivacyLevel(it) },
+                onInternetPermChange  = { internetGranted = it; viewModel.grantInternetPermission(it) },
+                onOfflineFallbackChange = { offlineFallback = it; execPrefs.offlineFallbackEnabled = it },
+                onProviderChange      = { preferredProvider = it; execPrefs.preferredProvider = it }
+            )
 
             AgentSection(
                 isEnabled  = backgroundAgentEnabled,

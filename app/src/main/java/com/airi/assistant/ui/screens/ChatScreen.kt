@@ -1211,7 +1211,8 @@ fun ChatMessageList(
                             traceId    = msg.traceId,
                             hideAvatar = hideAvatar,
                             onShare    = onShareAiResponse,
-                            onSpeak    = onSpeak
+                            onSpeak    = onSpeak,
+                            execOrigin = msg.execOrigin
                         )
                     }
                 }
@@ -1303,7 +1304,8 @@ fun AiBubble(
     traceId: String? = null,
     hideAvatar: Boolean = false,
     onShare: (String) -> Unit = {},
-    onSpeak: (String) -> Unit = {}
+    onSpeak: (String) -> Unit = {},
+    execOrigin: com.airi.assistant.execution.ExecOrigin = com.airi.assistant.execution.ExecOrigin.NONE
 ) {
     val context   = LocalContext.current
     val haptic    = LocalHapticFeedback.current
@@ -1503,6 +1505,12 @@ fun AiBubble(
                     ) {
                         Text(text = "⚙ $agentTag", color = CosmicAccent.copy(alpha = 0.85f), fontSize = 10.sp, fontWeight = FontWeight.Medium)
                     }
+                }
+                // Execution origin badge — always visible on assistant messages.
+                // LOCAL / CLOUD / HYBRID — AIRI never hides where the answer came from.
+                if (execOrigin.isVisible) {
+                    Spacer(Modifier.height(3.dp))
+                    ExecOriginBadge(origin = execOrigin)
                 }
             }
         }

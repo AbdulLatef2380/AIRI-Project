@@ -194,6 +194,11 @@ fun SettingsScreen(
                     label    = stringResource(R.string.performance_device_info),
                     sublabel = stringResource(R.string.performance_device_info_sublabel)
                 ) { onNavigate(AiriRoute.PERFORMANCE) }
+                Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 4.dp))
+                SettingsNavigationRow(
+                    label    = "Execution Diagnostics",
+                    sublabel = "Cloud adapters · token budget · failover history"
+                ) { onNavigate(AiriRoute.EXEC_DIAGNOSTICS) }
             }
 
             SubscriptionSection(viewModel = viewModel, onNavigate = onNavigate)
@@ -1152,6 +1157,12 @@ private fun ObservabilitySection(onNavigate: (String) -> Unit) {
             label    = stringResource(R.string.execution_history),
             sublabel = stringResource(R.string.execution_history_description),
             onClick  = { onNavigate(AiriRoute.OBSERVABILITY) }
+        )
+        Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 4.dp))
+        SettingsNavigationRow(
+            label    = "Execution Diagnostics",
+            sublabel = "Live hybrid engine status · daily cloud token usage",
+            onClick  = { onNavigate(AiriRoute.EXEC_DIAGNOSTICS) }
         )
     }
 }

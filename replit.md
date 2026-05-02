@@ -141,7 +141,34 @@ Fix: `stopInAppStt()` is now called before `voiceState = IDLE` in the auto-stop 
 
 ---
 
+---
+
+## Product Transformation — UX Overhaul (Session 3)
+
+### Theme System
+- **Color.kt** — Expanded from 2 tokens to a full semantic token set: surface elevation ladder (`SurfaceBase/Raised/Floating/Highlight`), semantic colors (`SemanticSuccess/Error/Warn`), glass surface tokens (`GlassWhite/WhiteBorder`), dedicated bubble colors (`UserBubbleSurface #162C45`, `AiBubbleSurface #101624`, `AiBubbleBorder`)
+- **Theme.kt** — Added complete `AIRITypography` (`Typography`) covering all 12 Material3 type roles from `displaySmall` to `labelSmall` with proper font weights, sizes, and letter spacing
+
+### ChatScreen.kt — 13 targeted transformations
+1. **Imports** — `LocalHapticFeedback`, `HapticFeedbackType`, and 4 new color token imports added
+2. **imePadding** — `bottomBar` Column now has `.imePadding()` so input bar rides above keyboard
+3. **`ChatMessageList` call site** — `onSuggestionClick = { viewModel.sendMessage(it) }` wired
+4. **`ChatMessageList` function** — Added `onSuggestionClick` param; empty state now shows pulsing radial-glow avatar icon (breathing animation), centered AIRI title/subtitle, and 4 tappable suggestion chips in 2×2 grid when model is ready; LazyColumn wrapped in Box with scroll-to-bottom FAB
+5. **`UserBubble`** — Entry slide-in animation (right→center + fade, 220ms FastOutSlow); `widthIn(max=340dp)` up from 300dp; flat `UserBubbleSurface` fill replaces gradient; corner radius 20/4/20/20dp; tap-to-copy with `HapticFeedbackType.LongPress`; text 15sp/23sp line height
+6. **`AiBubble`** — Removed long-press `DropdownMenu` and `TextButton` share; replaced with always-visible compact 3-button inline action row (Copy + Speak + Share, 32dp icon buttons, 15dp icons, 38% alpha tint); outer Row gets `padding(end=44dp)` so bubbles fill width naturally; `AiBubbleSurface/Border` colors; corner radius 4/20/20/20dp; text 15sp/23sp; avatar upgraded to 30dp radial gradient glow; haptic on copy/speak/share
+7. **`AiStreamingBubble`** — Matches AiBubble style: outer Row `padding(end=44dp)`, `fillMaxWidth()` Column, `AiBubbleSurface`, 30dp radial avatar, corner 4/20/20/20dp, text 15sp/23sp, accent border during streaming
+8. **`BlinkingCursor`** — Replaced snap-to ▋ with `AnimatedContent` crossfade (80ms); uses accent-colored `▍`; blink period 500ms
+9. **`AiriThinkingPulse`** — Dots now animate both `alpha` (0.20→1.0) and `scale` (0.70→1.0) via dual `animateFloat` loops with staggered `StartOffset`; dots 7dp (was 6dp)
+10. **Voice indicator** — Replaced colored dot + text with `VoiceWaveformBars` (5 staggered animated bars) + label text; bar heights animate at different rates for organic feel
+11. **`VoiceWaveformBars`** (new composable) — 5 bars, staggered heights (10/18/10dp peaks), `StartOffset` stagger, color-coded by voice state, 280–560ms animation cycle
+12. **`ScrollToBottomFab`** (new composable) — 38dp circle, spring-bounce enter animation (`DampingRatioMediumBouncy`), accent color, `KeyboardArrowDown` icon; appears when `firstVisibleItemIndex > 1`
+13. **`strings.xml`** — 4 suggestion chip strings added: `suggestion_what_can_you_do/explain_ai/write_poem/brainstorm`
+
+---
+
 ## Known Gaps / Future Work
 - `RuntimeSupervisor` (thermal / memory pressure monitoring) is not yet implemented.
 - Draft model speculative decoding path (`SpeculativeManager`) is wired but requires a companion draft GGUF to activate.
 - Accessibility: TalkBack labels for voice state indicator and streaming progress are not set.
+- Markdown rendering in AI bubbles not yet implemented (plain text only).
+- `AiBubble` inline action "Copy" shows no visual confirmation toast (snackbar not yet wired to copy action).

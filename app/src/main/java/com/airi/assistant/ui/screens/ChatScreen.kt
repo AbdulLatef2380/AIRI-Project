@@ -71,6 +71,12 @@ import coil.request.ImageRequest
 import com.airi.assistant.ui.viewmodel.ModelUiState
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.airi.assistant.ui.theme.AiBubbleSurface
+import com.airi.assistant.ui.theme.AiBubbleBorder
+import com.airi.assistant.ui.theme.UserBubbleSurface
+import com.airi.assistant.ui.theme.SemanticSuccess
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
 
@@ -596,7 +602,7 @@ fun ChatScreen(
                 )
             },
             bottomBar = {
-              Column(modifier = Modifier.fillMaxWidth()) {
+              Column(modifier = Modifier.fillMaxWidth().imePadding()) {
                 // ── PHASE 3 (actual fix): unified attachment chip row ──────────
                 // One row, one chip per attachment, regardless of kind. The
                 // image-vs-file-vs-camera distinction is now just an icon +
@@ -760,6 +766,7 @@ fun ChatScreen(
                         voiceManager.speak(text)
                         Log.d("AIRI_VOICE", "Speak-action triggered from message → SPEAKING")
                     },
+                    onSuggestionClick = { suggestion -> viewModel.sendMessage(suggestion) },
                     modifier = Modifier.fillMaxSize()
                 )
                 if (com.airi.assistant.BuildConfig.DEBUG) {
@@ -942,60 +949,29 @@ fun ChatMessageList(
     onOpenModels: () -> Unit = {},
     onShareAiResponse: (String) -> Unit = {},
     onSpeak: (String) -> Unit = {},
+    onSuggestionClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
     val scope     = rememberCoroutineScope()
 
-    // ── PHASE 4 (verification): scroll stability ────────────────────────────
-    // Old behaviour fired animateScrollToItem(0) on every streaming token.
-    // With reverseLayout=true and a 10-30 fps token rate that produced:
-    //   • animation-interrupting-itself flicker on every emission,
-    //   • wrestled the user's manual scroll up away from them, and
-    //   • ~3-5ms of extra Choreographer work per token.
-    //
-    // The fix is the pattern used by mature streaming chat UIs (ChatGPT,
-    // Claude, Telegram livestream): only auto-scroll if the user is
-    // already pinned to the bottom; use *non-animated* scroll during
-    // streaming (animation conflicts → jank); throttle to roughly one
-    // scroll per frame using a per-message append heuristic.
-    //
-    // With reverseLayout=true, "bottom" means firstVisibleItemIndex == 0.
-    // We give the user a 1-item slack so they can scroll up one bubble
-    // without immediately losing their place.
     val isPinnedToBottom by remember {
         derivedStateOf { listState.firstVisibleItemIndex <= 1 }
     }
-    // Track the last streaming length we scrolled for so we can decide to
-    // scroll only when growth is meaningful (every ~24 chars ≈ one render).
     var lastScrolledStreamLen by remember { mutableStateOf(0) }
     LaunchedEffect(messages.size) {
-        // New message arrived (user just sent or assistant turn closed).
-        // Use ANIMATED scroll here — it's a single event, not per-token.
         if (isPinnedToBottom && (messages.isNotEmpty() || streamingText.isNotEmpty())) {
             scope.launch { listState.animateScrollToItem(0) }
         }
         lastScrolledStreamLen = 0
     }
     LaunchedEffect(streamingText.length) {
-        // Per-token growth: only scroll if the user is at the bottom and
-        // the text actually grew enough that the bottom moved off-screen.
         if (!isPinnedToBottom) return@LaunchedEffect
         val len = streamingText.length
-        if (len == 0) {
-            lastScrolledStreamLen = 0
-            return@LaunchedEffect
-        }
+        if (len == 0) { lastScrolledStreamLen = 0; return@LaunchedEffect }
         val grew = len - lastScrolledStreamLen
-        // Threshold of 24 chars ≈ one wrapped line of Arabic/English text.
-        // Smaller deltas don't change visible layout enough to be worth a
-        // scroll, and skipping them eliminates the per-token jank without
-        // visible lag for the user.
         if (grew >= 24 || (grew in 1..23 && len < 60)) {
             lastScrolledStreamLen = len
-            // NOTE: scrollToItem is the snap variant — no animation. This
-            // is critical: animateScrollToItem launching every ~24 chars
-            // would trigger animation cancellation on every emission.
             scope.launch { listState.scrollToItem(0) }
         }
     }
@@ -1004,129 +980,210 @@ fun ChatMessageList(
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(horizontal = 24.dp)
+                modifier = Modifier.padding(horizontal = 28.dp)
             ) {
-                Icon(
-                    Icons.Outlined.SmartToy,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.20f),
-                    modifier = Modifier.size(96.dp)
+                // Pulsing avatar icon
+                val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "idle_pulse")
+                val idleAlpha by infinite.animateFloat(
+                    initialValue = 0.15f,
+                    targetValue  = 0.28f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(1800, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                    ),
+                    label = "idle_alpha"
                 )
-                Spacer(Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(CosmicAccent.copy(alpha = idleAlpha), Color.Transparent)
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Outlined.SmartToy,
+                        contentDescription = null,
+                        tint = CosmicAccent.copy(alpha = idleAlpha + 0.10f),
+                        modifier = Modifier.size(44.dp)
+                    )
+                }
+                Spacer(Modifier.height(20.dp))
                 Text(
-                    if (isModelReady) stringResource(R.string.airi_ready) else "تفعيل عقل AIRI",
-                    color = Color.White.copy(alpha = 0.75f),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    if (isModelReady) stringResource(R.string.airi_ready) else stringResource(R.string.app_name),
+                    color = Color.White.copy(alpha = 0.80f),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 24.sp,
+                    letterSpacing = (-0.3).sp,
+                    maxLines = 1
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 Text(
                     if (isModelReady) stringResource(R.string.ask_anything_model_active)
                     else stringResource(R.string.activate_model_gallery_first),
-                    color = Color.White.copy(alpha = 0.4f),
+                    color = Color.White.copy(alpha = 0.38f),
                     fontSize = 13.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    lineHeight = 18.sp
+                    lineHeight = 19.sp
                 )
                 if (!isModelReady) {
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(20.dp))
                     Button(
                         onClick = onOpenModels,
-                        shape = RoundedCornerShape(20.dp),
+                        shape = RoundedCornerShape(24.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.Black)
                     ) {
                         Icon(Icons.Outlined.SmartToy, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("تفعيل عقل AIRI", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.model_gallery), fontWeight = FontWeight.SemiBold)
+                    }
+                } else {
+                    // Suggestion chips
+                    Spacer(Modifier.height(28.dp))
+                    val suggestions = listOf(
+                        stringResource(R.string.suggestion_what_can_you_do),
+                        stringResource(R.string.suggestion_explain_ai),
+                        stringResource(R.string.suggestion_write_poem),
+                        stringResource(R.string.suggestion_brainstorm)
+                    )
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        suggestions.chunked(2).forEach { pair ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                pair.forEach { s ->
+                                    Surface(
+                                        onClick = { onSuggestionClick(s) },
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = CosmicAccent.copy(alpha = 0.08f),
+                                        modifier = Modifier.border(
+                                            1.dp, CosmicAccent.copy(alpha = 0.28f), RoundedCornerShape(20.dp)
+                                        )
+                                    ) {
+                                        Text(
+                                            text = s,
+                                            color = Color.White.copy(alpha = 0.72f),
+                                            fontSize = 12.sp,
+                                            lineHeight = 16.sp,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     } else {
-        LazyColumn(
-            state            = listState,
-            modifier         = modifier,
-            reverseLayout    = true,
-            contentPadding   = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            if (streamingText.isNotEmpty() && isGenerating) {
-                item(key = "streaming") { AiStreamingBubble(text = streamingText) }
-            }
-            itemsIndexed(messages.reversed(), key = { _, msg -> msg.uid }) { index, msg ->
-                val prevMsg = messages.reversed().getOrNull(index + 1)
-                val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
-                if (msg.isUser) {
-                    UserBubble(msg.text, msg.imageUri)
-                } else {
-                    AiBubble(
-                        text      = msg.text,
-                        agentTag  = msg.agentTag,
-                        traceId   = msg.traceId,
-                        hideAvatar = hideAvatar,
-                        onShare   = onShareAiResponse,
-                        onSpeak   = onSpeak
-                    )
+        Box(modifier = modifier) {
+            LazyColumn(
+                state            = listState,
+                modifier         = Modifier.fillMaxSize(),
+                reverseLayout    = true,
+                contentPadding   = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (streamingText.isNotEmpty() && isGenerating) {
+                    item(key = "streaming") { AiStreamingBubble(text = streamingText) }
+                }
+                itemsIndexed(messages.reversed(), key = { _, msg -> msg.uid }) { index, msg ->
+                    val prevMsg = messages.reversed().getOrNull(index + 1)
+                    val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
+                    if (msg.isUser) {
+                        UserBubble(msg.text, msg.imageUri)
+                    } else {
+                        AiBubble(
+                            text       = msg.text,
+                            agentTag   = msg.agentTag,
+                            traceId    = msg.traceId,
+                            hideAvatar = hideAvatar,
+                            onShare    = onShareAiResponse,
+                            onSpeak    = onSpeak
+                        )
+                    }
                 }
             }
+            // Scroll-to-bottom FAB — surfaces when the user scrolls up
+            ScrollToBottomFab(
+                visible  = !isPinnedToBottom,
+                onClick  = { scope.launch { listState.animateScrollToItem(0) } },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 14.dp)
+            )
         }
     }
 }
 
 @Composable
 fun UserBubble(text: String, imageUri: String? = null) {
-    // Strip the trailing "[image: name]" marker that the ViewModel appends
-    // for memory persistence — the marker is meant for the prompt, not the
-    // user's eyes. When the bubble shows the actual image we don't need the
-    // text reminder either.
     val displayText = remember(text, imageUri) {
-        if (imageUri != null) {
-            text.replace(Regex("""\s*\n*\[image:[^\]]*\]\s*$"""), "").trim()
-        } else text
+        if (imageUri != null) text.replace(Regex("""\s*\n*\[image:[^\]]*\]\s*$"""), "").trim()
+        else text
     }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End
+    val context = LocalContext.current
+    val haptic  = LocalHapticFeedback.current
+
+    val transition = remember {
+        androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
+    }
+    androidx.compose.animation.AnimatedVisibility(
+        visibleState = transition,
+        enter = androidx.compose.animation.fadeIn(
+            animationSpec = androidx.compose.animation.core.tween(200)
+        ) + androidx.compose.animation.slideInHorizontally(
+            animationSpec = androidx.compose.animation.core.tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+        ) { it / 5 }
     ) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = 300.dp)
-                .clip(RoundedCornerShape(18.dp, 4.dp, 18.dp, 18.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(CosmicAccent.copy(alpha = 0.25f), CosmicAccent.copy(alpha = 0.12f))
-                    )
-                )
-                .border(1.dp, CosmicAccent.copy(alpha = 0.35f), RoundedCornerShape(18.dp, 4.dp, 18.dp, 18.dp))
-                .padding(6.dp),
-            horizontalAlignment = Alignment.End
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
         ) {
-            if (imageUri != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(imageUri)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 220.dp)
-                        .clip(RoundedCornerShape(14.dp, 4.dp, 14.dp, 14.dp))
-                        .background(Color.Black.copy(alpha = 0.25f)),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                )
-                if (displayText.isNotBlank()) Spacer(Modifier.height(6.dp))
-            }
-            if (displayText.isNotBlank() || imageUri == null) {
-                Text(
-                    displayText,
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                )
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 340.dp)
+                    .clip(RoundedCornerShape(20.dp, 4.dp, 20.dp, 20.dp))
+                    .background(UserBubbleSurface)
+                    .border(1.dp, CosmicAccent.copy(alpha = 0.28f), RoundedCornerShape(20.dp, 4.dp, 20.dp, 20.dp))
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                            as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", displayText))
+                    }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalAlignment = Alignment.End
+            ) {
+                if (imageUri != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(imageUri)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 220.dp)
+                            .clip(RoundedCornerShape(14.dp, 4.dp, 14.dp, 14.dp))
+                            .background(Color.Black.copy(alpha = 0.25f)),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                    )
+                    if (displayText.isNotBlank()) Spacer(Modifier.height(8.dp))
+                }
+                if (displayText.isNotBlank() || imageUri == null) {
+                    Text(
+                        text       = displayText,
+                        color      = Color.White,
+                        fontSize   = 15.sp,
+                        lineHeight = 23.sp
+                    )
+                }
             }
         }
     }
@@ -1141,117 +1198,109 @@ fun AiBubble(
     onShare: (String) -> Unit = {},
     onSpeak: (String) -> Unit = {}
 ) {
-    val context   = androidx.compose.ui.platform.LocalContext.current
+    val context   = LocalContext.current
+    val haptic    = LocalHapticFeedback.current
     val allTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsState()
     val trace = remember(traceId, allTraces) {
         if (traceId != null) allTraces.find { it.id == traceId } else null
     }
-    var traceExpanded  by remember { mutableStateOf(false) }
-    var showActions    by remember { mutableStateOf(false) }
+    var traceExpanded by remember { mutableStateOf(false) }
 
-    // Slide-in animation on first composition
     val transition = remember {
         androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
     }
-
     androidx.compose.animation.AnimatedVisibility(
         visibleState = transition,
         enter = androidx.compose.animation.fadeIn(
-            animationSpec = androidx.compose.animation.core.tween(220)
+            animationSpec = androidx.compose.animation.core.tween(240)
         ) + androidx.compose.animation.slideInVertically(
-            animationSpec = androidx.compose.animation.core.tween(220)
-        ) { it / 4 }
+            animationSpec = androidx.compose.animation.core.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+        ) { it / 5 }
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(end = 44.dp),
             horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.Top
         ) {
-            // Avatar — hidden when consecutive AI messages (grouping)
             if (!hideAvatar) {
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(30.dp)
                         .clip(CircleShape)
-                        .background(CosmicAccent.copy(alpha = 0.15f))
-                        .border(1.dp, CosmicAccent.copy(alpha = 0.4f), CircleShape),
+                        .background(
+                            Brush.radialGradient(
+                                listOf(CosmicAccent.copy(alpha = 0.22f), CosmicAccent.copy(alpha = 0.06f))
+                            )
+                        )
+                        .border(1.dp, CosmicAccent.copy(alpha = 0.45f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("A", color = CosmicAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("A", color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(10.dp))
             } else {
-                Spacer(Modifier.width(36.dp))
+                Spacer(Modifier.width(40.dp))
             }
 
-            Column(modifier = Modifier.widthIn(max = 300.dp)) {
-                Box {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                            .background(Color.White.copy(alpha = 0.06f))
-                            .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                            .pointerInput(text) {
-                                detectTapGestures(onLongPress = { showActions = true })
-                            }
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                    ) {
-                        Text(text, color = Color.White.copy(alpha = 0.92f), fontSize = 14.sp, lineHeight = 21.sp)
-                    }
+            Column {
+                // ── Bubble ────────────────────────────────────────────────────
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(4.dp, 20.dp, 20.dp, 20.dp))
+                        .background(AiBubbleSurface)
+                        .border(1.dp, AiBubbleBorder, RoundedCornerShape(4.dp, 20.dp, 20.dp, 20.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text       = text,
+                        color      = Color.White.copy(alpha = 0.93f),
+                        fontSize   = 15.sp,
+                        lineHeight = 23.sp
+                    )
+                }
 
-                    // Long-press action menu
-                    DropdownMenu(
-                        expanded = showActions,
-                        onDismissRequest = { showActions = false },
-                        modifier = Modifier.background(Color(0xFF1A1F38))
+                // ── Inline action row ─────────────────────────────────────────
+                Row(
+                    modifier = Modifier.padding(start = 2.dp, top = 1.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                                as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
+                            Log.d("AIRI_UI", "Message copied len=${text.length}")
+                        },
+                        modifier = Modifier.size(32.dp)
                     ) {
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Outlined.ContentCopy, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Copy", color = Color.White, fontSize = 14.sp)
-                                }
-                            },
-                            onClick = {
-                                showActions = false
-                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI message", text))
-                                Log.d("AIRI_UI", "Message copied len=${text.length}")
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Outlined.VolumeUp, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Speak", color = Color.White, fontSize = 14.sp)
-                                }
-                            },
-                            onClick = {
-                                showActions = false
-                                onSpeak(text)
-                                Log.d("AIRI_UI", "Speak action triggered len=${text.length}")
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Outlined.Share, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Share", color = Color.White, fontSize = 14.sp)
-                                }
-                            },
-                            onClick = {
-                                showActions = false
-                                onShare(text)
-                            }
-                        )
+                        Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy", tint = Color.White.copy(alpha = 0.38f), modifier = Modifier.size(15.dp))
+                    }
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onSpeak(text)
+                            Log.d("AIRI_UI", "Speak action triggered len=${text.length}")
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Outlined.VolumeUp, contentDescription = "Speak", tint = Color.White.copy(alpha = 0.38f), modifier = Modifier.size(15.dp))
+                    }
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onShare(text)
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Outlined.Share, contentDescription = "Share", tint = Color.White.copy(alpha = 0.38f), modifier = Modifier.size(15.dp))
                     }
                 }
 
-                // ── Agent Trace Card ───────────────────────────────────────────
+                // ── Agent Trace Card ──────────────────────────────────────────
                 if (trace != null) {
                     Spacer(Modifier.height(6.dp))
                     Column(
@@ -1275,12 +1324,7 @@ fun AiBubble(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Outlined.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = CosmicAccent,
-                                    modifier = Modifier.size(13.dp)
-                                )
+                                Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(13.dp))
                                 Spacer(Modifier.width(5.dp))
                                 Text(
                                     text = if (agentTag != null) "⚙ $agentTag · ${trace.stepCount} step${if (trace.stepCount != 1) "s" else ""}  ${if (traceExpanded) "▲" else "▼"}"
@@ -1301,10 +1345,7 @@ fun AiBubble(
                             Divider(color = Color.White.copy(alpha = 0.05f))
                             Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                                 trace.steps.forEachIndexed { i, step ->
-                                    Row(
-                                        verticalAlignment = Alignment.Top,
-                                        modifier = Modifier.padding(vertical = 3.dp)
-                                    ) {
+                                    Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 3.dp)) {
                                         Text(
                                             text = "${i + 1}.",
                                             color = CosmicAccent.copy(alpha = 0.6f),
@@ -1319,12 +1360,7 @@ fun AiBubble(
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
-                                                Text(
-                                                    text = step.displayName,
-                                                    color = Color.White.copy(alpha = 0.85f),
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Medium
-                                                )
+                                                Text(text = step.displayName, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
                                                 Icon(
                                                     if (step.success) Icons.Outlined.CheckCircle else Icons.Outlined.Cancel,
                                                     contentDescription = null,
@@ -1338,8 +1374,7 @@ fun AiBubble(
                                             if (detail.isNotBlank()) {
                                                 Text(
                                                     text = detail,
-                                                    color = if (step.error != null) Color(0xFFFF5252).copy(alpha = 0.8f)
-                                                            else Color.White.copy(alpha = 0.4f),
+                                                    color = if (step.error != null) Color(0xFFFF5252).copy(alpha = 0.8f) else Color.White.copy(alpha = 0.4f),
                                                     fontSize = 10.sp,
                                                     lineHeight = 14.sp
                                                 )
@@ -1359,22 +1394,8 @@ fun AiBubble(
                             .border(0.5.dp, CosmicAccent.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
-                        Text(
-                            text = "⚙ $agentTag",
-                            color = CosmicAccent.copy(alpha = 0.85f),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Text(text = "⚙ $agentTag", color = CosmicAccent.copy(alpha = 0.85f), fontSize = 10.sp, fontWeight = FontWeight.Medium)
                     }
-                }
-
-                TextButton(
-                    onClick = { onShare(text) },
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                ) {
-                    Icon(Icons.Outlined.Share, contentDescription = null, tint = CosmicAccent.copy(alpha = 0.72f), modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.share), color = CosmicAccent.copy(alpha = 0.72f), fontSize = 11.sp)
                 }
             }
         }
@@ -1387,51 +1408,49 @@ fun AiStreamingBubble(text: String) {
         "Thinking...", "Analyzing...", "Planning...", "Generating...",
         "Preparing...", "Imagining...", "Reasoning...", "Creating..."
     )
-
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(end = 44.dp),
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.Top
     ) {
         Box(
             modifier = Modifier
-                .size(28.dp)
+                .size(30.dp)
                 .clip(CircleShape)
-                .background(CosmicAccent.copy(alpha = 0.2f))
-                .border(1.dp, CosmicAccent.copy(alpha = 0.6f), CircleShape),
+                .background(
+                    Brush.radialGradient(
+                        listOf(CosmicAccent.copy(alpha = 0.22f), CosmicAccent.copy(alpha = 0.06f))
+                    )
+                )
+                .border(1.dp, CosmicAccent.copy(alpha = 0.55f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text("A", color = CosmicAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text("A", color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(10.dp))
         Column(
             modifier = Modifier
-                .widthIn(max = 300.dp)
-                .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                .background(Color.White.copy(alpha = 0.06f))
-                .border(1.dp, CosmicAccent.copy(alpha = 0.25f), RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(4.dp, 20.dp, 20.dp, 20.dp))
+                .background(AiBubbleSurface)
+                .border(1.dp, CosmicAccent.copy(alpha = 0.22f), RoundedCornerShape(4.dp, 20.dp, 20.dp, 20.dp))
+                .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
-            // PHASE 4 (verification): split the streaming body and the
-            // blinking cursor into two separate composables. The body Text
-            // only recomposes when [text] actually changes; the cursor
-            // recomposes every 530ms in its own scope and never re-measures
-            // the (potentially long) body Text. This eliminates the
-            // per-blink layout pass that would otherwise compound with
-            // per-token recomposition during streaming.
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text  = text,
-                    color = Color.White.copy(alpha = if (isThinkingStage) 0.55f else 0.92f),
-                    fontSize   = 14.sp,
-                    lineHeight = 21.sp,
+                    text       = text,
+                    color      = Color.White.copy(alpha = if (isThinkingStage) 0.50f else 0.93f),
+                    fontSize   = 15.sp,
+                    lineHeight = 23.sp,
                     fontStyle  = if (isThinkingStage) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
-                    modifier = Modifier.weight(1f, fill = false)
+                    modifier   = Modifier.weight(1f, fill = false)
                 )
                 if (!isThinkingStage) BlinkingCursor()
             }
             if (isThinkingStage) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(10.dp))
                 AiriThinkingPulse()
             }
         }
@@ -1535,21 +1554,31 @@ private fun AttachmentChip(
 
 @Composable
 private fun BlinkingCursor() {
-    // PHASE 4 (verification): isolated cursor — only this 1-char Text
-    // recomposes every 530ms, the streaming body above is untouched.
     var cursorOn by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) {
         while (true) {
-            kotlinx.coroutines.delay(530L)
+            kotlinx.coroutines.delay(500L)
             cursorOn = !cursorOn
         }
     }
-    Text(
-        text = if (cursorOn) "▋" else " ",
-        color = Color.White.copy(alpha = 0.92f),
-        fontSize = 14.sp,
-        lineHeight = 21.sp
-    )
+    androidx.compose.animation.AnimatedContent(
+        targetState = cursorOn,
+        transitionSpec = {
+            androidx.compose.animation.fadeIn(
+                animationSpec = androidx.compose.animation.core.tween(80)
+            ) togetherWith androidx.compose.animation.fadeOut(
+                animationSpec = androidx.compose.animation.core.tween(80)
+            )
+        },
+        label = "cursor_blink"
+    ) { on ->
+        Text(
+            text      = if (on) "▍" else " ",
+            color     = CosmicAccent.copy(alpha = 0.85f),
+            fontSize  = 15.sp,
+            lineHeight = 23.sp
+        )
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1560,28 +1589,42 @@ private fun BlinkingCursor() {
 @Composable
 private fun AiriThinkingPulse(
     modifier: Modifier = Modifier,
-    dotSize: Dp = 6.dp,
+    dotSize: Dp = 7.dp,
     color: Color = CosmicAccent
 ) {
     val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "airi_pulse")
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         for (i in 0..2) {
             val alpha by infinite.animateFloat(
-                initialValue = 0.25f,
-                targetValue = 1f,
+                initialValue = 0.20f,
+                targetValue  = 1f,
                 animationSpec = androidx.compose.animation.core.infiniteRepeatable(
                     animation = androidx.compose.animation.core.tween(
-                        durationMillis = 700,
-                        delayMillis = i * 180,
+                        durationMillis = 600,
                         easing = androidx.compose.animation.core.FastOutSlowInEasing
                     ),
-                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                    repeatMode   = androidx.compose.animation.core.RepeatMode.Reverse,
+                    initialStartOffset = androidx.compose.animation.core.StartOffset(i * 160)
                 ),
-                label = "airi_pulse_dot_$i"
+                label = "airi_pulse_a_$i"
+            )
+            val scale by infinite.animateFloat(
+                initialValue = 0.70f,
+                targetValue  = 1f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    animation = androidx.compose.animation.core.tween(
+                        durationMillis = 600,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    ),
+                    repeatMode   = androidx.compose.animation.core.RepeatMode.Reverse,
+                    initialStartOffset = androidx.compose.animation.core.StartOffset(i * 160)
+                ),
+                label = "airi_pulse_s_$i"
             )
             Box(
                 modifier = Modifier
-                    .padding(end = if (i < 2) 5.dp else 0.dp)
+                    .padding(end = if (i < 2) 6.dp else 0.dp)
+                    .graphicsLayer { scaleX = scale; scaleY = scale }
                     .size(dotSize)
                     .clip(CircleShape)
                     .background(color.copy(alpha = alpha))
@@ -1701,7 +1744,7 @@ fun ChatInputBar(
                 }
             }
 
-            // Voice state indicator banner
+            // Voice state indicator banner — animated waveform bars
             androidx.compose.animation.AnimatedVisibility(
                 visible = voiceState != VoiceSessionState.IDLE,
                 enter = androidx.compose.animation.fadeIn(
@@ -1715,27 +1758,31 @@ fun ChatInputBar(
                     animationSpec = androidx.compose.animation.core.tween(150)
                 )
             ) {
-                val (dotColor, label, textColor) = when (voiceState) {
-                    VoiceSessionState.LISTENING   -> Triple(Color(0xFFFF4444), "Listening…",  Color(0xFFFF6666))
-                    VoiceSessionState.PROCESSING  -> Triple(CosmicAccent,      "Processing…", CosmicAccent)
-                    VoiceSessionState.SPEAKING    -> Triple(Color(0xFF4FC3F7),  "Speaking…",   Color(0xFF4FC3F7))
-                    else                          -> Triple(Color.Transparent, "",             Color.Transparent)
+                val waveColor = when (voiceState) {
+                    VoiceSessionState.LISTENING  -> Color(0xFFFF6B6B)
+                    VoiceSessionState.PROCESSING -> CosmicAccent
+                    VoiceSessionState.SPEAKING   -> Color(0xFF4FC3F7)
+                    else                         -> CosmicAccent
+                }
+                val label = when (voiceState) {
+                    VoiceSessionState.LISTENING  -> "Listening…"
+                    VoiceSessionState.PROCESSING -> "Processing…"
+                    VoiceSessionState.SPEAKING   -> "Speaking…"
+                    else                         -> ""
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 6.dp, start = 12.dp)
+                    modifier = Modifier.padding(bottom = 6.dp, start = 14.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(dotColor)
+                    VoiceWaveformBars(
+                        active = voiceState == VoiceSessionState.LISTENING,
+                        color  = waveColor
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text(label, color = textColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.width(8.dp))
+                    Text(label, color = waveColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     if (voiceState == VoiceSessionState.SPEAKING) {
-                        Spacer(Modifier.width(6.dp))
-                        Text("(tap to stop)", color = Color.White.copy(alpha = 0.35f), fontSize = 11.sp)
+                        Spacer(Modifier.width(5.dp))
+                        Text("· tap to stop", color = Color.White.copy(alpha = 0.32f), fontSize = 11.sp)
                     }
                 }
             }
@@ -2366,4 +2413,99 @@ private fun GenerationSettingsDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = Color.White.copy(alpha = 0.6f)) }
         }
     )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VOICE WAVEFORM BARS
+// Five bars that animate their height in staggered sequence, conveying live
+// audio activity. Used in the voice-state indicator banner inside ChatInputBar.
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun VoiceWaveformBars(
+    active: Boolean,
+    color: Color,
+    barCount: Int = 5,
+    modifier: Modifier = Modifier
+) {
+    val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "voice_waveform")
+    Row(
+        modifier = modifier.height(18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        for (i in 0 until barCount) {
+            val maxH = when (i % 3) { 0 -> 14f; 1 -> 18f; else -> 10f }
+            val barH by infinite.animateFloat(
+                initialValue = 3f,
+                targetValue  = if (active) maxH else 4f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    animation = androidx.compose.animation.core.tween(
+                        durationMillis = 280 + i * 70,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    ),
+                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+                    initialStartOffset = androidx.compose.animation.core.StartOffset(i * 75)
+                ),
+                label = "waveform_bar_$i"
+            )
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(barH.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(color.copy(alpha = if (active) 0.88f else 0.40f))
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SCROLL-TO-BOTTOM FAB
+// Appears with a spring-pop animation when the user has scrolled up away from
+// the latest message. Tapping snaps the list back to the bottom.
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ScrollToBottomFab(
+    visible: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        enter = androidx.compose.animation.fadeIn(
+            animationSpec = androidx.compose.animation.core.tween(200)
+        ) + androidx.compose.animation.scaleIn(
+            animationSpec = androidx.compose.animation.core.spring(
+                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                stiffness    = androidx.compose.animation.core.Spring.StiffnessMedium
+            ),
+            initialScale = 0.55f
+        ),
+        exit = androidx.compose.animation.fadeOut(
+            animationSpec = androidx.compose.animation.core.tween(140)
+        ) + androidx.compose.animation.scaleOut(
+            animationSpec = androidx.compose.animation.core.tween(140),
+            targetScale = 0.55f
+        ),
+        modifier = modifier
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .shadow(12.dp, CircleShape, ambientColor = CosmicAccent, spotColor = CosmicAccent)
+                .clip(CircleShape)
+                .background(CosmicAccent.copy(alpha = 0.90f))
+                .clickable { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.KeyboardArrowDown,
+                contentDescription = "Scroll to latest",
+                tint = Color.Black,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
 }

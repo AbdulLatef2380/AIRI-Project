@@ -413,4 +413,8 @@
     <string name="porcupine_source_runtime">From: paste</string>
     <string name="porcupine_source_build">From: build config</string>
     <string name="speech_recognition_unavailable">Speech recognition is not available on this device</string>
-    <string name="porcupine_help_link">Get a free AccessKey at console.picovoice.ai</string></resources>
+    <string name="porcupine_help_link">Get a free AccessKey at console.picovoice.ai</string>
+    <string name="suggestion_what_can_you_do">What can you help me with?</string>
+    <string name="suggestion_explain_ai">How does on-device AI work?</string>
+    <string name="suggestion_write_poem">Write me a short poem</string>
+    <string name="suggestion_brainstorm">Help me brainstorm ideas</string></resources>

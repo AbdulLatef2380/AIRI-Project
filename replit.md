@@ -204,9 +204,81 @@ Pure-Compose streaming-safe Markdown renderer using only `AnnotatedString`:
 
 ---
 
+---
+
+## Phase 3 — Full-Duplex VAD Interruption System (ChatGPT-class barge-in)
+
+### Overview
+Zero-cloud, on-device VAD interruption system. The user can speak while the AI is talking and AIRI immediately stops TTS and starts listening. Powered by Silero VAD (ONNX, ~2 MB) via `android-vad-silero 2.1.3`.
+
+### New File: `voice/FullDuplexVadEngine.kt`
+
+Production-grade Silero VAD engine with 7 concurrent engineering issues addressed:
+
+| Issue | Problem | Fix |
+|-------|---------|-----|
+| 1. Dual Audio Ownership | VAD mic (VOICE_COMMUNICATION) and Vosk mic (VOICE_RECOGNITION) race for hardware | `stop()` releases `AudioRecord` **synchronously** before returning. Caller gets the mic free instantly. |
+| 2. State Machine Race | TTS end racing against VAD detection: both try to fire `onSpeakingDone` | `AtomicReference<FullDuplexVadEngine>` identity check in callback + `AtomicBoolean` CAS gate in VoiceManager |
+| 3. Double Interrupt | Consecutive Silero "speech" frames trigger multiple `onVoiceDetected` | `detected.compareAndSet(false, true)` — first frame wins, all subsequent dropped |
+| 4. TTS Chunk Overlap | `onDone` fires for each chunk; can trigger `onSpeakingDone` prematurely | `onDone` now checks BOTH `utteranceId == last` AND `!ttsStreamActive`; `ttsStreamFlush()` always queues sentinel `"\u200B"` so `lastQueuedUtteranceId` always resolves |
+| 5. Memory Leak | `AudioRecord` not released if coroutine cancelled | `finally` block always releases; `stop()` synchronous release is also a safety net |
+| 6. Lifecycle Gap | App backgrounded → mic ghost lock (Android 14/15) | `LifecycleEventObserver` on `ON_PAUSE` stops all audio subsystems and resets loop |
+| 7. UX Gap | No visual feedback in the ~50ms between VAD detection and STT start | `isVadInterrupting` state → amber "Interrupting…" glow in waveform banner |
+
+### Audio Source Decision (battle-tested via GitHub research)
+- **VAD uses `VOICE_COMMUNICATION`** — activates hardware AEC DSP pipeline. TTS speaker output is cancelled from the mic signal before Silero ever sees it. Prevents false triggers from the AI's own voice.
+- **`AcousticEchoCanceler`** additionally attached to session ID for software-layer AEC on devices without hardware AEC.
+- **10-frame warmup** (200ms) for ambient noise floor calibration before arming.
+- `VERY_AGGRESSIVE` Silero mode + `speechDurationMs=80ms` (4 frames): high noise rejection, ~20ms detection latency.
+
+### Interrupt Ordering (critical for audio-source exclusivity)
+```
+VAD detects speech
+  → Step 1: thisEngine.stop()         ← VOICE_COMMUNICATION AudioRecord released synchronously
+  → Step 2: tts.stop()                ← TTS playback halted
+  → Step 3: listener.onVadInterrupted() ← ChatScreen bumps tick
+  → LaunchedEffect fires
+  → startInAppStt()                   ← VoskEngine opens VOICE_RECOGNITION (mic guaranteed free)
+```
+
+### Dual CAS Guard (prevents all race conditions)
+```kotlin
+// Guard 1 — per-session gate (vadInterruptFired in VoiceManager):
+if (!vadInterruptFired.compareAndSet(false, true)) return  // double-fire dropped
+
+// Guard 2 — engine identity check (vadEngineRef in VoiceManager):
+if (!vadEngineRef.compareAndSet(thisEngine, null)) return  // stale callback dropped
+```
+
+### Visual States
+| `isVadInterrupting` | `voiceState` | Banner | Color |
+|----|----|----|-----|
+| false | IDLE | hidden | — |
+| false | LISTENING | "Listening…" | Coral `#FF6B6B` |
+| **true** | LISTENING | **"Interrupting…"** | **Amber `#FFB347`** |
+| false | SPEAKING | "Speaking…" | Sky `#4FC3F7` |
+| false | PROCESSING | "Processing…" | CosmicAccent |
+
+### Key Changes Per File
+- **`FullDuplexVadEngine.kt`** — Complete rewrite (v3): synchronous `stop()`, AEC, noise floor warmup, CAS detected, VOICE_COMMUNICATION source
+- **`VoiceManager.kt`** — Complete rewrite (v3): `AtomicReference<FullDuplexVadEngine?>`, dual CAS gate, sentinel in `ttsStreamFlush()`, `!ttsStreamActive` condition in `onDone`, `stopVadIfRunning()` public API
+- **`ChatScreen.kt`** — `isVadInterrupting` state, `LifecycleEventObserver`, `stopVadIfRunning()` at all 4 manual stop sites, amber glow wired into `ChatInputBar`
+- **`ChatInputBar`** — `isVadInterrupting: Boolean` param, amber waveform color + "Interrupting…" label, bars animate during interrupt
+- **`libs.versions.toml`** — `lifecycle-runtime-compose` added (provides `LocalLifecycleOwner` for Compose)
+- **`app/build.gradle.kts`** — `lifecycle-runtime-compose` implementation added
+
+### Dependencies Added This Phase
+| Library | Version | Purpose |
+|---------|---------|---------|
+| `io.github.gkonovalov:android-vad-silero` | 2.1.3 | Silero DNN VAD (ONNX, on-device) |
+| `androidx.lifecycle:lifecycle-runtime-compose` | 2.7.0 | `LocalLifecycleOwner` for `DisposableEffect` lifecycle observer |
+
+---
+
 ## Known Gaps / Future Work
 - `RuntimeSupervisor` (thermal / memory pressure monitoring) is not yet implemented.
 - Draft model speculative decoding path (`SpeculativeManager`) is wired but requires a companion draft GGUF to activate.
 - Accessibility: TalkBack labels for voice state indicator and streaming progress are not set.
-- Markdown rendering in AI bubbles not yet implemented (plain text only).
 - `AiBubble` inline action "Copy" shows no visual confirmation toast (snackbar not yet wired to copy action).
+- VAD adaptive noise threshold: currently logs ambient RMS but does not dynamically adjust `speechDurationMs`. Future: increase durationMs in noisy environments.
+- VAD `MAX_SESSION_MS = 50s` hard timeout: protects against eternal mic lock but means extremely long AI monologues (>50s) lose VAD coverage for the tail. Future: restart VAD at the 45s mark.

@@ -270,24 +270,36 @@ fun ChatScreen(
         }
     }
 
-    // ── VoiceManager (TTS) ───────────────────────────────────────────────────
+    // ── VoiceManager (TTS + full-duplex VAD) ────────────────────────────────
     val voiceStateRef = remember { androidx.compose.runtime.mutableStateOf(VoiceSessionState.IDLE) }
-    // Issue #2 — continuous live-voice loop. When the user taps the
-    // live-chat button, we set this to TRUE; the TTS done-callback then
-    // automatically re-arms Vosk so the assistant feels like a real
-    // back-and-forth conversation instead of a single-shot voice command.
-    // Reset to FALSE when the user explicitly stops, when generation errors,
-    // or when ChatScreen leaves the composition.
+
+    // liveChatActiveRef: TRUE while the continuous live-chat loop is armed.
+    // The TTS done-callback re-arms Vosk automatically when this is true.
     val liveChatActiveRef = remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    // voiceLoopRearmTick: bumped by onSpeakingDone() to trigger STT re-arm
+    // via LaunchedEffect (avoids calling startInAppStt from a callback).
     val voiceLoopRearmTick = remember { androidx.compose.runtime.mutableStateOf(0) }
+
+    // vadInterruptedTick: bumped by onVadInterrupted() to trigger instant
+    // STT start via LaunchedEffect (same safe pattern as rearmTick).
+    // Using a tick rather than a Boolean means repeated rapid interruptions
+    // each get their own LaunchedEffect recomposition and can't be lost.
+    val vadInterruptedTick = remember { androidx.compose.runtime.mutableStateOf(0) }
+
+    // isVadInterrupting: true for the brief window between VAD detecting speech
+    // and STT actually starting (typically <50 ms). Drives the "interrupt glow"
+    // visual treatment — a warm amber pulse on the waveform banner so the user
+    // gets sub-100 ms feedback that they've been heard, even before the mic icon
+    // transitions. Cleared as soon as startInAppStt() is called.
+    val isVadInterrupting = remember { androidx.compose.runtime.mutableStateOf(false) }
+
     val voiceManager = remember {
         VoiceManager(context, object : VoiceManager.VoiceListener {
             override fun onWakeWordDetected() {}
             override fun onSpeechResult(text: String) {}
             override fun onError(error: String) {
                 scope.launch { snackbarHost.showSnackbar("Voice error: $error") }
-                // Hard-stop the loop on any voice error so we don't spin
-                // re-arming Vosk against a broken mic / missing model.
                 if (liveChatActiveRef.value) {
                     Log.i("AIRI_PROOF", "VOICE_LOOP_STOPPED reason=error err=$error")
                     liveChatActiveRef.value = false
@@ -300,19 +312,96 @@ fun ChatScreen(
             override fun onSpeakingDone() {
                 Log.d("AIRI_VOICE", "TTS speaking done → VoiceSessionState.IDLE")
                 voiceStateRef.value = VoiceSessionState.IDLE
-                // Re-arm STT iff we are in continuous-conversation mode.
                 if (liveChatActiveRef.value) {
                     Log.i("AIRI_PROOF", "VOICE_LOOP_REARM_REQUESTED tick=${voiceLoopRearmTick.value + 1}")
                     voiceLoopRearmTick.value = voiceLoopRearmTick.value + 1
                 }
             }
+            // ── FULL-DUPLEX INTERRUPTION ────────────────────────────────
+            // Called on Main by FullDuplexVadEngine after Silero confirms
+            // speech (~20 ms latency). TTS has ALREADY been stopped inside
+            // VoiceManager.startVad() before this callback fires, so there
+            // is no audible tail. We just need to update UI state and arm STT.
+            override fun onVadInterrupted() {
+                Log.i("AIRI_PROOF", "VAD_INTERRUPTED_CB tick=${vadInterruptedTick.value + 1} loop=${liveChatActiveRef.value}")
+                // Issue 7 — micro-latency glow: arm the amber interrupt pulse
+                // BEFORE the tick bump so the first recomposition frame shows it.
+                isVadInterrupting.value = true
+                // Snap voice state to LISTENING immediately. voiceStateRef is
+                // the TTS-owned state; writing LISTENING here prevents the
+                // voiceStateRef LaunchedEffect from reverting us to IDLE.
+                voiceStateRef.value = VoiceSessionState.LISTENING
+                // Bump tick — LaunchedEffect(vadInterruptedTick.value) below
+                // will start STT on the Compose coroutine context.
+                vadInterruptedTick.value = vadInterruptedTick.value + 1
+            }
         })
     }
     DisposableEffect(Unit) { onDispose { voiceManager.destroy() } }
-    // Issue #2 — consume the re-arm tick that the TTS done-callback bumps
-    // when liveChatActive is true. We pause briefly so the user can hear
-    // the tail of the response settle before the mic starts listening
-    // again, otherwise the re-arm feels jarring.
+
+    // ── Issue 6: Lifecycle gap — Android 15 mic-lock prevention ──────────
+    // When the app is backgrounded (ON_PAUSE), stop ALL audio subsystems
+    // immediately. Without this, on Android 14/15 the OS may revoke the
+    // microphone grant mid-session causing AudioRecord to return ERROR_DEAD_OBJECT
+    // permanently, or keep a ghost recording thread draining the battery.
+    val _lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(_lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                Log.i("AIRI_PROOF", "LIFECYCLE_ON_PAUSE → releasing all audio resources")
+                voiceManager.stopVadIfRunning()
+                stopInAppStt()
+                isVadInterrupting.value = false
+                voiceStateRef.value = VoiceSessionState.IDLE
+                voiceState = VoiceSessionState.IDLE
+                if (liveChatActiveRef.value) {
+                    liveChatActiveRef.value = false
+                    Log.i("AIRI_PROOF", "VOICE_LOOP_PAUSED reason=app_backgrounded")
+                }
+            }
+        }
+        _lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { _lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // ── VAD interruption handler ─────────────────────────────────────────
+    // Reacts to vadInterruptedTick bumps from onVadInterrupted().
+    // Runs on the Compose coroutine scope (Main thread), safe to call
+    // startInAppStt which mutates Compose state.
+    // No delay needed — the interruption should feel INSTANT.
+    LaunchedEffect(vadInterruptedTick.value) {
+        if (vadInterruptedTick.value > 0) {
+            Log.i("AIRI_PROOF", "VAD_INTERRUPT_EFFECT tick=${vadInterruptedTick.value} loop=${liveChatActiveRef.value}")
+            // Always set state to LISTENING + arm STT after VAD interrupt,
+            // regardless of liveChatActiveRef — the user clearly wants to speak.
+            voiceState = VoiceSessionState.LISTENING
+            // autoSend: in live-chat mode or when speakNextResponse is primed,
+            // send the STT result automatically. Otherwise just fill the text field.
+            val autoSend = liveChatActiveRef.value || speakNextResponse
+            // Also reset speakNextResponse so the PREVIOUS AI response is not
+            // re-spoken after the interrupt (the user is taking the floor).
+            speakNextResponse = false
+            ttsStreamingActive = false
+            lastTtsStreamLen = 0
+            if (!agentState.isWorking) {
+                Log.i("AIRI_PROOF", "VAD_INTERRUPT_STT_START autoSend=$autoSend")
+                // Clear glow BEFORE startInAppStt so the waveform banner
+                // transitions: amber glow → normal listening state.
+                isVadInterrupting.value = false
+                startInAppStt(autoSend = autoSend)
+            } else {
+                // Generation still running — cancel it then start listening.
+                Log.i("AIRI_PROOF", "VAD_INTERRUPT_CANCEL_GEN then STT autoSend=$autoSend")
+                viewModel.cancelGeneration()
+                kotlinx.coroutines.delay(100)
+                isVadInterrupting.value = false
+                if (!agentState.isWorking) startInAppStt(autoSend = autoSend)
+            }
+        }
+    }
+
+    // ── Normal TTS-done loop rearm ───────────────────────────────────────
+    // (Unchanged from original — fires when TTS completes normally, no VAD)
     LaunchedEffect(voiceLoopRearmTick.value) {
         if (voiceLoopRearmTick.value > 0 &&
             liveChatActiveRef.value &&
@@ -320,17 +409,15 @@ fun ChatScreen(
             !agentState.isWorking
         ) {
             kotlinx.coroutines.delay(350)
-            // Re-check after the delay — the user may have tapped to exit.
             if (liveChatActiveRef.value && !agentState.isWorking) {
                 Log.i("AIRI_PROOF", "VOICE_LOOP_REARM_FIRED tick=${voiceLoopRearmTick.value}")
-                Log.i("AIRI_PROOF", "VOICE_REARMED tick=${voiceLoopRearmTick.value}")
                 startInAppStt(autoSend = true)
             } else {
                 Log.i("AIRI_PROOF", "VOICE_LOOP_REARM_ABORTED reason=user_exit_or_busy")
             }
         }
     }
-    // Sync the TTS-driven state updates back to the UI state variable
+    // Sync TTS-driven state back to UI state variable
     LaunchedEffect(voiceStateRef.value) {
         val ttsState = voiceStateRef.value
         if (ttsState == VoiceSessionState.SPEAKING || ttsState == VoiceSessionState.IDLE) {
@@ -669,10 +756,13 @@ fun ChatScreen(
                         }
                     },
                     voiceState        = voiceState,
+                    isVadInterrupting = isVadInterrupting.value,
                     onMicClick      = mic@{
                         // Interrupt TTS if currently speaking
                         if (voiceState == VoiceSessionState.SPEAKING) {
+                            voiceManager.stopVadIfRunning()   // Issue 2: stop VAD before TTS
                             voiceManager.stopSpeaking()
+                            isVadInterrupting.value = false
                             voiceStateRef.value = VoiceSessionState.IDLE
                             voiceState = VoiceSessionState.IDLE
                             Log.d("AIRI_VOICE", "TTS interrupted by mic press → IDLE")
@@ -698,12 +788,11 @@ fun ChatScreen(
                         // continuous loop, because tapping during TTS is the
                         // user's signal that they want out.
                         if (voiceState == VoiceSessionState.SPEAKING) {
+                            voiceManager.stopVadIfRunning()   // Issue 2: stop VAD before TTS
                             voiceManager.stopSpeaking()
+                            isVadInterrupting.value = false
                             voiceStateRef.value = VoiceSessionState.IDLE
                             voiceState = VoiceSessionState.IDLE
-                            // Phase 2 — explicit barge-in proof tag (the user
-                            // tapped while TTS was speaking, that's a real
-                            // interrupt event, not just a stop).
                             Log.i("AIRI_PROOF", "VOICE_INTERRUPTED reason=tap_during_speaking loop_active=${liveChatActiveRef.value}")
                             if (liveChatActiveRef.value) {
                                 liveChatActiveRef.value = false
@@ -738,13 +827,15 @@ fun ChatScreen(
                     onVoiceConsumed = { voiceInput = ""; voiceState = VoiceSessionState.IDLE },
                     onOpenModels    = { onNavigate(AiriRoute.MODELS) },
                     onUserStartedTyping = {
-                        // PHASE 4 (audio polish): user typing == intent to take
-                        // the floor. Stop TTS instantly so we don't talk over
-                        // them. Also drop out of the continuous live-chat loop
-                        // so we don't auto-re-arm the mic mid-typing.
+                        // User typing == intent to take the floor. Stop TTS
+                        // instantly. Also stop VAD so it doesn't fire an
+                        // interrupt after the user has already interrupted by
+                        // typing (prevents spurious STT re-arm mid-keypress).
                         if (voiceState == VoiceSessionState.SPEAKING) {
                             Log.i("AIRI_PROOF", "TTS_INTERRUPTED reason=user_typing")
+                            voiceManager.stopVadIfRunning()   // Issue 2: stop VAD before TTS
                             voiceManager.stopSpeaking()
+                            isVadInterrupting.value = false
                             voiceState = VoiceSessionState.IDLE
                         }
                         if (liveChatActiveRef.value) {
@@ -765,7 +856,9 @@ fun ChatScreen(
                     onOpenModels  = { onNavigate(AiriRoute.MODELS) },
                     onShareAiResponse = { response -> shareAiResponse(context, response) },
                     onSpeak = { text ->
+                        voiceManager.stopVadIfRunning()   // Issue 2: stop VAD before TTS
                         voiceManager.stopSpeaking()
+                        isVadInterrupting.value = false
                         voiceState = VoiceSessionState.SPEAKING
                         voiceStateRef.value = VoiceSessionState.SPEAKING
                         voiceManager.speak(text)
@@ -1661,6 +1754,10 @@ fun ChatInputBar(
     isGenerating: Boolean,
     voiceInput: String,
     voiceState: VoiceSessionState = VoiceSessionState.IDLE,
+    // When true: VAD just detected user speech and we're in the ~50 ms
+    // transition window before STT starts. Renders amber "Interrupting…"
+    // glow so the user sees instant feedback even before the mic icon changes.
+    isVadInterrupting: Boolean = false,
     smartReplies: List<String> = emptyList(),
     onSend: (String) -> Unit,
     onCancel: () -> Unit = {},
@@ -1673,10 +1770,8 @@ fun ChatInputBar(
     onVoiceChatClick: () -> Unit,
     onVoiceConsumed: () -> Unit,
     onOpenModels: () -> Unit,
-    // PHASE 4 (audio polish): fires the first time the user starts typing
-    // a brand-new message after the input was empty. ChatScreen uses it
-    // to interrupt any in-flight TTS so the user is never talked over —
-    // matching the behaviour of ChatGPT / Gemini voice modes.
+    // Fires the first time the user starts typing a brand-new message after
+    // the input was empty. ChatScreen uses it to interrupt in-flight TTS.
     onUserStartedTyping: () -> Unit = {}
 ) {
     var showAttachPopup by remember { mutableStateOf(false) }
@@ -1776,24 +1871,29 @@ fun ChatInputBar(
                     animationSpec = androidx.compose.animation.core.tween(150)
                 )
             ) {
-                val waveColor = when (voiceState) {
-                    VoiceSessionState.LISTENING  -> Color(0xFFFF6B6B)
-                    VoiceSessionState.PROCESSING -> CosmicAccent
-                    VoiceSessionState.SPEAKING   -> Color(0xFF4FC3F7)
-                    else                         -> CosmicAccent
+                // Interrupt glow: amber pulse when VAD fires, before STT starts.
+                // Regular LISTENING = coral red. PROCESSING = cosmic accent.
+                // SPEAKING = sky blue. isVadInterrupting overrides LISTENING.
+                val waveColor = when {
+                    isVadInterrupting                        -> Color(0xFFFFB347)  // amber
+                    voiceState == VoiceSessionState.LISTENING  -> Color(0xFFFF6B6B)  // coral
+                    voiceState == VoiceSessionState.PROCESSING -> CosmicAccent
+                    voiceState == VoiceSessionState.SPEAKING   -> Color(0xFF4FC3F7)  // sky blue
+                    else                                       -> CosmicAccent
                 }
-                val label = when (voiceState) {
-                    VoiceSessionState.LISTENING  -> "Listening…"
-                    VoiceSessionState.PROCESSING -> "Processing…"
-                    VoiceSessionState.SPEAKING   -> "Speaking…"
-                    else                         -> ""
+                val label = when {
+                    isVadInterrupting                          -> "Interrupting…"
+                    voiceState == VoiceSessionState.LISTENING  -> "Listening…"
+                    voiceState == VoiceSessionState.PROCESSING -> "Processing…"
+                    voiceState == VoiceSessionState.SPEAKING   -> "Speaking…"
+                    else                                       -> ""
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(bottom = 6.dp, start = 14.dp)
                 ) {
                     VoiceWaveformBars(
-                        active = voiceState == VoiceSessionState.LISTENING,
+                        active = voiceState == VoiceSessionState.LISTENING || isVadInterrupting,
                         color  = waveColor
                     )
                     Spacer(Modifier.width(8.dp))

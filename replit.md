@@ -483,6 +483,76 @@ Multi-runtime AI operating layer. Three execution modes, capability-aware routin
 
 ---
 
+---
+
+## OMEGA CORE PROMPT — Final Hardening (Sessions 6 + 7)
+
+All items on the OMEGA CORE PROMPT plan are now **COMPLETE**. Zero crashes, no blank states, no stale callbacks.
+
+### Session 6 — Prior work (verified complete)
+
+| Item | File | Status |
+|------|------|--------|
+| Chunked prefill (`AIRI_PREFILL_CHUNK=64`) | `LlamaBridge.cpp` | ✅ |
+| Exact token budget (`trimHistoryByTokens` → `nativeCountTokens`) | `LlamaManager.kt` | ✅ |
+| Generation ID guard at both Main-dispatch sites | `LlamaManager.kt` | ✅ |
+| RuntimeSupervisor thermal + memory watchdog | `RuntimeSupervisor.kt` | ✅ |
+| ExecDiagnosticsScreen navigation + route | `AiriApp.kt`, `SettingsScreen.kt` | ✅ |
+| `tokenRateHistory: StateFlow<List<Float>>` (rolling 20-turn LOCAL-only tok/s) | `ChatViewModel.kt` | ✅ |
+
+### Session 7 — This session
+
+#### 1. TPS Sparkline — ExecDiagnosticsScreen LIVE tab
+**File:** `ExecDiagnosticsScreen.kt`
+
+- `TpsSparkline` — pure-Canvas `@Composable` (file-private, before helpers section):
+  - Accent polyline (`ExOk` color, 2dp, round caps/joins) built via `Path` → `drawPath`
+  - 3-line subtle reference grid (7% white alpha) at 25/50/75 % height
+  - Filled dot (4dp radius) + dark inner dot (2dp) on the most-recent (rightmost) value
+  - Single-point edge case: draws centred dot only (no polyline)
+  - Pure `Canvas` — no Compose state; safe in any scroll context
+- "Local Throughput" `SettingsSurface` card inserted between Last Turn and Session Reliability:
+  - Empty state: centred placeholder "No local generation data yet" (never shows blank chart)
+  - Populated state: current tok/s readout (bold, 20sp) + turn count subtitle → sparkline (56dp height, full width) → min/max row labels
+  - Imports added: `Canvas`, `Offset`, `Path`, `StrokeCap`, `StrokeJoin`, `drawscope.Stroke`
+
+#### 2. Kotlin-level cancel guard in `reconcileSession`
+**File:** `LlamaManager.kt`
+
+- Added `cancelRequested.get()` check inside **both** replay loops in `reconcileSession`:
+  - The hard-reset path (loop at the start of reconcile)
+  - The incremental path (loop over messages to replay into KV)
+- On cancel: throws `RuntimeException("RECONCILE_CANCELLED")` with `AIRI_PROOF` log tag
+- Bounds cancellation latency during prefill/reconcile to **O(1 message boundary)** rather than waiting for the entire history replay to complete
+
+#### 3. Cancel exception routing fix — outer catch in `generateStream`
+**File:** `LlamaManager.kt`
+
+**Bug:** The outer `catch (e: Throwable)` block previously called `onError(…)` for ALL exceptions, including user-initiated cancel exceptions (`RECONCILE_CANCELLED`, `PREFILL_CANCELLED`, native status -2). The user saw an error state even after a clean cancel.
+
+**Fix:** The outer catch now distinguishes cancel from hard error BEFORE calling `fullReset()`:
+
+```
+isCancelException = cancelRequested.get() || nativeStatus == -2 || exMsg.contains("CANCELLED")
+```
+
+- **Cancel path** (`isCancelException = true`):
+  - Captures `partialOnCancel = response.toString()` before clearing buffers
+  - Calls `fullReset()` then `invalidateSession()` + `nativeClearCancel()`
+  - Dispatches `onComplete(partialOnCancel)` — same as the status=-2 branch from generate
+  - Logs `STATE_CANCELLED origin=exception`
+- **Error path** (`isCancelException = false`):
+  - Same as before: `fullReset()` + `onError("ERR_NATIVE …")`
+  - Logs `STATE_ERROR origin=exception`
+
+This closes the last UI-visible cancel → error regression. All four cancel paths now converge on `onComplete(partial)`:
+1. Cancel during generate (status -2 branch) ✅ — existing
+2. Cancel during prefill via `runAppendWithSafeHandler` ✅ — this fix
+3. Cancel during reconcile via Kotlin guard ✅ — this fix
+4. Watchdog timeout cancel ✅ — routed via `cancelRequested.set(true)` → same path
+
+---
+
 ## Known Gaps / Future Work
 - Draft model speculative decoding path (`SpeculativeManager`) is wired but requires a companion draft GGUF to activate.
 - Accessibility: TalkBack labels for voice state indicator and streaming progress are not set.

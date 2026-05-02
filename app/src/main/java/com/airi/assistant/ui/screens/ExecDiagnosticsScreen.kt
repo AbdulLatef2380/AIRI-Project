@@ -9,6 +9,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.outlined.*
@@ -71,8 +77,9 @@ fun ExecDiagnosticsScreen(
 ) {
     // ── Single point of truth — both flows collected once at the top ──────────
     val execDiag   by viewModel.execDiagnostics.collectAsState()
-    val tokenStats by viewModel.tokenAccountant.stats.collectAsState()
-    val scope       = rememberCoroutineScope()
+    val tokenStats       by viewModel.tokenAccountant.stats.collectAsState()
+    val tokenRateHistory by viewModel.tokenRateHistory.collectAsState()
+    val scope             = rememberCoroutineScope()
 
     var selectedTab     by remember { mutableStateOf(DiagTab.LIVE) }
     var showResetDialog by remember { mutableStateOf(false) }
@@ -191,7 +198,7 @@ fun ExecDiagnosticsScreen(
 
             // ── Tab content ───────────────────────────────────────────────────
             when (selectedTab) {
-                DiagTab.LIVE    -> LiveTab(state = execDiag)
+                DiagTab.LIVE    -> LiveTab(state = execDiag, tokenRateHistory = tokenRateHistory)
                 DiagTab.BUDGET  -> BudgetTab(
                     stats       = tokenStats,
                     viewModel   = viewModel,
@@ -209,7 +216,7 @@ fun ExecDiagnosticsScreen(
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun LiveTab(state: ExecutionDiagnosticsState) {
+private fun LiveTab(state: ExecutionDiagnosticsState, tokenRateHistory: List<Float>) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -266,6 +273,73 @@ private fun LiveTab(state: ExecutionDiagnosticsState) {
                 if (state.lastProviderLatencyMs > 0L) {
                     ExDivider()
                     ExRow("First Token Latency", "${state.lastProviderLatencyMs} ms")
+                }
+            }
+        }
+
+        // ── Local Throughput Sparkline ────────────────────────────────────────
+        // Only cloud-independent (LOCAL origin) tok/s values are charted so
+        // the line reflects actual on-device decode speed, not HTTP latency.
+        // Hidden until the first local generation completes so the card never
+        // shows an empty/misleading state.
+        SettingsSurface {
+            ExSection(icon = Icons.Outlined.ShowChart, title = "Local Throughput")
+            Spacer(Modifier.height(8.dp))
+            if (tokenRateHistory.isEmpty()) {
+                Box(
+                    modifier         = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "No local generation data yet",
+                        color    = ExSubtle,
+                        fontSize = 12.sp
+                    )
+                }
+            } else {
+                val currentTps = tokenRateHistory.last()
+                Row(
+                    modifier          = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Text(
+                        "%.1f tok/s".format(currentTps),
+                        color      = ExOk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize   = 20.sp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "(last ${tokenRateHistory.size} ${if (tokenRateHistory.size == 1) "turn" else "turns"})",
+                        color    = ExSubtle,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(bottom = 3.dp)
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                TpsSparkline(
+                    values   = tokenRateHistory,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                )
+                Spacer(Modifier.height(2.dp))
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "%.1f".format(tokenRateHistory.min()),
+                        color    = ExSubtle,
+                        fontSize = 10.sp
+                    )
+                    Text(
+                        "max %.1f".format(tokenRateHistory.max()),
+                        color    = ExSubtle,
+                        fontSize = 10.sp
+                    )
                 }
             }
         }
@@ -736,6 +810,69 @@ private fun ExDivider() {
         color    = Color.White.copy(alpha = 0.05f),
         modifier = Modifier.padding(vertical = 4.dp)
     )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TpsSparkline — mini line chart for a list of tok/s values (newest on right)
+//
+// Design rules (matches Cosmic palette):
+//  • Accent-coloured polyline with rounded caps/joins
+//  • Filled dot on the most recent (rightmost) value
+//  • Subtle horizontal grid lines at 25 / 50 / 75 % height for reference
+//  • Gracefully handles a single data point (draws only the dot)
+//  • Pure Canvas — no state, safe in any lazy list or scroll context
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun TpsSparkline(values: List<Float>, modifier: Modifier = Modifier) {
+    if (values.isEmpty()) return
+    Canvas(modifier = modifier) {
+        val w     = size.width
+        val h     = size.height
+        val min   = values.min()
+        val max   = values.max().coerceAtLeast(min + 0.1f)
+        val range = max - min
+
+        // Subtle reference grid (3 inner lines)
+        val gridColor = Color.White.copy(alpha = 0.07f)
+        for (i in 1..3) {
+            val y = h * i / 4f
+            drawLine(gridColor, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
+        }
+
+        if (values.size == 1) {
+            // Single point — draw a centred dot only
+            drawCircle(
+                color  = ExOk,
+                radius = 4.dp.toPx(),
+                center = Offset(w / 2f, h / 2f)
+            )
+            return@Canvas
+        }
+
+        // Build the polyline path
+        val path = Path()
+        values.forEachIndexed { idx, v ->
+            val x = w * idx / (values.size - 1).toFloat()
+            val y = h - h * (v - min) / range
+            if (idx == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(
+            path  = path,
+            color = ExOk,
+            style = Stroke(
+                width = 2.dp.toPx(),
+                cap   = StrokeCap.Round,
+                join  = StrokeJoin.Round
+            )
+        )
+
+        // Filled dot on the most-recent (right-most) value
+        val lastX = w
+        val lastY = h - h * (values.last() - min) / range
+        drawCircle(color = ExOk,                       radius = 4.dp.toPx(), center = Offset(lastX, lastY))
+        drawCircle(color = Color.Black.copy(alpha = 0.65f), radius = 2.dp.toPx(), center = Offset(lastX, lastY))
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

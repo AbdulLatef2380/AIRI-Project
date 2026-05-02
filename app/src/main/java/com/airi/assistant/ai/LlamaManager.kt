@@ -576,6 +576,20 @@ class LlamaManager(private val context: Context) {
             // re-primes from the trimmed chatHistory (which by then will be
             // shorter due to MAX_HISTORY_TOKENS trimming).
             for (msg in chatHistory) {
+                // ── SPEC v3 — Kotlin-level cancel guard ──────────────────────
+                // The native g_cancel_requested check fires at the start of the
+                // first 64-token chunk of the next appendAssistantTurn call,
+                // but checking the Kotlin-side AtomicBoolean here avoids a JNI
+                // hop entirely when cancelStream() is called mid-replay. The
+                // thrown exception propagates to generateStream's outer catch,
+                // which routes through fullReset() → invalidateSession() so the
+                // next turn re-primes cleanly. This bounds cancellation latency
+                // to O(1 message boundary) rather than O(1 token-chunk).
+                if (cancelRequested.get()) {
+                    Log.i("AIRI_PROOF",
+                        "RECONCILE_CANCELLED phase=hard_reset_replay role=${msg.role}")
+                    throw RuntimeException("RECONCILE_CANCELLED")
+                }
                 val fragment = when (msg.role) {
                     "user"      -> userBody(modelType, msg.content)
                     "assistant" -> assistantBody(modelType, msg.content)
@@ -600,6 +614,15 @@ class LlamaManager(private val context: Context) {
             // Per-message replay — same rationale as the hard-reset path above:
             // avoids one giant tokenise call and allows inter-message cancel checks.
             for (msg in newTurns) {
+                // ── SPEC v3 — Kotlin-level cancel guard (incremental path) ───
+                // Same rationale as the hard-reset path above: check the Kotlin
+                // AtomicBoolean before every JNI hop so a cancelStream() during
+                // incremental replay exits at a clean message boundary.
+                if (cancelRequested.get()) {
+                    Log.i("AIRI_PROOF",
+                        "RECONCILE_CANCELLED phase=incremental_replay role=${msg.role}")
+                    throw RuntimeException("RECONCILE_CANCELLED")
+                }
                 val fragment = when (msg.role) {
                     "user"      -> userBody(modelType, msg.content)
                     "assistant" -> assistantBody(modelType, msg.content)
@@ -1375,36 +1398,78 @@ class LlamaManager(private val context: Context) {
                     }
                 }
             } catch (e: Throwable) {
-                Log.e(TAG, "generateStream native error: ${e.javaClass.simpleName}: ${e.message}", e)
-                // ── STATE_ERROR (exception) ────────────────────────────────────
-                // Any Kotlin exception (thrown by runAppendWithSafeHandler,
-                // reconcileSession, a native JNI call, etc.) routes here.
-                // KV state is unknown. Hard-clear all streaming buffers FIRST,
-                // then full-reset the native context, then surface onError.
-                // This order matters: clear buffers BEFORE fullReset so any
-                // pending Main-dispatch sees a stale session_id (due to the
-                // fullReset session bump) and drops its token.
+                // ── STATE_ERROR / STATE_CANCELLED (exception) ─────────────────
+                //
+                // Any Kotlin exception routes here. There are two distinct cases:
+                //
+                //   CASE A — CANCEL EXCEPTION
+                //     Thrown by:
+                //       • reconcileSession — our new Kotlin-level cancel guard
+                //         (RECONCILE_CANCELLED, msg contains "CANCELLED")
+                //       • airi_append_text native — PREFILL_CANCELLED,
+                //         rethrown by runAppendWithSafeHandler without fullReset
+                //       • any other path that checks cancelRequested first
+                //     The KV is unknown but cancelRequested was TRUE before
+                //     fullReset cleared it. We must route to onComplete(partial),
+                //     NOT onError, so the UI closes the stream cleanly (same as
+                //     the status=-2 branch from generate).
+                //     Note: check cancelRequested BEFORE fullReset because
+                //     fullReset calls cancelRequested.set(false).
+                //
+                //   CASE B — HARD ERROR
+                //     Thrown by all other paths (overflow, decode failure, OOM,
+                //     etc.). Route to onError as before.
+                //
+                // The distinction is made from `cancelRequested.get()` (set by
+                // cancelStream / watchdog) OR the exception message keyword
+                // "CANCELLED" (belt-and-suspenders for any path that throws
+                // before cancelRequested is set but after g_cancel_requested).
                 val nativeStatus = runCatching { LlamaNative.nativeGetLastStatus() }
                     .getOrDefault(0)
+                val exMsg           = e.message ?: ""
+                val isCancelException = cancelRequested.get() ||
+                                        nativeStatus == -2    ||
+                                        exMsg.contains("CANCELLED")
+                val logTag = if (isCancelException) "STATE_CANCELLED" else "STATE_ERROR"
                 Log.i("AIRI_PROOF",
-                    "STATE_ERROR origin=exception exc=${e.javaClass.simpleName} " +
-                    "msg=${e.message} native_status=$nativeStatus " +
-                    "emitted=$nativeTokenCount")
+                    "$logTag origin=exception exc=${e.javaClass.simpleName} " +
+                    "msg=$exMsg native_status=$nativeStatus " +
+                    "is_cancel=$isCancelException emitted=$nativeTokenCount")
                 Log.i("AIRI_PROOF",
-                    "STATE_CLEANUP reason=exception " +
+                    "STATE_CLEANUP reason=${if (isCancelException) "cancel_exception" else "exception"} " +
                     "clearing: tokenBuffer(${tokenBuffer.length}B) " +
                     "response(${response.length}B) nativeTokenCount=$nativeTokenCount")
+                val partialOnCancel = response.toString()   // preserve before clear
                 tokenBuffer.clear()
                 response.setLength(0)
                 nativeTokenCount = 0
                 fullReset("GEN_EXCEPTION:${e.javaClass.simpleName}")
-                Log.i("AIRI_PROOF", "STATE_IDLE after=exception_reset")
+                // For cancel exceptions, invalidate session explicitly (KV is at
+                // an arbitrary position — same rationale as the status=-2 branch).
+                if (isCancelException) {
+                    invalidateSession()
+                    runCatching { LlamaNative.nativeClearCancel() }
+                        .onFailure { t ->
+                            Log.w("AIRI_PROOF",
+                                "CANCEL_EXCEPTION clear_cancel_fail=${t.message}")
+                        }
+                }
+                Log.i("AIRI_PROOF", "STATE_IDLE after=${if (isCancelException) "cancel_exception" else "exception_reset"}")
                 if (finished.compareAndSet(false, true)) {
-                    val msg = "$ERR_NATIVE ${e.javaClass.simpleName}: ${e.message ?: "unknown"}"
                     withContext(Dispatchers.Main) {
-                        try { onError(msg) }
-                        catch (t: Throwable) {
-                            Log.w(TAG, "onError threw (swallowed): ${t.message}", t)
+                        if (isCancelException) {
+                            // Surface partial response (may be empty if cancel fired
+                            // during prefill before any token was generated).
+                            try { onComplete(partialOnCancel) }
+                            catch (t: Throwable) {
+                                Log.w(TAG, "onComplete(cancel_exc) threw (swallowed): ${t.message}", t)
+                            }
+                        } else {
+                            val msg = "$ERR_NATIVE ${e.javaClass.simpleName}: $exMsg"
+                            try { onError(msg) }
+                            catch (t: Throwable) {
+                                Log.w(TAG, "onError threw (swallowed): ${t.message}", t)
+                            }
                         }
                     }
                 }

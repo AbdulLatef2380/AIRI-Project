@@ -321,6 +321,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val execDiagnostics: StateFlow<ExecutionDiagnosticsState> =
         hybridOrchestrator.execDiagnostics
 
+    // ── Local inference token-rate history ────────────────────────────────────
+    // Rolling window of the last 20 completed LOCAL-generation tok/s values.
+    // Cloud turns are deliberately excluded: their buffered HTTP delivery rate
+    // is incommensurable with on-device decoding speed and would mislead the
+    // chart. Populated inside the generation `finish` lambda after each
+    // successful local turn. Consumed by ExecDiagnosticsScreen's LIVE sparkline.
+    private val _tokenRateHistory = MutableStateFlow<List<Float>>(emptyList())
+    val tokenRateHistory: StateFlow<List<Float>> = _tokenRateHistory.asStateFlow()
+
     // Epoch when the last model finished loading — used for runtime uptime.
     @Volatile private var modelLoadedAtMs        = 0L
     // Epoch when the most recent generateStream call started.
@@ -994,6 +1003,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val finish: suspend (String, Long, Int) -> Unit = { fullResponse, elapsedMs, tokens ->
                 recordGenerationStats(elapsedMs, tokens)
                 val tps      = if (elapsedMs > 0) tokens * 1000f / elapsedMs.coerceAtLeast(1) else 0f
+                // Record for the sparkline — local executions only.
+                if (tps > 0f && _lastExecOrigin.value == com.airi.assistant.execution.ExecOrigin.LOCAL) {
+                    _tokenRateHistory.value = (_tokenRateHistory.value + tps).takeLast(20)
+                }
                 val wasCutNow = _isCancelled.get()
                 com.airi.assistant.core.analytics.ProofLogger.log(
                     "COMPLETE", "latency=${elapsedMs}ms tokens=$tokens tps=%.1f cut=$wasCutNow".format(tps)

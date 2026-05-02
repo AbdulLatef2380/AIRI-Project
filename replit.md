@@ -82,7 +82,21 @@ IDLE → PREFLIGHT → PREFILL → GENERATE → COMPLETE/ERROR/CANCELLED → CLE
 
 ---
 
+## Sampling Parameters (SPEC v4 — fully wired)
+
+All 7 per-generation sampling parameters are now end-to-end from UI → native:
+
+| Layer | What was added |
+|-------|---------------|
+| `LlamaBridge.cpp` | 8 globals (`g_sp_temperature`, `g_sp_top_k`, `g_sp_top_p`, `g_sp_min_p`, `g_sp_repeat_penalty`, `g_sp_presence_penalty`, `g_sp_frequency_penalty`, `g_sp_penalty_last_n`). `airi_generate_next()` builds sampler chain from these instead of hardcoded constants. `nativeSetSamplingParams()` JNI entry point writes them under `LLAMA_LOCK`. |
+| `LlamaNative.kt` | `external fun nativeSetSamplingParams(temperature, topK, topP, minP, repeatPenalty, presencePenalty, frequencyPenalty)` declaration. |
+| `LlamaManager.kt` | `runCatching { LlamaNative.nativeSetSamplingParams(...) }` called immediately before every `generateNextTokens` / `generateNextTokensSpeculative` invocation, inside `lifecycleLock` on the single-threaded `llamaDispatcher`. |
+
+Sampler chain order: `penalties → top_k → top_p → min_p → temperature → dist`.  
+Each stage is skipped if its parameter is at its disabled value (e.g. `top_k=0`, `min_p=0.0`).  
+`llama_sampler_init_penalties` is called with the header-confirmed 4-arg signature: `(penalty_last_n=64, repeat, freq, present)`.
+
 ## Known Gaps / Future Work
-- Sampling parameters (`temperature`, `topK`, `topP`, `repeatPenalty`) are passed by Kotlin to `generateStream()` but the native sampler in `airi_generate_next()` uses hardcoded defaults (top_k=40, top_p=0.9, temp=0.7). Adding a `nativeSetSamplingParams()` JNI call would close this gap.
 - `RuntimeSupervisor` (thermal / memory pressure monitoring) is not yet implemented.
 - Draft model speculative decoding path (`SpeculativeManager`) is wired but requires a companion draft GGUF to activate.
+- `g_sp_penalty_last_n` (repeat-penalty window) is fixed at 64 and not yet exposed via the Generation Settings dialog. Add a `jint penaltyLastN` param to `nativeSetSamplingParams` when needed.

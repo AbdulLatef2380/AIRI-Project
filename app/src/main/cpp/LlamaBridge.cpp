@@ -109,6 +109,28 @@ static std::atomic<int> g_last_gen_status{0};
 static uint32_t g_last_n_ctx     = 0;
 static int      g_last_n_threads = 0;
 
+// SPEC v4 — per-generation sampling parameters.
+// Written by nativeSetSamplingParams() (which takes LLAMA_LOCK) before every
+// generateNextTokens call.  Read inside airi_generate_next() (also under
+// LLAMA_LOCK via generateNextTokens) when building the sampler chain, so the
+// native decoder uses the exact values the Kotlin layer (and ultimately the
+// user via the Generation Settings dialog) requested instead of the old
+// compile-time constants.
+//
+// Default values match the previous hardcoded chain so existing behaviour is
+// preserved until the first nativeSetSamplingParams() call.
+static float   g_sp_temperature       = 0.7f;
+static int     g_sp_top_k             = 40;
+static float   g_sp_top_p             = 0.9f;
+static float   g_sp_min_p             = 0.05f;
+static float   g_sp_repeat_penalty    = 1.1f;
+static float   g_sp_presence_penalty  = 0.0f;
+static float   g_sp_frequency_penalty = 0.0f;
+// penalty_last_n: how many recent tokens to scan for repetition penalties.
+// -1 = full context window, 0 = disabled, positive = explicit token count.
+// Default 64 matches llama.cpp's own sample default.
+static int32_t g_sp_penalty_last_n    = 64;
+
 // SPEC v3 — STABILITY: monotonic identifiers used by the Kotlin layer to
 // detect and DROP stale callbacks that originated from a since-destroyed
 // llama_context.
@@ -829,11 +851,37 @@ static std::string airi_generate_next(
     g_t_decode_ms.store(0);
     g_n_decoded.store(0);
 
+    // SPEC v4 — build sampler chain from caller-supplied parameters.
+    // Order: penalties → top_k → top_p → min_p → temperature → dist.
+    // This follows the recommended llama.cpp sampler chain ordering so each
+    // filter sees the full distribution before the next filter narrows it.
+    // If a parameter is at its "disabled" value (e.g. top_k==0, min_p==0),
+    // we skip adding that stage to keep the chain as short as possible.
     llama_sampler* sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
-    llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
-    llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.9f, 1));
-    llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.7f));
+    if (g_sp_penalty_last_n != 0 &&
+        (g_sp_repeat_penalty > 1.0f ||
+         g_sp_frequency_penalty != 0.0f ||
+         g_sp_presence_penalty  != 0.0f)) {
+        // llama_sampler_init_penalties(penalty_last_n, repeat, freq, present)
+        llama_sampler_chain_add(sampler,
+            llama_sampler_init_penalties(g_sp_penalty_last_n,
+                                         g_sp_repeat_penalty,
+                                         g_sp_frequency_penalty,
+                                         g_sp_presence_penalty));
+    }
+    if (g_sp_top_k > 0)
+        llama_sampler_chain_add(sampler, llama_sampler_init_top_k(g_sp_top_k));
+    if (g_sp_top_p > 0.0f && g_sp_top_p < 1.0f)
+        llama_sampler_chain_add(sampler, llama_sampler_init_top_p(g_sp_top_p, 1));
+    if (g_sp_min_p > 0.0f)
+        llama_sampler_chain_add(sampler, llama_sampler_init_min_p(g_sp_min_p, 1));
+    llama_sampler_chain_add(sampler,
+        llama_sampler_init_temp(g_sp_temperature > 0.0f ? g_sp_temperature : 0.7f));
     llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+    PROOF("SAMPLER_CHAIN temp=%.3f top_k=%d top_p=%.3f min_p=%.3f "
+          "repeat=%.3f freq=%.3f pres=%.3f",
+          g_sp_temperature, g_sp_top_k, g_sp_top_p, g_sp_min_p,
+          g_sp_repeat_penalty, g_sp_frequency_penalty, g_sp_presence_penalty);
 
     llama_batch batch = llama_batch_init(1, 0, 1);
 
@@ -1508,6 +1556,57 @@ JNIEXPORT jlong JNICALL
 Java_com_airi_assistant_ai_LlamaNative_nativeGetGenerationId(JNIEnv* /*env*/, jobject /*this*/)
 {
     return (jlong)g_generation_id.load();
+}
+
+// SPEC v4 — sampling parameter setter.
+//
+// Called by LlamaManager immediately BEFORE every generateNextTokens() /
+// generateNextTokensSpeculative() invocation so the decode loop picks up the
+// exact sampler chain the Kotlin layer requested (temperature, top_k, top_p,
+// min_p, repeat_penalty, presence_penalty, frequency_penalty).
+//
+// Thread-safety: acquires LLAMA_LOCK so the write is serialised with respect
+// to any concurrent read inside airi_generate_next(). In practice the Kotlin
+// single-threaded llamaDispatcher guarantees sequential ordering, but the lock
+// is the belt-and-braces guard for any future refactor.
+//
+// Clamping (prevents pathological values):
+//   temperature       [0.01, 5.0]  — ≤0 would be greedy (use speculative path)
+//   top_k             [0, 200]     — 0  = disabled (pass-through)
+//   top_p             [0.0, 1.0]
+//   min_p             [0.0, 1.0]
+//   repeat_penalty    [1.0, 2.0]   — <1.0 would reward repetition
+//   presence_penalty  [0.0, 2.0]
+//   frequency_penalty [0.0, 2.0]
+JNIEXPORT void JNICALL
+Java_com_airi_assistant_ai_LlamaNative_nativeSetSamplingParams(
+    JNIEnv* /*env*/, jobject /*this*/,
+    jfloat temperature,
+    jint   topK,
+    jfloat topP,
+    jfloat minP,
+    jfloat repeatPenalty,
+    jfloat presencePenalty,
+    jfloat frequencyPenalty)
+{
+    LLAMA_LOCK();
+    g_sp_temperature       = std::max(0.01f, std::min(5.0f,  (float)temperature));
+    g_sp_top_k             = std::max(0,     std::min(200,   (int)topK));
+    g_sp_top_p             = std::max(0.0f,  std::min(1.0f,  (float)topP));
+    g_sp_min_p             = std::max(0.0f,  std::min(1.0f,  (float)minP));
+    g_sp_repeat_penalty    = std::max(1.0f,  std::min(2.0f,  (float)repeatPenalty));
+    g_sp_presence_penalty  = std::max(0.0f,  std::min(2.0f,  (float)presencePenalty));
+    g_sp_frequency_penalty = std::max(0.0f,  std::min(2.0f,  (float)frequencyPenalty));
+    // penalty_last_n stays at its default (64). If the Kotlin layer ever
+    // needs to expose it, add a jint parameter here and a matching field in
+    // GenerationSettingsDialog. For now the header-confirmed 4-arg form of
+    // llama_sampler_init_penalties(penalty_last_n, repeat, freq, present)
+    // is satisfied by g_sp_penalty_last_n which is initialised to 64.
+    PROOF("SAMPLING_PARAMS_SET temp=%.3f top_k=%d top_p=%.3f min_p=%.3f "
+          "repeat=%.3f pres=%.3f freq=%.3f penalty_last_n=%d",
+          g_sp_temperature, g_sp_top_k, g_sp_top_p, g_sp_min_p,
+          g_sp_repeat_penalty, g_sp_presence_penalty, g_sp_frequency_penalty,
+          g_sp_penalty_last_n);
 }
 
 JNIEXPORT void JNICALL

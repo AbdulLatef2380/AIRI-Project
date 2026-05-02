@@ -934,6 +934,39 @@ class LlamaManager(private val context: Context) {
                     Log.i("AIRI_SPEC", "generate via=speculative draftN=${specMgr.getDraftDraftN()}")
                 }
 
+                // ── SPEC v4 — push sampling params BEFORE every generate ─────
+                // The native sampler chain is built fresh inside airi_generate_next()
+                // on every call. Without this push, the chain always used the old
+                // hardcoded defaults (temp=0.7, top_k=40, top_p=0.9, no penalties),
+                // silently ignoring every user change in Generation Settings.
+                //
+                // We call nativeSetSamplingParams here — inside lifecycleLock and
+                // on the single-threaded llamaDispatcher — so it is guaranteed to
+                // be serialised with the following generateNextTokens call. The
+                // native side additionally takes LLAMA_LOCK as a belt-and-braces
+                // guard. runCatching wraps the call so a missing native symbol (e.g.
+                // device running an older APK) degrades gracefully to the defaults.
+                runCatching {
+                    LlamaNative.nativeSetSamplingParams(
+                        temperature       = temperature,
+                        topK              = topK,
+                        topP              = topP,
+                        minP              = minP,
+                        repeatPenalty     = repeatPenalty,
+                        presencePenalty   = presencePenalty,
+                        frequencyPenalty  = frequencyPenalty
+                    )
+                }.onSuccess {
+                    Log.i("AIRI_PROOF",
+                        "SAMPLING_PARAMS_PUSHED temp=$temperature top_k=$topK " +
+                        "top_p=$topP min_p=$minP repeat=$repeatPenalty " +
+                        "pres=$presencePenalty freq=$frequencyPenalty")
+                }.onFailure { t ->
+                    Log.w("AIRI_PROOF",
+                        "SAMPLING_PARAMS_PUSH_FAILED ${t.javaClass.simpleName}: ${t.message} " +
+                        "— falling back to native defaults")
+                }
+
                 // ── SPEC v3 — STATE MACHINE: GENERATE ───────────────────────
                 // STATE_GENERATE: the decode loop is about to start. From
                 // this point the native thread is running llama_decode in a

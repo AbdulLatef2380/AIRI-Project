@@ -203,6 +203,13 @@ class LlamaManager(private val context: Context) {
      * Hot-swap n_ctx + thread count without reloading model weights. Wipes the
      * native KV; we mark the session as invalidated so the next message
      * re-primes cleanly. Safe to call while a generation is NOT in flight.
+     *
+     * OMEGA CORE: wrapped in lifecycleLock so the KV teardown + session
+     * invalidation is atomic from the Kotlin perspective, even if a future
+     * refactor introduces a second dispatcher. The single-threaded
+     * llamaDispatcher already serializes this behind any in-flight decode,
+     * but the mutex is the belt-and-braces contract that holds regardless of
+     * dispatcher topology.
      */
     fun applyRuntimeMode(mode: PerformanceMode) {
         if (!isLoaded) {
@@ -210,18 +217,17 @@ class LlamaManager(private val context: Context) {
             return
         }
         scope.launch {
-            try {
-                LlamaNative.setRuntimeMode(mode.nCtx, mode.nThreads)
-                invalidateSession()
-                Log.i(TAG, "RUNTIME_MODE_APPLIED mode=${mode.name} n_ctx=${mode.nCtx} threads=${mode.nThreads}")
-            } catch (e: Throwable) {
-                Log.e(TAG, "applyRuntimeMode failed: ${e.message}", e)
+            lifecycleLock.withLock {
+                try {
+                    LlamaNative.setRuntimeMode(mode.nCtx, mode.nThreads)
+                    invalidateSession()
+                    Log.i(TAG, "RUNTIME_MODE_APPLIED mode=${mode.name} n_ctx=${mode.nCtx} threads=${mode.nThreads}")
+                } catch (e: Throwable) {
+                    Log.e(TAG, "applyRuntimeMode failed: ${e.message}", e)
+                }
             }
         }
     }
-
-    /** Last-known callback for stall warnings (set per generateStream call). */
-    @Volatile private var stallCallback: (() -> Unit)? = null
 
     fun cancelStream() {
         cancelRequested.set(true)

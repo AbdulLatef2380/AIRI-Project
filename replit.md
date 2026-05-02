@@ -275,6 +275,40 @@ if (!vadEngineRef.compareAndSet(thisEngine, null)) return  // stale callback dro
 
 ---
 
+---
+
+## Omega Core — Runtime Integrity Fixes (Session 5)
+
+Full audit of `LlamaManager.kt` (1903 lines), `LlamaBridge.cpp` (2638 lines), `ChatViewModel.kt` (2190 lines), `LlamaNative.kt` (262 lines) completed. Five confirmed bugs fixed:
+
+### BUG-1 (CRITICAL) — Speculative generation tokens silently dropped
+**File:** `LlamaBridge.cpp` — `generateNextTokensSpeculative()`  
+**Root cause:** `airi_generate_next()` bumps `g_generation_id` at entry. The speculative fast-path (when the draft model is usable and in sync) runs its own decode loop and never called `g_generation_id.fetch_add(1)`. The Kotlin stale-callback guard checks `genIdOnMain == genIdAtStart + 1` at every Main-dispatch site; since the ID was never bumped, the check always failed and every speculative token was dropped. The user saw blank output whenever speculative decoding was active.  
+**Fix:** Added `g_generation_id.fetch_add(1) + 1` + `PROOF("GENERATION_ID_BUMP … via=speculative")` immediately after the phase/status setup in the speculative fast-path.
+
+### BUG-2 (HIGH) — Missing SPEC v3 cancel-at-entry guard in speculative path
+**File:** `LlamaBridge.cpp` — `generateNextTokensSpeculative()`  
+**Root cause:** If `nativeCancel()` was called in the window between prefill completing and the speculative path entry, the unconditional `g_cancel.store(false)` at the top of the speculative fast-path silently discarded the pending cancel request. The standard path (`airi_generate_next`) had already been hardened with a cancel-at-entry check (SPEC v3), but the speculative path was missed.  
+**Fix:** Added the same guard: `if (g_cancel_requested.load()) { g_last_gen_status.store(-2); PROOF(…); return; }` before the `g_cancel.store(false)` — identical to the standard path.
+
+### BUG-3 (MEDIUM) — Stale cancel flag and status survive model swap
+**File:** `LlamaBridge.cpp` — `loadModel()` and `loadModelWithProgress()`  
+**Root cause:** When a new GGUF is loaded, `g_n_past` was reset to 0 but `g_cancel_requested` and `g_last_gen_status` were not cleared. A stale `-2` in `g_last_gen_status` would be read by `nativeGetLastStatus()` on the very first turn after a model swap and falsely route it through `fullReset()` + `onError`. A stale `true` in `g_cancel_requested` would poison the incremental-session path on the first turn (which skips `beginSession()` and therefore skips its implicit cancel clear).  
+`g_draft_in_sync` could also still be `true` from the previous session while `g_draft_n_past` was nonzero and `g_n_past` was 0, causing speculative path logic errors.  
+**Fix:** Added `g_cancel_requested.store(false); g_last_gen_status.store(0); airi_draft_clear_kv();` in both `loadModel()` and `loadModelWithProgress()` immediately after `g_n_past = 0;`, with a detailed comment explaining each field's risk.
+
+### BUG-4 (MEDIUM) — `applyRuntimeMode()` bypasses `lifecycleLock`
+**File:** `LlamaManager.kt` — `applyRuntimeMode()`  
+**Root cause:** `applyRuntimeMode()` called `setRuntimeMode()` + `invalidateSession()` on the `llamaDispatcher` coroutine scope without entering `lifecycleLock`. The single-threaded dispatcher serializes it in practice, but the Kotlin Mutex is the contractual ownership boundary for the inference lifecycle. Any future refactor introducing a second dispatcher (e.g. a prefetch lane) would create a race window where KV teardown and active generation overlap.  
+**Fix:** Wrapped the entire body of the `scope.launch` in `lifecycleLock.withLock { … }`, matching the pattern used by `generateStream` and `fullReset`.
+
+### BUG-5 (LOW) — Dead `stallCallback` field
+**File:** `LlamaManager.kt`  
+**Root cause:** `@Volatile private var stallCallback: (() -> Unit)? = null` was never written after declaration and never read. Stall warnings are routed directly via the `onStallWarning` lambda captured per `generateStream` call; this field was a leftover from an earlier design.  
+**Fix:** Field removed entirely.
+
+---
+
 ## Known Gaps / Future Work
 - `RuntimeSupervisor` (thermal / memory pressure monitoring) is not yet implemented.
 - Draft model speculative decoding path (`SpeculativeManager`) is wired but requires a companion draft GGUF to activate.

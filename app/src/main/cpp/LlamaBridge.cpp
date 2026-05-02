@@ -1067,6 +1067,22 @@ Java_com_airi_assistant_ai_LlamaNative_loadModel(
     if (g_ctx)   { llama_free(g_ctx);          g_ctx   = nullptr; }
     if (g_model) { llama_model_free(g_model);  g_model = nullptr; }
     g_n_past = 0;
+    // OMEGA CORE — model swap: clear every piece of per-session state so the
+    // new model starts from a known-good slate.
+    //   g_cancel_requested: a stale cancel from the previous session (user
+    //     stopped mid-generation then immediately loaded a new model) must
+    //     NOT poison the incremental-session path on the first turn, which
+    //     skips beginSession() and therefore skips its implicit cancel clear.
+    //   g_last_gen_status: a stale -1/-2/-3 from the last generation would be
+    //     read by nativeGetLastStatus() on the very next turn and falsely
+    //     route it through fullReset()+onError before any native call is made.
+    //   airi_draft_clear_kv(): g_draft_n_past and g_draft_in_sync must match
+    //     the fresh g_n_past == 0 context; without this the speculative path
+    //     sees g_draft_n_past != 0 == g_n_past and takes the fallback, but
+    //     g_draft_in_sync could still be true, producing incorrect verification.
+    g_cancel_requested.store(false);
+    g_last_gen_status.store(0);
+    airi_draft_clear_kv();
 
     llama_backend_init();
 
@@ -1167,6 +1183,11 @@ Java_com_airi_assistant_ai_LlamaNative_loadModelWithProgress(
     if (g_ctx)   { llama_free(g_ctx);          g_ctx   = nullptr; }
     if (g_model) { llama_model_free(g_model);  g_model = nullptr; }
     g_n_past = 0;
+    // OMEGA CORE — same model-swap state clear as in loadModel() above.
+    // See loadModel() comment for the full rationale.
+    g_cancel_requested.store(false);
+    g_last_gen_status.store(0);
+    airi_draft_clear_kv();
 
     llama_backend_init();
     if (onProg) env->CallVoidMethod(callback, onProg, 15);
@@ -1950,8 +1971,30 @@ Java_com_airi_assistant_ai_LlamaNative_generateNextTokensSpeculative(
         return;
     }
 
+    // OMEGA CORE — SPEC v3 cancel-at-entry guard (mirrors airi_generate_next).
+    // If nativeCancel() was called in the window between prefill returning and
+    // this entry, the unconditional store(false) below would silently discard
+    // the user's stop request.  Check FIRST; if the flag is set, surface
+    // status=-2 and return immediately exactly as the standard path does.
+    if (g_cancel_requested.load()) {
+        g_last_gen_status.store(-2);
+        PROOF("GENERATION_CANCELLED phase=spec_generate_entry_pre_clear "
+              "session_id=%lld cancel_was_pending=true",
+              (long long)g_session_id.load());
+        return;
+    }
     g_cancel.store(false);
+    g_last_gen_status.store(0);
     g_phase = "spec_generate";
+
+    // OMEGA CORE — bump the generation id so the Kotlin stale-callback guard
+    // can track this speculative generation.  airi_generate_next() does the
+    // same bump at its own entry; without it every Main-dispatched onToken
+    // from the speculative loop is dropped by the genIdExpected check
+    // (genIdOnMain == genIdAtStart, but genIdExpected == genIdAtStart+1).
+    const int64_t this_spec_gen_id = g_generation_id.fetch_add(1) + 1;
+    PROOF("GENERATION_ID_BUMP gen_id=%lld session_id=%lld via=speculative",
+          (long long)this_spec_gen_id, (long long)g_session_id.load());
 
     const llama_vocab* vocab_main = llama_model_get_vocab(g_model);
     const uint32_t     n_ctx      = llama_n_ctx(g_ctx);

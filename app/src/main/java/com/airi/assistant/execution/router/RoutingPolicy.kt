@@ -77,7 +77,14 @@ object RoutingPolicy {
             return Selection(listOf(local), "LOCAL_ONLY / privacy=MAXIMUM / no internet permission")
         }
 
-        // ── Rule 4: CLOUD_ONLY ─────────────────────────────────────────────────
+        // ── Rule 4: caller signals offline ────────────────────────────────────
+        // Checked before CLOUD_ONLY so we never attempt cloud on a request that
+        // the caller already knows will fail (e.g. ConnectivityMonitor = false).
+        if (request.requiresOffline) {
+            return Selection(listOf(local), "requiresOffline=true — local only")
+        }
+
+        // ── Rule 5: CLOUD_ONLY ─────────────────────────────────────────────────
         if (mode == ExecutionMode.CLOUD_ONLY) {
             return if (signals.networkAvailable && cloud.isAvailable) {
                 val fallbacks = if (fallbackEnabled && local.isAvailable) listOf(cloud, local) else listOf(cloud)
@@ -89,7 +96,7 @@ object RoutingPolicy {
             }
         }
 
-        // ── Rule 5: capability mismatch ────────────────────────────────────────
+        // ── Rule 6: capability mismatch ────────────────────────────────────────
         val localCaps = local.capabilities
         if (!localCaps.satisfies(request)) {
             if (signals.networkAvailable && cloud.isAvailable) {
@@ -102,7 +109,7 @@ object RoutingPolicy {
                 "Local cap mismatch but cloud unavailable; local best-effort")
         }
 
-        // ── Rule 6: device stress → cloud offload ──────────────────────────────
+        // ── Rule 7: device stress → cloud offload ──────────────────────────────
         if (signals.preferCloudForPerformance &&
             signals.networkAvailable && cloud.isAvailable) {
             val fallbacks = if (local.isAvailable) listOf(cloud, local) else listOf(cloud)
@@ -110,7 +117,7 @@ object RoutingPolicy {
                 "Device stress (thermal=${signals.thermalLevel} ram=${signals.availRamMb}MB) → cloud offload")
         }
 
-        // ── Rules 7 + 8: HYBRID query-type routing ────────────────────────────
+        // ── Rules 8 + 9: HYBRID query-type routing ────────────────────────────
         if (mode == ExecutionMode.HYBRID && signals.networkAvailable && cloud.isAvailable) {
             val cloudPreferred = isCloudPreferred(request, signals, prefs)
             if (cloudPreferred) {
@@ -120,12 +127,17 @@ object RoutingPolicy {
             }
         }
 
-        // ── Rule 9: cloud budget exhausted ────────────────────────────────────
+        // ── Rule 10: cloud budget exhausted ────────────────────────────────────
         if (prefs.isCloudBudgetExhausted) {
             return Selection(listOf(local), "Cloud daily budget exhausted")
         }
 
-        // ── Rule 10: default HYBRID → local primary, cloud fallback ──────────
+        // ── Rule 11: no network → local only (belt-and-suspenders) ────────────
+        if (!signals.networkAvailable) {
+            return Selection(listOf(local), "No network detected — local only")
+        }
+
+        // ── Rule 12: default HYBRID → local primary, cloud fallback ──────────
         val fallbacks = if (mode == ExecutionMode.HYBRID &&
             signals.networkAvailable && cloud.isAvailable)
             listOf(local, cloud) else listOf(local)

@@ -111,6 +111,58 @@ Each stage is skipped if its parameter is at its disabled value (e.g. `top_k=0`,
 
 ---
 
+## Hybrid Execution Architecture — Production Hardening (Session N)
+
+### Overview
+14 new Kotlin files + 6 updated files transforming the Hybrid Execution layer from "architecturally correct" to "production-safe under real load".
+
+### New Files
+
+| Package | File | Purpose |
+|---------|------|---------|
+| `execution/cloud` | `CloudProviderAdapter.kt` | Interface: streamGenerate + AdapterResult |
+| `execution/cloud` | `CloudErrorType.kt` | Normalized error enum (11 types) |
+| `execution/cloud` | `CloudErrorMapper.kt` | Pure HTTP→CloudErrorType mapper + retryability |
+| `execution/cloud` | `RetryPolicy.kt` | Exponential back-off with ±25% jitter (AWS/Google spec) |
+| `execution/cloud` | `GeminiAdapter.kt` | Real Gemini v1beta SSE (generativelanguage.googleapis.com) |
+| `execution/cloud` | `OpenAIAdapter.kt` | OpenAI + Kimi + Custom (stream_options.include_usage=true) |
+| `execution/cloud` | `OpenRouterAdapter.kt` | OpenRouter (HTTP-Referer + X-Title headers) |
+| `execution/cloud` | `AnthropicAdapter.kt` | Anthropic Messages API SSE (anthropic-version: 2023-06-01) |
+| `execution/cloud` | `CloudAdapterFactory.kt` | Provider→adapter selection; legacy key migration |
+| `execution/network` | `NetworkGuard.kt` | Absolute LOCAL_ONLY/MAXIMUM-privacy firewall (last line before HTTP) |
+| `execution/network` | `ConnectivityMonitor.kt` | StateFlow<Boolean> via ConnectivityManager.NetworkCallback |
+| `execution/security` | `SecureApiKeyStore.kt` | Encrypted API key vault wrapping SecureStorage (AES256-GCM) |
+| `execution/accounting` | `TokenAccountant.kt` | Accurate per-provider daily token tracking with StateFlow |
+| `execution/diagnostics` | `ExecutionDiagnosticsState.kt` | Live diagnostics snapshot + ExecTransitionEvent ring buffer |
+
+### Updated Files
+
+| File | Change |
+|------|--------|
+| `execution/backend/CloudBackend.kt` | Full rewrite: adapters + NetworkGuard + RetryPolicy; context+prefs constructor |
+| `execution/HybridOrchestrator.kt` | Full rewrite: Mutex ownership gate, generation counter, deterministic failover, PrivacyGuard integration, live diagnostics |
+| `execution/router/RoutingPolicy.kt` | +requiresOffline Rule 4, +explicit no-network Rule 11; rule renumbering |
+| `ai/remote/RemoteModelExecutor.kt` | +`@Volatile activeConnection`, +`cancelCurrentRequest()`, +`ensureActive()`, +retry backoff |
+| `core/debug/RuntimeDiagnosticsState.kt` | +10 `execXxx` fields for execution layer observability |
+| `ui/viewmodel/ChatViewModel.kt` | CloudBackend(prefs,ctx) constructor; +hybridOrchestrator, +tokenAccountant, +secureApiKeyStore, +execDiagnostics StateFlow; onCleared cancel |
+
+### Architecture Contracts
+
+**Execution ownership:** `HybridOrchestrator.executeStream` is serialized by a `kotlinx.coroutines.sync.Mutex`. One active stream at a time. Stale tokens dropped via `AtomicLong` generation counter CAS.
+
+**Network firewall layers (3 redundant):**
+1. `RoutingPolicy` — never selects cloud when LOCAL_ONLY/MAXIMUM/no-internet
+2. `PrivacyGuard` — sanitizes or blocks before HTTP dial
+3. `NetworkGuard` — last-line absolute veto before `HttpURLConnection.connect()`
+
+**API key security:** All keys stored in `EncryptedSharedPreferences` (AES256-GCM) via `SecureApiKeyStore → SecureStorage`. Legacy plaintext keys from `RemoteModelRegistry` auto-migrate on first cloud call.
+
+**Cancellation contract:** `HybridOrchestrator.cancel()` + `remoteExecutor.cancelCurrentRequest()` both called in `ChatViewModel.onCleared()`. Every adapter calls `conn.disconnect()` in a `finally` block. `ensureActive()` checked per-token in all streaming loops.
+
+**Token accounting:** Accurate counts from provider `usage` fields (not estimates). Persisted to `airi_token_accounting` SharedPrefs. Resets at midnight UTC. Exposes `StateFlow<Map<CloudProvider, ProviderStats>>` to UI.
+
+---
+
 ## Production Hardening — Session Audit Findings
 
 Comprehensive audit of 15+ subsystems performed in this session. All critical paths verified:

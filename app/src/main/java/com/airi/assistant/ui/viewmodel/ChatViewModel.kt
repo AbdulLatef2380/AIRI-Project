@@ -83,11 +83,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.ExecutionMode
+import com.airi.assistant.execution.HybridOrchestrator
 import com.airi.assistant.execution.PrivacyLevel
+import com.airi.assistant.execution.accounting.TokenAccountant
 import com.airi.assistant.execution.backend.CloudBackend
 import com.airi.assistant.execution.backend.LocalLlamaBackend
+import com.airi.assistant.execution.diagnostics.ExecutionDiagnosticsState
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.execution.router.RuntimeRouter
+import com.airi.assistant.execution.security.SecureApiKeyStore
 
 data class ChatMessage(
     val text: String,
@@ -239,8 +243,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // level, and internet permission. All preference mutations go through it.
     private val execModePrefs  = ExecModePreferences(appContext)
     private val localBackend   = LocalLlamaBackend(llamaManager)
-    private val cloudBackend   = CloudBackend(remoteExecutor)
+    private val cloudBackend   = CloudBackend(execModePrefs, appContext)
     private val runtimeRouter  = RuntimeRouter(localBackend, cloudBackend, execModePrefs)
+
+    // ── Production execution layer ────────────────────────────────────────────
+    // HybridOrchestrator owns the Mutex-serialized execution ownership gate,
+    // deterministic failover, privacy sanitisation, and live diagnostics.
+    val hybridOrchestrator  = HybridOrchestrator(runtimeRouter, execModePrefs)
+    val tokenAccountant     = TokenAccountant(appContext)
+    val secureApiKeyStore   = SecureApiKeyStore(appContext)
 
     // ── Domain services ───────────────────────────────────────────────────────
     private val agentService         = ServiceLocator.agentService
@@ -305,6 +316,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _runtimeDiagnostics.asStateFlow()
     val runtimeEventLog: StateFlow<List<com.airi.assistant.core.debug.RuntimeEvent>> =
         RuntimeEventLog.events
+
+    /** Live snapshot of the Hybrid Execution layer's runtime state. */
+    val execDiagnostics: StateFlow<ExecutionDiagnosticsState> =
+        hybridOrchestrator.execDiagnostics
 
     // Epoch when the last model finished loading — used for runtime uptime.
     @Volatile private var modelLoadedAtMs        = 0L
@@ -541,6 +556,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        hybridOrchestrator.cancel()
+        remoteExecutor.cancelCurrentRequest()
         runtimeSupervisor.stop()
         RuntimeEventLog.clear()
         runCatching { appContext.unregisterReceiver(downloadCompleteReceiver) }

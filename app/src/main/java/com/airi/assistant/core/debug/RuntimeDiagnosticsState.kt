@@ -103,6 +103,18 @@ data class RuntimeDiagnosticsState(
     val generationDurationMs: Long           = 0L,
     val speculativeActive:   Boolean         = false,
 
+    // ── Execution layer (Hybrid Orchestrator) ────────────────────────────────
+    val execActiveBackend:   String          = "none",   // "local_llama" | "cloud" | "none"
+    val execActiveProvider:  String          = "",        // CloudProvider.name when cloud is active
+    val execLastOrigin:      String          = "NONE",   // ExecOrigin.name of last completed turn
+    val execPromptTokens:    Int             = 0,
+    val execCompletionTokens: Int            = 0,
+    val execRetryCount:      Int             = 0,
+    val execFallbackCount:   Int             = 0,
+    val execLastErrorMsg:    String          = "",
+    val execIsStreaming:     Boolean         = false,
+    val execCloudTokensToday: Long           = 0L,
+
     // ── Derived warnings (pre-computed in ViewModel) ─────────────────────────
     val warnings:            List<String>    = emptyList()
 )

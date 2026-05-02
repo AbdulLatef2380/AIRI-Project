@@ -19,6 +19,14 @@ import com.airi.assistant.ai.DeviceTier
 import com.airi.assistant.ai.LlamaManager
 import com.airi.assistant.ai.LlamaNative
 import com.airi.assistant.ai.RuntimeSupervisor
+import android.app.ActivityManager
+import android.os.PowerManager
+import com.airi.assistant.core.debug.EventSeverity
+import com.airi.assistant.core.debug.GenerationPhase
+import com.airi.assistant.core.debug.ModeSource
+import com.airi.assistant.core.debug.RuntimeDiagnosticsState
+import com.airi.assistant.core.debug.RuntimeEventLog
+import com.airi.assistant.core.debug.ThermalLevel
 import com.airi.assistant.ai.ModelCapabilities
 import com.airi.assistant.ai.ModelCatalog
 import com.airi.assistant.ai.VisionImage
@@ -189,9 +197,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         modeConsumer = { supervisedMode, reason ->
             Log.i("AIRI_PROOF",
                 "SUPERVISOR_OVERRIDE mode=${supervisedMode.name} reason=$reason")
+            // Derive which subsystem caused the override from the reason string
+            // (RuntimeSupervisor.buildReason() formats it as "thermal=X memory=Y").
+            val src = when {
+                reason.contains("thermal") -> ModeSource.SUPERVISOR_THERMAL
+                reason.contains("memory")  -> ModeSource.SUPERVISOR_MEMORY
+                else                       -> ModeSource.MANUAL_OVERRIDE
+            }
+            _modeSource.value = src
+            RuntimeEventLog.post(
+                subsystem = "SUPERVISOR",
+                severity  = EventSeverity.WARN,
+                reason    = "Mode → ${supervisedMode.name} ($reason)"
+            )
             viewModelScope.launch(Dispatchers.Main) {
                 _performanceMode.value = supervisedMode
             }
+            refreshDiagnosticsSnapshot()
         }
     )
     private val downloadManager   = ModelDownloadManager(appContext)
@@ -240,6 +262,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _stallActive = MutableStateFlow(false)
     val stallActive: StateFlow<Boolean> = _stallActive.asStateFlow()
     fun clearStallHint() { _stallActive.value = false }
+
+    // ── Runtime Diagnostics ───────────────────────────────────────────────────
+    // Generation phase and mode source are updated at lifecycle boundaries only
+    // (never per-token) so they never add allocation pressure to the hot path.
+    private val _generationPhase   = MutableStateFlow(GenerationPhase.IDLE)
+    private val _modeSource        = MutableStateFlow(ModeSource.USER)
+    private val _runtimeDiagnostics = MutableStateFlow(RuntimeDiagnosticsState())
+    val runtimeDiagnostics: StateFlow<RuntimeDiagnosticsState> =
+        _runtimeDiagnostics.asStateFlow()
+    val runtimeEventLog: StateFlow<List<com.airi.assistant.core.debug.RuntimeEvent>> =
+        RuntimeEventLog.events
+
+    // Epoch when the last model finished loading — used for runtime uptime.
+    @Volatile private var modelLoadedAtMs        = 0L
+    // Epoch when the most recent generateStream call started.
+    @Volatile private var generationStartMs      = 0L
+    // Duration of the last completed (or cancelled) generation in ms.
+    @Volatile private var lastGenerationDurationMs = 0L
 
     private val _agentState = MutableStateFlow(AgentState())
     val agentState: StateFlow<AgentState> = _agentState.asStateFlow()
@@ -293,6 +333,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val performanceMode: StateFlow<PerformanceMode> = _performanceMode.asStateFlow()
 
     fun setPerformanceMode(mode: PerformanceMode) {
+        _modeSource.value = ModeSource.USER
+        RuntimeEventLog.post(
+            subsystem = "PERFORMANCE",
+            severity  = EventSeverity.INFO,
+            reason    = "User set mode → ${mode.name} n_ctx=${mode.nCtx} threads=${mode.nThreads}"
+        )
         _performanceMode.value = mode
         _maxTokens.value = mode.maxTokens
         _temperature.value = mode.temperature
@@ -371,13 +417,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (_agentState.value.isWorking) {
             _isCancelled.set(true)
             llamaManager.cancelStream()
+            _generationPhase.value = GenerationPhase.CANCELLED
+            lastGenerationDurationMs = System.currentTimeMillis() - generationStartMs
             Log.d("AIRI_SPEED", "cancelGeneration: user triggered")
-            // Phase-1 instrumentation: surface the user-triggered cancel as a
-            // first-class proof tag so we can confirm the Stop button → JNI
-            // cancel pipeline end-to-end from logcat alone. The matching
-            // GEN_CANCEL_HONORED tag is emitted by LlamaManager when the
-            // native token-callback observes cancelRequested == true.
             Log.i("AIRI_PROOF", "GEN_CANCEL_REQUESTED source=user_button")
+            RuntimeEventLog.post(
+                subsystem = "GENERATION",
+                severity  = EventSeverity.WARN,
+                reason    = "Cancelled by user after ${lastGenerationDurationMs}ms"
+            )
             com.airi.assistant.domain.logging.ProofLogger.streamCancelled(
                 byUser = true,
                 tokensStreamed = 0
@@ -462,6 +510,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         runtimeSupervisor.stop()
+        RuntimeEventLog.clear()
         runCatching { appContext.unregisterReceiver(downloadCompleteReceiver) }
     }
 
@@ -969,6 +1018,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _smartReplies.value = ResponseOptimizer.generateSuggestions(fullResponse)
                 streamAccumulator.setLength(0); _streamingText.value = ""
                 _agentState.value    = AgentState()
+                // Snapshot after generation: captures final TPS, KV position,
+                // and uptime. Runs on Dispatchers.Default — never on the
+                // main/UI thread and never inside the token hot-path.
+                refreshDiagnosticsSnapshot()
             }
 
             if (deviceWeak && remote != null) {
@@ -976,6 +1029,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 thinkingJob = null
                 streamRemoteResponse(remote, trimmedInput, systemPrompt, perfMode, streamStart, finish)
             } else {
+                // Mark phase = PREFILL before the native call so the diagnostics
+                // panel reflects the true state immediately. generationStartMs is
+                // captured here (not in onToken) because PREFILL includes the
+                // prompt-tokenisation cost which belongs in generation duration.
+                _generationPhase.value = GenerationPhase.PREFILL
+                generationStartMs = System.currentTimeMillis()
+                RuntimeEventLog.post(
+                    subsystem = "GENERATION",
+                    severity  = EventSeverity.INFO,
+                    reason    = "PREFILL: ${_modelState.value.selectedModelName} · ${finalMaxTokens}t cap"
+                )
                 llamaManager.generateStream(
                     prompt = trimmedInput,
                     systemPrompt = systemPrompt,
@@ -1000,6 +1064,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         thinkingJob = null
                         if (!firstTokenReceived) {
                             firstTokenReceived = true
+                            // Transition PREFILL → GENERATE exactly once.
+                            // No allocation beyond the StateFlow write; this
+                            // branch never executes again for this generation.
+                            _generationPhase.value = GenerationPhase.GENERATE
                             val firstTokenMs = System.currentTimeMillis() - requestStart
                             Log.d("AIRI_SPEED", "first_token=${firstTokenMs}ms query=${queryType.name}")
                             com.airi.assistant.domain.logging.ProofLogger.firstToken(firstTokenMs, queryType.name)
@@ -1036,6 +1104,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     onComplete = { fullResponse ->
                         val totalLatency = System.currentTimeMillis() - requestStart
                         Log.d("AIRI_SPEED", "tokens_streamed=$tokenCount total_latency=${totalLatency}ms first_token=$firstTokenReceived cut=${_isCancelled.get()}")
+                        lastGenerationDurationMs = totalLatency
+                        _generationPhase.value = GenerationPhase.IDLE
+                        RuntimeEventLog.post(
+                            subsystem = "GENERATION",
+                            severity  = EventSeverity.INFO,
+                            reason    = "Complete tokens=$tokenCount latency=${totalLatency}ms" +
+                                if (_isCancelled.get()) " (cut)" else ""
+                        )
                         val responseToSave = if (_isCancelled.get() && partialCutText.isNotBlank()) {
                             partialCutText
                         } else {
@@ -1080,6 +1156,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             thinkingJob = null
                             _isCancelled.set(false)
                             _stallActive.value = false
+                            _generationPhase.value = GenerationPhase.CLEANUP
+                            RuntimeEventLog.post(
+                                subsystem = "GENERATION",
+                                severity  = EventSeverity.ERROR,
+                                reason    = errorMsg.take(100)
+                            )
 
                             // Categorize the error code emitted by LlamaManager.
                             // Only INACTIVITY_TIMEOUT (i.e. tokens started flowing then stopped)
@@ -1129,7 +1211,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             _messages.update { it + ChatMessage(userVisible, isUser = false, assistantMessage.id) }
                             streamAccumulator.setLength(0); _streamingText.value = ""
                             _agentState.value = AgentState()
+                            _generationPhase.value = GenerationPhase.IDLE
                             refreshSessions()
+                            refreshDiagnosticsSnapshot()
                         }
                     }
                 )
@@ -1999,11 +2083,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 Log.i("AIRI_MODEL", "LOAD SUCCESS path=${model.path} model=${model.name} loadMs=$loadMs")
                 Log.i("AIRI_PROOF", "MODEL_LOAD_SUCCESS name=${model.name} type=${model.type.label} loadMs=${loadMs}ms path=${model.path}")
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", true, "path=${model.path} loadMs=$loadMs")
+                modelLoadedAtMs = System.currentTimeMillis()
+                RuntimeEventLog.post(
+                    subsystem = "MODEL",
+                    severity  = EventSeverity.INFO,
+                    reason    = "Loaded: ${model.name} (${model.type.label}) in ${loadMs}ms"
+                )
                 // Start the thermal/memory watchdog now that we have a live model.
                 // stop() is called first so a second model-swap doesn't accumulate
                 // duplicate polling loops.
                 runtimeSupervisor.stop()
                 runtimeSupervisor.start()
+                refreshDiagnosticsSnapshot()
             } else {
                 val failure = llamaManager.getLastLoadFailure() ?: "native inference engine returned failure"
                 Log.e("AIRI_MODEL", "LOAD FAILED: $failure")
@@ -2194,6 +2285,173 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun restoreScannedIds(): Set<String> {
         val raw = preferences.getString(KEY_SCANNED_IDS, "") ?: ""
         return if (raw.isBlank()) emptySet() else raw.split("|").toSet()
+    }
+
+    // ── Runtime Diagnostics API ───────────────────────────────────────────────
+
+    /**
+     * Called by PerformanceScreen's LaunchedEffect(Unit) when the diagnostics
+     * panel first becomes visible. Triggers a one-shot snapshot so the UI
+     * always shows fresh data rather than the zero-value default.
+     */
+    fun onDiagnosticsScreenVisible() {
+        refreshDiagnosticsSnapshot()
+    }
+
+    /**
+     * Build and emit a fresh [RuntimeDiagnosticsState] snapshot.
+     *
+     * Runs on [Dispatchers.Default] — reads system services (ActivityManager,
+     * PowerManager) and native read-only accessors (getKvPosition, getNCtx,
+     * nativeGetSessionId, nativeGetGenerationId, getModelDescription,
+     * isDraftLoaded). All native calls are wrapped in runCatching so a
+     * not-yet-loaded library returns safe defaults instead of crashing.
+     *
+     * Never called from the token hot-path. Called at:
+     *  - Model load success
+     *  - Generation complete (via finish lambda)
+     *  - Generation error recovery
+     *  - Supervisor override
+     *  - PerformanceScreen open (onDiagnosticsScreenVisible)
+     */
+    private fun refreshDiagnosticsSnapshot() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            // ── Thermal ───────────────────────────────────────────────────────
+            val (thermalLevel, thermalRaw) = readThermalLevel()
+
+            // ── Memory ────────────────────────────────────────────────────────
+            val am = appContext.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val memInfo = ActivityManager.MemoryInfo()
+            am.getMemoryInfo(memInfo)
+            val availRamMb  = memInfo.availMem / (1024L * 1024L)
+            val isLowMemory = memInfo.lowMemory
+
+            // ── Context (KV) usage ────────────────────────────────────────────
+            val kvUsed = runCatching { LlamaNative.getKvPosition() }.getOrDefault(0)
+            val kvMax  = runCatching { LlamaNative.getNCtx() }.getOrDefault(0)
+
+            // ── Model info ────────────────────────────────────────────────────
+            val modelName = _modelState.value.selectedModelName.ifBlank { "—" }
+            val modelDesc = runCatching { LlamaNative.getModelDescription() }
+                .getOrDefault("UNAVAILABLE")
+            val modelQuant = extractQuant(modelDesc)
+
+            // ── Speculative / draft ───────────────────────────────────────────
+            val draftActive = runCatching { LlamaNative.isDraftLoaded() }.getOrDefault(false)
+
+            // ── Session / generation IDs ──────────────────────────────────────
+            val sessionId    = runCatching { LlamaNative.nativeGetSessionId() }.getOrDefault(0L)
+            val generationId = runCatching { LlamaNative.nativeGetGenerationId() }.getOrDefault(0L)
+
+            // ── Uptime ────────────────────────────────────────────────────────
+            val uptimeMs = if (modelLoadedAtMs > 0L)
+                System.currentTimeMillis() - modelLoadedAtMs else 0L
+
+            // ── Performance mode ──────────────────────────────────────────────
+            val mode = _performanceMode.value
+
+            // ── Build partial snapshot ────────────────────────────────────────
+            val partial = RuntimeDiagnosticsState(
+                effectiveMode        = mode.name,
+                modeSource           = _modeSource.value,
+                thermalLevel         = thermalLevel,
+                thermalRaw           = thermalRaw,
+                availRamMb           = availRamMb,
+                isLowMemory          = isLowMemory,
+                kvUsed               = kvUsed,
+                kvMax                = kvMax,
+                modelName            = modelName,
+                modelQuant           = modelQuant,
+                generationPhase      = _generationPhase.value,
+                tokensPerSec         = llamaManager.lastMetrics.tokensPerSec,
+                draftModelActive     = draftActive,
+                gpuVulkanActive      = false,   // CPU-only inference; no GPU backend loaded
+                sessionId            = sessionId,
+                generationId         = generationId,
+                replayTokenCount     = 0,
+                nCtx                 = mode.nCtx,
+                nThreads             = mode.nThreads,
+                runtimeUptimeMs      = uptimeMs,
+                generationDurationMs = lastGenerationDurationMs,
+                speculativeActive    = draftActive
+            )
+
+            // ── Pre-compute warnings (avoids work during recomposition) ───────
+            val warnings = buildWarnings(partial)
+            _runtimeDiagnostics.value = partial.copy(warnings = warnings)
+        }
+    }
+
+    /**
+     * Derives active warnings from an immutable [RuntimeDiagnosticsState].
+     * Called on [Dispatchers.Default] inside [refreshDiagnosticsSnapshot].
+     * Returns an empty list when the runtime is healthy.
+     */
+    private fun buildWarnings(state: RuntimeDiagnosticsState): List<String> {
+        val w = mutableListOf<String>()
+
+        if (state.modeSource == ModeSource.SUPERVISOR_THERMAL) {
+            w += "Thermal throttling active — runtime downgraded to ${state.effectiveMode}"
+        }
+        if (state.modeSource == ModeSource.SUPERVISOR_MEMORY) {
+            w += "Low memory pressure — runtime downgraded to ${state.effectiveMode}"
+        }
+        if (state.thermalLevel == ThermalLevel.SEVERE || state.thermalLevel == ThermalLevel.CRITICAL) {
+            if (state.modeSource != ModeSource.SUPERVISOR_THERMAL) {
+                w += "Device thermal status: ${state.thermalLevel.name} — consider reducing workload"
+            }
+        }
+        if (state.isLowMemory && state.modeSource != ModeSource.SUPERVISOR_MEMORY) {
+            w += "System is reporting low memory — model may be evicted from RAM"
+        }
+        if (state.kvMax > 0 && state.kvUsed * 100 / state.kvMax >= 85) {
+            w += "Context nearing overflow (${state.kvUsed}/${state.kvMax} tokens used, ${
+                state.kvUsed * 100 / state.kvMax}%)"
+        }
+        if (state.speculativeActive && !state.draftModelActive) {
+            w += "Speculative decoding enabled but draft model is not loaded"
+        }
+        return w
+    }
+
+    /**
+     * Read the device's current thermal status (API 29+).
+     * Returns [ThermalLevel.NONE] with raw=0 on older devices or on any error.
+     */
+    private fun readThermalLevel(): Pair<ThermalLevel, Int> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return ThermalLevel.NONE to 0
+        }
+        return try {
+            val pm = appContext.getSystemService(Context.POWER_SERVICE) as PowerManager
+            val status = pm.currentThermalStatus
+            val level = when {
+                status >= 4 -> ThermalLevel.CRITICAL
+                status == 3 -> ThermalLevel.SEVERE
+                status == 2 -> ThermalLevel.MODERATE
+                status == 1 -> ThermalLevel.LIGHT
+                else        -> ThermalLevel.NONE
+            }
+            level to status
+        } catch (t: Throwable) {
+            Log.w("AIRI_DIAG", "readThermalLevel failed: ${t.message}")
+            ThermalLevel.NONE to 0
+        }
+    }
+
+    /**
+     * Extract a quantization label (e.g. "Q4_K_M", "Q8_0", "F16") from the
+     * raw model description string returned by [LlamaNative.getModelDescription].
+     * Returns "—" if the library is not loaded or the quant label is absent.
+     */
+    private fun extractQuant(modelDesc: String): String {
+        if (modelDesc == "UNAVAILABLE" || modelDesc.isBlank()) return "—"
+        val desc = modelDesc.substringBefore('|')
+        val quantRegex = Regex(
+            "(IQ\\d+[_A-Z]*|Q\\d+[_KM_SLX0]*|BF16|F16|F32)",
+            RegexOption.IGNORE_CASE
+        )
+        return quantRegex.find(desc)?.value ?: "unknown"
     }
 
     private companion object {

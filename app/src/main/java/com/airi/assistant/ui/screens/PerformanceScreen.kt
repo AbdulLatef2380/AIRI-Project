@@ -51,9 +51,16 @@ fun PerformanceScreen(
     val deviceInfo = remember { collectDeviceInfo(context) }
     val perfStats  = remember { collectPerfStats(context) }
 
+    // ── Runtime Diagnostics state — collected once, driven by ViewModel StateFlows
+    val diagnostics by viewModel.runtimeDiagnostics.collectAsState()
+    val runtimeEvents by viewModel.runtimeEventLog.collectAsState()
+
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         visible = true
+        // Trigger a one-shot fresh snapshot so the diagnostics panel
+        // shows live data the moment the screen is opened.
+        viewModel.onDiagnosticsScreenVisible()
         AnalyticsService.featureDiscovered("performance_screen")
     }
 
@@ -94,6 +101,13 @@ fun PerformanceScreen(
                             AnalyticsService.featureDiscovered("performance_mode_${mode.name.lowercase()}")
                         }
                     )
+
+                    // ── Live Runtime Diagnostics ──────────────────────────────
+                    // Backed by ViewModel-owned StateFlows — no polling here.
+                    // Snapshots are emitted at lifecycle boundaries only
+                    // (model load, generation start/end, supervisor override).
+                    RuntimeStatusPanel(diagnostics = diagnostics)
+                    RuntimeWarningsPanel(warnings = diagnostics.warnings)
 
                     PerfStatCard(
                         title = stringResource(R.string.stat_device_info),
@@ -156,6 +170,10 @@ fun PerformanceScreen(
 
                     // Speculative decoding controls (optional, opt-in).
                     SpecDecodingCard()
+
+                    // ── Collapsible diagnostics panels ────────────────────────
+                    RuntimeEventTimeline(events = runtimeEvents)
+                    AdvancedDiagnosticsSection(diagnostics = diagnostics)
 
                     // Entry point to the empirical per-quantization comparison screen.
                     OutlinedButton(

@@ -277,9 +277,11 @@
     <string name="min_p">Min-P</string>
     <string name="presence_penalty">Presence Penalty</string>
     <string name="frequency_penalty">Frequency Penalty</string>
+    <string name="penalty_last_n">Repeat Window</string>
     <string name="min_p_hint">Minimum probability floor for token selection</string>
     <string name="presence_penalty_hint">Penalizes tokens already present in the response</string>
     <string name="frequency_penalty_hint">Penalizes tokens based on how often they appear</string>
+    <string name="penalty_last_n_hint">Recent tokens scanned for repetition (0 = off, 64 = default)</string>
     <!-- Share action -->
     <string name="share">Share</string>
     <!-- Drawer items — previously hardcoded -->

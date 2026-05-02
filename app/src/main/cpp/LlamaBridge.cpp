@@ -1587,7 +1587,8 @@ Java_com_airi_assistant_ai_LlamaNative_nativeSetSamplingParams(
     jfloat minP,
     jfloat repeatPenalty,
     jfloat presencePenalty,
-    jfloat frequencyPenalty)
+    jfloat frequencyPenalty,
+    jint   penaltyLastN)
 {
     LLAMA_LOCK();
     g_sp_temperature       = std::max(0.01f, std::min(5.0f,  (float)temperature));
@@ -1597,11 +1598,10 @@ Java_com_airi_assistant_ai_LlamaNative_nativeSetSamplingParams(
     g_sp_repeat_penalty    = std::max(1.0f,  std::min(2.0f,  (float)repeatPenalty));
     g_sp_presence_penalty  = std::max(0.0f,  std::min(2.0f,  (float)presencePenalty));
     g_sp_frequency_penalty = std::max(0.0f,  std::min(2.0f,  (float)frequencyPenalty));
-    // penalty_last_n stays at its default (64). If the Kotlin layer ever
-    // needs to expose it, add a jint parameter here and a matching field in
-    // GenerationSettingsDialog. For now the header-confirmed 4-arg form of
-    // llama_sampler_init_penalties(penalty_last_n, repeat, freq, present)
-    // is satisfied by g_sp_penalty_last_n which is initialised to 64.
+    // penalty_last_n: 0 = disabled, -1 = full context window, positive = token count.
+    // Clamp to [-1, 2048] — capping at 2048 prevents pathological scan cost
+    // on very large contexts while still covering a full 2K window.
+    g_sp_penalty_last_n    = std::max(-1, std::min(2048, (int)penaltyLastN));
     PROOF("SAMPLING_PARAMS_SET temp=%.3f top_k=%d top_p=%.3f min_p=%.3f "
           "repeat=%.3f pres=%.3f freq=%.3f penalty_last_n=%d",
           g_sp_temperature, g_sp_top_k, g_sp_top_p, g_sp_min_p,

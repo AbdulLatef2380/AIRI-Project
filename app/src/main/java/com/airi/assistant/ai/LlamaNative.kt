@@ -167,7 +167,8 @@ object LlamaNative {
         minP: Float,
         repeatPenalty: Float,
         presencePenalty: Float,
-        frequencyPenalty: Float
+        frequencyPenalty: Float,
+        penaltyLastN: Int
     )
 
     // ── Runtime tuning (no model reload) ─────────────────────────────────────

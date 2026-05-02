@@ -803,6 +803,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val minP             = uiPrefs.getFloat("gen_min_p",             0.05f)
             val presencePenalty  = uiPrefs.getFloat("gen_presence_penalty",  0.0f)
             val frequencyPenalty = uiPrefs.getFloat("gen_frequency_penalty", 0.0f)
+            // SPEC v4: penalty look-back window (penalty_last_n). Default 64
+            // matches llama.cpp's own sample default and g_sp_penalty_last_n
+            // in LlamaBridge.cpp. Range: 0 (off) .. 256 (aggressive).
+            val penaltyLastN     = uiPrefs.getInt  ("gen_penalty_last_n",    64)
             // Adaptive token limit — clamp based on available RAM to prevent OOM crashes
             val availableRamMb = DeviceProfiler.profile(appContext).availableRamMb
             val adaptiveMaxTokens = when {
@@ -953,6 +957,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     minP = minP,
                     presencePenalty = presencePenalty,
                     frequencyPenalty = frequencyPenalty,
+                    penaltyLastN = penaltyLastN,
                     // First-token deadline (covers slow CPU prompt decode on phones).
                     // Post-first-token inactivity timeout is owned by LlamaManager.
                     // Bumped to match LlamaManager.DEFAULT_FIRST_TOKEN_TIMEOUT_MS:

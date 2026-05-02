@@ -82,21 +82,66 @@ IDLE → PREFLIGHT → PREFILL → GENERATE → COMPLETE/ERROR/CANCELLED → CLE
 
 ---
 
-## Sampling Parameters (SPEC v4 — fully wired)
+## Sampling Parameters (SPEC v4 — fully wired, all 8 params exposed)
 
-All 7 per-generation sampling parameters are now end-to-end from UI → native:
+All 8 per-generation sampling parameters are now end-to-end from UI slider → native sampler chain:
 
-| Layer | What was added |
-|-------|---------------|
-| `LlamaBridge.cpp` | 8 globals (`g_sp_temperature`, `g_sp_top_k`, `g_sp_top_p`, `g_sp_min_p`, `g_sp_repeat_penalty`, `g_sp_presence_penalty`, `g_sp_frequency_penalty`, `g_sp_penalty_last_n`). `airi_generate_next()` builds sampler chain from these instead of hardcoded constants. `nativeSetSamplingParams()` JNI entry point writes them under `LLAMA_LOCK`. |
-| `LlamaNative.kt` | `external fun nativeSetSamplingParams(temperature, topK, topP, minP, repeatPenalty, presencePenalty, frequencyPenalty)` declaration. |
-| `LlamaManager.kt` | `runCatching { LlamaNative.nativeSetSamplingParams(...) }` called immediately before every `generateNextTokens` / `generateNextTokensSpeculative` invocation, inside `lifecycleLock` on the single-threaded `llamaDispatcher`. |
+| Parameter | SharedPrefs key | Default | Range |
+|-----------|----------------|---------|-------|
+| temperature | `gen_temperature` | 0.7 | 0.01–2.0 |
+| top_k | `gen_top_k` | 40 | 0–200 |
+| top_p | `gen_top_p` | 0.9 | 0.0–1.0 |
+| min_p | `gen_min_p` | 0.05 | 0.0–0.5 |
+| repeat_penalty | `gen_repeat_penalty` | 1.1 | 1.0–2.0 |
+| presence_penalty | `gen_presence_penalty` | 0.0 | 0.0–2.0 |
+| frequency_penalty | `gen_frequency_penalty` | 0.0 | 0.0–2.0 |
+| **penalty_last_n** | `gen_penalty_last_n` | **64** | **0–256 (step 16)** |
+
+`penalty_last_n` was added across all 6 layers in this session:
+1. `strings.xml` — `R.string.penalty_last_n` ("Repeat Window") + hint string
+2. `ModelSettingsScreen.kt` — slider in `AdvancedGenerationSettingsDialog` (0=off label, steps=15 for 17 snap-points at multiples of 16)
+3. `ChatViewModel.kt` — reads `gen_penalty_last_n` from SharedPrefs before every `generateStream` call
+4. `LlamaManager.kt` — `penaltyLastN: Int = 64` param added to `generateStream`; passed to `nativeSetSamplingParams`; logged in `SAMPLING_PARAMS_PUSHED`
+5. `LlamaNative.kt` — `penaltyLastN: Int` added to `external fun nativeSetSamplingParams` declaration
+6. `LlamaBridge.cpp` — `jint penaltyLastN` added to JNI entry; writes `g_sp_penalty_last_n` clamped to `[-1, 2048]`
 
 Sampler chain order: `penalties → top_k → top_p → min_p → temperature → dist`.  
-Each stage is skipped if its parameter is at its disabled value (e.g. `top_k=0`, `min_p=0.0`).  
-`llama_sampler_init_penalties` is called with the header-confirmed 4-arg signature: `(penalty_last_n=64, repeat, freq, present)`.
+Each stage is skipped if its parameter is at its disabled value (e.g. `top_k=0`, `min_p=0.0`, `penalty_last_n=0`).  
+`llama_sampler_init_penalties` called with header-confirmed 4-arg signature: `(penalty_last_n, repeat, freq, present)`.
+
+---
+
+## Production Hardening — Session Audit Findings
+
+Comprehensive audit of 15+ subsystems performed in this session. All critical paths verified:
+
+| System | Status | Notes |
+|--------|--------|-------|
+| Inference state machine | ✅ | Status-driven (-1/-2/-3) routing; each branch hard-clears buffers independently |
+| Stale-token guard | ✅ | genIdAtStart+1 + sessionId checked at both per-batch and tail-dispatch sites |
+| Watchdog | ✅ | Runs on Dispatchers.Default (not llamaDispatcher); inactivity-based not wall-clock |
+| lifecycleLock | ✅ | Kotlin Mutex (suspend-boundary safe); cancel paths are intentionally lock-free |
+| Cancel chain | ✅ | cancelRequested.set(false) + nativeClearCancel() before every turn |
+| fullReset | ✅ | cancel → nativeFullReset → invalidateSession → cancelRequested.set(false) |
+| History trimming | ✅ | trimHistoryByTokens (token-budget MAX_HISTORY_TOKENS=750); primedHistory drift detection |
+| KV reconcile | ✅ | Per-message replay; PREFLIGHT_OVERFLOW → fullReset → retry-once |
+| VoskEngine lifecycle | ✅ | stopRequested flag; AudioRecord.release() called from onFinal/onError; structured concurrency |
+| VoiceManager STT | ✅ | sttScope = SupervisorJob+IO; model load off-main via withContext(IO) in loadActiveModel |
+| TTS streaming | ✅ | Sentence-boundary flush (. ! ? ؟ ، \\n); QUEUE_ADD; ttsStreamFlush on turn end |
+| Voice state machine | ✅ | voiceStateRef ↔ voiceState sync guarded; liveChatActiveRef loop with re-arm tick |
+| Speculative decoding | ✅ | SpeculativeManager SharedPrefs-controlled; isDraftLoaded() checked before use |
+| UTF-8 guard (native) | ✅ | is_valid_utf8() checked before every NewStringUTF; trailing bytes held until complete |
+| loadModel | ✅ | Prior g_ctx/g_model freed before every load; mmap=true, mlock=false |
+
+**Production bug fixed — Voice auto-stop timer (`ChatScreen.kt`):**  
+The 7-second LISTENING timeout previously set `voiceState = IDLE` without calling `stopInAppStt()`.  
+The `VoskEngine`'s `AudioRecord` capture loop kept running with the microphone open — wasting battery  
+and able to fire a stale `onFinal` into the wrong state-machine phase.  
+Fix: `stopInAppStt()` is now called before `voiceState = IDLE` in the auto-stop `LaunchedEffect`.
+
+---
 
 ## Known Gaps / Future Work
 - `RuntimeSupervisor` (thermal / memory pressure monitoring) is not yet implemented.
 - Draft model speculative decoding path (`SpeculativeManager`) is wired but requires a companion draft GGUF to activate.
-- `g_sp_penalty_last_n` (repeat-penalty window) is fixed at 64 and not yet exposed via the Generation Settings dialog. Add a `jint penaltyLastN` param to `nativeSetSamplingParams` when needed.
+- Accessibility: TalkBack labels for voice state indicator and streaming progress are not set.

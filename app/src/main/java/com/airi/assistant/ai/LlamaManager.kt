@@ -660,6 +660,7 @@ class LlamaManager(private val context: Context) {
         minP: Float = 0.05f,
         presencePenalty: Float = 0.0f,
         frequencyPenalty: Float = 0.0f,
+        penaltyLastN: Int = 64,
         timeoutMs: Long = DEFAULT_FIRST_TOKEN_TIMEOUT_MS,
         onToken: (String) -> Unit,
         onComplete: (String) -> Unit,
@@ -954,13 +955,15 @@ class LlamaManager(private val context: Context) {
                         minP              = minP,
                         repeatPenalty     = repeatPenalty,
                         presencePenalty   = presencePenalty,
-                        frequencyPenalty  = frequencyPenalty
+                        frequencyPenalty  = frequencyPenalty,
+                        penaltyLastN      = penaltyLastN
                     )
                 }.onSuccess {
                     Log.i("AIRI_PROOF",
                         "SAMPLING_PARAMS_PUSHED temp=$temperature top_k=$topK " +
                         "top_p=$topP min_p=$minP repeat=$repeatPenalty " +
-                        "pres=$presencePenalty freq=$frequencyPenalty")
+                        "pres=$presencePenalty freq=$frequencyPenalty " +
+                        "penalty_last_n=$penaltyLastN")
                 }.onFailure { t ->
                     Log.w("AIRI_PROOF",
                         "SAMPLING_PARAMS_PUSH_FAILED ${t.javaClass.simpleName}: ${t.message} " +

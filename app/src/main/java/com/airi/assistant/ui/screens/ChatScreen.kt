@@ -331,13 +331,20 @@ fun ChatScreen(
             }
         }
     }
-    // Auto-stop: if still LISTENING after 7s with no result, revert to IDLE
+    // Auto-stop: if still LISTENING after 7s with no result, revert to IDLE.
+    // PRODUCTION FIX: also call stopInAppStt() so the underlying VoskEngine
+    // AudioRecord capture loop is signalled to exit. Without this, only
+    // voiceState changes to IDLE while the microphone and Vosk recognizer
+    // keep running — wasting battery and creating a window where a delayed
+    // onFinal callback can fire into the wrong UI state.
     LaunchedEffect(voiceState) {
         if (voiceState == VoiceSessionState.LISTENING) {
             kotlinx.coroutines.delay(7_000L)
             if (voiceState == VoiceSessionState.LISTENING) {
+                Log.d("AIRI_VOICE", "Auto-stop: 7s silence → stopping engine + IDLE")
+                Log.i("AIRI_PROOF", "AUTO_STOP_TIMEOUT 7s elapsed → stopping VoskEngine")
+                stopInAppStt()
                 voiceState = VoiceSessionState.IDLE
-                Log.d("AIRI_VOICE", "Auto-stop: 7s silence → IDLE")
             }
         }
     }

@@ -78,6 +78,7 @@ import com.airi.assistant.ui.theme.AiBubbleBorder
 import com.airi.assistant.ui.theme.UserBubbleSurface
 import com.airi.assistant.ui.theme.SemanticSuccess
 import com.airi.assistant.ui.util.MarkdownText
+import androidx.compose.runtime.snapshotFlow
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
 
@@ -411,43 +412,46 @@ fun ChatScreen(
         }
     }
 
-    // PHASE 4: observe streamingText and feed deltas to VoiceManager.
-    LaunchedEffect(streamingText, speakNextResponse, agentState.isWorking) {
-        if (!speakNextResponse) {
-            // Reset bookkeeping when voice mode is off.
-            if (ttsStreamingActive) {
-                voiceManager.ttsStreamFlush()
-                ttsStreamingActive = false
+    // PHASE 5 (perf): observe streamingText via snapshotFlow so this coroutine
+    // stays alive for the entire session and we never pay for coroutine
+    // cancel/restart on every individual token emission. Previous approach used
+    // LaunchedEffect(streamingText, ...) which cancelled and relaunched the
+    // coroutine on each token — O(tokens) coroutine churn. snapshotFlow collects
+    // inside a single long-lived coroutine that only acts when state actually changes.
+    LaunchedEffect(speakNextResponse, agentState.isWorking) {
+        snapshotFlow { streamingText }.collect { current ->
+            if (!speakNextResponse) {
+                if (ttsStreamingActive) {
+                    voiceManager.ttsStreamFlush()
+                    ttsStreamingActive = false
+                }
+                lastTtsStreamLen = 0
+                return@collect
             }
-            lastTtsStreamLen = 0
-            return@LaunchedEffect
-        }
-        val current = streamingText
-        // Skip placeholder thinking strings — they're never speech.
-        val isPlaceholder = current.isBlank() ||
-            current == "Thinking..." || current == "Analyzing image..."
-        if (isPlaceholder) {
-            if (ttsStreamingActive) {
-                voiceManager.ttsStreamFlush()
-                ttsStreamingActive = false
+            val isPlaceholder = current.isBlank() ||
+                current == "Thinking..." || current == "Analyzing image..."
+            if (isPlaceholder) {
+                if (ttsStreamingActive) {
+                    voiceManager.ttsStreamFlush()
+                    ttsStreamingActive = false
+                }
+                lastTtsStreamLen = 0
+                return@collect
             }
-            lastTtsStreamLen = 0
-            return@LaunchedEffect
-        }
-        // Detect a brand-new streaming session: text shrunk or restarted.
-        if (current.length < lastTtsStreamLen) {
-            voiceManager.ttsStreamReset()
-            ttsStreamingActive = true
-            lastTtsStreamLen = 0
-        }
-        if (!ttsStreamingActive) {
-            voiceManager.ttsStreamReset()
-            ttsStreamingActive = true
-        }
-        if (current.length > lastTtsStreamLen) {
-            val delta = current.substring(lastTtsStreamLen)
-            voiceManager.ttsStreamAppend(delta)
-            lastTtsStreamLen = current.length
+            if (current.length < lastTtsStreamLen) {
+                voiceManager.ttsStreamReset()
+                ttsStreamingActive = true
+                lastTtsStreamLen = 0
+            }
+            if (!ttsStreamingActive) {
+                voiceManager.ttsStreamReset()
+                ttsStreamingActive = true
+            }
+            if (current.length > lastTtsStreamLen) {
+                val delta = current.substring(lastTtsStreamLen)
+                voiceManager.ttsStreamAppend(delta)
+                lastTtsStreamLen = current.length
+            }
         }
     }
 
@@ -970,14 +974,19 @@ fun ChatMessageList(
         }
         lastScrolledStreamLen = 0
     }
-    LaunchedEffect(streamingText.length) {
-        if (!isPinnedToBottom) return@LaunchedEffect
-        val len = streamingText.length
-        if (len == 0) { lastScrolledStreamLen = 0; return@LaunchedEffect }
-        val grew = len - lastScrolledStreamLen
-        if (grew >= 24 || (grew in 1..23 && len < 60)) {
-            lastScrolledStreamLen = len
-            scope.launch { listState.scrollToItem(0) }
+    // PHASE 5 (perf): use snapshotFlow so the scroll-to-bottom observer lives in
+    // one long-running coroutine instead of cancelling/restarting on every token.
+    // Also use scrollToItem (instant) for mid-stream (fast tokens) and only
+    // animateScrollToItem on the final scroll triggered by message count change.
+    LaunchedEffect(Unit) {
+        snapshotFlow { streamingText.length }.collect { len ->
+            if (!isPinnedToBottom) return@collect
+            if (len == 0) { lastScrolledStreamLen = 0; return@collect }
+            val grew = len - lastScrolledStreamLen
+            if (grew >= 24 || (grew in 1..23 && len < 60)) {
+                lastScrolledStreamLen = len
+                listState.scrollToItem(0)
+            }
         }
     }
 
@@ -1097,8 +1106,8 @@ fun ChatMessageList(
                 if (streamingText.isNotEmpty() && isGenerating) {
                     item(key = "streaming") { AiStreamingBubble(text = streamingText) }
                 }
-                itemsIndexed(messages.reversed(), key = { _, msg -> msg.uid }) { index, msg ->
-                    val prevMsg = messages.reversed().getOrNull(index + 1)
+                itemsIndexed(reversedMessages, key = { _, msg -> msg.uid }) { index, msg ->
+                    val prevMsg = reversedMessages.getOrNull(index + 1)
                     val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
                     if (msg.isUser) {
                         UserBubble(msg.text, msg.imageUri)
@@ -1598,9 +1607,13 @@ private fun AiriThinkingPulse(
     color: Color = CosmicAccent
 ) {
     val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "airi_pulse")
+    // PERF: both alpha and scale are driven via graphicsLayer, which is a
+    // draw-phase-only property — zero layout passes. Background color uses a
+    // stable base color; only graphicsLayer alpha varies, avoiding Color
+    // allocation on every frame (color.copy(alpha=…) allocates a new Color).
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         for (i in 0..2) {
-            val alpha by infinite.animateFloat(
+            val alphaPct by infinite.animateFloat(
                 initialValue = 0.20f,
                 targetValue  = 1f,
                 animationSpec = androidx.compose.animation.core.infiniteRepeatable(
@@ -1629,10 +1642,10 @@ private fun AiriThinkingPulse(
             Box(
                 modifier = Modifier
                     .padding(end = if (i < 2) 6.dp else 0.dp)
-                    .graphicsLayer { scaleX = scale; scaleY = scale }
+                    .graphicsLayer { scaleX = scale; scaleY = scale; alpha = alphaPct }
                     .size(dotSize)
                     .clip(CircleShape)
-                    .background(color.copy(alpha = alpha))
+                    .background(color)
             )
         }
     }
@@ -2433,7 +2446,11 @@ private fun VoiceWaveformBars(
     barCount: Int = 5,
     modifier: Modifier = Modifier
 ) {
+    // PERF: single InfiniteTransition owns all bar animators — one Choreographer
+    // callback drives all 5 bars instead of 5 separate animation clocks.
+    // Background uses stable color; graphicsLayer alpha avoids Color allocation per frame.
     val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "voice_waveform")
+    val barAlpha = if (active) 0.88f else 0.40f
     Row(
         modifier = modifier.height(18.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -2459,7 +2476,8 @@ private fun VoiceWaveformBars(
                     .width(3.dp)
                     .height(barH.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(color.copy(alpha = if (active) 0.88f else 0.40f))
+                    .graphicsLayer { alpha = barAlpha }
+                    .background(color)
             )
         }
     }
@@ -2496,10 +2514,12 @@ private fun ScrollToBottomFab(
         ),
         modifier = modifier
     ) {
+        // PERF: no shadow here — colored shadows force a GPU compositing layer.
+        // The FAB is only visible when the user is mid-scroll so visual weight
+        // is sufficient without the overdraw penalty.
         Box(
             modifier = Modifier
                 .size(38.dp)
-                .shadow(12.dp, CircleShape, ambientColor = CosmicAccent, spotColor = CosmicAccent)
                 .clip(CircleShape)
                 .background(CosmicAccent.copy(alpha = 0.90f))
                 .clickable { onClick() },

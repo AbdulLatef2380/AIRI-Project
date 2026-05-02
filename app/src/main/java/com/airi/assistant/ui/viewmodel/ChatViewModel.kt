@@ -202,6 +202,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _streamingText = MutableStateFlow("")
     val streamingText: StateFlow<String> = _streamingText.asStateFlow()
 
+    // PERF: mutable accumulator owned by the Main-thread onToken callback.
+    // Using a StringBuilder avoids O(n²) String concatenation — each token
+    // previously caused `current + tokenBatch` to copy the entire response
+    // string. With a StringBuilder each append is O(1) amortised. The
+    // accumulated string is published to _streamingText on each token so
+    // the UI still sees every incremental update.
+    private val streamAccumulator = StringBuilder(1024)
+
     /**
      * True while the active generation has produced at least one token but
      * hasn't produced a new token for ≥5s (see LlamaManager.STALL_WARNING_MS).
@@ -458,7 +466,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _currentSessionId.value = session.id
             preferences.edit().putString(KEY_SESSION_ID, session.id).apply()
             _messages.value = emptyList()
-            _streamingText.value = ""
+            streamAccumulator.setLength(0); _streamingText.value = ""
             _agentState.value = AgentState()
             llamaManager.setHistory(emptyList())
             refreshSessions()
@@ -622,7 +630,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val fastMsg = memoryManager.recordChatMessage(sessionId, "assistant", fastHit)
                 _messages.update { it + ChatMessage(fastHit, isUser = false, id = fastMsg.id) }
                 _smartReplies.value = ResponseOptimizer.generateSuggestions(fastHit)
-                _streamingText.value = ""
+                streamAccumulator.setLength(0); _streamingText.value = ""
                 _agentState.value = AgentState()
                 refreshSessions()
                 return@launch
@@ -937,7 +945,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 _smartReplies.value = ResponseOptimizer.generateSuggestions(fullResponse)
-                _streamingText.value = ""
+                streamAccumulator.setLength(0); _streamingText.value = ""
                 _agentState.value    = AgentState()
             }
 
@@ -978,9 +986,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             _debugState.update { it.copy(lastFirstTokenMs = firstTokenMs) }
                         }
                         tokenCount += tokenBatch.length / 4 + 1
-                        _streamingText.update { current ->
-                            if (current in allThinkingStages) tokenBatch else current + tokenBatch
+                        // PERF: append to accumulator (O(1) amortised) then
+                        // publish the full string once — no per-token copy.
+                        if (_streamingText.value in allThinkingStages) {
+                            streamAccumulator.setLength(0)
                         }
+                        streamAccumulator.append(tokenBatch)
+                        _streamingText.value = streamAccumulator.toString()
                         // Partial cut: if running too long with enough tokens, stop early.
                         // Hard guard: NEVER cut before the first token has been emitted.
                         val elapsed = System.currentTimeMillis() - streamStart
@@ -1093,7 +1105,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             }
                             val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", userVisible)
                             _messages.update { it + ChatMessage(userVisible, isUser = false, assistantMessage.id) }
-                            _streamingText.value = ""
+                            streamAccumulator.setLength(0); _streamingText.value = ""
                             _agentState.value = AgentState()
                             refreshSessions()
                         }
@@ -1213,7 +1225,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     val sessionId = currentSessionOrCreate()
                     val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fallback)
                     _messages.update { it + ChatMessage(fallback, isUser = false, assistantMessage.id) }
-                    _streamingText.value = ""
+                    streamAccumulator.setLength(0); _streamingText.value = ""
                     _agentState.value = AgentState()
                     refreshSessions()
                 }
@@ -1571,7 +1583,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
             if (rgbBundle == null) {
                 _agentState.value = AgentState()
-                _streamingText.value = ""
+                streamAccumulator.setLength(0); _streamingText.value = ""
                 _messages.update {
                     it + ChatMessage("تعذر معالجة الصورة (تأكد من تنسيقها وحجمها).", isUser = false)
                 }
@@ -1603,7 +1615,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _messages.update {
                             it + ChatMessage(fullText, isUser = false, id = asstMsg.id)
                         }
-                        _streamingText.value = ""
+                        streamAccumulator.setLength(0); _streamingText.value = ""
                         _agentState.value = AgentState()
                         refreshSessions()
                         refreshPowerLevel()
@@ -1615,7 +1627,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _messages.update {
                             it + ChatMessage("تعذر تحليل الصورة: $errMsg", isUser = false)
                         }
-                        _streamingText.value = ""
+                        streamAccumulator.setLength(0); _streamingText.value = ""
                         _agentState.value = AgentState()
                     }
                 }

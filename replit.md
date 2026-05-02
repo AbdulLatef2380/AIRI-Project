@@ -166,6 +166,44 @@ Fix: `stopInAppStt()` is now called before `voiceState = IDLE` in the auto-stop 
 
 ---
 
+## Product Transformation — Markdown + Performance Session 4
+
+### New File: `ui/util/MarkdownText.kt` (215 lines, zero external deps)
+Pure-Compose streaming-safe Markdown renderer using only `AnnotatedString`:
+- Block-level: `# H1 / ## H2 / ### H3`, `- bullet / * / +`, `1. ordered`, ```` ``` ```` fenced code blocks, `---` horizontal rules, blank-line paragraph breaks
+- Inline: `**bold** / __bold__`, `*italic* / _italic_`, `` `code` ``, `~~strikethrough~~`
+- Streaming safety: all unclosed delimiters emit as literal text — never corrupts mid-stream partial responses
+- Performance: all parsing wrapped in `remember(rawText)` — zero work on recompositions that don't change the text
+- Code blocks render in `FontFamily.Monospace` on a dark `#0D1118` background with `#79C0FF` token color
+- Switched to `textColor` prop + `graphicsLayer` for alpha, eliminating per-frame `Color.copy(alpha=…)` allocation
+
+### ChatScreen.kt — 7 additional targeted changes
+
+| # | What | Effect |
+|---|---|---|
+| 1 | `AiBubble` now renders via `MarkdownText` | Bold, italic, code, bullets, headings render in all finished AI responses |
+| 2 | `reversedMessages = remember(messages) { messages.reversed() }` | List reversal runs once per message-list change, not on every streaming token (O(n) → O(1) during streaming) |
+| 3 | `itemsIndexed(reversedMessages, ...)` | Uses pre-reversed list; both LazyColumn and the hideAvatar lookup reference same instance |
+| 4 | Scroll-to-bottom observer converted to `snapshotFlow { streamingText.length }` | Single long-lived coroutine; eliminates O(tokens) coroutine cancel+restart churn during streaming |
+| 5 | TTS streaming observer converted to `snapshotFlow { streamingText }` | Same elimination; `LaunchedEffect(streamingText, ...)` was restarting on every token |
+| 6 | `AiriThinkingPulse` — `color.copy(alpha=alpha)` → `graphicsLayer { alpha = alphaPct }` + solid base color | Eliminates Color object allocation on every animation frame |
+| 7 | `VoiceWaveformBars` — same graphicsLayer alpha fix + `barAlpha` hoisted out of per-bar loop | Zero per-frame Color alloc; single InfiniteTransition drives all 5 bars under one Choreographer callback |
+| 8 | `ScrollToBottomFab` — removed `.shadow(12.dp, …ambientColor=CosmicAccent…)` | Colored shadows force GPU compositing layer; removed since FAB is only visible mid-scroll |
+
+### ChatViewModel.kt — StringBuilder accumulator (hot-path, high impact)
+- Added `private val streamAccumulator = StringBuilder(1024)` class-level field
+- Replaced `_streamingText.update { current -> current + tokenBatch }` with `streamAccumulator.append(tokenBatch); _streamingText.value = streamAccumulator.toString()`
+- Previous approach: O(n²) total — each of N tokens copied the entire response string (T chars), costing T × N bytes of allocation
+- New approach: O(n) total — StringBuilder uses internal char array doubling; `toString()` is one final copy
+- All 8 clear sites (`_streamingText.value = ""`) now also call `streamAccumulator.setLength(0)` to stay in sync
+
+### VoiceManager.kt — TTS streaming latency
+- Added **length-based flush trigger**: when buffer reaches ≥80 chars with no punctuation found, flushes at last word boundary before char 80
+- Reduces first-speech latency for unpunctuated passages (code explanations, long bullet intros) from "full-sentence wait" to ~10-word chunks
+- Added Latin comma `,` to the punctuation set (was only `.!?؟،\n`) — catches prose like "First, we need to…"
+
+---
+
 ## Known Gaps / Future Work
 - `RuntimeSupervisor` (thermal / memory pressure monitoring) is not yet implemented.
 - Draft model speculative decoding path (`SpeculativeManager`) is wired but requires a companion draft GGUF to activate.

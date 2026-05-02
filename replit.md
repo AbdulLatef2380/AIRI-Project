@@ -309,8 +309,59 @@ Full audit of `LlamaManager.kt` (1903 lines), `LlamaBridge.cpp` (2638 lines), `C
 
 ---
 
+---
+
+## RuntimeSupervisor — Thermal / Memory Pressure Watchdog
+
+**New file:** `app/src/main/java/com/airi/assistant/ai/RuntimeSupervisor.kt`
+
+Polls Android thermal status (API 29+) and available RAM every 15 seconds and automatically downgrades the active `PerformanceMode` when sustained device pressure is detected.
+
+### Design Invariants
+| Property | Value |
+|----------|-------|
+| Poll interval | 15 000 ms |
+| Confirmation cycles | 2 (≈30 s sustained pressure before action) |
+| Auto-upgrade | **Never** — only downgrades autonomously |
+| User ceiling | Always applies `worstOf(supervisorRecommend, userMode)` — supervisor cannot grant MORE resources than the user chose |
+| Thread safety | Runs on `Dispatchers.Default`; mode changes dispatched to `llamaDispatcher` via `applyRuntimeMode` — serialized behind any in-flight decode |
+
+### Thermal Thresholds (Android API 29+ `PowerManager.THERMAL_STATUS_*`)
+| Status value | Mapped mode |
+|---|---|
+| 0–1 (NONE / LIGHT) | No restriction |
+| 2 (MODERATE) | Cap at BALANCED |
+| ≥ 3 (SEVERE / CRITICAL / EMERGENCY) | Force FAST |
+| Pre-API-29 device | No restriction (graceful fallback) |
+
+### Memory Thresholds
+| Available RAM | Mapped mode |
+|---|---|
+| `ActivityManager.lowMemory = true` OR < 300 MB | Force FAST |
+| 300–600 MB | Cap at BALANCED |
+| ≥ 600 MB | No restriction |
+
+### Observable Log Tags (AIRI_PROOF)
+| Tag | Meaning |
+|-----|---------|
+| `SUPERVISOR_START` | Polling loop armed, parameters logged |
+| `SUPERVISOR_THERMAL status=N` | Raw `PowerManager.currentThermalStatus` reading |
+| `SUPERVISOR_MEMORY avail_mb=N low_mem=B` | Raw `ActivityManager.MemoryInfo` reading |
+| `SUPERVISOR_PRESSURE_DETECTED mode=X` | First observation of a restrictive mode |
+| `SUPERVISOR_PRESSURE_CONFIRM cycle=N/2` | Accumulating confirmation |
+| `SUPERVISOR_MODE_CHANGE from=X to=Y reason=Z` | Mode change committed and applied |
+| `SUPERVISOR_PRESSURE_RESOLVED` | Pressure subsided before threshold — no action |
+| `SUPERVISOR_OVERRIDE mode=X reason=Z` | ViewModel received and applied the override |
+| `SUPERVISOR_STOP` | Polling cancelled (ViewModel.onCleared) |
+
+### Integration points in `ChatViewModel.kt`
+- **Field declaration** (line ~185): `private val runtimeSupervisor = RuntimeSupervisor(…)` constructed alongside `llamaManager`.
+- **`loadModel()` success branch**: `runtimeSupervisor.stop(); runtimeSupervisor.start()` — idempotent, handles model-swap.
+- **`onCleared()`**: `runtimeSupervisor.stop()` — always called before ViewModel destruction.
+
+---
+
 ## Known Gaps / Future Work
-- `RuntimeSupervisor` (thermal / memory pressure monitoring) is not yet implemented.
 - Draft model speculative decoding path (`SpeculativeManager`) is wired but requires a companion draft GGUF to activate.
 - Accessibility: TalkBack labels for voice state indicator and streaming progress are not set.
 - `AiBubble` inline action "Copy" shows no visual confirmation toast (snackbar not yet wired to copy action).

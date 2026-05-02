@@ -18,6 +18,7 @@ import com.airi.assistant.ai.PerformanceMode
 import com.airi.assistant.ai.DeviceTier
 import com.airi.assistant.ai.LlamaManager
 import com.airi.assistant.ai.LlamaNative
+import com.airi.assistant.ai.RuntimeSupervisor
 import com.airi.assistant.ai.ModelCapabilities
 import com.airi.assistant.ai.ModelCatalog
 import com.airi.assistant.ai.VisionImage
@@ -173,6 +174,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val perfPrefs         = appContext.getSharedPreferences("airi_perf_stats", Context.MODE_PRIVATE)
     private val llamaManager      = LlamaManager(appContext)
     private val memoryManager     = MemoryManager(appContext)
+
+    // ── RuntimeSupervisor — thermal / memory pressure watchdog ───────────────
+    // Started when a model loads successfully; stopped in onCleared().
+    // modeProvider returns the user's chosen PerformanceMode (thread-safe
+    // StateFlow.value read). modeConsumer dispatches the supervisor's override
+    // back to the UI so the PerformanceScreen and stats overlay stay accurate.
+    // The supervisor never upgrades autonomously; it only caps resources at the
+    // user's chosen ceiling when thermal or memory pressure is sustained.
+    private val runtimeSupervisor = RuntimeSupervisor(
+        context      = appContext,
+        llamaManager = llamaManager,
+        modeProvider = { _performanceMode.value },
+        modeConsumer = { supervisedMode, reason ->
+            Log.i("AIRI_PROOF",
+                "SUPERVISOR_OVERRIDE mode=${supervisedMode.name} reason=$reason")
+            viewModelScope.launch(Dispatchers.Main) {
+                _performanceMode.value = supervisedMode
+            }
+        }
+    )
     private val downloadManager   = ModelDownloadManager(appContext)
     private val modelConfigManager = ModelConfigManager(appContext)
     private val remoteExecutor    = RemoteModelExecutor()
@@ -440,6 +461,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        runtimeSupervisor.stop()
         runCatching { appContext.unregisterReceiver(downloadCompleteReceiver) }
     }
 
@@ -1977,6 +1999,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 Log.i("AIRI_MODEL", "LOAD SUCCESS path=${model.path} model=${model.name} loadMs=$loadMs")
                 Log.i("AIRI_PROOF", "MODEL_LOAD_SUCCESS name=${model.name} type=${model.type.label} loadMs=${loadMs}ms path=${model.path}")
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", true, "path=${model.path} loadMs=$loadMs")
+                // Start the thermal/memory watchdog now that we have a live model.
+                // stop() is called first so a second model-swap doesn't accumulate
+                // duplicate polling loops.
+                runtimeSupervisor.stop()
+                runtimeSupervisor.start()
             } else {
                 val failure = llamaManager.getLastLoadFailure() ?: "native inference engine returned failure"
                 Log.e("AIRI_MODEL", "LOAD FAILED: $failure")

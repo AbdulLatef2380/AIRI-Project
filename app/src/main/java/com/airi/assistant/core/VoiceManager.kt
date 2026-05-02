@@ -138,14 +138,23 @@ class VoiceManager(
         var flushed = 0
         while (true) {
             val s = ttsStreamBuffer
-            // Find the earliest sentence terminator. Includes Arabic
-            // question mark (؟) and Arabic comma (،) so RTL replies feel
-            // natural — Arabic full-stop is the same '.' as Latin.
+            // Find the earliest sentence terminator. Includes Latin comma (,),
+            // Arabic question mark (؟) and Arabic comma (،) so both LTR and RTL
+            // replies feel natural — Arabic full-stop is the same '.' as Latin.
             var idx = -1
             for (i in 0 until s.length) {
                 val c = s[i]
                 if (c == '.' || c == '!' || c == '?' || c == '؟' ||
-                    c == '،' || c == '\n') { idx = i; break }
+                    c == '،' || c == ',' || c == '\n') { idx = i; break }
+            }
+            // Length trigger: if buffer is ≥80 chars and no punctuation was found,
+            // flush at the last word boundary before position 80.  This dramatically
+            // reduces first-speech latency for long unpunctuated passages (code
+            // explanations, bullet intros, continuous prose without commas).
+            if (idx < 0 && s.length >= 80) {
+                for (wi in minOf(79, s.length - 1) downTo 20) {
+                    if (s[wi] == ' ') { idx = wi; break }
+                }
             }
             if (idx < 0) break
             val sentence = s.substring(0, idx + 1).trim()

@@ -77,6 +77,7 @@ import com.airi.assistant.ui.theme.AiBubbleSurface
 import com.airi.assistant.ui.theme.AiBubbleBorder
 import com.airi.assistant.ui.theme.UserBubbleSurface
 import com.airi.assistant.ui.theme.SemanticSuccess
+import com.airi.assistant.ui.util.MarkdownText
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
 
@@ -955,6 +956,10 @@ fun ChatMessageList(
     val listState = rememberLazyListState()
     val scope     = rememberCoroutineScope()
 
+    // Pre-reverse the list once per messages-list change (not on every
+    // streaming token), eliminating O(n) allocation on each recomposition.
+    val reversedMessages = remember(messages) { messages.reversed() }
+
     val isPinnedToBottom by remember {
         derivedStateOf { listState.firstVisibleItemIndex <= 1 }
     }
@@ -1254,11 +1259,11 @@ fun AiBubble(
                         .border(1.dp, AiBubbleBorder, RoundedCornerShape(4.dp, 20.dp, 20.dp, 20.dp))
                         .padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
-                    Text(
-                        text       = text,
-                        color      = Color.White.copy(alpha = 0.93f),
-                        fontSize   = 15.sp,
-                        lineHeight = 23.sp
+                    MarkdownText(
+                        rawText     = text,
+                        modifier    = Modifier.fillMaxWidth(),
+                        baseFontSp  = 15f,
+                        lineHeightSp = 23f
                     )
                 }
 

@@ -117,7 +117,10 @@ dependencies {
 
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.lifecycle.runtime.compose)   // provides LocalLifecycleOwner (compose)
+    // lifecycle-runtime-compose provides LocalLifecycleOwner for Compose DisposableEffect.
+    // Declared as a literal coordinate (not via version catalog) so that PR branches
+    // with older libs.versions.toml that predate the catalog entry do not break.
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
@@ -162,7 +165,9 @@ dependencies {
     // returns true within ~20 ms of the user starting to talk, which then
     // stops TTS instantly and hands control back to STT.
     // No network, no cloud, no API key. Model runs via ONNX Runtime on-device.
-    implementation(libs.androidVadSilero)
+    // Package: com.konovalov.vad.silero (io.github.gkonovalov on Maven Central).
+    // Declared as a literal coordinate so branches with older TOMLs don't break.
+    implementation("io.github.gkonovalov:android-vad-silero:2.1.3")
 
     // ── Image loading (chat attachment thumbnails) ───────────────────────
     // Coil is the Compose-native image loader (Apache-2.0). Used by the

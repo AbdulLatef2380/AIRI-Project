@@ -18,7 +18,9 @@ gson = "2.10.1"
 
 vosk = "0.3.47"
 porcupine = "3.0.1"
-androidVad = "2.1.3"
+# android-vad-silero 2.1.3 and lifecycle-runtime-compose 2.7.0 are declared
+# as literal coordinates in app/build.gradle.kts so PR branches with older
+# versions of this file do not get "Unresolved reference" build failures.
 
 [libraries]
 # Core
@@ -58,7 +60,7 @@ gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 # Voice
 voskAndroid = { group = "com.alphacephei", name = "vosk-android", version.ref = "vosk" }
 porcupineAndroid = { group = "ai.picovoice", name = "porcupine-android", version.ref = "porcupine" }
-androidVadSilero = { group = "io.github.gkonovalov", name = "android-vad-silero", version.ref = "androidVad" }
+# androidVadSilero removed from catalog — declared as literal in build.gradle.kts
 
 # Image Loading
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }

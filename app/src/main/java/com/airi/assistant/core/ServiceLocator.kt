@@ -11,6 +11,10 @@ import com.airi.assistant.connector.api.OpenAiProvider
 import com.airi.assistant.domain.agent.AgentService
 import com.airi.assistant.domain.auth.AuthService
 import com.airi.assistant.domain.error.AppErrorHandler
+import com.airi.assistant.agent.durable.DurableTaskManager
+import com.airi.assistant.agent.observability.AgentObservabilityHub
+import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
+import com.airi.assistant.agent.subagent.SubAgentRegistry
 import com.airi.assistant.domain.event.AgentEventStream
 import com.airi.assistant.domain.event.ExecutionHistoryStore
 import com.airi.assistant.domain.monetization.SubscriptionManager
@@ -114,5 +118,35 @@ object ServiceLocator {
 
     val agentRouter: AgentRouter by lazy {
         AgentRouter(connectorRegistry)
+    }
+
+    // ── AIRI Ascension: Sub-Agent Layer ───────────────────────────────────────
+    //
+    // SubAgentRegistry is an object (singleton) — no lazy needed.
+    // Initialize it once after ServiceLocator.init() is called.
+    // Call ServiceLocator.initSubAgentSystem() from Application.onCreate().
+
+    val durableTaskManager: DurableTaskManager by lazy {
+        DurableTaskManager(requireContext())
+    }
+
+    val observabilityHub: AgentObservabilityHub by lazy {
+        AgentObservabilityHub()
+    }
+
+    val productionOrchestrator: ProductionAgentOrchestrator by lazy {
+        ProductionAgentOrchestrator().also { orch ->
+            observabilityHub.attachOrchestrator(orch)
+        }
+    }
+
+    /**
+     * Initialize the sub-agent system. Call once from Application.onCreate()
+     * after [init] has been called with the application context.
+     */
+    fun initSubAgentSystem() {
+        SubAgentRegistry.initialize()
+        SubAgentRegistry.freeze()
+        observabilityHub.refreshRegistrySnapshot()
     }
 }

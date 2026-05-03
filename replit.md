@@ -553,6 +553,84 @@ This closes the last UI-visible cancel → error regression. All four cancel pat
 
 ---
 
+---
+
+## AIRI ASCENSION — Agentic OS Architecture
+
+Implemented across 20 new source files in this session. Adds a production sub-agent system, durable task queue, formal voice pipeline state machine, cloud realtime voice abstraction, structured tool schema layer, memory layer separation, parallel orchestration, and unified observability — without touching the existing runtime (HybridOrchestrator, FullDuplexVadEngine, VoiceManager, LlamaManager are unchanged).
+
+### Voice Pipeline Layer
+
+| File | Purpose |
+|------|---------|
+| `voice/VoicePipelineState.kt` | Formal state machine enum: IDLE/LISTENING/THINKING/STREAMING_RESPONSE/INTERRUPTED/RECOVERING with helper properties (`isAudioActive`, `isTtsSpeaking`, `isProcessing`) |
+| `voice/LiveVoiceSession.kt` | Lifecycle-independent session state holder. Owns `state`, `partialTranscript`, `latency`, `metrics` StateFlows. Survives rotation. Thread-safe state transitions with PROOF logging |
+| `voice/LiveVoiceService.kt` | Android foreground service owning VoiceManager lifetime. Bridges VoiceListener callbacks → LiveVoiceSession transitions. Auto-rearms STT after turn completion and barge-in. Notification tracks pipeline state. Registered in AndroidManifest with `foregroundServiceType=microphone` |
+| `voice/realtime/RealtimeVoiceProvider.kt` | Interface for cloud realtime voice (Gemini Live, OpenAI Realtime). PCM-16 audio I/O with Flow-based streaming. `LocalVoicePipeline` null-object default = existing Vosk+TTS path |
+
+### Sub-Agent System
+
+| File | Purpose |
+|------|---------|
+| `agent/subagent/SubAgentCapability.kt` | Capability metadata: routing keywords, domain tags, permission requirements, cost tier (FREE/LOW/MEDIUM/HIGH), latency profile (INSTANT/FAST/MODERATE/SLOW), parallelism, resumability |
+| `agent/subagent/SubAgent.kt` | Base interface: `capability`, `canHandle()`, `execute()` returning `Flow<AgentEvent>`. Full cancellation contract documented |
+| `agent/subagent/AgentEvent.kt` | Sealed event hierarchy: `Progress`, `PartialResult`, `ToolCall`, `Delegate`, `Complete`, `Failed` |
+| `agent/subagent/SubAgentContext.kt` | Immutable execution context: sessionId, userId, recentTurns, worldState, grantedPermissions, allowedTools, privacyLevel (0/1/2), cloudBudget, nestingDepth (max 3), dependencyResults |
+| `agent/subagent/SubAgentRegistry.kt` | Central registry. Two-pass routing: keyword scoring → `canHandle()` confirmation. Privacy + permission gating. `route()`, `findById()`, `capabilities()` |
+| `agent/subagent/impl/CodingAgent.kt` | Code generation, debugging, explanation, refactoring. Routes via `AgentEvent.Delegate` to LLM backend |
+| `agent/subagent/impl/ResearchAgent.kt` | Web search, summarization, deep research. Parallel sub-search threads. `supportsBackground=true` |
+| `agent/subagent/impl/AndroidAgent.kt` | Android UI automation via accessibility bridge. Audit-logs every action. Requires `airi_accessibility_enabled` synthetic capability token |
+| `agent/subagent/impl/ProductivityAgent.kt` | Calendar, alarms, email drafting, notes, task lists. Routes to `calendar_tool`, `alarm_tool`, `gmail_tool` |
+| `agent/subagent/impl/MemoryAgent.kt` | Explicit memory STORE/RECALL/DELETE/LIST. Accesses MemoryManager long-term and semantic layers |
+
+### Orchestration
+
+| File | Purpose |
+|------|---------|
+| `agent/orchestrator/ProductionAgentOrchestrator.kt` | Parallel task execution with DAG dependency graphs. Wave-based execution: each wave runs all tasks whose dependencies are resolved. Result propagation via `SubAgentContext.dependencyResults`. Structured cancellation, per-task timeout, delegation resolution. `OrchestratorPlan`, `OrchestratorTask`, `ExecutionResult` types |
+
+### Tool Schema Layer
+
+| File | Purpose |
+|------|---------|
+| `tools/capability/ToolCapabilitySchema.kt` | Extended tool definition: typed parameters (`ToolParameter` with `ParameterType`), category, permissions, network requirement, latency range, cancellability, streaming support, rollback support, MCP endpoint hook. `BuiltinToolSchemas`: CALENDAR, ALARM, WEB_SEARCH, CODE_EXEC, GMAIL |
+
+### Durable Task System
+
+| File | Purpose |
+|------|---------|
+| `agent/durable/DurableTask.kt` | Persistent task model: status (QUEUED/RUNNING/PAUSED/COMPLETED/FAILED/CANCELLED), scheduling constraints, checkpoint JSON, retry count, progress tracking |
+| `agent/durable/DurableTaskManager.kt` | File-based persistence (atomic write-to-temp-rename). WorkManager OneTimeWorkRequest per task. `StateFlow<List<DurableTask>>` for UI. `DurableTaskWorker` stub wired for SubAgentRegistry integration |
+
+### Memory Layer
+
+| File | Purpose |
+|------|---------|
+| `memory/MemoryLayer.kt` | Formal layer enum: SHORT_TERM (kv-cache volatile), WORKING (session-scoped), EPISODIC (sliding window), LONG_TERM (Room isMemory=1), SEMANTIC (vector embeddings). Privacy constraints per layer. `LayeredMemoryItem` for UI display |
+
+### Observability
+
+| File | Purpose |
+|------|---------|
+| `agent/observability/AgentObservabilityHub.kt` | Unified signal aggregator. Attaches to LiveVoiceSession + ProductionAgentOrchestrator StateFlows. Records tool calls, agent success/error, durable task queue, memory metrics. `ObservabilitySnapshot` data class consumed by ObservabilityScreen |
+
+### ServiceLocator Extensions
+
+`core/ServiceLocator.kt` extended with:
+- `durableTaskManager: DurableTaskManager` (lazy, file-backed)
+- `observabilityHub: AgentObservabilityHub` (lazy, attaches orchestrator on init)
+- `productionOrchestrator: ProductionAgentOrchestrator` (lazy)
+- `initSubAgentSystem()` — call from Application.onCreate() to initialize + freeze SubAgentRegistry
+
+### Integration Notes
+
+- **No existing file modified** except `ServiceLocator.kt` (additions only), `AndroidManifest.xml` (LiveVoiceService registration), `replit.md` (this doc)
+- `SubAgentRegistry.initialize()` must be called once from `Application.onCreate()` via `ServiceLocator.initSubAgentSystem()`
+- `LiveVoiceService` can remain unstarted; it only provides value when started via `LiveVoiceService.start(context)`. ChatViewModel continues to work with VoiceManager directly until LiveVoiceService is fully integrated
+- Cloud realtime providers (Gemini Live, OpenAI Realtime) are ready to implement as `RealtimeVoiceProvider` implementations — the service swap point is `LiveVoiceService.LocalBinder.setRealtimeProvider()`
+
+---
+
 ## Known Gaps / Future Work
 - Draft model speculative decoding path (`SpeculativeManager`) is wired but requires a companion draft GGUF to activate.
 - Accessibility: TalkBack labels for voice state indicator and streaming progress are not set.
@@ -560,3 +638,6 @@ This closes the last UI-visible cancel → error regression. All four cancel pat
 - VAD adaptive noise threshold: currently logs ambient RMS but does not dynamically adjust `speechDurationMs`. Future: increase durationMs in noisy environments.
 - VAD `MAX_SESSION_MS = 50s` hard timeout: protects against eternal mic lock but means extremely long AI monologues (>50s) lose VAD coverage for the tail. Future: restart VAD at the 45s mark.
 - Hybrid execution token budget tracking (`cloudTokensUsedToday`) currently only incremented manually; future: hook into `CloudBackend.execute()` to count tokens automatically.
+- ASCENSION: `DurableTaskWorker.doWork()` has full integration wired as comments — needs ServiceLocator.durableTaskManager + SubAgentRegistry to be connected for background task execution.
+- ASCENSION: `GeminiLiveProvider` and `OpenAIRealtimeProvider` implementing `RealtimeVoiceProvider` need to be built when API keys are available.
+- ASCENSION: `ObservabilityScreen` should be updated to consume `AgentObservabilityHub.snapshot` StateFlow for live multi-signal observability.

@@ -74,6 +74,12 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- Full-duplex voice pipeline — survives rotation; owns VoiceManager lifetime -->
+        <service
+            android:name=".voice.LiveVoiceService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
         <!-- On-device wake-word listener ("Hey AIRI") — see HotwordService.kt -->
         <service
             android:name=".voice.HotwordService"

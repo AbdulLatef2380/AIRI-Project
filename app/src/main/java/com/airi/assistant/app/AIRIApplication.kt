@@ -78,6 +78,10 @@ class AIRIApplication : Application() {
             RemoteModelRegistry.init(this)
             LoggingService.info(TAG, "✓ RemoteModelRegistry initialized")
 
+            // ── AIRI Ascension: Sub-Agent + Orchestration System ──────────────
+            ServiceLocator.initSubAgentSystem()
+            LoggingService.info(TAG, "✓ SubAgentSystem initialized")
+
             // Fire app_open analytics event
             AnalyticsService.appOpen()
             AnalyticsService.sessionStart()

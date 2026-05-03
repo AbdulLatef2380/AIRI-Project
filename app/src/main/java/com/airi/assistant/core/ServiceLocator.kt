@@ -140,6 +140,28 @@ object ServiceLocator {
         }
     }
 
+    // ── Tool Execution Layer ──────────────────────────────────────────────────
+
+    val calendarTool: com.airi.assistant.tools.execution.CalendarTool by lazy {
+        com.airi.assistant.tools.execution.CalendarTool(requireContext())
+    }
+
+    val alarmTool: com.airi.assistant.tools.execution.AlarmTool by lazy {
+        com.airi.assistant.tools.execution.AlarmTool(requireContext())
+    }
+
+    val notificationTool: com.airi.assistant.tools.execution.NotificationTool by lazy {
+        com.airi.assistant.tools.execution.NotificationTool(requireContext())
+    }
+
+    val searchTool: com.airi.assistant.tools.execution.SearchTool by lazy {
+        com.airi.assistant.tools.execution.SearchTool(requireContext())
+    }
+
+    val notesTool: com.airi.assistant.tools.execution.NotesTool by lazy {
+        com.airi.assistant.tools.execution.NotesTool(requireContext())
+    }
+
     /**
      * Initialize the sub-agent system. Call once from Application.onCreate()
      * after [init] has been called with the application context.

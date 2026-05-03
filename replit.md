@@ -163,6 +163,66 @@ Each stage is skipped if its parameter is at its disabled value (e.g. `top_k=0`,
 
 ---
 
+## AIRI ASCENSION — Real Execution Capabilities (Batches 1–4 Complete)
+
+### Overview
+AIRI evolved from "well-architected AI platform" into a "high-capability execution system".
+Phase priorities: Phase 1 Realtime Voice → Phase 2 Accessibility Agent → Phase 3 Tool Execution Engine.
+
+### New Files (Batch 4 — this session)
+
+| Package | File | Purpose |
+|---------|------|---------|
+| `accessibility/execution` | `AccessibilityExecutionEngine.kt` | OBSERVE→PLAN→EXECUTE→VERIFY→RECOVER loop with kill switch + audit log |
+| `accessibility/service` | `AiriAccessibilityService.kt` | Expanded: screen context StateFlow, event routing, capability token grant/revoke |
+| `tools/execution` | `CalendarTool.kt` | Real ContentProvider calendar read/write (READ_CALENDAR, WRITE_CALENDAR) |
+| `tools/execution` | `AlarmTool.kt` | AlarmClock intent + AlarmManager exact alarms, natural language time/duration parsing |
+| `tools/execution` | `NotificationTool.kt` | NotificationManager post/progress/reminder, channel management |
+| `tools/execution` | `SearchTool.kt` | DuckDuckGo Instant Answers API + web intent + URL fetch (OkHttp) |
+| `tools/execution` | `NotesTool.kt` | JSON-persisted local notes with StateFlow, tags, pin, search |
+| `voice/realtime` | `GeminiLiveProvider.kt` | Production WebSocket Gemini Live BidiGenerateContent audio provider |
+| `voice/realtime` | `OpenAIRealtimeProvider.kt` | Production WebSocket OpenAI Realtime API provider (server + none VAD modes) |
+
+### Updated Files (Batch 4)
+
+| File | Change |
+|------|--------|
+| `ui/screens/ObservabilityScreen.kt` | Full rewrite: Events tab (existing) + Live Hub tab (real-time AgentObservabilityHub.snapshot) |
+| `app/AIRIApplication.kt` | Added `ServiceLocator.initSubAgentSystem()` call |
+| `agent/subagent/SubAgentRegistry.kt` | Added `grantCapability / revokeCapability / hasCapability` runtime token system |
+| `core/ServiceLocator.kt` | Added lazy vals: calendarTool, alarmTool, notificationTool, searchTool, notesTool |
+| `AndroidManifest.xml` | Added: READ_CALENDAR, WRITE_CALENDAR, SCHEDULE_EXACT_ALARM, USE_EXACT_ALARM, READ_CONTACTS |
+
+### Architecture Contracts
+
+**AccessibilityExecutionEngine safety:**
+- Kill switch via `AtomicBoolean` — checked every coroutine suspension boundary
+- Max 20 actions hard cap — prevents runaway LLM plan loops
+- 3 retries per action with exponential delay
+- 8s timeout per action phase via `withTimeout`
+- All actions audit-logged to Logcat tag `AIRI_PROOF_ACCESSIBILITY`
+- VERIFY phase after every EXECUTE — confirms UI state changed as expected
+
+**Tool safety:**
+- All tools permission-check before execution (no silent fallback)
+- CalendarTool: `ContextCompat.checkSelfPermission` before every ContentResolver call
+- AlarmTool: Intent-based by default (no permissions), AlarmManager for background
+- NotesTool: Atomic write (write-to-temp + rename) for crash safety
+- SearchTool: Falls back from DuckDuckGo Instant API → web intent gracefully
+
+**Realtime voice providers:**
+- Both implement `RealtimeVoiceProvider` interface for hot-swap in `LiveVoiceService`
+- PCM-16 audio framing with base64 JSON embedding per respective API specs
+- `audioResponseFlow / transcriptFlow / responseTextFlow` as hot Channel-based Flows
+- Barge-in (interrupt) supported on both providers
+
+**ObservabilityScreen Live Hub:**
+- Reactive: `collectAsState()` on `AgentObservabilityHub.snapshot` StateFlow
+- Shows: Voice pipeline (state + latency chips) | Orchestrator | Agent table | Tools | Memory | Durable tasks | Error ring
+- Zero polling — updates driven by hub emissions only
+
+---
+
 ## Production Hardening — Session Audit Findings
 
 Comprehensive audit of 15+ subsystems performed in this session. All critical paths verified:

@@ -37,6 +37,37 @@ object SubAgentRegistry {
     private val agents = mutableListOf<SubAgent>()
     @Volatile private var frozen = false
 
+    // ── Runtime capability grants (set by system components at runtime) ────────
+    //
+    // Example: AiriAccessibilityService sets "airi_accessibility_enabled"
+    //          when it connects, unlocking AndroidAgent routing.
+    //          This is separate from Android runtime permissions.
+
+    private val runtimeCapabilities = mutableSetOf<String>()
+
+    /**
+     * Grant a runtime capability token. Call from system components (e.g., services)
+     * when the underlying resource becomes available. Thread-safe.
+     */
+    @Synchronized
+    fun grantCapability(capability: String) {
+        runtimeCapabilities.add(capability)
+        Log.i(TAG, "Runtime capability granted: $capability")
+    }
+
+    /**
+     * Revoke a runtime capability token. Call when the underlying resource disconnects.
+     */
+    @Synchronized
+    fun revokeCapability(capability: String) {
+        runtimeCapabilities.remove(capability)
+        Log.i(TAG, "Runtime capability revoked: $capability")
+    }
+
+    /** Check if a runtime capability token has been granted. */
+    @Synchronized
+    fun hasCapability(capability: String): Boolean = runtimeCapabilities.contains(capability)
+
     // ── Setup ──────────────────────────────────────────────────────────────────
 
     /**

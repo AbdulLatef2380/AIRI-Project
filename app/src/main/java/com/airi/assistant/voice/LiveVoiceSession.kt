@@ -53,6 +53,34 @@ class LiveVoiceSession {
     /** Partial STT result during LISTENING state. Cleared on turn complete. */
     val partialTranscript: StateFlow<String> = _partialTranscript.asStateFlow()
 
+    // ── Fallback transcript bus ────────────────────────────────────────────────
+
+    private val _pendingTranscript = MutableStateFlow<String?>(null)
+    /**
+     * Set by [LiveVoiceService] when [VoiceAgentRouter] returns Fallback —
+     * meaning no sub-agent matched and the transcript should be routed to the
+     * LLM / AgentService pipeline.
+     *
+     * Clients bound to [LiveVoiceService.LocalBinder] observe this flow.
+     * Consumer MUST call [clearPendingTranscript] after handling to reset.
+     *
+     * This StateFlow is a direct-binding alternative to
+     * [com.airi.assistant.core.ServiceLocator.voiceTranscriptBus]. Both carry
+     * the same transcript; ChatViewModel uses the bus (no service binding needed).
+     */
+    val pendingTranscript: StateFlow<String?> = _pendingTranscript.asStateFlow()
+
+    /** Emit a transcript that no agent claimed. See [pendingTranscript]. */
+    fun emitPendingTranscript(text: String) {
+        _pendingTranscript.value = text
+        Log.d(TAG, "AIRI_PROOF VOICE_PENDING_TRANSCRIPT chars=${text.length}")
+    }
+
+    /** Clear after the consumer (ChatViewModel / bound client) has handled it. */
+    fun clearPendingTranscript() {
+        _pendingTranscript.value = null
+    }
+
     // ── Latency telemetry ─────────────────────────────────────────────────────
 
     private val _latency = MutableStateFlow(LatencySnapshot())

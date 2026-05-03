@@ -2,6 +2,8 @@ package com.airi.assistant.core
 
 import android.content.Context
 import com.airi.assistant.auth.SecureStorage
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import com.airi.assistant.connector.AgentRouter
 import com.airi.assistant.connector.ConnectorBootstrap
 import com.airi.assistant.connector.ConnectorRegistry
@@ -132,6 +134,19 @@ object ServiceLocator {
     // SubAgentRegistry is an object (singleton) — no lazy needed.
     // Initialize it once after ServiceLocator.init() is called.
     // Call ServiceLocator.initSubAgentSystem() from Application.onCreate().
+
+    /**
+     * Voice transcript bus — carries STT transcripts that no sub-agent claimed.
+     * LiveVoiceService emits here on [VoiceAgentRouter.VoiceRouteResult.Fallback].
+     * ChatViewModel collects and routes through the LLM / AgentService pipeline.
+     *
+     * Buffer of 4 prevents drop if ChatViewModel is briefly suspended.
+     * DROP_OLDEST ensures the bus never blocks the voice pipeline under backpressure.
+     */
+    val voiceTranscriptBus: MutableSharedFlow<String> = MutableSharedFlow(
+        extraBufferCapacity = 4,
+        onBufferOverflow    = BufferOverflow.DROP_OLDEST
+    )
 
     val durableTaskManager: DurableTaskManager by lazy {
         DurableTaskManager(requireContext())

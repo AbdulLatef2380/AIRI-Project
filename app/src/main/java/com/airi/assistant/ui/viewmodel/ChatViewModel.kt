@@ -571,6 +571,31 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         refreshRecommendedModels()
         runDiagnostics()
+        observeVoiceTranscriptBus()
+    }
+
+    /**
+     * Collect voice transcripts that no sub-agent claimed.
+     *
+     * LiveVoiceService emits to [ServiceLocator.voiceTranscriptBus] whenever
+     * [VoiceAgentRouter] returns [VoiceAgentRouter.VoiceRouteResult.Fallback].
+     * We receive those transcripts here and route them through the full
+     * LLM / AgentService pipeline via [sendMessage] — same path as a typed
+     * message, with the same sub-agent pre-check and graceful fallthrough.
+     *
+     * This makes the full voice→agent→LLM path work without binding the
+     * ViewModel to [LiveVoiceService] directly.
+     */
+    private fun observeVoiceTranscriptBus() {
+        viewModelScope.launch {
+            ServiceLocator.voiceTranscriptBus.collect { transcript ->
+                if (transcript.isNotBlank()) {
+                    Log.i("AIRI_PROOF",
+                        "VOICE_BUS_LLM_DISPATCH transcript='${transcript.take(60)}'")
+                    sendMessage(transcript)
+                }
+            }
+        }
     }
 
     override fun onCleared() {

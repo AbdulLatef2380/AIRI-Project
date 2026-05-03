@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.core.VoiceManager
 import com.airi.assistant.voice.realtime.RealtimeVoiceProvider
 import kotlinx.coroutines.CoroutineScope
@@ -116,6 +117,12 @@ class LiveVoiceService : Service() {
     private lateinit var voiceManager: VoiceManager
 
     /**
+     * Voice-to-agent bridge. Routes each STT final result through SubAgentRegistry
+     * → ProductionAgentOrchestrator → TTS. Initialised in [onCreate] after voiceManager.
+     */
+    private lateinit var voiceAgentRouter: VoiceAgentRouter
+
+    /**
      * Active realtime provider. [LocalVoicePipeline] = on-device Vosk+TTS.
      * Swap to GeminiLiveProvider / OpenAIRealtimeProvider for cloud audio.
      */
@@ -138,6 +145,12 @@ class LiveVoiceService : Service() {
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification(VoicePipelineState.IDLE))
         voiceManager = VoiceManager(applicationContext, buildVoiceListener())
+        voiceAgentRouter = VoiceAgentRouter(
+            appContext   = applicationContext,
+            orchestrator = ServiceLocator.productionOrchestrator,
+            voiceManager = voiceManager
+        )
+        Log.i(TAG, "AIRI_PROOF VOICE_AGENT_ROUTER_INIT")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -233,6 +246,29 @@ class LiveVoiceService : Service() {
                 thinkingStartEpochMs = System.currentTimeMillis()
                 updateNotification(VoicePipelineState.THINKING)
                 Log.d(TAG, "AIRI_PROOF STT_RESULT sttLatency=${sttMs}ms text='${text.take(60)}'")
+
+                // ── Voice → Agent routing ──────────────────────────────────────
+                // Route through sub-agent system first.
+                // Handled  → agent spoke result via TTS; update pipeline state.
+                // Fallback → no agent matched; emit to voiceTranscriptBus for LLM.
+                serviceScope.launch {
+                    when (val r = voiceAgentRouter.route(text, session.currentSessionId)) {
+                        is VoiceAgentRouter.VoiceRouteResult.Handled -> {
+                            val ttfb = System.currentTimeMillis() - thinkingStartEpochMs
+                            session.recordTtsFirstByteLatency(ttfb)
+                            session.onResponseStreaming(ttfb)
+                            updateNotification(VoicePipelineState.STREAMING_RESPONSE)
+                            Log.i(TAG, "AIRI_PROOF VOICE_AGENT_SPOKE " +
+                                    "agent=${r.agentId} ttfb=${ttfb}ms")
+                        }
+                        VoiceAgentRouter.VoiceRouteResult.Fallback -> {
+                            // No agent matched — hand off to ChatViewModel/LLM path
+                            Log.d(TAG, "AIRI_PROOF VOICE_LLM_DISPATCH text='${text.take(60)}'")
+                            session.emitPendingTranscript(text)
+                            ServiceLocator.voiceTranscriptBus.emit(text)
+                        }
+                    }
+                }
             }
 
             override fun onSpeakingStarted() {

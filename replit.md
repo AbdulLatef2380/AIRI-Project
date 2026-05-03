@@ -807,5 +807,96 @@ All pipeline events emit `AIRI_PROOF` logcat tags:
 - ASCENSION: `DurableTaskWorker.doWork()` has full integration wired as comments — needs ServiceLocator.durableTaskManager + SubAgentRegistry to be connected for background task execution.
 - ASCENSION: `GeminiLiveProvider` and `OpenAIRealtimeProvider` implementing `RealtimeVoiceProvider` need to be built when API keys are available.
 - ASCENSION: `ObservabilityScreen` should be updated to consume `AgentObservabilityHub.snapshot` StateFlow for live multi-signal observability.
-- ASCENSION: `LiveVoiceService` → `ChatViewModel` integration: voice pipeline state machine not yet driving the main chat UI (VAD transcript still goes through VoiceManager directly).
 - ASCENSION: Confirmation gate for destructive AndroidAgent actions (SEND/POST/DELETE) is surfaced as `AgentEvent.Progress` — needs a UI dialog intercept point in ChatViewModel.
+
+---
+
+## AIRI ASCENSION BATCH 6 — Voice → Full Agent Routing (2026-05-03)
+
+**Status: COMPLETE.** AIRI is now a true Voice→Agent→Tool→TTS pipeline. STT transcripts no longer go directly to the LLM — they first attempt agent routing, and only fall back to LLM if no agent matches.
+
+### What Was Built (5 files)
+
+#### NEW: `voice/VoiceAgentRouter.kt`
+The critical bridge class. Intercepts every STT final result from `LiveVoiceService.onSpeechResult` and executes the full agent pipeline before any LLM call occurs.
+
+**`route(transcript, voiceSessionId): VoiceRouteResult`**
+1. Builds `SubAgentContext` from live Android permission state + `SubAgentRegistry.activeCapabilities()` runtime tokens
+2. Calls `SubAgentRegistry.route(trimmed, ctx)` — keyword scoring + `canHandle()` confirmation
+3. On agent match: `ProductionAgentOrchestrator.executeSingle()` → real tool calls
+4. On `ExecutionResult.Success` with non-blank text: streams result to TTS via `voiceManager.ttsStreamReset/Append/Flush` in 120-char chunks
+5. Returns `Handled(text, agentId)` or `Fallback`
+
+Voice session context: `sessionId = "voice-$voiceSessionId"` (correlates with MemoryAgent Room partition), `privacyLevel = STANDARD`, `timeoutMs = 20s`.
+
+#### MODIFIED: `voice/LiveVoiceService.kt`
+- `onCreate()`: constructs `VoiceAgentRouter(appContext, ServiceLocator.productionOrchestrator, voiceManager)` immediately after `voiceManager` is ready
+- `onSpeechResult(text)`: launches coroutine in `serviceScope` that calls `voiceAgentRouter.route(text, session.currentSessionId)`:
+  - **Handled** → records `ttfb` latency, calls `session.onResponseStreaming(ttfb)`, updates notification to `STREAMING_RESPONSE`
+  - **Fallback** → calls `session.emitPendingTranscript(text)` AND `ServiceLocator.voiceTranscriptBus.emit(text)`
+
+#### MODIFIED: `voice/LiveVoiceSession.kt`
+- New `_pendingTranscript: MutableStateFlow<String?>` — carries LLM-fallback transcripts
+- New `pendingTranscript: StateFlow<String?>` — observable by bound clients (future direct-binding path)
+- New `emitPendingTranscript(text)` / `clearPendingTranscript()` — consumer lifecycle management
+
+#### MODIFIED: `core/ServiceLocator.kt`
+- New `voiceTranscriptBus: MutableSharedFlow<String>` — shared application-wide transcript bus
+- Buffer of 4, `DROP_OLDEST` overflow — never blocks the voice coroutine under backpressure
+- ChatViewModel collects from here without needing to bind to `LiveVoiceService`
+
+#### MODIFIED: `ui/viewmodel/ChatViewModel.kt`
+- `init {}` now calls `observeVoiceTranscriptBus()`
+- `observeVoiceTranscriptBus()`: collects `ServiceLocator.voiceTranscriptBus` in `viewModelScope` → calls `sendMessage(transcript)` — same entry point as a typed message, including the full sub-agent pre-check + LLM fallthrough
+
+### Complete End-to-End Voice Flow (NOW REAL)
+
+```
+User speaks
+  ↓
+Vosk STT → VoiceManager.VoiceListener.onSpeechResult(text)
+  ↓
+LiveVoiceService [onSpeechResult coroutine]
+  ↓
+VoiceAgentRouter.route(text, voiceSessionId)
+  ├── buildContext() → SubAgentContext (live perms + runtime caps)
+  ├── SubAgentRegistry.route() → keyword score + canHandle() gate
+  │
+  ├── MATCHED: ProductionAgentOrchestrator.executeSingle()
+  │     ├── ProductivityAgent → CalendarTool/AlarmTool/NotesTool (ContentProvider/Intent/File)
+  │     ├── AndroidAgent     → AccessibilityExecutionEngine (OBSERVE→PLAN→EXECUTE→VERIFY)
+  │     ├── ResearchAgent    → SearchTool.searchDuckDuckGo() (HTTP → DDG API)
+  │     ├── MemoryAgent      → MemoryManager.recordImportantMemory/semanticSearch (Room)
+  │     └── CodingAgent      → LLM delegate
+  │         ↓
+  │     speakResult() → voiceManager.ttsStreamReset/Append/Flush (TTS streams result)
+  │         ↓
+  │     VoiceRouteResult.Handled → session.onResponseStreaming → STREAMING_RESPONSE
+  │
+  └── NOT MATCHED:
+        ↓
+      session.emitPendingTranscript(text)       ← direct-binding path (future)
+      ServiceLocator.voiceTranscriptBus.emit()  ← bus path (active now)
+        ↓
+      ChatViewModel.observeVoiceTranscriptBus() collects
+        ↓
+      sendMessage(transcript)
+        ↓
+      SubAgentRegistry.route() [second pass, typed-message path]
+        ↓ (still no match)
+      ProductionAgentOrchestrator → AgentService → Local LLM / Cloud LLM
+```
+
+### AIRI_PROOF Log Tags (Voice Pipeline)
+| Tag | Meaning |
+|-----|---------|
+| `AIRI_PROOF VOICE_AGENT_ROUTER_INIT` | Router created in service onCreate |
+| `AIRI_PROOF VOICE_ROUTE_MATCH agent=X` | Agent selected from registry |
+| `AIRI_PROOF VOICE_ROUTE_HANDLED agent=X ttfb=Yms` | Agent spoke result |
+| `AIRI_PROOF VOICE_ROUTE_FALLBACK` | No agent matched — LLM path |
+| `AIRI_PROOF VOICE_ROUTE_EMPTY_RESULT` | Agent returned blank — LLM path |
+| `AIRI_PROOF VOICE_ROUTE_EXCEPTION` | Agent threw — LLM path |
+| `AIRI_PROOF VOICE_LLM_DISPATCH` | Transcript emitted to bus |
+| `AIRI_PROOF VOICE_PENDING_TRANSCRIPT` | Session pendingTranscript set |
+| `AIRI_PROOF VOICE_AGENT_SPOKE agent=X` | Service confirmed TTS start |
+| `AIRI_PROOF VOICE_BUS_LLM_DISPATCH` | ChatViewModel received from bus |

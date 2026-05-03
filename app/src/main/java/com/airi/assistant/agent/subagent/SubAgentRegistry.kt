@@ -1,11 +1,6 @@
 package com.airi.assistant.agent.subagent
 
 import android.util.Log
-import com.airi.assistant.agent.subagent.impl.AndroidAgent
-import com.airi.assistant.agent.subagent.impl.CodingAgent
-import com.airi.assistant.agent.subagent.impl.MemoryAgent
-import com.airi.assistant.agent.subagent.impl.ProductivityAgent
-import com.airi.assistant.agent.subagent.impl.ResearchAgent
 
 /**
  * Central registry of all AIRI sub-agents.
@@ -71,24 +66,35 @@ object SubAgentRegistry {
     // ── Setup ──────────────────────────────────────────────────────────────────
 
     /**
-     * Initialize with all built-in sub-agents.
-     * Call once from Application.onCreate() or ServiceLocator.init().
+     * Initialize the registry with a pre-built list of sub-agents.
+     *
+     * Callers (ServiceLocator.initSubAgentSystem) are responsible for constructing
+     * agents with their tool dependencies injected. This allows each agent to receive
+     * real CalendarTool, AlarmTool, SearchTool, etc. at startup instead of
+     * constructing them with no-arg stubs.
+     *
+     * @param agentList Pre-built agents with real tool dependencies injected.
+     *                  Defaults to empty — must pass agents explicitly.
      */
-    fun initialize() {
+    fun initialize(agentList: List<SubAgent>) {
         if (frozen) {
             Log.w(TAG, "initialize() called after freeze() — ignored")
             return
         }
         agents.clear()
-        agents.addAll(listOf(
-            CodingAgent(),
-            ResearchAgent(),
-            AndroidAgent(),
-            ProductivityAgent(),
-            MemoryAgent()
-        ))
-        Log.i(TAG, "SubAgentRegistry initialized with ${agents.size} built-in agents")
+        agents.addAll(agentList)
+        Log.i(TAG, "SubAgentRegistry initialized with ${agents.size} agents: " +
+                agents.joinToString { it.capability.agentId })
     }
+
+    /**
+     * Returns a snapshot of all runtime capability tokens currently granted.
+     * Used by ChatViewModel when building [SubAgentContext.grantedPermissions]
+     * so the routing permission gate can see both Android permissions and
+     * AIRI runtime tokens (e.g. [AndroidAgent.CAPABILITY_ACCESSIBILITY]).
+     */
+    @Synchronized
+    fun activeCapabilities(): List<String> = runtimeCapabilities.toList()
 
     /**
      * Register an additional sub-agent (plugin / skill marketplace).

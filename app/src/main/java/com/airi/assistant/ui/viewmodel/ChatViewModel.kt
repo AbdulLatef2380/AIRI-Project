@@ -1,14 +1,18 @@
 package com.airi.assistant.ui.viewmodel
 
+import android.Manifest
 import android.app.Application
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.util.Log
+import androidx.core.content.ContextCompat
+import com.airi.assistant.agent.subagent.SubAgentContext
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.airi.assistant.ai.CatalogEntry
@@ -254,11 +258,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val secureApiKeyStore   = SecureApiKeyStore(appContext)
 
     // ── Domain services ───────────────────────────────────────────────────────
-    private val agentService         = ServiceLocator.agentService
-    private val skillService         = ServiceLocator.skillService
-    private val promptService        = ServiceLocator.promptService
-    private val subscriptionManager  = ServiceLocator.subscriptionManager
-    private val permissionService    = ServiceLocator.permissionService
+    private val agentService             = ServiceLocator.agentService
+    private val skillService             = ServiceLocator.skillService
+    private val promptService            = ServiceLocator.promptService
+    private val subscriptionManager      = ServiceLocator.subscriptionManager
+    private val permissionService        = ServiceLocator.permissionService
+
+    // ── Production Sub-Agent Layer (AIRI Ascension) ───────────────────────────
+    // ProductionAgentOrchestrator executes the real ROUTE→TOOL→VERIFY pipeline.
+    // Sits ABOVE agentService: checked first on every user message.
+    private val productionOrchestrator   = ServiceLocator.productionOrchestrator
+    private val orchestratorObsHub       = ServiceLocator.observabilityHub
 
     // ── UI State ──────────────────────────────────────────────────────────────
 
@@ -798,6 +808,57 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     _streamingText.value = stage2
                     _agentState.update { it.copy(currentAction = stage2) }
                 }
+            }
+
+            // ── AIRI Ascension: ProductionAgentOrchestrator (Sub-Agent routing) ─
+            // This runs BEFORE AgentService. If a sub-agent handles the input
+            // (calendar, alarm, notes, accessibility, memory, research, coding),
+            // we use that result and skip the rest of the LLM pipeline.
+            val subCtx = buildSubAgentContext(sessionId, history)
+            val subAgent = withContext(Dispatchers.IO) {
+                com.airi.assistant.agent.subagent.SubAgentRegistry.route(trimmedInput, subCtx)
+            }
+
+            if (subAgent != null) {
+                Log.i("AIRI_PROOF", "SUBROUTE agent=${subAgent.capability.agentId} input='${trimmedInput.take(60)}'")
+                val orchResult = runCatching {
+                    withContext(Dispatchers.IO) {
+                        productionOrchestrator.executeSingle(trimmedInput, subCtx) { event ->
+                            when (event) {
+                                is com.airi.assistant.agent.subagent.AgentEvent.Progress ->
+                                    _agentState.update { it.copy(currentAction = event.message) }
+                                is com.airi.assistant.agent.subagent.AgentEvent.PartialResult ->
+                                    _streamingText.value = event.text
+                                else -> {}
+                            }
+                        }
+                    }
+                }.getOrNull()
+
+                if (orchResult is com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator.ExecutionResult.Success &&
+                    orchResult.finalResult.isNotBlank()) {
+                    thinkingJob?.cancel(); thinkingJob = null
+                    _streamingText.value = ""
+                    val assistantMsg = memoryManager.recordChatMessage(
+                        sessionId, "assistant", orchResult.finalResult
+                    )
+                    _messages.update {
+                        it + ChatMessage(
+                            text     = orchResult.finalResult,
+                            isUser   = false,
+                            id       = assistantMsg.id,
+                            agentTag = subAgent.capability.displayName
+                        )
+                    }
+                    AnalyticsService.agentExecuted(subAgent.capability.agentId)
+                    subscriptionManager.recordConsecutiveSuccess()
+                    _agentState.value = AgentState()
+                    refreshSessions()
+                    refreshPowerLevel()
+                    return@launch
+                }
+                // Sub-agent failed or returned empty → fall through to AgentService
+                Log.d("AIRI_PROOF", "SUBROUTE_FALLTHROUGH agent=${subAgent.capability.agentId}")
             }
 
             // ── Delegate to AgentService (goes through PolicyEngine + pipeline) ──
@@ -1489,6 +1550,49 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun isDeviceWeak(): Boolean {
         val profile = DeviceProfiler.profile(appContext)
         return profile.tier == DeviceTier.LOW || profile.availableRamMb < 1500 || profile.cpuCores <= 4
+    }
+
+    /**
+     * Build a [SubAgentContext] for the current send-message call.
+     *
+     * Permissions are checked at call time so the routing gate always has
+     * the freshest view (user may have granted/denied since last launch).
+     * Runtime capability tokens (e.g. [AndroidAgent.CAPABILITY_ACCESSIBILITY])
+     * come from [SubAgentRegistry.activeCapabilities] which the
+     * AccessibilityService updates live as it connects/disconnects.
+     */
+    private fun buildSubAgentContext(
+        sessionId: String,
+        history:   List<com.airi.assistant.memory.entity.ChatMessage>
+    ): SubAgentContext {
+        val cloudAllowed = execModePrefs.effectiveMode != ExecutionMode.LOCAL_ONLY
+
+        // Android manifest permissions to check for agent routing gate
+        val manifestPerms = listOf(
+            Manifest.permission.READ_CALENDAR,
+            Manifest.permission.WRITE_CALENDAR,
+            Manifest.permission.READ_CONTACTS,
+            Manifest.permission.WRITE_CONTACTS,
+            Manifest.permission.READ_CALL_LOG,
+            Manifest.permission.SEND_SMS
+        )
+        val granted = manifestPerms.filter { perm ->
+            ContextCompat.checkSelfPermission(appContext, perm) == PackageManager.PERMISSION_GRANTED
+        }.toMutableList()
+
+        // Add runtime capability tokens (accessibility, etc.)
+        granted.addAll(
+            com.airi.assistant.agent.subagent.SubAgentRegistry.activeCapabilities()
+        )
+
+        return SubAgentContext(
+            sessionId          = sessionId,
+            userId             = "local_user",
+            recentTurns        = history.takeLast(6).map { "${it.role}: ${it.content.take(200)}" },
+            grantedPermissions = granted,
+            privacyLevel       = if (cloudAllowed) SubAgentContext.PRIVACY_STANDARD else SubAgentContext.PRIVACY_MAXIMUM,
+            timeoutMs          = 25_000L
+        )
     }
 
     // ── Hybrid Execution public API ───────────────────────────────────────────

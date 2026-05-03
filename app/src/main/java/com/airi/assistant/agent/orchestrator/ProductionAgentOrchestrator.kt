@@ -73,6 +73,14 @@ class ProductionAgentOrchestrator {
 
     private val TAG = "ProductionOrchestrator"
 
+    // ── Observability hook — set by ServiceLocator after construction ─────────
+    //
+    // Nullable so the orchestrator compiles cleanly without a circular init
+    // dependency. ServiceLocator sets this immediately after `also { orch -> }`.
+
+    @Volatile
+    var observabilityHub: com.airi.assistant.agent.observability.AgentObservabilityHub? = null
+
     // ── Orchestration scope — SupervisorJob so task failures don't kill siblings ──
 
     private val orchestrationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -269,10 +277,20 @@ class ProductionAgentOrchestrator {
                                 Log.i(TAG, "AIRI_PROOF TASK_COMPLETE task=${task.id} " +
                                         "agent=${agent.capability.agentId} " +
                                         "duration=${event.durationMs}ms")
+                                // ── Observability: record success ─────────────
+                                observabilityHub?.recordAgentSuccess(
+                                    agentId    = agent.capability.agentId,
+                                    durationMs = event.durationMs
+                                )
                             }
                             is AgentEvent.Failed -> {
                                 taskError = event.reason
                                 Log.w(TAG, "AIRI_PROOF TASK_FAILED task=${task.id} reason=${event.reason}")
+                                // ── Observability: record error ───────────────
+                                observabilityHub?.recordAgentError(
+                                    agentId = agent.capability.agentId,
+                                    reason  = event.reason
+                                )
                             }
                             is AgentEvent.Delegate -> {
                                 // Delegation to another sub-agent — resolve recursively
@@ -285,6 +303,8 @@ class ProductionAgentOrchestrator {
                             is AgentEvent.ToolCall -> {
                                 toolsUsed.add(event.toolName)
                                 Log.d(TAG, "AIRI_PROOF TOOL_CALL tool=${event.toolName} task=${task.id}")
+                                // ── Observability: record every real tool call ─
+                                observabilityHub?.recordToolCall(event.toolName)
                             }
                             is AgentEvent.Progress -> {
                                 Log.d(TAG, "Progress [${event.percentComplete}%] ${event.message}")

@@ -15,6 +15,12 @@ import com.airi.assistant.agent.durable.DurableTaskManager
 import com.airi.assistant.agent.observability.AgentObservabilityHub
 import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
 import com.airi.assistant.agent.subagent.SubAgentRegistry
+import com.airi.assistant.agent.subagent.impl.AndroidAgent
+import com.airi.assistant.agent.subagent.impl.CodingAgent
+import com.airi.assistant.agent.subagent.impl.MemoryAgent
+import com.airi.assistant.agent.subagent.impl.ProductivityAgent
+import com.airi.assistant.agent.subagent.impl.ResearchAgent
+import com.airi.assistant.accessibility.execution.AccessibilityExecutionEngine
 import com.airi.assistant.domain.event.AgentEventStream
 import com.airi.assistant.domain.event.ExecutionHistoryStore
 import com.airi.assistant.domain.monetization.SubscriptionManager
@@ -23,6 +29,7 @@ import com.airi.assistant.domain.permission.PermissionService
 import com.airi.assistant.domain.policy.PolicyEngine
 import com.airi.assistant.domain.prompt.PromptService
 import com.airi.assistant.domain.skill.SkillService
+import com.airi.assistant.memory.repository.MemoryManager
 
 object ServiceLocator {
 
@@ -136,6 +143,7 @@ object ServiceLocator {
 
     val productionOrchestrator: ProductionAgentOrchestrator by lazy {
         ProductionAgentOrchestrator().also { orch ->
+            orch.observabilityHub = observabilityHub
             observabilityHub.attachOrchestrator(orch)
         }
     }
@@ -162,13 +170,44 @@ object ServiceLocator {
         com.airi.assistant.tools.execution.NotesTool(requireContext())
     }
 
+    // ── Memory Layer ──────────────────────────────────────────────────────────
+    //
+    // MemoryManager wraps the Room database (episodic + semantic memory tables).
+    // Exposed here so MemoryAgent can receive it via constructor injection
+    // without creating a second Room instance.
+
+    val memoryManager: MemoryManager by lazy {
+        MemoryManager(requireContext())
+    }
+
+    // ── Accessibility Execution Engine ────────────────────────────────────────
+    //
+    // Wraps AiriAccessibilityService for the OBSERVE→PLAN→EXECUTE→VERIFY loop.
+    // No constructor args — the engine reads AiriAccessibilityService.instance at runtime.
+
+    val accessibilityExecutionEngine: AccessibilityExecutionEngine by lazy {
+        AccessibilityExecutionEngine()
+    }
+
     /**
-     * Initialize the sub-agent system. Call once from Application.onCreate()
-     * after [init] has been called with the application context.
+     * Initialize the sub-agent system with real tool-injected agents.
+     *
+     * Called once from Application.onCreate() after [init] has been called.
+     *
+     * Each agent receives its real tool dependencies here (CalendarTool, AlarmTool,
+     * etc.) instead of no-arg stub constructors. The freeze() call is intentionally
+     * omitted so that plugin agents registered later (marketplace skills) are not
+     * blocked.
      */
     fun initSubAgentSystem() {
-        SubAgentRegistry.initialize()
-        SubAgentRegistry.freeze()
+        val agents = listOf(
+            CodingAgent(),
+            ResearchAgent(searchTool),
+            AndroidAgent(accessibilityExecutionEngine),
+            ProductivityAgent(calendarTool, alarmTool, notesTool),
+            MemoryAgent(memoryManager)
+        )
+        SubAgentRegistry.initialize(agents)
         observabilityHub.refreshRegistrySnapshot()
     }
 }

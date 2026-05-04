@@ -235,7 +235,7 @@ dependencies {
     // image thumbnail. It decodes off the main thread, has built-in
     // memory + disk caching, and degrades gracefully (no crash) when an
     // image cannot be opened. See gradle/libs.versions.toml for version.
-    implementation(libs.coil.compose)
+    implementation("io.coil-kt:coil-compose:2.6.0")
 
     // Accompanist permissions — runtime permission helpers for Compose (OnboardingScreen).
     // Version 0.32.0 is compatible with Compose BOM 2023.10.01 (Compose 1.5.x).

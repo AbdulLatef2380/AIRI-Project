@@ -198,10 +198,26 @@ object CommandRouter {
             runCatching {
                 agent.execute(routingInput, minimalContext).collect { event ->
                     when (event) {
-                        is AgentEvent.Complete     -> resultText = event.result
+                        is AgentEvent.Complete      -> resultText = event.result
                         is AgentEvent.PartialResult -> resultText += event.text
-                        is AgentEvent.Failed       -> { failed = true; failReason = event.reason }
-                        else                       -> Unit
+                        is AgentEvent.Failed        -> { failed = true; failReason = event.reason }
+                        is AgentEvent.Delegate      -> {
+                            // Bug-2 fix: previously `else -> Unit` swallowed Delegate events
+                            // emitted by CodingAgent, ResearchAgent, CloudBrowserAgent, and
+                            // ReActPlanner when those agents were routed here through Tier 2.
+                            // The stub Complete result ("custom:action:done") was the only
+                            // output propagated, making all LLM synthesis disappear silently.
+                            // We now resolve the llmDelegate wired by ChatViewModel and use
+                            // its result as the CommandResult text for this graph step.
+                            if (event.targetAgentId == "llm_backend") {
+                                val llmResult = runCatching {
+                                    ServiceLocator.productionOrchestrator.llmDelegate
+                                        ?.invoke(event.subInput) ?: ""
+                                }.getOrElse { "" }
+                                if (llmResult.isNotBlank()) resultText = llmResult
+                            }
+                        }
+                        else -> Unit
                     }
                 }
             }.onFailure { e ->

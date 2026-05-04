@@ -97,6 +97,7 @@ import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.execution.router.RuntimeRouter
 import com.airi.assistant.execution.security.SecureApiKeyStore
 import com.airi.assistant.agent.planning.BrainInput
+import com.airi.assistant.core.CognitiveResult
 import com.airi.assistant.core.UnifiedCognitiveLoop
 import com.airi.assistant.voice.VoskModelManager
 
@@ -610,6 +611,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         VoskModelManager.init(appContext)
         observeVoiceTranscriptBus()
         observeExecutionStatusBus()
+        wireLlmDelegate()
     }
 
     /**
@@ -668,6 +670,57 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+    }
+
+    // ── LLM Delegate wiring (Phase 1 — AgentEvent.Delegate("llm_backend") fix) ─
+
+    /**
+     * Wire the real LLM backend into [ProductionAgentOrchestrator] so that
+     * sub-agents emitting [AgentEvent.Delegate] with targetAgentId="llm_backend"
+     * receive a genuine synthesis response instead of a silent stub.
+     *
+     * Called once from [init] after all orchestrators and the hybrid execution
+     * layer are initialised. Idempotent — repeated calls simply overwrite the
+     * lambda reference on the orchestrator.
+     */
+    private fun wireLlmDelegate() {
+        productionOrchestrator.llmDelegate = { prompt -> invokeLlmForDelegate(prompt) }
+    }
+
+    /**
+     * Invoke the Hybrid Execution layer for a sub-agent LLM synthesis request.
+     *
+     * [HybridOrchestrator.executeStream] serializes execution via its internal
+     * Mutex and blocks until the chosen backend (local or cloud) fires
+     * [onComplete] or [onError]. Because [ProductionAgentOrchestrator.executeSingle]
+     * does NOT hold that Mutex, calling this from inside a sub-agent delegate
+     * callback is free of deadlock risk.
+     *
+     * Errors are logged and an empty string is returned so the orchestrator
+     * can fall back gracefully to any stub text the agent emitted.
+     */
+    private suspend fun invokeLlmForDelegate(prompt: String): String {
+        val result = StringBuilder()
+        hybridOrchestrator.executeStream(
+            request = com.airi.assistant.execution.ExecutionRequest(
+                prompt                = prompt,
+                systemPrompt          = "You are AIRI, a helpful AI assistant. Answer clearly and accurately.",
+                maxTokens             = 1024,
+                temperature           = 0.7f,
+                queryType             = com.airi.assistant.ai.QueryType.ANALYTICAL,
+                requiresStreaming      = false,
+                estimatedPromptTokens = (prompt.length / 4).coerceAtLeast(1)
+            ),
+            context    = appContext,
+            onToken    = { token -> result.append(token) },
+            onComplete = { fullText, _, _ ->
+                if (fullText.isNotBlank()) { result.setLength(0); result.append(fullText) }
+            },
+            onError    = { error, _ ->
+                Log.w("AIRI_DELEGATE", "invokeLlmForDelegate error: $error")
+            }
+        )
+        return result.toString()
     }
 
     // Phase 4: Expose Vosk model readiness so the UI and voice settings screen
@@ -1233,12 +1286,54 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     // The system prompt (ACTION_PLAN_SUFFIX) asks the LLM to append a plan;
                     // if none is present PlanGenerator falls back to a no-op "conversation" step.
                     if (queryType == QueryType.ACTION && !wasToolCall) {
+                        // Bug-3 fix: previously called fire-and-forget (return value discarded),
+                        // so graph execution output (agent LLM synthesis) NEVER reached the UI.
+                        // Now we capture the CognitiveResult and surface any meaningful synthesized
+                        // text as a follow-up assistant message. Text is filtered to exclude
+                        // internal sentinel strings ("node:", "custom:", "UNKNOWN_ACTION:") and
+                        // must be >30 chars to avoid noise from trivial step confirmations.
+                        // Captured sessionId and memoryManager are safe across the Dispatchers.IO
+                        // boundary — both are immutable references for the lifetime of this send.
+                        val capturedSessionId = sessionId
+                        // Bug-6 fix: inject conversation history into UCL so that sub-agents
+                        // receive recentTurns in their SubAgentContext. Captured here (before
+                        // the IO launch) because `history` is a val in the sendMessage scope.
+                        cognitiveLoop.recentTurns = history.takeLast(6)
+                            .map { "${it.role}: ${it.content.take(200)}" }
                         viewModelScope.launch(Dispatchers.IO) {
                             runCatching {
-                                cognitiveLoop.process(
+                                val cogResult = cognitiveLoop.process(
                                     BrainInput(text = trimmedInput),
                                     fullResponse
                                 )
+                                if (cogResult is CognitiveResult.Success) {
+                                    val synthesized = cogResult.results
+                                        .filter { it.result.success && !it.result.message.isNullOrBlank() }
+                                        .mapNotNull { it.result.message }
+                                        .filter { msg ->
+                                            msg.length > 30 &&
+                                            !msg.startsWith("node:") &&
+                                            !msg.startsWith("custom:") &&
+                                            !msg.startsWith("UNKNOWN_ACTION:") &&
+                                            msg.trim() != fullResponse.trim()
+                                        }
+                                        .joinToString("\n\n")
+                                        .trim()
+                                    if (synthesized.isNotBlank()) {
+                                        val assistantMsg = memoryManager.recordChatMessage(
+                                            capturedSessionId, "assistant", synthesized
+                                        )
+                                        _messages.update {
+                                            it + ChatMessage(
+                                                text   = synthesized,
+                                                isUser = false,
+                                                id     = assistantMsg.id
+                                            )
+                                        }
+                                        Log.i("AIRI_UCL",
+                                            "UCL synthesized message surfaced len=${synthesized.length}")
+                                    }
+                                }
                             }.onFailure { e ->
                                 Log.w("AIRI_UCL", "UCL.process failed: ${e.message}")
                             }

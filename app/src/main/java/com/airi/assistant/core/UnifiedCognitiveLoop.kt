@@ -10,6 +10,7 @@ import com.airi.assistant.agent.planning.BrainInput
 import com.airi.assistant.agent.planning.GoalNode
 import com.airi.assistant.agent.planning.PlanGenerator
 import com.airi.assistant.agent.planning.PlanStep
+import com.airi.assistant.agent.planning.RecoveryBranch
 import com.airi.assistant.agent.planning.RecoveryDecision
 import com.airi.assistant.agent.planning.TypedPlanGraph
 import com.airi.assistant.agent.reflection.ExecutionReflector
@@ -82,6 +83,18 @@ class UnifiedCognitiveLoop {
         private const val MIN_PLAN_CONFIDENCE = 0.35f
     }
 
+    /**
+     * Bug-6 fix: recent conversation turns injected by the caller (ChatViewModel)
+     * before each process() call. runNode() propagates these into every SubAgentContext
+     * so that CodingAgent, ResearchAgent, and other LLM-backed agents receive
+     * conversation history and produce contextually coherent responses.
+     *
+     * @Volatile guarantees visibility across the IO dispatcher's threads. Assignment
+     * is atomic on JVM (reference write) so no additional locking is needed.
+     */
+    @Volatile
+    var recentTurns: List<String> = emptyList()
+
     val planGenerator = PlanGenerator()
 
     private val outcomeScorer: SkillOutcomeScorer?
@@ -105,12 +118,73 @@ class UnifiedCognitiveLoop {
         processPercept(input)
 
     /**
-     * Legacy path: LLM response already obtained externally.
+     * Primary LLM-assisted execution path: parses the LLM's response into a
+     * typed DAG plan and drives it through [executeGraph] (parallel wave
+     * scheduling, real sub-agent routing via [SubAgentRegistry], recovery
+     * branches, live [ExecutionStatusBus] updates).
+     *
+     * Previously used the flat [executeActionPlan] path which bypassed
+     * [TypedPlanGraph], parallel scheduling, and all DAG-level recovery.
      */
     suspend fun process(input: BrainInput, llmResponse: String): CognitiveResult {
-        val worldState = captureWorldState()
-        val actionPlan = planGenerator.createActionPlanFromLLM(llmResponse, input.text)
-        return executeActionPlan(actionPlan, worldState)
+        adaptationEngine?.applyToGenerator(planGenerator)
+        val actionPlan = planGenerator.createDAGPlanFromLLM(llmResponse, input.text)
+        if (actionPlan.steps.isEmpty()) {
+            return CognitiveResult.Failed(actionPlan, emptyList(), "Empty plan from LLM response")
+        }
+        val graph = TypedPlanGraph(
+            goalId      = "ucl_${System.currentTimeMillis()}",
+            description = actionPlan.intent.take(120)
+        )
+        for (step in actionPlan.steps) {
+            val actionName: String
+            val params: Map<String, String>
+            when (step) {
+                is PlanStep.Custom   -> { actionName = step.action;   params = step.parameters }
+                is PlanStep.OpenApp  -> { actionName = "open_app";    params = mapOf("app" to step.appName) }
+                is PlanStep.Search   -> { actionName = "search";      params = mapOf("query" to step.query) }
+                is PlanStep.Click    -> { actionName = "click";       params = mapOf("target" to step.targetText) }
+                is PlanStep.Type     -> { actionName = "type_text";   params = mapOf("text" to step.text) }
+                is PlanStep.Navigate -> { actionName = "navigate";    params = mapOf("direction" to step.direction.name) }
+                is PlanStep.Wait     -> { actionName = "wait";        params = mapOf("duration_ms" to (step.durationMs ?: 1000L).toString()) }
+                is PlanStep.Scroll   -> { actionName = "scroll";      params = mapOf("direction" to step.direction.name) }
+            }
+            graph.addNode(GoalNode(
+                id             = step.id,
+                description    = actionName,
+                action         = actionName,
+                params         = params,
+                dependsOn      = step.dependsOn,
+                recoveryBranch = RecoveryBranch.Retry(2),
+                isCritical     = step.dependsOn.isNotEmpty()
+            ))
+        }
+        val result = executeGraph(graph)
+        // Bug-4 fix: previously returned emptyList() for node results, so any
+        // text synthesized by agents (via llmDelegate) was silently discarded
+        // even after the Bug-1 fix made runNode capture it. Now we propagate
+        // the full set of NodeExecutionRecords as StepResults so the caller
+        // (ChatViewModel) can extract and surface synthesized text to the user.
+        val stepResults = result.nodeResults.map { record ->
+            StepResult(
+                step   = PlanStep.Custom(
+                    id              = record.node.id,
+                    action          = record.node.activeAction,
+                    parameters      = record.node.activeParams,
+                    dependsOn       = record.node.dependsOn,
+                    expectedOutcome = record.node.expectedOutcome ?: ""
+                ),
+                result = CommandResult(record.success, record.message ?: "")
+            )
+        }
+        return if (result.success)
+            CognitiveResult.Success(actionPlan, stepResults)
+        else
+            CognitiveResult.Failed(
+                actionPlan,
+                stepResults,
+                result.rejectionReason ?: "Graph execution failed"
+            )
     }
 
     // ── Graph execution ───────────────────────────────────────────────────────
@@ -324,14 +398,40 @@ class UnifiedCognitiveLoop {
     // ── Internal: flat ActionPlan execution ───────────────────────────────────
 
     private suspend fun processPercept(input: CognitiveInput): CognitiveResult {
-        val worldState = captureWorldState()
-        val promptJson = buildPromptJson(input)
-        // Inject all accumulated learning into planGenerator before each plan.
-        // Covers the cross-session case: if the engine is loaded from SharedPreferences,
-        // the first plan of a new session already reflects prior failure history.
+        // Bug-5 fix: old implementation called createDAGPlanFromLLM with a hard-coded
+        // single-step JSON (not a real LLM response) then ran the result through the
+        // old FLAT executeActionPlan path, bypassing TypedPlanGraph, parallel wave
+        // scheduling, the policy gate, recovery branches, reflection, and adaptation.
+        //
+        // Replacement: build a single-node TypedPlanGraph whose action text is the
+        // raw percept input.  runNode() routes this through SubAgentRegistry so the
+        // correct registered agent handles it.  If no agent matches, CommandRouter
+        // Tier-1 alias mapping or Tier-3 failure-signal handles it gracefully.
+        // Full pipeline (policy gate → wave → recovery → reflection → adaptation)
+        // now applies to every processPercept call.
         adaptationEngine?.applyToGenerator(planGenerator)
-        val actionPlan = planGenerator.createDAGPlanFromLLM(promptJson, input.primaryText)
-        return executeActionPlan(actionPlan, worldState)
+        val goalId = "percept_${System.currentTimeMillis()}"
+        val graph = TypedPlanGraph(goalId = goalId, description = input.primaryText.take(120))
+        graph.addNode(GoalNode(
+            id             = "${goalId}_n0",
+            description    = input.primaryText.take(200),
+            action         = input.primaryText.take(200),
+            params         = emptyMap(),
+            dependsOn      = emptyList(),
+            recoveryBranch = RecoveryBranch.Retry(1),
+            isCritical     = false
+        ))
+        val result = executeGraph(graph)
+        val dummyPlan = ActionPlan(
+            intent     = input.primaryText,
+            confidence = if (result.success) 1.0 else 0.0,
+            steps      = emptyList()
+        )
+        return if (result.success)
+            CognitiveResult.Success(dummyPlan, emptyList())
+        else
+            CognitiveResult.Failed(dummyPlan, emptyList(),
+                result.rejectionReason ?: "Percept graph execution failed")
     }
 
     private suspend fun executeActionPlan(actionPlan: ActionPlan, worldState: WorldState?): CognitiveResult {
@@ -377,6 +477,7 @@ class UnifiedCognitiveLoop {
         val context = SubAgentContext(
             sessionId          = node.id,
             userId             = "cognitive_loop",
+            recentTurns        = recentTurns,   // Bug-6 fix: propagate conversation history
             worldState         = emptyMap(),
             grantedPermissions = SubAgentRegistry.activeCapabilities(),
             nestingDepth       = 1,
@@ -396,6 +497,24 @@ class UnifiedCognitiveLoop {
                         is AgentEvent.Complete      -> resultText = event.result
                         is AgentEvent.PartialResult -> resultText += event.text
                         is AgentEvent.Failed        -> { failed = true; failReason = event.reason }
+                        is AgentEvent.Delegate      -> {
+                            // Bug-1 fix: previously `else -> Unit` swallowed all Delegate events,
+                            // silently dropping the LLM synthesis requested by CodingAgent,
+                            // ResearchAgent, CloudBrowserAgent, and ReActPlanner when those
+                            // agents are invoked through the graph execution path (runNode).
+                            // We now resolve the llmDelegate wired by ChatViewModel.wireLlmDelegate()
+                            // and use its result as this node's output text.
+                            if (event.targetAgentId == "llm_backend") {
+                                val llmResult = runCatching {
+                                    ServiceLocator.productionOrchestrator.llmDelegate
+                                        ?.invoke(event.subInput) ?: ""
+                                }.getOrElse { e ->
+                                    Log.w(TAG, "runNode llmDelegate failed: ${e.message}")
+                                    ""
+                                }
+                                if (llmResult.isNotBlank()) resultText = llmResult
+                            }
+                        }
                         is AgentEvent.ToolCall      -> if (BuildConfig.DEBUG) Log.d(TAG, "runNode tool=${event.toolName}")
                         else                        -> Unit
                     }
@@ -443,8 +562,25 @@ class UnifiedCognitiveLoop {
     }
 
     private fun repatchNode(graph: TypedPlanGraph, node: GoalNode, reason: String): Boolean {
-        graph.patchNode(node.id, node.activeAction, node.activeParams)
-        return true
+        val lower = reason.lowercase()
+        val fallbackAction = when {
+            lower.contains("network") || lower.contains("timeout")       -> "wait_and_retry"
+            lower.contains("permission")                                  -> "conversation"
+            lower.contains("not found") || lower.contains("no agent")    -> "conversation"
+            node.activeAction.startsWith("search")                       -> "conversation"
+            node.activeAction.startsWith("open")                         -> "conversation"
+            else                                                         -> null
+        }
+        return if (fallbackAction != null && fallbackAction != node.activeAction) {
+            graph.patchNode(node.id, fallbackAction, node.activeParams)
+            Log.i(TAG, "repatchNode: ${node.activeAction} → $fallbackAction " +
+                "reason=${reason.take(60)}")
+            true
+        } else {
+            Log.w(TAG, "repatchNode: no viable fallback for " +
+                "action=${node.activeAction} — returning false to trigger abort")
+            false
+        }
     }
 
     /**

@@ -144,9 +144,9 @@ class HybridOrchestrator(
         }
 
         // ── Step 2: Privacy gate (cloud-bound requests only) ───────────────
-        val effectiveRequest = applyPrivacyGate(genId, request, decision) ?: run {
+        val privacyGateResult = applyPrivacyGate(genId, request, decision)
+        if (privacyGateResult == null) {
             // Privacy gate forced local fallback — handled inside applyPrivacyGate
-            // If it returns null, we already called onError or switched to local
             val localFallback = decision.fallbacks.firstOrNull { it.origin == ExecOrigin.LOCAL }
             if (localFallback != null && localFallback.isAvailable) {
                 dispatchToBackend(genId, localFallback, request, onToken, onComplete, onError)
@@ -159,6 +159,7 @@ class HybridOrchestrator(
             }
             return@withLock
         }
+        val effectiveRequest = privacyGateResult
 
         // ── Step 3: Execute primary → fallbacks ───────────────────────────
         val allBackends = decision.allBackends

@@ -56,4 +56,39 @@ sealed class AppEvent(
 
     class PermissionGranted(val permission: String) : AppEvent()
     class PermissionDenied(val permission: String, val permanent: Boolean) : AppEvent()
+
+    // ── General / Infrastructure Events ───────────────────────────────────────
+
+    /** Generic informational event for services that don't have a dedicated type. */
+    class GenericInfo(val message: String) : AppEvent()
+
+    // ── Scheduled Job Events ───────────────────────────────────────────────────
+
+    class ScheduledJobQueued(val jobId: String, val agentId: String, val label: String) : AppEvent()
+    class ScheduledJobFired(val jobId: String, val agentId: String) : AppEvent()
+
+    // ── Chat Sharing Events ────────────────────────────────────────────────────
+
+    class ChatSharePublished(val shareId: String, val shareUrl: String) : AppEvent()
+    class ChatShareDeleted(val shareId: String) : AppEvent()
+
+    // ── Model Governance Events ────────────────────────────────────────────────
+
+    class ModelGovernanceDecision(
+        val strategy:  String,
+        val rationale: String
+    ) : AppEvent()
+
+    // ── RAG / Retrieval Events ─────────────────────────────────────────────────
+
+    class RagContextBuilt(val sessionId: String, val hitsCount: Int, val chars: Int) : AppEvent()
+
+    // ── Credit Metering Events ─────────────────────────────────────────────────
+
+    class CreditConsumed(
+        val action:     String,
+        val weight:     Int,
+        val dailyTotal: Int,
+        val budget:     Int
+    ) : AppEvent()
 }

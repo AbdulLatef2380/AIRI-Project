@@ -10,11 +10,6 @@ import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.util.Log
 import androidx.core.content.ContextCompat
-import com.konovalov.vad.silero.Vad
-import com.konovalov.vad.silero.VadSilero
-import com.konovalov.vad.silero.config.FrameSize
-import com.konovalov.vad.silero.config.Mode
-import com.konovalov.vad.silero.config.SampleRate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,13 +23,19 @@ import kotlin.math.sqrt
 /**
  * Production-grade full-duplex Voice Activity Detection (VAD) engine.
  *
+ * Uses an RMS-energy detector with noise-floor calibration. The neural
+ * Silero ONNX VAD dependency was removed to avoid a Kotlin stdlib version
+ * conflict (Silero 2.0.x requires Kotlin 2.x; this project targets 1.9.x).
+ * The RMS approach provides similar latency (<20 ms frame) with no extra
+ * AAR dependency and no ONNX runtime overhead on the device.
+ *
  * ─────────────────────────────────────────────────────────────────────────
  * DESIGN GOALS
  * ─────────────────────────────────────────────────────────────────────────
  *
  *  1. ZERO DOUBLE-FIRE: AtomicBoolean CAS ensures [onVoiceDetected] fires
  *     exactly once per session, regardless of how many consecutive speech
- *     frames the Silero model classifies as positive.
+ *     frames the RMS model classifies as positive.
  *
  *  2. GUARANTEED MIC RELEASE BEFORE CALLER PROCEEDS: [stop] releases
  *     AudioRecord *synchronously* (not just in the coroutine's finally block)
@@ -49,13 +50,13 @@ import kotlin.math.sqrt
  *     a false interruption (critical issue on speaker-phone / tablet configs).
  *
  *  4. NOISE FLOOR CALIBRATION: The first WARMUP_FRAMES (200 ms) of audio
- *     are sampled to compute the ambient RMS. If the room is extremely loud
- *     (sustained RMS > ambient threshold), a warning is logged. Future
- *     versions can use this value to dynamically adjust speechDurationMs.
+ *     are sampled to compute the ambient RMS. The adaptive speech threshold
+ *     is set to max(BASE_SPEECH_THRESHOLD, ambientRms * 2.5) so that the
+ *     detector is robust against varying background noise levels.
  *
- *  5. NO MEMORY LEAKS: AudioRecord and VadSilero are ALWAYS released in the
- *     coroutine's finally block. The synchronous release in [stop] also
- *     nulls the reference atomically to prevent double-free.
+ *  5. NO MEMORY LEAKS: AudioRecord is ALWAYS released in the coroutine's
+ *     finally block. The synchronous release in [stop] also nulls the
+ *     reference atomically to prevent double-free.
  *
  *  6. LIFECYCLE SAFE: The caller cancels the scope on app pause / navigate-
  *     away. The finally block runs unconditionally on cancellation, releasing
@@ -92,7 +93,7 @@ import kotlin.math.sqrt
 class FullDuplexVadEngine(
     private val context: Context,
     /**
-     * Called on the MAIN thread when Silero confirms ≥ SPEECH_MS of
+     * Called on the MAIN thread when the VAD confirms ≥ SPEECH_FRAMES of
      * continuous speech from the user. At most once per session.
      */
     private val onVoiceDetected: () -> Unit,
@@ -107,16 +108,13 @@ class FullDuplexVadEngine(
     // ─────────────────────────────────────────────────────────────────────
     // Configuration
     //
-    //   SAMPLE_RATE_16K  — Silero VAD's native rate (no resampling)
+    //   SAMPLE_RATE_16K  — compatible with the original Silero native rate
     //   FRAME_SIZE_320   — 320 samples = 20 ms @ 16 kHz
-    //   VERY_AGGRESSIVE  — max noise rejection (important near TTS speaker)
-    //   SPEECH_MS = 80   — 4 frames of speech before triggering. Too low →
-    //                      false positives from plosives / TTS breath sounds.
-    //                      Too high → noticeable latency before TTS stops.
-    //   SILENCE_MS = 300 — unused for single-fire, kept for Vad config API.
-    //   WARMUP_FRAMES    — frames sampled before arming (noise calibration).
-    //   MAX_SESSION_MS   — hard timeout; prevents eternal mic lock if TTS
-    //                      never completes (e.g. extremely long monologue).
+    //   BASE_SPEECH_RMS  — minimum absolute RMS for speech (quiet whisper ≈ 400)
+    //   SPEECH_FRAMES    — consecutive frames above threshold before triggering
+    //                      (4 frames = 80 ms, same as Silero config speechMs)
+    //   WARMUP_FRAMES    — frames sampled before arming (noise calibration)
+    //   MAX_SESSION_MS   — hard timeout; prevents eternal mic lock
     // ─────────────────────────────────────────────────────────────────────
 
     private companion object {
@@ -125,13 +123,12 @@ class FullDuplexVadEngine(
         const val SAMPLE_RATE_HZ   = 16_000
         const val FRAME_SAMPLES    = 320          // 20 ms @ 16 kHz
         const val FRAME_BYTES      = FRAME_SAMPLES * 2  // PCM_16BIT = 2 bytes
-        const val SPEECH_MS        = 80
-        const val SILENCE_MS       = 300
+        const val BASE_SPEECH_RMS  = 500          // ~quiet speech, PCM_16BIT range 0-32767
+        const val SPEECH_FRAMES    = 4            // 4 × 20 ms = 80 ms continuous speech
         const val WARMUP_FRAMES    = 10           // 200 ms noise calibration
         const val MAX_SESSION_MS   = 50_000L      // 50 s safety timeout
 
         // Ambient RMS above this level warrants a log warning.
-        // 0–32767 range for PCM_16BIT. ~800 = fan / quiet HVAC.
         const val NOISY_ENV_RMS    = 1_200
     }
 
@@ -139,8 +136,8 @@ class FullDuplexVadEngine(
 
     /**
      * CAS gate — transitions false → true exactly once.
-     * Prevents double-fire from consecutive Silero "speech" frames AND from
-     * concurrent calls (e.g. stopVad races against a late detection frame).
+     * Prevents double-fire from consecutive "speech" frames AND from
+     * concurrent calls (e.g. stop() races against a late detection frame).
      */
     private val detected = AtomicBoolean(false)
 
@@ -187,10 +184,6 @@ class FullDuplexVadEngine(
         }
 
         // ── AudioRecord ──────────────────────────────────────────────────
-        // Source: VOICE_COMMUNICATION activates the AEC DSP path on the
-        // hardware so TTS speaker output is cancelled before the mic
-        // signal reaches our VAD. Completely separate from VoskEngine's
-        // VOICE_RECOGNITION source — no hardware conflict.
         val minBuf = AudioRecord.getMinBufferSize(
             SAMPLE_RATE_HZ,
             AudioFormat.CHANNEL_IN_MONO,
@@ -225,9 +218,6 @@ class FullDuplexVadEngine(
         audioRecord = rec
 
         // ── Software AEC via AudioEffect ─────────────────────────────────
-        // VOICE_COMMUNICATION source already triggers hardware AEC.
-        // Additionally attaching AcousticEchoCanceler gives us software-
-        // layer echo suppression on devices where hardware AEC is absent.
         if (AcousticEchoCanceler.isAvailable()) {
             val effect = try {
                 AcousticEchoCanceler.create(rec.audioSessionId)
@@ -241,31 +231,11 @@ class FullDuplexVadEngine(
             }
         }
 
-        // ── Silero VAD model ─────────────────────────────────────────────
-        // ONNX model is loaded from the AAR's assets (~2 MB). Blocking IO —
-        // must run on Dispatchers.IO (inside the coroutine below).
-        Log.i(TAG, "AIRI_PROOF VAD_STARTING speechMs=$SPEECH_MS mode=VERY_AGGRESSIVE source=VOICE_COMMUNICATION")
+        Log.i(TAG, "AIRI_PROOF VAD_STARTING speechFrames=$SPEECH_FRAMES baseRms=$BASE_SPEECH_RMS source=VOICE_COMMUNICATION")
 
         captureJob = scope.launch(Dispatchers.IO) {
-            var vadInstance: VadSilero? = null
             var stopReason = "normal"
             try {
-                // Load Silero model on IO thread (avoids main-thread jank)
-                vadInstance = try {
-                    Vad.builder()
-                        .setContext(context.applicationContext)
-                        .setSampleRate(SampleRate.SAMPLE_RATE_16K)
-                        .setFrameSize(FrameSize.FRAME_SIZE_320)
-                        .setMode(Mode.VERY_AGGRESSIVE)
-                        .setSpeechDurationMs(SPEECH_MS)
-                        .setSilenceDurationMs(SILENCE_MS)
-                        .build()
-                } catch (t: Throwable) {
-                    Log.w(TAG, "VAD_MODEL_LOAD_FAILED: ${t.message}")
-                    stopReason = "model_load_failed: ${t.message}"
-                    return@launch
-                }
-
                 rec.startRecording()
                 Log.i(TAG, "AIRI_PROOF VAD_CAPTURE_STARTED bufSize=$bufSize")
 
@@ -274,9 +244,6 @@ class FullDuplexVadEngine(
                 val deadline = System.currentTimeMillis() + MAX_SESSION_MS
 
                 // ── Noise floor calibration (warmup) ─────────────────────
-                // Sample WARMUP_FRAMES of audio before arming the detector.
-                // Computes ambient RMS for diagnostics and future adaptive
-                // threshold support. The VAD is NOT consulted during warmup.
                 var sumSq = 0L
                 var warmupCount = 0
                 while (warmupCount < WARMUP_FRAMES && isActive && !stopped.get()) {
@@ -289,16 +256,19 @@ class FullDuplexVadEngine(
                 val ambientRms = if (warmupCount > 0)
                     sqrt((sumSq / (warmupCount.toLong() * FRAME_SAMPLES)).toDouble()).toInt()
                 else 0
-                Log.i(TAG, "AIRI_PROOF VAD_NOISE_FLOOR ambientRms=$ambientRms warmupFrames=$warmupCount noisyEnv=${ambientRms > NOISY_ENV_RMS}")
+
+                // Adaptive threshold: at least BASE_SPEECH_RMS, or 2.5× ambient
+                val speechThreshold = maxOf(BASE_SPEECH_RMS, (ambientRms * 2.5).toInt())
+
+                Log.i(TAG, "AIRI_PROOF VAD_NOISE_FLOOR ambientRms=$ambientRms speechThreshold=$speechThreshold noisyEnv=${ambientRms > NOISY_ENV_RMS}")
 
                 // ── Detection loop ───────────────────────────────────────
+                var consecutiveSpeechFrames = 0
                 while (isActive && !stopped.get() && !detected.get() &&
                     System.currentTimeMillis() < deadline
                 ) {
                     val n = readFullFrame(rec, byteFrame)
                     if (n < 0) {
-                        // ERROR_DEAD_OBJECT (-5) or ERROR_INVALID_OPERATION (-3):
-                        // AudioRecord was released externally via stop() — clean exit.
                         stopReason = "audio_record_error_$n"
                         Log.i(TAG, "VAD_READ_ERROR code=$n → exiting loop")
                         break
@@ -307,24 +277,24 @@ class FullDuplexVadEngine(
 
                     toShortFrame(byteFrame, shortFrame)
 
-                    val isSpeech = try {
-                        vadInstance.isSpeech(shortFrame)
-                    } catch (t: Throwable) {
-                        Log.w(TAG, "VAD_INFERENCE_ERROR: ${t.message}")
-                        false
-                    }
+                    val frameRms = computeRms(shortFrame)
+                    val isSpeech = frameRms > speechThreshold
 
                     if (isSpeech) {
-                        // CAS: only the FIRST positive frame fires the callback.
-                        // All subsequent frames from the same speech burst are dropped.
-                        if (detected.compareAndSet(false, true)) {
-                            stopReason = "voice_detected"
-                            Log.i(TAG, "AIRI_PROOF VAD_SPEECH_CONFIRMED → firing onVoiceDetected on Main")
-                            withContext(Dispatchers.Main) {
-                                onVoiceDetected()
+                        consecutiveSpeechFrames++
+                        if (consecutiveSpeechFrames >= SPEECH_FRAMES) {
+                            // CAS: only the FIRST confirmed speech fires the callback.
+                            if (detected.compareAndSet(false, true)) {
+                                stopReason = "voice_detected"
+                                Log.i(TAG, "AIRI_PROOF VAD_SPEECH_CONFIRMED rms=$frameRms threshold=$speechThreshold → firing onVoiceDetected on Main")
+                                withContext(Dispatchers.Main) {
+                                    onVoiceDetected()
+                                }
+                                break
                             }
-                            break
                         }
+                    } else {
+                        consecutiveSpeechFrames = 0
                     }
                 }
 
@@ -336,15 +306,12 @@ class FullDuplexVadEngine(
             } catch (e: CancellationException) {
                 stopReason = "cancelled"
                 Log.i(TAG, "VAD_CAPTURE_CANCELLED (scope cancelled or stop() called)")
-                throw e  // rethrow so coroutines framework knows this was cancellation
+                throw e
             } catch (t: Throwable) {
                 stopReason = "exception: ${t.message}"
                 Log.w(TAG, "VAD_CAPTURE_EXCEPTION: ${t.message}", t)
             } finally {
                 // ── GUARANTEED CLEANUP ───────────────────────────────────
-                // Runs on cancellation, normal exit, or exception.
-                // audioRecord may already be null if stop() released it
-                // synchronously; in that case these are safe no-ops.
                 val r = audioRecord
                 audioRecord = null
                 try { r?.stop() } catch (_: Throwable) {}
@@ -353,11 +320,8 @@ class FullDuplexVadEngine(
                 try { aec?.release() } catch (_: Throwable) {}
                 aec = null
 
-                try { vadInstance?.close() } catch (_: Throwable) {}
-
                 Log.i(TAG, "AIRI_PROOF VAD_CAPTURE_STOPPED reason=$stopReason detected=${detected.get()}")
 
-                // Fire onStopped only if we exited without detection
                 if (!detected.get()) {
                     withContext(Dispatchers.Main.immediate) {
                         onStopped(stopReason)
@@ -371,20 +335,12 @@ class FullDuplexVadEngine(
      * Stops the VAD loop. IDEMPOTENT — safe to call multiple times from
      * any thread.
      *
-     * Critically: releases AudioRecord SYNCHRONOUSLY before returning.
-     * This is the guarantee that VoiceManager relies on before opening
-     * a new AudioRecord (VoskEngine's VOICE_RECOGNITION source). The
-     * coroutine's finally block will see audioRecord == null and skip.
+     * Releases AudioRecord SYNCHRONOUSLY before returning so that
+     * VoiceManager can safely open a new AudioRecord immediately after.
      */
     fun stop() {
-        if (!stopped.compareAndSet(false, true)) {
-            // Already stopped — idempotent, no work needed.
-            return
-        }
+        if (!stopped.compareAndSet(false, true)) return
 
-        // ── Synchronous mic release ──────────────────────────────────────
-        // Null-and-swap atomically so the finally block (running concurrently
-        // on Dispatchers.IO) gets null and performs no additional release.
         val r = audioRecord
         audioRecord = null
         try { r?.stop() } catch (_: Throwable) {}
@@ -394,8 +350,6 @@ class FullDuplexVadEngine(
         aec = null
         try { effect?.release() } catch (_: Throwable) {}
 
-        // Cancel the coroutine — rec.read() on IO thread returns
-        // ERROR_DEAD_OBJECT (-5), causing the loop to break immediately.
         captureJob?.cancel()
         captureJob = null
 
@@ -424,16 +378,16 @@ class FullDuplexVadEngine(
             val n = rec.read(buf, offset, FRAME_BYTES - offset)
             when {
                 n > 0  -> offset += n
-                n == 0 -> continue          // rare: no data yet
-                else   -> return n          // error code (negative)
+                n == 0 -> continue
+                else   -> return n
             }
         }
         return offset
     }
 
     /**
-     * Converts a little-endian PCM_16BIT [ByteArray] to a [ShortArray]
-     * in-place. No allocation — both buffers are reused across frames.
+     * Converts a little-endian PCM_16BIT [ByteArray] to a [ShortArray].
+     * No allocation — both buffers are reused across frames.
      */
     private fun toShortFrame(src: ByteArray, dst: ShortArray) {
         for (i in dst.indices) {
@@ -441,6 +395,16 @@ class FullDuplexVadEngine(
             val hi = src[i * 2 + 1].toInt()
             dst[i] = ((hi shl 8) or lo).toShort()
         }
+    }
+
+    /**
+     * Computes the root-mean-square energy of a PCM_16BIT frame.
+     * Range: 0 (silence) to 32767 (full-scale).
+     */
+    private fun computeRms(frame: ShortArray): Int {
+        var sumSq = 0L
+        for (s in frame) sumSq += s.toLong() * s.toLong()
+        return sqrt(sumSq.toDouble() / frame.size).toInt()
     }
 
     private fun fireOnStopped(scope: CoroutineScope, reason: String) {

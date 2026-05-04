@@ -84,7 +84,9 @@ class AgentExecutionPipeline(
             } else {
                 LoggingService.logExecution(TAG, input, agentResult.success, durationMs)
                 EventBus.emitSync(AppEvent.AgentExecutionSuccess(traceId, durationMs, agentResult.agentTag))
-                subscriptionManager?.recordAgentExecution()
+                if (subscriptionManager?.canExecuteAgent() == true) {
+                    subscriptionManager.recordAgentExecution()
+                }
                 PipelineResult.Success(agentResult)
             }
         } catch (e: TimeoutCancellationException) {

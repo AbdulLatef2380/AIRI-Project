@@ -77,7 +77,7 @@ object ConversationSummarizer {
                 // the parent coroutine before the LLM callback fires. Without
                 // this, a cancelled summary would crash the dispatcher.
                 if (cont.isActive) cont.resume(out.takeIf { it.isNotBlank() })
-                else Log.d("AIRI_PROMPT_COMPRESS",
+                else if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_PROMPT_COMPRESS",
                     "SUMMARIZE callback dropped — coroutine already cancelled")
             }
         }

@@ -9,6 +9,7 @@ import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.ExecutionResult
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.channels.Channel
 
 /**
  * Local llama.cpp runtime backend.
@@ -60,6 +61,13 @@ class LocalLlamaBackend(
         // attempts the call; if a generation is already running it will
         // queue behind the Mutex and proceed when the lock is released.
 
+    /** Event type used to bridge non-suspend LlamaManager callbacks to suspend callers. */
+    private sealed class LlamaEvent {
+        data class Token(val value: String)                      : LlamaEvent()
+        data class Complete(val text: String, val latency: Long) : LlamaEvent()
+        data class Error(val message: String)                    : LlamaEvent()
+    }
+
     override suspend fun generateStream(
         request:    ExecutionRequest,
         onToken:    suspend (String) -> Unit,
@@ -73,6 +81,10 @@ class LocalLlamaBackend(
         val startMs  = System.currentTimeMillis()
         val fullText = StringBuilder()
 
+        // Use an unlimited Channel to bridge non-suspend LlamaManager callbacks
+        // back to this suspend caller without blocking any thread.
+        val events = Channel<LlamaEvent>(Channel.UNLIMITED)
+
         llamaManager.generateStream(
             prompt         = request.prompt,
             systemPrompt   = request.systemPrompt,
@@ -82,19 +94,30 @@ class LocalLlamaBackend(
             timeoutMs      = 120_000L,
             onToken        = { token ->
                 fullText.append(token)
-                onToken(token)
+                events.trySend(LlamaEvent.Token(token))
             },
             onComplete     = { _ ->
-                onComplete(fullText.toString(), System.currentTimeMillis() - startMs)
+                events.trySend(LlamaEvent.Complete(fullText.toString(), System.currentTimeMillis() - startMs))
+                events.close()
             },
             onError        = { error ->
                 Log.w(TAG, "generateStream error: $error")
-                onError(error)
+                events.trySend(LlamaEvent.Error(error))
+                events.close()
             },
             onStallWarning = {
                 Log.w(TAG, "generateStream: stall warning")
             }
         )
+
+        // Drain events on the caller's coroutine dispatcher — no thread is blocked.
+        for (event in events) {
+            when (event) {
+                is LlamaEvent.Token    -> onToken(event.value)
+                is LlamaEvent.Complete -> onComplete(event.text, event.latency)
+                is LlamaEvent.Error    -> onError(event.message)
+            }
+        }
     }
 
     /**

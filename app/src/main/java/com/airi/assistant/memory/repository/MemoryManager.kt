@@ -17,7 +17,10 @@ class MemoryManager(context: Context) {
     private val db = AiriDatabase.getDatabase(context)
     private val dao = db.memoryDao()
     private val sessionDao = db.sessionDao()
-    private val scope = CoroutineScope(Dispatchers.IO)
+    // SupervisorJob required: without it, a single child exception cancels the
+    // entire scope and all subsequent scope.launch {} calls become no-ops —
+    // silently losing all memory writes for the rest of the session.
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     /**
      * Real semantic-memory backend (Phase 2). The chat path calls
      * [recordChatMessage] which fires-and-forgets [embeddingService.embedAndStore]

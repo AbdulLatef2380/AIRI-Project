@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.zip.ZipFile
 import java.util.zip.ZipEntry
 
@@ -7,6 +8,9 @@ plugins {
     alias(libs.plugins.ksp)
 
     id("com.google.gms.google-services")
+
+    // Crashlytics — uploads ProGuard mapping for de-obfuscated stack traces in release
+    id("com.google.firebase.crashlytics")
 }
 
 android {
@@ -56,13 +60,59 @@ android {
         }
     }
 
+    // ── Release signing config ────────────────────────────────────────────────
+    // Reads from environment variables injected by CI (GitHub Actions secrets)
+    // or a local ~/.gradle/gradle.properties override. When the vars are absent
+    // (e.g. a dev machine without the keystore) the signing block is skipped and
+    // Gradle produces an unsigned APK — suitable for local debug use only.
+    //
+    // Required CI secrets:
+    //   KEYSTORE_BASE64  — base64 of release.jks  (keytool RSA-4096, 10000-day)
+    //   STORE_PASSWORD   — keystore store password
+    //   KEY_ALIAS        — key alias (e.g. "airi")
+    //   KEY_PASSWORD     — key password
+    signingConfigs {
+        val keystoreB64    = System.getenv("KEYSTORE_BASE64").orEmpty()
+        val storePassword  = System.getenv("STORE_PASSWORD").orEmpty()
+        val keyAlias       = System.getenv("KEY_ALIAS").orEmpty()
+        val keyPassword    = System.getenv("KEY_PASSWORD").orEmpty()
+
+        if (keystoreB64.isNotBlank() && storePassword.isNotBlank()
+                && keyAlias.isNotBlank() && keyPassword.isNotBlank()) {
+            create("release") {
+                val ksFile = rootProject.file("release.keystore")
+                ksFile.writeBytes(Base64.getDecoder().decode(keystoreB64))
+                storeFile      = ksFile
+                this.storePassword = storePassword
+                this.keyAlias      = keyAlias
+                this.keyPassword   = keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 full-mode: dead-code elimination, shrinking, obfuscation.
+            // Cuts APK size and removes unreachable dead paths (e.g. BrainManager).
+            isMinifyEnabled   = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Apply signing config when keystore env vars are present (CI / release engineer).
+            // Absent → unsigned APK (local dev / fork builds with no secrets).
+            signingConfigs.findByName("release")?.let { signingConfig = it }
+
+            // Crashlytics mapping file upload is controlled via the
+            // com.google.firebase.crashlytics Gradle plugin at task execution time.
+            // The firebaseCrashlytics {} DSL block requires the plugin classpath
+            // to be fully resolved at script compile time — omit it here and let
+            // the plugin defaults apply (upload enabled for release, disabled for debug).
+        }
+        debug {
+            // Keep debug builds unminified for readable stack traces.
+            isMinifyEnabled = false
         }
     }
 
@@ -117,7 +167,10 @@ dependencies {
 
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.lifecycle.runtime.compose)   // provides LocalLifecycleOwner (compose)
+    // lifecycle-runtime-compose provides LocalLifecycleOwner for Compose DisposableEffect.
+    // Declared as a literal coordinate (not via version catalog) so that PR branches
+    // with older libs.versions.toml that predate the catalog entry do not break.
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
@@ -133,9 +186,29 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.gson)
 
-    // Firebase Auth + Google
+    // Firebase BOM — pins all Firebase / Crashlytics library versions together.
+    // Crashlytics auto-collection is DISABLED via manifest meta-data
+    // (firebase_crashlytics_collection_enabled = false) and enabled at runtime
+    // only after the user grants telemetry consent in OnboardingScreen.
     implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
     implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-analytics")
+
+    // Crashlytics — production crash and non-fatal error reporting.
+    // NDK variant adds native (C++) crash symbolication for llama.cpp crashes.
+    implementation("com.google.firebase:firebase-crashlytics")
+    implementation("com.google.firebase:firebase-crashlytics-ndk")
+
+    // Play Integrity API — verifies APK authenticity and device integrity.
+    // Used by PlayIntegrityVerifier.kt at startup + before high-trust actions.
+    implementation("com.google.android.play:integrity:1.3.0")
+
+    // Coroutines bridge for Firebase/Play-Services Tasks (.await() extension)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
+    // Biometric auth (BiometricPrompt)
+    implementation("androidx.biometric:biometric:1.1.0")
 
     // Google Sign-In
     implementation("com.google.android.gms:play-services-auth:20.7.0")
@@ -156,14 +229,6 @@ dependencies {
     // and extracts it. See VoskModelManager.kt + VoiceSettingsScreen.kt.
     implementation(libs.voskAndroid)
 
-    // Silero VAD — on-device Voice Activity Detection (Apache 2.0).
-    // Drives the full-duplex interruption loop: a 320-sample (20 ms @ 16 kHz)
-    // AudioRecord frame is tested per-chunk while TTS is playing; isSpeech()
-    // returns true within ~20 ms of the user starting to talk, which then
-    // stops TTS instantly and hands control back to STT.
-    // No network, no cloud, no API key. Model runs via ONNX Runtime on-device.
-    implementation(libs.androidVadSilero)
-
     // ── Image loading (chat attachment thumbnails) ───────────────────────
     // Coil is the Compose-native image loader (Apache-2.0). Used by the
     // chat screen to render the attachment preview chip and the in-bubble
@@ -171,6 +236,10 @@ dependencies {
     // memory + disk caching, and degrades gracefully (no crash) when an
     // image cannot be opened. See gradle/libs.versions.toml for version.
     implementation(libs.coil.compose)
+
+    // Accompanist permissions — runtime permission helpers for Compose (OnboardingScreen).
+    // Version 0.32.0 is compatible with Compose BOM 2023.10.01 (Compose 1.5.x).
+    implementation("com.google.accompanist:accompanist-permissions:0.32.0")
 
     // Picovoice Porcupine = on-device wake-word ("Hey AIRI"). Requires
     // (a) a Picovoice AccessKey supplied via PICOVOICE_ACCESS_KEY (gradle

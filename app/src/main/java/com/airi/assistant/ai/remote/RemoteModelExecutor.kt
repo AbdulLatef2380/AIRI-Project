@@ -214,7 +214,6 @@ class RemoteModelExecutor {
 
             BufferedReader(InputStreamReader(conn.inputStream)).use { reader ->
                 while (true) {
-                    ensureActive()   // Cooperative cancellation — responds within one line
                     val raw = reader.readLine() ?: break
                     val line = raw.trim()
                     if (!line.startsWith("data:")) continue

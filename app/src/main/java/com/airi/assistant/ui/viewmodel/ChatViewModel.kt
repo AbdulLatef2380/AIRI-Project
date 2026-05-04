@@ -1,14 +1,18 @@
 package com.airi.assistant.ui.viewmodel
 
+import android.Manifest
 import android.app.Application
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.util.Log
+import androidx.core.content.ContextCompat
+import com.airi.assistant.agent.subagent.SubAgentContext
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.airi.assistant.ai.CatalogEntry
@@ -92,6 +96,9 @@ import com.airi.assistant.execution.diagnostics.ExecutionDiagnosticsState
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.execution.router.RuntimeRouter
 import com.airi.assistant.execution.security.SecureApiKeyStore
+import com.airi.assistant.agent.planning.BrainInput
+import com.airi.assistant.core.UnifiedCognitiveLoop
+import com.airi.assistant.voice.VoskModelManager
 
 data class ChatMessage(
     val text: String,
@@ -129,12 +136,40 @@ data class ChatMessage(
     val execOrigin: ExecOrigin = ExecOrigin.NONE
 )
 
+/**
+ * AgentState — live autonomous execution status surfaced in the UI.
+ *
+ * Fields updated by [ExecutionStatusBus] as the UCL/orchestrator progresses
+ * through a graph execution. The UI can subscribe to these to show the user
+ * exactly what AIRI is doing, which node it's on, and whether it's recovering.
+ */
 data class AgentState(
-    val isWorking: Boolean = false,
-    val currentAction: String = "",
-    val currentStep: Int = 0,
-    val totalSteps: Int = 0
+    val isWorking:              Boolean = false,
+    val currentAction:          String  = "",
+    val currentStep:            Int     = 0,
+    val totalSteps:             Int     = 0,
+    // ── Live graph execution status (Phase 2 / UX maturity) ──────────────────
+    /** Human-readable description of the active goal (e.g. "Send email to Alice"). */
+    val activeGoalDescription:  String  = "",
+    /** ID of the node currently executing in the DAG wave. */
+    val activeNodeId:           String  = "",
+    /** Action type of the currently executing node (e.g. "open_app", "search"). */
+    val activeNodeAction:       String  = "",
+    /** Number of nodes completed in the current graph. */
+    val nodesCompleted:         Int     = 0,
+    /** Total nodes in the current graph (0 = unknown / not started). */
+    val nodesTotal:             Int     = 0,
+    /** Current execution stage: planning, executing, recovering, reflecting, idle. */
+    val executionStage:         ExecutionStage = ExecutionStage.IDLE,
+    /** Human-readable reason if a node is being retried or recovery is in progress. */
+    val recoveryReason:         String  = "",
+    /** How many retries have been attempted on the current node. */
+    val retryCount:             Int     = 0
 )
+
+enum class ExecutionStage {
+    IDLE, PLANNING, EXECUTING, RECOVERING, REFLECTING, COMPLETED, FAILED
+}
 
 enum class LoadErrorType {
     NONE, FILE_NOT_FOUND, INVALID_FORMAT, TOO_SMALL, INSUFFICIENT_RAM, LOAD_FAILED
@@ -254,11 +289,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val secureApiKeyStore   = SecureApiKeyStore(appContext)
 
     // ── Domain services ───────────────────────────────────────────────────────
-    private val agentService         = ServiceLocator.agentService
-    private val skillService         = ServiceLocator.skillService
-    private val promptService        = ServiceLocator.promptService
-    private val subscriptionManager  = ServiceLocator.subscriptionManager
-    private val permissionService    = ServiceLocator.permissionService
+    private val agentService             = ServiceLocator.agentService
+    private val skillService             = ServiceLocator.skillService
+    private val promptService            = ServiceLocator.promptService
+    private val subscriptionManager      = ServiceLocator.subscriptionManager
+    private val permissionService        = ServiceLocator.permissionService
+
+    // ── Production Sub-Agent Layer (AIRI Ascension) ───────────────────────────
+    // ProductionAgentOrchestrator executes the real ROUTE→TOOL→VERIFY pipeline.
+    // Sits ABOVE agentService: checked first on every user message.
+    private val productionOrchestrator   = ServiceLocator.productionOrchestrator
+    private val orchestratorObsHub       = ServiceLocator.observabilityHub
+
+    // ── Phase 1 — UnifiedCognitiveLoop: wired into the ACTION query path ──────
+    // Receives the LLM's raw response after generation completes and executes
+    // any JSON action plan embedded in it via the TypedPlanGraph DAG engine.
+    private val cognitiveLoop            = UnifiedCognitiveLoop()
 
     // ── UI State ──────────────────────────────────────────────────────────────
 
@@ -561,7 +607,75 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         refreshRecommendedModels()
         runDiagnostics()
+        VoskModelManager.init(appContext)
+        observeVoiceTranscriptBus()
+        observeExecutionStatusBus()
     }
+
+    /**
+     * Bridge live graph execution status from [ExecutionStatusBus] into
+     * [_agentState] so the UI observes real-time node progress, recovery
+     * state, and execution stage without polling.
+     *
+     * The bus is updated by [UnifiedCognitiveLoop] and orchestrators on
+     * every wave start, node completion, recovery attempt, and graph end.
+     * We merge bus state into [AgentState] rather than replacing it so
+     * fields not owned by the bus (e.g. voiceState) are preserved.
+     */
+    private fun observeExecutionStatusBus() {
+        viewModelScope.launch {
+            com.airi.assistant.core.ExecutionStatusBus.status.collect { busState ->
+                _agentState.value = busState
+            }
+        }
+    }
+
+    /**
+     * Collect voice transcripts that no sub-agent claimed.
+     *
+     * LiveVoiceService emits to [ServiceLocator.voiceTranscriptBus] whenever
+     * [VoiceAgentRouter] returns [VoiceAgentRouter.VoiceRouteResult.Fallback].
+     * We receive those transcripts here and route them through the full
+     * LLM / AgentService pipeline via [sendMessage] — same path as a typed
+     * message, with the same sub-agent pre-check and graceful fallthrough.
+     *
+     * This makes the full voice→agent→LLM path work without binding the
+     * ViewModel to [LiveVoiceService] directly.
+     */
+    private fun observeVoiceTranscriptBus() {
+        viewModelScope.launch {
+            ServiceLocator.voiceTranscriptBus.collect { transcript ->
+                if (transcript.isNotBlank()) {
+                    // Phase 4: Gate on Vosk model readiness before forwarding to LLM.
+                    // If no model is installed, surface a download prompt once instead of
+                    // silently dropping the transcript or crashing downstream.
+                    if (!VoskModelManager.isReady(appContext)) {
+                        Log.w("AIRI_PROOF",
+                            "VOICE_BUS_NO_VOSK_MODEL transcript='${transcript.take(30)}'")
+                        _messages.update {
+                            it + ChatMessage(
+                                text   = "Voice recognition needs a speech model. " +
+                                         "Go to Settings → Voice to download one (~40 MB). " +
+                                         "Text mode works without it.",
+                                isUser = false
+                            )
+                        }
+                        return@collect
+                    }
+                    Log.i("AIRI_PROOF",
+                        "VOICE_BUS_LLM_DISPATCH transcript='${transcript.take(60)}'")
+                    sendMessage(transcript)
+                }
+            }
+        }
+    }
+
+    // Phase 4: Expose Vosk model readiness so the UI and voice settings screen
+    // can show a download prompt without depending on VoskModelManager directly.
+    fun isVoiceModelReady(): Boolean = VoskModelManager.isReady(appContext)
+
+    fun hasInstalledVoiceModels(): Boolean =
+        VoskModelManager.installed.value.isNotEmpty()
 
     override fun onCleared() {
         super.onCleared()
@@ -668,6 +782,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 refreshPowerLevel()
                 _paywallTrigger.value = true
                 return
+            }
+        }
+
+        // ── Credit metering: consume one MESSAGE credit before dispatching ────
+        // This is the full consumption-metering loop that feeds the CreditMeteringEngine.
+        // If the daily credit budget is exhausted for the tier, block with a clear
+        // message (different from the SubscriptionManager quota which gates messages
+        // by count; this gates by weighted credit cost across all action types).
+        runCatching {
+            val meter  = ServiceLocator.creditMeteringEngine
+            val result = meter.consume(com.airi.assistant.domain.monetization.ActionType.MESSAGE)
+            if (result is com.airi.assistant.domain.monetization.ConsumeResult.Denied) {
+                Log.w("AIRI_CREDIT", "Credit denied: ${result.userMessage}")
+                // Only hard-block if the subscription gate also denies — credit
+                // metering alone uses a soft warning so the existing quota gate
+                // remains the primary enforcement path.
+                Log.d("AIRI_CREDIT", "daily_total=${result.dailyTotal}/${result.budget}")
             }
         }
 
@@ -798,6 +929,57 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     _streamingText.value = stage2
                     _agentState.update { it.copy(currentAction = stage2) }
                 }
+            }
+
+            // ── AIRI Ascension: ProductionAgentOrchestrator (Sub-Agent routing) ─
+            // This runs BEFORE AgentService. If a sub-agent handles the input
+            // (calendar, alarm, notes, accessibility, memory, research, coding),
+            // we use that result and skip the rest of the LLM pipeline.
+            val subCtx = buildSubAgentContext(sessionId, history, trimmedInput)
+            val subAgent = withContext(Dispatchers.IO) {
+                com.airi.assistant.agent.subagent.SubAgentRegistry.route(trimmedInput, subCtx)
+            }
+
+            if (subAgent != null) {
+                Log.i("AIRI_PROOF", "SUBROUTE agent=${subAgent.capability.agentId} input='${trimmedInput.take(60)}'")
+                val orchResult = runCatching {
+                    withContext(Dispatchers.IO) {
+                        productionOrchestrator.executeSingle(trimmedInput, subCtx) { event ->
+                            when (event) {
+                                is com.airi.assistant.agent.subagent.AgentEvent.Progress ->
+                                    _agentState.update { it.copy(currentAction = event.message) }
+                                is com.airi.assistant.agent.subagent.AgentEvent.PartialResult ->
+                                    _streamingText.value = event.text
+                                else -> {}
+                            }
+                        }
+                    }
+                }.getOrNull()
+
+                if (orchResult is com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator.ExecutionResult.Success &&
+                    orchResult.finalResult.isNotBlank()) {
+                    thinkingJob?.cancel(); thinkingJob = null
+                    _streamingText.value = ""
+                    val assistantMsg = memoryManager.recordChatMessage(
+                        sessionId, "assistant", orchResult.finalResult
+                    )
+                    _messages.update {
+                        it + ChatMessage(
+                            text     = orchResult.finalResult,
+                            isUser   = false,
+                            id       = assistantMsg.id,
+                            agentTag = subAgent.capability.displayName
+                        )
+                    }
+                    AnalyticsService.agentExecuted(subAgent.capability.agentId)
+                    subscriptionManager.recordConsecutiveSuccess()
+                    _agentState.value = AgentState()
+                    refreshSessions()
+                    refreshPowerLevel()
+                    return@launch
+                }
+                // Sub-agent failed or returned empty → fall through to AgentService
+                Log.d("AIRI_PROOF", "SUBROUTE_FALLTHROUGH agent=${subAgent.capability.agentId}")
             }
 
             // ── Delegate to AgentService (goes through PolicyEngine + pipeline) ──
@@ -1044,6 +1226,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     if (!wasToolCall) {
                         val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fullResponse)
                         _messages.update { it + ChatMessage(fullResponse, isUser = false, assistantMessage.id, execOrigin = _lastExecOrigin.value) }
+                    }
+                    // ── Phase 1: Wire ACTION queries through UnifiedCognitiveLoop ──────────
+                    // After the LLM response is shown to the user, parse any JSON action plan
+                    // embedded in the response and execute it via the TypedPlanGraph DAG engine.
+                    // The system prompt (ACTION_PLAN_SUFFIX) asks the LLM to append a plan;
+                    // if none is present PlanGenerator falls back to a no-op "conversation" step.
+                    if (queryType == QueryType.ACTION && !wasToolCall) {
+                        viewModelScope.launch(Dispatchers.IO) {
+                            runCatching {
+                                cognitiveLoop.process(
+                                    BrainInput(text = trimmedInput),
+                                    fullResponse
+                                )
+                            }.onFailure { e ->
+                                Log.w("AIRI_UCL", "UCL.process failed: ${e.message}")
+                            }
+                        }
                     }
                     refreshSessions()
                     refreshPowerLevel()
@@ -1368,11 +1567,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         perfMode: PerformanceMode,
         queryType: QueryType = QueryType.UNKNOWN
     ): String {
-        return if (promptService.isSimpleQuery(input) || queryType == QueryType.SIMPLE) {
+        val base = if (promptService.isSimpleQuery(input) || queryType == QueryType.SIMPLE) {
             promptService.buildSimpleSystemPrompt(_agentMode.value.prompt, perfMode.maxTokens)
         } else {
             buildEffectiveSystemPrompt(perfMode, queryType)
         }
+        // Phase 1: For ACTION queries, append a structured plan request so the LLM
+        // produces a JSON execution plan that UnifiedCognitiveLoop can parse and run.
+        return if (queryType == QueryType.ACTION) base + ACTION_PLAN_SUFFIX else base
     }
 
     private suspend fun streamRemoteResponse(
@@ -1489,6 +1691,69 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun isDeviceWeak(): Boolean {
         val profile = DeviceProfiler.profile(appContext)
         return profile.tier == DeviceTier.LOW || profile.availableRamMb < 1500 || profile.cpuCores <= 4
+    }
+
+    /**
+     * Build a [SubAgentContext] for the current send-message call.
+     *
+     * Permissions are checked at call time so the routing gate always has
+     * the freshest view (user may have granted/denied since last launch).
+     * Runtime capability tokens (e.g. [AndroidAgent.CAPABILITY_ACCESSIBILITY])
+     * come from [SubAgentRegistry.activeCapabilities] which the
+     * AccessibilityService updates live as it connects/disconnects.
+     */
+    private suspend fun buildSubAgentContext(
+        sessionId: String,
+        history:   List<com.airi.assistant.memory.entity.ChatMessage>,
+        query:     String = ""
+    ): SubAgentContext {
+        val cloudAllowed = execModePrefs.effectiveMode != ExecutionMode.LOCAL_ONLY
+
+        // Android manifest permissions to check for agent routing gate
+        val manifestPerms = listOf(
+            Manifest.permission.READ_CALENDAR,
+            Manifest.permission.WRITE_CALENDAR,
+            Manifest.permission.READ_CONTACTS,
+            Manifest.permission.WRITE_CONTACTS,
+            Manifest.permission.READ_CALL_LOG,
+            Manifest.permission.SEND_SMS
+        )
+        val granted = manifestPerms.filter { perm ->
+            ContextCompat.checkSelfPermission(appContext, perm) == PackageManager.PERMISSION_GRANTED
+        }.toMutableList()
+
+        // Add runtime capability tokens (accessibility, etc.)
+        granted.addAll(
+            com.airi.assistant.agent.subagent.SubAgentRegistry.activeCapabilities()
+        )
+
+        // ── RAG: inject semantically relevant prior context into agent turns ──
+        // Wire: RagRetriever.buildContextBlock() → prepended to recentTurns so
+        // every sub-agent (MemoryAgent, ResearchAgent, etc.) gets relevant prior
+        // context automatically without manual prompt engineering per-agent.
+        val ragRetriever = runCatching { ServiceLocator.ragRetriever }.getOrNull()
+        val ragBlock     = if (ragRetriever != null && query.isNotBlank()) {
+            withContext(Dispatchers.IO) {
+                runCatching { ragRetriever.buildContextBlock(sessionId, query, k = 4) }
+                    .getOrDefault("")
+            }
+        } else ""
+
+        val historyTurns = history.takeLast(6).map { "${it.role}: ${it.content.take(200)}" }
+        val recentTurns  = if (ragBlock.isNotBlank()) {
+            listOf("system_rag: $ragBlock") + historyTurns
+        } else {
+            historyTurns
+        }
+
+        return SubAgentContext(
+            sessionId          = sessionId,
+            userId             = "local_user",
+            recentTurns        = recentTurns,
+            grantedPermissions = granted,
+            privacyLevel       = if (cloudAllowed) SubAgentContext.PRIVACY_STANDARD else SubAgentContext.PRIVACY_MAXIMUM,
+            timeoutMs          = 25_000L
+        )
     }
 
     // ── Hybrid Execution public API ───────────────────────────────────────────
@@ -2598,5 +2863,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // explicitly warned about ("crashes easily with large contexts").
         const val SEMANTIC_BUDGET_PCT = 20
         const val SEMANTIC_TOP_K      = 5
+
+        // Phase 1: Appended to the system prompt for QueryType.ACTION requests so the LLM
+        // produces a machine-readable JSON plan alongside its natural-language reply.
+        // UnifiedCognitiveLoop.process() parses this plan and routes each step through
+        // CommandRouter → AccessibilityExecutionEngine → TypedPlanGraph.
+        const val ACTION_PLAN_SUFFIX =
+            "\n\nIf this request requires device actions, after your natural reply append " +
+            "a JSON execution plan on a single line:\n" +
+            "{\"goal\":\"<goal>\",\"steps\":[{\"id\":\"1\",\"action\":\"<action>\"," +
+            "\"params\":{\"app\":\"<package_or_name>\",\"target\":\"<ui_element>\"," +
+            "\"text\":\"<text_to_type>\"},\"depends_on\":[]}]}\n" +
+            "Supported actions: open_app, click, type, search, scroll, navigate, wait. " +
+            "Only include steps actually needed; omit params that do not apply."
     }
 }

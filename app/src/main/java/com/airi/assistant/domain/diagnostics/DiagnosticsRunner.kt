@@ -26,7 +26,7 @@ object DiagnosticsRunner {
     )
 
     fun runDiagnostics(): DiagnosticsReport {
-        Log.d(TAG, "DIAGNOSTICS_START running 4 test scenarios")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "DIAGNOSTICS_START running 4 test scenarios")
         val results = mutableListOf<TestResult>()
 
         // ── Test 1: "hi" → must hit FAST_PATH ─────────────────────────────
@@ -106,13 +106,13 @@ object DiagnosticsRunner {
             passed = test4Pass,
             detail = "p50=${p50}ms p90=${p90}ms cut=${cut.wasCut} tunedTokens=${tuned.maxTokens} upsell=${upsell?.source}"
         )
-        Log.d("AIRI_OPTIMIZE", "VERIFY semanticCut=${cut.wasCut} p50=${p50}ms p90=${p90}ms tunedTokens=${tuned.maxTokens}")
-        Log.d("AIRI_MONET", "VERIFY upsell=${upsell?.source} slowThreshold=${PricingConfig.SPEED_UPSELL_THRESHOLD_MS}")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_OPTIMIZE", "VERIFY semanticCut=${cut.wasCut} p50=${p50}ms p90=${p90}ms tunedTokens=${tuned.maxTokens}")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_MONET", "VERIFY upsell=${upsell?.source} slowThreshold=${PricingConfig.SPEED_UPSELL_THRESHOLD_MS}")
         ProofLogger.diagnosticsResult("Optimization + Monetization Loop", test4Pass, "p50=$p50 p90=$p90 cut=${cut.wasCut} tuned=${tuned.maxTokens} upsell=${upsell?.source}")
 
         val allPassed = results.all { it.passed }
         val summary   = results.joinToString(" | ") { "${it.name}:${if (it.passed) "PASS" else "FAIL"}" }
-        Log.d(TAG, "DIAGNOSTICS_COMPLETE allPassed=$allPassed [$summary]")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "DIAGNOSTICS_COMPLETE allPassed=$allPassed [$summary]")
 
         return DiagnosticsReport(results = results, allPassed = allPassed)
     }
@@ -126,7 +126,7 @@ object DiagnosticsRunner {
         memoryStable: Boolean,
         detail: String
     ): DiagnosticsReport {
-        Log.d(TAG, "RUNTIME_DIAGNOSTICS_START")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "RUNTIME_DIAGNOSTICS_START")
         val results = listOf(
             TestResult("MODEL_LOAD", modelLoaded, detail),
             TestResult("FIRST_TOKEN", firstTokenEmitted, detail),
@@ -136,12 +136,12 @@ object DiagnosticsRunner {
             TestResult("MEMORY", memoryStable, detail)
         )
         results.forEach {
-            Log.d("AIRI_VERIFY", "${it.name} ${if (it.passed) "PASS" else "FAIL"} detail=${it.detail}")
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VERIFY", "${it.name} ${if (it.passed) "PASS" else "FAIL"} detail=${it.detail}")
             ProofLogger.diagnosticsResult(it.name, it.passed, it.detail)
         }
         val allPassed = results.all { it.passed }
-        Log.d(TAG, "RUNTIME_DIAGNOSTICS_COMPLETE allPassed=$allPassed")
-        if (allPassed) Log.d(TAG, "SYSTEM FULLY VERIFIED")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "RUNTIME_DIAGNOSTICS_COMPLETE allPassed=$allPassed")
+        if (allPassed && com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "SYSTEM FULLY VERIFIED")
         return DiagnosticsReport(results, allPassed)
     }
 }

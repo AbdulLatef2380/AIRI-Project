@@ -40,7 +40,9 @@ class EmotionEngine {
         emotionalScore = emotionalScore.coerceIn(-1.0f, 1.0f)
         
         updateState()
-        Log.d("EmotionEngine", "Trigger: $type, Score: $emotionalScore, State: $currentState")
+        if (com.airi.assistant.BuildConfig.DEBUG) {
+            Log.d("EmotionEngine", "Trigger: $type, Score: $emotionalScore, State: $currentState")
+        }
     }
 
     /**

@@ -13,6 +13,8 @@ package com.airi.assistant.execution
  */
 sealed class ExecutionResult {
 
+    abstract val origin: ExecOrigin
+
     /**
      * Generation succeeded.
      *
@@ -23,11 +25,11 @@ sealed class ExecutionResult {
      * @param provider    Optional provider label (e.g. "openai", "local").
      */
     data class Success(
-        val fullText:   String,
-        val origin:     ExecOrigin,
-        val latencyMs:  Long,
-        val tokenCount: Int    = 0,
-        val provider:   String = ""
+        val fullText:        String,
+        override val origin: ExecOrigin,
+        val latencyMs:       Long,
+        val tokenCount:      Int    = 0,
+        val provider:        String = ""
     ) : ExecutionResult()
 
     /**
@@ -40,16 +42,12 @@ sealed class ExecutionResult {
      *                   "rate_limit", "no_network", "context_overflow").
      */
     data class Failure(
-        val error:     String,
-        val origin:    ExecOrigin,
-        val retryable: Boolean = true,
-        val code:      String  = "unknown"
+        val error:           String,
+        override val origin: ExecOrigin,
+        val retryable:       Boolean = true,
+        val code:            String  = "unknown"
     ) : ExecutionResult()
 
     val isSuccess: Boolean get() = this is Success
     val isFailure: Boolean get() = this is Failure
-    val origin: ExecOrigin get() = when (this) {
-        is Success -> this.origin
-        is Failure -> this.origin
-    }
 }

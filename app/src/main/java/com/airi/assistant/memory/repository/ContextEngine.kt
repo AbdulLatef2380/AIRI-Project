@@ -3,39 +3,57 @@ package com.airi.assistant.memory.repository
 import android.content.Context
 import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.memory.entity.ContextCacheEntity
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
+/**
+ * Lightweight screen-context cache — persists recent accessibility screen
+ * captures to Room for context-aware planning and intent resolution.
+ *
+ * Thread-safety:
+ *   A previous implementation created `CoroutineScope(Dispatchers.IO)` inside
+ *   [saveContext] on every call — this leaked one scope per save (no Job
+ *   reference → scope never cancelled). The fix: one supervised object-level
+ *   scope for the lifetime of the singleton.
+ */
 object ContextEngine {
 
-private var db: AiriDatabase? = null  
+    /**
+     * Single supervised scope for all background DB writes.
+     * SupervisorJob means a failed insert does not cancel pending siblings.
+     */
+    private val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-fun initialize(context: Context) {  
-    db = AiriDatabase.getDatabase(context)  
-}  
+    private var db: AiriDatabase? = null
 
-fun saveContext(screenText: String, sourceApp: String, detectedIntent: String) {  
-    val database = db ?: return  
+    fun initialize(context: Context) {
+        db = AiriDatabase.getDatabase(context)
+    }
 
-    CoroutineScope(Dispatchers.IO).launch {  
-        database.contextCacheDao().insert(  
-            ContextCacheEntity(  
-                screenText = screenText.take(1500), // منع التضخم  
-                sourceApp = sourceApp,  
-                detectedIntent = detectedIntent,  
-                timestamp = System.currentTimeMillis()  
-            )  
-        )  
+    fun saveContext(screenText: String, sourceApp: String, detectedIntent: String) {
+        val database = db ?: return
 
-        // حذف سياق أقدم من 10 دقائق  
-        val expire = System.currentTimeMillis() - (10 * 60 * 1000)  
-        database.contextCacheDao().cleanupOld(expire)  
-    }  
-}  
+        engineScope.launch {
+            database.contextCacheDao().insert(
+                ContextCacheEntity(
+                    screenText     = screenText.take(1500),
+                    sourceApp      = sourceApp,
+                    detectedIntent = detectedIntent,
+                    timestamp      = System.currentTimeMillis()
+                )
+            )
 
-suspend fun getRecentContext(): ContextCacheEntity? {  
-    val database = db ?: return null  
-    val threshold = System.currentTimeMillis() - (5 * 60 * 1000)  
-    return database.contextCacheDao().getRecentContext(threshold)  
-}
+            // Remove context older than 10 minutes to cap table growth.
+            val expire = System.currentTimeMillis() - (10 * 60 * 1000)
+            database.contextCacheDao().cleanupOld(expire)
+        }
+    }
 
+    suspend fun getRecentContext(): ContextCacheEntity? {
+        val database = db ?: return null
+        val threshold = System.currentTimeMillis() - (5 * 60 * 1000)
+        return database.contextCacheDao().getRecentContext(threshold)
+    }
 }

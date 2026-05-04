@@ -63,16 +63,16 @@ object IntentEngine {
 
             IntentType.CLICK -> {
                 val target = intent.target ?: return
-                service.executeCommand("اضغط $target")
+                ActionExecutor.clickByText(service, target)
             }
 
             IntentType.TYPE -> {
                 val text = intent.target ?: return
-                service.executeCommand("اكتب $text")
+                ActionExecutor.inputText(service, text)
             }
 
             IntentType.BACK -> {
-                service.executeCommand("رجوع")
+                service.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
             }
 
             else -> {

@@ -241,6 +241,6 @@ object PaywallTriggerEngine {
         messagesLimit == PricingConfig.PREMIUM_DAILY_MESSAGES
 
     private fun LogMonetization(message: String) {
-        android.util.Log.d("AIRI_MONET", message)
+        if (com.airi.assistant.BuildConfig.DEBUG) android.util.Log.d("AIRI_MONET", message)
     }
 }

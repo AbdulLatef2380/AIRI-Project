@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -36,77 +37,100 @@ import org.vosk.Recognizer
  * create a fresh one. [stop] is idempotent.
  *
  * No internet, no Google APIs — every byte stays on the device.
+ *
+ * Thread-safety:
+ *   All state-mutating entry points ([start], [release]) synchronize on
+ *   [lifecycleLock] to prevent a TOCTOU race between concurrent callers.
+ *   Without the lock, rapid microphone-interruption sequences can produce two
+ *   overlapping AudioRecord loops:
+ *     Thread A reads captureJob==null → Thread B reads captureJob==null →
+ *     both pass the guard → two AudioRecord+Recognizer instances spawn,
+ *     Thread B's captureJob silently overwrites Thread A's, leaking A's job.
  */
 class VoskEngine(
     private val context: Context,
     private val model: Model
 ) {
+    private val lifecycleLock = Any()
 
-    private val sampleRate = 16_000
+    private val sampleRate    = 16_000
     private val channelConfig = AudioFormat.CHANNEL_IN_MONO
-    private val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+    private val audioFormat   = AudioFormat.ENCODING_PCM_16BIT
 
-    @Volatile private var captureJob: Job? = null
+    @Volatile private var captureJob:  Job?         = null
     @Volatile private var audioRecord: AudioRecord? = null
-    @Volatile private var recognizer: Recognizer? = null
+    @Volatile private var recognizer:  Recognizer?  = null
     @Volatile private var stopRequested = false
 
     @SuppressLint("MissingPermission")
     fun start(
-        scope: CoroutineScope,
+        scope:     CoroutineScope,
         onPartial: (String) -> Unit = {},
-        onFinal: (String) -> Unit,
-        onError: (String) -> Unit
+        onFinal:   (String) -> Unit,
+        onError:   (String) -> Unit
     ) {
-        if (captureJob != null) {
-            onError("vosk_already_running")
-            return
-        }
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
-            != PackageManager.PERMISSION_GRANTED) {
-            onError("missing_record_audio_permission")
-            return
+        // ── All setup and captureJob assignment inside lifecycleLock ──────────
+        // This block must not block for long (it does no I/O), so holding the
+        // lock across AudioRecord construction is acceptable.
+        val launchParams: Triple<AudioRecord, Recognizer, Int>?
+        synchronized(lifecycleLock) {
+            if (captureJob != null) {
+                onError("vosk_already_running")
+                return
+            }
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+                onError("missing_record_audio_permission")
+                return
+            }
+
+            val minBuf = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+            if (minBuf <= 0) {
+                onError("audio_record_not_available")
+                return
+            }
+            val bufSize = minBuf * 2
+
+            val rec = try {
+                AudioRecord(
+                    MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                    sampleRate, channelConfig, audioFormat, bufSize
+                )
+            } catch (t: Throwable) {
+                onError("audio_record_create_failed: ${t.message}")
+                return
+            }
+            if (rec.state != AudioRecord.STATE_INITIALIZED) {
+                try { rec.release() } catch (_: Throwable) {}
+                onError("audio_record_uninitialized")
+                return
+            }
+            audioRecord = rec
+
+            val r = try {
+                Recognizer(model, sampleRate.toFloat())
+            } catch (t: Throwable) {
+                try { rec.release() } catch (_: Throwable) {}
+                audioRecord = null
+                onError("vosk_recognizer_create_failed: ${t.message}")
+                return
+            }
+            recognizer   = r
+            stopRequested = false
+            // Mark the slot as taken before we leave the lock, so a second
+            // concurrent start() sees a non-null captureJob immediately.
+            captureJob    = Job()
+            launchParams  = Triple(rec, r, bufSize)
         }
 
-        val minBuf = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
-        if (minBuf <= 0) {
-            onError("audio_record_not_available")
-            return
-        }
-        val bufSize = minBuf * 2
-
-        val rec = try {
-            AudioRecord(
-                MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                sampleRate, channelConfig, audioFormat, bufSize
-            )
-        } catch (t: Throwable) {
-            onError("audio_record_create_failed: ${t.message}")
-            return
-        }
-        if (rec.state != AudioRecord.STATE_INITIALIZED) {
-            try { rec.release() } catch (_: Throwable) {}
-            onError("audio_record_uninitialized")
-            return
-        }
-        audioRecord = rec
-
-        val r = try {
-            Recognizer(model, sampleRate.toFloat())
-        } catch (t: Throwable) {
-            try { rec.release() } catch (_: Throwable) {}
-            audioRecord = null
-            onError("vosk_recognizer_create_failed: ${t.message}")
-            return
-        }
-        recognizer = r
-        stopRequested = false
-
+        // ── Launch the coroutine outside the lock ─────────────────────────────
+        // The sentinel Job above is replaced by the real launched Job.
+        val (rec, r, bufSize) = launchParams ?: return
+        val buf = ByteArray(bufSize)
         captureJob = scope.launch(Dispatchers.IO) {
-            val buf = ByteArray(bufSize)
             try {
                 rec.startRecording()
-                while (!stopRequested && captureJob?.isCancelled != true) {
+                while (!stopRequested && isActive) {
                     val read = rec.read(buf, 0, buf.size)
                     if (read <= 0) continue
                     val finalSegment = r.acceptWaveForm(buf, read)
@@ -135,15 +159,20 @@ class VoskEngine(
         stopRequested = true
     }
 
-    /** Releases the AudioRecord and Vosk recognizer. Safe to call multiple times. */
+    /**
+     * Releases the AudioRecord and Vosk recognizer. Safe to call multiple times.
+     * Synchronized so concurrent release() + start() cannot interleave.
+     */
     fun release() {
-        stopRequested = true
-        captureJob?.cancel()
-        captureJob = null
-        try { audioRecord?.release() } catch (_: Throwable) {}
-        audioRecord = null
-        try { recognizer?.close() } catch (_: Throwable) {}
-        recognizer = null
+        synchronized(lifecycleLock) {
+            stopRequested = true
+            captureJob?.cancel()
+            captureJob = null
+            try { audioRecord?.release() } catch (_: Throwable) {}
+            audioRecord = null
+            try { recognizer?.close() } catch (_: Throwable) {}
+            recognizer = null
+        }
     }
 
     private fun parseText(json: String?): String {

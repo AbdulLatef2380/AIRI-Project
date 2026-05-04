@@ -87,7 +87,7 @@ object CloudAdapterFactory {
                     request:  com.airi.assistant.execution.ExecutionRequest,
                     onToken:  suspend (String) -> Unit,
                     onUsage:  suspend (Int, Int) -> Unit
-                ): AdapterResult {
+                ): CloudProviderAdapter.AdapterResult {
                     // Temporarily write the legacy key to the secure store so
                     // the parent adapter can read it — this migrates old keys
                     // to encrypted storage transparently.

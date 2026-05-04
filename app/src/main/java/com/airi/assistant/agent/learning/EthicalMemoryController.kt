@@ -34,7 +34,9 @@ class EthicalMemoryController(private val patternAggregator: PatternAggregator) 
      * التأكيد على أن درجة الاعتمادية لا تُستخدم لتصنيف المستخدم، بل لتعديل سلوك AIRI فقط.
      */
     fun ensureEthicalUseOfDependencyScore() {
-        Log.d("EthicalMemoryController", "Dependency score is for AIRI's self-adjustment, not user classification.")
+        if (com.airi.assistant.BuildConfig.DEBUG) {
+            Log.d("EthicalMemoryController", "Dependency score is for AIRI's self-adjustment, not user classification.")
+        }
         // هنا يمكن إضافة آليات لضمان عدم تخزين Score بشكل دائم أو ربطه بهوية المستخدم بشكل مباشر
         // أو التأكد من مسحه دورياً.
     }

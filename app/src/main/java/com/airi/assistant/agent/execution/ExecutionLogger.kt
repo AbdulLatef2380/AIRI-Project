@@ -3,6 +3,7 @@ package com.airi.assistant.agent.execution
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
@@ -11,7 +12,9 @@ import kotlinx.coroutines.launch
  */
 object ExecutionLogger {
     private const val TAG = "ExecutionLogger"
-    private val scope = CoroutineScope(Dispatchers.IO)
+    // SupervisorJob: one failed ExperienceStore.saveRecord() must not kill the
+    // entire scope and silence all future logging for this session.
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     /**
      * تسجيل بداية تنفيذ خطة جديدة

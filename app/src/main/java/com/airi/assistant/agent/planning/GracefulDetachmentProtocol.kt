@@ -1,6 +1,7 @@
 package com.airi.assistant.agent.planning
 
 import android.util.Log
+import com.airi.assistant.BuildConfig
 import com.airi.assistant.agent.decision.PatternAggregator
 
 /**
@@ -14,7 +15,7 @@ class GracefulDetachmentProtocol(private val patternAggregator: PatternAggregato
      */
     fun getAdjustedTone(): ToneAdjustment {
         val level = patternAggregator.getDetachmentLevel()
-        Log.d("GracefulDetachment", "Adjusting tone for level: $level")
+        if (BuildConfig.DEBUG) Log.d("GracefulDetachment", "Adjusting tone for level: $level")
         return when (level) {
             PatternAggregator.DetachmentLevel.NONE -> ToneAdjustment.NORMAL
             PatternAggregator.DetachmentLevel.LOW -> ToneAdjustment.SLIGHTLY_NEUTRAL
@@ -29,7 +30,7 @@ class GracefulDetachmentProtocol(private val patternAggregator: PatternAggregato
      */
     fun getAdjustedPace(): PaceAdjustment {
         val level = patternAggregator.getDetachmentLevel()
-        Log.d("GracefulDetachment", "Adjusting pace for level: $level")
+        if (BuildConfig.DEBUG) Log.d("GracefulDetachment", "Adjusting pace for level: $level")
         return when (level) {
             PatternAggregator.DetachmentLevel.NONE -> PaceAdjustment.NORMAL
             PatternAggregator.DetachmentLevel.LOW -> PaceAdjustment.SLIGHT_DELAY

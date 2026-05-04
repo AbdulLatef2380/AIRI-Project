@@ -1,6 +1,7 @@
 package com.airi.assistant.domain.skill
 
 import android.content.Context
+import com.airi.assistant.agent.learning.SkillOutcomeScorer
 import com.airi.assistant.ai.intent.ToolCall
 import com.airi.assistant.ai.intent.ToolCallParser
 import com.airi.assistant.ai.skills.SkillContext
@@ -18,8 +19,11 @@ import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
 import com.airi.assistant.domain.logging.LoggingService
+import com.airi.assistant.domain.monetization.ActionType
 import com.airi.assistant.domain.monetization.SubscriptionManager
+import com.airi.assistant.domain.policy.PolicyDecision
 import com.airi.assistant.domain.policy.PolicyEngine
+import com.airi.assistant.domain.policy.UnifiedPolicyGate
 
 class SkillService(private val context: Context) {
 
@@ -27,29 +31,49 @@ class SkillService(private val context: Context) {
         private const val TAG = "SkillService"
     }
 
-    private val skillExecutor = SkillExecutor(context)
-    private val skillRegistry = SkillRegistry(context)
-    private val toolExecutor  = ToolExecutor(context)
-    private val customSkillExecutor = CustomSkillExecutor(context)
+    private val skillExecutor         = SkillExecutor(context)
+    private val skillRegistry         = SkillRegistry(context)
+    private val toolExecutor          = ToolExecutor(context)
+    private val customSkillExecutor   = CustomSkillExecutor(context)
     private val customSkillRepository = CustomSkillRepository(context)
+    private val outcomeScorer         = SkillOutcomeScorer.getInstance(context)
+
+    // ── Policy-gated skill execution ──────────────────────────────────────────
 
     suspend fun tryHandle(
-        input: String,
-        skillContext: SkillContext,
+        input:               String,
+        skillContext:        SkillContext,
         subscriptionManager: SubscriptionManager? = null
     ): SkillResult? {
-        // ── Policy: input validation ──────────────────────────────────────────
+        // ── Legacy policy: input validation ───────────────────────────────────
         val check = PolicyEngine.checkAgentExecution(input)
         if (check is PolicyEngine.PolicyResult.Denied) {
             AppErrorHandler.log(check.error)
             return null
         }
 
-        // ── Policy: skill usage quota ─────────────────────────────────────────
+        // ── Legacy policy: skill usage quota ──────────────────────────────────
         if (subscriptionManager != null) {
             val subCheck = PolicyEngine.checkSubscriptionSkill(subscriptionManager)
             if (subCheck is PolicyEngine.PolicyResult.Denied) {
                 AppErrorHandler.log(subCheck.error)
+                return null
+            }
+        }
+
+        // ── Unified policy gate (credit + permission + outcome scorer) ─────────
+        val creditEngine      = runCatching { com.airi.assistant.core.ServiceLocator.creditMeteringEngine }.getOrNull()
+        val permissionService = runCatching { com.airi.assistant.core.ServiceLocator.permissionService }.getOrNull()
+        if (creditEngine != null && permissionService != null) {
+            val gate = UnifiedPolicyGate.check(
+                creditEngine        = creditEngine,
+                permissionService   = permissionService,
+                outcomeScorer       = outcomeScorer,
+                toolName            = "skill:$input",
+                action              = ActionType.SKILL_USE
+            )
+            if (gate is PolicyDecision.Deny) {
+                LoggingService.warn(TAG, "UnifiedPolicyGate denied skill execution: ${gate.userMessage}")
                 return null
             }
         }
@@ -59,39 +83,82 @@ class SkillService(private val context: Context) {
         EventBus.emitSync(AppEvent.SkillExecutionStarted(skillLabel, input.take(80)))
 
         return try {
-            val result = skillExecutor.tryHandle(input, skillContext)
-            val durationMs = System.currentTimeMillis() - startTime
-            EventBus.emitSync(AppEvent.SkillExecutionCompleted(skillLabel, result != null, durationMs))
+            val result    = skillExecutor.tryHandle(input, skillContext)
+            val latencyMs = System.currentTimeMillis() - startTime
+
+            // ── Self-improvement: record outcome ──────────────────────────────
+            outcomeScorer.record(
+                skillName = skillLabel,
+                success   = result != null,
+                latencyMs = latencyMs
+            )
+
+            EventBus.emitSync(AppEvent.SkillExecutionCompleted(skillLabel, result != null, latencyMs))
             if (result != null) subscriptionManager?.recordSkillUse()
             result
         } catch (e: Exception) {
-            val durationMs = System.currentTimeMillis() - startTime
-            val error      = AppError.SkillExecutionFailed("unknown", e.message ?: "Unknown error", e)
+            val latencyMs = System.currentTimeMillis() - startTime
+            val error     = AppError.SkillExecutionFailed("unknown", e.message ?: "Unknown error", e)
             AppErrorHandler.log(error)
-            EventBus.emitSync(AppEvent.SkillExecutionCompleted(skillLabel, false, durationMs))
+
+            // ── Self-improvement: record failure ──────────────────────────────
+            outcomeScorer.record(
+                skillName   = skillLabel,
+                success     = false,
+                latencyMs   = latencyMs,
+                errorReason = e.message
+            )
+
+            EventBus.emitSync(AppEvent.SkillExecutionCompleted(skillLabel, false, latencyMs))
             null
         }
     }
+
+    // ── Policy-gated tool call execution ──────────────────────────────────────
 
     suspend fun executeToolCall(response: String): ToolCallResult {
         val toolCall = ToolCallParser.parse(response) ?: return ToolCallResult.NoToolCall
 
         LoggingService.debug(TAG, "Tool call detected: ${toolCall.toolName}")
+
+        // ── Unified policy gate ────────────────────────────────────────────────
+        val creditEngine      = runCatching { com.airi.assistant.core.ServiceLocator.creditMeteringEngine }.getOrNull()
+        val permissionService = runCatching { com.airi.assistant.core.ServiceLocator.permissionService }.getOrNull()
+        if (creditEngine != null && permissionService != null) {
+            val gate = UnifiedPolicyGate.check(
+                creditEngine      = creditEngine,
+                permissionService = permissionService,
+                outcomeScorer     = outcomeScorer,
+                toolName          = toolCall.toolName,
+                action            = ActionType.SKILL_USE
+            )
+            if (gate is PolicyDecision.Deny) {
+                LoggingService.warn(TAG, "UnifiedPolicyGate denied tool ${toolCall.toolName}: ${gate.userMessage}")
+                outcomeScorer.record(toolCall.toolName, success = false, errorReason = "policy_denied")
+                return ToolCallResult.Failed(toolCall.toolName, gate.userMessage)
+            }
+        }
+
         EventBus.emitSync(AppEvent.SkillExecutionStarted("Tool:${toolCall.toolName}", toolCall.toolName))
+        val startMs = System.currentTimeMillis()
 
         return try {
-            val result = toolExecutor.execute(toolCall)
+            val result    = toolExecutor.execute(toolCall)
+            val latencyMs = System.currentTimeMillis() - startMs
+            outcomeScorer.record(toolCall.toolName, success = true, latencyMs = latencyMs)
             EventBus.emitSync(AppEvent.ToolCallExecuted(toolCall.toolName, true))
             ToolCallResult.Executed(toolCall, result)
         } catch (e: Exception) {
-            val error = AppError.SkillExecutionFailed(toolCall.toolName, e.message ?: "Unknown", e)
+            val latencyMs = System.currentTimeMillis() - startMs
+            val error     = AppError.SkillExecutionFailed(toolCall.toolName, e.message ?: "Unknown", e)
             AppErrorHandler.log(error)
+            outcomeScorer.record(toolCall.toolName, success = false, latencyMs = latencyMs, errorReason = e.message)
             EventBus.emitSync(AppEvent.ToolCallExecuted(toolCall.toolName, false))
             ToolCallResult.Failed(toolCall.toolName, AppErrorHandler.toUserMessage(error))
         }
     }
 
-    fun getAllSkillInfos(): List<SkillRegistry.SkillInfo> = skillRegistry.getAllSkillInfos()
+    // ── Premium custom skill execution ────────────────────────────────────────
 
     suspend fun executeCustomSkill(
         skill: CustomSkill,
@@ -112,18 +179,49 @@ class SkillService(private val context: Context) {
                 return SkillResult(false, "", AppErrorHandler.toUserMessage(quotaCheck.error), skill.name)
             }
         }
-        val result = customSkillExecutor.execute(skill, input)
+
+        // ── Unified policy gate for custom skills ─────────────────────────────
+        val creditEngine      = runCatching { com.airi.assistant.core.ServiceLocator.creditMeteringEngine }.getOrNull()
+        val permissionService = runCatching { com.airi.assistant.core.ServiceLocator.permissionService }.getOrNull()
+        if (creditEngine != null && permissionService != null) {
+            val gate = UnifiedPolicyGate.check(
+                creditEngine      = creditEngine,
+                permissionService = permissionService,
+                outcomeScorer     = outcomeScorer,
+                toolName          = "custom:${skill.name}",
+                action            = ActionType.SKILL_USE
+            )
+            if (gate is PolicyDecision.Deny) {
+                outcomeScorer.record("custom:${skill.name}", false, errorReason = "policy_denied")
+                return SkillResult(false, "", gate.userMessage, skill.name)
+            }
+        }
+
+        val startMs = System.currentTimeMillis()
+        val result  = customSkillExecutor.execute(skill, input)
+        val latency = System.currentTimeMillis() - startMs
+        outcomeScorer.record("custom:${skill.name}", result.success, latency,
+            if (!result.success) result.error else null)
         if (result.success) subscriptionManager?.recordSkillUse()
         return result
     }
 
-    fun getCustomSkills(): List<CustomSkill> = customSkillRepository.getAllSkills()
+    // ── Self-improvement query API ────────────────────────────────────────────
 
-    fun getToolList(): List<Pair<String, String>> = toolExecutor.getToolList()
+    /** Get improvement suggestion for a skill (feed to planner for self-correction). */
+    fun getImprovementSuggestion(skillName: String): String? =
+        outcomeScorer.improvementSuggestion(skillName)
 
-    fun setSkillEnabled(name: String, enabled: Boolean) {
-        skillRegistry.setSkillEnabled(name, enabled)
-    }
+    /** Ranked skill report for the observability UI. */
+    fun getSkillRankings(): List<SkillOutcomeScorer.SkillReport> =
+        outcomeScorer.rankedSkills()
+
+    // ── Registry access ───────────────────────────────────────────────────────
+
+    fun getAllSkillInfos(): List<SkillRegistry.SkillInfo> = skillRegistry.getAllSkillInfos()
+    fun getCustomSkills(): List<CustomSkill>              = customSkillRepository.getAllSkills()
+    fun getToolList(): List<Pair<String, String>>         = toolExecutor.getToolList()
+    fun setSkillEnabled(name: String, enabled: Boolean)   = skillRegistry.setSkillEnabled(name, enabled)
 
     sealed class ToolCallResult {
         object NoToolCall : ToolCallResult()

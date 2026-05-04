@@ -32,7 +32,7 @@ enum class ActionType {
 class SystemControlManager(private val context: Context) {
 
     fun execute(command: AiriCommand) {
-        Log.d("AIRI_CONTROL", "Executing: ${command.action} -> ${command.target}")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_CONTROL", "Executing: ${command.action} -> ${command.target}")
 
         when (command.action) {
             ActionType.OPEN_APP -> openApp(command.target)
@@ -90,6 +90,6 @@ class SystemControlManager(private val context: Context) {
     }
 
     fun executeCommand(command: String) {
-        Log.d("AIRI_CONTROL", "Executing raw command: $command")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_CONTROL", "Executing raw command: $command")
     }
 }

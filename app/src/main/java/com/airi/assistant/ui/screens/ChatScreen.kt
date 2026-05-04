@@ -197,7 +197,7 @@ fun ChatScreen(
                 scope     = this,
                 onPartial = { /* future: surface live partial text */ },
                 onFinal   = { spoken ->
-                    Log.d("AIRI_VOICE", "Vosk STT result len=${spoken.length} autoSend=$autoSend")
+                    if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "Vosk STT result len=${spoken.length} autoSend=$autoSend")
                     voskEngineHolder.value?.release()
                     voskEngineHolder.value = null
                     if (spoken.isNotBlank()) {
@@ -265,7 +265,7 @@ fun ChatScreen(
                 PackageManager.PERMISSION_GRANTED &&
             VoskModelManager.isReady(context) &&
             voiceState == VoiceSessionState.IDLE) {
-            Log.d("AIRI_VOICE", "Wake-word dispatcher fired → starting in-app STT (autoSend)")
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "Wake-word dispatcher fired → starting in-app STT (autoSend)")
             startInAppStt(autoSend = true)
         }
     }
@@ -306,11 +306,11 @@ fun ChatScreen(
                 }
             }
             override fun onSpeakingStarted() {
-                Log.d("AIRI_VOICE", "TTS speaking started → VoiceSessionState.SPEAKING")
+                if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "TTS speaking started → VoiceSessionState.SPEAKING")
                 voiceStateRef.value = VoiceSessionState.SPEAKING
             }
             override fun onSpeakingDone() {
-                Log.d("AIRI_VOICE", "TTS speaking done → VoiceSessionState.IDLE")
+                if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "TTS speaking done → VoiceSessionState.IDLE")
                 voiceStateRef.value = VoiceSessionState.IDLE
                 if (liveChatActiveRef.value) {
                     Log.i("AIRI_PROOF", "VOICE_LOOP_REARM_REQUESTED tick=${voiceLoopRearmTick.value + 1}")
@@ -339,12 +339,19 @@ fun ChatScreen(
     }
     DisposableEffect(Unit) { onDispose { voiceManager.destroy() } }
 
+    // ── TTS / speak state (declared here so all downstream LaunchedEffects can see them) ──
+    var speakNextResponse  by rememberSaveable { mutableStateOf(false) }
+    var lastSpokenMsgId    by rememberSaveable { mutableStateOf(-1L) }
+    var ttsStreamingActive by rememberSaveable { mutableStateOf(false) }
+    var lastTtsStreamLen   by rememberSaveable { mutableStateOf(0) }
+
     // ── Issue 6: Lifecycle gap — Android 15 mic-lock prevention ──────────
     // When the app is backgrounded (ON_PAUSE), stop ALL audio subsystems
     // immediately. Without this, on Android 14/15 the OS may revoke the
     // microphone grant mid-session causing AudioRecord to return ERROR_DEAD_OBJECT
     // permanently, or keep a ghost recording thread draining the battery.
-    val _lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    @Suppress("DEPRECATION")
+    val _lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     DisposableEffect(_lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
@@ -436,7 +443,7 @@ fun ChatScreen(
         if (voiceState == VoiceSessionState.LISTENING) {
             kotlinx.coroutines.delay(7_000L)
             if (voiceState == VoiceSessionState.LISTENING) {
-                Log.d("AIRI_VOICE", "Auto-stop: 7s silence → stopping engine + IDLE")
+                if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "Auto-stop: 7s silence → stopping engine + IDLE")
                 Log.i("AIRI_PROOF", "AUTO_STOP_TIMEOUT 7s elapsed → stopping VoskEngine")
                 stopInAppStt()
                 voiceState = VoiceSessionState.IDLE
@@ -445,17 +452,14 @@ fun ChatScreen(
     }
 
     val voicePrefs = remember { context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE) }
-    var speakNextResponse by rememberSaveable { mutableStateOf(false) }
-    var lastSpokenMsgId   by rememberSaveable { mutableStateOf(-1L) }
-
     LaunchedEffect(voiceChatInput) {
         val input = voiceChatInput
         if (input.isNotBlank() && modelState.isModelReady && !agentState.isWorking) {
-            Log.d("AIRI_VOICE", "VoiceChat auto-send: '${input.take(60)}' len=${input.length}")
-            Log.d("AIRI_UI", "sendMessage triggered by voice input len=${input.length}")
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "VoiceChat auto-send: '${input.take(60)}' len=${input.length}")
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_UI", "sendMessage triggered by voice input len=${input.length}")
             voiceChatInput = ""
             voiceState = VoiceSessionState.IDLE
-            Log.d("AIRI_VOICE", "MicState → IDLE (auto-send dispatched)")
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "MicState → IDLE (auto-send dispatched)")
             viewModel.sendMessage(input)
             // Phase 2 — when the continuous live-chat loop is armed, ALWAYS
             // speak the response so the loop can advance via onSpeakingDone
@@ -471,13 +475,6 @@ fun ChatScreen(
         }
     }
 
-    // ── PHASE 4: streaming TTS state (declared BEFORE the speak effect that
-    // reads it). [ttsStreamingActive] tracks whether mid-stream TTS chunks
-    // have already been queued for the in-flight assistant turn so the
-    // post-stream completion handler doesn't double-speak.
-    var ttsStreamingActive by rememberSaveable { mutableStateOf(false) }
-    var lastTtsStreamLen   by rememberSaveable { mutableStateOf(0) }
-
     LaunchedEffect(agentState.isWorking) {
         if (speakNextResponse && !agentState.isWorking) {
             val lastMsg = messages.lastOrNull { !it.isUser }
@@ -485,7 +482,7 @@ fun ChatScreen(
                 lastSpokenMsgId = lastMsg.id
                 speakNextResponse = false
                 voiceState = VoiceSessionState.SPEAKING
-                Log.d("AIRI_VOICE", "TTS triggered → SPEAKING msgId=${lastMsg.id} text_len=${lastMsg.text.length}")
+                if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "TTS triggered → SPEAKING msgId=${lastMsg.id} text_len=${lastMsg.text.length}")
                 Log.i("AIRI_PROOF", "VOICE_RESPONSE_COMPLETE msgId=${lastMsg.id} chars=${lastMsg.text.length} loop_active=${liveChatActiveRef.value}")
                 // PHASE 2/4: if streaming TTS already spoke chunks, just
                 // flush the tail; else fall back to full one-shot speak.
@@ -765,7 +762,7 @@ fun ChatScreen(
                             isVadInterrupting.value = false
                             voiceStateRef.value = VoiceSessionState.IDLE
                             voiceState = VoiceSessionState.IDLE
-                            Log.d("AIRI_VOICE", "TTS interrupted by mic press → IDLE")
+                            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "TTS interrupted by mic press → IDLE")
                             return@mic
                         }
                         // Tap-while-listening = stop and flush current Vosk session
@@ -798,7 +795,7 @@ fun ChatScreen(
                                 liveChatActiveRef.value = false
                                 Log.i("AIRI_PROOF", "VOICE_LOOP_STOPPED reason=tap_during_speaking")
                             }
-                            Log.d("AIRI_VOICE", "TTS interrupted by voice-chat press → IDLE")
+                            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "TTS interrupted by voice-chat press → IDLE")
                             return@vc
                         }
                         // Tap while listening → stop AND exit loop
@@ -862,7 +859,7 @@ fun ChatScreen(
                         voiceState = VoiceSessionState.SPEAKING
                         voiceStateRef.value = VoiceSessionState.SPEAKING
                         voiceManager.speak(text)
-                        Log.d("AIRI_VOICE", "Speak-action triggered from message → SPEAKING")
+                        if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "Speak-action triggered from message → SPEAKING")
                     },
                     onSuggestionClick = { suggestion -> viewModel.sendMessage(suggestion) },
                     modifier = Modifier.fillMaxSize()
@@ -897,7 +894,7 @@ fun ChatScreen(
                             )
                             TextButton(onClick = {
                                 viewModel.clearSystemIntegrityFailed()
-                                Log.d("AIRI_PROOF", "INTEGRITY_BANNER dismissed by user")
+                                if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_PROOF", "INTEGRITY_BANNER dismissed by user")
                             }) {
                                 Text("Dismiss", color = Color.White, fontSize = 12.sp)
                             }
@@ -1382,7 +1379,7 @@ fun AiBubble(
                             val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
                                 as android.content.ClipboardManager
                             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
-                            Log.d("AIRI_UI", "Message copied len=${text.length}")
+                            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_UI", "Message copied len=${text.length}")
                         },
                         modifier = Modifier.size(32.dp)
                     ) {
@@ -1392,7 +1389,7 @@ fun AiBubble(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             onSpeak(text)
-                            Log.d("AIRI_UI", "Speak action triggered len=${text.length}")
+                            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_UI", "Speak action triggered len=${text.length}")
                         },
                         modifier = Modifier.size(32.dp)
                     ) {

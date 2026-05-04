@@ -46,9 +46,9 @@ object ResponseOptimizer {
         FastEntry(
             listOf("who are you", "what are you", "من أنت", "ما أنت", "ما اسمك", "introduce yourself"),
             pick(
-                "I'm AIRI — your on-device AI assistant. I run 100% locally, no cloud, no tracking.",
-                "AIRI here — an intelligent AI that runs entirely on your device. No cloud, total privacy.",
-                "I'm AIRI, an on-device AI assistant. Everything I do stays on your phone."
+                "I'm AIRI — your on-device AI assistant. I can work locally, and some features may use cloud services when you enable them.",
+                "AIRI here — an intelligent AI assistant that runs on your device, with optional cloud features when configured.",
+                "I'm AIRI, an on-device AI assistant. Core actions stay local, and optional online features are available too."
             )
         ),
         FastEntry(
@@ -86,16 +86,16 @@ object ResponseOptimizer {
             listOf("are you online", "do you need internet", "هل تحتاج إنترنت", "هل أنت أونلاين",
                    "offline", "no internet", "internet connection"),
             pick(
-                "Nope — I run fully offline on your device. No internet required.",
-                "I work 100% offline. No network, no cloud — everything stays on your device."
+                "I can work offline for many tasks, but some features may need internet or cloud services.",
+                "Many core features work on-device, and optional online features may use the internet."
             )
         ),
         FastEntry(
             listOf("what can you do", "what are your capabilities", "help me", "show me what you can do"),
             pick(
-                "I can answer questions, write code, analyze text, summarize, translate, brainstorm, and much more — all offline.",
+                "I can answer questions, write code, analyze text, summarize, translate, brainstorm, and more, with a mix of local and optional cloud features.",
                 "I can help with coding, writing, Q&A, analysis, translations, and creative tasks. What would you like?",
-                "Ask me anything: code, writing, summaries, explanations, math, and more. All on-device."
+                "Ask me anything: code, writing, summaries, explanations, math, and more."
             )
         )
     )

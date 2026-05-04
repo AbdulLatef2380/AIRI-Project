@@ -118,6 +118,21 @@ class SecureStorage(context: Context) {
     private fun llmKeyPrefName(provider: String): String =
         "llm_key_${provider.lowercase()}"
 
+    // ─── Device binding (DeviceBindingService) ─────────────────────────────────
+
+    fun saveDeviceFingerprint(fp: String) =
+        prefs.edit().safePutString(KEY_DEVICE_FP, fp).apply()
+
+    fun getDeviceFingerprint(): String? = prefs.getString(KEY_DEVICE_FP, null)
+
+    fun clearDeviceFingerprint() =
+        prefs.edit().remove(KEY_DEVICE_FP).apply()
+
+    fun saveInstallUuid(uuid: String) =
+        prefs.edit().safePutString(KEY_INSTALL_UUID, uuid).apply()
+
+    fun getInstallUuid(): String? = prefs.getString(KEY_INSTALL_UUID, null)
+
     // ─── Generic disconnect ────────────────────────────────────────────────────
 
     fun disconnect(id: String) {
@@ -148,6 +163,9 @@ class SecureStorage(context: Context) {
     }
 
     companion object {
+        private const val KEY_DEVICE_FP        = "device_fingerprint"
+        private const val KEY_INSTALL_UUID     = "install_uuid"
+
         private const val KEY_GITHUB_TOKEN     = "github_token"
         private const val KEY_GITHUB_CONNECTED = "github_connected"
         private const val KEY_GITHUB_USERNAME  = "github_username"

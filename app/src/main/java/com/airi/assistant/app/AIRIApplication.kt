@@ -5,14 +5,22 @@ import android.content.Context
 import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.crash.FirebaseCrashReporter
 import com.airi.assistant.domain.experiment.ExperimentManager
 import com.airi.assistant.domain.growth.OnboardingManager
 import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.domain.logging.LoggingService
 import com.airi.assistant.domain.monetization.PaywallTriggerEngine
 import com.airi.assistant.domain.retention.RetentionManager
+import com.airi.assistant.integrity.PlayIntegrityVerifier
 import com.airi.assistant.memory.AiriDatabase
+import com.airi.assistant.sync.CloudSyncWorker
+import com.airi.assistant.agent.learning.reinforcement.ReinforcementMemory
 import com.airi.assistant.system.LanguageManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class AIRIApplication : Application() {
 
@@ -33,24 +41,35 @@ class AIRIApplication : Application() {
             ServiceLocator.context = applicationContext
             LoggingService.info(TAG, "✓ ServiceLocator initialized")
 
-            // Eagerly initialize connectivity monitoring
+            // ── Infrastructure ─────────────────────────────────────────────────
             ServiceLocator.networkService
             LoggingService.info(TAG, "✓ NetworkService initialized")
 
-            // Eagerly initialize event history — subscribes to EventBus immediately
             ServiceLocator.executionHistoryStore
             LoggingService.info(TAG, "✓ ExecutionHistoryStore initialized")
 
-            // Eagerly initialize subscription manager so daily reset is ready
             ServiceLocator.subscriptionManager
             LoggingService.info(TAG, "✓ SubscriptionManager initialized")
 
             AiriDatabase.getDatabase(this)
             LoggingService.info(TAG, "✓ Database initialized")
 
-            // ── Growth & Analytics Systems ─────────────────────────────────────
+            // ── Identity Layer ─────────────────────────────────────────────────
+            ServiceLocator.sessionManager
+            LoggingService.info(TAG, "✓ SessionManager initialized")
 
-            AnalyticsService.init(this)
+            // ── User Profile Runtime ───────────────────────────────────────────
+            ServiceLocator.userProfileRepository
+            LoggingService.info(TAG, "✓ UserProfileRepository initialized")
+
+            // ── Privacy / Telemetry ────────────────────────────────────────────
+            ServiceLocator.telemetryConsentStore
+            ServiceLocator.privacyTelemetryReporter
+            LoggingService.info(TAG, "✓ PrivacyTelemetryReporter initialized")
+
+            // ── Growth & Analytics ─────────────────────────────────────────────
+            // Pass consentStore so AnalyticsService gates Firebase on opt-in.
+            AnalyticsService.init(this, ServiceLocator.telemetryConsentStore)
             LoggingService.info(TAG, "✓ AnalyticsService initialized")
 
             val launchPrefs = getSharedPreferences("airi_launch_funnel", Context.MODE_PRIVATE)
@@ -78,9 +97,85 @@ class AIRIApplication : Application() {
             RemoteModelRegistry.init(this)
             LoggingService.info(TAG, "✓ RemoteModelRegistry initialized")
 
-            // Fire app_open analytics event
+            // ── Crash / Runtime Reporting ──────────────────────────────────────
+            ServiceLocator.crashReportStore
+            ServiceLocator.crashReporter
+            LoggingService.info(TAG, "✓ CrashReporter initialized")
+
+            // ── Firebase Crashlytics ───────────────────────────────────────────
+            // Enrich every crash report with session metadata so triage is fast.
+            // Collection remains OFF until the user grants telemetry consent
+            // (OnboardingScreen calls FirebaseCrashReporter.enableCollection()).
+            FirebaseCrashReporter.setKey("app_version", "1.0")
+            FirebaseCrashReporter.setKey("exec_mode",
+                ServiceLocator.context?.let {
+                    com.airi.assistant.execution.prefs.ExecModePreferences(it)
+                        .effectiveMode.name
+                } ?: "UNKNOWN"
+            )
+            // Enable collection if user already consented in a prior session.
+            val consentStore = ServiceLocator.telemetryConsentStore
+            if (consentStore.current.crashReportingEnabled) {
+                FirebaseCrashReporter.enableCollection()
+            }
+            LoggingService.info(TAG, "✓ FirebaseCrashReporter configured")
+
+            ServiceLocator.runtimeHealthMonitor.start()
+            LoggingService.info(TAG, "✓ RuntimeHealthMonitor started")
+
+            // ── AIRI Ascension: Sub-Agent + Orchestration ──────────────────────
+            ServiceLocator.initSubAgentSystem()
+            LoggingService.info(TAG, "✓ SubAgentSystem + PermissionRegistry initialized")
+
+            // ── Agent Operating Layer (architecture expansion) ─────────────
+            ServiceLocator.cotEngine
+            ServiceLocator.reActPlanner
+            LoggingService.info(TAG, "✓ CoT/ReAct planner initialized")
+
+            ServiceLocator.ragRetriever
+            LoggingService.info(TAG, "✓ RAG retriever initialized")
+
+            ServiceLocator.creditMeteringEngine
+            LoggingService.info(TAG, "✓ CreditMeteringEngine initialized")
+
+            ServiceLocator.modelGovernanceEngine
+            LoggingService.info(TAG, "✓ ModelGovernanceEngine initialized")
+
+            ServiceLocator.scheduledJobOrchestrator
+            LoggingService.info(TAG, "✓ ScheduledJobOrchestrator initialized")
+
+            ServiceLocator.chatSharingService
+            LoggingService.info(TAG, "✓ ChatSharingService initialized")
+
+            ServiceLocator.skillManagerBackend
+            LoggingService.info(TAG, "✓ SkillManagerBackend initialized")
+
+            // ── Reinforcement Learning (persistent across sessions) ─────────────
+            ReinforcementMemory.init(applicationContext)
+            LoggingService.info(TAG, "✓ ReinforcementMemory loaded")
+
+            // ── Execution Watchdog ─────────────────────────────────────────────
+            ServiceLocator.executionWatchdog.start()
+            LoggingService.info(TAG, "✓ ExecutionWatchdog started")
+
+            // ── Cloud Sync ─────────────────────────────────────────────────────
+            val prefs = ServiceLocator.userProfileRepository.current
+            if (prefs.cloudSyncEnabled) {
+                CloudSyncWorker.enqueue(this)
+                LoggingService.info(TAG, "✓ CloudSyncWorker enqueued")
+            }
+
+            // ── Session analytics ──────────────────────────────────────────────
             AnalyticsService.appOpen()
             AnalyticsService.sessionStart()
+
+            // ── Play Integrity warm-up (async — non-blocking startup) ──────────
+            // Fires a background integrity token request so that the first
+            // high-trust action (cloud call, subscription purchase) already has
+            // a cached verdict available without blocking the user.
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                PlayIntegrityVerifier.warmUp(applicationContext)
+            }
 
             LoggingService.info(TAG, "━━━ AIRI Ready ━━━")
 

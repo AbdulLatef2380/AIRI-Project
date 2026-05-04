@@ -6,6 +6,7 @@ import com.airi.assistant.ai.LlamaNative
 import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.memory.entity.ChatMessage
 import com.airi.assistant.memory.entity.MessageEmbedding
+import com.airi.assistant.memory.evolution.MemoryEvolutionEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.sync.Mutex
@@ -47,8 +48,9 @@ import java.nio.ByteOrder
  */
 class EmbeddingService(context: Context) {
 
-    private val db  = AiriDatabase.getDatabase(context)
-    private val dao = db.embeddingDao()
+    private val db              = AiriDatabase.getDatabase(context)
+    private val dao             = db.embeddingDao()
+    private val evolutionEngine = MemoryEvolutionEngine(context)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val nativeDispatcher = Dispatchers.IO.limitedParallelism(1)
@@ -153,17 +155,34 @@ class EmbeddingService(context: Context) {
     }
 
     /**
-     * Top-k cosine-similar previous messages from the same session.
-     * Brute-force linear scan over the per-session row set (≤ 200 rows
-     * by AIRI's per-session prune cap). Results are sorted by descending
-     * similarity. Returns an empty list if the embedding model is not
-     * loaded — caller should fall back to chronological recall.
+     * Top-k semantically + temporally ranked messages from the same session.
+     *
+     * ── PHASE 4 UPGRADE: SALIENCE SCORING ─────────────────────────────────────
+     * The previous implementation returned purely cosine-similar results.
+     * A 6-month-old memory with high semantic overlap could outrank a 5-minute-
+     * old memory — causing stale context to poison the RAG prompt.
+     *
+     * Now uses [MemoryEvolutionEngine.applySalienceScoring] to blend:
+     *   - Cosine similarity (55%) — semantic relevance
+     *   - Temporal decay (30%)    — recency half-life of [halfLifeHours]
+     *   - Execution outcome (×)   — memories from successful agent runs boosted
+     *   - Recall frequency (×)    — frequently-recalled memories get persistence boost
+     *
+     * Conflict resolution: near-duplicate memories (high token overlap + same
+     * role) are deduplicated — the more recent one wins.
+     *
+     * Brute-force linear scan over the per-session row set (≤ 200 rows by AIRI's
+     * per-session prune cap). Returns empty list if embedding model not loaded —
+     * caller falls back to chronological recall. No silent fallback to fake scores.
+     *
+     * @param halfLifeHours  Temporal decay half-life. Default 24h (yesterday = 50%).
      */
     suspend fun topKSimilar(
-        sessionId: String,
-        query: String,
-        k: Int = 5,
-        minSimilarity: Float = 0.25f
+        sessionId:     String,
+        query:         String,
+        k:             Int   = 5,
+        minSimilarity: Float = 0.25f,
+        halfLifeHours: Float = 24f
     ): List<RankedMessage> {
         if (!isReady()) {
             Log.i("AIRI_PROOF", "VECTOR_SEARCH_SKIPPED reason=not_loaded session=$sessionId")
@@ -176,12 +195,12 @@ class EmbeddingService(context: Context) {
             Log.i("AIRI_PROOF", "VECTOR_SEARCH_NO_INDEX session=$sessionId dim=${qVec.size}")
             return emptyList()
         }
-        // Score every row, then partial-sort.
-        data class Scored(val messageId: Long, val score: Float)
+
+        // ── Step 1: Raw cosine similarity (unchanged from previous) ───────────
+        data class Scored(val messageId: Long, val cosine: Float)
         val scored = ArrayList<Scored>(rows.size)
         for (row in rows) {
             val v = bytesToFloatArray(row.vector, row.dim)
-            // L2-normalised vectors → dot product == cosine similarity.
             var dot = 0f
             for (i in 0 until row.dim) dot += qVec[i] * v[i]
             if (dot >= minSimilarity) scored.add(Scored(row.messageId, dot))
@@ -190,20 +209,39 @@ class EmbeddingService(context: Context) {
             Log.i("AIRI_PROOF", "VECTOR_SEARCH_EMPTY session=$sessionId candidates=${rows.size} threshold=$minSimilarity")
             return emptyList()
         }
-        scored.sortByDescending { it.score }
-        val topIds = scored.take(k).map { it.messageId }
-        val msgs = dao.loadMessagesByIds(topIds).associateBy { it.id }
-        val out = topIds.mapNotNull { id ->
-            val msg = msgs[id] ?: return@mapNotNull null
-            val score = scored.first { it.messageId == id }.score
-            RankedMessage(msg, score)
+
+        // Load a wider pool (2×k) before salience re-ranking so temporal decay
+        // can promote recent messages that narrowly missed the cosine cut.
+        scored.sortByDescending { it.cosine }
+        val poolIds = scored.take((k * 2).coerceAtLeast(k)).map { it.messageId }
+        val msgs    = dao.loadMessagesByIds(poolIds).associateBy { it.id }
+        val rawPairs: List<Pair<ChatMessage, Float>> = poolIds.mapNotNull { id ->
+            val msg    = msgs[id] ?: return@mapNotNull null
+            val cosine = scored.first { it.messageId == id }.cosine
+            Pair(msg, cosine)
         }
+
+        // ── Step 2: Salience scoring (temporal decay + outcome + recall) ──────
+        val salienceRanked = evolutionEngine.applySalienceScoring(rawPairs, halfLifeHours)
+        val out = salienceRanked.take(k).map { (msg, salience) ->
+            RankedMessage(msg, salience)
+        }
+
+        if (out.isEmpty()) {
+            Log.i("AIRI_PROOF", "VECTOR_SEARCH_EMPTY_POST_SALIENCE session=$sessionId pool=${rawPairs.size}")
+            return emptyList()
+        }
+
         Log.i(
             "AIRI_PROOF",
-            "VECTOR_SEARCH_HIT session=$sessionId candidates=${rows.size} returned=${out.size} top_score=${out.first().score}"
+            "VECTOR_SEARCH_HIT session=$sessionId candidates=${rows.size} pool=${rawPairs.size} " +
+            "returned=${out.size} top_salience=${"%.3f".format(out.first().score)}"
         )
         return out
     }
+
+    /** Expose the evolution engine for outcome recording by orchestration layer. */
+    fun evolutionEngine(): MemoryEvolutionEngine = evolutionEngine
 
     /** Build a context block from the top-k messages, ready to splice into a prompt. */
     fun formatContext(hits: List<RankedMessage>): String {

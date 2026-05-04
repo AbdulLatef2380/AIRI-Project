@@ -213,7 +213,7 @@ class LlamaManager(private val context: Context) {
      */
     fun applyRuntimeMode(mode: PerformanceMode) {
         if (!isLoaded) {
-            Log.d(TAG, "applyRuntimeMode skipped — model not loaded yet")
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "applyRuntimeMode skipped — model not loaded yet")
             return
         }
         scope.launch {
@@ -239,7 +239,7 @@ class LlamaManager(private val context: Context) {
         // a cancellation request unacknowledged.
         runCatching { LlamaNative.cancel() }
         runCatching { LlamaNative.nativeCancel() }
-        Log.d(TAG, "cancelStream requested")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "cancelStream requested")
         Log.i("AIRI_PROOF", "GEN_CANCEL_REQUESTED tid=${Thread.currentThread().id}")
     }
 
@@ -715,7 +715,7 @@ class LlamaManager(private val context: Context) {
         }
 
         cancelRequested.set(false)
-        Log.d(TAG, "generateStream params: maxTokens=$maxTokens temp=$temperature " +
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "generateStream params: maxTokens=$maxTokens temp=$temperature " +
                 "first_token_budget=${timeoutMs}ms inactivity_budget=${INACTIVITY_TIMEOUT_MS}ms " +
                 "prompt_len=${prompt.length}")
 
@@ -856,7 +856,7 @@ class LlamaManager(private val context: Context) {
                 val reconcileStart = System.currentTimeMillis()
                 val replayedTurns = reconcileSession(model.path, model.type, systemPrompt)
                 val reconcileMs = System.currentTimeMillis() - reconcileStart
-                if (replayedTurns > 0) {
+                if (replayedTurns > 0 && com.airi.assistant.BuildConfig.DEBUG) {
                     Log.d("AIRI_STREAM", "session_reconcile replayed_turns=$replayedTurns ms=$reconcileMs")
                 }
                 Log.i("AIRI_PROOF",
@@ -910,7 +910,7 @@ class LlamaManager(private val context: Context) {
                         "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
                         "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
                 } else {
-                    Log.d("AIRI_PROOF",
+                    if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_PROOF",
                         "PREFLIGHT_OK n_past=$nPastBefore n_ctx=$nCtxNow " +
                         "user_est=$estUserNew needed=$estNeeded free=$freeRoom")
                 }
@@ -1054,9 +1054,9 @@ class LlamaManager(private val context: Context) {
                     tokenBuffer.append(token)
                     nativeTokenCount++
                     lastTokenAtMs.set(System.currentTimeMillis())
-                    // Per-token trace — gated to AIRI_TOKEN tag.
+                    // Per-token trace — gated to AIRI_TOKEN tag and BuildConfig.DEBUG.
                     // adb shell setprop log.tag.AIRI_TOKEN VERBOSE
-                    Log.v("AIRI_TOKEN", "n=$nativeTokenCount bytes=${token.length}")
+                    if (com.airi.assistant.BuildConfig.DEBUG) Log.v("AIRI_TOKEN", "n=$nativeTokenCount bytes=${token.length}")
 
                     val isFirst = firstTokenLogged.compareAndSet(false, true)
                     if (isFirst) {

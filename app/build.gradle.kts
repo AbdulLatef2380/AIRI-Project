@@ -240,7 +240,6 @@ dependencies {
     // Required by OCRConnector for on-device text recognition. Fully offline —
     // no network call. Falls back gracefully if model download hasn't completed.
     implementation("com.google.mlkit:text-recognition:16.0.0")
-    implementation("com.google.mlkit:text-recognition-arabic:16.0.0")
 }
 
 tasks.register("airiVerifyOptimization") {

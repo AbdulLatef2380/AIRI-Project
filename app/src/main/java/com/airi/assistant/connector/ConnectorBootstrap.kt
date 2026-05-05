@@ -1,18 +1,29 @@
 package com.airi.assistant.connector
 
 import android.content.Context
+import com.airi.assistant.connector.api.HttpApiConnector
 import com.airi.assistant.connector.api.RemoteLlmConnector
 import com.airi.assistant.connector.legacy.IntegrationConnectorAdapter
 import com.airi.assistant.connector.local.AndroidIntentConnector
+import com.airi.assistant.connector.local.DocumentConnector
+import com.airi.assistant.connector.local.FilesystemConnector
+import com.airi.assistant.connector.local.GitConnector
+import com.airi.assistant.connector.local.MemoryRagConnector
+import com.airi.assistant.connector.local.SchedulerConnector
 import com.airi.assistant.connector.local.VoiceConnector
 import com.airi.assistant.connector.mcp.InMemoryMcpConnector
+import com.airi.assistant.connector.system.DeviceControlConnector
+import com.airi.assistant.connector.system.LogcatConnector
 import com.airi.assistant.connector.system.SystemInfoConnector
+import com.airi.assistant.connector.system.TerminalConnector
 import com.airi.assistant.integration.GithubIntegration
 import com.airi.assistant.integration.NotionIntegration
 import com.airi.assistant.integration.TelegramIntegration
+import com.airi.assistant.memory.rag.RagRetriever
+import com.airi.assistant.memory.repository.MemoryManager
 
 /**
- * Wires the default set of [Connector]s into a [ConnectorRegistry].
+ * Wires the full set of built-in [Connector]s into a [ConnectorRegistry].
  *
  * Called once from [com.airi.assistant.core.ServiceLocator] when the
  * registry is first requested. Adding a new built-in connector is a
@@ -22,6 +33,33 @@ import com.airi.assistant.integration.TelegramIntegration
  * No connector is *connected* eagerly — the registry stores them, the
  * UI / agent decides when to call [Connector.connect]. That keeps app
  * startup cheap.
+ *
+ * ## Connector inventory (Phase 3 — 13 built-in connectors)
+ *
+ * API:
+ *   - [RemoteLlmConnector]   — cloud LLM providers (OpenAI, Anthropic, etc.)
+ *   - [HttpApiConnector]     — generic REST HTTP calls
+ *
+ * LOCAL:
+ *   - [AndroidIntentConnector] — Android Intents (open app, URL, settings)
+ *   - [VoiceConnector]         — on-device speech / mtmd pipeline
+ *   - [FilesystemConnector]    — scoped file I/O (read/write/list)
+ *   - [DocumentConnector]      — text extraction from shared URIs
+ *   - [SchedulerConnector]     — AlarmManager one-shot + repeating alarms
+ *   - [GitConnector]           — git version control via ProcessBuilder
+ *   - [MemoryRagConnector]     — on-device RAG over past conversations
+ *
+ * SYSTEM:
+ *   - [SystemInfoConnector]    — battery + network telemetry
+ *   - [DeviceControlConnector] — clipboard, volume, Wi-Fi, device info
+ *   - [LogcatConnector]        — Android system log reader
+ *   - [TerminalConnector]      — sandboxed shell command execution
+ *
+ * MCP:
+ *   - [InMemoryMcpConnector]   — built-in echo demo; replace with real server
+ *
+ * APP (legacy bridge):
+ *   - GitHub, Telegram, Notion (via [IntegrationConnectorAdapter])
  */
 object ConnectorBootstrap {
 
@@ -30,27 +68,35 @@ object ConnectorBootstrap {
         registry: ConnectorRegistry,
         llmProviders: List<RemoteLlmConnector.Provider> = emptyList(),
         voiceBackend: VoiceConnector.VoiceBackend? = null,
+        ragRetriever: RagRetriever? = null,
+        memoryManager: MemoryManager? = null,
     ) {
-        // ── API tab ─────────────────────────────────────────────────
-        // RemoteLlmConnector is registered even with zero providers so
-        // the UI shows the slot. providers can be supplied later via
-        // additional registry.register(...) calls.
+        // ── API tab ─────────────────────────────────────────────────────────
         registry.register(RemoteLlmConnector(providers = llmProviders))
+        registry.register(HttpApiConnector())
 
-        // ── LOCAL tab ───────────────────────────────────────────────
+        // ── LOCAL tab ───────────────────────────────────────────────────────
         registry.register(AndroidIntentConnector(appContext))
         registry.register(VoiceConnector(backend = voiceBackend))
+        registry.register(FilesystemConnector(appContext))
+        registry.register(DocumentConnector(appContext))
+        registry.register(SchedulerConnector(appContext))
+        registry.register(GitConnector())
 
-        // ── SYSTEM tab ──────────────────────────────────────────────
+        if (ragRetriever != null && memoryManager != null) {
+            registry.register(MemoryRagConnector(ragRetriever, memoryManager))
+        }
+
+        // ── SYSTEM tab ──────────────────────────────────────────────────────
         registry.register(SystemInfoConnector(appContext))
+        registry.register(DeviceControlConnector(appContext))
+        registry.register(LogcatConnector())
+        registry.register(TerminalConnector())
 
-        // ── MCP tab ─────────────────────────────────────────────────
+        // ── MCP tab ─────────────────────────────────────────────────────────
         registry.register(InMemoryMcpConnector())
 
-        // ── APP tab (legacy bridge) ─────────────────────────────────
-        // Wrap the existing legacy Integration instances so users see
-        // them in the new Connectors UI without breaking anything that
-        // still calls IntegrationsViewModel directly.
+        // ── APP tab (legacy bridge) ─────────────────────────────────────────
         val legacyPrefs = appContext.getSharedPreferences(
             "airi_integrations", Context.MODE_PRIVATE,
         )

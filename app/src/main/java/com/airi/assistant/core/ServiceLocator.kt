@@ -202,9 +202,11 @@ object ServiceLocator {
         )
         ConnectorRegistry().also { reg ->
             ConnectorBootstrap.installDefaults(
-                appContext   = requireContext(),
-                registry     = reg,
-                llmProviders = llmProviders,
+                appContext    = requireContext(),
+                registry      = reg,
+                llmProviders  = llmProviders,
+                ragRetriever  = ragRetriever,
+                memoryManager = memoryManager,
             )
         }
     }
@@ -342,6 +344,26 @@ object ServiceLocator {
 
     val ragRetriever: RagRetriever by lazy {
         RagRetriever(memoryManager)
+    }
+
+    // ── Phase 4 Memory Stores ─────────────────────────────────────────────────
+
+    val episodicMemoryStore: com.airi.assistant.memory.EpisodicMemoryStore by lazy {
+        com.airi.assistant.memory.EpisodicMemoryStore(requireContext())
+    }
+
+    val errorMemoryStore: com.airi.assistant.memory.ErrorMemoryStore by lazy {
+        com.airi.assistant.memory.ErrorMemoryStore(requireContext())
+    }
+
+    val userPreferenceMemory: com.airi.assistant.memory.UserPreferenceMemory by lazy {
+        com.airi.assistant.memory.UserPreferenceMemory(requireContext())
+    }
+
+    // ── Phase 7 Provider Manager ──────────────────────────────────────────────
+
+    val providerManager: com.airi.assistant.execution.ProviderManager by lazy {
+        com.airi.assistant.execution.ProviderManager()
     }
 
     // ── Model Governance Engine ───────────────────────────────────────────────

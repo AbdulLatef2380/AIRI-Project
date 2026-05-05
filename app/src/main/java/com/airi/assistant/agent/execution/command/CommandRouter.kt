@@ -5,6 +5,8 @@ import com.airi.assistant.agent.planning.PlanStep
 import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgentContext
 import com.airi.assistant.agent.subagent.SubAgentRegistry
+import com.airi.assistant.connector.ConnectorActionBridge
+import com.airi.assistant.connector.ConnectorOutput
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.prefs.ExecModePreferences
@@ -168,6 +170,38 @@ object CommandRouter {
         if (aliasResult != null) {
             Log.i(TAG, "Custom:tier1 alias='${step.action}' success=${aliasResult.success}")
             return aliasResult
+        }
+
+        // ── Tier 1.5: Connector dispatch ───────────────────────────────────────
+        // Maps well-known connector action names (read_file, exec, http_get,
+        // git_status, logcat_read, set_clipboard, battery_status, …) directly
+        // to the registered [ConnectorRegistry] without going through the
+        // SubAgentRegistry keyword scorer. This is the bridge that closes the
+        // gap between the 13 wired connectors and the agent execution path.
+        if (ConnectorActionBridge.handles(step.action)) {
+            val connectorOutput = ConnectorActionBridge.dispatch(
+                action = step.action,
+                params = step.parameters,
+                text   = step.parameters["text"]
+                    ?: step.parameters["content"]
+                    ?: step.parameters["command"]
+                    ?: step.parameters["body"]
+                    ?: "",
+            )
+            if (connectorOutput != null) {
+                Log.i(TAG, "Custom:tier1.5 connector='${step.action}' success=${connectorOutput is ConnectorOutput.Success}")
+                return when (connectorOutput) {
+                    is ConnectorOutput.Success   ->
+                        CommandResult(true, connectorOutput.text.ifBlank { "connector:${step.action}:ok" })
+                    is ConnectorOutput.Failure   -> {
+                        Log.w(TAG, "Custom:tier1.5 failure code=${connectorOutput.code}: ${connectorOutput.message.take(80)}")
+                        CommandResult(false, connectorOutput.message)
+                    }
+                    is ConnectorOutput.Streaming ->
+                        CommandResult(true, "connector:${step.action}:streaming")
+                }
+            }
+            // connector was recognised but registry was unavailable — fall through
         }
 
         // ── Tier 2: SubAgentRegistry routing ──────────────────────────────────

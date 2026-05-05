@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.connector.ConnectorActionBridge
+import com.airi.assistant.connector.ConnectorOutput
 import com.airi.assistant.domain.customskill.CustomSkill
 import com.airi.assistant.domain.customskill.CustomSkillExecutor
 import com.airi.assistant.domain.customskill.CustomSkillRepository
@@ -34,6 +36,20 @@ class ToolRegistry(private val context: Context) {
         customSkillRepository.getAllSkills().forEach { skill ->
             tools.add(CustomSkillTool(context, skill))
         }
+        // ── System connector tools (always available — no auth required) ────────
+        // These route through ConnectorActionBridge → ConnectorRegistry so any
+        // connector that was registered at startup is reachable via the direct
+        // tool-call format: {"tool":"read_file","params":{"path":"internal://..."}}
+        tools.add(ReadFileTool())
+        tools.add(WriteFileTool())
+        tools.add(ListDirTool())
+        tools.add(ExecTool())
+        tools.add(HttpGetTool())
+        tools.add(HttpPostTool())
+        tools.add(BatteryStatusTool())
+        tools.add(GetDeviceInfoTool())
+        tools.add(LogcatReadTool())
+        tools.add(GitStatusTool())
         return tools
     }
 
@@ -107,6 +123,47 @@ class ToolRegistry(private val context: Context) {
             "calendar_next_events" to ToolMeta(
                 whenToUse = "When user asks about upcoming meetings, schedule, or calendar events",
                 expectedInput = "count (optional): number of events to return"
+            ),
+            // ── System connector tools ────────────────────────────────────────
+            "read_file" to ToolMeta(
+                whenToUse = "When user asks to read, view, or display the contents of a file on the device",
+                expectedInput = "path: file path prefixed with internal://, cache://, or external://"
+            ),
+            "write_file" to ToolMeta(
+                whenToUse = "When user asks to write, save, or create a file on the device",
+                expectedInput = "path: file path (internal://...), content: text content to write"
+            ),
+            "list_dir" to ToolMeta(
+                whenToUse = "When user asks to list, browse, or show files in a directory",
+                expectedInput = "path: directory path (e.g. internal:// for app root)"
+            ),
+            "exec" to ToolMeta(
+                whenToUse = "When user asks to run a shell command on the device (ls, cat, echo, ping, df, ps, curl, etc.)",
+                expectedInput = "command: the shell command string to execute"
+            ),
+            "http_get" to ToolMeta(
+                whenToUse = "When user asks to fetch a URL, check a website, or retrieve data from a REST API",
+                expectedInput = "url: fully-qualified https:// URL"
+            ),
+            "http_post" to ToolMeta(
+                whenToUse = "When user asks to send data to a REST API endpoint via HTTP POST",
+                expectedInput = "url: endpoint URL, body: JSON body string"
+            ),
+            "battery_status" to ToolMeta(
+                whenToUse = "When user asks about battery level, charge status, or power information",
+                expectedInput = "No parameters required"
+            ),
+            "get_device_info" to ToolMeta(
+                whenToUse = "When user asks about the device model, Android version, or hardware details",
+                expectedInput = "No parameters required"
+            ),
+            "logcat_read" to ToolMeta(
+                whenToUse = "When user asks to view recent system logs, debug output, or app errors",
+                expectedInput = "lines (optional): number of log lines to return, default 50"
+            ),
+            "git_status" to ToolMeta(
+                whenToUse = "When user asks about the git status of a repository on the device",
+                expectedInput = "repo_path (optional): path to the git repo"
             )
         )
     }
@@ -237,4 +294,110 @@ private class CalendarNextEventsTool : Tool {
             error = "Calendar API access requires a full OAuth access token. " +
                     "Re-connect Google and request offline access to enable this tool."
         )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// System Connector Tools — route through ConnectorActionBridge
+// ═══════════════════════════════════════════════════════════════════════════
+
+private suspend fun connectorTool(
+    action: String,
+    params: Map<String, String>,
+    text: String = "",
+): ToolResult {
+    val out = ConnectorActionBridge.dispatch(action = action, params = params, text = text)
+        ?: return ToolResult(false, "", "Connector '$action' not available (registry not initialised)")
+    return when (out) {
+        is ConnectorOutput.Success   -> ToolResult(true,  out.text.ifBlank { "ok" }, null)
+        is ConnectorOutput.Failure   -> ToolResult(false, "",                         out.message)
+        is ConnectorOutput.Streaming -> ToolResult(true,  "streaming",                null)
+    }
+}
+
+private class ReadFileTool : Tool {
+    override val name        = "read_file"
+    override val description = "Read text content from a file in the app's scoped storage"
+    override val parameters  = mapOf("path" to "File path (internal://..., cache://..., external://...)")
+    override suspend fun execute(params: Map<String, String>): ToolResult =
+        connectorTool("read_file", params)
+}
+
+private class WriteFileTool : Tool {
+    override val name        = "write_file"
+    override val description = "Write text content to a file in the app's scoped storage (creates if missing)"
+    override val parameters  = mapOf(
+        "path"    to "File path (internal://..., cache://..., external://...)",
+        "content" to "Text content to write"
+    )
+    override suspend fun execute(params: Map<String, String>): ToolResult =
+        connectorTool("write_file", params, text = params["content"] ?: "")
+}
+
+private class ListDirTool : Tool {
+    override val name        = "list_dir"
+    override val description = "List files and subdirectories inside a directory"
+    override val parameters  = mapOf("path" to "Directory path (e.g. internal:// for app root)")
+    override suspend fun execute(params: Map<String, String>): ToolResult =
+        connectorTool("list_dir", params)
+}
+
+private class ExecTool : Tool {
+    override val name        = "exec"
+    override val description = "Execute a sandboxed shell command (allowed: ls, cat, echo, grep, curl, ping, df, ps, uname, id, date, find, sort, wc, head, tail, tr)"
+    override val parameters  = mapOf("command" to "Shell command string to execute")
+    override suspend fun execute(params: Map<String, String>): ToolResult {
+        val cmd = params["command"] ?: return ToolResult(false, "", "Missing 'command' parameter")
+        return connectorTool("exec", params, text = cmd)
+    }
+}
+
+private class HttpGetTool : Tool {
+    override val name        = "http_get"
+    override val description = "Perform an HTTP GET request and return the response body"
+    override val parameters  = mapOf("url" to "Fully-qualified https:// URL to fetch")
+    override suspend fun execute(params: Map<String, String>): ToolResult =
+        connectorTool("http_get", params, text = params["url"] ?: "")
+}
+
+private class HttpPostTool : Tool {
+    override val name        = "http_post"
+    override val description = "Perform an HTTP POST request with a JSON body"
+    override val parameters  = mapOf(
+        "url"  to "Fully-qualified https:// endpoint URL",
+        "body" to "JSON body string to send"
+    )
+    override suspend fun execute(params: Map<String, String>): ToolResult =
+        connectorTool("http_post", params, text = params["body"] ?: "")
+}
+
+private class BatteryStatusTool : Tool {
+    override val name        = "battery_status"
+    override val description = "Get current battery level and charging status"
+    override val parameters  = emptyMap<String, String>()
+    override suspend fun execute(params: Map<String, String>): ToolResult =
+        connectorTool("battery_status", emptyMap())
+}
+
+private class GetDeviceInfoTool : Tool {
+    override val name        = "get_device_info"
+    override val description = "Get device model, manufacturer, Android version, and hardware details"
+    override val parameters  = emptyMap<String, String>()
+    override suspend fun execute(params: Map<String, String>): ToolResult =
+        connectorTool("get_device_info", emptyMap())
+}
+
+private class LogcatReadTool : Tool {
+    override val name        = "logcat_read"
+    override val description = "Read recent Android system log lines"
+    override val parameters  = mapOf("lines" to "Number of log lines to return (default 50, max 200)")
+    override suspend fun execute(params: Map<String, String>): ToolResult =
+        connectorTool("logcat_read", params)
+}
+
+private class GitStatusTool : Tool {
+    override val name        = "git_status"
+    override val description = "Get the git working-tree status of a repository on the device"
+    override val parameters  = mapOf("repo_path" to "Absolute path to the git repository (optional)")
+    override suspend fun execute(params: Map<String, String>): ToolResult =
+        connectorTool("git_status", params)
 }

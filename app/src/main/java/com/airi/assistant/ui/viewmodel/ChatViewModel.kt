@@ -96,7 +96,10 @@ import com.airi.assistant.execution.diagnostics.ExecutionDiagnosticsState
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.execution.router.RuntimeRouter
 import com.airi.assistant.execution.security.SecureApiKeyStore
+import com.airi.assistant.agent.AgentLifecycleState
+import com.airi.assistant.agent.ObservationEngine
 import com.airi.assistant.agent.planning.BrainInput
+import com.airi.assistant.agent.planning.PlanGenerator
 import com.airi.assistant.core.CognitiveResult
 import com.airi.assistant.core.UnifiedCognitiveLoop
 import com.airi.assistant.voice.VoskModelManager
@@ -1667,9 +1670,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             buildEffectiveSystemPrompt(perfMode, queryType)
         }
-        // Phase 1: For ACTION queries, append a structured plan request so the LLM
-        // produces a JSON execution plan that UnifiedCognitiveLoop can parse and run.
-        return if (queryType == QueryType.ACTION) base + ACTION_PLAN_SUFFIX else base
+        // For ACTION queries, prepend the autonomous planner system prompt so the
+        // LLM understands it is acting as AIRI planner (atomic steps, no vague actions,
+        // retry logic, minimal destructive ops).  ACTION_PLAN_SUFFIX is kept as the
+        // trailing JSON format reminder appended after the persona base.
+        return if (queryType == QueryType.ACTION)
+            PlanGenerator.PLANNER_SYSTEM_PROMPT + "\n\n" + base + ACTION_PLAN_SUFFIX
+        else
+            base
     }
 
     private suspend fun streamRemoteResponse(
@@ -2964,12 +2972,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // UnifiedCognitiveLoop.process() parses this plan and routes each step through
         // CommandRouter → AccessibilityExecutionEngine → TypedPlanGraph.
         const val ACTION_PLAN_SUFFIX =
-            "\n\nIf this request requires device actions, after your natural reply append " +
-            "a JSON execution plan on a single line:\n" +
+            "\n\nIf this request requires device or system actions, after your natural reply " +
+            "append a JSON execution plan on a SINGLE LINE (no newlines inside):\n" +
             "{\"goal\":\"<goal>\",\"steps\":[{\"id\":\"1\",\"action\":\"<action>\"," +
-            "\"params\":{\"app\":\"<package_or_name>\",\"target\":\"<ui_element>\"," +
-            "\"text\":\"<text_to_type>\"},\"depends_on\":[]}]}\n" +
-            "Supported actions: open_app, click, type, search, scroll, navigate, wait. " +
-            "Only include steps actually needed; omit params that do not apply."
+            "\"params\":{\"<key>\":\"<value>\"},\"depends_on\":[]}]}\n" +
+            "DEVICE/UI actions — params shown in parentheses:\n" +
+            "  open_app (app), click (target), type (text), search (query),\n" +
+            "  scroll (direction: up|down|left|right), navigate (direction: back|home|recents), wait (durationMs)\n" +
+            "FILE actions:\n" +
+            "  read_file (path), write_file (path; text=content), append_file (path; text=content),\n" +
+            "  list_dir (path), file_exists (path), delete_file (path), make_dir (path)\n" +
+            "  Paths: internal://file.txt  |  cache://tmp.txt  |  external://doc.pdf\n" +
+            "SHELL actions:\n" +
+            "  exec (command — must be an allowed binary e.g. ls, cat, echo, grep, curl, ping, df, ps)\n" +
+            "HTTP actions:\n" +
+            "  http_get (url), http_post (url; body=JSON), http_put (url; body=JSON), http_delete (url)\n" +
+            "SYSTEM/DEVICE info actions:\n" +
+            "  battery_status, network_status, get_device_info, get_clipboard,\n" +
+            "  set_clipboard (text=content), get_volume, get_wifi\n" +
+            "LOG actions:\n" +
+            "  logcat_read (lines=50), logcat_errors (lines=50), read_airi_proof (lines=100)\n" +
+            "GIT actions (repo_path param optional, defaults to app git root):\n" +
+            "  git_status, git_log (limit=10), git_diff (args), git_branch,\n" +
+            "  git_commit (text=message), git_pull\n" +
+            "Rules: only include steps actually needed; omit params that do not apply; " +
+            "use depends_on to express ordering ([] means no dependency)."
     }
 }

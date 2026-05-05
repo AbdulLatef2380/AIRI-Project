@@ -2,6 +2,7 @@ package com.airi.assistant.execution
 
 import android.content.Context
 import android.util.Log
+import com.airi.assistant.core.analytics.ProofLogger
 import com.airi.assistant.core.debug.EventSeverity
 import com.airi.assistant.core.debug.RuntimeEventLog
 import com.airi.assistant.execution.backend.RuntimeBackend
@@ -94,6 +95,7 @@ class HybridOrchestrator(
     fun cancel() {
         cancelled.set(true)
         Log.i(TAG, "cancel() called — genId=${currentGenId.get()}")
+        ProofLogger.log("HYBRID_CANCEL", "gen_id=${currentGenId.get()}")
         RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.WARN, "Cancel requested")
         updateDiagnostics { copy(isStreaming = false, lastCancelReason = "User cancel") }
     }
@@ -135,6 +137,11 @@ class HybridOrchestrator(
 
         // ── Step 1: Route ──────────────────────────────────────────────────
         val decision = router.route(request, context)
+        ProofLogger.hybridRouting(
+            execMode   = prefs.effectiveMode.name,
+            deviceWeak = decision.primary.origin == ExecOrigin.CLOUD,
+            fallback   = decision.fallbacks.isNotEmpty()
+        )
 
         if (cancelled.get()) {
             sessionCancellationCount++
@@ -191,6 +198,7 @@ class HybridOrchestrator(
                 sessionFallbackCount++
                 val prevId = allBackends[idx - 1].id
                 recordTransition(prevId, backend.id, lastError, backend.origin)
+                ProofLogger.cloudFailover(from = prevId, to = backend.id)
                 RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.WARN,
                     "gen#$genId FALLBACK ${allBackends[idx-1].id} → ${backend.id} reason=${lastError.take(60)}")
                 updateDiagnostics { copy(

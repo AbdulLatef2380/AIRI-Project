@@ -73,6 +73,7 @@ import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import com.airi.assistant.ui.components.AgentExecutionPanel
 import com.airi.assistant.ui.theme.AiBubbleSurface
 import com.airi.assistant.ui.theme.AiBubbleBorder
 import com.airi.assistant.ui.theme.UserBubbleSurface
@@ -692,6 +693,8 @@ fun ChatScreen(
             },
             bottomBar = {
               Column(modifier = Modifier.fillMaxWidth().imePadding()) {
+                // ── Live agent execution status panel ─────────────────────────
+                AgentExecutionPanel(agentState = agentState)
                 // ── PHASE 3 (actual fix): unified attachment chip row ──────────
                 // One row, one chip per attachment, regardless of kind. The
                 // image-vs-file-vs-camera distinction is now just an icon +

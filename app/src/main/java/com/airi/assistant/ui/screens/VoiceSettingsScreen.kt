@@ -4,15 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MicNone
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -22,20 +21,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
-import com.airi.assistant.voice.PorcupineEngine
+import com.airi.assistant.voice.InternalWakeWordEngine
 import com.airi.assistant.voice.VoskModelManager
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoiceSettingsScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
-    val scope   = rememberCoroutineScope()
+    val context  = LocalContext.current
+    val scope    = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) { VoskModelManager.refreshInstalled(context) }
@@ -43,11 +42,14 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
     val installed by VoskModelManager.installed.collectAsState()
     val activeId  by VoskModelManager.activeModelId.collectAsState()
 
-    var porcupineStatus by remember { mutableStateOf(PorcupineEngine.status(context)) }
-    var accessKeyInput  by remember { mutableStateOf("") }
-    var inFlightId      by remember { mutableStateOf<String?>(null) }
-    var progress        by remember { mutableStateOf(0) }
-    var showPorcupine   by remember { mutableStateOf(false) }
+    var wakeWordStatus by remember { mutableStateOf(InternalWakeWordEngine.status(context)) }
+    var inFlightId     by remember { mutableStateOf<String?>(null) }
+    var progress       by remember { mutableStateOf(0) }
+
+    // Refresh wake-word status when installed list changes
+    LaunchedEffect(installed, activeId) {
+        wakeWordStatus = InternalWakeWordEngine.status(context)
+    }
 
     Scaffold(
         topBar = {
@@ -76,7 +78,98 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            // ── Primary: Vosk installed models (works out of the box) ─────
+            // ── Internal Wake Word status card ────────────────────────────
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Filled.GraphicEq,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Wake Word — \"Hey AIRI\"",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+
+                    Text(
+                        "Fully on-device keyword detection powered by Vosk. " +
+                            "No API key, no cloud dependency, no proprietary SDK.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    Divider()
+
+                    val st = wakeWordStatus
+                    val (statusIcon, statusTint, statusMsg) = if (st.ready) {
+                        Triple(
+                            Icons.Filled.CheckCircle,
+                            Color(0xFF2BB673),
+                            "Ready — using ${st.modelName ?: "active model"}"
+                        )
+                    } else {
+                        Triple(
+                            Icons.Filled.Warning,
+                            MaterialTheme.colorScheme.error,
+                            "No Vosk model installed — download one below to enable wake word"
+                        )
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(statusIcon, contentDescription = null, tint = statusTint, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            statusMsg,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (st.ready) statusTint else MaterialTheme.colorScheme.error,
+                        )
+                    }
+
+                    if (st.activeModelId != null) {
+                        Text(
+                            "Model ID: ${st.activeModelId}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp
+                        )
+                    }
+
+                    if (!st.ready) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Filled.Info,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "Download a Vosk model below. Once installed and selected, " +
+                                        "\"Hey AIRI\" detection activates automatically.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Vosk installed models ──────────────────────────────────────
             ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -122,7 +215,10 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                                     )
                                 }
                                 if (!isActive) {
-                                    TextButton(onClick = { VoskModelManager.setActive(context, m.id) }) {
+                                    TextButton(onClick = {
+                                        VoskModelManager.setActive(context, m.id)
+                                        wakeWordStatus = InternalWakeWordEngine.status(context)
+                                    }) {
                                         Text(stringResource(R.string.vosk_set_active))
                                     }
                                 } else {
@@ -133,7 +229,10 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                                         modifier = Modifier.size(20.dp).padding(end = 4.dp),
                                     )
                                 }
-                                IconButton(onClick = { VoskModelManager.delete(context, m.id) }) {
+                                IconButton(onClick = {
+                                    VoskModelManager.delete(context, m.id)
+                                    wakeWordStatus = InternalWakeWordEngine.status(context)
+                                }) {
                                     Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.vosk_delete))
                                 }
                             }
@@ -143,9 +242,9 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                 }
             }
 
-            // ── Vosk available presets ────────────────────────────────────
+            // ── Vosk available presets ─────────────────────────────────────
             VoskModelManager.PRESETS.forEach { preset ->
-                val isInstalled  = installed.any { it.id == preset.id }
+                val isInstalled   = installed.any { it.id == preset.id }
                 val isDownloading = inFlightId == preset.id
                 ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -191,7 +290,8 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                                             preset     = preset,
                                             onProgress = { progress = it },
                                         )
-                                        inFlightId = null
+                                        inFlightId     = null
+                                        wakeWordStatus = InternalWakeWordEngine.status(context)
                                         when (res) {
                                             is VoskModelManager.DownloadResult.Ok ->
                                                 snackbar.showSnackbar("${res.installed.displayName} ✓")
@@ -211,109 +311,6 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                                 )
                             }
                         }
-                    }
-                }
-            }
-
-            // ── Optional: Porcupine wake-word (collapsible) ───────────────
-            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            Icons.Filled.Lock,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                stringResource(R.string.porcupine_section_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Text(
-                                "Optional — voice recognition works without this.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        TextButton(onClick = { showPorcupine = !showPorcupine }) {
-                            Text(if (showPorcupine) "Hide" else "Configure")
-                        }
-                    }
-
-                    // Status badge (always visible, concise)
-                    val st = porcupineStatus
-                    val (icon, tint, msg) = when {
-                        st.ready -> Triple(Icons.Filled.CheckCircle, Color(0xFF2BB673),
-                            stringResource(R.string.porcupine_status_ready))
-                        !st.accessKeyPresent && !st.ppnPresent -> Triple(
-                            Icons.Filled.Info, MaterialTheme.colorScheme.onSurfaceVariant,
-                            stringResource(R.string.porcupine_status_both_missing))
-                        !st.accessKeyPresent -> Triple(
-                            Icons.Filled.Warning, Color(0xFFE3A93B),
-                            stringResource(R.string.porcupine_status_missing_key))
-                        else -> Triple(
-                            Icons.Filled.Warning, Color(0xFFE3A93B),
-                            stringResource(R.string.porcupine_status_missing_ppn))
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-
-                    // Expanded configuration section
-                    if (showPorcupine) {
-                        Divider()
-                        if (st.ppnSourceLabel != null) {
-                            Text(
-                                "ppn: ${st.ppnSourceLabel}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        if (st.accessKeySource != null) {
-                            Text(
-                                if (st.accessKeySource == "runtime")
-                                    stringResource(R.string.porcupine_source_runtime)
-                                else stringResource(R.string.porcupine_source_build),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        OutlinedTextField(
-                            value = accessKeyInput,
-                            onValueChange = { accessKeyInput = it },
-                            label = { Text(stringResource(R.string.porcupine_access_key_label)) },
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = {
-                                    PorcupineEngine.setRuntimeAccessKey(context, accessKeyInput)
-                                    accessKeyInput  = ""
-                                    porcupineStatus = PorcupineEngine.status(context)
-                                },
-                                enabled = accessKeyInput.isNotBlank(),
-                            ) { Text(stringResource(R.string.porcupine_access_key_save)) }
-                            OutlinedButton(onClick = {
-                                PorcupineEngine.setRuntimeAccessKey(context, null)
-                                porcupineStatus = PorcupineEngine.status(context)
-                            }) { Text(stringResource(R.string.porcupine_access_key_clear)) }
-                        }
-                        Text(
-                            stringResource(R.string.porcupine_help_link),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
                     }
                 }
             }

@@ -1,8 +1,11 @@
 package com.airi.assistant.connector
 
 import android.content.Context
+import com.airi.assistant.accessibility.execution.AccessibilityExecutionEngine
+import com.airi.assistant.connector.accessibility.AccessibilityAutomationConnector
 import com.airi.assistant.connector.api.HttpApiConnector
 import com.airi.assistant.connector.api.RemoteLlmConnector
+import com.airi.assistant.connector.browser.BrowserConnector
 import com.airi.assistant.connector.legacy.IntegrationConnectorAdapter
 import com.airi.assistant.connector.local.AndroidIntentConnector
 import com.airi.assistant.connector.local.DocumentConnector
@@ -14,8 +17,11 @@ import com.airi.assistant.connector.local.VoiceConnector
 import com.airi.assistant.connector.mcp.InMemoryMcpConnector
 import com.airi.assistant.connector.system.DeviceControlConnector
 import com.airi.assistant.connector.system.LogcatConnector
+import com.airi.assistant.connector.system.ShellSandboxConnector
 import com.airi.assistant.connector.system.SystemInfoConnector
 import com.airi.assistant.connector.system.TerminalConnector
+import com.airi.assistant.connector.vision.OCRConnector
+import com.airi.assistant.connector.vision.VisionReasoningConnector
 import com.airi.assistant.integration.GithubIntegration
 import com.airi.assistant.integration.NotionIntegration
 import com.airi.assistant.integration.TelegramIntegration
@@ -34,7 +40,7 @@ import com.airi.assistant.memory.repository.MemoryManager
  * UI / agent decides when to call [Connector.connect]. That keeps app
  * startup cheap.
  *
- * ## Connector inventory (Phase 3 — 13 built-in connectors)
+ * ## Connector inventory (Phase 3 — 14 built-in connectors)
  *
  * API:
  *   - [RemoteLlmConnector]   — cloud LLM providers (OpenAI, Anthropic, etc.)
@@ -54,6 +60,7 @@ import com.airi.assistant.memory.repository.MemoryManager
  *   - [DeviceControlConnector] — clipboard, volume, Wi-Fi, device info
  *   - [LogcatConnector]        — Android system log reader
  *   - [TerminalConnector]      — sandboxed shell command execution
+ *   - [ShellSandboxConnector]  — allowlisted shell command sandbox (POSIX utilities)
  *
  * MCP:
  *   - [InMemoryMcpConnector]   — built-in echo demo; replace with real server
@@ -70,6 +77,7 @@ object ConnectorBootstrap {
         voiceBackend: VoiceConnector.VoiceBackend? = null,
         ragRetriever: RagRetriever? = null,
         memoryManager: MemoryManager? = null,
+        accessibilityEngine: AccessibilityExecutionEngine? = null,
     ) {
         // ── API tab ─────────────────────────────────────────────────────────
         registry.register(RemoteLlmConnector(providers = llmProviders))
@@ -92,9 +100,18 @@ object ConnectorBootstrap {
         registry.register(DeviceControlConnector(appContext))
         registry.register(LogcatConnector())
         registry.register(TerminalConnector())
+        registry.register(ShellSandboxConnector())
 
         // ── MCP tab ─────────────────────────────────────────────────────────
         registry.register(InMemoryMcpConnector())
+
+        // ── Phase 3: Advanced Tool Ecosystem ────────────────────────────────
+        registry.register(BrowserConnector(appContext))
+        registry.register(OCRConnector(appContext))
+        registry.register(VisionReasoningConnector(appContext))
+        if (accessibilityEngine != null) {
+            registry.register(AccessibilityAutomationConnector(accessibilityEngine))
+        }
 
         // ── APP tab (legacy bridge) ─────────────────────────────────────────
         val legacyPrefs = appContext.getSharedPreferences(

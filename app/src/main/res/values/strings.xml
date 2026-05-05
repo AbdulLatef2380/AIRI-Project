@@ -253,6 +253,8 @@
     <string name="agent_logs_description">View execution history and traces</string>
     <string name="agent_control">Agent Control</string>
     <string name="agent_control_description">Manage skills, tools, and debug mode</string>
+    <string name="task_dashboard">Task Dashboard</string>
+    <string name="task_dashboard_description">Live view of all autonomous runtime sessions</string>
     <string name="last_run">Last Run</string>
     <!-- Model per-card settings dialog -->
     <string name="model_name_label">Model Name</string>

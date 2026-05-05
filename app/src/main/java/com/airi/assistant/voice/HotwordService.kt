@@ -17,27 +17,59 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import ai.picovoice.porcupine.Porcupine
 import com.airi.assistant.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.vosk.Model
 import kotlin.concurrent.thread
 
 /**
- * Foreground service that runs the Picovoice Porcupine on-device wake-word
- * engine and broadcasts [ACTION_WAKE_WORD] when the user says "Hey AIRI".
+ * HotwordService — fully on-device wake-word detection using [InternalWakeWordEngine].
  *
- * Strict offline guarantee: this service uses NO network, NO Google APIs,
- * and NO RecognizerIntent. Mic audio never leaves the device.
+ * ── ARCHITECTURE ─────────────────────────────────────────────────────────
  *
- * If either the AccessKey or the bundled .ppn keyword file is missing the
- * service writes a clear log line and stops itself immediately. The Voice
- * Settings screen surfaces the same status to the user with instructions.
+ *   Replaces the former Picovoice Porcupine implementation with Vosk-based
+ *   keyword spotting. No proprietary SDK, no API key, no network dependency.
+ *
+ *   The wake phrase is "Hey AIRI".  Detection is grammar-constrained so Vosk
+ *   only attempts to recognise that specific phrase, reducing CPU and
+ *   false-positive rate significantly.
+ *
+ * ── REQUIREMENTS ─────────────────────────────────────────────────────────
+ *
+ *   1. RECORD_AUDIO permission must be granted.
+ *   2. At least one Vosk model must be installed via [VoskModelManager].
+ *      The active model is used. If none is installed the service stops
+ *      gracefully and logs a clear AIRI_PROOF tag.
+ *
+ * ── LIFECYCLE ────────────────────────────────────────────────────────────
+ *
+ *   1. [onStartCommand] launches a coroutine to load the Vosk model.
+ *   2. Once loaded, a background capture thread feeds AudioRecord frames
+ *      to [InternalWakeWordEngine].
+ *   3. On detection: the main activity is brought to foreground and
+ *      [ACTION_WAKE_WORD] is broadcast to any listeners.
+ *   4. [onDestroy] stops the capture thread and releases resources.
+ *
+ * ── PROOF TAGS ───────────────────────────────────────────────────────────
+ *
+ *   HOTWORD_STARTED  — service ready, capture loop running
+ *   HOTWORD_DETECTED — wake phrase confirmed
+ *   HOTWORD_DISABLED — stopped due to missing model or permission
  */
 class HotwordService : Service() {
 
-    @Volatile private var porcupine: Porcupine? = null
-    @Volatile private var audioRecord: AudioRecord? = null
-    @Volatile private var captureThread: Thread? = null
+    @Volatile private var model:        Model?                  = null
+    @Volatile private var wakeEngine:   InternalWakeWordEngine? = null
+    @Volatile private var audioRecord:  AudioRecord?            = null
+    @Volatile private var captureThread: Thread?                = null
     @Volatile private var running = false
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -49,46 +81,51 @@ class HotwordService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startInForeground()
         if (running) return START_STICKY
+
+        // Permission check
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED) {
-            Log.w(TAG, "Hotword: RECORD_AUDIO not granted — stopping")
+            Log.w(TAG, "AIRI_PROOF HOTWORD_DISABLED reason=missing_record_audio_permission")
             stopSelf()
             return START_NOT_STICKY
         }
 
-        val accessKey = PorcupineEngine.accessKey(this)
-        val ppnFile   = PorcupineEngine.resolvePpnFile(this)
-        if (accessKey.isBlank()) {
-            Log.w(TAG, "AIRI_PROOF HOTWORD_DISABLED reason=missing_access_key — see VoiceSettings")
-            stopSelf()
-            return START_NOT_STICKY
-        }
-        if (ppnFile == null) {
-            Log.w(TAG, "AIRI_PROOF HOTWORD_DISABLED reason=missing_ppn — drop hey_airi.ppn into res/raw or assets/voice")
-            stopSelf()
-            return START_NOT_STICKY
+        // Model loading is async — don't block onStartCommand
+        scope.launch {
+            val loadedModel = withContext(Dispatchers.IO) {
+                InternalWakeWordEngine.loadModel(applicationContext)
+            }
+
+            if (loadedModel == null) {
+                Log.w(TAG, "AIRI_PROOF HOTWORD_DISABLED reason=no_vosk_model_installed — " +
+                    "install a Vosk model in Voice Settings to enable wake-word detection")
+                stopSelf()
+                return@launch
+            }
+
+            model = loadedModel
+
+            val engine = InternalWakeWordEngine(loadedModel) { fireWake() }
+            wakeEngine = engine
+
+            startCapture(engine)
         }
 
-        val pp = try {
-            Porcupine.Builder()
-                .setAccessKey(accessKey)
-                .setKeywordPath(ppnFile.absolutePath)
-                .setSensitivity(0.6f)
-                .build(applicationContext)
-        } catch (t: Throwable) {
-            Log.w(TAG, "Porcupine init failed: ${t.message}", t)
-            stopSelf()
-            return START_NOT_STICKY
-        }
-        porcupine = pp
+        return START_STICKY
+    }
 
-        val frameLength = pp.frameLength
-        val sampleRate  = pp.sampleRate
+    // ── Audio Capture ─────────────────────────────────────────────────────────
 
+    @Suppress("MissingPermission")
+    private fun startCapture(engine: InternalWakeWordEngine) {
+        val sampleRate  = 16_000
+        val frameSize   = 4_000  // 250ms of frames at 16kHz
         val minBuf = AudioRecord.getMinBufferSize(
-            sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
+            sampleRate,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT
         )
-        val bufSize = maxOf(minBuf, frameLength * 2 * 4) // shorts → bytes ×2
+        val bufSize = maxOf(minBuf, frameSize * 2 * 4) // shorts→bytes ×2, generous buffer
 
         val rec = try {
             AudioRecord(
@@ -100,50 +137,44 @@ class HotwordService : Service() {
             )
         } catch (t: Throwable) {
             Log.w(TAG, "AudioRecord create failed: ${t.message}", t)
-            try { pp.delete() } catch (_: Throwable) {}
-            porcupine = null
+            cleanupModel()
             stopSelf()
-            return START_NOT_STICKY
+            return
         }
+
         if (rec.state != AudioRecord.STATE_INITIALIZED) {
             try { rec.release() } catch (_: Throwable) {}
-            try { pp.delete() } catch (_: Throwable) {}
-            porcupine = null
-            Log.w(TAG, "AudioRecord not initialized — stopping")
+            Log.w(TAG, "AudioRecord not initialized — stopping HotwordService")
+            cleanupModel()
             stopSelf()
-            return START_NOT_STICKY
+            return
         }
-        audioRecord = rec
-        running = true
 
-        captureThread = thread(name = "AiriPorcupine", isDaemon = true) {
+        audioRecord = rec
+        running     = true
+
+        captureThread = thread(name = "AiriInternalKWS", isDaemon = true) {
             try {
                 rec.startRecording()
-                Log.i(TAG, "AIRI_PROOF HOTWORD_STARTED engine=porcupine frameLength=$frameLength sampleRate=$sampleRate")
-                val frame = ShortArray(frameLength)
+                Log.i(TAG, "AIRI_PROOF HOTWORD_STARTED engine=vosk_internal sampleRate=$sampleRate frameSize=$frameSize")
+                val frame = ShortArray(frameSize)
                 while (running) {
-                    val read = rec.read(frame, 0, frameLength)
-                    if (read <= 0) continue
-                    if (read < frameLength) continue
-                    val keywordIndex = try {
-                        pp.process(frame)
-                    } catch (t: Throwable) {
-                        Log.w(TAG, "porcupine.process failed: ${t.message}")
-                        -1
-                    }
-                    if (keywordIndex >= 0) fireWake()
+                    val nRead = rec.read(frame, 0, frameSize)
+                    if (nRead <= 0) continue
+                    engine.processFrame(frame, nRead)
                 }
             } catch (t: Throwable) {
-                Log.w(TAG, "Capture loop failed: ${t.message}", t)
+                Log.w(TAG, "KWS capture loop error: ${t.message}", t)
             } finally {
                 try { rec.stop() } catch (_: Throwable) {}
             }
         }
-        return START_STICKY
     }
 
+    // ── Wake Detection ────────────────────────────────────────────────────────
+
     private fun fireWake() {
-        Log.i(TAG, "AIRI_PROOF HOTWORD_DETECTED engine=porcupine")
+        Log.i(TAG, "AIRI_PROOF HOTWORD_DETECTED engine=vosk_internal")
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             putExtra(EXTRA_FROM_WAKE_WORD, true)
@@ -154,6 +185,8 @@ class HotwordService : Service() {
         sendBroadcast(Intent(ACTION_WAKE_WORD).setPackage(packageName))
     }
 
+    // ── Foreground Notification ───────────────────────────────────────────────
+
     private fun startInForeground() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -162,17 +195,16 @@ class HotwordService : Service() {
             ).apply { setShowBadge(false) }
             nm.createNotificationChannel(ch)
         }
-        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-        val pi = launchIntent?.let {
+        val pi = packageManager.getLaunchIntentForPackage(packageName)?.let { i ->
             PendingIntent.getActivity(
-                this, 0, it,
+                this, 0, i,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         }
         val notif: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("AIRI is listening for \"Hey AIRI\"")
-            .setContentText("Tap to open AIRI")
+            .setContentText("On-device wake word • no cloud dependency")
             .setOngoing(true)
             .setContentIntent(pi)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -180,20 +212,31 @@ class HotwordService : Service() {
         startForeground(NOTIF_ID, notif)
     }
 
+    // ── Cleanup ───────────────────────────────────────────────────────────────
+
     override fun onDestroy() {
         running = false
+        scope.cancel()
         try { captureThread?.join(500) } catch (_: Throwable) {}
         captureThread = null
         try { audioRecord?.release() } catch (_: Throwable) {}
         audioRecord = null
-        try { porcupine?.delete() } catch (_: Throwable) {}
-        porcupine = null
+        cleanupModel()
         Log.i(TAG, "HotwordService destroyed")
         super.onDestroy()
     }
 
+    private fun cleanupModel() {
+        try { wakeEngine?.close() } catch (_: Throwable) {}
+        wakeEngine = null
+        try { model?.close() } catch (_: Throwable) {}
+        model = null
+    }
+
+    // ── Companion ─────────────────────────────────────────────────────────────
+
     companion object {
-        private const val TAG = "AIRI_VOICE"
+        private const val TAG        = "AIRI_VOICE"
         private const val CHANNEL_ID = "airi_hotword"
         private const val NOTIF_ID   = 4711
 

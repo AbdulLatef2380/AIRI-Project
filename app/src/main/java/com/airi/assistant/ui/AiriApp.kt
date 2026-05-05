@@ -46,6 +46,7 @@ import com.airi.assistant.ui.screens.ReferralScreen
 import com.airi.assistant.ui.screens.SettingsScreen
 import com.airi.assistant.ui.screens.SkillBuilderScreen
 import com.airi.assistant.ui.screens.SkillManagerScreen
+import com.airi.assistant.ui.screens.TaskDashboardScreen
 import com.airi.assistant.ui.screens.WelcomeScreen
 import com.airi.assistant.ui.theme.AIRITheme
 import com.airi.assistant.ui.viewmodel.AgentViewModel
@@ -76,7 +77,8 @@ object AiriRoute {
     const val DEBUG_PANEL        = "screen_debug_panel"
     const val DEBUG_SCREEN       = "screen_debug_runtime"
     const val EXEC_DIAGNOSTICS   = "screen_exec_diagnostics"
-    const val VOICE_SETTINGS          = "screen_voice_settings"
+    const val VOICE_SETTINGS     = "screen_voice_settings"
+    const val TASK_DASHBOARD     = "screen_task_dashboard"
     const val SETTINGS_GENERAL       = "screen_settings_general"
     const val SETTINGS_AI_MODELS     = "screen_settings_ai_models"
     const val SETTINGS_CUSTOMIZATION = "screen_settings_customization"
@@ -305,8 +307,11 @@ fun AiriApp() {
 
                 composable(AiriRoute.AGENT_CONTROL) {
                     AgentControlScreen(
-                        viewModel = agentViewModel,
-                        onBack    = { navController.popBackStack() }
+                        viewModel  = agentViewModel,
+                        onBack     = { navController.popBackStack() },
+                        onNavigate = { route ->
+                            navController.navigate(route) { launchSingleTop = true }
+                        }
                     )
                 }
 
@@ -391,13 +396,24 @@ fun AiriApp() {
                 }
 
                 composable(AiriRoute.DEBUG_SCREEN) {
-                    DebugScreen(onBack = { navController.popBackStack() })
+                    DebugScreen(
+                        onBack     = { navController.popBackStack() },
+                        onNavigate = { route ->
+                            navController.navigate(route) { launchSingleTop = true }
+                        }
+                    )
                 }
 
                 composable(AiriRoute.EXEC_DIAGNOSTICS) {
                     ExecDiagnosticsScreen(
                         viewModel = chatViewModel,
                         onBack    = { navController.popBackStack() }
+                    )
+                }
+
+                composable(AiriRoute.TASK_DASHBOARD) {
+                    TaskDashboardScreen(
+                        onBack = { navController.popBackStack() }
                     )
                 }
             }

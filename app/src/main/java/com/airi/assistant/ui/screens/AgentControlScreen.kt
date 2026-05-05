@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.viewmodel.AgentViewModel
 
@@ -25,7 +26,8 @@ import com.airi.assistant.ui.viewmodel.AgentViewModel
 @Composable
 fun AgentControlScreen(
     viewModel: AgentViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigate: (String) -> Unit = {}
 ) {
     val skillInfos  = remember { viewModel.getSkillInfos().toMutableStateList() }
     val toolList    = remember { viewModel.getToolList() }
@@ -178,6 +180,34 @@ fun AgentControlScreen(
                             )
                         }
                     }
+                }
+            }
+
+            // ── Task Dashboard ──────────────────────────────────────────────
+            AgentControlCard {
+                AgentSectionHeader(icon = Icons.Outlined.Dashboard, title = "Task Dashboard")
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text  = "Monitor and manage all live autonomous runtime sessions.",
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.35f),
+                    modifier = Modifier.padding(bottom = 10.dp)
+                )
+                Button(
+                    onClick = { onNavigate(AiriRoute.TASK_DASHBOARD) },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CosmicAccent.copy(alpha = 0.18f),
+                        contentColor   = CosmicAccent
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        Icons.Outlined.Dashboard,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Open Task Dashboard", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
 

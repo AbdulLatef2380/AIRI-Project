@@ -16,6 +16,7 @@ import com.airi.assistant.agent.subagent.SubAgentContext
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.airi.assistant.ai.CatalogEntry
+import com.airi.assistant.ai.ContextPressureManager
 import com.airi.assistant.ai.DeviceProfiler
 import com.airi.assistant.ai.ModelConfigManager
 import com.airi.assistant.ai.PerformanceMode
@@ -309,6 +310,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // Receives the LLM's raw response after generation completes and executes
     // any JSON action plan embedded in it via the TypedPlanGraph DAG engine.
     private val cognitiveLoop            = UnifiedCognitiveLoop()
+
+    // ── Phase 4 — Context Pressure Manager ────────────────────────────────────
+    // Tracks cumulative token usage against the active model's context window.
+    // Exposed as a public StateFlow so UI can show a live pressure indicator.
+    // addTokens() is called on every token-count update during local generation.
+    // reset() is called whenever a new session is loaded / created.
+    private val contextPressureManager   = ServiceLocator.contextPressureManager
+
+    /** Live context window pressure — observe in UI to show warning indicators. */
+    val contextPressure: kotlinx.coroutines.flow.StateFlow<ContextPressureManager.PressureReport> =
+        contextPressureManager.pressure
 
     // ── UI State ──────────────────────────────────────────────────────────────
 
@@ -768,6 +780,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             streamAccumulator.setLength(0); _streamingText.value = ""
             _agentState.value = AgentState()
             llamaManager.setHistory(emptyList())
+            // Reset context pressure when starting a fresh conversation.
+            contextPressureManager.reset()
             refreshSessions()
         }
     }
@@ -781,6 +795,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 ChatMessage(text = msg.content, isUser = msg.role == "user", id = msg.id)
             }
             llamaManager.setHistory(history.takeLast(12))
+            // Seed context pressure with a rough estimate of the loaded history size
+            // so the pressure indicator is accurate even for resumed conversations.
+            contextPressureManager.reset()
+            val estimatedExistingTokens = history.sumOf { it.content.length / 4 + 1 }
+            if (estimatedExistingTokens > 0) {
+                contextPressureManager.setUsed(estimatedExistingTokens)
+            }
             refreshSessions()
         }
     }
@@ -1450,6 +1471,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             _debugState.update { it.copy(lastFirstTokenMs = firstTokenMs) }
                         }
                         tokenCount += tokenBatch.length / 4 + 1
+                        // Feed live token delta into ContextPressureManager so
+                        // the UI pressure indicator updates on every token batch.
+                        contextPressureManager.addTokens(tokenBatch.length / 4 + 1)
                         // PERF: append to accumulator (O(1) amortised) then
                         // publish the full string once — no per-token copy.
                         if (_streamingText.value in allThinkingStages) {
@@ -1698,6 +1722,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             temperature = perfMode.temperature,
             onToken = { token ->
                 tokenCount++
+                // Track cloud tokens in ContextPressureManager so pressure
+                // indicator is accurate even when using a remote model.
+                contextPressureManager.addTokens(token.length / 4 + 1)
                 withContext(Dispatchers.Main) {
                     val stages = setOf("Thinking...", "Analyzing...", "Planning...", "Generating...")
                     _streamingText.update { current ->

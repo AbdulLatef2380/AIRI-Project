@@ -74,6 +74,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.airi.assistant.ui.components.AgentExecutionPanel
+import com.airi.assistant.ui.components.ContextPressureBar
 import com.airi.assistant.ui.theme.AiBubbleSurface
 import com.airi.assistant.ui.theme.AiBubbleBorder
 import com.airi.assistant.ui.theme.UserBubbleSurface
@@ -93,12 +94,13 @@ fun ChatScreen(
     val context       = LocalContext.current
     val drawerState   = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope         = rememberCoroutineScope()
-    val messages      by viewModel.messages.collectAsState()
-    val streamingText by viewModel.streamingText.collectAsState()
-    val agentState    by viewModel.agentState.collectAsState()
-    val modelState    by viewModel.modelState.collectAsState()
-    val agentMode     by viewModel.agentMode.collectAsState()
-    val smartReplies  by viewModel.smartReplies.collectAsState()
+    val messages         by viewModel.messages.collectAsState()
+    val streamingText    by viewModel.streamingText.collectAsState()
+    val agentState       by viewModel.agentState.collectAsState()
+    val modelState       by viewModel.modelState.collectAsState()
+    val agentMode        by viewModel.agentMode.collectAsState()
+    val smartReplies     by viewModel.smartReplies.collectAsState()
+    val contextPressure  by viewModel.contextPressure.collectAsState()
     val snackbarHost  = remember { SnackbarHostState() }
     val paywallTrigger        by viewModel.paywallTrigger.collectAsState()
     val upgradePrompt         by viewModel.upgradePrompt.collectAsState()
@@ -693,6 +695,25 @@ fun ChatScreen(
             },
             bottomBar = {
               Column(modifier = Modifier.fillMaxWidth().imePadding()) {
+                // ── Context window pressure indicator ──────────────────────────
+                // Visible only at WARNING (≥70%), CRITICAL (≥90%), OVERFLOW (≥100%).
+                // Slides in/out with animated progress bar + level-appropriate CTA.
+                ContextPressureBar(
+                    report      = contextPressure,
+                    onSummarize = {
+                        Log.i("AIRI_PROOF", "CONTEXT_PRESSURE_SUMMARIZE_REQUESTED " +
+                            "level=${contextPressure.level} used=${contextPressure.usedPercent}%")
+                        viewModel.sendMessage(
+                            "Summarize our conversation so far in 3–4 sentences, " +
+                            "covering the main topics and any conclusions reached."
+                        )
+                    },
+                    onNewChat   = {
+                        Log.i("AIRI_PROOF", "CONTEXT_PRESSURE_NEW_CHAT_REQUESTED " +
+                            "level=${contextPressure.level} used=${contextPressure.usedPercent}%")
+                        viewModel.clearMessages()
+                    }
+                )
                 // ── Live agent execution status panel ─────────────────────────
                 AgentExecutionPanel(agentState = agentState)
                 // ── PHASE 3 (actual fix): unified attachment chip row ──────────
@@ -2360,8 +2381,9 @@ fun AiriDrawer(
         Divider(color = Color.White.copy(alpha = 0.06f))
         Spacer(Modifier.height(4.dp))
 
-        DrawerNavItem(icon = Icons.Outlined.ManageHistory,  label = stringResource(R.string.agent_logs),    route = AiriRoute.AGENT_LOGS,   onNavigate = onNavigate)
-        DrawerNavItem(icon = Icons.Outlined.Tune,           label = stringResource(R.string.agent_control), route = AiriRoute.AGENT_CONTROL,onNavigate = onNavigate)
+        DrawerNavItem(icon = Icons.Outlined.ManageHistory,  label = stringResource(R.string.agent_logs),      route = AiriRoute.AGENT_LOGS,      onNavigate = onNavigate)
+        DrawerNavItem(icon = Icons.Outlined.Tune,           label = stringResource(R.string.agent_control),   route = AiriRoute.AGENT_CONTROL,   onNavigate = onNavigate)
+        DrawerNavItem(icon = Icons.Outlined.Dashboard,      label = stringResource(R.string.task_dashboard),  route = AiriRoute.TASK_DASHBOARD,  onNavigate = onNavigate)
 
         Spacer(Modifier.height(8.dp))
 

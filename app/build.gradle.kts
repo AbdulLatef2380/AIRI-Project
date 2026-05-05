@@ -33,16 +33,8 @@ android {
             abiFilters += listOf("arm64-v8a")
         }
 
-        // ── Picovoice Porcupine AccessKey ────────────────────────────────
-        // Read from (in order): -PpicovoiceAccessKey=… gradle prop, then
-        // PICOVOICE_ACCESS_KEY env var. When empty the wake-word service
-        // refuses to start and the Voice Settings screen tells the user
-        // exactly what to do. The user can ALSO paste a key at runtime
-        // (stored in EncryptedSharedPreferences) without a rebuild.
-        val picovoiceKey: String =
-            (project.findProperty("picovoiceAccessKey") as? String).orEmpty()
-                .ifBlank { System.getenv("PICOVOICE_ACCESS_KEY").orEmpty() }
-        buildConfigField("String", "PICOVOICE_ACCESS_KEY", "\"" + picovoiceKey.replace("\"", "\\\"") + "\"")
+        // Wake-word is handled by InternalWakeWordEngine (Vosk KWS) —
+        // no API key or proprietary SDK required.
 
         // Native (llama.cpp + JNI bridge) is built from source — see
         // app/src/main/cpp/CMakeLists.txt. No prebuilt .so is shipped; if
@@ -241,15 +233,14 @@ dependencies {
     // Version 0.32.0 is compatible with Compose BOM 2023.10.01 (Compose 1.5.x).
     implementation("com.google.accompanist:accompanist-permissions:0.32.0")
 
-    // Picovoice Porcupine = on-device wake-word ("Hey AIRI"). Requires
-    // (a) a Picovoice AccessKey supplied via PICOVOICE_ACCESS_KEY (gradle
-    //     property, environment variable, or runtime via Settings) and
-    // (b) a custom .ppn keyword file dropped at:
-    //         app/src/main/res/raw/hey_airi.ppn      (preferred)
-    //     or  app/src/main/assets/voice/hey_airi.ppn (fallback)
-    // When either is missing the wake-word service exits cleanly and the
-    // UI shows the user how to enable it. See PorcupineEngine.kt.
-    implementation(libs.porcupineAndroid)
+    // Wake-word detection is now handled by InternalWakeWordEngine (Vosk KWS).
+    // No Picovoice / Porcupine dependency — no API key, no .ppn file required.
+
+    // ── OCR (Phase 3 — OCRConnector) ─────────────────────────────────────────
+    // Required by OCRConnector for on-device text recognition. Fully offline —
+    // no network call. Falls back gracefully if model download hasn't completed.
+    implementation("com.google.mlkit:text-recognition:16.0.0")
+    implementation("com.google.mlkit:text-recognition-arabic:16.0.0")
 }
 
 tasks.register("airiVerifyOptimization") {

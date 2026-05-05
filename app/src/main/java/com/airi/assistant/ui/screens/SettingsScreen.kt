@@ -1014,6 +1014,12 @@ internal fun AgentSection(
             sublabel = stringResource(R.string.agent_control_description),
             onClick  = { onNavigate(AiriRoute.AGENT_CONTROL) }
         )
+        Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 4.dp))
+        SettingsNavigationRow(
+            label    = stringResource(R.string.task_dashboard),
+            sublabel = stringResource(R.string.task_dashboard_description),
+            onClick  = { onNavigate(AiriRoute.TASK_DASHBOARD) }
+        )
     }
 }
 
@@ -1316,6 +1322,12 @@ internal fun ObservabilitySection(onNavigate: (String) -> Unit) {
             label    = "Execution Diagnostics",
             sublabel = "Live hybrid engine status · daily cloud token usage",
             onClick  = { onNavigate(AiriRoute.EXEC_DIAGNOSTICS) }
+        )
+        Divider(color = Color.White.copy(alpha = 0.06f), modifier = Modifier.padding(vertical = 4.dp))
+        SettingsNavigationRow(
+            label    = stringResource(R.string.task_dashboard),
+            sublabel = stringResource(R.string.task_dashboard_description),
+            onClick  = { onNavigate(AiriRoute.TASK_DASHBOARD) }
         )
     }
 }

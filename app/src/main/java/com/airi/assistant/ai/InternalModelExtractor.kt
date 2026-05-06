@@ -38,7 +38,7 @@ import java.security.MessageDigest
  *
  * ── KNOWN MODELS ─────────────────────────────────────────────────────────
  *
- *   LLaMA GGUF  — assets/models/*.gguf  → filesDir/models/*.gguf
+ *   LLaMA GGUF  — assets/models/[name].gguf  → filesDir/models/[name].gguf
  *   Vosk model  — assets/vosk_model/    → filesDir/vosk_model/
  *   Porcupine   — raw resource (handled by Porcupine SDK, NOT extracted here)
  */

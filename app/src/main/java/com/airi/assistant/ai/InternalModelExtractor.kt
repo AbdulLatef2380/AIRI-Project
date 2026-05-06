@@ -111,7 +111,7 @@ class InternalModelExtractor(private val appContext: Context) {
                         }
                         output.flush()
 
-                        val sha256 = digest.digest().joinToString("") { "%02x".format(it) }
+                        val sha256 = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xFF) }
                         if (desc.expectedSha256 != null && sha256 != desc.expectedSha256) {
                             dest.delete()
                             throw SecurityException(
@@ -198,7 +198,7 @@ class InternalModelExtractor(private val appContext: Context) {
                 digest.update(buf, 0, read)
             }
         }
-        return digest.digest().joinToString("") { "%02x".format(it) }
+        return digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xFF) }
     }
 
     // ── Types ─────────────────────────────────────────────────────────────────

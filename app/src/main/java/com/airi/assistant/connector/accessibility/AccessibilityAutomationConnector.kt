@@ -2,7 +2,7 @@ package com.airi.assistant.connector.accessibility
 
 import android.util.Log
 import com.airi.assistant.accessibility.execution.AccessibilityExecutionEngine
-import com.airi.assistant.accessibility.execution.ExecutionEvent
+import com.airi.assistant.accessibility.AccessibilityExecutionEngine.ExecutionEvent
 import com.airi.assistant.connector.Connector
 import com.airi.assistant.connector.ConnectorInput
 import com.airi.assistant.connector.ConnectorMeta

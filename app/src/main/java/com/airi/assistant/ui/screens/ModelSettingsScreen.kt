@@ -1977,7 +1977,7 @@ fun MetadataRow(items: List<String>) {
 }
 
 @Composable
-fun MetaChip(label: String) {
+private fun MetaChip(label: String) {
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.64f),

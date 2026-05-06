@@ -99,7 +99,7 @@ object ObservationEngine {
 
         // ── Case 1: explicit success ──────────────────────────────────────────
         if (result.success) {
-            if (requiresContent && result.output.isBlank()) {
+            if (requiresContent && result.message.orEmpty().isBlank()) {
                 Log.w("AIRI_PROOF", "OBSERVE_EMPTY $prefix output is blank despite success=true")
                 return if (retryCount < maxRetries) {
                     Verdict(
@@ -117,7 +117,7 @@ object ObservationEngine {
                     )
                 }
             }
-            Log.i("AIRI_PROOF", "OBSERVE_OK $prefix outputLen=${result.output.length}")
+            Log.i("AIRI_PROOF", "OBSERVE_OK $prefix outputLen=${result.message.orEmpty().length}")
             return Verdict(
                 proceed        = true,
                 summary        = "OK: $action",
@@ -126,24 +126,24 @@ object ObservationEngine {
         }
 
         // ── Case 2: failure — classify ────────────────────────────────────────
-        val errLower = result.output.lowercase()
+        val errLower = result.message.orEmpty().lowercase()
 
         val isPermanent = PERMANENT_PATTERNS.any { errLower.contains(it) }
         val isTransient = !isPermanent && TRANSIENT_PATTERNS.any { errLower.contains(it) }
 
         return when {
             isPermanent -> {
-                Log.w("AIRI_PROOF", "OBSERVE_HARD_FAIL $prefix permanent err='${result.output.take(120)}'")
+                Log.w("AIRI_PROOF", "OBSERVE_HARD_FAIL $prefix permanent err='${result.message.orEmpty().take(120)}'")
                 Verdict(
                     proceed        = false,
                     recovery       = RecoveryBranch.Abort,
-                    summary        = "Permanent failure in $action: ${result.output.take(80)}",
+                    summary        = "Permanent failure in $action: ${result.message.orEmpty().take(80)}",
                     lifecycleState = AgentLifecycleState.FAILED,
                 )
             }
 
             isTransient && retryCount < maxRetries -> {
-                Log.w("AIRI_PROOF", "OBSERVE_SOFT_FAIL $prefix transient retrying err='${result.output.take(80)}'")
+                Log.w("AIRI_PROOF", "OBSERVE_SOFT_FAIL $prefix transient retrying err='${result.message.orEmpty().take(80)}'")
                 Verdict(
                     proceed        = false,
                     recovery       = RecoveryBranch.Retry(maxRetries),
@@ -154,7 +154,7 @@ object ObservationEngine {
 
             retryCount < maxRetries -> {
                 // Unknown error type but we still have budget — try fallback first
-                Log.w("AIRI_PROOF", "OBSERVE_FALLBACK $prefix unknown err='${result.output.take(80)}'")
+                Log.w("AIRI_PROOF", "OBSERVE_FALLBACK $prefix unknown err='${result.message.orEmpty().take(80)}'")
                 Verdict(
                     proceed        = false,
                     recovery       = RecoveryBranch.Retry(maxRetries),
@@ -164,7 +164,7 @@ object ObservationEngine {
             }
 
             else -> {
-                Log.w("AIRI_PROOF", "OBSERVE_HARD_FAIL $prefix retries_exhausted err='${result.output.take(80)}'")
+                Log.w("AIRI_PROOF", "OBSERVE_HARD_FAIL $prefix retries_exhausted err='${result.message.orEmpty().take(80)}'")
                 Verdict(
                     proceed        = false,
                     recovery       = RecoveryBranch.Skip,

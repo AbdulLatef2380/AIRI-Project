@@ -105,7 +105,12 @@ class HotwordService : Service() {
 
             model = loadedModel
 
-            val engine = InternalWakeWordEngine(loadedModel) { fireWake() }
+            val engine = InternalWakeWordEngine(
+                model = loadedModel,
+                onWakeDetected = {
+                    fireWake()
+                }
+            )
             wakeEngine = engine
 
             startCapture(engine)

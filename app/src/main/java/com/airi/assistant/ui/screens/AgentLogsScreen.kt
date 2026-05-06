@@ -125,9 +125,11 @@ fun AgentLogsScreen(
                 contentColor     = CosmicAccent,
                 indicator = { tabPositions ->
                     if (selectedTab < tabPositions.size) {
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                            color = CosmicAccent
+                        Box(
+                            Modifier
+                                .tabIndicatorOffset(tabPositions[selectedTab])
+                                .height(3.dp)
+                                .background(CosmicAccent)
                         )
                     }
                 }

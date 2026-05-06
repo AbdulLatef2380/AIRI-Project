@@ -174,7 +174,7 @@ class InferenceWatchdog(
         telemetry.report(
             AgentTelemetryEvent.AgentFailed(
                 agentId = "llm_backend",
-                reason  = "INFERENCE_STUCK_${stuckFor}ms"
+                errorTag = "INFERENCE_STUCK_${stuckFor}ms"
             )
         )
 

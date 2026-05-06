@@ -175,7 +175,7 @@ class InferenceManager(
     fun cancelAll() {
         Log.i("AIRI_PROOF", "INF_CANCEL_ALL active=${_isGenerating.value} queue=${_queueDepth.value}")
         channel.trySend(QueueItem.CancelAll)
-        llamaManager.cancelGeneration()
+        llamaManager.cancelStream()
     }
 
     /**
@@ -288,14 +288,14 @@ class InferenceManager(
             } ?: run {
                 // Timeout — signal the native layer to abort
                 req.cancelled = true
-                llamaManager.cancelGeneration()
+                llamaManager.cancelStream()
                 val elapsed = System.currentTimeMillis() - startMs
                 Log.w("AIRI_PROOF", "INF_TIMEOUT id=${req.id} timeout=${req.timeoutMs}ms elapsed=${elapsed}ms tokens_so_far=$tokenCount")
                 InferenceResult.TimedOut(req.id, req.timeoutMs)
             }
         } catch (e: CancellationException) {
             req.cancelled = true
-            llamaManager.cancelGeneration()
+            llamaManager.cancelStream()
             Log.i("AIRI_PROOF", "INF_CANCELLED id=${req.id} tokens=$tokenCount")
             InferenceResult.Cancelled(req.id)
         } catch (t: Throwable) {

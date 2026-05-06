@@ -10,18 +10,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 private val DarkColorScheme = darkColorScheme(
-    primary          = CosmicAccent,
-    secondary        = CosmicAccentDark,
+    primary          = PrimaryAccent,
+    secondary        = SecondaryAccent,
     tertiary         = SemanticSuccess,
-    background       = CosmicBlack,
-    surface          = SurfaceBase,
-    surfaceVariant   = SurfaceRaised,
+    background       = Surface0,
+    surface          = Surface1,
+    surfaceVariant   = Surface2,
     onPrimary        = Color.Black,
-    onSecondary      = Color.White,
-    onBackground     = Color.White,
-    onSurface        = Color.White,
-    onSurfaceVariant = Color.White.copy(alpha = 0.65f),
-    outline          = GlassWhiteBorder,
+    onSecondary      = Color.Black,
+    onBackground     = TextPrimary,
+    onSurface        = TextPrimary,
+    onSurfaceVariant = TextSecondary,
+    outline          = BorderLight,
     error            = SemanticError,
     onError          = Color.White,
 )

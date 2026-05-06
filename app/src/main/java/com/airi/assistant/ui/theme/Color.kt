@@ -2,36 +2,25 @@ package com.airi.assistant.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// ── Brand palette ────────────────────────────────────────────────────────────
-val CosmicBlack      = Color(0xFF070C1A)
-val CosmicDarkBlue   = Color(0xFF0F1529)
-val CosmicAccent     = Color(0xFF00C8E0)
-val CosmicAccentDark = Color(0xFF008FA8)
+// New Design System Colors
+val Surface0         = Color(0xFF0A0A0F) // deep near-black
+val Surface1         = Color(0xFF111118) // card background
+val Surface2         = Color(0xFF1A1A24) // raised elements
+val Surface3         = Color(0xFF22222E) // active/selected elements
+val PrimaryAccent    = Color(0xFF7C6EF0) // vibrant purple
+val SecondaryAccent  = Color(0xFF4FC3F7) // light blue
+val SemanticSuccess  = Color(0xFF4ADE80) // green
+val SemanticWarning  = Color(0xFFFBBF24) // amber
+val SemanticError    = Color(0xFFF87171) // red
+val TextPrimary      = Color(0xFFFFFFFF)
+val TextSecondary    = Color(0xFFB0B0B0)
+val TextTertiary     = Color(0xFF757575)
+val BorderLight      = Color(0xFF303038)
+val BorderDark       = Color(0xFF1F1F26)
 
-// ── Surface elevation ladder ─────────────────────────────────────────────────
-val SurfaceBase      = Color(0xFF0C1022)
-val SurfaceRaised    = Color(0xFF141C30)
-val SurfaceFloating  = Color(0xFF1C2440)
-val SurfaceHighlight = Color(0xFF232D4A)
-
-// ── Semantic ─────────────────────────────────────────────────────────────────
-val SemanticSuccess  = Color(0xFF32D74B)
-val SemanticError    = Color(0xFFFF453A)
-val SemanticWarn     = Color(0xFFFFD60A)
-
-// ── Glass surfaces ────────────────────────────────────────────────────────────
-val GlassWhite       = Color.White.copy(alpha = 0.07f)
-val GlassWhiteBorder = Color.White.copy(alpha = 0.10f)
-
-// ── Chat bubbles ──────────────────────────────────────────────────────────────
-val UserBubbleSurface = Color(0xFF162C45)
-val UserBubbleBorder  = Color(0xFF00C8E0).copy(alpha = 0.28f)
-val AiBubbleSurface   = Color(0xFF101624)
-val AiBubbleBorder    = Color.White.copy(alpha = 0.07f)
-
-// ── Compatibility aliases ────────────────────────────────────────────────────
-val MessageBubbleUser  = UserBubbleSurface
-val MessageBubbleAI    = AiBubbleSurface
-val InputBarBackground = Color.Black.copy(alpha = 0.60f)
-val OverlayBackground  = Color.Black.copy(alpha = 0.70f)
-val DividerColor       = Color.White.copy(alpha = 0.06f)
+// Compatibility aliases (if needed, can be removed later)
+val MessageBubbleUser  = Surface2
+val MessageBubbleAI    = Surface1
+val InputBarBackground = Surface3
+val OverlayBackground  = Surface0.copy(alpha = 0.70f)
+val DividerColor       = BorderDark

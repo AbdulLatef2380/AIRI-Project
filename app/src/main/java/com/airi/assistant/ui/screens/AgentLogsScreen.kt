@@ -47,7 +47,8 @@ private val WarnAmber = Color(0xFFFFB74D)
 private val ErrorRed  = Color(0xFFEF5350)
 private val DebugGray = Color(0xFFBDBDBD)
 
-@OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 @Composable
 fun AgentLogsScreen(
     viewModel: AgentViewModel,

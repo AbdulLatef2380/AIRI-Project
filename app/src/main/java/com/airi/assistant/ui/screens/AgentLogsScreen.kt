@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.airi.assistant.ui.screens
 
 import androidx.compose.animation.AnimatedContent
@@ -46,8 +47,6 @@ import java.util.Locale
 private val WarnAmber = Color(0xFFFFB74D)
 private val ErrorRed  = Color(0xFFEF5350)
 private val DebugGray = Color(0xFFBDBDBD)
-
-@file:OptIn(ExperimentalMaterial3Api::class)
 
 @Composable
 fun AgentLogsScreen(
@@ -499,7 +498,7 @@ private fun TraceListItem(
                     Text(text = timeStr, color = Color.White.copy(alpha = 0.35f), fontSize = 11.sp)
                     Text("•", color = Color.White.copy(alpha = 0.2f), fontSize = 10.sp)
                     Text(
-                        text = "${trace.stepCount} step${if (trace.stepCount != 1) "s" else ""}",
+                        text = trace.agentName,
                         color = CosmicAccent.copy(alpha = 0.7f),
                         fontSize = 11.sp
                     )

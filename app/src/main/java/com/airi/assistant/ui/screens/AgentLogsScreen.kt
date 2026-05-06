@@ -498,7 +498,7 @@ private fun TraceListItem(
                     Text(text = timeStr, color = Color.White.copy(alpha = 0.35f), fontSize = 11.sp)
                     Text("•", color = Color.White.copy(alpha = 0.2f), fontSize = 10.sp)
                     Text(
-                        text = trace.agentName,
+                        text = trace.originalInput,
                         color = CosmicAccent.copy(alpha = 0.7f),
                         fontSize = 11.sp
                     )

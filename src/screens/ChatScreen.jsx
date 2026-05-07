@@ -126,14 +126,14 @@ function ApiKeySheet({ modelName, keyType, onClose, onSave }) {
 }
 
 /* ── Main ChatScreen ────────────────────────────────────────────── */
-const ChatScreen = ({ onMenu, hasMessages = false }) => {
+const ChatScreen = ({ onMenu, onHistory, convId: convIdProp, hasMessages = false }) => {
   /* ── Real state ──────────────────────────────────────────────── */
   const {
     activeModel, models, meta, hasRequiredKey,
     switchModel, saveOpenAIKey, saveAnthropicKey,
   } = useProvider();
 
-  const convId = hasMessages ? "main" : "new";
+  const convId = convIdProp ?? (hasMessages ? "main" : "new");
   const { messages, sendMessage, cancelMessage, isStreaming, error } = useChat(convId);
 
   const { connected } = useConnectors();
@@ -213,13 +213,24 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
         padding: "12px 16px 8px", borderBottom: `1px solid ${C.border}`,
         background: C.bg, zIndex: 10, gap: 8,
       }}>
-        {hasMessages ? (
-          <div onClick={() => {}} style={{ cursor: "pointer", padding: "4px 8px 4px 0" }}>
-            <Icon name="share" size={20} color={C.textB} />
+        <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <div
+            onClick={onHistory}
+            style={{
+              cursor: "pointer", padding: "4px 6px",
+              borderRadius: 8,
+              background: "transparent",
+              transition: "background .15s",
+            }}
+          >
+            <Icon name="history" size={20} color={C.textB} />
           </div>
-        ) : (
-          <div style={{ width: 28 }} />
-        )}
+          {hasMessages && (
+            <div onClick={() => {}} style={{ cursor: "pointer", padding: "4px 6px" }}>
+              <Icon name="share" size={18} color={C.textB} />
+            </div>
+          )}
+        </div>
 
         {/* Model selector */}
         <div

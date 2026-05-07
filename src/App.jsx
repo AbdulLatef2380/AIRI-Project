@@ -4,6 +4,8 @@ import T from "./theme/typography.js";
 import Icon from "./components/Icon.jsx";
 import { ErrorBoundary, ScreenBoundary } from "./components/ErrorBoundary.jsx";
 import { AppProvider } from "./context/AppContext.jsx";
+import { useApp } from "./context/useApp.js";
+import HistorySidebar from "./components/HistorySidebar.jsx";
 
 import ChatScreen         from "./screens/ChatScreen.jsx";
 import ScheduledScreen    from "./screens/ScheduledScreen.jsx";
@@ -14,7 +16,7 @@ import ConnectorsScreen   from "./screens/ConnectorsScreen.jsx";
 import IntegrationsScreen from "./screens/IntegrationsScreen.jsx";
 import SettingsScreen     from "./screens/SettingsScreen.jsx";
 
-/* ── Bottom nav items ────────────────────────────────────────────── */
+/* ── Bottom nav ──────────────────────────────────────────────────── */
 const NAV_ITEMS = [
   { id: "chat_new",    icon: "chat",     label: "جديد"    },
   { id: "chat_active", icon: "bot",      label: "دردشة"   },
@@ -23,7 +25,7 @@ const NAV_ITEMS = [
   { id: "skills",     icon: "skill",    label: "مهارات"  },
 ];
 
-/* Sub-screens that live "inside" settings — highlight settings nav item */
+/* Sub-screens that map to the settings nav item */
 const SETTINGS_CHILDREN = new Set([
   "knowledge", "data", "connectors", "integrations",
 ]);
@@ -48,26 +50,79 @@ function useClock() {
   return time;
 }
 
-function AppShell() {
-  const [screen, setScreen] = useState("chat_new");
-  const clock = useClock();
-  const nav = (s) => setScreen(s);
+/* ── Signal bars SVG ─────────────────────────────────────────────── */
+function SignalBars() {
+  return (
+    <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
+      <rect x="0"  y="8"  width="3" height="4"  rx="1" fill={C.textB} />
+      <rect x="4"  y="5"  width="3" height="7"  rx="1" fill={C.textB} />
+      <rect x="8"  y="2"  width="3" height="10" rx="1" fill={C.textB} />
+      <rect x="12" y="0"  width="3" height="12" rx="1" fill={C.textC} opacity="0.4" />
+    </svg>
+  );
+}
 
-  /* Resolve which nav item should appear active */
+/* ── Battery SVG ─────────────────────────────────────────────────── */
+function Battery() {
+  return (
+    <svg width="22" height="12" viewBox="0 0 22 12" fill="none">
+      <rect x="0.5" y="0.5" width="18" height="11" rx="2.5" stroke={C.textB} strokeWidth="1"/>
+      <rect x="2" y="2" width="12" height="8" rx="1.5" fill={C.textB} />
+      <path d="M20 4.5v3a1.5 1.5 0 0 0 0-3z" fill={C.textB} />
+    </svg>
+  );
+}
+
+/* ── AppShell ────────────────────────────────────────────────────── */
+function AppShell() {
+  const [screen, setScreen]           = useState("chat_new");
+  const [showHistory, setShowHistory] = useState(false);
+  const [activeConvId, setActiveConvId] = useState("new");
+  const clock = useClock();
+
+  const { conversations, deleteConversation } = useApp();
+
+  const nav = (s) => setScreen(s);
   const activeNavId = SETTINGS_CHILDREN.has(screen) ? "settings" : screen;
+
+  const handleHistorySelect = (convId) => {
+    setActiveConvId(convId);
+    setScreen("chat_active");
+    setShowHistory(false);
+  };
+
+  const handleNewChat = () => {
+    setActiveConvId("new_" + Date.now());
+    setScreen("chat_new");
+    setShowHistory(false);
+  };
+
+  const handleDeleteConv = (id) => {
+    deleteConversation(id);
+  };
 
   const renderScreen = () => {
     switch (screen) {
       case "chat_new":
         return (
           <ScreenBoundary>
-            <ChatScreen onMenu={() => nav("settings")} hasMessages={false} />
+            <ChatScreen
+              onMenu={() => nav("settings")}
+              onHistory={() => setShowHistory(true)}
+              convId={activeConvId.startsWith("new") ? activeConvId : "new"}
+              hasMessages={false}
+            />
           </ScreenBoundary>
         );
       case "chat_active":
         return (
           <ScreenBoundary>
-            <ChatScreen onMenu={() => nav("settings")} hasMessages={true} />
+            <ChatScreen
+              onMenu={() => nav("settings")}
+              onHistory={() => setShowHistory(true)}
+              convId={activeConvId}
+              hasMessages={true}
+            />
           </ScreenBoundary>
         );
       case "scheduled":
@@ -115,7 +170,12 @@ function AppShell() {
       default:
         return (
           <ScreenBoundary>
-            <ChatScreen onMenu={() => nav("settings")} hasMessages={false} />
+            <ChatScreen
+              onMenu={() => nav("settings")}
+              onHistory={() => setShowHistory(true)}
+              convId="new"
+              hasMessages={false}
+            />
           </ScreenBoundary>
         );
     }
@@ -124,7 +184,7 @@ function AppShell() {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "#111",
+      background: "radial-gradient(ellipse at 50% 30%, #150a30 0%, #06060e 55%, #030308 100%)",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -137,52 +197,89 @@ function AppShell() {
         width: 375,
         height: 812,
         background: C.bg,
-        borderRadius: 44,
+        borderRadius: 46,
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
-        boxShadow: "0 40px 120px rgba(0,0,0,0.8), 0 0 0 1px #333",
+        boxShadow: [
+          "0 0 0 1px #3d2d7a",
+          "0 0 0 3px #1a1230",
+          "0 40px 100px rgba(80,40,180,0.38)",
+          "0 0 80px rgba(124,95,255,0.08)",
+        ].join(", "),
         position: "relative",
       }}>
 
-        {/* Status bar — live clock */}
+        {/* Subtle top glow bar */}
+        <div style={{
+          position: "absolute", top: 0, left: "20%", right: "20%", height: 1,
+          background: "linear-gradient(90deg, transparent, #7c5fff55, transparent)",
+          zIndex: 1,
+        }} />
+
+        {/* Status bar */}
         <div style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "12px 20px 6px",
+          padding: "14px 22px 8px",
           fontSize: "12px",
           color: C.textB,
           flexShrink: 0,
           background: C.bg,
+          zIndex: 2,
         }}>
-          <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{clock}</span>
-          <div style={{
-            width: 120,
-            height: 16,
-            background: C.bg,
-            borderRadius: 8,
-            border: `1px solid ${C.border}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+          {/* Time */}
+          <span style={{
+            fontWeight: 700, letterSpacing: "0.03em",
+            fontVariantNumeric: "tabular-nums",
+            color: C.text, fontSize: "13px",
           }}>
-            <div style={{ width: 60, height: 8, background: C.surfaceC, borderRadius: 4 }} />
+            {clock}
+          </span>
+
+          {/* Notch pill */}
+          <div style={{
+            width: 110, height: 18,
+            background: "#000",
+            borderRadius: 9,
+            border: `1px solid #222238`,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#2d2d50" }} />
+            <div style={{ width: 40, height: 8, background: "#191928", borderRadius: 4 }} />
           </div>
-          <span>sudani</span>
+
+          {/* Status icons */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <SignalBars />
+            <Battery />
+          </div>
         </div>
 
         {/* Screen area */}
         <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
           {renderScreen()}
+
+          {/* History sidebar overlay */}
+          {showHistory && (
+            <HistorySidebar
+              conversations={conversations}
+              activeConvId={activeConvId}
+              onSelect={handleHistorySelect}
+              onNew={handleNewChat}
+              onDelete={handleDeleteConv}
+              onClose={() => setShowHistory(false)}
+            />
+          )}
         </div>
 
-        {/* Bottom nav bar */}
+        {/* Bottom nav */}
         <div style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-around",
-          padding: "10px 20px 16px",
+          padding: "10px 20px 14px",
           background: C.bg,
           borderTop: `1px solid ${C.border}`,
           flexShrink: 0,
@@ -194,20 +291,27 @@ function AppShell() {
                 key={n.id}
                 onClick={() => nav(n.id)}
                 style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 4,
+                  display: "flex", flexDirection: "column",
+                  alignItems: "center", gap: 4,
                   cursor: "pointer",
-                  opacity: active ? 1 : 0.45,
                   transition: "opacity .2s",
                 }}
               >
-                <Icon name={n.icon} size={22} color={active ? C.accent : C.textB} />
+                <div style={{
+                  width: 36, height: 36, borderRadius: 12,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: active ? `${C.accent}20` : "transparent",
+                  border: active ? `1px solid ${C.accent}35` : "1px solid transparent",
+                  transition: "all .2s",
+                  boxShadow: active ? `0 0 12px ${C.accentGlow}` : "none",
+                }}>
+                  <Icon name={n.icon} size={20} color={active ? C.accent : C.textC} />
+                </div>
                 <span style={{
                   fontSize: "10px",
-                  color: active ? C.accent : C.textB,
-                  fontWeight: active ? 600 : 400,
+                  color: active ? C.accent : C.textC,
+                  fontWeight: active ? 700 : 400,
+                  transition: "color .2s",
                 }}>
                   {n.label}
                 </span>
@@ -218,42 +322,38 @@ function AppShell() {
 
         {/* Home indicator */}
         <div style={{
-          width: 120,
-          height: 5,
-          background: C.textC,
-          borderRadius: 3,
+          width: 100, height: 4,
+          background: `linear-gradient(90deg, transparent, ${C.borderB}, transparent)`,
+          borderRadius: 2,
           margin: "0 auto 8px",
           flexShrink: 0,
         }} />
       </div>
 
-      {/* ── Screen selector (outside phone, for demo navigation) ─── */}
+      {/* ── Dev screen selector ──────────────────────────────────── */}
       <div style={{
-        position: "fixed",
-        bottom: 20,
-        left: "50%",
+        position: "fixed", bottom: 16, left: "50%",
         transform: "translateX(-50%)",
-        display: "flex",
-        gap: 6,
-        flexWrap: "wrap",
-        justifyContent: "center",
-        maxWidth: 600,
-        zIndex: 100,
+        display: "flex", gap: 5, flexWrap: "wrap",
+        justifyContent: "center", maxWidth: 560, zIndex: 100,
       }}>
         {ALL_SCREENS.map(s => (
           <div
             key={s}
             onClick={() => nav(s)}
             style={{
-              background: screen === s ? C.accent : C.surface,
-              color: screen === s ? "white" : C.textB,
-              padding: "5px 10px",
-              borderRadius: 8,
-              fontSize: "11px",
+              background: screen === s
+                ? `linear-gradient(135deg, ${C.accent}, ${C.accentB})`
+                : C.surface,
+              color: screen === s ? "white" : C.textC,
+              padding: "4px 10px",
+              borderRadius: 7,
+              fontSize: "10px",
               cursor: "pointer",
               border: `1px solid ${screen === s ? C.accent : C.border}`,
-              fontWeight: screen === s ? 600 : 400,
+              fontWeight: screen === s ? 700 : 400,
               transition: "all .15s",
+              letterSpacing: "0.02em",
             }}
           >
             {s}

@@ -41,6 +41,7 @@ import com.airi.assistant.ui.theme.TextTertiary
  * Uppercase section divider label used throughout settings and list screens.
  * Mirrors iOS-style section headers with a subtle left-accent bar.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiriSectionLabel(
     text:     String,
@@ -73,6 +74,7 @@ fun AiriSectionLabel(
  * Standard Surface1 card with rounded corners and a subtle border.
  * Use for any grouped content that needs visual separation from the page.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiriCard(
     modifier:     Modifier = Modifier,
@@ -99,6 +101,7 @@ fun AiriCard(
  * @param color     Accent colour for background tint, border, and text.
  * @param showDot   When true, renders a bare 6dp coloured dot instead.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiriStatusBadge(
     label:    String,
@@ -239,6 +242,7 @@ fun AiriEmptyState(
  * @param trailing   Optional trailing composable that replaces the chevron.
  * @param onClick    Called on row tap.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiriListRow(
     icon:      ImageVector,
@@ -314,7 +318,7 @@ fun AiriListRow(
  */
 @Composable
 fun AiriRowDivider(modifier: Modifier = Modifier) {
-    HorizontalDivider(
+    Divider(
         modifier  = modifier.padding(start = 65.dp),
         thickness = 0.5.dp,
         color     = BorderLight
@@ -326,6 +330,7 @@ fun AiriRowDivider(modifier: Modifier = Modifier) {
 /**
  * Standard full-width primary CTA button with PrimaryAccent fill.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiriPrimaryButton(
     label:    String,

@@ -81,6 +81,8 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
 import java.text.SimpleDateFormat
 import java.util.Date
+import com.airi.assistant.ui.theme.Surface0
+import com.airi.assistant.ui.theme.Surface1
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,11 +111,11 @@ fun IntegrationsScreen(onBack: () -> Unit) {
     }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = Surface1
                 ),
                 title = {
                     Text(

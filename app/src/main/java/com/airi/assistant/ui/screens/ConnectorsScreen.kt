@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airi.assistant.connector.ConnectorType
+import com.airi.assistant.ui.theme.Surface0
+import com.airi.assistant.ui.theme.Surface1
 import com.airi.assistant.ui.viewmodel.ConnectorsViewModel
 
 /**
@@ -76,7 +78,7 @@ fun ConnectorsScreen(
     val selectedTab by viewModel.selectedTab.collectAsState()
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
         topBar = {
             TopAppBar(
                 title = {
@@ -88,7 +90,7 @@ fun ConnectorsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
+                    containerColor = Surface0,
                 ),
             )
         },
@@ -149,7 +151,7 @@ private fun ConnectorTabRow(
         .coerceAtLeast(0)
     TabRow(
         selectedTabIndex = selectedIndex,
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
     ) {
         tabs.forEachIndexed { index, (type, label) ->
             Tab(

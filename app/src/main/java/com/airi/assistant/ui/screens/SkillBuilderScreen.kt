@@ -46,6 +46,8 @@ import com.airi.assistant.domain.customskill.SkillConfig
 import com.airi.assistant.domain.customskill.SkillType
 import com.airi.assistant.domain.policy.PolicyEngine
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.Surface0
+import com.airi.assistant.ui.theme.Surface1
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -251,11 +253,11 @@ fun SkillBuilderScreen(
     }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.72f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface1),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)

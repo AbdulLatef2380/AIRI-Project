@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.memory.entity.ChatMessage
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.Surface0
+import com.airi.assistant.ui.theme.Surface1
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -41,11 +43,11 @@ fun MemoryScreen(
     LaunchedEffect(Unit) { viewModel.loadMemoryEntries() }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
         snackbarHost   = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface1),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, null, tint = Color.White)

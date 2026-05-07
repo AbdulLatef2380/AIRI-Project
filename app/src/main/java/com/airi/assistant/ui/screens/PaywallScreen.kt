@@ -32,6 +32,8 @@ import com.airi.assistant.billing.BillingManager
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.experiment.ExperimentManager
 import com.airi.assistant.domain.monetization.PaywallTriggerEngine
+import com.airi.assistant.ui.theme.Surface0
+import com.airi.assistant.ui.theme.Surface1
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -100,11 +102,11 @@ fun PaywallScreen(
     val goldColor   = Color(0xFFFFB300)
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
         snackbarHost   = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.8f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface1),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)

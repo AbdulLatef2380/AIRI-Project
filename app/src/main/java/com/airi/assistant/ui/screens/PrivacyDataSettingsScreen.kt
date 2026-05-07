@@ -23,6 +23,8 @@ import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.util.ChatExporter
 import com.google.firebase.auth.FirebaseAuth
+import com.airi.assistant.ui.theme.Surface0
+import com.airi.assistant.ui.theme.Surface1
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,12 +69,12 @@ fun PrivacyDataSettingsScreen(
     }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
         snackbarHost   = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = Surface1
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {

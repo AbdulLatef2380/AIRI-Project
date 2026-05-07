@@ -65,11 +65,11 @@ fun AgentLogsScreen(
     val sorted = remember(traces) { traces.sortedByDescending { it.timestamp } }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = com.airi.assistant.ui.theme.Surface0,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = com.airi.assistant.ui.theme.Surface1
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {

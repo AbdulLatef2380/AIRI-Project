@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.Surface0
+import com.airi.assistant.ui.theme.Surface1
 import com.airi.assistant.ui.viewmodel.AgentViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,11 +36,11 @@ fun AgentControlScreen(
     val debugMode   by viewModel.debugMode.collectAsState()
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = Surface1
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {

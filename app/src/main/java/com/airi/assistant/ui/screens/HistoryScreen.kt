@@ -41,6 +41,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.airi.assistant.memory.dao.ChatSessionSummary
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.Surface0
+import com.airi.assistant.ui.theme.Surface1
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -61,10 +63,10 @@ fun HistoryScreen(
     }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface1),
                 title = { Text("Chats", color = Color.White, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

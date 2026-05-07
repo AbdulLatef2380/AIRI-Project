@@ -36,6 +36,8 @@ import com.airi.assistant.execution.accounting.TokenAccountant
 import com.airi.assistant.execution.diagnostics.ExecTransitionEvent
 import com.airi.assistant.execution.diagnostics.ExecutionDiagnosticsState
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.Surface0
+import com.airi.assistant.ui.theme.Surface1
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -128,11 +130,11 @@ fun ExecDiagnosticsScreen(
     }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = Surface1
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {

@@ -23,6 +23,8 @@ import com.airi.assistant.R
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.system.LanguageOption
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.Surface0
+import com.airi.assistant.ui.theme.Surface1
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,11 +44,11 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
     }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = Surface1
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {

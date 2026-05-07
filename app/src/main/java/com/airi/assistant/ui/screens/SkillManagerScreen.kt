@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.LibraryBooks
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,13 +27,16 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.domain.customskill.CustomSkill
 import com.airi.assistant.domain.customskill.CustomSkillRepository
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.Surface0
+import com.airi.assistant.ui.theme.Surface1
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SkillManagerScreen(
     onBack: () -> Unit,
     onCreate: () -> Unit,
-    onEdit: (String) -> Unit
+    onEdit: (String) -> Unit,
+    onBrowseTemplates: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val repository = remember { CustomSkillRepository(context) }
@@ -43,10 +47,10 @@ fun SkillManagerScreen(
     }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.72f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface1),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
@@ -54,6 +58,9 @@ fun SkillManagerScreen(
                 },
                 title = { Text("Custom Skills", color = Color.White, fontWeight = FontWeight.Bold) },
                 actions = {
+                    IconButton(onClick = onBrowseTemplates) {
+                        Icon(Icons.Outlined.LibraryBooks, contentDescription = "Browse templates", tint = CosmicAccent)
+                    }
                     IconButton(onClick = onCreate) {
                         Icon(Icons.Default.Add, contentDescription = "Create skill", tint = CosmicAccent)
                     }

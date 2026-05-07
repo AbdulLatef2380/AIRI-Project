@@ -43,6 +43,9 @@ import com.airi.assistant.domain.monetization.PaywallTriggerEngine
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.components.PremiumBadge
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.Surface0
+import com.airi.assistant.ui.theme.Surface1
+import com.airi.assistant.ui.theme.SemanticError
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.util.ChatImporter
@@ -63,11 +66,11 @@ fun SettingsScreen(
     val isPremium = remember { viewModel.isPremium() }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = Surface1
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -179,21 +182,21 @@ fun SettingsScreen(
             Button(
                 onClick  = onLogout,
                 modifier = Modifier.fillMaxWidth(),
-                colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A2E)),
+                colors   = ButtonDefaults.buttonColors(containerColor = SemanticError.copy(alpha = 0.10f)),
                 shape    = RoundedCornerShape(14.dp),
                 border   = androidx.compose.foundation.BorderStroke(
                     1.dp,
-                    Color(0xFFFF6B6B).copy(alpha = 0.4f)
+                    SemanticError.copy(alpha = 0.38f)
                 )
             ) {
                 Icon(
                     Icons.Outlined.Logout,
                     contentDescription = null,
-                    tint     = Color(0xFFFF6B6B),
+                    tint     = SemanticError,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.sign_out), color = Color(0xFFFF6B6B))
+                Text(stringResource(R.string.sign_out), color = SemanticError)
             }
 
             Spacer(Modifier.height(24.dp))
@@ -280,11 +283,11 @@ private fun SettingsScreenLegacy(
     }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface1),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = Color.White)

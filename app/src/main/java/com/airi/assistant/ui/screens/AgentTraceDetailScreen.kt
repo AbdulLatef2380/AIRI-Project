@@ -23,6 +23,8 @@ import com.airi.assistant.ai.agent.trace.AgentStep
 import com.airi.assistant.ai.agent.trace.AgentStepType
 import com.airi.assistant.ai.agent.trace.AgentTrace
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.Surface0
+import com.airi.assistant.ui.theme.Surface1
 import com.airi.assistant.ui.viewmodel.AgentViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -47,11 +49,11 @@ fun AgentTraceDetailScreen(
     }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Surface0,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = Surface1
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {

@@ -54,6 +54,11 @@ import com.airi.assistant.ai.remote.RemoteModelExecutor
 import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.PrimaryAccent
+import com.airi.assistant.ui.theme.Surface0
+import com.airi.assistant.ui.theme.Surface1
+import com.airi.assistant.ui.theme.Surface2
+import com.airi.assistant.ui.theme.BorderLight
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.ui.viewmodel.LoadErrorType
 import com.airi.assistant.ui.viewmodel.ModelUiState
@@ -157,7 +162,7 @@ fun ModelSettingsScreen(
     }
 
     Scaffold(
-        containerColor = Color.Black,
+        containerColor = Surface0,
         topBar = {
             TopAppBar(
                 title = {
@@ -175,7 +180,7 @@ fun ModelSettingsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.92f)
+                    containerColor = Surface1
                 )
             )
         },
@@ -213,14 +218,14 @@ fun ModelSettingsScreen(
                             onClick = { selectedCategory = category },
                             modifier = Modifier.height(36.dp),
                             shape = CircleShape,
-                            color = if (active) Color(0xFF007AFF) else Color(0xFF1C1C1E),
-                            contentColor = Color.White
+                            color = if (active) PrimaryAccent.copy(alpha = 0.15f) else Surface2,
+                            contentColor = if (active) PrimaryAccent else Color.White
                         ) {
                             Box(
                                 modifier = Modifier
                                     .border(
-                                        0.5.dp,
-                                        Color.White.copy(alpha = if (active) 0f else 0.12f),
+                                        1.dp,
+                                        if (active) PrimaryAccent.copy(alpha = 0.45f) else BorderLight,
                                         CircleShape
                                     )
                                     .padding(horizontal = 16.dp),

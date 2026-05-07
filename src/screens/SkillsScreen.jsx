@@ -10,10 +10,10 @@ import BottomSheet from "../components/BottomSheet.jsx";
 import { useSkills } from "../hooks/useSkills.js";
 
 const CREATE_OPTIONS = [
-  { icon: "bot",     label: "البناء باستخدام Airi",      sub: "قم ببناء مهارات رائعة من خلال المحادثة",    color: "#4e8cff" },
+  { icon: "bot",     label: "البناء باستخدام Airi",      sub: "قم ببناء مهارات رائعة من خلال المحادثة",    color: "#7c5fff" },
   { icon: "upload",  label: "رفع مهارة",                  sub: "رفع .skill, .zip",                            color: "#52c4e0" },
-  { icon: "library", label: "إضافة من المكتبة الرسمية",   sub: "مهارات جاهزة يتم صيانتها بواسطة Airi",      color: "#4ecca3" },
-  { icon: "github",  label: "استيراد من GitHub",          sub: "الصق رابط المستودع للبدء",                   color: "#f0f0f0" },
+  { icon: "library", label: "إضافة من المكتبة الرسمية",   sub: "مهارات جاهزة يتم صيانتها بواسطة Airi",      color: "#00dfa2" },
+  { icon: "github",  label: "استيراد من GitHub",          sub: "الصق رابط المستودع للبدء",                   color: "#c8c8e0" },
 ];
 
 const SkillsScreen = ({ onBack }) => {

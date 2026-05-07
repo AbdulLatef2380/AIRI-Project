@@ -7,30 +7,7 @@ import Toggle from "../components/Toggle.jsx";
 import ScreenHeader from "../components/ScreenHeader.jsx";
 import SectionCard from "../components/SectionCard.jsx";
 import BottomSheet from "../components/BottomSheet.jsx";
-
-const SKILLS_DATA = [
-  {
-    name:     "الحوسبة المستمرة",
-    desc:     "يجب القراءة عندما يحتاج المستخدم إلى تشغيل خدمات مستمرة...",
-    on:       true,
-    official: true,
-    date:     "٣٠ أبريل ٢٠٢٦",
-  },
-  {
-    name:     "موجه الموسيقى",
-    desc:     "يولّد موسيقى بناءً على وصف المستخدم...",
-    on:       true,
-    official: false,
-    date:     "١٢ يناير",
-  },
-  {
-    name:     "محلل الكود المتقدم",
-    desc:     "يحلل الأكواد البرمجية ويقترح تحسينات...",
-    on:       false,
-    official: true,
-    date:     "٥ مارس",
-  },
-];
+import { useSkills } from "../hooks/useSkills.js";
 
 const CREATE_OPTIONS = [
   { icon: "bot",     label: "البناء باستخدام Airi",      sub: "قم ببناء مهارات رائعة من خلال المحادثة",    color: "#4e8cff" },
@@ -41,18 +18,7 @@ const CREATE_OPTIONS = [
 
 const SkillsScreen = ({ onBack }) => {
   const [showCreate, setShowCreate] = useState(false);
-  const [search, setSearch]         = useState("");
-  const [skills, setSkills]         = useState(SKILLS_DATA);
-
-  const filtered = search
-    ? skills.filter(s => s.name.includes(search))
-    : skills;
-
-  const toggleSkill = (index) => {
-    setSkills(prev =>
-      prev.map((s, i) => i === index ? { ...s, on: !s.on } : s)
-    );
-  };
+  const { filtered, search, setSearch, toggle } = useSkills();
 
   return (
     <div style={{
@@ -110,11 +76,11 @@ const SkillsScreen = ({ onBack }) => {
         </div>
       </SectionCard>
 
-      {/* Skills list */}
+      {/* Skills list — real data from SkillRegistry */}
       <div style={{ flex: 1, overflowY: "auto" }}>
-        {filtered.map((s, i) => (
+        {filtered.map(s => (
           <div
-            key={i}
+            key={s.id}
             style={{
               background: C.surface, borderRadius: R.radius, padding: "14px 16px",
               marginBottom: 10, border: `1px solid ${C.border}`,
@@ -129,7 +95,7 @@ const SkillsScreen = ({ onBack }) => {
                   {s.desc}
                 </div>
               </div>
-              <Toggle on={s.on} onChange={() => toggleSkill(i)} />
+              <Toggle on={s.on} onChange={() => toggle(s.id)} />
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>

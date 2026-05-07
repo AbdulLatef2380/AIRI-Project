@@ -2,6 +2,8 @@ import { useState } from "react";
 import C from "./theme/colors.js";
 import T from "./theme/typography.js";
 import Icon from "./components/Icon.jsx";
+import { ErrorBoundary, ScreenBoundary } from "./components/ErrorBoundary.jsx";
+import { AppProvider } from "./context/AppContext.jsx";
 
 import ChatScreen        from "./screens/ChatScreen.jsx";
 import ScheduledScreen   from "./screens/ScheduledScreen.jsx";
@@ -21,45 +23,79 @@ const NAV_ITEMS = [
   { id: "skills",     icon: "skill",    label: "مهارات"  },
 ];
 
-export default function App() {
+const ALL_SCREENS = [
+  "chat_new", "chat_active", "scheduled", "knowledge",
+  "data", "skills", "connectors", "integrations", "settings",
+];
+
+function AppShell() {
   const [screen, setScreen] = useState("chat_new");
   const nav = (s) => setScreen(s);
 
-  /* Screen map — built inline so each screen gets fresh props on mount */
   const renderScreen = () => {
     switch (screen) {
       case "chat_new":
-        return <ChatScreen onMenu={() => nav("settings")} hasMessages={false} />;
+        return (
+          <ScreenBoundary>
+            <ChatScreen onMenu={() => nav("settings")} hasMessages={false} />
+          </ScreenBoundary>
+        );
       case "chat_active":
-        return <ChatScreen onMenu={() => nav("settings")} hasMessages={true} />;
+        return (
+          <ScreenBoundary>
+            <ChatScreen onMenu={() => nav("settings")} hasMessages={true} />
+          </ScreenBoundary>
+        );
       case "scheduled":
-        return <ScheduledScreen onBack={() => nav("settings")} />;
+        return (
+          <ScreenBoundary>
+            <ScheduledScreen onBack={() => nav("settings")} />
+          </ScreenBoundary>
+        );
       case "knowledge":
-        return <KnowledgeScreen onBack={() => nav("settings")} />;
+        return (
+          <ScreenBoundary>
+            <KnowledgeScreen onBack={() => nav("settings")} />
+          </ScreenBoundary>
+        );
       case "data":
-        return <DataControlsScreen onBack={() => nav("settings")} />;
+        return (
+          <ScreenBoundary>
+            <DataControlsScreen onBack={() => nav("settings")} />
+          </ScreenBoundary>
+        );
       case "skills":
-        return <SkillsScreen onBack={() => nav("settings")} />;
+        return (
+          <ScreenBoundary>
+            <SkillsScreen onBack={() => nav("settings")} />
+          </ScreenBoundary>
+        );
       case "connectors":
-        return <ConnectorsScreen onBack={() => nav("settings")} />;
+        return (
+          <ScreenBoundary>
+            <ConnectorsScreen onBack={() => nav("settings")} />
+          </ScreenBoundary>
+        );
       case "integrations":
-        return <IntegrationsScreen onBack={() => nav("settings")} />;
+        return (
+          <ScreenBoundary>
+            <IntegrationsScreen onBack={() => nav("settings")} />
+          </ScreenBoundary>
+        );
       case "settings":
         return (
-          <SettingsScreen
-            onBack={() => nav("chat_new")}
-            onNav={nav}
-          />
+          <ScreenBoundary>
+            <SettingsScreen onBack={() => nav("chat_new")} onNav={nav} />
+          </ScreenBoundary>
         );
       default:
-        return <ChatScreen onMenu={() => nav("settings")} hasMessages={false} />;
+        return (
+          <ScreenBoundary>
+            <ChatScreen onMenu={() => nav("settings")} hasMessages={false} />
+          </ScreenBoundary>
+        );
     }
   };
-
-  const ALL_SCREENS = [
-    "chat_new", "chat_active", "scheduled", "knowledge",
-    "data", "skills", "connectors", "integrations", "settings",
-  ];
 
   return (
     <div style={{
@@ -201,5 +237,15 @@ export default function App() {
         ))}
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppProvider>
+        <AppShell />
+      </AppProvider>
+    </ErrorBoundary>
   );
 }

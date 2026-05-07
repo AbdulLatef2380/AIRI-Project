@@ -1,17 +1,20 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import C from "../theme/colors.js";
 import T from "../theme/typography.js";
-import R from "../theme/radius.js";
 import Icon from "../components/Icon.jsx";
 import Toggle from "../components/Toggle.jsx";
 import Waveform from "../components/Waveform.jsx";
 import LiveChatIcon from "../components/LiveChatIcon.jsx";
 import BottomSheet from "../components/BottomSheet.jsx";
+import { useChat }     from "../hooks/useChat.js";
+import { useProvider } from "../hooks/useProvider.js";
+import { useConnectors } from "../hooks/useConnectors.js";
 
+/* ── Static constants (module scope — created once) ────────────── */
 const ATTACH_OPTIONS = [
-  { icon: "image",    label: "صورة",          color: "#4e8cff" },
-  { icon: "camera",   label: "الكاميرا",       color: "#52b3e0" },
-  { icon: "files",    label: "إضافة ملفات",   color: "#a052e0" },
+  { icon: "image",   label: "صورة",         color: "#4e8cff" },
+  { icon: "camera",  label: "الكاميرا",      color: "#52b3e0" },
+  { icon: "files",   label: "إضافة ملفات",  color: "#a052e0" },
 ];
 
 const QUICK_ACTIONS = [
@@ -20,12 +23,10 @@ const QUICK_ACTIONS = [
   { icon: "app",      label: "تطوير تطبيق",   color: "#e0a052" },
   { icon: "wand",     label: "إنشاء صورة",    color: "#e052b3" },
   { icon: "pencil",   label: "تحرير صورة",    color: "#52c4e0" },
-  { icon: "voice",    label: "وضع المحادثة",   color: "#b352e0" },
-  { icon: "calendar", label: "مهام مجدولة",   color: "#e05252" },
-  { icon: "table",    label: "جدول بيانات",   color: "#52e0a0" },
+  { icon: "voice",    label: "وضع المحادثة",  color: "#b352e0" },
+  { icon: "calendar", label: "مهام مجدولة",  color: "#e05252" },
+  { icon: "table",    label: "جدول بيانات",  color: "#52e0a0" },
 ];
-
-const MODELS = ["Airi Cloud", "Airi Local", "GPT-4o", "Claude Sonnet"];
 
 const DOTS_ITEMS = [
   { icon: "star",  label: "مفضلة" },
@@ -35,33 +36,173 @@ const DOTS_ITEMS = [
   { icon: "trash", label: "حذف", danger: true },
 ];
 
-const CONNECTED_APPS = [
-  { name: "Gmail",  icon: "mail",   color: "#ea4335", bg: "#ea433522" },
-  { name: "GitHub", icon: "github", color: "#f0f0f0", bg: "#f0f0f022" },
-  { name: "OpenAI", icon: "openai", color: "#10a37f", bg: "#10a37f22" },
-];
+/* ── Streaming cursor component ─────────────────────────────────── */
+function StreamingDot() {
+  return (
+    <span style={{
+      display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+      background: C.accent, marginRight: 4, verticalAlign: "middle",
+      animation: "pulse 1s ease-in-out infinite",
+    }} />
+  );
+}
 
-const INITIAL_MESSAGES = [
-  {
-    role: "user",
-    text: "ابدأ مشروع React جديد مع TypeScript وقم بإعداد المسار.",
-  },
-  {
-    role: "assistant",
-    text: "بالتأكيد! سأقوم بإعداد مشروع React مع TypeScript الآن.\n\n**الخطوات:**\n1. إنشاء هيكل المشروع\n2. تكوين tsconfig.json\n3. إعداد React Router v6\n\nجاري التنفيذ...",
-  },
-];
+/* ── Message bubble ─────────────────────────────────────────────── */
+function MessageBubble({ msg }) {
+  const isUser = msg.role === "user";
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column",
+      alignItems: isUser ? "flex-end" : "flex-start",
+    }}>
+      <div style={{
+        maxWidth: "85%", padding: "10px 14px",
+        borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+        background: isUser ? (msg.isError ? `${C.danger}22` : C.accent) : C.surface,
+        border: isUser ? "none" : `1px solid ${msg.isError ? C.danger : C.border}`,
+        fontSize: T.fontMd, color: C.text, lineHeight: 1.5, whiteSpace: "pre-wrap",
+      }}>
+        {msg.content || (msg.streaming ? "" : "…")}
+        {msg.streaming && <StreamingDot />}
+      </div>
+    </div>
+  );
+}
 
+/* ── API Key Sheet ──────────────────────────────────────────────── */
+function ApiKeySheet({ modelName, keyType, onClose, onSave }) {
+  const [val, setVal] = useState("");
+  const label = keyType === "anthropic" ? "Anthropic API Key" : "OpenAI API Key";
+  const placeholder = keyType === "anthropic" ? "sk-ant-..." : "sk-...";
+
+  return (
+    <BottomSheet title={`مفتاح ${modelName}`} onClose={onClose}>
+      <div style={{ paddingBottom: 8 }}>
+        <div style={{ fontSize: T.fontSm, color: C.textB, textAlign: "right", marginBottom: 12 }}>
+          أدخل {label} لتفعيل هذا النموذج.
+        </div>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          background: C.surfaceB, borderRadius: 12, padding: "11px 14px",
+          border: `1px solid ${C.border}`, marginBottom: 14,
+        }}>
+          <input
+            autoFocus
+            type="password"
+            value={val}
+            onChange={e => setVal(e.target.value)}
+            placeholder={placeholder}
+            style={{
+              flex: 1, background: "transparent", border: "none", outline: "none",
+              color: C.text, fontSize: T.fontMd, fontFamily: "monospace",
+              direction: "ltr", textAlign: "left",
+            }}
+          />
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <div
+            onClick={() => { if (val.trim()) { onSave(val.trim()); onClose(); } }}
+            style={{
+              flex: 1, background: val.trim() ? C.accent : C.surfaceC,
+              borderRadius: 12, padding: "12px 0", textAlign: "center",
+              cursor: val.trim() ? "pointer" : "default",
+            }}
+          >
+            <span style={{ fontSize: T.fontMd, color: "white", fontWeight: 600 }}>حفظ</span>
+          </div>
+          <div
+            onClick={onClose}
+            style={{
+              flex: 1, background: C.surfaceB, borderRadius: 12, padding: "12px 0",
+              textAlign: "center", border: `1px solid ${C.border}`, cursor: "pointer",
+            }}
+          >
+            <span style={{ fontSize: T.fontMd, color: C.textB }}>إلغاء</span>
+          </div>
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
+/* ── Main ChatScreen ────────────────────────────────────────────── */
 const ChatScreen = ({ onMenu, hasMessages = false }) => {
-  const [input, setInput]                   = useState("");
-  const [inputExpanded, setInputExpanded]   = useState(false);
-  const [showAttach, setShowAttach]         = useState(false);
-  const [showConnPanel, setShowConnPanel]   = useState(false);
-  const [showDotsMenu, setShowDotsMenu]     = useState(false);
+  /* ── Real state ──────────────────────────────────────────────── */
+  const {
+    activeModel, models, meta, hasRequiredKey,
+    switchModel, saveOpenAIKey, saveAnthropicKey,
+  } = useProvider();
+
+  const convId = hasMessages ? "main" : "new";
+  const { messages, sendMessage, cancelMessage, isStreaming, error } = useChat(convId);
+
+  const { connected } = useConnectors();
+
+  /* ── Local UI state ──────────────────────────────────────────── */
+  const [input, setInput]                     = useState("");
+  const [inputExpanded, setInputExpanded]     = useState(false);
+  const [showAttach, setShowAttach]           = useState(false);
+  const [showConnPanel, setShowConnPanel]     = useState(false);
+  const [showDotsMenu, setShowDotsMenu]       = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
-  const [activeModel, setActiveModel]       = useState("Airi Cloud");
-  const [isRecording, setIsRecording]       = useState(false);
-  const [messages]                          = useState(hasMessages ? INITIAL_MESSAGES : []);
+  const [showApiKey, setShowApiKey]           = useState(false);
+  const [isRecording, setIsRecording]         = useState(false);
+  const [totalTokens, setTotalTokens]         = useState(122);
+
+  const messagesEndRef = useRef(null);
+
+  /* Track token usage from streaming events */
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (last?.usage) {
+      setTotalTokens(prev => prev + (last.usage.completion ?? 0));
+    }
+  }, [messages]);
+
+  /* Auto-scroll on new tokens */
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  /* ── Handlers ────────────────────────────────────────────────── */
+  const handleSend = useCallback(() => {
+    if (!input.trim() || isStreaming) return;
+    if (!hasRequiredKey) { setShowApiKey(true); return; }
+    sendMessage(input);
+    setInput("");
+    setShowAttach(false);
+  }, [input, isStreaming, hasRequiredKey, sendMessage]);
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  }, [handleSend]);
+
+  const handleModelSelect = useCallback((modelName) => {
+    switchModel(modelName);
+    setShowModelPicker(false);
+  }, [switchModel]);
+
+  const handleApiKeySave = useCallback((key) => {
+    if (meta.keyType === "anthropic") saveAnthropicKey(key);
+    else saveOpenAIKey(key);
+  }, [meta.keyType, saveAnthropicKey, saveOpenAIKey]);
+
+  /* ── Derived ─────────────────────────────────────────────────── */
+  const displayMessages = messages.length > 0
+    ? messages
+    : (hasMessages
+        ? [{
+            id: "demo1", role: "user",
+            content: "ابدأ مشروع React جديد مع TypeScript وقم بإعداد المسار.",
+          }, {
+            id: "demo2", role: "assistant",
+            content: "بالتأكيد! سأقوم بإعداد مشروع React مع TypeScript الآن.\n\n**الخطوات:**\n1. إنشاء هيكل المشروع\n2. تكوين tsconfig.json\n3. إعداد React Router v6\n\nجاري التنفيذ...",
+          }]
+        : []);
+
+  /* Connector badge — real connected connectors */
+  const firstConn  = connected[0];
+  const extraCount = connected.length > 1 ? `+${connected.length - 1}` : null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", position: "relative" }}>
@@ -101,7 +242,9 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
             border: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 5,
           }}>
             <Icon name="zap" size={12} color={C.accent} />
-            <span style={{ fontSize: "11px", color: C.accent, fontWeight: 700 }}>122</span>
+            <span style={{ fontSize: "11px", color: C.accent, fontWeight: 700 }}>
+              {totalTokens}
+            </span>
             <span style={{ fontSize: "9px", color: C.textB }}>ترقية</span>
           </div>
 
@@ -122,7 +265,7 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
         flex: 1, overflowY: "auto", padding: "16px",
         display: "flex", flexDirection: "column", gap: 12,
       }}>
-        {messages.length === 0 && (
+        {displayMessages.length === 0 && (
           <div style={{
             flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
             flexDirection: "column", gap: 16, paddingTop: 40,
@@ -138,31 +281,33 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
             <span style={{ fontSize: T.fontXl, color: C.text, fontWeight: 600 }}>
               كيف يمكنني مساعدتك؟
             </span>
+            {error && (
+              <span style={{ fontSize: T.fontSm, color: C.danger, textAlign: "center", maxWidth: 260 }}>
+                {error}
+              </span>
+            )}
           </div>
         )}
 
-        {messages.map((m, i) => (
+        {displayMessages.map((m) => (
+          <MessageBubble key={m.id ?? m.content?.slice(0, 20)} msg={m} />
+        ))}
+
+        {/* Cancel button while streaming */}
+        {isStreaming && (
           <div
-            key={i}
+            onClick={cancelMessage}
             style={{
-              display: "flex", flexDirection: "column",
-              alignItems: m.role === "user" ? "flex-end" : "flex-start",
+              alignSelf: "center", background: C.surfaceB, borderRadius: 20,
+              padding: "6px 16px", border: `1px solid ${C.border}`,
+              cursor: "pointer", fontSize: T.fontSm, color: C.textB,
             }}
           >
-            <div style={{
-              maxWidth: "85%", padding: "10px 14px",
-              borderRadius: m.role === "user"
-                ? "18px 18px 4px 18px"
-                : "18px 18px 18px 4px",
-              background: m.role === "user" ? C.accent : C.surface,
-              border: m.role === "user" ? "none" : `1px solid ${C.border}`,
-              fontSize: T.fontMd, color: C.text, lineHeight: 1.5,
-              whiteSpace: "pre-wrap",
-            }}>
-              {m.text}
-            </div>
+            ⏹ إيقاف التوليد
           </div>
-        ))}
+        )}
+
+        <div ref={messagesEndRef} />
       </div>
 
       {/* ── ATTACH PANEL ────────────────────────────────────────── */}
@@ -175,7 +320,6 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
           padding: "14px 16px", zIndex: 20,
           animation: "slideUp .2s ease",
         }}>
-          {/* Attach type buttons */}
           <div style={{ display: "flex", gap: 12, marginBottom: 14 }}>
             {ATTACH_OPTIONS.map(a => (
               <div
@@ -194,7 +338,6 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
             ))}
           </div>
 
-          {/* Quick action chips (horizontally scrollable) */}
           <div style={{ overflowX: "auto", display: "flex", gap: 10, paddingBottom: 4 }}>
             {QUICK_ACTIONS.map(q => (
               <div
@@ -230,11 +373,11 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
           padding: inputExpanded ? "12px 14px" : "0",
           transition: "all .2s",
         }}>
-          {/* Expanded textarea */}
           {inputExpanded && (
             <textarea
               value={input}
               onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder="قم بتعيين مهمة أو اسأل أي شيء"
               rows={4}
               style={{
@@ -249,7 +392,6 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
             display: "flex", alignItems: "center", gap: 8,
             padding: inputExpanded ? "8px 0 0" : "6px 14px",
           }}>
-            {/* Expand / collapse toggle */}
             <div
               onClick={() => setInputExpanded(v => !v)}
               style={{ cursor: "pointer", flexShrink: 0 }}
@@ -265,11 +407,11 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
               />
             </div>
 
-            {/* Collapsed single-line input */}
             {!inputExpanded && (
               <input
                 value={input}
                 onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder="قم بتعيين مهمة أو اسأل أي شيء"
                 style={{
                   flex: 1, background: "transparent", border: "none", outline: "none",
@@ -280,7 +422,7 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
             )}
             {inputExpanded && <div style={{ flex: 1 }} />}
 
-            {/* Active connectors badge */}
+            {/* Active connectors badge — real data */}
             <div
               onClick={() => setShowConnPanel(v => !v)}
               style={{
@@ -289,20 +431,32 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
                 border: `1px solid ${C.border}`,
               }}
             >
-              <div style={{
-                width: 18, height: 18, borderRadius: 4,
-                background: "#ea4335",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <span style={{ fontSize: 9, color: "white", fontWeight: 700 }}>M</span>
-              </div>
-              <span style={{ fontSize: "11px", color: C.textB }}>+2</span>
+              {firstConn ? (
+                <div style={{
+                  width: 18, height: 18, borderRadius: 4,
+                  background: firstConn.color,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <span style={{ fontSize: 9, color: "white", fontWeight: 700 }}>
+                    {firstConn.name.charAt(0)}
+                  </span>
+                </div>
+              ) : (
+                <div style={{
+                  width: 18, height: 18, borderRadius: 4,
+                  background: "#ea4335",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <span style={{ fontSize: 9, color: "white", fontWeight: 700 }}>M</span>
+                </div>
+              )}
+              {extraCount && (
+                <span style={{ fontSize: "11px", color: C.textB }}>{extraCount}</span>
+              )}
             </div>
 
-            {/* Live chat pulse (new chat only) */}
             {!hasMessages && <LiveChatIcon size={22} active={false} />}
 
-            {/* Mic / waveform */}
             <div onClick={() => setIsRecording(v => !v)} style={{ cursor: "pointer" }}>
               {isRecording
                 ? <Waveform active size={22} color={C.accent} />
@@ -310,20 +464,25 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
               }
             </div>
 
-            {/* Attach toggle */}
             <div onClick={() => setShowAttach(v => !v)} style={{ cursor: "pointer" }}>
               <Icon name="plus" size={22} color={showAttach ? C.accent : C.textB} />
             </div>
 
-            {/* Send */}
-            <div style={{
-              width: 34, height: 34, borderRadius: "50%",
-              background: input.trim() ? C.accent : C.surfaceC,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: input.trim() ? "pointer" : "default",
-              transition: "background .2s",
-            }}>
-              <Icon name="send" size={16} color={input.trim() ? C.text : C.textC} />
+            {/* Send / Stop button */}
+            <div
+              onClick={isStreaming ? cancelMessage : handleSend}
+              style={{
+                width: 34, height: 34, borderRadius: "50%",
+                background: (isStreaming || input.trim()) ? C.accent : C.surfaceC,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: (isStreaming || input.trim()) ? "pointer" : "default",
+                transition: "background .2s",
+              }}
+            >
+              {isStreaming
+                ? <Icon name="x" size={14} color="white" />
+                : <Icon name="send" size={16} color={input.trim() ? C.text : C.textC} />
+              }
             </div>
           </div>
         </div>
@@ -332,10 +491,10 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
       {/* ── MODEL PICKER SHEET ──────────────────────────────────── */}
       {showModelPicker && (
         <BottomSheet title="اختر النموذج" onClose={() => setShowModelPicker(false)}>
-          {MODELS.map(m => (
+          {models.map(m => (
             <div
               key={m}
-              onClick={() => { setActiveModel(m); setShowModelPicker(false); }}
+              onClick={() => handleModelSelect(m)}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 padding: "14px 0", borderBottom: `1px solid ${C.border}`, cursor: "pointer",
@@ -349,6 +508,16 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
             </div>
           ))}
         </BottomSheet>
+      )}
+
+      {/* ── API KEY SHEET ────────────────────────────────────────── */}
+      {showApiKey && (
+        <ApiKeySheet
+          modelName={activeModel}
+          keyType={meta.keyType}
+          onClose={() => setShowApiKey(false)}
+          onSave={handleApiKeySave}
+        />
       )}
 
       {/* ── DOTS CONTEXT MENU ───────────────────────────────────── */}
@@ -377,9 +546,9 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
         <BottomSheet title="الموصلات" onClose={() => setShowConnPanel(false)}>
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: T.fontSm, color: C.textB, marginBottom: 10 }}>متصلة</div>
-            {CONNECTED_APPS.map(c => (
+            {connected.map(c => (
               <div
-                key={c.name}
+                key={c.id}
                 style={{
                   display: "flex", alignItems: "center", gap: 12,
                   padding: "12px 0", borderBottom: `1px solid ${C.border}`,
@@ -392,12 +561,11 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
                   <Icon name={c.icon} size={18} color={c.color} />
                 </div>
                 <span style={{ flex: 1, fontSize: T.fontMd, color: C.text }}>{c.name}</span>
-                <Toggle on={true} onChange={() => {}} />
+                <Toggle on={c.enabled} onChange={() => {}} />
               </div>
             ))}
           </div>
 
-          {/* Action buttons */}
           <div style={{ display: "flex", gap: 10 }}>
             <div
               onClick={() => setShowConnPanel(false)}

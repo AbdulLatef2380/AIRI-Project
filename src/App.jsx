@@ -1,18 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import C from "./theme/colors.js";
 import T from "./theme/typography.js";
 import Icon from "./components/Icon.jsx";
 import { ErrorBoundary, ScreenBoundary } from "./components/ErrorBoundary.jsx";
 import { AppProvider } from "./context/AppContext.jsx";
 
-import ChatScreen        from "./screens/ChatScreen.jsx";
-import ScheduledScreen   from "./screens/ScheduledScreen.jsx";
-import KnowledgeScreen   from "./screens/KnowledgeScreen.jsx";
+import ChatScreen         from "./screens/ChatScreen.jsx";
+import ScheduledScreen    from "./screens/ScheduledScreen.jsx";
+import KnowledgeScreen    from "./screens/KnowledgeScreen.jsx";
 import DataControlsScreen from "./screens/DataControlsScreen.jsx";
-import SkillsScreen      from "./screens/SkillsScreen.jsx";
-import ConnectorsScreen  from "./screens/ConnectorsScreen.jsx";
+import SkillsScreen       from "./screens/SkillsScreen.jsx";
+import ConnectorsScreen   from "./screens/ConnectorsScreen.jsx";
 import IntegrationsScreen from "./screens/IntegrationsScreen.jsx";
-import SettingsScreen    from "./screens/SettingsScreen.jsx";
+import SettingsScreen     from "./screens/SettingsScreen.jsx";
 
 /* ── Bottom nav items ────────────────────────────────────────────── */
 const NAV_ITEMS = [
@@ -23,14 +23,38 @@ const NAV_ITEMS = [
   { id: "skills",     icon: "skill",    label: "مهارات"  },
 ];
 
+/* Sub-screens that live "inside" settings — highlight settings nav item */
+const SETTINGS_CHILDREN = new Set([
+  "knowledge", "data", "connectors", "integrations",
+]);
+
 const ALL_SCREENS = [
   "chat_new", "chat_active", "scheduled", "knowledge",
   "data", "skills", "connectors", "integrations", "settings",
 ];
 
+/* ── Live clock ─────────────────────────────────────────────────── */
+function useClock() {
+  const fmt = () => {
+    const n = new Date();
+    return n.getHours().toString().padStart(2, "0") + ":" +
+           n.getMinutes().toString().padStart(2, "0");
+  };
+  const [time, setTime] = useState(fmt);
+  useEffect(() => {
+    const id = setInterval(() => setTime(fmt()), 10_000);
+    return () => clearInterval(id);
+  }, []);
+  return time;
+}
+
 function AppShell() {
   const [screen, setScreen] = useState("chat_new");
+  const clock = useClock();
   const nav = (s) => setScreen(s);
+
+  /* Resolve which nav item should appear active */
+  const activeNavId = SETTINGS_CHILDREN.has(screen) ? "settings" : screen;
 
   const renderScreen = () => {
     switch (screen) {
@@ -121,7 +145,7 @@ function AppShell() {
         position: "relative",
       }}>
 
-        {/* Status bar */}
+        {/* Status bar — live clock */}
         <div style={{
           display: "flex",
           alignItems: "center",
@@ -132,7 +156,7 @@ function AppShell() {
           flexShrink: 0,
           background: C.bg,
         }}>
-          <span>١٢:٠٠</span>
+          <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{clock}</span>
           <div style={{
             width: 120,
             height: 16,
@@ -164,7 +188,7 @@ function AppShell() {
           flexShrink: 0,
         }}>
           {NAV_ITEMS.map(n => {
-            const active = screen === n.id || screen.startsWith(n.id + "_");
+            const active = activeNavId === n.id;
             return (
               <div
                 key={n.id}

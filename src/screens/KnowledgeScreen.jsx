@@ -5,43 +5,35 @@ import R from "../theme/radius.js";
 import Icon from "../components/Icon.jsx";
 import ScreenHeader from "../components/ScreenHeader.jsx";
 import BottomSheet from "../components/BottomSheet.jsx";
-
-const ENTRIES = [
-  {
-    title:   "تفضيلات هيكلة الملفات والتبعيات لوحدة 'core'...",
-    preview: "يجب أن تكون الملفات الخاصة بوحدة 'core' في المسار...",
-    date:    "٤/٨",
-    active:  true,
-  },
-  {
-    title:   "تفضيلات أولوية دمج المعلومات من المرفقات ا...",
-    preview: "عندما يشدد المستخدم على أهمية مرفق معين...",
-    date:    "١/١٤",
-    active:  true,
-  },
-  {
-    title:   "تفضيلات تطوير مستند الأخلاقيات والسلامة لـ...",
-    preview: "عند تطوير مستند الأخلاقيات والسلامة...",
-    date:    "١/١٢",
-    active:  true,
-  },
-  {
-    title:   "تفضيلات البحث الاستباقي وإثراء أداة QB-To...",
-    preview: "عند تطوير أو تعديل أداة QB-Tools أو أي أداة...",
-    date:    "٢٠٢٥/١٢/١٤",
-    active:  true,
-  },
-];
+import { useKnowledge } from "../hooks/useKnowledge.js";
 
 const EMPTY_FORM = { name: "", when: "", content: "" };
 
 const KnowledgeScreen = ({ onBack }) => {
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm]       = useState(EMPTY_FORM);
+  const [showAdd, setShowAdd]     = useState(false);
+  const [form, setForm]           = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState("");
+  const [expandedId, setExpandedId] = useState(null);
+
+  const { entries, addEntry, deleteEntry, toggleEntry } = useKnowledge();
 
   const handleSave = () => {
+    if (!form.when.trim() || !form.content.trim()) {
+      setFormError("حقل 'استخدم عندما' و'المحتوى' مطلوبان.");
+      return;
+    }
+    const ok = addEntry(form);
+    if (ok) {
+      setShowAdd(false);
+      setForm(EMPTY_FORM);
+      setFormError("");
+    }
+  };
+
+  const handleClose = () => {
     setShowAdd(false);
     setForm(EMPTY_FORM);
+    setFormError("");
   };
 
   return (
@@ -61,27 +53,69 @@ const KnowledgeScreen = ({ onBack }) => {
 
       {/* Entry list */}
       <div style={{ flex: 1, overflowY: "auto" }}>
-        {ENTRIES.map((e, i) => (
+        {entries.length === 0 && (
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center",
+            justifyContent: "center", paddingTop: 60, gap: 12,
+          }}>
+            <Icon name="book" size={40} color={C.textC} />
+            <span style={{ fontSize: T.fontMd, color: C.textC }}>لا توجد معرفة مضافة بعد</span>
+            <div
+              onClick={() => setShowAdd(true)}
+              style={{
+                background: C.accent, borderRadius: 12, padding: "10px 20px",
+                cursor: "pointer", marginTop: 8,
+              }}
+            >
+              <span style={{ fontSize: T.fontMd, color: "white", fontWeight: 600 }}>إضافة معرفة</span>
+            </div>
+          </div>
+        )}
+
+        {entries.map(e => (
           <div
-            key={i}
+            key={e.id}
             style={{
               background: C.surface, borderRadius: R.radius, padding: "14px 16px",
               marginBottom: 10, border: `1px solid ${C.border}`, cursor: "pointer",
             }}
+            onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}
           >
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
               <div style={{ flex: 1, fontSize: T.fontMd, color: C.text, fontWeight: 500, lineHeight: 1.4 }}>
                 {e.title}
               </div>
+              <div
+                onClick={ev => { ev.stopPropagation(); toggleEntry(e.id); }}
+                style={{ cursor: "pointer", padding: 2 }}
+              >
+                <div style={{
+                  width: 7, height: 7, borderRadius: "50%",
+                  background: e.active ? C.accent : C.textC,
+                  transition: "background .2s",
+                }} />
+              </div>
             </div>
+
             <div style={{ fontSize: T.fontSm, color: C.textB, marginTop: 6, lineHeight: 1.5 }}>
-              {e.preview}
+              {expandedId === e.id ? e.content : e.preview}
             </div>
+
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
               <span style={{ fontSize: "11px", color: C.textC }}>{e.date}</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.accent }} />
-                <span style={{ fontSize: "11px", color: C.accent }}>مفعل</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: e.active ? C.accent : C.textC }} />
+                  <span style={{ fontSize: "11px", color: e.active ? C.accent : C.textC }}>
+                    {e.active ? "مفعل" : "معطل"}
+                  </span>
+                </div>
+                <div
+                  onClick={ev => { ev.stopPropagation(); deleteEntry(e.id); }}
+                  style={{ cursor: "pointer", padding: 2 }}
+                >
+                  <Icon name="trash" size={14} color={C.textC} />
+                </div>
               </div>
             </div>
           </div>
@@ -90,7 +124,7 @@ const KnowledgeScreen = ({ onBack }) => {
 
       {/* Add knowledge sheet */}
       {showAdd && (
-        <BottomSheet title="إضافة معرفة" onClose={() => setShowAdd(false)}>
+        <BottomSheet title="إضافة معرفة" onClose={handleClose}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {/* Name */}
             <div>
@@ -98,7 +132,8 @@ const KnowledgeScreen = ({ onBack }) => {
                 الاسم
               </div>
               <input
-                placeholder="اسم المعرفة"
+                autoFocus
+                placeholder="اسم المعرفة (اختياري)"
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 style={{
@@ -118,7 +153,7 @@ const KnowledgeScreen = ({ onBack }) => {
               <input
                 placeholder="متى تُستخدم هذه المعرفة"
                 value={form.when}
-                onChange={e => setForm(f => ({ ...f, when: e.target.value }))}
+                onChange={e => { setFormError(""); setForm(f => ({ ...f, when: e.target.value })); }}
                 style={{
                   width: "100%", background: C.surfaceB, border: `1px solid ${C.border}`,
                   borderRadius: 10, padding: "12px 14px", color: C.text,
@@ -136,7 +171,7 @@ const KnowledgeScreen = ({ onBack }) => {
               <textarea
                 placeholder="محتوى المعرفة"
                 value={form.content}
-                onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
+                onChange={e => { setFormError(""); setForm(f => ({ ...f, content: e.target.value })); }}
                 rows={4}
                 style={{
                   width: "100%", background: C.surfaceB, border: `1px solid ${C.border}`,
@@ -147,16 +182,33 @@ const KnowledgeScreen = ({ onBack }) => {
               />
             </div>
 
-            {/* Save */}
-            <div
-              onClick={handleSave}
-              style={{
-                background: C.accent, borderRadius: 12, padding: "14px 0",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", marginTop: 4,
-              }}
-            >
-              <span style={{ fontSize: T.fontMd, color: "white", fontWeight: 700 }}>حفظ</span>
+            {formError && (
+              <div style={{ fontSize: T.fontSm, color: C.danger, textAlign: "right" }}>
+                {formError}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <div
+                onClick={handleSave}
+                style={{
+                  flex: 1, background: C.accent, borderRadius: 12, padding: "14px 0",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", marginTop: 4,
+                }}
+              >
+                <span style={{ fontSize: T.fontMd, color: "white", fontWeight: 700 }}>حفظ</span>
+              </div>
+              <div
+                onClick={handleClose}
+                style={{
+                  flex: 1, background: C.surfaceB, borderRadius: 12, padding: "14px 0",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  border: `1px solid ${C.border}`, cursor: "pointer", marginTop: 4,
+                }}
+              >
+                <span style={{ fontSize: T.fontMd, color: C.textB }}>إلغاء</span>
+              </div>
             </div>
           </div>
         </BottomSheet>

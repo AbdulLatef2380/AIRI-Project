@@ -561,7 +561,7 @@ const ChatScreen = ({ onMenu, hasMessages = false }) => {
                   <Icon name={c.icon} size={18} color={c.color} />
                 </div>
                 <span style={{ flex: 1, fontSize: T.fontMd, color: C.text }}>{c.name}</span>
-                <Toggle on={c.enabled} onChange={() => {}} />
+                <Toggle on={c.enabled} onChange={() => toggle(c.id)} />
               </div>
             ))}
           </div>

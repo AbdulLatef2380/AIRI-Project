@@ -7,9 +7,8 @@ import { providerRegistry } from "../providers/ProviderRegistry.js";
  * Handles: streaming, abort, retry, queueing, token accounting.
  *
  * Usage:
- *   const engine = new ChatEngine();
- *   for await (const event of engine.send(messages, modelName, config)) {
- *     // { token, done, error, aborted, usage }
+ *   for await (const event of chatEngine.send(messages, modelName, config)) {
+ *     // { token, done, error, aborted, usage, retrying }
  *   }
  */
 
@@ -22,8 +21,7 @@ function sleep(ms) {
 
 export class ChatEngine {
   constructor() {
-    this._busy   = false;
-    this._queue  = [];
+    this._busy = false;
   }
 
   get isBusy() { return this._busy; }
@@ -33,62 +31,97 @@ export class ChatEngine {
     providerRegistry.abort();
   }
 
+  /** Force-reset the busy flag (recovery from stuck state) */
+  reset() {
+    this._busy = false;
+    providerRegistry.abort();
+  }
+
   /**
-   * Send a message and stream the response.
-   * Returns an AsyncGenerator that yields streaming events.
-   *
-   * @param {Array<{role,content}>} messages  Full conversation history
-   * @param {string}                modelName Active model name
-   * @param {object}                config    Provider config (apiKeys, endpoint…)
-   * @param {object}                options   { maxTokens, temperature }
+   * Send messages and stream the response.
+   * Async generator — yields streaming events.
    */
   async *send(messages, modelName, config = {}, options = {}) {
+    /* If already busy, abort the previous request and wait briefly */
     if (this._busy) {
-      yield { error: "Another request is in progress. Please wait." };
-      return;
+      providerRegistry.abort();
+      await sleep(150);
     }
 
     this._busy = true;
-    const provider = providerRegistry.switchTo(modelName, config);
+    let provider;
+    try {
+      provider = providerRegistry.switchTo(modelName, config);
+    } catch (err) {
+      this._busy = false;
+      yield { error: `Provider error: ${err.message}` };
+      return;
+    }
 
     let attempt = 0;
+
     while (attempt <= MAX_RETRIES) {
-      let hadToken  = false;
-      let gotError  = false;
-      let errorMsg  = "";
+      let hadToken = false;
+      let gotError = false;
+      let errorMsg = "";
 
       try {
         for await (const event of provider.stream(messages, options)) {
-          if (event.aborted) { yield { aborted: true }; this._busy = false; return; }
+          if (event.aborted) {
+            this._busy = false;
+            yield { aborted: true };
+            return;
+          }
           if (event.error) {
             gotError = true;
             errorMsg = event.error;
-            break; // will decide below whether to retry
+            break;
           }
-          if (event.token) { hadToken = true; yield event; }
-          if (event.done)  { yield event; this._busy = false; return; }
+          if (event.token) {
+            hadToken = true;
+            yield event;
+          }
+          if (event.done) {
+            this._busy = false;
+            yield event;
+            return;
+          }
         }
       } catch (err) {
         gotError = true;
-        errorMsg = err.message ?? "Unknown error";
+        errorMsg = err.name === "AbortError" ? "aborted" : (err.message ?? "Unknown error");
       }
 
-      if (!gotError) { this._busy = false; return; }
+      if (errorMsg === "aborted") {
+        this._busy = false;
+        yield { aborted: true };
+        return;
+      }
 
-      const isRetryable = !hadToken &&
+      if (!gotError) {
+        this._busy = false;
+        return;
+      }
+
+      const isRetryable =
+        !hadToken &&
         !errorMsg.includes("API key") &&
+        !errorMsg.includes("not configured") &&
         !errorMsg.includes("CORS") &&
-        !errorMsg.includes("not configured");
+        !errorMsg.includes("key is not");
 
       if (isRetryable && attempt < MAX_RETRIES) {
         attempt++;
         yield { retrying: attempt, maxRetries: MAX_RETRIES };
         await sleep(RETRY_DELAY * attempt);
+        /* Re-build provider for retry */
+        try { provider = providerRegistry.switchTo(modelName, config); } catch {}
         continue;
       }
 
+      this._busy = false;
       yield { error: errorMsg };
-      break;
+      return;
     }
 
     this._busy = false;

@@ -1,8 +1,11 @@
 package com.airi.assistant.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -12,12 +15,14 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicNone
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -27,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.voice.InternalWakeWordEngine
+import com.airi.assistant.voice.NativeSttEngine
 import com.airi.assistant.voice.VoskModelManager
 import kotlinx.coroutines.launch
 
@@ -77,6 +83,112 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            // ── Native Android STT (always available) ─────────────────────
+            val nativeAvailable = remember { NativeSttEngine.isAvailable(context) }
+            val prefs = remember { context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE) }
+            var sttLocale by remember { mutableStateOf(prefs.getString("stt_locale", "ar-SA") ?: "ar-SA") }
+
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Filled.Mic,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "النظام الصوتي الأساسي",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.weight(1f))
+                        if (nativeAvailable) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .background(Color(0xFF00DFA2).copy(alpha = 0.15f))
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    "جاهز",
+                                    color = Color(0xFF00DFA2),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        "Android SpeechRecognizer — يعمل فوراً على كل جهاز دون تنزيل نماذج. " +
+                            "يدعم العربية أولاً مع احتياطي إنجليزي.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    Divider()
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "لغة التعرف",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Spacer(Modifier.weight(1f))
+                        listOf("ar-SA" to "عربي", "en-US" to "English").forEach { (locale, label) ->
+                            val selected = sttLocale == locale
+                            Box(
+                                modifier = Modifier
+                                    .padding(start = 6.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(
+                                        if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                        else MaterialTheme.colorScheme.surface
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.50f)
+                                        else MaterialTheme.colorScheme.outline.copy(alpha = 0.30f),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable {
+                                        sttLocale = locale
+                                        prefs.edit().putString("stt_locale", locale).apply()
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    label,
+                                    color = if (selected) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+
+                    if (!nativeAvailable) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Filled.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "خدمة التعرف على الكلام غير متاحة على هذا الجهاز.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                }
+            }
 
             // ── Internal Wake Word status card ────────────────────────────
             ElevatedCard(modifier = Modifier.fillMaxWidth()) {

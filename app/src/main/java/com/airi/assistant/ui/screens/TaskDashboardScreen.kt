@@ -56,6 +56,7 @@ import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.core.runtime.PersistentTaskSession
 import com.airi.assistant.core.runtime.SessionStatus
 import com.airi.assistant.ui.theme.BorderLight
+import com.airi.assistant.ui.theme.BorderMid
 import com.airi.assistant.ui.theme.PrimaryAccent
 import com.airi.assistant.ui.theme.SemanticError
 import com.airi.assistant.ui.theme.SemanticSuccess
@@ -740,12 +741,12 @@ private fun TaskSessionCard(
 // ─────────────────────────────────────────────────────────────────────────────
 
 private fun taskStatusColor(status: SessionStatus): Color = when (status) {
-    SessionStatus.PENDING   -> Color(0xFF6B70A0)
+    SessionStatus.PENDING   -> BorderMid
     SessionStatus.RUNNING   -> PrimaryAccent
     SessionStatus.SUSPENDED -> SemanticWarning
     SessionStatus.COMPLETED -> SemanticSuccess
     SessionStatus.FAILED    -> SemanticError
-    SessionStatus.CANCELLED -> Color(0xFF55556A)
+    SessionStatus.CANCELLED -> TextTertiary
 }
 
 private fun taskStatusLabel(status: SessionStatus): String = when (status) {

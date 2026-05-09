@@ -151,46 +151,87 @@ fun ChatScreen(
 
     val wakeCounter by WakeWordDispatcher.counter
 
-    // ── In-app speech-to-text (Vosk on-device, NO Google APIs) ──────────────
+    // ── Speech-to-Text — Dual-engine dispatcher ───────────────────────────────
     //
-    // This screen used to drive android.speech.SpeechRecognizer, which
-    // requires Google's offline voice-search bundle to actually run
-    // offline. On devices without that bundle (many OEMs, GMS-less
-    // hardware) it either popped a Google dialog or silently failed.
+    // PRIMARY  : Android SpeechRecognizer (system STT).  Works on every device
+    //            out-of-the-box — no model download, no Google dialog required.
+    //            Arabic-first (ar-SA) with automatic English fallback.
     //
-    // We now stream microphone audio straight into a Vosk Recognizer
-    // (com.alphacephei:vosk-android) loaded from a model the user
-    // downloads via the in-app downloader (VoskModelManager). No
-    // RecognizerIntent, no SpeechRecognizer, no network, no Google.
+    // ENHANCED : VoskEngine (on-device, 100 % offline).  Auto-selected when a
+    //            Vosk model is installed via Voice Settings.  No Google services,
+    //            no network after the one-off model download.
+    //
+    // Dispatch logic: isReady(Vosk) → VoskEngine, else → NativeSttEngine.
     val voskEngineHolder = remember { mutableStateOf<VoskEngine?>(null) }
+    val nativeSttHolder  = remember { mutableStateOf<com.airi.assistant.voice.NativeSttEngine?>(null) }
     DisposableEffect(Unit) {
         onDispose {
             voskEngineHolder.value?.release()
             voskEngineHolder.value = null
+            nativeSttHolder.value?.release()
+            nativeSttHolder.value = null
         }
     }
 
     fun stopInAppStt() {
         voskEngineHolder.value?.stop()
+        nativeSttHolder.value?.stop()
     }
 
-    fun startInAppStt(autoSend: Boolean) {
-        if (!VoskModelManager.isReady(context)) {
-            voiceState = VoiceSessionState.IDLE
-            scope.launch {
-                snackbarHost.showSnackbar(
-                    context.getString(R.string.no_voice_model_installed)
-                )
+    fun handleSttResult(spoken: String, autoSend: Boolean) {
+        if (spoken.isNotBlank()) {
+            if (autoSend) {
+                voiceState     = VoiceSessionState.PROCESSING
+                voiceChatInput = spoken
+            } else {
+                voiceState = VoiceSessionState.IDLE
+                voiceInput = spoken
             }
-            return
+        } else {
+            voiceState = VoiceSessionState.IDLE
         }
+    }
+
+    fun handleSttError(err: String) {
+        Log.w("AIRI_VOICE", "STT error: $err")
+        voskEngineHolder.value?.release(); voskEngineHolder.value = null
+        nativeSttHolder.value?.release();  nativeSttHolder.value = null
+        voiceState = VoiceSessionState.IDLE
+        if (err != "no_speech_detected" && err != "speech_timeout") {
+            scope.launch {
+                snackbarHost.showSnackbar(context.getString(R.string.speech_recognition_unavailable))
+            }
+        }
+    }
+
+    fun startNativeStt(autoSend: Boolean) {
+        nativeSttHolder.value?.release()
+        nativeSttHolder.value = null
+        val engine = com.airi.assistant.voice.NativeSttEngine(context)
+        nativeSttHolder.value = engine
+        voiceState = VoiceSessionState.LISTENING
+        val sttLocale = context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE)
+            .getString("stt_locale", "ar-SA") ?: "ar-SA"
+        engine.start(
+            locale    = sttLocale,
+            onPartial = { partial -> if (partial.isNotBlank()) voiceInput = partial },
+            onFinal   = { spoken ->
+                if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "NativeSTT result len=${spoken.length} autoSend=$autoSend")
+                nativeSttHolder.value = null
+                handleSttResult(spoken, autoSend)
+            },
+            onError = { err -> nativeSttHolder.value = null; handleSttError(err) }
+        )
+    }
+
+    fun startVoskStt(autoSend: Boolean) {
         voskEngineHolder.value?.release()
         voskEngineHolder.value = null
         scope.launch {
             val model = VoskModelManager.loadActiveModel(context)
             if (model == null) {
-                voiceState = VoiceSessionState.IDLE
-                snackbarHost.showSnackbar(context.getString(R.string.voice_model_load_failed))
+                Log.w("AIRI_VOICE", "Vosk model load failed → falling back to native STT")
+                startNativeStt(autoSend)
                 return@launch
             }
             val engine = VoskEngine(context, model)
@@ -201,32 +242,24 @@ fun ChatScreen(
                 onPartial = { /* future: surface live partial text */ },
                 onFinal   = { spoken ->
                     if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "Vosk STT result len=${spoken.length} autoSend=$autoSend")
-                    voskEngineHolder.value?.release()
-                    voskEngineHolder.value = null
-                    if (spoken.isNotBlank()) {
-                        if (autoSend) {
-                            voiceState     = VoiceSessionState.PROCESSING
-                            voiceChatInput = spoken
-                        } else {
-                            voiceState = VoiceSessionState.IDLE
-                            voiceInput = spoken
-                        }
-                    } else {
-                        voiceState = VoiceSessionState.IDLE
-                    }
+                    voskEngineHolder.value?.release(); voskEngineHolder.value = null
+                    handleSttResult(spoken, autoSend)
                 },
-                onError   = { err ->
-                    Log.w("AIRI_VOICE", "Vosk STT error: $err")
-                    voskEngineHolder.value?.release()
-                    voskEngineHolder.value = null
-                    voiceState = VoiceSessionState.IDLE
-                    scope.launch {
-                        snackbarHost.showSnackbar(
-                            context.getString(R.string.speech_recognition_unavailable)
-                        )
-                    }
+                onError = { err ->
+                    voskEngineHolder.value?.release(); voskEngineHolder.value = null
+                    handleSttError(err)
                 }
             )
+        }
+    }
+
+    fun startInAppStt(autoSend: Boolean) {
+        if (VoskModelManager.isReady(context)) {
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "STT dispatcher → Vosk (offline) autoSend=$autoSend")
+            startVoskStt(autoSend)
+        } else {
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "STT dispatcher → NativeSTT (system) autoSend=$autoSend")
+            startNativeStt(autoSend)
         }
     }
 
@@ -266,7 +299,6 @@ fun ChatScreen(
         if (wakeCounter > 0 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
                 PackageManager.PERMISSION_GRANTED &&
-            VoskModelManager.isReady(context) &&
             voiceState == VoiceSessionState.IDLE) {
             if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "Wake-word dispatcher fired → starting in-app STT (autoSend)")
             startInAppStt(autoSend = true)

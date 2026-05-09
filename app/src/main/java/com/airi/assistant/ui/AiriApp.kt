@@ -49,6 +49,7 @@ import com.airi.assistant.ui.screens.ProfileScreen
 import com.airi.assistant.ui.screens.ReferralScreen
 import com.airi.assistant.ui.screens.SettingsScreen
 import com.airi.assistant.ui.screens.SkillBuilderScreen
+import com.airi.assistant.ui.screens.KnowledgeScreen
 import com.airi.assistant.ui.screens.SkillManagerScreen
 import com.airi.assistant.ui.screens.TaskDashboardScreen
 import com.airi.assistant.ui.screens.TemplatesScreen
@@ -91,6 +92,7 @@ object AiriRoute {
     const val SETTINGS_CUSTOMIZATION = "screen_settings_customization"
     const val SETTINGS_PRIVACY       = "screen_settings_privacy"
     const val SETTINGS_ABOUT         = "screen_settings_about"
+    const val KNOWLEDGE              = "screen_knowledge"
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 }
@@ -467,6 +469,12 @@ fun AiriApp() {
                             onNavigate = { route ->
                                 navController.navigate(route) { launchSingleTop = true }
                             }
+                        )
+                    }
+
+                    composable(AiriRoute.KNOWLEDGE) {
+                        KnowledgeScreen(
+                            onBack = { navController.popBackStack() }
                         )
                     }
                 }

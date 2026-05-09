@@ -394,14 +394,20 @@ fun VioletWaveform(
         inf.animateFloat(
             initialValue  = if (isActive) 0.25f else 0.25f,
             targetValue   = if (isActive) 1.00f else 0.25f,
-            animationSpec = if (isActive) infiniteRepeatable(
-                animation  = tween(
-                    durationMillis = 400 + i * 80,
-                    easing         = FastOutSlowInEasing
-                ),
-                repeatMode = RepeatMode.Reverse,
-                initialStartOffset = StartOffset(i * 60)
-            ) else tween(0),
+            animationSpec = if (isActive) {
+                infiniteRepeatable(
+                    animation  = tween(
+                        durationMillis = 400 + i * 80,
+                        easing         = FastOutSlowInEasing
+                    ),
+                    repeatMode = RepeatMode.Reverse,
+                    initialStartOffset = StartOffset(i * 60)
+                )
+            } else {
+                infiniteRepeatable(
+                    animation = tween(0)
+                )
+            },
             label = "bar$i"
         )
     }

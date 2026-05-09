@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -168,7 +169,7 @@ fun NeuralToggle(
         modifier = modifier
             .size(width = 44.dp, height = 26.dp)
             .clip(RoundedCornerShape(13.dp))
-            .background(trackColor)
+            .background(color = trackColor)
             .clickable(
                 enabled             = enabled,
                 interactionSource   = remember { MutableInteractionSource() },
@@ -400,7 +401,7 @@ fun VioletWaveform(
                 ),
                 repeatMode = RepeatMode.Reverse,
                 initialStartOffset = StartOffset(i * 60)
-            ) else snap(),
+            ) else tween(0),
             label = "bar$i"
         )
     }

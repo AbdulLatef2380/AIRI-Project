@@ -31,8 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airi.assistant.memory.dao.ChatSessionSummary
 import com.airi.assistant.ui.theme.*
-import com.airi.assistant.ui.viewmodel.ChatSessionSummary
 import java.text.SimpleDateFormat
 import java.util.*
 

@@ -97,12 +97,20 @@ fun KnowledgeScreen(onBack: () -> Unit) {
     var query    by remember { mutableStateOf("") }
     var showAdd  by remember { mutableStateOf(false) }
 
-    val filtered = remember(entries, query) {
-        if (query.isBlank()) entries
-        else entries.filter {
-            it.title.contains(query, ignoreCase = true) ||
-            it.content.contains(query, ignoreCase = true)
-        }
+    var typeFilter by remember { mutableStateOf<KnowledgeType?>(null) }
+
+    val filtered = remember(entries, query, typeFilter) {
+        entries
+            .let { list ->
+                if (typeFilter != null) list.filter { it.type == typeFilter } else list
+            }
+            .let { list ->
+                if (query.isBlank()) list
+                else list.filter {
+                    it.title.contains(query, ignoreCase = true) ||
+                    it.content.contains(query, ignoreCase = true)
+                }
+            }
     }
 
     fun save(list: List<KnowledgeEntry>) {
@@ -134,10 +142,19 @@ fun KnowledgeScreen(onBack: () -> Unit) {
                 Spacer(Modifier.height(8.dp))
 
                 // Filter chips
+                val chipDefs = listOf<Pair<String, KnowledgeType?>>(
+                    "الكل" to null,
+                    "نص"  to KnowledgeType.TEXT,
+                    "URL" to KnowledgeType.URL,
+                    "مستند" to KnowledgeType.DOCUMENT
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("الكل", "نص", "URL", "مستند").forEachIndexed { i, label ->
-                        val types = listOf<KnowledgeType?>(null, KnowledgeType.TEXT, KnowledgeType.URL, KnowledgeType.DOCUMENT)
-                        FilterChipItem(label = label, selected = false)
+                    chipDefs.forEach { (label, type) ->
+                        FilterChipItem(
+                            label    = label,
+                            selected = typeFilter == type,
+                            onClick  = { typeFilter = type }
+                        )
                     }
                 }
 
@@ -295,7 +312,7 @@ private fun KnowledgeCard(entry: KnowledgeEntry, onDelete: () -> Unit) {
 }
 
 @Composable
-private fun FilterChipItem(label: String, selected: Boolean) {
+private fun FilterChipItem(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
@@ -305,6 +322,7 @@ private fun FilterChipItem(label: String, selected: Boolean) {
                 if (selected) PrimaryAccent.copy(alpha = 0.40f) else BorderLight,
                 RoundedCornerShape(999.dp)
             )
+            .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
         Text(

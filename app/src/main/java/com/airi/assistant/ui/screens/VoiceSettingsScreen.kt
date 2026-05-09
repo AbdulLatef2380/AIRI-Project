@@ -109,12 +109,12 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(999.dp))
-                                    .background(Color(0xFF00DFA2).copy(alpha = 0.15f))
+                                    .background(com.airi.assistant.ui.theme.SemanticSuccess.copy(alpha = 0.15f))
                                     .padding(horizontal = 8.dp, vertical = 3.dp)
                             ) {
                                 Text(
                                     "جاهز",
-                                    color = Color(0xFF00DFA2),
+                                    color = com.airi.assistant.ui.theme.SemanticSuccess,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )

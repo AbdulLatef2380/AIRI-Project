@@ -133,6 +133,12 @@ fun SettingsScreen(
                 ) { onNavigate(AiriRoute.VOICE_SETTINGS) }
                 SettingsHubDivider()
                 SettingsHubRow(
+                    icon     = Icons.Outlined.MenuBook,
+                    title    = "Knowledge Base",
+                    subtitle = "Text, URLs, and documents for AIRI context"
+                ) { onNavigate(AiriRoute.KNOWLEDGE) }
+                SettingsHubDivider()
+                SettingsHubRow(
                     icon     = Icons.Outlined.SmartToy,
                     title    = "Agent",
                     subtitle = "Background automation"

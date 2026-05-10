@@ -1,5 +1,7 @@
+import com.airi.assistant.ui.components.AiriScreenHeader
 package com.airi.assistant.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,26 +27,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airi.assistant.ui.components.NeuralBadge
-import com.airi.assistant.ui.components.NeuralBottomSheet
-import com.airi.assistant.ui.components.NeuralSearchBar
-import com.airi.assistant.ui.components.NeuralScreenHeader
+import com.airi.assistant.ui.components.*
 import com.airi.assistant.ui.theme.*
 import org.json.JSONArray
 import org.json.JSONObject
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Local data model — no external dependencies, no Room, no network.
-// Backed by SharedPreferences (JSON array) for persistence across process death.
-// ─────────────────────────────────────────────────────────────────────────────
+import java.text.SimpleDateFormat
+import java.util.*
 
 private enum class KnowledgeType { TEXT, URL, DOCUMENT }
 
 private data class KnowledgeEntry(
-    val id:        String,
-    val title:     String,
-    val content:   String,
-    val type:      KnowledgeType,
+    val id: String,
+    val title: String,
+    val content: String,
+    val type: KnowledgeType,
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -73,391 +69,275 @@ private fun saveEntries(context: android.content.Context, entries: List<Knowledg
     val arr = JSONArray()
     entries.forEach { e ->
         arr.put(JSONObject().apply {
-            put("id", e.id)
-            put("title", e.title)
-            put("content", e.content)
-            put("type", e.type.name)
-            put("createdAt", e.createdAt)
+            put("id", e.id); put("title", e.title); put("content", e.content)
+            put("type", e.type.name); put("createdAt", e.createdAt)
         })
     }
     context.getSharedPreferences(PREFS_KEY, android.content.Context.MODE_PRIVATE)
-        .edit()
-        .putString(DATA_KEY, arr.toString())
-        .apply()
+        .edit().putString(DATA_KEY, arr.toString()).apply()
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Screen
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 fun KnowledgeScreen(onBack: () -> Unit) {
-    val context  = LocalContext.current
-    var entries  by remember { mutableStateOf(loadEntries(context)) }
-    var query    by remember { mutableStateOf("") }
-    var showAdd  by remember { mutableStateOf(false) }
-
+    val context = LocalContext.current
+    var entries by remember { mutableStateOf(loadEntries(context)) }
+    var query   by remember { mutableStateOf("") }
+    var showAdd by remember { mutableStateOf(false) }
     var typeFilter by remember { mutableStateOf<KnowledgeType?>(null) }
 
     val filtered = remember(entries, query, typeFilter) {
-        entries
-            .let { list ->
-                if (typeFilter != null) list.filter { it.type == typeFilter } else list
-            }
-            .let { list ->
-                if (query.isBlank()) list
-                else list.filter {
-                    it.title.contains(query, ignoreCase = true) ||
-                    it.content.contains(query, ignoreCase = true)
+        entries.filter { e ->
+            (typeFilter == null || e.type == typeFilter) &&
+            (query.isBlank() || e.title.contains(query, ignoreCase = true) || e.content.contains(query, ignoreCase = true))
+        }
+    }
+
+    Scaffold(
+        containerColor = Surface0,
+        topBar = {
+            AiriScreenHeader(title = "المعرفة", onBack = onBack) {
+                IconButton(onClick = { showAdd = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add", tint = PrimaryAccent)
                 }
             }
-    }
-
-    fun save(list: List<KnowledgeEntry>) {
-        entries = list
-        saveEntries(context, list)
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Surface0)
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            NeuralScreenHeader(title = "قاعدة المعرفة", onBack = onBack)
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            // Search + filter row
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Spacer(Modifier.height(12.dp))
-
                 NeuralSearchBar(
-                    query         = query,
+                    query = query,
                     onQueryChange = { query = it },
-                    placeholder   = "البحث في المعرفة..."
+                    placeholder = "بحث في المعرفة...",
+                    modifier = Modifier.weight(1f)
                 )
+            }
 
-                Spacer(Modifier.height(8.dp))
+            // Type filter chips
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                KnowledgeTypeChip("الكل", typeFilter == null) { typeFilter = null }
+                KnowledgeTypeChip("نص", typeFilter == KnowledgeType.TEXT) { typeFilter = KnowledgeType.TEXT }
+                KnowledgeTypeChip("رابط", typeFilter == KnowledgeType.URL) { typeFilter = KnowledgeType.URL }
+                KnowledgeTypeChip("مستند", typeFilter == KnowledgeType.DOCUMENT) { typeFilter = KnowledgeType.DOCUMENT }
+            }
 
-                // Filter chips
-                val chipDefs = listOf<Pair<String, KnowledgeType?>>(
-                    "الكل" to null,
-                    "نص"  to KnowledgeType.TEXT,
-                    "URL" to KnowledgeType.URL,
-                    "مستند" to KnowledgeType.DOCUMENT
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    chipDefs.forEach { (label, type) ->
-                        FilterChipItem(
-                            label    = label,
-                            selected = typeFilter == type,
-                            onClick  = { typeFilter = type }
+            if (filtered.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Outlined.MenuBook, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(48.dp))
+                        Text("لا توجد معرفة مضافة بعد", color = TextTertiary, fontSize = 14.sp)
+                        NeuralAccentButton("إضافة معرفة", onClick = { showAdd = true }, modifier = Modifier.width(200.dp), icon = Icons.Default.Add)
+                    }
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(filtered, key = { it.id }) { entry ->
+                        KnowledgeCard(
+                            entry = entry,
+                            onDelete = {
+                                val updated = entries.filterNot { it.id == entry.id }
+                                entries = updated
+                                saveEntries(context, updated)
+                            }
                         )
                     }
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                if (filtered.isEmpty() && entries.isEmpty()) {
-                    EmptyKnowledge(onAdd = { showAdd = true })
-                } else if (filtered.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("لا توجد نتائج لـ \"$query\"", color = TextTertiary, fontSize = 14.sp)
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(bottom = 100.dp)
-                    ) {
-                        items(filtered, key = { it.id }) { entry ->
-                            KnowledgeCard(
-                                entry    = entry,
-                                onDelete = {
-                                    save(entries.filter { it.id != entry.id })
-                                }
-                            )
-                        }
-                    }
+                    item { Spacer(Modifier.height(16.dp)) }
                 }
             }
         }
-
-        // FAB
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(20.dp)
-                .size(54.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(PrimaryAccent)
-                .clickable { showAdd = true },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "إضافة", tint = Color.White, modifier = Modifier.size(24.dp))
-        }
     }
 
-    // Add entry bottom sheet
     if (showAdd) {
         AddKnowledgeSheet(
             onDismiss = { showAdd = false },
-            onAdd     = { newEntry ->
-                save(entries + newEntry)
+            onSave = { title, content, type ->
+                val entry = KnowledgeEntry(
+                    id = UUID.randomUUID().toString(),
+                    title = title, content = content, type = type
+                )
+                val updated = listOf(entry) + entries
+                entries = updated
+                saveEntries(context, updated)
                 showAdd = false
             }
         )
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-composables
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun EmptyKnowledge(onAdd: () -> Unit) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(PrimaryAccent.copy(alpha = 0.12f))
-                    .border(1.dp, PrimaryAccent.copy(alpha = 0.25f), RoundedCornerShape(18.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Outlined.MenuBook, contentDescription = null, tint = PrimaryAccent, modifier = Modifier.size(36.dp))
-            }
-            Text("قاعدة المعرفة فارغة", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Text("أضف نصوصاً أو روابط أو مستندات يمكن لـ AIRI الاستناد إليها.", color = TextSecondary, fontSize = 13.sp)
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(PrimaryAccent)
-                    .clickable(onClick = onAdd)
-                    .padding(horizontal = 22.dp, vertical = 11.dp)
-            ) {
-                Text("إضافة معرفة", color = Color.White, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
-}
-
 @Composable
 private fun KnowledgeCard(entry: KnowledgeEntry, onDelete: () -> Unit) {
-    val (icon, color) = when (entry.type) {
-        KnowledgeType.TEXT     -> Icons.Default.Article to PrimaryAccent
-        KnowledgeType.URL      -> Icons.Default.Link    to SemanticSuccess
-        KnowledgeType.DOCUMENT -> Icons.Default.Article to SecondaryAccent
+    var showDelete by remember { mutableStateOf(false) }
+    val typeIcon: ImageVector = when (entry.type) {
+        KnowledgeType.URL      -> Icons.Default.Link
+        KnowledgeType.DOCUMENT -> Icons.Default.Article
+        else                   -> Icons.Outlined.MenuBook
     }
+    val typeColor = when (entry.type) {
+        KnowledgeType.URL      -> AccentCloud
+        KnowledgeType.DOCUMENT -> SemanticWarning
+        else                   -> PrimaryAccent
+    }
+    val fmt = remember { SimpleDateFormat("d MMM", Locale("ar")) }
+    val dateStr = remember(entry.createdAt) { fmt.format(Date(entry.createdAt)) }
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Surface2)
-            .border(1.dp, BorderLight, RoundedCornerShape(14.dp))
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clip(RoundedCornerShape(16.dp))
+            .background(Surface1)
+            .border(1.dp, BorderLight, RoundedCornerShape(16.dp))
+            .clickable { showDelete = !showDelete }
+            .padding(16.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(color.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
-        }
-
-        Spacer(Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    entry.title,
-                    color      = TextPrimary,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize   = 14.sp,
-                    maxLines   = 1,
-                    overflow   = TextOverflow.Ellipsis,
-                    modifier   = Modifier.weight(1f, fill = false)
-                )
-                NeuralBadge(
-                    text  = entry.type.name,
-                    color = color
-                )
+        Column {
+            Row(verticalAlignment = Alignment.Top) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(typeColor.copy(alpha = 0.14f))
+                        .border(0.5.dp, typeColor.copy(alpha = 0.3f), RoundedCornerShape(9.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(typeIcon, contentDescription = null, tint = typeColor, modifier = Modifier.size(18.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(entry.title, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(entry.content, color = TextSecondary, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 17.sp)
+                }
             }
-            Text(
-                entry.content,
-                color    = TextSecondary,
-                fontSize = 12.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Default.Delete, contentDescription = "حذف", tint = SemanticError.copy(alpha = 0.75f))
+            AnimatedVisibility(visible = showDelete) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        onClick = onDelete,
+                        colors = ButtonDefaults.textButtonColors(contentColor = SemanticError)
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("حذف", fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NeuralBadge(
+                    text = when (entry.type) {
+                        KnowledgeType.URL -> "رابط"
+                        KnowledgeType.DOCUMENT -> "مستند"
+                        else -> "نص"
+                    },
+                    color = typeColor
+                )
+                Text(dateStr, color = TextTertiary, fontSize = 11.sp)
+            }
         }
     }
 }
 
 @Composable
-private fun FilterChipItem(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun KnowledgeTypeChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(if (selected) PrimaryAccent.copy(alpha = 0.15f) else Surface2)
-            .border(
-                1.dp,
-                if (selected) PrimaryAccent.copy(alpha = 0.40f) else BorderLight,
-                RoundedCornerShape(999.dp)
-            )
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (selected) PrimaryAccent else Surface2)
+            .border(1.dp, if (selected) PrimaryAccent else BorderLight, RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
-        Text(
-            label,
-            color      = if (selected) PrimaryAccent else TextSecondary,
-            fontSize   = 12.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
-        )
+        Text(label, color = if (selected) Color.White else TextSecondary, fontSize = 12.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
     }
 }
 
 @Composable
 private fun AddKnowledgeSheet(
     onDismiss: () -> Unit,
-    onAdd:     (KnowledgeEntry) -> Unit
+    onSave: (title: String, content: String, type: KnowledgeType) -> Unit
 ) {
-    var title    by remember { mutableStateOf("") }
-    var content  by remember { mutableStateOf("") }
-    var type     by remember { mutableStateOf(KnowledgeType.TEXT) }
+    var title   by remember { mutableStateOf("") }
+    var content by remember { mutableStateOf("") }
+    var type    by remember { mutableStateOf(KnowledgeType.TEXT) }
+    val canSave = title.isNotBlank() && content.isNotBlank()
 
-    NeuralBottomSheet(
-        onDismiss = onDismiss,
-        title     = "إضافة معرفة جديدة"
-    ) {
+    NeuralBottomSheet(onDismiss = onDismiss, title = "إضافة معرفة") {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Type selector
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                KnowledgeType.values().forEach { t ->
-                    val sel = t == type
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (sel) PrimaryAccent.copy(alpha = 0.15f) else Surface3)
-                            .border(1.dp, if (sel) PrimaryAccent.copy(alpha = 0.40f) else BorderLight, RoundedCornerShape(8.dp))
-                            .clickable { type = t }
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = when (t) {
-                                KnowledgeType.TEXT     -> "نص"
-                                KnowledgeType.URL      -> "رابط"
-                                KnowledgeType.DOCUMENT -> "مستند"
-                            },
-                            color      = if (sel) PrimaryAccent else TextSecondary,
-                            fontSize   = 13.sp,
-                            fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal
-                        )
-                    }
+                listOf(KnowledgeType.TEXT to "نص", KnowledgeType.URL to "رابط", KnowledgeType.DOCUMENT to "مستند").forEach { (t, l) ->
+                    KnowledgeTypeChip(l, type == t) { type = t }
                 }
             }
-
-            // Title field
-            OutlinedTextField(
-                value         = title,
-                onValueChange = { title = it },
-                label         = { Text("العنوان", color = TextSecondary) },
-                singleLine    = true,
-                modifier      = Modifier.fillMaxWidth(),
-                colors        = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor   = PrimaryAccent,
-                    unfocusedBorderColor = BorderLight,
-                    focusedTextColor     = TextPrimary,
-                    unfocusedTextColor   = TextPrimary,
-                    cursorColor          = PrimaryAccent,
-                    focusedContainerColor   = Surface2,
-                    unfocusedContainerColor = Surface2,
+            // Title
+            Column {
+                Text("الاسم", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    placeholder = { Text("اسم المعرفة", color = TextTertiary, fontSize = 14.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = neuralFieldColors(),
+                    shape = RoundedCornerShape(12.dp)
                 )
-            )
-
-            // Content field
-            OutlinedTextField(
-                value         = content,
-                onValueChange = { content = it },
-                label         = {
-                    Text(
-                        if (type == KnowledgeType.URL) "الرابط (URL)" else "المحتوى",
-                        color = TextSecondary
-                    )
-                },
-                minLines = 3,
-                maxLines = 6,
-                modifier = Modifier.fillMaxWidth(),
-                colors   = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor   = PrimaryAccent,
-                    unfocusedBorderColor = BorderLight,
-                    focusedTextColor     = TextPrimary,
-                    unfocusedTextColor   = TextPrimary,
-                    cursorColor          = PrimaryAccent,
-                    focusedContainerColor   = Surface2,
-                    unfocusedContainerColor = Surface2,
-                )
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Surface3)
-                        .border(1.dp, BorderLight, RoundedCornerShape(10.dp))
-                        .clickable(onClick = onDismiss)
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("إلغاء", color = TextSecondary, fontWeight = FontWeight.Medium)
-                }
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (title.isBlank() || content.isBlank()) PrimaryAccent.copy(alpha = 0.4f) else PrimaryAccent)
-                        .clickable(enabled = title.isNotBlank() && content.isNotBlank()) {
-                            onAdd(KnowledgeEntry(
-                                id      = System.currentTimeMillis().toString(),
-                                title   = title.trim(),
-                                content = content.trim(),
-                                type    = type
-                            ))
-                        }
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("حفظ", color = Color.White, fontWeight = FontWeight.SemiBold)
-                }
             }
-
-            Spacer(Modifier.height(8.dp))
+            // Content
+            Column {
+                Text("المحتوى *", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
+                OutlinedTextField(
+                    value = content,
+                    onValueChange = { content = it },
+                    placeholder = { Text("محتوى المعرفة", color = TextTertiary, fontSize = 14.sp) },
+                    minLines = 3,
+                    maxLines = 6,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = neuralFieldColors(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
+            NeuralAccentButton(
+                text = "حفظ",
+                onClick = { onSave(title.trim(), content.trim(), type) },
+                enabled = canSave,
+                icon = Icons.Default.Add
+            )
+            Spacer(Modifier.height(4.dp))
         }
     }
 }
+
+@Composable
+private fun neuralFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor   = PrimaryAccent,
+    unfocusedBorderColor = BorderLight,
+    focusedTextColor     = TextPrimary,
+    unfocusedTextColor   = TextPrimary,
+    cursorColor          = PrimaryAccent,
+    focusedContainerColor   = Surface2,
+    unfocusedContainerColor = Surface2
+)

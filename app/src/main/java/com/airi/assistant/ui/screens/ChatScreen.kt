@@ -59,6 +59,7 @@ import com.airi.assistant.core.VoiceManager
 import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.PrimaryAccent
 import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.ui.theme.InputBarBackground
 import com.airi.assistant.ui.viewmodel.AgentState
@@ -1310,7 +1311,7 @@ fun UserBubble(text: String, imageUri: String? = null) {
                     .widthIn(max = 340.dp)
                     .clip(RoundedCornerShape(20.dp, 4.dp, 20.dp, 20.dp))
                     .background(UserBubbleSurface)
-                    .border(1.dp, CosmicAccent.copy(alpha = 0.28f), RoundedCornerShape(20.dp, 4.dp, 20.dp, 20.dp))
+                    .border(1.dp, PrimaryAccent.copy(alpha = 0.35f), RoundedCornerShape(20.dp, 4.dp, 20.dp, 20.dp))
                     .clickable {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
@@ -2333,7 +2334,7 @@ fun AiriDrawer(
     val initial = email.firstOrNull()?.uppercaseChar()?.toString() ?: "A"
 
     ModalDrawerSheet(
-        drawerContainerColor = Color(0xFF0D1124),
+        drawerContainerColor = Surface0,
         drawerContentColor   = Color.White,
         modifier = Modifier.width(300.dp)
     ) {
@@ -2353,7 +2354,7 @@ fun AiriDrawer(
                 .fillMaxWidth()
                 .background(
                     Brush.verticalGradient(
-                        listOf(CosmicAccent.copy(alpha = 0.15f), Color.Transparent)
+                        listOf(PrimaryAccent.copy(alpha = 0.18f), Color.Transparent)
                     )
                 )
                 .clickable { onNavigate(AiriRoute.PROFILE) }
@@ -2365,8 +2366,8 @@ fun AiriDrawer(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(CircleShape)
-                            .background(CosmicAccent.copy(alpha = 0.2f))
-                            .border(1.5.dp, CosmicAccent.copy(alpha = 0.5f), CircleShape),
+                            .background(PrimaryAccent.copy(alpha = 0.22f))
+                            .border(1.5.dp, PrimaryAccent.copy(alpha = 0.55f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(initial, color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 18.sp)
@@ -2380,7 +2381,7 @@ fun AiriDrawer(
                 Spacer(Modifier.height(12.dp))
                 Surface(
                     shape = RoundedCornerShape(20.dp),
-                    color = if (modelState.isModelReady) CosmicAccent.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.07f)
+                    color = if (modelState.isModelReady) PrimaryAccent.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.07f)
                 ) {
                     Text(
                         text = when {
@@ -2390,7 +2391,7 @@ fun AiriDrawer(
                         },
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                         fontSize = 11.sp,
-                        color = if (modelState.isModelReady) CosmicAccent else Color.White.copy(alpha = 0.4f)
+                        color = if (modelState.isModelReady) PrimaryAccent else Color.White.copy(alpha = 0.4f)
                     )
                 }
             }
@@ -2439,7 +2440,7 @@ fun AiriDrawer(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .background(Color(0xFF0D1124))
+                .background(Surface0)
         ) {
             Divider(color = Color.White.copy(alpha = 0.08f))
             DrawerNavItem(

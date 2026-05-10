@@ -1,5 +1,7 @@
+import com.airi.assistant.ui.components.AiriScreenHeader
 package com.airi.assistant.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,10 +10,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Extension
-import androidx.compose.material.icons.outlined.LibraryBooks
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,224 +25,222 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.domain.customskill.CustomSkill
 import com.airi.assistant.domain.customskill.CustomSkillRepository
-import com.airi.assistant.ui.components.NeuralBadge
-import com.airi.assistant.ui.components.NeuralSearchBar
-import com.airi.assistant.ui.components.NeuralScreenHeader
+import com.airi.assistant.ui.components.*
 import com.airi.assistant.ui.theme.*
 
 @Composable
 fun SkillManagerScreen(
-    onBack:           () -> Unit,
-    onCreate:         () -> Unit,
-    onEdit:           (String) -> Unit,
-    onBrowseTemplates: () -> Unit = {}
+    onBack:            () -> Unit,
+    onCreate:          () -> Unit,
+    onEdit:            (String) -> Unit,
+    onBrowseTemplates: () -> Unit
 ) {
-    val context    = LocalContext.current
-    val repository = remember { CustomSkillRepository(context) }
-    var skills     by remember { mutableStateOf(repository.getAllSkills()) }
-    var query      by remember { mutableStateOf("") }
-
-    fun reload() { skills = repository.getAllSkills() }
+    val context = LocalContext.current
+    val repo    = remember { CustomSkillRepository(context) }
+    var skills  by remember { mutableStateOf(repo.loadAll()) }
+    var query   by remember { mutableStateOf("") }
+    var showCreateSheet by remember { mutableStateOf(false) }
 
     val filtered = remember(skills, query) {
         if (query.isBlank()) skills
-        else skills.filter {
-            it.name.contains(query, ignoreCase = true) ||
-            it.description.contains(query, ignoreCase = true) ||
-            it.type.name.contains(query, ignoreCase = true)
-        }
+        else skills.filter { it.name.contains(query, ignoreCase = true) || it.description.contains(query, ignoreCase = true) }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Surface0)
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-
-            NeuralScreenHeader(
-                title          = "المهارات المخصصة",
-                onBack         = onBack,
-                trailingContent = {
-                    Row {
-                        IconButton(onClick = onBrowseTemplates) {
-                            Icon(Icons.Outlined.LibraryBooks, contentDescription = "قوالب", tint = PrimaryAccent)
-                        }
-                        IconButton(onClick = onCreate) {
-                            Icon(Icons.Filled.Add, contentDescription = "إضافة", tint = PrimaryAccent)
-                        }
-                    }
-                }
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Spacer(Modifier.height(12.dp))
-
-                NeuralSearchBar(
-                    query         = query,
-                    onQueryChange = { query = it },
-                    placeholder   = "بحث في المهارات..."
-                )
-
-                Spacer(Modifier.height(16.dp))
-
-                if (filtered.isEmpty() && skills.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(72.dp)
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .background(PrimaryAccent.copy(alpha = 0.12f))
-                                    .border(1.dp, PrimaryAccent.copy(alpha = 0.25f), RoundedCornerShape(18.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Outlined.Extension,
-                                    contentDescription = null,
-                                    tint     = PrimaryAccent,
-                                    modifier = Modifier.size(36.dp)
-                                )
-                            }
-                            Text(
-                                "لا توجد مهارات بعد",
-                                color      = TextPrimary,
-                                fontWeight = FontWeight.Bold,
-                                fontSize   = 18.sp
-                            )
-                            Text(
-                                "أنشئ مهارة API أو Webhook ليستخدمها AIRI أداةً.",
-                                color    = TextSecondary,
-                                fontSize = 13.sp
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(PrimaryAccent)
-                                    .clickable(onClick = onCreate)
-                                    .padding(horizontal = 22.dp, vertical = 11.dp)
-                            ) {
-                                Text("إنشاء مهارة", color = Color.White, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    }
-                } else if (filtered.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("لا توجد نتائج لـ \"$query\"", color = TextTertiary, fontSize = 14.sp)
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(bottom = 96.dp)
-                    ) {
-                        items(filtered, key = { it.id }) { skill ->
-                            SkillCard(
-                                skill    = skill,
-                                onClick  = { onEdit(skill.id) },
-                                onDelete = { repository.deleteSkill(skill.id); reload() }
-                            )
-                        }
-                    }
+    Scaffold(
+        containerColor = Surface0,
+        topBar = {
+            AiriScreenHeader(title = "المهارات", onBack = onBack) {
+                IconButton(onClick = { showCreateSheet = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Skill", tint = PrimaryAccent)
                 }
             }
         }
-
-        // FAB
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(20.dp)
-                .size(54.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(PrimaryAccent)
-                .clickable(onClick = onCreate),
-            contentAlignment = Alignment.Center
+    ) { padding ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding)
         ) {
-            Icon(Icons.Default.Add, contentDescription = "إنشاء مهارة", tint = Color.White, modifier = Modifier.size(24.dp))
+            // Search
+            NeuralSearchBar(
+                query = query,
+                onQueryChange = { query = it },
+                placeholder = "بحث في المهارات...",
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+            )
+
+            if (filtered.isEmpty() && query.isBlank()) {
+                EmptySkillsPlaceholder(
+                    onCreate = { showCreateSheet = true },
+                    onBrowse = onBrowseTemplates
+                )
+            } else if (filtered.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("لا توجد نتائج لـ \"$query\"", color = TextTertiary, fontSize = 14.sp)
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(filtered, key = { it.id }) { skill ->
+                        SkillCard(
+                            skill    = skill,
+                            onEdit   = { onEdit(skill.id) },
+                            onToggle = {
+                                val updated = skill.copy(enabled = !skill.enabled)
+                                repo.save(updated)
+                                skills = repo.loadAll()
+                            },
+                            onDelete = {
+                                repo.delete(skill.id)
+                                skills = repo.loadAll()
+                            }
+                        )
+                    }
+                    item { Spacer(Modifier.height(16.dp)) }
+                }
+            }
         }
+    }
+
+    if (showCreateSheet) {
+        CreateSkillSheet(
+            onDismiss         = { showCreateSheet = false },
+            onBuildWithAiri   = { showCreateSheet = false; onCreate() },
+            onUpload          = { showCreateSheet = false; onCreate() },
+            onFromLibrary     = { showCreateSheet = false; onBrowseTemplates() },
+            onFromGitHub      = { showCreateSheet = false; onCreate() }
+        )
     }
 }
 
 @Composable
 private fun SkillCard(
-    skill:    CustomSkill,
-    onClick:  () -> Unit,
+    skill: CustomSkill,
+    onEdit: () -> Unit,
+    onToggle: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Row(
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Surface2)
-            .border(1.dp, BorderLight, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clip(RoundedCornerShape(16.dp))
+            .background(Surface1)
+            .border(1.dp, if (skill.enabled) PrimaryAccent.copy(0.25f) else BorderLight, RoundedCornerShape(16.dp))
     ) {
-        // Icon badge
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(PrimaryAccent.copy(alpha = 0.12f))
-                .border(1.dp, PrimaryAccent.copy(alpha = 0.22f), RoundedCornerShape(10.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Outlined.Extension,
-                contentDescription = null,
-                tint     = PrimaryAccent,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-
-        Spacer(Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    skill.name,
-                    color      = TextPrimary,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize   = 15.sp,
-                    maxLines   = 1,
-                    overflow   = TextOverflow.Ellipsis,
-                    modifier   = Modifier.weight(1f, fill = false)
-                )
-                NeuralBadge(text = skill.type.name, color = PrimaryAccent)
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(PrimaryAccent.copy(0.14f))
+                        .border(0.5.dp, PrimaryAccent.copy(0.3f), RoundedCornerShape(11.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(skill.name.take(1).uppercase(), color = PrimaryAccent, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(skill.name, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(skill.description, color = TextSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Spacer(Modifier.width(8.dp))
+                NeuralToggle(checked = skill.enabled, onCheckedChange = { onToggle() })
             }
-            Text(
-                skill.description,
-                color    = TextSecondary,
-                fontSize = 12.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                skill.config.endpoint,
-                color    = TextTertiary,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
 
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Outlined.Delete, contentDescription = "حذف", tint = SemanticError.copy(alpha = 0.80f))
+            AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                Column {
+                    NeuralDivider()
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextButton(onClick = onEdit, colors = ButtonDefaults.textButtonColors(contentColor = PrimaryAccent)) {
+                            Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("تعديل", fontSize = 13.sp)
+                        }
+                        TextButton(onClick = onDelete, colors = ButtonDefaults.textButtonColors(contentColor = SemanticError)) {
+                            Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("حذف", fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptySkillsPlaceholder(onCreate: () -> Unit, onBrowse: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize().padding(32.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(Icons.Outlined.Extension, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(52.dp))
+            Text("لا توجد مهارات بعد", color = TextTertiary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text("قم بإنشاء مهارة جديدة أو استيراد من المكتبة", color = TextTertiary, fontSize = 12.sp)
+            Spacer(Modifier.height(4.dp))
+            NeuralAccentButton("إنشاء مهارة", onClick = onCreate, modifier = Modifier.width(220.dp), icon = Icons.Default.Add)
+            TextButton(onClick = onBrowse, colors = ButtonDefaults.textButtonColors(contentColor = SecondaryAccent)) {
+                Text("تصفح المكتبة الرسمية")
+            }
+        }
+    }
+}
+
+@Composable
+private fun CreateSkillSheet(
+    onDismiss: () -> Unit,
+    onBuildWithAiri: () -> Unit,
+    onUpload: () -> Unit,
+    onFromLibrary: () -> Unit,
+    onFromGitHub: () -> Unit
+) {
+    val options = listOf(
+        Triple(Icons.Outlined.AutoAwesome,  "البناء باستخدام Airi",    "قم ببناء مهارة من خلال المحادثة", PrimaryAccent,    onBuildWithAiri),
+        Triple(Icons.Outlined.UploadFile,   "رفع مهارة",               "رفع .skill أو .zip",              SecondaryAccent,  onUpload),
+        Triple(Icons.Outlined.LibraryBooks, "من المكتبة الرسمية",      "مهارات جاهزة يصونها Airi",        SemanticSuccess,  onFromLibrary),
+        Triple(Icons.Outlined.Code,         "استيراد من GitHub",        "الصق رابط المستودع للبدء",        SemanticWarning,  onFromGitHub)
+    )
+
+    NeuralBottomSheet(onDismiss = onDismiss, title = "إنشاء مهارة") {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.forEach { (icon, title, sub, color, action) ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(color.copy(alpha = 0.07f))
+                        .border(1.dp, color.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+                        .clickable { action() }
+                        .padding(16.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Box(
+                            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(11.dp)).background(color.copy(0.18f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
+                        }
+                        Column {
+                            Text(title, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(sub, color = TextSecondary, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
         }
     }
 }

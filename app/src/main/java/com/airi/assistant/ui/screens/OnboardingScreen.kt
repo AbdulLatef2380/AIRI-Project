@@ -1,27 +1,16 @@
 package com.airi.assistant.ui.screens
 
-import android.Manifest
-import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Accessibility
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Mic
-import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,341 +19,132 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airi.assistant.domain.growth.OnboardingManager
-import com.airi.assistant.ui.theme.CosmicAccent
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
+import com.airi.assistant.ui.components.NeuralAccentButton
+import com.airi.assistant.ui.theme.*
+import kotlinx.coroutines.launch
 
-/**
- * OnboardingScreen — production 5-page first-run flow.
- *
- * Pages:
- *   0 — Welcome & capabilities overview
- *   1 — Accessibility permission (required for agent actions)
- *   2 — Microphone permission (required for voice mode)
- *   3 — Privacy & execution mode explanation
- *   4 — Ready / Get Started
- *
- * Each permission page checks the actual grant state and shows a
- * contextual action button (Grant → Settings → Continue depending on state).
- * Users can skip individual permissions — AIRI degrades gracefully without them.
- */
-@OptIn(ExperimentalPermissionsApi::class)
+private data class OnboardPage(
+    val icon: ImageVector,
+    val iconColor: Color,
+    val title: String,
+    val description: String
+)
+
+private val PAGES = listOf(
+    OnboardPage(Icons.Outlined.AutoAwesome, PrimaryAccent, "AIRI — ذكاء اصطناعي محلي", "مساعد ذكاء اصطناعي يعمل على جهازك بالكامل دون الحاجة إلى إرسال بياناتك إلى السحابة."),
+    OnboardPage(Icons.Outlined.Psychology,  AccentCloud,   "نماذج قوية ومتعددة",        "اختر من بين نماذج LLM المتقدمة وشغّلها محلياً أو عبر API بمرونة كاملة."),
+    OnboardPage(Icons.Outlined.SmartToy,    SemanticSuccess, "عميل ذكي مستقل",           "AIRI قادر على التخطيط وتنفيذ المهام المتعددة الخطوات نيابةً عنك."),
+    OnboardPage(Icons.Outlined.Mic,         SecondaryAccent, "صوت ومحادثة حية",           "تحدث مع AIRI بلغتك الطبيعية مع دعم كامل للعربية والإنجليزية.")
+)
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OnboardingScreen(
     onComplete: () -> Unit,
-    onSkip: () -> Unit
+    onSkip:     () -> Unit
 ) {
-    val context = LocalContext.current
-    var page by remember { mutableStateOf(0) }
-
-    val micPermissionState = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
-
-    val pages = remember {
-        listOf(
-            OnboardingPage(
-                icon     = Icons.Outlined.SmartToy,
-                title    = "Meet AIRI",
-                subtitle = "Your private, on-device AI assistant. AIRI chats, automates tasks, and acts for you — without sending your data to the cloud unless you choose to."
-            ),
-            OnboardingPage(
-                icon     = Icons.Outlined.Accessibility,
-                title    = "Enable Accessibility",
-                subtitle = "To click buttons, fill forms, and control apps on your behalf, AIRI needs Android Accessibility access. This stays local — AIRI never reads data it isn't acting on.",
-                permissionKey = "accessibility"
-            ),
-            OnboardingPage(
-                icon     = Icons.Outlined.Mic,
-                title    = "Voice Mode",
-                subtitle = "Speak naturally to AIRI. Microphone access powers hands-free voice commands and real-time voice conversations. You can skip this and use text only.",
-                permissionKey = "microphone"
-            ),
-            OnboardingPage(
-                icon     = Icons.Outlined.Lock,
-                title    = "Your Privacy",
-                subtitle = "AIRI runs fully on-device by default — your conversations never leave your phone. Cloud mode is optional and off by default. You control what runs where.",
-                permissionKey = "privacy"
-            ),
-            OnboardingPage(
-                icon     = Icons.Outlined.CheckCircle,
-                title    = "You're Ready",
-                subtitle = "Load an AI model, set your preferences, and start building your personal AI workflow. You can grant any skipped permissions later in Settings."
-            )
-        )
-    }
-
-    LaunchedEffect(Unit) { OnboardingManager.start() }
-
-    val bg = Brush.verticalGradient(listOf(Color(0xFF050816), Color(0xFF101633), Color(0xFF050816)))
+    val pagerState = rememberPagerState(pageCount = { PAGES.size })
+    val scope      = rememberCoroutineScope()
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(bg)
-            .padding(24.dp)
+            .background(Surface0)
     ) {
-        // Skip button — top right
-        TextButton(
-            onClick = { OnboardingManager.skip(); onSkip() },
-            modifier = Modifier.align(Alignment.TopEnd)
-        ) {
-            Text("Skip", color = Color.White.copy(alpha = 0.55f), fontSize = 14.sp)
-        }
-
-        // Page content
-        AnimatedContent(
-            targetState = page,
-            transitionSpec = {
-                (slideInHorizontally { it } + fadeIn()) togetherWith
-                (slideOutHorizontally { -it } + fadeOut())
-            },
+        // Ambient background glow
+        Box(
             modifier = Modifier
-                .align(Alignment.Center)
-                .fillMaxWidth(),
-            label = "onboarding_page"
-        ) { targetPage ->
-            val p = pages[targetPage]
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                // Icon circle
-                Box(
-                    modifier = Modifier
-                        .size(96.dp)
-                        .clip(CircleShape)
-                        .background(CosmicAccent.copy(alpha = 0.12f))
-                        .border(1.5.dp, CosmicAccent.copy(alpha = 0.45f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(p.icon, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(44.dp))
-                }
-
-                Text(
-                    text       = p.title,
-                    color      = Color.White,
-                    fontSize   = 28.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    lineHeight = 34.sp,
-                    textAlign  = TextAlign.Center
+                .size(400.dp)
+                .align(Alignment.TopCenter)
+                .offset(y = (-80).dp)
+                .background(
+                    Brush.radialGradient(
+                        listOf(PrimaryAccent.copy(0.12f), Color.Transparent)
+                    )
                 )
+        )
 
-                Text(
-                    text      = p.subtitle,
-                    color     = Color.White.copy(alpha = 0.65f),
-                    fontSize  = 15.sp,
-                    lineHeight = 23.sp,
-                    textAlign  = TextAlign.Center
-                )
-
-                // Permission-specific action card
-                when (p.permissionKey) {
-                    "accessibility" -> AccessibilityPermissionCard(context)
-                    "microphone"    -> MicrophonePermissionCard(micPermissionState, context)
-                    "privacy"       -> PrivacyExplanationCard()
-                    else            -> SocialProofStrip()
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Skip button
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp).statusBarsPadding()) {
+                TextButton(onClick = onSkip, modifier = Modifier.align(Alignment.TopEnd)) {
+                    Text("تخطي", color = TextSecondary, fontSize = 14.sp)
                 }
             }
-        }
 
-        // Bottom navigation: dots + Continue/Get Started
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Page dots
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                pages.indices.forEach { index ->
+            Spacer(Modifier.weight(0.5f))
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxWidth()
+            ) { page ->
+                OnboardPageContent(PAGES[page])
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            // Dots indicator
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 32.dp)
+            ) {
+                repeat(PAGES.size) { i ->
+                    val selected = pagerState.currentPage == i
+                    val width by animateDpAsState(if (selected) 24.dp else 8.dp, label = "dot_w")
                     Box(
                         modifier = Modifier
-                            .width(if (index == page) 28.dp else 8.dp)
                             .height(8.dp)
-                            .clip(RoundedCornerShape(99.dp))
-                            .background(
-                                if (index == page) CosmicAccent else Color.White.copy(alpha = 0.18f)
-                            )
+                            .width(width)
+                            .clip(CircleShape)
+                            .background(if (selected) PrimaryAccent else BorderMid)
                     )
                 }
             }
 
-            Button(
-                onClick = {
-                    if (page < pages.lastIndex) {
-                        page += 1
-                    } else {
-                        OnboardingManager.complete()
-                        onComplete()
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape  = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = CosmicAccent,
-                    contentColor   = Color.Black
-                )
-            ) {
-                Text(
-                    text       = if (page < pages.lastIndex) "Continue" else "Get Started",
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize   = 16.sp
-                )
-            }
-        }
-    }
-}
-
-// ── Permission cards ──────────────────────────────────────────────────────────
-
-@Composable
-private fun AccessibilityPermissionCard(context: android.content.Context) {
-    val isEnabled = remember {
-        mutableStateOf(isAccessibilityEnabled(context))
-    }
-
-    // Refresh on recompose (user may return from Settings)
-    LaunchedEffect(Unit) {
-        isEnabled.value = isAccessibilityEnabled(context)
-    }
-
-    PermissionCard(
-        title      = if (isEnabled.value) "Accessibility: Enabled ✓" else "Accessibility: Not enabled",
-        body       = if (isEnabled.value)
-            "AIRI can control apps and automate tasks on your behalf."
-        else
-            "Open Settings → Accessibility → AIRI and enable the service. You can skip this and enable it later.",
-        buttonText = if (isEnabled.value) null else "Open Settings",
-        isGranted  = isEnabled.value,
-        onClick    = {
-            context.startActivity(
-                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-        }
-    )
-}
-
-@OptIn(ExperimentalPermissionsApi::class)
-@Composable
-private fun MicrophonePermissionCard(
-    micState: com.google.accompanist.permissions.PermissionState,
-    context:  android.content.Context
-) {
-    val granted = micState.status.isGranted
-    PermissionCard(
-        title      = if (granted) "Microphone: Enabled ✓" else "Microphone: Not enabled",
-        body       = if (granted)
-            "Voice mode is available. Speak to AIRI hands-free."
-        else
-            "Allow microphone access to use voice mode. Text mode works without it.",
-        buttonText = when {
-            granted -> null
-            else    -> "Grant Access"
-        },
-        isGranted  = granted,
-        onClick    = { micState.launchPermissionRequest() }
-    )
-}
-
-@Composable
-private fun PrivacyExplanationCard() {
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        PrivacyRow("On-Device Mode", "All inference runs locally. Nothing leaves your device.")
-        PrivacyRow("Cloud Mode (optional)", "Enables faster cloud models. You choose when to activate it.")
-        PrivacyRow("Telemetry", "Disabled by default. Only enabled if you explicitly consent.")
-        PrivacyRow("Data Deletion", "All memory can be cleared at any time from Settings → Memory.")
-    }
-}
-
-@Composable
-private fun PrivacyRow(label: String, detail: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-        Icon(Icons.Outlined.CheckCircle, null, tint = CosmicAccent, modifier = Modifier.size(16.dp).padding(top = 2.dp))
-        Column {
-            Text(label,  color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            Text(detail, color = Color.White.copy(alpha = 0.55f), fontSize = 12.sp, lineHeight = 17.sp)
-        }
-    }
-}
-
-@Composable
-private fun PermissionCard(
-    title:      String,
-    body:       String,
-    buttonText: String?,
-    isGranted:  Boolean,
-    onClick:    () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(
-                1.dp,
-                if (isGranted) CosmicAccent.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.08f),
-                RoundedCornerShape(16.dp)
-            )
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(title, color = if (isGranted) CosmicAccent else Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        Text(body, color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp, lineHeight = 18.sp)
-        if (buttonText != null) {
-            TextButton(
-                onClick = onClick,
-                colors  = ButtonDefaults.textButtonColors(contentColor = CosmicAccent)
-            ) {
-                Text(buttonText, fontWeight = FontWeight.Bold)
+            // CTA
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp).padding(bottom = 40.dp).navigationBarsPadding()) {
+                if (pagerState.currentPage == PAGES.size - 1) {
+                    NeuralAccentButton("ابدأ الآن", onClick = onComplete, icon = Icons.Outlined.ArrowForward)
+                } else {
+                    NeuralAccentButton(
+                        text = "التالي",
+                        onClick = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
+                        icon = Icons.Outlined.ArrowForward
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun SocialProofStrip() {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.06f))
-            .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(16.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+private fun OnboardPageContent(page: OnboardPage) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 36.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Icon(Icons.Outlined.AutoAwesome, null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
-        Text("Private by default. Powerful by design.", color = Color.White.copy(alpha = 0.76f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        val inf = rememberInfiniteTransition(label = "onboard_pulse")
+        val alpha by inf.animateFloat(0.18f, 0.38f, infiniteRepeatable(tween(1800), RepeatMode.Reverse), label = "alpha")
+        Box(
+            modifier = Modifier
+                .size(110.dp)
+                .clip(CircleShape)
+                .background(Brush.radialGradient(listOf(page.iconColor.copy(alpha), Color.Transparent)))
+                .border(1.5.dp, page.iconColor.copy(0.45f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(page.icon, contentDescription = null, tint = page.iconColor, modifier = Modifier.size(52.dp))
+        }
+        Text(page.title, color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, letterSpacing = (-0.4).sp)
+        Text(page.description, color = TextSecondary, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 22.sp)
     }
 }
-
-private fun isAccessibilityEnabled(context: android.content.Context): Boolean = runCatching {
-    val enabledServices = Settings.Secure.getString(
-        context.contentResolver,
-        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-    ) ?: return@runCatching false
-    enabledServices.contains(context.packageName, ignoreCase = true)
-}.getOrDefault(false)
-
-private data class OnboardingPage(
-    val icon:          ImageVector,
-    val title:         String,
-    val subtitle:      String,
-    val permissionKey: String? = null
-)

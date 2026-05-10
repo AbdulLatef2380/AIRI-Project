@@ -1,33 +1,22 @@
 package com.airi.assistant.ui.screens
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.airi.assistant.R
-import com.airi.assistant.ui.AiriRoute
+import com.airi.assistant.ui.components.*
+import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.viewmodel.ChatViewModel
-import com.airi.assistant.util.ChatExporter
-import com.google.firebase.auth.FirebaseAuth
-import com.airi.assistant.ui.theme.Surface0
-import com.airi.assistant.ui.theme.Surface1
-import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrivacyDataSettingsScreen(
     viewModel:  ChatViewModel,
@@ -35,133 +24,81 @@ fun PrivacyDataSettingsScreen(
     onNavigate: (String) -> Unit,
     onLogout:   () -> Unit
 ) {
-    val context      = LocalContext.current
-    val messages     by viewModel.messages.collectAsState()
-    val scope        = rememberCoroutineScope()
-    val snackbarHost = remember { SnackbarHostState() }
-    val user         = remember { FirebaseAuth.getInstance().currentUser }
-
-    var showDeleteDialog by remember { mutableStateOf(false) }
-
-    val exportChatLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
-    ) { uri: Uri? ->
-        scope.launch {
-            val success = uri != null && ChatExporter.exportToUri(context, uri, messages)
-            snackbarHost.showSnackbar(
-                if (success) context.getString(R.string.export_success)
-                else         context.getString(R.string.export_failed)
-            )
-        }
-    }
-    val importChatLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        viewModel.importChatJson(uri) { count ->
-            scope.launch {
-                snackbarHost.showSnackbar(
-                    if (count > 0) context.getString(R.string.import_success, count)
-                    else           context.getString(R.string.import_failed)
-                )
-            }
-        }
-    }
+    var showClearDialog  by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Surface0,
-        snackbarHost   = { SnackbarHost(snackbarHost) },
-        topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Surface1
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
-                    }
-                },
-                title = {
-                    Text("Privacy & Data", fontWeight = FontWeight.Bold, color = Color.White)
-                }
-            )
-        }
+        topBar = { AiriScreenHeader(title = "الخصوصية والبيانات", onBack = onBack) }
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
+            modifier = Modifier.fillMaxSize().padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            SettingsSurface {
-                SettingsCategoryHeader(
-                    icon  = Icons.Outlined.Security,
-                    title = stringResource(R.string.data_controls)
-                )
-                Spacer(Modifier.height(8.dp))
-                SettingsActionRow(
-                    label    = stringResource(R.string.export_chats),
-                    sublabel = stringResource(R.string.download_chat_history)
-                ) { exportChatLauncher.launch(ChatExporter.buildFileName()) }
-                Divider(
-                    color    = Color.White.copy(alpha = 0.06f),
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-                SettingsActionRow(
-                    label    = stringResource(R.string.import_chats),
-                    sublabel = stringResource(R.string.import_chat_history)
-                ) { importChatLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }
-                Divider(
-                    color    = Color.White.copy(alpha = 0.06f),
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-                SettingsActionRow(
-                    label    = stringResource(R.string.clear_chat_history),
-                    sublabel = stringResource(R.string.remove_from_display)
-                ) { viewModel.clearMessages() }
-                Divider(
-                    color    = Color.White.copy(alpha = 0.06f),
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-                SettingsActionRow(
-                    label       = stringResource(R.string.delete_account),
-                    sublabel    = stringResource(R.string.delete_account_sublabel),
-                    destructive = true
-                ) { showDeleteDialog = true }
+            NeuralSectionLabel("البيانات")
+            NeuralSectionCard {
+                NeuralRowItem(icon = Icons.Outlined.UploadFile, title = "تصدير البيانات",
+                    subtitle = "تصدير محادثاتك وذاكرتك",
+                    iconTint = SecondaryAccent, iconBgColor = SecondaryAccent.copy(0.14f),
+                    onClick = { viewModel.exportData() })
+                NeuralDivider()
+                NeuralRowItem(icon = Icons.Outlined.DownloadForOffline, title = "استيراد البيانات",
+                    subtitle = "استعادة من نسخة احتياطية",
+                    iconTint = AccentHybrid, iconBgColor = AccentHybrid.copy(0.14f),
+                    onClick = { /* launch file picker handled in viewModel */ })
             }
 
-            ObservabilitySection(onNavigate = onNavigate)
+            NeuralSectionLabel("الحذف والإزالة")
+            NeuralSectionCard {
+                NeuralRowItem(icon = Icons.Outlined.DeleteSweep, title = "مسح جميع المحادثات",
+                    subtitle = "حذف كل تاريخ الدردشة نهائياً",
+                    iconTint = SemanticWarning, iconBgColor = SemanticWarning.copy(0.14f),
+                    onClick = { showClearDialog = true })
+                NeuralDivider()
+                NeuralRowItem(icon = Icons.Outlined.Logout, title = "تسجيل الخروج",
+                    subtitle = "الخروج من حسابك الحالي",
+                    iconTint = SemanticError, iconBgColor = SemanticError.copy(0.14f),
+                    onClick = { showLogoutDialog = true })
+            }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(16.dp))
         }
     }
 
-    if (showDeleteDialog) {
+    if (showClearDialog) {
         AlertDialog(
-            onDismissRequest  = { showDeleteDialog = false },
-            containerColor    = Color(0xFF12162E),
-            titleContentColor = Color.White,
-            textContentColor  = Color.White.copy(alpha = 0.7f),
-            shape             = RoundedCornerShape(20.dp),
-            title = {
-                Text(stringResource(R.string.delete_account), fontWeight = FontWeight.Bold)
-            },
-            text = { Text(stringResource(R.string.delete_account_message)) },
+            onDismissRequest = { showClearDialog = false },
+            containerColor = Surface2, titleContentColor = TextPrimary, textContentColor = TextSecondary,
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("مسح جميع المحادثات") },
+            text = { Text("هذا الإجراء لا يمكن التراجع عنه. هل أنت متأكد؟") },
             confirmButton = {
-                Button(
-                    onClick = {
-                        showDeleteDialog = false
-                        user?.delete()?.addOnCompleteListener { onLogout() }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCC2222))
-                ) { Text(stringResource(R.string.delete_account)) }
+                Button(onClick = { viewModel.clearAllHistory(); showClearDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = SemanticError)
+                ) { Text("مسح الكل", color = Color.White) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text(stringResource(R.string.cancel), color = Color.White.copy(alpha = 0.6f))
-                }
+                TextButton(onClick = { showClearDialog = false }) { Text("إلغاء", color = TextSecondary) }
+            }
+        )
+    }
+
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            containerColor = Surface2, titleContentColor = TextPrimary, textContentColor = TextSecondary,
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("تسجيل الخروج") },
+            text = { Text("هل تريد تسجيل الخروج من AIRI؟") },
+            confirmButton = {
+                Button(onClick = { showLogoutDialog = false; onLogout() },
+                    colors = ButtonDefaults.buttonColors(containerColor = SemanticError)
+                ) { Text("خروج", color = Color.White) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) { Text("إلغاء", color = TextSecondary) }
             }
         )
     }

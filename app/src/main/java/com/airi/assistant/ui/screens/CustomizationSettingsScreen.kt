@@ -92,7 +92,8 @@ fun CustomizationSettingsScreen(
             NeuralSectionCard {
                 NeuralRowItem(icon = Icons.Outlined.Memory, title = "تفعيل الذاكرة طويلة الأمد",
                     subtitle = "يحتفظ بذاكرة عبر الجلسات",
-                    trailingContent = { NeuralToggle(memoryOn) { memoryOn = it; saved = false } }, showChevron = false)
+                    onClick = { /* toggle is handled by trailingContent */ },
+                    trailingContent = { NeuralToggle(memoryOn) { memoryOn = it; saved = false } }, showArrow = false)
                 NeuralDivider()
                 NeuralRowItem(icon = Icons.Outlined.ManageSearch, title = "إدارة الذاكرة",
                     subtitle = "عرض وحذف الذكريات المحفوظة",
@@ -102,8 +103,7 @@ fun CustomizationSettingsScreen(
             NeuralAccentButton(
                 text = if (saved) "✓ تم الحفظ" else "حفظ الإعدادات",
                 onClick = { save() },
-                enabled = !saved,
-                icon = Icons.Outlined.Save
+                enabled = !saved
             )
 
             Spacer(Modifier.height(16.dp))

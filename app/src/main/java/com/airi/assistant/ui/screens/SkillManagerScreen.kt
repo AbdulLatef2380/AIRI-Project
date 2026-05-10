@@ -1,4 +1,3 @@
-import com.airi.assistant.ui.components.AiriScreenHeader
 package com.airi.assistant.ui.screens
 
 import androidx.compose.animation.*
@@ -61,8 +60,8 @@ fun SkillManagerScreen(
         ) {
             // Search
             NeuralSearchBar(
-                query = query,
-                onQueryChange = { query = it },
+                value = query,
+                onValueChange = { query = it },
                 placeholder = "بحث في المهارات...",
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
             )
@@ -191,7 +190,7 @@ private fun EmptySkillsPlaceholder(onCreate: () -> Unit, onBrowse: () -> Unit) {
             Text("لا توجد مهارات بعد", color = TextTertiary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Text("قم بإنشاء مهارة جديدة أو استيراد من المكتبة", color = TextTertiary, fontSize = 12.sp)
             Spacer(Modifier.height(4.dp))
-            NeuralAccentButton("إنشاء مهارة", onClick = onCreate, modifier = Modifier.width(220.dp), icon = Icons.Default.Add)
+            NeuralAccentButton("إنشاء مهارة", onClick = onCreate, modifier = Modifier.width(220.dp))
             TextButton(onClick = onBrowse, colors = ButtonDefaults.textButtonColors(contentColor = SecondaryAccent)) {
                 Text("تصفح المكتبة الرسمية")
             }

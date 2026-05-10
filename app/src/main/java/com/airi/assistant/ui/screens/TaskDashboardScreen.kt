@@ -1,4 +1,3 @@
-import com.airi.assistant.ui.components.AiriScreenHeader
 package com.airi.assistant.ui.screens
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -277,7 +276,7 @@ private fun DurableTaskCard(task: DurableTask) {
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NeuralGlowDot(color = PrimaryAccent, size = 7.dp, animate = false)
+                NeuralStatusDot(color = PrimaryAccent, size = 7.dp, animate = false)
                 Text("${task.currentStepIndex + 1} / ${task.totalSteps} خطوة", color = TextSecondary, fontSize = 12.sp)
             }
             LinearProgressIndicator(

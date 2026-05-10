@@ -1,4 +1,3 @@
-import com.airi.assistant.ui.components.AiriScreenHeader
 package com.airi.assistant.ui.screens
 
 import android.content.Context
@@ -123,8 +122,7 @@ fun ProfileScreen(onBack: () -> Unit) {
                         .apply()
                     saved = true
                 },
-                enabled = !saved,
-                icon = Icons.Outlined.Save
+                enabled = !saved
             )
         }
     }

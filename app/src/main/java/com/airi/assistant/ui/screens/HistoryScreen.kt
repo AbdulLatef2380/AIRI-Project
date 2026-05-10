@@ -54,8 +54,8 @@ fun HistoryScreen(
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             NeuralSearchBar(
-                query = query,
-                onQueryChange = { query = it },
+                value = query,
+                onValueChange = { query = it },
                 placeholder = "بحث في المحادثات...",
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
             )

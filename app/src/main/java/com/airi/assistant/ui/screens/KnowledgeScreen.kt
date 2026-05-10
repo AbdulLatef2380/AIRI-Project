@@ -1,4 +1,3 @@
-import com.airi.assistant.ui.components.AiriScreenHeader
 package com.airi.assistant.ui.screens
 
 import androidx.compose.animation.*
@@ -114,8 +113,8 @@ fun KnowledgeScreen(onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 NeuralSearchBar(
-                    query = query,
-                    onQueryChange = { query = it },
+                    value = query,
+                    onValueChange = { query = it },
                     placeholder = "بحث في المعرفة...",
                     modifier = Modifier.weight(1f)
                 )
@@ -140,7 +139,7 @@ fun KnowledgeScreen(onBack: () -> Unit) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Outlined.MenuBook, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(48.dp))
                         Text("لا توجد معرفة مضافة بعد", color = TextTertiary, fontSize = 14.sp)
-                        NeuralAccentButton("إضافة معرفة", onClick = { showAdd = true }, modifier = Modifier.width(200.dp), icon = Icons.Default.Add)
+                        NeuralAccentButton("إضافة معرفة", onClick = { showAdd = true }, modifier = Modifier.width(200.dp))
                     }
                 }
             } else {
@@ -277,67 +276,49 @@ private fun AddKnowledgeSheet(
     onDismiss: () -> Unit,
     onSave: (title: String, content: String, type: KnowledgeType) -> Unit
 ) {
-    var title   by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
-    var type    by remember { mutableStateOf(KnowledgeType.TEXT) }
-    val canSave = title.isNotBlank() && content.isNotBlank()
+    var type by remember { mutableStateOf(KnowledgeType.TEXT) }
 
     NeuralBottomSheet(onDismiss = onDismiss, title = "إضافة معرفة") {
         Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+            modifier = Modifier.padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            NeuralSearchBar(value = title, onValueChange = { title = it }, placeholder = "العنوان...")
+            
             // Type selector
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(KnowledgeType.TEXT to "نص", KnowledgeType.URL to "رابط", KnowledgeType.DOCUMENT to "مستند").forEach { (t, l) ->
-                    KnowledgeTypeChip(l, type == t) { type = t }
+                KnowledgeTypeChip("نص", type == KnowledgeType.TEXT) { type = KnowledgeType.TEXT }
+                KnowledgeTypeChip("رابط", type == KnowledgeType.URL) { type = KnowledgeType.URL }
+                KnowledgeTypeChip("مستند", type == KnowledgeType.DOCUMENT) { type = KnowledgeType.DOCUMENT }
+            }
+
+            BasicTextField(
+                value = content,
+                onValueChange = { content = it },
+                textStyle = TextStyle(color = TextPrimary, fontSize = 15.sp),
+                cursorBrush = SolidColor(AccentBlue),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 120.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Surface3)
+                    .border(1.dp, BorderLow, RoundedCornerShape(12.dp))
+                    .padding(12.dp),
+                decorationBox = { innerTextField ->
+                    if (content.isEmpty()) {
+                        Text("أدخل المحتوى هنا...", color = TextTertiary, fontSize = 15.sp)
+                    }
+                    innerTextField()
                 }
-            }
-            // Title
-            Column {
-                Text("الاسم", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    placeholder = { Text("اسم المعرفة", color = TextTertiary, fontSize = 14.sp) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = neuralFieldColors(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-            }
-            // Content
-            Column {
-                Text("المحتوى *", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
-                OutlinedTextField(
-                    value = content,
-                    onValueChange = { content = it },
-                    placeholder = { Text("محتوى المعرفة", color = TextTertiary, fontSize = 14.sp) },
-                    minLines = 3,
-                    maxLines = 6,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = neuralFieldColors(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-            }
+            )
+
             NeuralAccentButton(
                 text = "حفظ",
-                onClick = { onSave(title.trim(), content.trim(), type) },
-                enabled = canSave,
-                icon = Icons.Default.Add
+                onClick = { if (title.isNotBlank() && content.isNotBlank()) onSave(title, content, type) },
+                enabled = title.isNotBlank() && content.isNotBlank()
             )
-            Spacer(Modifier.height(4.dp))
         }
     }
 }
-
-@Composable
-private fun neuralFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor   = PrimaryAccent,
-    unfocusedBorderColor = BorderLight,
-    focusedTextColor     = TextPrimary,
-    unfocusedTextColor   = TextPrimary,
-    cursorColor          = PrimaryAccent,
-    focusedContainerColor   = Surface2,
-    unfocusedContainerColor = Surface2
-)

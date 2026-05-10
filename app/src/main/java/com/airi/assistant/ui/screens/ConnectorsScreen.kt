@@ -90,11 +90,11 @@ fun ConnectorsScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(visible, key = { it.meta.connectorId }) { item ->
+                    items(visible, key = { it.meta.id }) { item ->
                         ConnectorCard(
                             item    = item,
-                            onToggle = { viewModel.toggle(item.meta.connectorId) },
-                            onConfigure = { viewModel.configure(item.meta.connectorId) }
+                            onToggle = { viewModel.toggle(item.meta.id) },
+                            onConfigure = { viewModel.configure(item.meta.id) }
                         )
                     }
                     item { Spacer(Modifier.height(16.dp)) }
@@ -106,13 +106,13 @@ fun ConnectorsScreen(
 
 @Composable
 private fun ConnectorCard(
-    item: com.airi.assistant.ui.viewmodel.ConnectorUiItem,
+    item: ConnectorsViewModel.ConnectorRow,
     onToggle: () -> Unit,
     onConfigure: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    val statusColor = if (item.isEnabled) SemanticSuccess else TextTertiary
+    val statusColor = if (item.state.connected) SemanticSuccess else TextTertiary
     val typeColor = when (item.meta.type) {
         ConnectorType.API    -> PrimaryAccent
         ConnectorType.APP    -> SecondaryAccent
@@ -128,7 +128,7 @@ private fun ConnectorCard(
             .background(Surface1)
             .border(
                 width = 1.dp,
-                color = if (item.isEnabled) PrimaryAccent.copy(0.25f) else BorderLight,
+                color = if (item.state.connected) PrimaryAccent.copy(0.25f) else BorderLight,
                 shape = RoundedCornerShape(16.dp)
             )
     ) {
@@ -152,12 +152,12 @@ private fun ConnectorCard(
                     Icon(Icons.Outlined.Extension, contentDescription = null, tint = typeColor, modifier = Modifier.size(20.dp))
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(item.meta.displayName, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(item.meta.name, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (!item.meta.description.isNullOrBlank()) {
                         Text(item.meta.description!!, color = TextSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                NeuralToggle(checked = item.isEnabled, onCheckedChange = { onToggle() })
+                NeuralToggle(checked = item.state.connected, onCheckedChange = { onToggle() })
             }
 
             AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {

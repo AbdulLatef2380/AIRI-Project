@@ -60,6 +60,7 @@ import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.PrimaryAccent
+import com.airi.assistant.ui.theme.Surface0
 import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.ui.theme.InputBarBackground
 import com.airi.assistant.ui.viewmodel.AgentState

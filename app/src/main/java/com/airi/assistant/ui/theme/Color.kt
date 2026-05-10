@@ -56,3 +56,7 @@ val CosmicAccent   = PrimaryAccent
 val CosmicBlack    = Surface0
 val CosmicDarkBlue = Surface2
 val SemanticWarn   = SemanticWarning
+
+// ── Missing color aliases (used by NeuralComponents / KnowledgeScreen) ────────
+val AccentBlue = SecondaryAccent
+val BorderLow  = BorderLight

@@ -89,7 +89,7 @@ fun AgentControlScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(if (isRunning) "العميل نشط" else "العميل في وضع الراحة", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text(
-                            agentState.currentGoal?.take(60) ?: "لا توجد مهمة حالية",
+                            agentState.activeGoalDescription.ifBlank { null }?.take(60) ?: "لا توجد مهمة حالية",
                             color = TextSecondary, fontSize = 12.sp, maxLines = 2
                         )
                     }
@@ -111,7 +111,7 @@ fun AgentControlScreen(
                             color = PrimaryAccent,
                             trackColor = Surface3
                         )
-                        Text("${agentState.nodesCompleted} / ${agentState.totalNodes} خطوة", color = TextTertiary, fontSize = 11.sp)
+                        Text("${agentState.nodesCompleted} / ${agentState.nodesTotal} خطوة", color = TextTertiary, fontSize = 11.sp)
                     }
                 }
             }

@@ -75,7 +75,7 @@ fun IntegrationsScreen(
 
 @Composable
 private fun IntegrationCard(
-    integration: com.airi.assistant.ui.viewmodel.IntegrationUiItem,
+    integration: IntegrationsViewModel.IntegrationItem,
     onToggle: () -> Unit,
     onConfigure: () -> Unit
 ) {

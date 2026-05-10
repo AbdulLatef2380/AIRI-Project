@@ -21,6 +21,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.components.*
 import com.airi.assistant.ui.theme.*
@@ -58,16 +59,16 @@ fun AIModelsSettingsScreen(
                     modifier = Modifier.fillMaxWidth().padding(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf("LOCAL" to "محلي", "CLOUD" to "سحابي", "HYBRID" to "هجين").forEach { (mode, label) ->
-                        val sel = execMode == mode
-                        val col = when (mode) { "LOCAL" -> AccentLocal; "CLOUD" -> AccentCloud; else -> AccentHybrid }
+                    listOf("LOCAL_ONLY" to "محلي", "CLOUD_ONLY" to "سحابي", "HYBRID" to "هجين").forEach { (mode, label) ->
+                        val sel = execMode.name == mode
+                        val col = when (mode) { "LOCAL_ONLY" -> AccentLocal; "CLOUD_ONLY" -> AccentCloud; else -> AccentHybrid }
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(if (sel) col.copy(0.18f) else Surface2)
                                 .border(1.dp, if (sel) col.copy(0.55f) else BorderLight, RoundedCornerShape(10.dp))
-                                .clickable { viewModel.setExecutionMode(mode) }
+                                .clickable { viewModel.setExecutionMode(ExecutionMode.valueOf(mode)) }
                                 .padding(vertical = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {

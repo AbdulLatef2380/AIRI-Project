@@ -54,15 +54,15 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
             NeuralSectionCard {
                 NeuralRowItem(icon = Icons.Outlined.Animation, title = "واجهة البث المباشر",
                     subtitle = "عرض الردود وهي تُكتب حرفاً بحرف",
-                    trailingContent = { NeuralToggle(streamingUI) { streamingUI = it; save() } }, showChevron = false)
+                    trailingContent = { NeuralToggle(checked = streamingUI, onCheckedChange = { streamingUI = it; save() }) }, showChevron = false)
                 NeuralDivider()
                 NeuralRowItem(icon = Icons.Outlined.VerticalAlignBottom, title = "التمرير التلقائي",
                     subtitle = "يتمرر إلى أسفل مع الرسائل الجديدة",
-                    trailingContent = { NeuralToggle(autoScroll) { autoScroll = it; save() } }, showChevron = false)
+                    trailingContent = { NeuralToggle(checked = autoScroll, onCheckedChange = { autoScroll = it; save() }) }, showChevron = false)
                 NeuralDivider()
                 NeuralRowItem(icon = Icons.Outlined.Vibration, title = "التغذية الراجعة اللمسية",
                     subtitle = "اهتزاز خفيف عند التفاعل",
-                    trailingContent = { NeuralToggle(hapticEnabled) { hapticEnabled = it; save() } }, showChevron = false)
+                    trailingContent = { NeuralToggle(checked = hapticEnabled, onCheckedChange = { hapticEnabled = it; save() }) }, showChevron = false)
             }
 
             NeuralSectionLabel("النظام")
@@ -70,13 +70,13 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                 NeuralRowItem(icon = Icons.Outlined.Assistant, title = "تعيين كمساعد افتراضي",
                     subtitle = "يجعل AIRI مساعدك الافتراضي في Android",
                     trailingContent = {
-                        NeuralToggle(defaultAssist) {
+                        NeuralToggle(checked = defaultAssist, onCheckedChange = {
                             defaultAssist = it; save()
                             if (it) {
                                 try { context.startActivity(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS)) }
                                 catch (_: Exception) {}
                             }
-                        }
+                        })
                     }, showChevron = false)
                 NeuralDivider()
                 NeuralRowItem(icon = Icons.Outlined.Accessibility, title = "خدمة إمكانية الوصول",

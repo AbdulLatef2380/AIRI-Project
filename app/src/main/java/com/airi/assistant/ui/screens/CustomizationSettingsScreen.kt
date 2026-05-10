@@ -93,7 +93,7 @@ fun CustomizationSettingsScreen(
                 NeuralRowItem(icon = Icons.Outlined.Memory, title = "تفعيل الذاكرة طويلة الأمد",
                     subtitle = "يحتفظ بذاكرة عبر الجلسات",
                     onClick = { /* toggle is handled by trailingContent */ },
-                    trailingContent = { NeuralToggle(memoryOn) { memoryOn = it; saved = false } }, showArrow = false)
+                    trailingContent = { NeuralToggle(checked = memoryOn, onCheckedChange = { memoryOn = it; saved = false }) }, showArrow = false)
                 NeuralDivider()
                 NeuralRowItem(icon = Icons.Outlined.ManageSearch, title = "إدارة الذاكرة",
                     subtitle = "عرض وحذف الذكريات المحفوظة",

@@ -43,7 +43,7 @@ fun HistoryScreen(
 
     val filtered = remember(sessions, query) {
         if (query.isBlank()) sessions
-        else sessions.filter { it.firstMessage.contains(query, ignoreCase = true) }
+        else sessions.filter { (it.lastMessage ?: it.title).contains(query, ignoreCase = true) }
     }
 
     Scaffold(
@@ -148,7 +148,7 @@ private fun HistorySessionCard(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    session.firstMessage.ifBlank { "محادثة جديدة" },
+                    (session.lastMessage ?: session.title).ifBlank { "محادثة جديدة" },
                     color = TextPrimary,
                     fontWeight = FontWeight.Medium,
                     fontSize = 14.sp,

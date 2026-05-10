@@ -29,6 +29,14 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
 
     val traces: StateFlow<List<AgentTrace>> = traceManager.traces
 
+    /** Alias kept for UI back-compat. */
+    val agentTraces: StateFlow<List<AgentTrace>> get() = traces
+
+    // ── Agent execution state (mirrored for AgentControlScreen) ───────────────
+
+    private val _agentState = MutableStateFlow(AgentState())
+    val agentState: StateFlow<AgentState> = _agentState.asStateFlow()
+
     private val _debugMode = MutableStateFlow(
         preferences.getBoolean("agent_debug_mode", false)
     )
@@ -80,6 +88,12 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearLogs() = traceManager.clearTraces()
+
+    /** Alias kept for UI back-compat. */
+    fun clearTraces() = clearLogs()
+
+    /** Stop any running agent task and reset state. */
+    fun stopAgent() { _agentState.value = AgentState() }
 
     // ── Live log actions ──────────────────────────────────────────────────────
 

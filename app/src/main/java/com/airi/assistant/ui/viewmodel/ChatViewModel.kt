@@ -402,6 +402,38 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _agentState = MutableStateFlow(AgentState())
     val agentState: StateFlow<AgentState> = _agentState.asStateFlow()
 
+    // ── API Key StateFlows (used by AIModelsSettingsScreen) ───────────────────
+
+    private val _openAiApiKey = MutableStateFlow(
+        secureApiKeyStore.getKey(com.airi.assistant.execution.CloudProvider.OPENAI) ?: ""
+    )
+    val openAiApiKey: StateFlow<String> = _openAiApiKey.asStateFlow()
+
+    private val _anthropicApiKey = MutableStateFlow(
+        secureApiKeyStore.getKey(com.airi.assistant.execution.CloudProvider.ANTHROPIC) ?: ""
+    )
+    val anthropicApiKey: StateFlow<String> = _anthropicApiKey.asStateFlow()
+
+    private val _geminiApiKey = MutableStateFlow(
+        secureApiKeyStore.getKey(com.airi.assistant.execution.CloudProvider.GEMINI) ?: ""
+    )
+    val geminiApiKey: StateFlow<String> = _geminiApiKey.asStateFlow()
+
+    fun setOpenAiApiKey(key: String) {
+        secureApiKeyStore.saveKey(com.airi.assistant.execution.CloudProvider.OPENAI, key)
+        _openAiApiKey.value = key.trim()
+    }
+
+    fun setAnthropicApiKey(key: String) {
+        secureApiKeyStore.saveKey(com.airi.assistant.execution.CloudProvider.ANTHROPIC, key)
+        _anthropicApiKey.value = key.trim()
+    }
+
+    fun setGeminiApiKey(key: String) {
+        secureApiKeyStore.saveKey(com.airi.assistant.execution.CloudProvider.GEMINI, key)
+        _geminiApiKey.value = key.trim()
+    }
+
     private val _modelState = MutableStateFlow(createInitialModelState())
     val modelState: StateFlow<ModelUiState> = _modelState.asStateFlow()
 

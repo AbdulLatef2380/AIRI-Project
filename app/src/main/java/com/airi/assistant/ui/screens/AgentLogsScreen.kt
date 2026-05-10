@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.components.*
 import com.airi.assistant.ui.theme.*
+import com.airi.assistant.ai.agent.trace.AgentTrace
 import com.airi.assistant.ui.viewmodel.AgentViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -32,13 +33,13 @@ fun AgentLogsScreen(
     onBack: () -> Unit,
     onTraceSelected: () -> Unit
 ) {
-    val traces by viewModel.agentTraces.collectAsState()
+    val traces by viewModel.traces.collectAsState()
 
     Scaffold(
         containerColor = Surface0,
         topBar = {
             AiriScreenHeader(title = "سجل العميل", onBack = onBack) {
-                IconButton(onClick = { viewModel.clearTraces() }) {
+                IconButton(onClick = { viewModel.clearLogs() }) {
                     Icon(Icons.Outlined.DeleteSweep, contentDescription = "مسح", tint = SemanticError.copy(0.75f))
                 }
             }
@@ -72,16 +73,16 @@ fun AgentLogsScreen(
 
 @Composable
 private fun AgentTraceCard(
-    trace: com.airi.assistant.ui.viewmodel.AgentTrace,
+    trace: AgentTrace,
     onClick: () -> Unit
 ) {
     val fmt = remember { SimpleDateFormat("d MMM · HH:mm:ss", Locale("ar")) }
     val dateStr = remember(trace.timestamp) { fmt.format(Date(trace.timestamp)) }
 
-    val statusColor = when (trace.status) {
+    val traceStatus = if (trace.success) "SUCCESS" else "FAILED"
+    val statusColor = when (traceStatus) {
         "SUCCESS"  -> SemanticSuccess
         "FAILED"   -> SemanticError
-        "RUNNING"  -> PrimaryAccent
         else       -> TextTertiary
     }
 
@@ -95,9 +96,9 @@ private fun AgentTraceCard(
             .padding(14.dp)
     ) {
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            NeuralGlowDot(color = statusColor, size = 8.dp, animate = trace.status == "RUNNING")
+            NeuralGlowDot(color = statusColor, size = 8.dp, animate = false)
             Column(modifier = Modifier.weight(1f)) {
-                Text(trace.goal, color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp,
+                Text(trace.originalInput, color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -107,9 +108,7 @@ private fun AgentTraceCard(
                 }
             }
             NeuralBadge(
-                text = when (trace.status) {
-                    "SUCCESS" -> "نجاح"; "FAILED" -> "فشل"; "RUNNING" -> "يعمل"; else -> trace.status
-                },
+                text = if (trace.success) "نجاح" else "فشل",
                 color = statusColor
             )
         }

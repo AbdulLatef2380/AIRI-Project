@@ -277,6 +277,53 @@ private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
     ) { content() }
 }
 
+// ── Settings surface containers used by sub-screens ──────────────────────────
+
+@Composable
+fun SettingsSurface(content: @Composable ColumnScope.() -> Unit) {
+    androidx.compose.material3.Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)),
+        color = Surface1,
+        tonalElevation = 0.dp,
+        border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), content = content)
+    }
+}
+
+@Composable
+fun SettingsCategoryHeader(icon: ImageVector, title: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = PrimaryAccent, modifier = Modifier.size(18.dp))
+        Text(title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+fun SettingsActionRow(label: String, sublabel: String? = null, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, color = TextPrimary, fontSize = 14.sp)
+            if (!sublabel.isNullOrBlank()) {
+                Text(sublabel, color = TextSecondary, fontSize = 12.sp)
+            }
+        }
+        Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(18.dp))
+    }
+}
+
 // Keep legacy composables referenced by existing screens
 @Composable
 fun SettingsHubProfileCard(
@@ -303,9 +350,9 @@ fun SettingsHubRow(
 @Composable
 fun SettingsHubDivider() = NeuralDivider()
 
-// AboutScreen referenced in nav
+// AboutScreen referenced in nav (Arabic / settings-hub version)
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun SettingsAboutScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     Scaffold(
         containerColor = Surface0,

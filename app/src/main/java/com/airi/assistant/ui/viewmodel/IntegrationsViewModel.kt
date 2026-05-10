@@ -170,6 +170,25 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         // No state change needed — user cancelled or error occurred
     }
 
+    fun toggle(id: String) {
+        val item = _items.value.find { it.id == id } ?: return
+        if (item.isConnected) {
+            disconnect(id)
+        } else {
+            when (id) {
+                "github"   -> openGithubDialog()
+                "telegram" -> openTelegramDialog()
+            }
+        }
+    }
+
+    fun configure(id: String) {
+        when (id) {
+            "github"   -> openGithubDialog()
+            "telegram" -> openTelegramDialog()
+        }
+    }
+
     fun disconnect(id: String) {
         when (id) {
             "google" -> googleAuthService.disconnect()

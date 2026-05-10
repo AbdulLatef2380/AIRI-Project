@@ -427,8 +427,8 @@ fun NeuralStatusDot(
                             asFrameworkPaint().setShadowLayer(6f, 0f, 0f, color.copy(alpha = 0.6f).toArgb())
                         }
                         canvas.drawCircle(
-                            androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f),
-                            size.minDimension / 2f * scale, paint
+                            androidx.compose.ui.geometry.Offset(this.size.width / 2f, this.size.height / 2f),
+                            this.size.minDimension / 2f * scale, paint
                         )
                     }
                 } else Modifier

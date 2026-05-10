@@ -132,7 +132,7 @@ fun ModelSettingsScreen(
                             }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(model.name, color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${model.paramCount} · ${model.quantization}", color = TextSecondary, fontSize = 12.sp)
+                                Text("${model.type.label} · ${model.quantization}", color = TextSecondary, fontSize = 12.sp)
                             }
                             if (isSelected) NeuralBadge("نشط", PrimaryAccent)
                             RadioButton(

@@ -157,7 +157,7 @@ private fun ScheduledTasksTab(sessions: List<PersistentTaskSession>) {
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        items(sessions, key = { it.id }) { session ->
+        items(sessions, key = { it.sessionId }) { session ->
             SessionCard(session)
         }
         item { Spacer(Modifier.height(16.dp)) }
@@ -179,7 +179,7 @@ private fun SessionCard(session: PersistentTaskSession) {
         else                    -> "معلق"
     }
     val fmt = remember { SimpleDateFormat("d MMM · HH:mm", Locale("ar")) }
-    val dateStr = remember(session.createdAt) { fmt.format(Date(session.createdAt)) }
+    val dateStr = remember(session.createdAtMs) { fmt.format(Date(session.createdAtMs)) }
 
     Box(
         modifier = Modifier
@@ -215,7 +215,7 @@ private fun SessionCard(session: PersistentTaskSession) {
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(session.goal, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(session.goalText, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(dateStr, color = TextTertiary, fontSize = 11.sp)
                 }
                 NeuralBadge(statusLabel, statusColor)
@@ -277,14 +277,23 @@ private fun DurableTaskCard(task: DurableTask) {
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 NeuralStatusDot(color = PrimaryAccent, size = 7.dp, animate = false)
-                Text("${task.currentStepIndex + 1} / ${task.totalSteps} خطوة", color = TextSecondary, fontSize = 12.sp)
+                val progressText = if (task.progressPercent >= 0) "${task.progressPercent}%" else "قيد التنفيذ"
+                Text(progressText, color = TextSecondary, fontSize = 12.sp)
             }
-            LinearProgressIndicator(
-                progress = { if (task.totalSteps > 0) (task.currentStepIndex + 1f) / task.totalSteps else 0f },
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).height(3.dp),
-                color = PrimaryAccent,
-                trackColor = Surface3
-            )
+            if (task.progressPercent >= 0) {
+                LinearProgressIndicator(
+                    progress = task.progressPercent / 100f,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).height(3.dp),
+                    color = PrimaryAccent,
+                    trackColor = Surface3
+                )
+            } else {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).height(3.dp),
+                    color = PrimaryAccent,
+                    trackColor = Surface3
+                )
+            }
         }
     }
 }

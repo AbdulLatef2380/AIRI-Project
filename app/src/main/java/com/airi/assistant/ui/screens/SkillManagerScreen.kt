@@ -36,7 +36,7 @@ fun SkillManagerScreen(
 ) {
     val context = LocalContext.current
     val repo    = remember { CustomSkillRepository(context) }
-    var skills  by remember { mutableStateOf(repo.loadAll()) }
+    var skills  by remember { mutableStateOf(repo.getAllSkills()) }
     var query   by remember { mutableStateOf("") }
     var showCreateSheet by remember { mutableStateOf(false) }
 
@@ -85,13 +85,13 @@ fun SkillManagerScreen(
                             skill    = skill,
                             onEdit   = { onEdit(skill.id) },
                             onToggle = {
-                                val updated = skill.copy(enabled = !skill.enabled)
-                                repo.save(updated)
-                                skills = repo.loadAll()
+                                val updated = skill.copy(isPremium = !skill.isPremium)
+                                repo.saveSkill(updated)
+                                skills = repo.getAllSkills()
                             },
                             onDelete = {
-                                repo.delete(skill.id)
-                                skills = repo.loadAll()
+                                repo.deleteSkill(skill.id)
+                                skills = repo.getAllSkills()
                             }
                         )
                     }
@@ -126,7 +126,7 @@ private fun SkillCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(Surface1)
-            .border(1.dp, if (skill.enabled) PrimaryAccent.copy(0.25f) else BorderLight, RoundedCornerShape(16.dp))
+            .border(1.dp, if (skill.isPremium) PrimaryAccent.copy(0.25f) else BorderLight, RoundedCornerShape(16.dp))
     ) {
         Column {
             Row(
@@ -152,7 +152,7 @@ private fun SkillCard(
                     Text(skill.description, color = TextSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Spacer(Modifier.width(8.dp))
-                NeuralToggle(checked = skill.enabled, onCheckedChange = { onToggle() })
+                NeuralToggle(checked = skill.isPremium, onCheckedChange = { onToggle() })
             }
 
             AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
@@ -207,15 +207,22 @@ private fun CreateSkillSheet(
     onFromGitHub: () -> Unit
 ) {
     val options = listOf(
-        Triple(Icons.Outlined.AutoAwesome,  "البناء باستخدام Airi",    "قم ببناء مهارة من خلال المحادثة", PrimaryAccent,    onBuildWithAiri),
-        Triple(Icons.Outlined.UploadFile,   "رفع مهارة",               "رفع .skill أو .zip",              SecondaryAccent,  onUpload),
-        Triple(Icons.Outlined.LibraryBooks, "من المكتبة الرسمية",      "مهارات جاهزة يصونها Airi",        SemanticSuccess,  onFromLibrary),
-        Triple(Icons.Outlined.Code,         "استيراد من GitHub",        "الصق رابط المستودع للبدء",        SemanticWarning,  onFromGitHub)
+        // Using a data class or simple list instead of Triple to avoid destructuring issues if Triple is misused
+        listOf(Icons.Outlined.AutoAwesome,  "البناء باستخدام Airi",    "قم ببناء مهارة من خلال المحادثة", PrimaryAccent,    onBuildWithAiri),
+        listOf(Icons.Outlined.UploadFile,   "رفع مهارة",               "رفع .skill أو .zip",              SecondaryAccent,  onUpload),
+        listOf(Icons.Outlined.LibraryBooks, "من المكتبة الرسمية",      "مهارات جاهزة يصونها Airi",        SemanticSuccess,  onFromLibrary),
+        listOf(Icons.Outlined.Code,         "استيراد من GitHub",        "الصق رابط المستودع للبدء",        SemanticWarning,  onFromGitHub)
     )
 
     NeuralBottomSheet(onDismiss = onDismiss, title = "إنشاء مهارة") {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            options.forEach { (icon, title, sub, color, action) ->
+            options.forEach { item ->
+                val icon = item[0] as androidx.compose.ui.graphics.vector.ImageVector
+                val title = item[1] as String
+                val sub = item[2] as String
+                val color = item[3] as androidx.compose.ui.graphics.Color
+                val action = item[4] as () -> Unit
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()

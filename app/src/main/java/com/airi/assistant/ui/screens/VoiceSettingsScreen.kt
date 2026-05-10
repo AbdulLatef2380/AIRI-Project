@@ -79,7 +79,8 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                     icon = Icons.Outlined.Hearing,
                     title = "كشف نشاط الصوت (VAD)",
                     subtitle = "يكتشف متى تتوقف عن الكلام تلقائياً",
-                    trailingContent = { NeuralToggle(vadEnabled) { vadEnabled = it; save() } },
+                    onClick = { vadEnabled = !vadEnabled; save() },
+                    trailingContent = { NeuralToggle(checked = vadEnabled, onCheckedChange = { vadEnabled = it; save() }) },
                     showChevron = false
                 )
                 NeuralDivider()
@@ -87,7 +88,8 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                     icon = Icons.Outlined.RecordVoiceOver,
                     title = "كلمة التنبيه (Hotword)",
                     subtitle = "قل \"مرحباً Airi\" لتفعيل المساعد",
-                    trailingContent = { NeuralToggle(hotwordEnabled) { hotwordEnabled = it; save() } },
+                    onClick = { hotwordEnabled = !hotwordEnabled; save() },
+                    trailingContent = { NeuralToggle(checked = hotwordEnabled, onCheckedChange = { hotwordEnabled = it; save() }) },
                     showChevron = false
                 )
             }

@@ -11,6 +11,7 @@ plugins {
 
     // Crashlytics — uploads ProGuard mapping for de-obfuscated stack traces in release
     id("com.google.firebase.crashlytics")
+    id("io.gitlab.arturbosch.detekt") version "1.23.6"
 }
 
 android {
@@ -237,9 +238,14 @@ dependencies {
     // No Picovoice / Porcupine dependency — no API key, no .ppn file required.
 
     // ── OCR (Phase 3 — OCRConnector) ─────────────────────────────────────────
-    // Required by OCRConnector for on-device text recognition. Fully offline —
+    // Requi    // OCRConnector for on-device text recognition. Fully offline —
     // no network call. Falls back gracefully if model download hasn't completed.
     implementation("com.google.mlkit:text-recognition:16.0.0")
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    allRules = true
 }
 
 tasks.register("airiVerifyOptimization") {

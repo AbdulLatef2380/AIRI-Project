@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.ui.components.*
 import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.viewmodel.ChatViewModel
@@ -30,8 +31,9 @@ fun ModelSettingsScreen(
     onBack: () -> Unit
 ) {
     val execMode      by viewModel.executionMode.collectAsState()
-    val selectedModel by viewModel.selectedModelId.collectAsState()
-    val localModels   by viewModel.availableLocalModels.collectAsState()
+    val modelState    by viewModel.modelState.collectAsState()
+    val selectedModel = modelState.selectedModelId
+    val localModels   = modelState.availableModels
 
     Scaffold(
         containerColor = Surface0,
@@ -53,11 +55,15 @@ fun ModelSettingsScreen(
                     Triple("CLOUD",  "سحابي", "يتصل بـ API خارجي"),
                     Triple("HYBRID", "هجين",  "يوازن بين المحلي والسحابي")
                 ).forEachIndexed { idx, (mode, label, desc) ->
-                    val selected = execMode == mode
+                    val selected = when (mode) {
+                        "LOCAL"  -> execMode == ExecutionMode.LOCAL_ONLY
+                        "CLOUD"  -> execMode == ExecutionMode.CLOUD_ONLY
+                        else     -> execMode == ExecutionMode.HYBRID
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { viewModel.setExecutionMode(mode) }
+                            .clickable { viewModel.setExecutionMode(when (mode) { "LOCAL" -> ExecutionMode.LOCAL_ONLY; "CLOUD" -> ExecutionMode.CLOUD_ONLY; else -> ExecutionMode.HYBRID }) }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp)
@@ -92,7 +98,7 @@ fun ModelSettingsScreen(
                         }
                         RadioButton(
                             selected = selected,
-                            onClick  = { viewModel.setExecutionMode(mode) },
+                            onClick  = { viewModel.setExecutionMode(when (mode) { "LOCAL" -> ExecutionMode.LOCAL_ONLY; "CLOUD" -> ExecutionMode.CLOUD_ONLY; else -> ExecutionMode.HYBRID }) },
                             colors   = RadioButtonDefaults.colors(selectedColor = PrimaryAccent, unselectedColor = TextTertiary)
                         )
                     }

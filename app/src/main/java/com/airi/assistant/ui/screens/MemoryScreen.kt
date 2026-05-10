@@ -29,7 +29,7 @@ fun MemoryScreen(
     viewModel: ChatViewModel,
     onBack: () -> Unit
 ) {
-    val memories by viewModel.memories.collectAsState()
+    val memories by viewModel.memoryEntries.collectAsState()
     var query    by remember { mutableStateOf("") }
 
     val filtered = remember(memories, query) {
@@ -41,7 +41,7 @@ fun MemoryScreen(
         containerColor = Surface0,
         topBar = {
             AiriScreenHeader(title = "الذاكرة", onBack = onBack) {
-                IconButton(onClick = { viewModel.clearAllMemories() }) {
+                IconButton(onClick = { viewModel.clearMemory() }) {
                     Icon(Icons.Outlined.DeleteSweep, contentDescription = "مسح الكل", tint = SemanticError.copy(0.75f))
                 }
             }
@@ -104,7 +104,7 @@ private fun MemoryStat(label: String, value: String, color: androidx.compose.ui.
 
 @Composable
 private fun MemoryCard(
-    memory: com.airi.assistant.memory.MemoryEntry,
+    memory: com.airi.assistant.memory.entity.ChatMessage,
     onDelete: () -> Unit
 ) {
     val fmt = remember { SimpleDateFormat("d MMM HH:mm", Locale("ar")) }

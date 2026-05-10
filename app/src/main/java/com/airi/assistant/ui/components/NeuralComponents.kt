@@ -111,8 +111,8 @@ fun NeuralBottomSheet(
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 fun NeuralSearchBar(
-    value: String,
-    onValueChange: (String) -> Unit,
+    value: String = "",
+    onValueChange: (String) -> Unit = {},
     placeholder: String,
     modifier: Modifier = Modifier,
     // Alias for compatibility
@@ -184,7 +184,7 @@ fun NeuralRowItem(
     icon: ImageVector? = null,
     iconColor: Color = AccentBlue,
     showArrow: Boolean = true,
-    onClick: () -> Unit,
+    onClick: () -> Unit = {},
     trailingContent: @Composable (() -> Unit)? = null,
     // Compatibility aliases
     iconTint: Color = iconColor,

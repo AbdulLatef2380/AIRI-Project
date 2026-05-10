@@ -2351,6 +2351,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun deleteMemory(id: Long) {
+        viewModelScope.launch {
+            runCatching { memoryManager.deleteMessageById(id) }
+            _memoryEntries.value = runCatching { memoryManager.getSemanticMemories(200) }.getOrElse { emptyList() }
+            _memoryCount.value   = runCatching { memoryManager.getMessageCount() }.getOrElse { 0 }
+        }
+    }
+
+    fun exportData() {
+        Log.i("AIRI_PROOF", "EXPORT: User requested data export")
+    }
+
+    fun clearAllHistory() {
+        viewModelScope.launch {
+            runCatching { memoryManager.clearAll() }
+            _memoryEntries.value = emptyList()
+            _memoryCount.value   = 0
+        }
+        createNewSession()
+    }
+
     // ── Model import / selection ──────────────────────────────────────────────
 
     fun importModel(uri: Uri) {

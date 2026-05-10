@@ -170,6 +170,10 @@ class MemoryManager(context: Context) {
         dao.clearSemanticMemories()
     }
 
+    suspend fun deleteMessageById(id: Long) {
+        dao.deleteById(id)
+    }
+
     private companion object {
         // Per-session sliding window cap. 200 chat rows ≈ 100 user/assistant
         // turns ≈ 30-50 KB of text per session — well under any reasonable

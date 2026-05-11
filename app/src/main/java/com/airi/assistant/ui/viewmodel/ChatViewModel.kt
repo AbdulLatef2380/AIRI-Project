@@ -643,11 +643,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     init {
         ModelManager.setLoader(ModelLoader(llamaManager))
         val filter = IntentFilter(ModelDownloadService.ACTION_DOWNLOAD_COMPLETE)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            appContext.registerReceiver(downloadCompleteReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            appContext.registerReceiver(downloadCompleteReceiver, filter)
-        }
+        ContextCompat.registerReceiver(
+            appContext,
+            downloadCompleteReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         loadInitialSession()
         val savedModel = ModelRegistry.getById(_modelState.value.selectedModelId)
         if (savedModel != null && File(savedModel.path).exists()) {

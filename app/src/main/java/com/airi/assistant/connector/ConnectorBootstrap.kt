@@ -7,12 +7,18 @@ import com.airi.assistant.connector.api.HttpApiConnector
 import com.airi.assistant.connector.api.RemoteLlmConnector
 import com.airi.assistant.connector.browser.BrowserConnector
 import com.airi.assistant.connector.legacy.IntegrationConnectorAdapter
+import com.airi.assistant.connector.api.WeatherConnector
+import com.airi.assistant.connector.api.WebSearchConnector
 import com.airi.assistant.connector.local.AndroidIntentConnector
+import com.airi.assistant.connector.local.CalendarConnector
+import com.airi.assistant.connector.local.ContactsConnector
 import com.airi.assistant.connector.local.DocumentConnector
 import com.airi.assistant.connector.local.FilesystemConnector
 import com.airi.assistant.connector.local.GitConnector
 import com.airi.assistant.connector.local.MemoryRagConnector
+import com.airi.assistant.connector.local.NotesConnector
 import com.airi.assistant.connector.local.SchedulerConnector
+import com.airi.assistant.connector.local.SmsConnector
 import com.airi.assistant.connector.local.VoiceConnector
 import com.airi.assistant.connector.mcp.InMemoryMcpConnector
 import com.airi.assistant.connector.system.DeviceControlConnector
@@ -82,6 +88,9 @@ object ConnectorBootstrap {
         // ── API tab ─────────────────────────────────────────────────────────
         registry.register(RemoteLlmConnector(providers = llmProviders))
         registry.register(HttpApiConnector())
+        // Phase 7: free-tier API connectors (no user keys required)
+        registry.register(WeatherConnector())
+        registry.register(WebSearchConnector(appContext))
 
         // ── LOCAL tab ───────────────────────────────────────────────────────
         registry.register(AndroidIntentConnector(appContext))
@@ -90,6 +99,11 @@ object ConnectorBootstrap {
         registry.register(DocumentConnector(appContext))
         registry.register(SchedulerConnector(appContext))
         registry.register(GitConnector())
+        // Phase 7: device-data connectors (gracefully degrade if permission denied)
+        registry.register(CalendarConnector(appContext))
+        registry.register(ContactsConnector(appContext))
+        registry.register(SmsConnector(appContext))
+        registry.register(NotesConnector(appContext))
 
         if (ragRetriever != null && memoryManager != null) {
             registry.register(MemoryRagConnector(ragRetriever, memoryManager))

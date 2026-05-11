@@ -16,7 +16,6 @@ okhttp = "4.12.0"
 gson = "2.10.1"
 
 vosk = "0.3.47"
-porcupine = "3.0.1"
 
 [libraries]
 
@@ -53,9 +52,8 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 
-# ✅ Voice (FIXED)
+# Voice (fully offline — Vosk on-device STT + InternalWakeWordEngine)
 voskAndroid = { group = "com.alphacephei", name = "vosk-android", version.ref = "vosk" }
-porcupineAndroid = { group = "ai.picovoice", name = "porcupine-android", version.ref = "porcupine" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

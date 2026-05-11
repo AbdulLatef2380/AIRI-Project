@@ -50,7 +50,9 @@ import com.airi.assistant.domain.sharing.ChatSharingService
 import com.airi.assistant.agent.learning.SkillOutcomeScorer
 import com.airi.assistant.agent.workspace.WorkspaceRegistry
 import com.airi.assistant.domain.policy.UnifiedPolicyGate
+import com.airi.assistant.domain.diagnostics.DiagnosticsEngine
 import com.airi.assistant.domain.skill.SkillManagerBackend
+import com.airi.assistant.domain.skill.SkillOrchestrator
 import com.airi.assistant.domain.skill.SkillService
 import com.airi.assistant.memory.rag.RagRetriever
 import com.airi.assistant.memory.repository.MemoryManager
@@ -209,6 +211,30 @@ object ServiceLocator {
 
     val skillService: SkillService by lazy {
         SkillService(requireContext())
+    }
+
+    // ── Skill Orchestrator (Phase 6) ──────────────────────────────────────────
+
+    /**
+     * Production-grade skill router. Sits above [skillService] and provides
+     * category routing, priority ranking, retry logic, timeout, and fallback.
+     * Consumed by ChatViewModel and any agent layer that needs to dispatch a
+     * user intent to the most appropriate skill before falling back to LLM.
+     */
+    val skillOrchestrator: SkillOrchestrator by lazy {
+        SkillOrchestrator(skillService)
+    }
+
+    // ── Diagnostics Engine (Phase 9) ─────────────────────────────────────────
+
+    /**
+     * Continuous background health monitor. Exposes a [StateFlow<HealthSnapshot>]
+     * that the debug screen and agent self-diagnostics consume. Started lazily
+     * on first access; call [diagnosticsEngine.start()] from Application.onCreate
+     * or wherever diagnostics should begin running.
+     */
+    val diagnosticsEngine: DiagnosticsEngine by lazy {
+        DiagnosticsEngine(requireContext())
     }
 
     val promptService: PromptService by lazy {

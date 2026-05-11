@@ -1967,18 +1967,98 @@ fun ChatInputBar(
                 }
             }
 
-            // Model status chip
-            if (!modelState.isModelReady && !modelState.isModelLoading) {
-                TextButton(onClick = onOpenModels, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp)) {
-                    Icon(Icons.Outlined.Warning, contentDescription = null, tint = Color(0xFFFFCC00), modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.no_model_tap_select), color = Color(0xFFFFCC00), fontSize = 12.sp)
-                }
-            } else if (modelState.isModelLoading) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp, start = 12.dp)) {
-                    CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp, color = CosmicAccent)
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.loading_model_name, modelState.selectedModelName), color = CosmicAccent.copy(alpha = 0.8f), fontSize = 12.sp)
+            // ── Model lock banner (Phase 3) ──────────────────────────────
+            // Displayed above the input pill whenever the model is not ready.
+            // • No model selected → amber "tap to select" full-width banner.
+            // • Model loading     → progress bar + model name.
+            // Both states disable text input and send (gated by canSend below).
+            if (!modelState.isModelReady) {
+                if (modelState.isModelLoading) {
+                    // ── Loading state: progress bar banner ──────────────
+                    androidx.compose.foundation.layout.Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                            .background(CosmicAccent.copy(alpha = 0.10f))
+                            .border(1.dp, CosmicAccent.copy(alpha = 0.22f),
+                                androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier    = Modifier.size(13.dp),
+                                    strokeWidth = 1.5.dp,
+                                    color       = CosmicAccent
+                                )
+                                Text(
+                                    text     = stringResource(R.string.loading_model_name,
+                                        modelState.selectedModelName),
+                                    color    = CosmicAccent,
+                                    fontSize = 12.sp,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text     = "${modelState.loadProgress}%",
+                                    color    = CosmicAccent.copy(alpha = 0.75f),
+                                    fontSize = 11.sp
+                                )
+                            }
+                            LinearProgressIndicator(
+                                progress    = { modelState.loadProgress / 100f },
+                                modifier    = Modifier.fillMaxWidth().height(2.dp)
+                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(1.dp)),
+                                color       = CosmicAccent,
+                                trackColor  = CosmicAccent.copy(alpha = 0.12f)
+                            )
+                        }
+                    }
+                } else {
+                    // ── No model state: full-width "tap to select" banner ─
+                    val noModelAmber = Color(0xFFFFB300)
+                    androidx.compose.foundation.layout.Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                            .background(noModelAmber.copy(alpha = 0.09f))
+                            .border(1.dp, noModelAmber.copy(alpha = 0.28f),
+                                androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                            .clickable(onClick = onOpenModels)
+                            .padding(horizontal = 14.dp, vertical = 11.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector     = Icons.Outlined.Warning,
+                                contentDescription = null,
+                                tint            = noModelAmber,
+                                modifier        = Modifier.size(15.dp)
+                            )
+                            Text(
+                                text       = stringResource(R.string.no_model_tap_select),
+                                color      = noModelAmber,
+                                fontSize   = 12.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                                modifier   = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector     = Icons.Outlined.ChevronRight,
+                                contentDescription = null,
+                                tint            = noModelAmber.copy(alpha = 0.6f),
+                                modifier        = Modifier.size(14.dp)
+                            )
+                        }
+                    }
                 }
             }
 

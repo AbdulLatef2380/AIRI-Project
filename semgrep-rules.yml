@@ -1,0 +1,29 @@
+rules:
+  - id: empty-onclick
+    pattern: |
+      onClick = { }
+    message: "Fake button detected: onClick lambda is empty."
+    severity: ERROR
+    languages: [kotlin]
+
+  - id: swallowed-exception
+    pattern: |
+      catch ($E) {
+      }
+    message: "Exception swallowed: Empty catch block can hide critical errors."
+    severity: WARNING
+    languages: [kotlin]
+
+  - id: unused-flow
+    pattern: |
+      MutableStateFlow(...)
+    message: "Verify flow has collector: Ensure this StateFlow is actually being collected in the UI or another component."
+    severity: WARNING
+    languages: [kotlin]
+
+  - id: hardcoded-api-key-pattern
+    pattern: |
+      val $VAR = "sk-..."
+    message: "Potential hardcoded API key detected."
+    severity: ERROR
+    languages: [kotlin]

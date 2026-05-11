@@ -492,6 +492,102 @@ object ServiceLocator {
         com.airi.assistant.agent.adaptation.PlannerAdaptationEngine(requireContext())
     }
 
+    // ── Phase 2 — LLM Runtime Hardening ──────────────────────────────────────
+
+    val inferenceHealthMonitor: com.airi.assistant.ai.InferenceHealthMonitor by lazy {
+        com.airi.assistant.ai.InferenceHealthMonitor(requireContext())
+    }
+
+    // ── Phase 3 — Real Agent Loop ─────────────────────────────────────────────
+
+    val goalTracker: com.airi.assistant.agent.tracker.GoalTracker by lazy {
+        com.airi.assistant.agent.tracker.GoalTracker(requireContext())
+    }
+
+    val failureRecoveryEngine: com.airi.assistant.agent.recovery.FailureRecoveryEngine by lazy {
+        com.airi.assistant.agent.recovery.FailureRecoveryEngine()
+    }
+
+    val agentMemoryBridge: com.airi.assistant.agent.memory.AgentMemoryBridge by lazy {
+        com.airi.assistant.agent.memory.AgentMemoryBridge(memoryManager, ragRetriever)
+    }
+
+    val agentToolRegistry: com.airi.assistant.ai.tools.ToolRegistry by lazy {
+        com.airi.assistant.ai.tools.ToolRegistry(requireContext())
+    }
+
+    val toolResolver: com.airi.assistant.agent.tools.ToolResolver by lazy {
+        com.airi.assistant.agent.tools.ToolResolver(agentToolRegistry, connectorRegistry)
+    }
+
+    val agentPlanner: com.airi.assistant.agent.planner.AgentPlanner by lazy {
+        com.airi.assistant.agent.planner.AgentPlanner(
+            reActPlanner    = reActPlanner,
+            brainController = null,
+            goalTracker     = goalTracker,
+            memoryBridge    = agentMemoryBridge,
+            toolResolver    = toolResolver,
+            recoveryEngine  = failureRecoveryEngine,
+        )
+    }
+
+    val runtimeTaskManager: com.airi.assistant.core.runtime.RuntimeTaskManager by lazy {
+        com.airi.assistant.core.runtime.RuntimeTaskManager(
+            durableTaskManager = durableTaskManager,
+            goalTracker        = goalTracker,
+            arm                = autonomousRuntimeManager,
+        )
+    }
+
+    // ── Phase 4 — Computer Use ────────────────────────────────────────────────
+
+    val uiInteractionEngine: com.airi.assistant.automation.UIInteractionEngine by lazy {
+        com.airi.assistant.automation.UIInteractionEngine()
+    }
+
+    val automationRuntime: com.airi.assistant.automation.AutomationRuntime by lazy {
+        com.airi.assistant.automation.AutomationRuntime(
+            accessibilityEngine = accessibilityExecutionEngine,
+            uiEngine            = uiInteractionEngine,
+        )
+    }
+
+    // ── Phase 6 — Web Agent System ────────────────────────────────────────────
+
+    val webAgentRuntime: com.airi.assistant.web.WebAgentRuntime by lazy {
+        com.airi.assistant.web.WebAgentRuntime(requireContext())
+    }
+
+    // ── Phase 7 — MCP Integration Layer ──────────────────────────────────────
+
+    val mcpRuntimeLayer: com.airi.assistant.connector.mcp.MCPRuntimeLayer by lazy {
+        com.airi.assistant.connector.mcp.MCPRuntimeLayer(connectorRegistry)
+    }
+
+    // ── Phase 8 — Virtual AIRI Computer ──────────────────────────────────────
+
+    val airiVirtualWorkspace: com.airi.assistant.workspace.AiriVirtualWorkspace by lazy {
+        com.airi.assistant.workspace.AiriVirtualWorkspace(requireContext())
+    }
+
+    // ── Phase 10 — Connector Ecosystem ───────────────────────────────────────
+
+    val connectorRuntimeManager: com.airi.assistant.connector.ConnectorRuntimeManager by lazy {
+        com.airi.assistant.connector.ConnectorRuntimeManager(connectorRegistry)
+    }
+
+    // ── Phase 11 — Deep Diagnostic Engine ────────────────────────────────────
+
+    val deepDiagnosticScanner: com.airi.assistant.domain.diagnostics.DeepDiagnosticScanner by lazy {
+        com.airi.assistant.domain.diagnostics.DeepDiagnosticScanner(
+            context                = requireContext(),
+            diagnosticsEngine      = diagnosticsEngine,
+            inferenceHealthMonitor = inferenceHealthMonitor,
+            connectorRegistry      = connectorRegistry,
+            connectorRuntimeMgr    = connectorRuntimeManager,
+        )
+    }
+
     /**
      * Initialize the sub-agent system with real tool-injected agents and
      * install the default permission set into the ScopedPermissionRegistry.
@@ -511,7 +607,9 @@ object ServiceLocator {
             CloudBrowserAgent(requireContext()),
             LocalBrowserOperator(requireContext()),
             MediaGenerationAgent(requireContext()),
-            DocumentProcessorAgent(requireContext())
+            DocumentProcessorAgent(requireContext()),
+            // ── Autonomous runtime agents (new phases) ──────────────────────
+            webAgentRuntime,
         )
         SubAgentRegistry.initialize(agents)
         scopedPermissionRegistry.installDefaults()

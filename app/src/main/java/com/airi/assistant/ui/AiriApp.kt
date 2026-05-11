@@ -50,6 +50,7 @@ import com.airi.assistant.ui.screens.ReferralScreen
 import com.airi.assistant.ui.screens.SettingsScreen
 import com.airi.assistant.ui.screens.SkillBuilderScreen
 import com.airi.assistant.ui.screens.KnowledgeScreen
+import com.airi.assistant.ui.screens.PlanningScreen
 import com.airi.assistant.ui.screens.SkillManagerScreen
 import com.airi.assistant.ui.screens.TaskDashboardScreen
 import com.airi.assistant.ui.screens.TemplatesScreen
@@ -93,6 +94,10 @@ object AiriRoute {
     const val SETTINGS_PRIVACY       = "screen_settings_privacy"
     const val SETTINGS_ABOUT         = "screen_settings_about"
     const val KNOWLEDGE              = "screen_knowledge"
+    const val PLANNING               = "screen_planning"
+    const val VIRTUAL_WORKSPACE      = "screen_virtual_workspace"
+    const val CONNECTOR_RUNTIME      = "screen_connector_runtime"
+    const val DEEP_DIAGNOSTICS       = "screen_deep_diagnostics"
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 }
@@ -100,7 +105,11 @@ object AiriRoute {
 private val NO_BOTTOM_NAV_ROUTES = setOf(
     AiriRoute.ONBOARDING,
     AiriRoute.WELCOME,
-    AiriRoute.LOGIN
+    AiriRoute.LOGIN,
+    AiriRoute.PLANNING,
+    AiriRoute.VIRTUAL_WORKSPACE,
+    AiriRoute.CONNECTOR_RUNTIME,
+    AiriRoute.DEEP_DIAGNOSTICS,
 )
 
 @Composable
@@ -475,6 +484,36 @@ fun AiriApp() {
                     composable(AiriRoute.KNOWLEDGE) {
                         KnowledgeScreen(
                             onBack = { navController.popBackStack() }
+                        )
+                    }
+
+                    composable(AiriRoute.PLANNING) {
+                        PlanningScreen(
+                            onBack     = { navController.popBackStack() },
+                            onNavigate = { route ->
+                                navController.navigate(route) { launchSingleTop = true }
+                            }
+                        )
+                    }
+
+                    composable(AiriRoute.VIRTUAL_WORKSPACE) {
+                        // AiriVirtualWorkspace is a backend service; surface diagnostics here
+                        ExecDiagnosticsScreen(
+                            viewModel = chatViewModel,
+                            onBack    = { navController.popBackStack() }
+                        )
+                    }
+
+                    composable(AiriRoute.CONNECTOR_RUNTIME) {
+                        ConnectorsScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+
+                    composable(AiriRoute.DEEP_DIAGNOSTICS) {
+                        DebugPanelScreen(
+                            viewModel = chatViewModel,
+                            onBack    = { navController.popBackStack() }
                         )
                     }
                 }

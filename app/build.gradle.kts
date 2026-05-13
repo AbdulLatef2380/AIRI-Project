@@ -145,6 +145,7 @@ android {
 dependencies {
     // Core Android
     implementation(libs.androidx.core.ktx)
+    implementation(libs.google.material)
 
     // Compose
     implementation(platform(libs.androidx.compose.bom))

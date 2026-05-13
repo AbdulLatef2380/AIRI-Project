@@ -2012,7 +2012,7 @@ fun ChatInputBar(
                                 )
                             }
                             LinearProgressIndicator(
-                                progress    = { modelState.loadProgress / 100f },
+                                progress    = modelState.loadProgress / 100f,
                                 modifier    = Modifier.fillMaxWidth().height(2.dp)
                                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(1.dp)),
                                 color       = CosmicAccent,

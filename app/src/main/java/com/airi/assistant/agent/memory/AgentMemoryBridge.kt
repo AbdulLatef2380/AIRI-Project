@@ -9,24 +9,6 @@ import kotlinx.coroutines.withContext
 /**
  * AgentMemoryBridge — typed access layer between the agent execution pipeline
  * and the memory/RAG subsystem.
- *
- * ── PURPOSE ──────────────────────────────────────────────────────────────────
- *
- * [MemoryManager] is a general-purpose store used by chat. The agent pipeline
- * has stricter requirements:
- *
- *   1. EPISODIC RECALL  — retrieve recent conversation context relevant to a goal.
- *   2. PROCEDURAL STORE — persist agent-generated actions/observations.
- *   3. SEMANTIC SEARCH  — query past successful plans for the same goal class.
- *   4. GOAL MEMORY      — record goal outcomes for future self-improvement.
- *
- * This class provides a clean API for those use cases without coupling agents
- * to the raw Room DAO or EmbeddingService internals.
- *
- * ── THREADING ────────────────────────────────────────────────────────────────
- *
- * All suspend functions switch to [Dispatchers.IO] before accessing the
- * database. The bridge is safe to call from any coroutine scope.
  */
 class AgentMemoryBridge(
     private val memoryManager: MemoryManager,
@@ -58,11 +40,12 @@ class AgentMemoryBridge(
      * Retrieve the most relevant memory chunks for [query].
      * Uses the RAG retriever for semantic search over past messages.
      */
-    suspend fun recall(query: String, limit: Int = 5): List<MemoryChunk> =
+    suspend fun recall(sessionId: String, query: String, limit: Int = 5): List<MemoryChunk> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val results = ragRetriever.retrieveRelevant(query, limit)
-                results.map { MemoryChunk(role = it.role, content = it.content) }
+                // RagRetriever.retrieve now requires sessionId
+                val results = ragRetriever.retrieve(sessionId, query, limit)
+                results.map { MemoryChunk(role = it.role, content = it.content, relevance = it.score) }
             }.getOrElse {
                 Log.w(TAG, "recall failed: ${it.message}")
                 emptyList()
@@ -71,8 +54,6 @@ class AgentMemoryBridge(
 
     /**
      * Retrieve recent conversation turns for session context injection.
-     * @param sessionId   The current chat session identifier.
-     * @param turnLimit   How many recent turns to include.
      */
     suspend fun recentTurns(sessionId: String, turnLimit: Int = 6): List<MemoryChunk> =
         withContext(Dispatchers.IO) {
@@ -87,10 +68,6 @@ class AgentMemoryBridge(
 
     /**
      * Persist an agent action/observation pair to episodic memory.
-     *
-     * @param sessionId   Current session.
-     * @param action      What the agent did.
-     * @param observation What was observed / returned.
      */
     suspend fun storeAgentObservation(
         sessionId:   String,
@@ -124,14 +101,13 @@ class AgentMemoryBridge(
 
     /**
      * Build a context string suitable for injecting into an LLM prompt.
-     * Combines semantic recall + recent turns into a single formatted block.
      */
     suspend fun buildAgentContext(
         query:     String,
         sessionId: String,
         maxTokens: Int = 800,
     ): String = withContext(Dispatchers.IO) {
-        val recalled = runCatching { recall(query, limit = 3) }.getOrDefault(emptyList())
+        val recalled = runCatching { recall(sessionId, query, limit = 3) }.getOrDefault(emptyList())
         val recent   = runCatching { recentTurns(sessionId, turnLimit = 4) }.getOrDefault(emptyList())
 
         val sb = StringBuilder()

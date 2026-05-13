@@ -6,34 +6,14 @@ import com.airi.assistant.ai.tools.ToolRegistry
 import com.airi.assistant.connector.ConnectorRegistry
 import com.airi.assistant.connector.ConnectorInput
 import com.airi.assistant.connector.ConnectorOutput
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 /**
  * ToolResolver — unified tool discovery and execution facade.
  *
  * The agent pipeline can call tools by name without knowing whether they
  * are implemented as [Tool] (legacy tool model) or [Connector] (new model).
- *
- * ── RESOLUTION ORDER ─────────────────────────────────────────────────────────
- *
- *  1. Exact match in [ToolRegistry] (legacy tools — GitHub, Telegram, etc.)
- *  2. Connector action bridge — tries to route via [ConnectorRegistry]
- *     matching on connector ID prefix (e.g. "weather.get_current")
- *  3. Returns [ToolResult.Unavailable] if no match is found.
- *
- * ── ACTION ENCODING ──────────────────────────────────────────────────────────
- *
- *   Tool calls from the LLM are encoded as:
- *     { "tool": "connector_id.action", "input": "...", "params": {...} }
- *
- *   E.g.:
- *     { "tool": "browser.fetch",       "input": "https://example.com" }
- *     { "tool": "calendar.list_events", "params": {"days": "7"}        }
- *     { "tool": "weather.get_current",  "params": {"location": "NYC"}  }
- *
- * ── SAFETY ───────────────────────────────────────────────────────────────────
- *
- *   All tool execution is wrapped in try/catch. ToolResult.Failure is returned
- *   rather than throwing, so an invalid tool call never crashes the agent loop.
  */
 class ToolResolver(
     private val toolRegistry:      ToolRegistry,
@@ -92,12 +72,22 @@ class ToolResolver(
 
     private suspend fun executeLegacy(tool: Tool, call: ToolCall): ToolResult {
         return runCatching {
-            val result = tool.execute(call.input, call.params)
-            Log.d(TAG, "TOOL_LEGACY_OK tool='${tool.name}' result='${result.take(80)}'")
-            ToolResult.Success(text = result)
+            // Legacy tools now expect a Map<String, String> and return ToolResult
+            val params = call.params.toMutableMap()
+            if (call.input.isNotBlank()) {
+                params["input"] = call.input
+            }
+            val result = tool.execute(params)
+            if (result.success) {
+                Log.d(TAG, "TOOL_LEGACY_OK tool='${tool.name}'")
+                ToolResult.Success(text = result.data)
+            } else {
+                Log.w(TAG, "TOOL_LEGACY_FAIL tool='${tool.name}' error=${result.error}")
+                ToolResult.Failure(code = "legacy_error", message = result.error ?: "Unknown error")
+            }
         }.getOrElse { e ->
             Log.w(TAG, "TOOL_LEGACY_FAIL tool='${tool.name}' error=${e.message}")
-            ToolResult.Failure(code = "legacy_error", message = e.message ?: "Unknown error", retryable = false)
+            ToolResult.Failure(code = "legacy_exception", message = e.message ?: "Unknown error")
         }
     }
 
@@ -130,6 +120,13 @@ class ToolResolver(
                 Log.w(TAG, "TOOL_CONNECTOR_FAIL connector=$connectorId code=${out.code}")
                 ToolResult.Failure(code = out.code, message = out.message, retryable = out.retryable)
             }
+            is ConnectorOutput.Streaming -> {
+                // Bridge streaming to success by collecting the first chunk or joining
+                // In a real tool resolver, we might want to handle streaming differently,
+                // but for now we'll collect it to maintain the ToolResult.Success contract.
+                val text = out.chunks.first() 
+                ToolResult.Success(text = text)
+            }
         }
     }
 
@@ -144,7 +141,6 @@ class ToolResolver(
 
     /**
      * List all available tool names across both [ToolRegistry] and [ConnectorRegistry].
-     * Used by the LLM prompt builder to generate the tool list.
      */
     fun availableToolNames(): List<String> {
         val legacy     = runCatching { toolRegistry.getAvailableTools().map { it.name } }.getOrDefault(emptyList())

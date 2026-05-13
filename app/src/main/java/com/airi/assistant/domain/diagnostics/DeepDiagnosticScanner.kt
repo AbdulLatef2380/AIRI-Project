@@ -12,34 +12,6 @@ import org.json.JSONObject
 
 /**
  * DeepDiagnosticScanner — comprehensive runtime inspection across all AIRI subsystems.
- *
- * Produces 7 structured reports that diagnose the full agent operating system:
- *
- *  | Report                     | What it checks                                      |
- *  |----------------------------|-----------------------------------------------------|
- *  | [scanArchitecture]         | Service wiring, missing singletons, init order      |
- *  | [scanRuntime]              | Active sessions, task queue depth, memory budgets   |
- *  | [scanOrchestration]        | Orchestrator health, routing decisions, fallbacks    |
- *  | [scanConnectors]           | Connector health, dead connectors, retry storms     |
- *  | [scanModelLayer]           | Model loaded, capabilities, KV cache, context pct   |
- *  | [scanMemory]               | DB accessible, embedding service, RAG retriever     |
- *  | [scanExecution]            | Accessibility service active, tool registry size    |
- *  | [fullScan]                 | All 7 reports merged into a single JSON report      |
- *
- * ── SEVERITY LEVELS ──────────────────────────────────────────────────────────
- *
- *   OK      — System is healthy in this dimension.
- *   WARN    — Degraded but functional. Investigate soon.
- *   CRITICAL— Subsystem is broken or missing. Immediate action required.
- *
- * ── PROOF LOGGING ─────────────────────────────────────────────────────────────
- *
- *   Every finding is emitted to logcat with tag AIRI_PROOF_DEEPDIAG for audit.
- *
- * ── USAGE ────────────────────────────────────────────────────────────────────
- *
- *   val report = deepDiagnosticScanner.fullScan()
- *   // report is a JSON string — display in DebugPanelScreen or ExecDiagnosticsScreen
  */
 class DeepDiagnosticScanner(
     private val context:              Context,
@@ -300,7 +272,7 @@ class DeepDiagnosticScanner(
             suggestion = if (toolCount == 0) "No tools registered — agent cannot use tools" else "")
 
         val subAgentCount = runCatching {
-            com.airi.assistant.agent.subagent.SubAgentRegistry.agents().size
+            com.airi.assistant.agent.subagent.SubAgentRegistry.all().size
         }.getOrDefault(-1)
         findings += Finding("EXECUTION", "SubAgentRegistry", if (subAgentCount > 0) Severity.OK else Severity.WARN,
             "$subAgentCount agents",

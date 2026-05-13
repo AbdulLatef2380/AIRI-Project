@@ -12,33 +12,6 @@ import kotlinx.coroutines.flow.flow
 
 /**
  * WebAgentRuntime — unified web automation facade implementing [SubAgent].
- *
- * Composes [WebViewController] + [DOMAnalyzer] + [WebTaskExecutor] into a
- * single autonomous web agent that the [ProductionAgentOrchestrator] can
- * dispatch to for all web-interaction tasks.
- *
- * ── TASK ROUTING ─────────────────────────────────────────────────────────────
- *
- *  Intent analysis → selects the right [WebTaskExecutor] method:
- *
- *  | Intent signal           | Executor method          |
- *  |-------------------------|--------------------------|
- *  | "open", "go to", "visit"| openAndExtract           |
- *  | "search", "find online" | searchAndSummarize       |
- *  | "fill form", "submit"   | fillAndSubmit            |
- *  | "scroll and collect"    | scrollAndCollect         |
- *  | URL in input            | openAndExtract           |
- *
- * ── PRIVACY ──────────────────────────────────────────────────────────────────
- *
- *   WebAgentRuntime is blocked when [SubAgentContext.privacyLevel] == 0
- *   (PRIVACY_MAXIMUM). All web requests are sandboxed — no cookies stored,
- *   no session persistence across tasks.
- *
- * ── LIFECYCLE ────────────────────────────────────────────────────────────────
- *
- *   [WebViewController] is created lazily and destroyed after each task to
- *   prevent state leakage. A new sandboxed WebView session per task.
  */
 class WebAgentRuntime(private val context: Context) : SubAgent {
 
@@ -73,6 +46,7 @@ class WebAgentRuntime(private val context: Context) : SubAgent {
     }
 
     override fun execute(input: String, context: SubAgentContext): Flow<AgentEvent> = flow {
+        val startTime = System.currentTimeMillis()
         if (context.privacyLevel == 0) {
             emit(AgentEvent.Failed("Web agent is disabled in PRIVACY_MAXIMUM mode."))
             return@flow
@@ -119,16 +93,20 @@ class WebAgentRuntime(private val context: Context) : SubAgent {
             }
 
             when (result) {
-                is WebTaskResult.Success -> {
+                is WebTaskExecutor.WebTaskResult.Success -> {
                     emit(AgentEvent.Progress("Analyzing results…", 85, "web_analyze"))
                     val response = buildString {
                         appendLine(result.content)
                         if (result.url.isNotBlank()) appendLine("\nSource: ${result.url}")
                     }
-                    emit(AgentEvent.Complete(response.trim()))
+                    emit(AgentEvent.Complete(
+                        result = response.trim(),
+                        durationMs = System.currentTimeMillis() - startTime,
+                        toolsUsed = listOf("web_browser")
+                    ))
                 }
-                is WebTaskResult.Failure -> {
-                    emit(AgentEvent.Failed("Web task failed: ${result.reason}"))
+                is WebTaskExecutor.WebTaskResult.Failure -> {
+                    emit(AgentEvent.Failed(reason = "Web task failed: ${result.reason}"))
                 }
             }
 
@@ -136,7 +114,7 @@ class WebAgentRuntime(private val context: Context) : SubAgent {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "WEB_AGENT_ERROR: ${e.message}", e)
-            emit(AgentEvent.Failed("Web agent error: ${e.message}"))
+            emit(AgentEvent.Failed(reason = "Web agent error: ${e.message}"))
         } finally {
             controller.destroy()
         }

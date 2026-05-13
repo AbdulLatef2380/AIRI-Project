@@ -26,19 +26,12 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.agent.tracker.GoalTracker
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.ui.theme.*
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
  * PlanningScreen — Live planning dashboard and goal execution trace UI.
- *
- * Displays:
- *   1. Active goals with live progress bars and milestone breadcrumbs.
- *   2. Goal status badges (PENDING / IN_PROGRESS / DONE / FAILED / CANCELLED).
- *   3. Per-goal milestone timeline.
- *   4. Quick-action buttons: cancel, retry, view trace.
- *
- * Data source: [GoalTracker.goals] StateFlow (no polling — push-driven).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +39,7 @@ fun PlanningScreen(
     onBack:     () -> Unit,
     onNavigate: (String) -> Unit = {},
 ) {
+    val scope = rememberCoroutineScope()
     val goalTracker = remember {
         runCatching { ServiceLocator.goalTracker }.getOrNull()
     }
@@ -73,7 +67,7 @@ fun PlanningScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        scope.launch {
                             goalTracker?.pruneTerminal()
                         }
                     }) {
@@ -144,6 +138,7 @@ private fun GoalCard(
     goal:        GoalTracker.TrackedGoal,
     goalTracker: GoalTracker?,
 ) {
+    val scope = rememberCoroutineScope()
     var expanded by remember { mutableStateOf(!goal.isTerminal) }
     val accentColor = when (goal.status) {
         GoalTracker.GoalStatus.IN_PROGRESS -> PrimaryAccent
@@ -261,7 +256,7 @@ private fun GoalCard(
                     Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                         TextButton(
                             onClick = {
-                                kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                scope.launch {
                                     goalTracker.cancel(goal.id)
                                 }
                             },

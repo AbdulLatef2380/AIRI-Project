@@ -19,34 +19,6 @@ import java.util.UUID
 
 /**
  * AgentPlanner — unified planning facade over AIRI's multi-strategy planning stack.
- *
- * ── ARCHITECTURE ─────────────────────────────────────────────────────────────
- *
- *                      AgentPlanner
- *                      /           \
- *            ReActPlanner      AiriBrainController
- *                 |                     |
- *            CoTEngine            PlanGenerator
- *                 |                PlanValidator
- *               Tools              GoalExecutor
- *
- * Strategy selection:
- *   - SHORT / SINGLE-STEP goals  → [AiriBrainController] (fast DAG plan)
- *   - MULTI-STEP / REASONING goals → [ReActPlanner] (observe–act–reflect loop)
- *   - TOOL-HEAVY goals            → [ReActPlanner] with [ToolResolver] injected
- *
- * ── GOAL LIFECYCLE ───────────────────────────────────────────────────────────
- *
- *   1. [plan] creates a [GoalTracker.TrackedGoal] and starts tracking.
- *   2. Progress events from the inner planner advance the goal's [progressPct].
- *   3. [FailureRecoveryEngine] is consulted on each [AgentEvent.Failed].
- *   4. On completion: goal is marked DONE and outcome stored in [AgentMemoryBridge].
- *
- * ── CANCELLATION ─────────────────────────────────────────────────────────────
- *
- *   The returned Flow cancels cleanly — the goal is marked CANCELLED in
- *   [GoalTracker] on CancellationException. This is the correct behaviour
- *   for user-initiated aborts.
  */
 class AgentPlanner(
     private val reActPlanner:          ReActPlanner,
@@ -68,7 +40,7 @@ class AgentPlanner(
         val isMultiStep = lower.contains("then") || lower.contains("after") ||
                           lower.contains("and then") || lower.contains("step by step") ||
                           lower.contains("first") && lower.contains("next")
-        val isToolHeavy = context.availableTools.isNotEmpty() && (
+        val isToolHeavy = context.allowedTools.isNotEmpty() && (
                 lower.contains("search") || lower.contains("fetch") ||
                 lower.contains("open") || lower.contains("find") ||
                 lower.contains("look up") || lower.contains("get"))
@@ -79,16 +51,13 @@ class AgentPlanner(
 
     /**
      * Plan and execute [goal], emitting [AgentEvent]s to the collector.
-     *
-     * Creates a [GoalTracker.TrackedGoal], selects the best strategy,
-     * and drives either [ReActPlanner] or [AiriBrainController] through
-     * to completion.
      */
     fun plan(
         goal:     String,
         context:  SubAgentContext,
         goalId:   String = UUID.randomUUID().toString(),
     ): Flow<AgentEvent> = flow {
+        val startTime = System.currentTimeMillis()
 
         // 1. Create tracked goal
         val tracked = goalTracker.createGoal(
@@ -133,21 +102,27 @@ class AgentPlanner(
         when (strategy) {
             PlanStrategy.REACT -> {
                 var stepCount = 0
+                val toolsUsed = mutableListOf<String>()
                 reActPlanner.plan(enrichedGoal, context, tools)
                     .collect { event ->
                         when (event) {
                             is AgentEvent.Progress -> {
-                                goalTracker.updateProgress(tracked.id, event.percent, event.message)
+                                goalTracker.updateProgress(tracked.id, event.percentComplete, event.message)
                             }
                             is AgentEvent.PartialResult -> {
-                                stepCount++
-                                goalTracker.advanceStep(tracked.id, "Step $stepCount complete")
+                                if (event.isFinal) {
+                                    stepCount++
+                                    goalTracker.advanceStep(tracked.id, "Step $stepCount complete")
+                                }
+                            }
+                            is AgentEvent.ToolCall -> {
+                                toolsUsed.add(event.toolName)
                             }
                             is AgentEvent.Failed -> {
-                                goalTracker.markFailed(tracked.id, event.error)
+                                goalTracker.markFailed(tracked.id, event.reason)
                                 memoryBridge.recordGoalOutcome(AgentMemoryBridge.GoalMemoryEntry(
                                     goalDescription = goal,
-                                    outcome         = "FAILED: ${event.error}",
+                                    outcome         = "FAILED: ${event.reason}",
                                     successfulSteps = emptyList(),
                                     agentId         = "react_planner",
                                 ))
@@ -181,7 +156,11 @@ class AgentPlanner(
                     }
                     goalTracker.markDone(tracked.id, "Brain plan completed")
                     emit(AgentEvent.Progress("Plan complete", 100, "brain_done"))
-                    emit(AgentEvent.Complete(output.message))
+                    emit(AgentEvent.Complete(
+                        result = output.message,
+                        durationMs = System.currentTimeMillis() - startTime,
+                        toolsUsed = emptyList()
+                    ))
                 } else {
                     // Fall back to ReAct when brain controller unavailable
                     reActPlanner.plan(enrichedGoal, context, emptyMap()).collect { event ->

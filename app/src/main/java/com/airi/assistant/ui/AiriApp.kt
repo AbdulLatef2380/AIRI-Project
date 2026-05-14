@@ -151,7 +151,7 @@ fun AiriApp() {
                                     AnalyticsService.funnelStep("open_to_signup")
                                     ReferralManager.completePendingReferral(authService.currentUser()?.uid)
                                     ExperimentManager.init(
-                                        ServiceLocator.context ?: return@signIn,
+                                        ServiceLocator.context ?: return@createAccount,
                                         authService.currentUser()?.uid ?: "anonymous"
                                     )
                                     navController.navigate(AiriRoute.CHAT) {

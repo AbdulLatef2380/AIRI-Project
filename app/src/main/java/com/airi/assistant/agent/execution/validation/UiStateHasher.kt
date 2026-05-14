@@ -11,7 +11,7 @@ object UiStateHasher {
         val builder = StringBuilder()
         traverse(root, builder)
 
-        val digest = MessageDigest.getInstance("MD5")
+        val digest = MessageDigest.getInstance("SHA-256")
         val hashBytes = digest.digest(builder.toString().toByteArray())
 
         return hashBytes.joinToString("") {

@@ -62,6 +62,12 @@
             android:name="firebase_crashlytics_collection_enabled"
             android:value="false" />
 
+        <!-- 
+            MainActivity is exported because it is the primary LAUNCHER entry point.
+            It also handles ASSIST and VOICE_COMMAND intents for system integration.
+            No privileged internal-only functionality is exposed via this activity; 
+            all sensitive operations require user authentication and/or biometric verification.
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

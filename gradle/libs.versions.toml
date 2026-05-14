@@ -56,6 +56,8 @@ gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 # Voice (fully offline — Vosk on-device STT + InternalWakeWordEngine)
 voskAndroid = { group = "com.alphacephei", name = "vosk-android", version.ref = "vosk" }
 google-material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version = "2.6.0" }
+porcupineAndroid = { group = "ai.picovoice", name = "porcupine-android", version = "3.0.1" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

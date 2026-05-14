@@ -11,6 +11,7 @@ object UiStateHasher {
         val builder = StringBuilder()
         traverse(root, builder)
 
+        // Using SHA-256 instead of MD5 for better security and consistency across the project.
         val digest = MessageDigest.getInstance("SHA-256")
         val hashBytes = digest.digest(builder.toString().toByteArray())
 

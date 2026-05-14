@@ -29,8 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.ui.theme.CosmicAccent
-import com.airi.assistant.ui.theme.Surface0
-import com.airi.assistant.ui.theme.Surface1
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
@@ -47,11 +45,11 @@ fun ReferralScreen(onBack: () -> Unit) {
     val shareText = remember(userId, code) { ReferralManager.createShareText(userId) }
 
     Scaffold(
-        containerColor = Surface0,
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface1),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.75f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)

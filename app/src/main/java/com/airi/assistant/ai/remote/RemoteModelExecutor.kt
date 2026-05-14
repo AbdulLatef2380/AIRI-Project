@@ -284,7 +284,23 @@ class RemoteModelExecutor {
         return -1
     }
 
-    private fun normalizeUrl(url: String): String = url.trimEnd('/')
+    /**
+     * Normalise a server URL for use as a base path.
+     *
+     * Strips trailing slash. If the URL already ends with "/v1", that suffix
+     * is removed because every call site appends "/v1/chat/completions" or
+     * "/v1/models" — we must never produce "…/v1/v1/…".
+     *
+     * Examples:
+     *  "https://api.groq.com/openai/v1"  → "https://api.groq.com/openai"
+     *  "http://localhost:11434/v1"        → "http://localhost:11434"
+     *  "http://localhost:11434"           → "http://localhost:11434"
+     *  "https://openrouter.ai/api"        → "https://openrouter.ai/api"
+     */
+    private fun normalizeUrl(url: String): String {
+        val trimmed = url.trimEnd('/')
+        return if (trimmed.endsWith("/v1")) trimmed.dropLast(3).trimEnd('/') else trimmed
+    }
 
     private fun jsonString(s: String): String =
         "\"${s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")}\""

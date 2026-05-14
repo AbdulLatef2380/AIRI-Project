@@ -1,0 +1,663 @@
+package com.airi.assistant.ui.screens
+
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.airi.assistant.execution.ExecutionMode
+import com.airi.assistant.execution.cloud.EmbeddedProviderConfig
+import com.airi.assistant.execution.prefs.ExecModePreferences
+import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.viewmodel.ChatViewModel
+import com.airi.assistant.ui.viewmodel.ModelUiState
+import kotlinx.coroutines.launch
+
+/**
+ * Cloud & Hybrid Model Store section for [ModelSettingsScreen].
+ *
+ * Renders three sub-sections:
+ *  1. Active inference mode selector (LOCAL / CLOUD / HYBRID)
+ *  2. Free built-in providers catalog ([EmbeddedProviderConfig.catalog])
+ *  3. Advanced: manual remote endpoint entry (llama-server / OpenAI-compat)
+ *
+ * Integration points:
+ *  - [ChatViewModel.activateBuiltinProvider] → sets active provider + refreshes [ModelUiState.isCloudReady]
+ *  - [ChatViewModel.activateRemoteModel] → sets active remote + refreshes isCloudReady
+ *  - [ChatViewModel.clearCloudModel] → deactivates + refreshes
+ *  - [ChatViewModel.setExecutionMode] → persists + refreshes
+ */
+@Composable
+fun CloudModelStoreSection(
+    viewModel: ChatViewModel,
+    modelState: ModelUiState
+) {
+    val context = LocalContext.current
+    val scope   = rememberCoroutineScope()
+
+    val activeBuiltin  = remember { mutableStateOf(
+        EmbeddedProviderConfig.getActiveProvider(context)
+    )}
+    var showKeyDialog  by remember { mutableStateOf<EmbeddedProviderConfig.ProviderConfig?>(null) }
+    var showAdvanced   by remember { mutableStateOf(false) }
+    var execModeExpanded by remember { mutableStateOf(false) }
+
+    val execPrefs = remember { viewModel.getExecModePrefs() }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
+    ) {
+
+        // ── Section header ────────────────────────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF4FC3F7).copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.Cloud, contentDescription = null,
+                    tint = Color(0xFF4FC3F7), modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text("Cloud & Hybrid Models", fontWeight = FontWeight.Bold,
+                    color = Color.White, fontSize = 15.sp)
+                Text("Free tiers · External APIs · Local servers",
+                    color = Color.White.copy(alpha = 0.45f), fontSize = 11.sp)
+            }
+        }
+
+        // ── Inference mode selector ───────────────────────────────────────────
+        CloudInferenceModePicker(
+            execPrefs  = execPrefs,
+            onModeSet  = { mode ->
+                viewModel.setExecutionMode(mode)
+                if (mode != ExecutionMode.LOCAL_ONLY) {
+                    viewModel.grantInternetPermission(true)
+                }
+            }
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        // ── Free providers catalog ────────────────────────────────────────────
+        Text(
+            "Free Providers",
+            color = Color.White.copy(alpha = 0.55f),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+        )
+
+        EmbeddedProviderConfig.catalog.forEach { config ->
+            val isActive = activeBuiltin.value?.id == config.id
+            val hasKey   = EmbeddedProviderConfig.hasKeyFor(context, config)
+
+            EmbeddedProviderCard(
+                config   = config,
+                isActive = isActive,
+                hasKey   = hasKey,
+                onActivate = {
+                    if (config.tier == EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER || hasKey) {
+                        // Ready to activate
+                        viewModel.activateBuiltinProvider(config)
+                        activeBuiltin.value = config
+                    } else {
+                        // Need API key first
+                        showKeyDialog = config
+                    }
+                },
+                onDeactivate = {
+                    viewModel.clearCloudModel()
+                    activeBuiltin.value = null
+                },
+                onGetKey = {
+                    showKeyDialog = config
+                }
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        // ── Advanced: manual remote endpoint ─────────────────────────────────
+        Surface(
+            onClick = { showAdvanced = !showAdvanced },
+            color   = Color.Transparent,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.04f))
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Outlined.SettingsEthernet, contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.55f), modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Custom / Advanced Endpoint", color = Color.White, fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium)
+                    Text("llama-server · LM Studio · Any OpenAI-compatible API",
+                        color = Color.White.copy(alpha = 0.4f), fontSize = 11.sp)
+                }
+                Icon(
+                    if (showAdvanced) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                    contentDescription = null, tint = Color.White.copy(alpha = 0.4f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        AnimatedVisibility(visible = showAdvanced,
+            enter = expandVertically(), exit = shrinkVertically()) {
+            AddRemoteModelInlineContent(
+                viewModel = viewModel,
+                onActivated = { showAdvanced = false }
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+    }
+
+    // ── API Key entry dialog ──────────────────────────────────────────────────
+    showKeyDialog?.let { cfg ->
+        ApiKeyEntryDialog(
+            config      = cfg,
+            context     = context,
+            existingKey = EmbeddedProviderConfig.getKey(context, cfg) ?: "",
+            onSave = { _ ->
+                // Key is already persisted inside the dialog's confirmButton onClick.
+                // Now bridge the provider into RemoteModelRegistry via the reactivate path.
+                viewModel.reactivateBuiltinProviderAfterKeyEntry(cfg)
+                activeBuiltin.value = EmbeddedProviderConfig.getActiveProvider(context)
+                showKeyDialog = null
+            },
+            onDismiss = { showKeyDialog = null }
+        )
+    }
+}
+
+// ── Inference mode picker ─────────────────────────────────────────────────────
+
+@Composable
+private fun CloudInferenceModePicker(
+    execPrefs: com.airi.assistant.execution.prefs.ExecModePreferences,
+    onModeSet: (ExecutionMode) -> Unit
+) {
+    var selectedMode by remember { mutableStateOf(execPrefs.executionMode) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        listOf(
+            Triple(ExecutionMode.LOCAL_ONLY,  Icons.Outlined.DevicesOther, "Local"),
+            Triple(ExecutionMode.CLOUD_ONLY,  Icons.Outlined.Cloud,        "Cloud"),
+            Triple(ExecutionMode.HYBRID,      Icons.Outlined.Bolt,         "Hybrid")
+        ).forEach { (mode, icon, label) ->
+            val selected = selectedMode == mode
+            Surface(
+                onClick = {
+                    selectedMode = mode
+                    onModeSet(mode)
+                },
+                shape = RoundedCornerShape(12.dp),
+                color = if (selected) CosmicAccent.copy(alpha = 0.18f)
+                        else Color.White.copy(alpha = 0.04f),
+                modifier = Modifier
+                    .weight(1f)
+                    .border(
+                        1.dp,
+                        if (selected) CosmicAccent.copy(alpha = 0.55f)
+                        else Color.White.copy(alpha = 0.08f),
+                        RoundedCornerShape(12.dp)
+                    )
+            ) {
+                Column(
+                    modifier = Modifier.padding(vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(icon, contentDescription = label,
+                        tint = if (selected) CosmicAccent else Color.White.copy(alpha = 0.4f),
+                        modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.height(4.dp))
+                    Text(label,
+                        color = if (selected) CosmicAccent else Color.White.copy(alpha = 0.5f),
+                        fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+    }
+
+    // Mode description
+    val modeDesc = when (selectedMode) {
+        ExecutionMode.LOCAL_ONLY -> "Privacy-first · fully offline · llama.cpp only"
+        ExecutionMode.CLOUD_ONLY -> "Remote APIs · fastest · requires internet"
+        ExecutionMode.HYBRID     -> "Smart routing: picks best engine per request"
+    }
+    Text(
+        modeDesc,
+        color = Color.White.copy(alpha = 0.35f),
+        fontSize = 10.sp,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+    )
+}
+
+// ── Provider card ─────────────────────────────────────────────────────────────
+
+@Composable
+private fun EmbeddedProviderCard(
+    config:      EmbeddedProviderConfig.ProviderConfig,
+    isActive:    Boolean,
+    hasKey:      Boolean,
+    onActivate:  () -> Unit,
+    onDeactivate: () -> Unit,
+    onGetKey:    () -> Unit
+) {
+    val context = LocalContext.current
+    val accentColor = Color(config.badgeColor)
+    val tierLabel = when (config.tier) {
+        EmbeddedProviderConfig.ProviderTier.FREE_SIGNUP   -> "FREE"
+        EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER  -> "LOCAL"
+        EmbeddedProviderConfig.ProviderTier.PAID          -> "PAID"
+    }
+
+    Surface(
+        color = Color.Transparent,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(
+                    if (isActive) accentColor.copy(alpha = 0.10f)
+                    else Color.White.copy(alpha = 0.03f)
+                )
+                .border(
+                    1.dp,
+                    if (isActive) accentColor.copy(alpha = 0.50f)
+                    else Color.White.copy(alpha = 0.07f),
+                    RoundedCornerShape(14.dp)
+                )
+                .padding(14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Provider icon / tier badge
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(accentColor.copy(alpha = 0.20f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        when (config.tier) {
+                            EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER -> Icons.Outlined.Computer
+                            else -> Icons.Outlined.Cloud
+                        },
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(config.displayLabel, color = Color.White,
+                            fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.width(6.dp))
+                        // Tier badge
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(accentColor.copy(alpha = 0.20f))
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                        ) {
+                            Text(tierLabel, color = accentColor,
+                                fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                        if (isActive) {
+                            Spacer(Modifier.width(5.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFF00C853).copy(alpha = 0.20f))
+                                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                            ) {
+                                Text("ACTIVE", color = Color(0xFF00C853),
+                                    fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    Text(config.description, color = Color.White.copy(alpha = 0.45f),
+                        fontSize = 11.sp, lineHeight = 15.sp)
+                    // Context window + RPM
+                    if (config.contextWindow.isNotBlank() || config.rpmLimit.isNotBlank()) {
+                        Spacer(Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            if (config.contextWindow.isNotBlank()) {
+                                ProviderStatChip("ctx ${config.contextWindow}", accentColor)
+                            }
+                            if (config.rpmLimit.isNotBlank()) {
+                                ProviderStatChip(config.rpmLimit, accentColor)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Action row
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (isActive) {
+                    // Deactivate
+                    OutlinedButton(
+                        onClick = onDeactivate,
+                        shape = RoundedCornerShape(10.dp),
+                        border = ButtonDefaults.outlinedButtonBorder,
+                        modifier = Modifier.height(34.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                    ) {
+                        Text("Deactivate", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                    }
+                } else {
+                    // Activate / Get key
+                    Button(
+                        onClick = onActivate,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = accentColor,
+                            contentColor   = Color.Black
+                        ),
+                        modifier = Modifier.height(34.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                    ) {
+                        Icon(
+                            if (hasKey || config.tier == EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER)
+                                Icons.Outlined.PlayArrow else Icons.Outlined.Key,
+                            contentDescription = null, modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            if (hasKey || config.tier == EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER)
+                                "Use This" else "Connect Free",
+                            fontSize = 12.sp, fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                // "Get key" link for providers that need signup
+                if (!hasKey && config.tier == EmbeddedProviderConfig.ProviderTier.FREE_SIGNUP
+                    && config.signupUrl.isNotBlank()) {
+                    TextButton(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(config.signupUrl))
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.height(34.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Icon(Icons.Outlined.OpenInNew, contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = Color.White.copy(alpha = 0.45f))
+                        Spacer(Modifier.width(3.dp))
+                        Text("Get Free Key", color = Color.White.copy(alpha = 0.45f), fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProviderStatChip(text: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(5.dp))
+            .background(color.copy(alpha = 0.10f))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text(text, color = color.copy(alpha = 0.75f), fontSize = 9.sp)
+    }
+}
+
+// ── API key entry dialog ──────────────────────────────────────────────────────
+
+@Composable
+private fun ApiKeyEntryDialog(
+    config:      EmbeddedProviderConfig.ProviderConfig,
+    context:     android.content.Context,
+    existingKey: String,
+    onSave:      (String) -> Unit,
+    onDismiss:   () -> Unit
+) {
+    var key by remember { mutableStateOf(existingKey) }
+    var obscure by remember { mutableStateOf(true) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor    = Color(0xFF12162E),
+        titleContentColor = Color.White,
+        textContentColor  = Color.White,
+        shape             = RoundedCornerShape(20.dp),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Key, contentDescription = null,
+                    tint = CosmicAccent, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("${config.displayLabel} API Key", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Enter your free API key. It's stored encrypted on-device only — never sent to AIRI servers.",
+                    color = Color.White.copy(alpha = 0.55f), fontSize = 12.sp
+                )
+                OutlinedTextField(
+                    value = key,
+                    onValueChange = { key = it },
+                    label = { Text("API Key", color = Color.White.copy(alpha = 0.5f)) },
+                    visualTransformation = if (obscure)
+                        androidx.compose.ui.text.input.PasswordVisualTransformation()
+                    else androidx.compose.ui.text.input.VisualTransformation.None,
+                    trailingIcon = {
+                        IconButton(onClick = { obscure = !obscure }) {
+                            Icon(
+                                if (obscure) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                contentDescription = null, tint = CosmicAccent,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor   = CosmicAccent,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+                        focusedTextColor     = Color.White,
+                        unfocusedTextColor   = Color.White
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (config.signupUrl.isNotBlank()) {
+                    TextButton(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(config.signupUrl))
+                            context.startActivity(intent)
+                        },
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Icon(Icons.Outlined.OpenInNew, contentDescription = null,
+                            modifier = Modifier.size(13.dp), tint = CosmicAccent.copy(alpha = 0.7f))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Get free key at ${config.signupUrl.removePrefix("https://").take(30)}",
+                            color = CosmicAccent.copy(alpha = 0.7f), fontSize = 11.sp)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (key.isNotBlank()) {
+                        EmbeddedProviderConfig.saveKey(context, config, key)
+                        onSave(key)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = CosmicAccent,
+                    contentColor   = Color.Black
+                ),
+                enabled = key.isNotBlank()
+            ) {
+                Text("Save & Activate", fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = Color.White.copy(alpha = 0.5f))
+            }
+        }
+    )
+}
+
+// ── Inline advanced remote model entry ───────────────────────────────────────
+
+@Composable
+private fun AddRemoteModelInlineContent(
+    viewModel:   ChatViewModel,
+    onActivated: () -> Unit
+) {
+    var modelName  by remember { mutableStateOf("") }
+    var serverUrl  by remember { mutableStateOf("") }
+    var apiKey     by remember { mutableStateOf("") }
+    var testStatus by remember { mutableStateOf<String?>(null) }
+    var isTesting  by remember { mutableStateOf(false) }
+    val executor = remember { com.airi.assistant.ai.remote.RemoteModelExecutor() }
+    val scope    = rememberCoroutineScope()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        OutlinedTextField(
+            value = modelName, onValueChange = { modelName = it },
+            label = { Text("Model Name", color = Color.White.copy(alpha = 0.5f)) },
+            placeholder = { Text("e.g. My Llama Server", color = Color.White.copy(alpha = 0.3f)) },
+            singleLine = true, modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = CosmicAccent,
+                unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+                focusedTextColor = Color.White, unfocusedTextColor = Color.White
+            )
+        )
+        OutlinedTextField(
+            value = serverUrl, onValueChange = { serverUrl = it },
+            label = { Text("Server URL", color = Color.White.copy(alpha = 0.5f)) },
+            placeholder = { Text("http://192.168.x.x:8080/v1", color = Color.White.copy(alpha = 0.3f)) },
+            singleLine = true, modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = CosmicAccent,
+                unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+                focusedTextColor = Color.White, unfocusedTextColor = Color.White
+            )
+        )
+        OutlinedTextField(
+            value = apiKey, onValueChange = { apiKey = it },
+            label = { Text("API Key (optional)", color = Color.White.copy(alpha = 0.5f)) },
+            singleLine = true, modifier = Modifier.fillMaxWidth(),
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = CosmicAccent,
+                unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+                focusedTextColor = Color.White, unfocusedTextColor = Color.White
+            )
+        )
+        testStatus?.let {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (it.startsWith("✓")) Color(0xFF1B5E20) else Color(0xFF7F0000)
+            ) {
+                Text(it, color = Color.White, fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = {
+                    scope.launch {
+                        isTesting = true; testStatus = null
+                        val remote = com.airi.assistant.ai.remote.RemoteModel(
+                            id = "test", name = "test", serverUrl = serverUrl, apiKey = apiKey)
+                        val ok = executor.testConnection(remote)
+                        testStatus = if (ok) "✓ Connection successful" else "✗ Connection failed"
+                        isTesting = false
+                    }
+                },
+                enabled = serverUrl.isNotBlank() && !isTesting,
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                if (isTesting) CircularProgressIndicator(modifier = Modifier.size(14.dp),
+                    strokeWidth = 2.dp, color = CosmicAccent)
+                else Text("Test", color = CosmicAccent, fontSize = 12.sp)
+            }
+            Button(
+                onClick = {
+                    val remote = com.airi.assistant.ai.remote.RemoteModel(
+                        id        = java.util.UUID.randomUUID().toString(),
+                        name      = modelName.ifBlank { "Custom Server" },
+                        serverUrl = serverUrl.trimEnd('/'),
+                        apiKey    = apiKey
+                    )
+                    com.airi.assistant.ai.remote.RemoteModelRegistry.add(remote)
+                    viewModel.activateRemoteModel(remote)
+                    onActivated()
+                },
+                enabled = serverUrl.isNotBlank() && modelName.isNotBlank(),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.Black)
+            ) {
+                Text("Add & Use", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}

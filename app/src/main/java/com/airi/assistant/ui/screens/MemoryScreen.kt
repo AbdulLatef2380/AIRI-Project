@@ -2,172 +2,190 @@ package com.airi.assistant.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airi.assistant.ui.components.*
-import com.airi.assistant.ui.theme.*
+import com.airi.assistant.memory.entity.ChatMessage
+import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MemoryScreen(
     viewModel: ChatViewModel,
     onBack: () -> Unit
 ) {
-    val memories by viewModel.memoryEntries.collectAsState()
-    var query    by remember { mutableStateOf("") }
+    val memoryMessages by viewModel.memoryEntries.collectAsState()
+    val memoryCount    by viewModel.memoryCount.collectAsState()
+    var showConfirm    by remember { mutableStateOf(false) }
+    val snackbarHost   = remember { SnackbarHostState() }
 
-    val filtered = remember(memories, query) {
-        if (query.isBlank()) memories
-        else memories.filter { it.content.contains(query, ignoreCase = true) }
-    }
+    LaunchedEffect(Unit) { viewModel.loadMemoryEntries() }
 
     Scaffold(
-        containerColor = Surface0,
+        containerColor = Color.Transparent,
+        snackbarHost   = { SnackbarHost(snackbarHost) },
         topBar = {
-            AiriScreenHeader(title = "الذاكرة", onBack = onBack) {
-                IconButton(onClick = { viewModel.clearMemory() }) {
-                    Icon(Icons.Outlined.DeleteSweep, contentDescription = "مسح الكل", tint = SemanticError.copy(0.75f))
+            TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, null, tint = Color.White)
+                    }
+                },
+                title = {
+                    Column {
+                        Text("Memory", fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("$memoryCount stored interactions", fontSize = 11.sp, color = CosmicAccent.copy(alpha = 0.75f))
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showConfirm = true }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Clear memory", tint = Color(0xFFFF6B6B))
+                    }
                 }
-            }
+            )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            NeuralSearchBar(
-                query = query,
-                onQueryChange = { query = it },
-                placeholder = "بحث في الذاكرة...",
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-            )
-
-            // Stats row
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+        if (memoryMessages.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center
             ) {
-                MemoryStat("الإجمالي", "${memories.size}", PrimaryAccent)
-                MemoryStat("تمت تصفيته", "${filtered.size}", SecondaryAccent)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Outlined.Psychology, null, tint = CosmicAccent.copy(alpha = 0.3f), modifier = Modifier.size(64.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text("No memory yet", color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Start a conversation to build memory", color = Color.White.copy(alpha = 0.35f), fontSize = 13.sp)
+                }
             }
-
-            if (filtered.isEmpty()) {
-                Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Icon(Icons.Outlined.Psychology, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(48.dp))
-                        Text("لا توجد ذكريات محفوظة", color = TextTertiary, fontSize = 14.sp)
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp),
+                contentPadding = PaddingValues(vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
+                    // Summary card
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Brush.linearGradient(listOf(CosmicAccent.copy(alpha = 0.12f), Color.Transparent)))
+                            .border(1.dp, CosmicAccent.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                            .padding(16.dp)
+                    ) {
+                        Column {
+                            Text("Episodic Memory", fontWeight = FontWeight.Bold, color = CosmicAccent, fontSize = 13.sp)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "AIRI uses a sliding window of recent interactions as context for each new message. The full history is stored in the local database.",
+                                color = Color.White.copy(alpha = 0.55f),
+                                fontSize = 12.sp,
+                                lineHeight = 18.sp
+                            )
+                        }
                     }
                 }
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(filtered, key = { it.id }) { memory ->
-                        MemoryCard(memory = memory, onDelete = { viewModel.deleteMemory(memory.id) })
-                    }
-                    item { Spacer(Modifier.height(16.dp)) }
+
+                items(memoryMessages, key = { it.id }) { msg ->
+                    MemoryEntryCard(msg)
                 }
             }
         }
     }
-}
 
-@Composable
-private fun MemoryStat(label: String, value: String, color: androidx.compose.ui.graphics.Color) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(color.copy(0.10f))
-            .border(0.5.dp, color.copy(0.25f), RoundedCornerShape(10.dp))
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(value, color = color, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            Text(label, color = TextSecondary, fontSize = 12.sp)
-        }
+    // Confirm clear dialog
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            containerColor   = Color(0xFF12162E),
+            titleContentColor = Color.White,
+            textContentColor  = Color.White.copy(alpha = 0.7f),
+            shape            = RoundedCornerShape(20.dp),
+            title = { Text("Clear All Memory", fontWeight = FontWeight.Bold) },
+            text  = { Text("This will permanently delete all stored interactions. The AI context will be reset. This action cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showConfirm = false
+                        viewModel.clearMemory()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCC3333))
+                ) { Text("Clear Memory") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirm = false }) { Text("Cancel", color = Color.White.copy(alpha = 0.6f)) }
+            }
+        )
     }
 }
 
 @Composable
-private fun MemoryCard(
-    memory: com.airi.assistant.memory.entity.ChatMessage,
-    onDelete: () -> Unit
-) {
-    val fmt = remember { SimpleDateFormat("d MMM HH:mm", Locale("ar")) }
-    val dateStr = remember(memory.timestamp) { fmt.format(Date(memory.timestamp)) }
-    var confirmDelete by remember { mutableStateOf(false) }
+private fun MemoryEntryCard(msg: ChatMessage) {
+    val isUser    = msg.role == "user"
+    val timestamp = remember(msg.timestamp) {
+        SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(msg.timestamp))
+    }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Surface1)
-            .border(1.dp, BorderLight, RoundedCornerShape(14.dp))
-            .padding(14.dp)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(PrimaryAccent.copy(0.12f))
-                        .border(0.5.dp, PrimaryAccent.copy(0.25f), RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.Memory, contentDescription = null, tint = PrimaryAccent, modifier = Modifier.size(15.dp))
-                }
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    memory.content,
-                    color = TextPrimary,
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
+        Box(
+            modifier = Modifier
+                .widthIn(max = 300.dp)
+                .clip(
+                    if (isUser) RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp)
+                    else        RoundedCornerShape(4.dp, 16.dp, 16.dp, 16.dp)
                 )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(dateStr, color = TextTertiary, fontSize = 11.sp)
-                if (!confirmDelete) {
-                    Icon(
-                        Icons.Outlined.DeleteOutline,
-                        contentDescription = "حذف",
-                        tint = SemanticError.copy(0.6f),
-                        modifier = Modifier.size(17.dp).clickable { confirmDelete = true }
+                .background(
+                    if (isUser) CosmicAccent.copy(alpha = 0.12f)
+                    else        Color.White.copy(alpha = 0.05f)
+                )
+                .border(
+                    1.dp,
+                    if (isUser) CosmicAccent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                    if (isUser) RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp)
+                    else        RoundedCornerShape(4.dp, 16.dp, 16.dp, 16.dp)
+                )
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (isUser) "You" else "AIRI",
+                        fontSize = 10.sp,
+                        color = if (isUser) CosmicAccent.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.4f),
+                        fontWeight = FontWeight.Bold
                     )
-                } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        TextButton(
-                            onClick = { confirmDelete = false },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                        ) { Text("إلغاء", color = TextSecondary, fontSize = 11.sp) }
-                        TextButton(
-                            onClick = onDelete,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            colors = ButtonDefaults.textButtonColors(contentColor = SemanticError)
-                        ) { Text("تأكيد", fontSize = 11.sp) }
-                    }
+                    Text(timestamp, fontSize = 10.sp, color = Color.White.copy(alpha = 0.25f))
                 }
+                Spacer(Modifier.height(4.dp))
+                Text(msg.content, color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp, lineHeight = 19.sp)
             }
         }
     }

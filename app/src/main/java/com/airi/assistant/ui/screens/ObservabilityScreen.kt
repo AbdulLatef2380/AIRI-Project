@@ -30,8 +30,6 @@ import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SemanticError
 import com.airi.assistant.ui.theme.SemanticSuccess
 import com.airi.assistant.ui.theme.SemanticWarn
-import com.airi.assistant.ui.theme.Surface0
-import com.airi.assistant.ui.theme.Surface1
 import com.airi.assistant.ui.theme.SurfaceFloating
 import com.airi.assistant.ui.theme.SurfaceRaised
 import com.airi.assistant.voice.VoicePipelineState
@@ -46,10 +44,10 @@ fun ObservabilityScreen(onBack: () -> Unit) {
     val tabs = listOf("Events", "Live Hub", "Graph", "Traces")
 
     Scaffold(
-        containerColor = Surface0,
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface1),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)

@@ -5,8 +5,6 @@ import com.airi.assistant.agent.planning.PlanStep
 import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgentContext
 import com.airi.assistant.agent.subagent.SubAgentRegistry
-import com.airi.assistant.connector.ConnectorActionBridge
-import com.airi.assistant.connector.ConnectorOutput
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.prefs.ExecModePreferences
@@ -172,38 +170,6 @@ object CommandRouter {
             return aliasResult
         }
 
-        // ── Tier 1.5: Connector dispatch ───────────────────────────────────────
-        // Maps well-known connector action names (read_file, exec, http_get,
-        // git_status, logcat_read, set_clipboard, battery_status, …) directly
-        // to the registered [ConnectorRegistry] without going through the
-        // SubAgentRegistry keyword scorer. This is the bridge that closes the
-        // gap between the 13 wired connectors and the agent execution path.
-        if (ConnectorActionBridge.handles(step.action)) {
-            val connectorOutput = ConnectorActionBridge.dispatch(
-                action = step.action,
-                params = step.parameters,
-                text   = step.parameters["text"]
-                    ?: step.parameters["content"]
-                    ?: step.parameters["command"]
-                    ?: step.parameters["body"]
-                    ?: "",
-            )
-            if (connectorOutput != null) {
-                Log.i(TAG, "Custom:tier1.5 connector='${step.action}' success=${connectorOutput is ConnectorOutput.Success}")
-                return when (connectorOutput) {
-                    is ConnectorOutput.Success   ->
-                        CommandResult(true, connectorOutput.text.ifBlank { "connector:${step.action}:ok" })
-                    is ConnectorOutput.Failure   -> {
-                        Log.w(TAG, "Custom:tier1.5 failure code=${connectorOutput.code}: ${connectorOutput.message.take(80)}")
-                        CommandResult(false, connectorOutput.message)
-                    }
-                    is ConnectorOutput.Streaming ->
-                        CommandResult(true, "connector:${step.action}:streaming")
-                }
-            }
-            // connector was recognised but registry was unavailable — fall through
-        }
-
         // ── Tier 2: SubAgentRegistry routing ──────────────────────────────────
         val routingInput = buildString {
             append(step.action.replace('_', ' '))
@@ -232,26 +198,10 @@ object CommandRouter {
             runCatching {
                 agent.execute(routingInput, minimalContext).collect { event ->
                     when (event) {
-                        is AgentEvent.Complete      -> resultText = event.result
+                        is AgentEvent.Complete     -> resultText = event.result
                         is AgentEvent.PartialResult -> resultText += event.text
-                        is AgentEvent.Failed        -> { failed = true; failReason = event.reason }
-                        is AgentEvent.Delegate      -> {
-                            // Bug-2 fix: previously `else -> Unit` swallowed Delegate events
-                            // emitted by CodingAgent, ResearchAgent, CloudBrowserAgent, and
-                            // ReActPlanner when those agents were routed here through Tier 2.
-                            // The stub Complete result ("custom:action:done") was the only
-                            // output propagated, making all LLM synthesis disappear silently.
-                            // We now resolve the llmDelegate wired by ChatViewModel and use
-                            // its result as the CommandResult text for this graph step.
-                            if (event.targetAgentId == "llm_backend") {
-                                val llmResult = runCatching {
-                                    ServiceLocator.productionOrchestrator.llmDelegate
-                                        ?.invoke(event.subInput) ?: ""
-                                }.getOrElse { "" }
-                                if (llmResult.isNotBlank()) resultText = llmResult
-                            }
-                        }
-                        else -> Unit
+                        is AgentEvent.Failed       -> { failed = true; failReason = event.reason }
+                        else                       -> Unit
                     }
                 }
             }.onFailure { e ->

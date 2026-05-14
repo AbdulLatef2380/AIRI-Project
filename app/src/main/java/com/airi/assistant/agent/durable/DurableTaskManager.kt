@@ -322,23 +322,6 @@ class DurableTaskWorker(
                         manager.markFailed(taskId, event.reason)
                     is com.airi.assistant.agent.subagent.AgentEvent.Progress ->
                         manager.updateCheckpoint(taskId, "", event.percentComplete, event.message)
-                    is com.airi.assistant.agent.subagent.AgentEvent.Delegate -> {
-                        if (event.targetAgentId == "llm_backend") {
-                            val delegate = com.airi.assistant.core.ServiceLocator
-                                .productionOrchestrator.llmDelegate
-                            if (delegate != null) {
-                                val llmResult = runCatching { delegate(event.subInput) }
-                                    .onFailure { e ->
-                                        Log.w(TAG, "llmDelegate in DurableWorker threw: ${e.message}")
-                                    }
-                                    .getOrElse { "" }
-                                if (llmResult.isNotBlank()) finalResult = llmResult
-                            } else {
-                                Log.w(TAG, "AIRI_PROOF DURABLE_LLM_DELEGATE_NULL " +
-                                    "taskId=$taskId — app process not foregrounded, skipping synthesis")
-                            }
-                        }
-                    }
                     else -> Unit
                 }
             }

@@ -33,8 +33,16 @@ android {
             abiFilters += listOf("arm64-v8a")
         }
 
-        // Wake-word is handled by InternalWakeWordEngine (Vosk KWS) —
-        // no API key or proprietary SDK required.
+        // ── Picovoice Porcupine AccessKey ────────────────────────────────
+        // Read from (in order): -PpicovoiceAccessKey=… gradle prop, then
+        // PICOVOICE_ACCESS_KEY env var. When empty the wake-word service
+        // refuses to start and the Voice Settings screen tells the user
+        // exactly what to do. The user can ALSO paste a key at runtime
+        // (stored in EncryptedSharedPreferences) without a rebuild.
+        val picovoiceKey: String =
+            (project.findProperty("picovoiceAccessKey") as? String).orEmpty()
+                .ifBlank { System.getenv("PICOVOICE_ACCESS_KEY").orEmpty() }
+        buildConfigField("String", "PICOVOICE_ACCESS_KEY", "\"" + picovoiceKey.replace("\"", "\\\"") + "\"")
 
         // Native (llama.cpp + JNI bridge) is built from source — see
         // app/src/main/cpp/CMakeLists.txt. No prebuilt .so is shipped; if
@@ -145,7 +153,6 @@ android {
 dependencies {
     // Core Android
     implementation(libs.androidx.core.ktx)
-    implementation(libs.google.material)
 
     // Compose
     implementation(platform(libs.androidx.compose.bom))
@@ -228,19 +235,21 @@ dependencies {
     // image thumbnail. It decodes off the main thread, has built-in
     // memory + disk caching, and degrades gracefully (no crash) when an
     // image cannot be opened. See gradle/libs.versions.toml for version.
-    implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation(libs.coil.compose)
 
     // Accompanist permissions — runtime permission helpers for Compose (OnboardingScreen).
     // Version 0.32.0 is compatible with Compose BOM 2023.10.01 (Compose 1.5.x).
     implementation("com.google.accompanist:accompanist-permissions:0.32.0")
 
-    // Wake-word detection is now handled by InternalWakeWordEngine (Vosk KWS).
-    // No Picovoice / Porcupine dependency — no API key, no .ppn file required.
-
-    // ── OCR (Phase 3 — OCRConnector) ─────────────────────────────────────────
-    // Required by OCRConnector for on-device text recognition. Fully offline —
-    // no network call. Falls back gracefully if model download hasn't completed.
-    implementation("com.google.mlkit:text-recognition:16.0.0")
+    // Picovoice Porcupine = on-device wake-word ("Hey AIRI"). Requires
+    // (a) a Picovoice AccessKey supplied via PICOVOICE_ACCESS_KEY (gradle
+    //     property, environment variable, or runtime via Settings) and
+    // (b) a custom .ppn keyword file dropped at:
+    //         app/src/main/res/raw/hey_airi.ppn      (preferred)
+    //     or  app/src/main/assets/voice/hey_airi.ppn (fallback)
+    // When either is missing the wake-word service exits cleanly and the
+    // UI shows the user how to enable it. See PorcupineEngine.kt.
+    implementation(libs.porcupineAndroid)
 }
 
 tasks.register("airiVerifyOptimization") {

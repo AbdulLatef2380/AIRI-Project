@@ -35,8 +35,6 @@ import com.airi.assistant.ai.PerformanceMode
 import com.airi.assistant.ai.SpeculativeManager
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.ui.theme.CosmicAccent
-import com.airi.assistant.ui.theme.Surface0
-import com.airi.assistant.ui.theme.Surface1
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,7 +73,7 @@ fun PerformanceScreen(
     }
 
     Scaffold(
-        containerColor = Surface0,
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.performance_device), fontWeight = FontWeight.Bold, color = Color.White) },
@@ -84,7 +82,7 @@ fun PerformanceScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface1)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f))
             )
         }
     ) { padding ->

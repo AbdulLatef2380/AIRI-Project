@@ -50,30 +50,18 @@ import com.airi.assistant.domain.sharing.ChatSharingService
 import com.airi.assistant.agent.learning.SkillOutcomeScorer
 import com.airi.assistant.agent.workspace.WorkspaceRegistry
 import com.airi.assistant.domain.policy.UnifiedPolicyGate
-import com.airi.assistant.domain.diagnostics.DiagnosticsEngine
 import com.airi.assistant.domain.skill.SkillManagerBackend
-import com.airi.assistant.domain.skill.SkillOrchestrator
 import com.airi.assistant.domain.skill.SkillService
 import com.airi.assistant.memory.rag.RagRetriever
 import com.airi.assistant.memory.repository.MemoryManager
 import com.airi.assistant.profile.HardwareProfiler
 import com.airi.assistant.profile.UserProfileRepository
-import com.airi.assistant.ai.ContextPressureManager
-import com.airi.assistant.ai.InferenceWatchdog
-import com.airi.assistant.ai.InternalModelExtractor
-import com.airi.assistant.core.runtime.AgentContinuationEngine
-import com.airi.assistant.core.runtime.AutonomousRuntimeManager
-import com.airi.assistant.core.runtime.TaskCheckpointStore
-import com.airi.assistant.crash.StressTestRunner
 import com.airi.assistant.security.AgentSandbox
 import com.airi.assistant.security.ExecutionFirewall
-import com.airi.assistant.security.SandboxedProcessManager
 import com.airi.assistant.security.ScopedPermissionRegistry
-import com.airi.assistant.security.SecureExecutionPolicy
 import com.airi.assistant.sync.CloudSyncCoordinator
 import com.airi.assistant.telemetry.PrivacyTelemetryReporter
 import com.airi.assistant.telemetry.TelemetryConsentStore
-import com.airi.assistant.voice.EmbeddedVoiceRuntime
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 
@@ -167,20 +155,6 @@ object ServiceLocator {
         AgentSandbox(executionFirewall, scopedPermissionRegistry, privacyTelemetryReporter)
     }
 
-    // ── Phase 2: Sandboxed Process Management ─────────────────────────────────
-
-    val sandboxedProcessManager: SandboxedProcessManager by lazy {
-        SandboxedProcessManager(maxParallel = 4, defaultTimeout = 15_000L)
-    }
-
-    val secureExecutionPolicy: SecureExecutionPolicy by lazy {
-        SecureExecutionPolicy(
-            permissionRegistry = scopedPermissionRegistry,
-            allowedRiskLevel   = SecureExecutionPolicy.RiskLevel.MEDIUM,
-            maxCallsPerMinute  = 60
-        )
-    }
-
     // ── Crash / Runtime Reporting ─────────────────────────────────────────────
 
     val crashReportStore: CrashReportStore by lazy {
@@ -213,30 +187,6 @@ object ServiceLocator {
         SkillService(requireContext())
     }
 
-    // ── Skill Orchestrator (Phase 6) ──────────────────────────────────────────
-
-    /**
-     * Production-grade skill router. Sits above [skillService] and provides
-     * category routing, priority ranking, retry logic, timeout, and fallback.
-     * Consumed by ChatViewModel and any agent layer that needs to dispatch a
-     * user intent to the most appropriate skill before falling back to LLM.
-     */
-    val skillOrchestrator: SkillOrchestrator by lazy {
-        SkillOrchestrator(skillService)
-    }
-
-    // ── Diagnostics Engine (Phase 9) ─────────────────────────────────────────
-
-    /**
-     * Continuous background health monitor. Exposes a [StateFlow<HealthSnapshot>]
-     * that the debug screen and agent self-diagnostics consume. Started lazily
-     * on first access; call [diagnosticsEngine.start()] from Application.onCreate
-     * or wherever diagnostics should begin running.
-     */
-    val diagnosticsEngine: DiagnosticsEngine by lazy {
-        DiagnosticsEngine(requireContext())
-    }
-
     val promptService: PromptService by lazy {
         PromptService(requireContext())
     }
@@ -252,12 +202,9 @@ object ServiceLocator {
         )
         ConnectorRegistry().also { reg ->
             ConnectorBootstrap.installDefaults(
-                appContext          = requireContext(),
-                registry            = reg,
-                llmProviders        = llmProviders,
-                ragRetriever        = ragRetriever,
-                memoryManager       = memoryManager,
-                accessibilityEngine = accessibilityExecutionEngine,
+                appContext   = requireContext(),
+                registry     = reg,
+                llmProviders = llmProviders,
             )
         }
     }
@@ -309,57 +256,6 @@ object ServiceLocator {
             telemetry       = privacyTelemetryReporter,
             autoCancelStuck = false
         )
-    }
-
-    // ── Phase 1: Autonomous Runtime ───────────────────────────────────────────
-
-    val taskCheckpointStore: TaskCheckpointStore by lazy {
-        TaskCheckpointStore(requireContext())
-    }
-
-    val agentContinuationEngine: AgentContinuationEngine by lazy {
-        AgentContinuationEngine(taskCheckpointStore)
-    }
-
-    val autonomousRuntimeManager: AutonomousRuntimeManager by lazy {
-        AutonomousRuntimeManager(
-            checkpointStore    = taskCheckpointStore,
-            continuationEngine = agentContinuationEngine,
-            orchestrator       = productionOrchestrator
-        )
-    }
-
-    // ── Phase 4: Performance & Stability ─────────────────────────────────────
-
-    val inferenceWatchdog: InferenceWatchdog by lazy {
-        InferenceWatchdog(
-            crashReporter     = crashReporter,
-            telemetry         = privacyTelemetryReporter,
-            autoCancelOnStuck = false
-        )
-    }
-
-    val contextPressureManager: ContextPressureManager by lazy {
-        ContextPressureManager(contextWindowSize = ContextPressureManager.DEFAULT_CONTEXT_WINDOW)
-    }
-
-    val stressTestRunner: StressTestRunner by lazy {
-        StressTestRunner(
-            orchestrator  = productionOrchestrator,
-            crashReporter = crashReporter
-        )
-    }
-
-    // ── Phase 5: Voice System ─────────────────────────────────────────────────
-
-    val embeddedVoiceRuntime: EmbeddedVoiceRuntime by lazy {
-        EmbeddedVoiceRuntime(
-            appContext = requireContext()
-        )
-    }
-
-    val internalModelExtractor: InternalModelExtractor by lazy {
-        InternalModelExtractor(requireContext())
     }
 
     // ── Cloud Sync ────────────────────────────────────────────────────────────
@@ -448,26 +344,6 @@ object ServiceLocator {
         RagRetriever(memoryManager)
     }
 
-    // ── Phase 4 Memory Stores ─────────────────────────────────────────────────
-
-    val episodicMemoryStore: com.airi.assistant.memory.EpisodicMemoryStore by lazy {
-        com.airi.assistant.memory.EpisodicMemoryStore(requireContext())
-    }
-
-    val errorMemoryStore: com.airi.assistant.memory.ErrorMemoryStore by lazy {
-        com.airi.assistant.memory.ErrorMemoryStore(requireContext())
-    }
-
-    val userPreferenceMemory: com.airi.assistant.memory.UserPreferenceMemory by lazy {
-        com.airi.assistant.memory.UserPreferenceMemory(requireContext())
-    }
-
-    // ── Phase 7 Provider Manager ──────────────────────────────────────────────
-
-    val providerManager: com.airi.assistant.execution.ProviderManager by lazy {
-        com.airi.assistant.execution.ProviderManager()
-    }
-
     // ── Model Governance Engine ───────────────────────────────────────────────
 
     val modelGovernanceEngine: ModelGovernanceEngine by lazy {
@@ -492,102 +368,6 @@ object ServiceLocator {
         com.airi.assistant.agent.adaptation.PlannerAdaptationEngine(requireContext())
     }
 
-    // ── Phase 2 — LLM Runtime Hardening ──────────────────────────────────────
-
-    val inferenceHealthMonitor: com.airi.assistant.ai.InferenceHealthMonitor by lazy {
-        com.airi.assistant.ai.InferenceHealthMonitor(requireContext())
-    }
-
-    // ── Phase 3 — Real Agent Loop ─────────────────────────────────────────────
-
-    val goalTracker: com.airi.assistant.agent.tracker.GoalTracker by lazy {
-        com.airi.assistant.agent.tracker.GoalTracker(requireContext())
-    }
-
-    val failureRecoveryEngine: com.airi.assistant.agent.recovery.FailureRecoveryEngine by lazy {
-        com.airi.assistant.agent.recovery.FailureRecoveryEngine()
-    }
-
-    val agentMemoryBridge: com.airi.assistant.agent.memory.AgentMemoryBridge by lazy {
-        com.airi.assistant.agent.memory.AgentMemoryBridge(memoryManager, ragRetriever)
-    }
-
-    val agentToolRegistry: com.airi.assistant.ai.tools.ToolRegistry by lazy {
-        com.airi.assistant.ai.tools.ToolRegistry(requireContext())
-    }
-
-    val toolResolver: com.airi.assistant.agent.tools.ToolResolver by lazy {
-        com.airi.assistant.agent.tools.ToolResolver(agentToolRegistry, connectorRegistry)
-    }
-
-    val agentPlanner: com.airi.assistant.agent.planner.AgentPlanner by lazy {
-        com.airi.assistant.agent.planner.AgentPlanner(
-            reActPlanner    = reActPlanner,
-            brainController = null,
-            goalTracker     = goalTracker,
-            memoryBridge    = agentMemoryBridge,
-            toolResolver    = toolResolver,
-            recoveryEngine  = failureRecoveryEngine,
-        )
-    }
-
-    val runtimeTaskManager: com.airi.assistant.core.runtime.RuntimeTaskManager by lazy {
-        com.airi.assistant.core.runtime.RuntimeTaskManager(
-            durableTaskManager = durableTaskManager,
-            goalTracker        = goalTracker,
-            arm                = autonomousRuntimeManager,
-        )
-    }
-
-    // ── Phase 4 — Computer Use ────────────────────────────────────────────────
-
-    val uiInteractionEngine: com.airi.assistant.automation.UIInteractionEngine by lazy {
-        com.airi.assistant.automation.UIInteractionEngine()
-    }
-
-    val automationRuntime: com.airi.assistant.automation.AutomationRuntime by lazy {
-        com.airi.assistant.automation.AutomationRuntime(
-            accessibilityEngine = accessibilityExecutionEngine,
-            uiEngine            = uiInteractionEngine,
-        )
-    }
-
-    // ── Phase 6 — Web Agent System ────────────────────────────────────────────
-
-    val webAgentRuntime: com.airi.assistant.web.WebAgentRuntime by lazy {
-        com.airi.assistant.web.WebAgentRuntime(requireContext())
-    }
-
-    // ── Phase 7 — MCP Integration Layer ──────────────────────────────────────
-
-    val mcpRuntimeLayer: com.airi.assistant.connector.mcp.MCPRuntimeLayer by lazy {
-        com.airi.assistant.connector.mcp.MCPRuntimeLayer(connectorRegistry)
-    }
-
-    // ── Phase 8 — Virtual AIRI Computer ──────────────────────────────────────
-
-    val airiVirtualWorkspace: com.airi.assistant.workspace.AiriVirtualWorkspace by lazy {
-        com.airi.assistant.workspace.AiriVirtualWorkspace(requireContext())
-    }
-
-    // ── Phase 10 — Connector Ecosystem ───────────────────────────────────────
-
-    val connectorRuntimeManager: com.airi.assistant.connector.ConnectorRuntimeManager by lazy {
-        com.airi.assistant.connector.ConnectorRuntimeManager(connectorRegistry)
-    }
-
-    // ── Phase 11 — Deep Diagnostic Engine ────────────────────────────────────
-
-    val deepDiagnosticScanner: com.airi.assistant.domain.diagnostics.DeepDiagnosticScanner by lazy {
-        com.airi.assistant.domain.diagnostics.DeepDiagnosticScanner(
-            context                = requireContext(),
-            diagnosticsEngine      = diagnosticsEngine,
-            inferenceHealthMonitor = inferenceHealthMonitor,
-            connectorRegistry      = connectorRegistry,
-            connectorRuntimeMgr    = connectorRuntimeManager,
-        )
-    }
-
     /**
      * Initialize the sub-agent system with real tool-injected agents and
      * install the default permission set into the ScopedPermissionRegistry.
@@ -607,9 +387,7 @@ object ServiceLocator {
             CloudBrowserAgent(requireContext()),
             LocalBrowserOperator(requireContext()),
             MediaGenerationAgent(requireContext()),
-            DocumentProcessorAgent(requireContext()),
-            // ── Autonomous runtime agents (new phases) ──────────────────────
-            webAgentRuntime,
+            DocumentProcessorAgent(requireContext())
         )
         SubAgentRegistry.initialize(agents)
         scopedPermissionRegistry.installDefaults()

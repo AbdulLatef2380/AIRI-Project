@@ -90,22 +90,6 @@ class ProductionAgentOrchestrator {
     @Volatile
     var observabilityHub: com.airi.assistant.agent.observability.AgentObservabilityHub? = null
 
-    /**
-     * LLM backend callback — injected by [ChatViewModel] at startup via
-     * [com.airi.assistant.ui.viewmodel.ChatViewModel.wireLlmDelegate].
-     *
-     * Called when a sub-agent emits [AgentEvent.Delegate] with
-     * targetAgentId == "llm_backend". Routes the synthesis prompt through
-     * [com.airi.assistant.execution.HybridOrchestrator] so the real on-device
-     * or cloud LLM produces the response instead of a stub string.
-     *
-     * Nullable so the orchestrator compiles before ViewModel init and so
-     * [DurableTaskWorker] can check and skip gracefully when the app process
-     * is not foregrounded.
-     */
-    @Volatile
-    var llmDelegate: (suspend (String) -> String)? = null
-
     private val recoveryManager      = RecoveryManager()
 
     /**
@@ -356,7 +340,6 @@ class ProductionAgentOrchestrator {
         Log.i(TAG, "AIRI_PROOF TASK_DISPATCH agent=${agent.capability.agentId} task=${task.id}")
 
         var resultText = ""
-        var llmDelegateResult = ""
         var taskError: String? = null
         val toolsUsed = mutableListOf<String>()
 
@@ -384,8 +367,7 @@ class ProductionAgentOrchestrator {
                                 resultText += event.text
                             }
                             is AgentEvent.Complete -> {
-                                // Preserve real LLM synthesis if delegate already populated it
-                                if (llmDelegateResult.isBlank()) resultText = event.result
+                                resultText   = event.result
                                 toolsUsed.addAll(event.toolsUsed)
                                 Log.i(TAG, "AIRI_PROOF TASK_COMPLETE task=${task.id} " +
                                         "agent=${agent.capability.agentId} " +
@@ -406,30 +388,12 @@ class ProductionAgentOrchestrator {
                                 )
                             }
                             is AgentEvent.Delegate -> {
-                                if (event.targetAgentId == "llm_backend") {
-                                    // Route to the real LLM via the injected delegate callback
-                                    val delegate = llmDelegate
-                                    if (delegate != null) {
-                                        val synthesis = runCatching { delegate(event.subInput) }
-                                            .onFailure { e ->
-                                                Log.w(TAG, "llmDelegate threw: ${e.message}")
-                                            }
-                                            .getOrElse { "" }
-                                        if (synthesis.isNotBlank()) {
-                                            llmDelegateResult = synthesis
-                                            onEvent(AgentEvent.PartialResult(synthesis, isFinal = true))
-                                            Log.i(TAG, "AIRI_PROOF LLM_DELEGATE_OK " +
-                                                "task=${task.id} len=${synthesis.length}")
-                                        }
-                                    } else {
-                                        Log.w(TAG, "AIRI_PROOF LLM_DELEGATE_NULL " +
-                                            "task=${task.id} — llmDelegate not wired, synthesis dropped")
-                                    }
-                                } else {
-                                    // Delegation to another sub-agent — resolve recursively
+                                // Delegation to another sub-agent — resolve recursively
+                                if (event.targetAgentId != "llm_backend") {
                                     val delegateResult = resolveDelegation(event, context, onEvent, allEvents)
                                     if (delegateResult != null) resultText += delegateResult
                                 }
+                                // "llm_backend" delegation is surfaced to caller via onEvent
                             }
                             is AgentEvent.ToolCall -> {
                                 toolsUsed.add(event.toolName)
@@ -475,13 +439,11 @@ class ProductionAgentOrchestrator {
         }
 
         return if (taskError == null) {
-            // Prefer real LLM synthesis over any agent stub string
-            val finalText = llmDelegateResult.ifBlank { resultText }
             // Record success so AdaptiveRetryPolicy can track this agent type's reliability.
             adaptiveRetryPolicy.recordSuccess(agent.capability.agentId)
             taskSpanId?.let { observabilityHub?.endSpan(it, success = true,
-                attributes = mapOf("result_len" to finalText.length.toString())) }
-            TaskResult.Success(text = finalText, toolsUsed = toolsUsed)
+                attributes = mapOf("result_len" to resultText.length.toString())) }
+            TaskResult.Success(text = resultText, toolsUsed = toolsUsed)
         } else {
             val error = taskError!!
 

@@ -1,5 +1,6 @@
 package com.airi.assistant.ai.skills
 
+import android.Manifest
 import android.content.Context
 import com.airi.assistant.ai.skills.impl.CalendarEventsSkill
 import com.airi.assistant.ai.skills.impl.DriveSearchSkill
@@ -16,6 +17,96 @@ class SkillRegistry(private val context: Context) {
 
     private val disabledSkillsPrefs by lazy {
         context.getSharedPreferences("airi_skill_toggles", Context.MODE_PRIVATE)
+    }
+
+    init {
+        // Register all known skills with the AiriSkillOrchestrator so it can
+        // automatically discover and match them without manual configuration.
+        registerOrchestrationDescriptors()
+    }
+
+    private fun registerOrchestrationDescriptors() {
+        val descriptors = listOf(
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "github_guardian",
+                displayName = "GitHub Guardian",
+                description = "Read GitHub repos, profile, stars, issues, activity",
+                keywords    = listOf("github", "repo", "repository", "commit", "code", "stars", "pull", "issue"),
+                intents     = listOf("check github", "show repos", "read code", "list issues"),
+                offlineOk   = false,
+                connectorIds = listOf("github"),
+                priorityBias = 0.75f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "gmail_assistant",
+                displayName = "Gmail Assistant",
+                description = "Read, summarize, and manage Gmail emails",
+                keywords    = listOf("email", "gmail", "inbox", "mail", "message", "unread", "draft"),
+                intents     = listOf("read email", "check inbox", "summarize email", "send mail"),
+                offlineOk   = false,
+                connectorIds = listOf("google"),
+                priorityBias = 0.80f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "drive_search",
+                displayName = "Drive Search",
+                description = "Search and retrieve Google Drive files",
+                keywords    = listOf("drive", "file", "document", "spreadsheet", "folder", "cloud storage"),
+                intents     = listOf("find file", "search drive", "open document", "list files"),
+                offlineOk   = false,
+                connectorIds = listOf("google"),
+                priorityBias = 0.70f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "calendar_events",
+                displayName = "Calendar Events",
+                description = "Check and create Google Calendar events and schedule",
+                keywords    = listOf("calendar", "event", "meeting", "schedule", "appointment", "tomorrow", "today"),
+                intents     = listOf("check calendar", "schedule meeting", "what do I have", "upcoming events"),
+                offlineOk   = false,
+                connectorIds = listOf("google"),
+                permissions  = listOf(Manifest.permission.READ_CALENDAR),
+                priorityBias = 0.85f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "telegram_messenger",
+                displayName = "Telegram Messenger",
+                description = "Send Telegram messages and notifications",
+                keywords    = listOf("telegram", "message", "notify", "send", "chat"),
+                intents     = listOf("send telegram", "message someone", "notify via telegram"),
+                offlineOk   = false,
+                connectorIds = listOf("telegram"),
+                priorityBias = 0.65f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "alarm_tool",
+                displayName = "Alarm & Reminder",
+                description = "Set alarms, timers, and reminders",
+                keywords    = listOf("alarm", "reminder", "timer", "wake", "alert", "notify"),
+                intents     = listOf("set alarm", "remind me", "wake me up", "set timer"),
+                offlineOk   = true,
+                priorityBias = 0.90f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "search_tool",
+                displayName = "Web Search",
+                description = "Search the web for current information",
+                keywords    = listOf("search", "find", "look up", "google", "web", "internet", "news", "latest"),
+                intents     = listOf("search for", "look up", "find information", "what is"),
+                offlineOk   = false,
+                priorityBias = 0.70f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "notes_tool",
+                displayName = "Notes",
+                description = "Create and manage notes",
+                keywords    = listOf("note", "write down", "save", "remember", "jot"),
+                intents     = listOf("take note", "save note", "write note", "remember this"),
+                offlineOk   = true,
+                priorityBias = 0.75f
+            )
+        )
+        descriptors.forEach { AiriSkillOrchestrator.register(it) }
     }
 
     fun isSkillEnabled(skillName: String): Boolean =

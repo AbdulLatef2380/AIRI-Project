@@ -16,7 +16,6 @@ import com.airi.assistant.agent.subagent.SubAgentContext
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.airi.assistant.ai.CatalogEntry
-import com.airi.assistant.ai.ContextPressureManager
 import com.airi.assistant.ai.DeviceProfiler
 import com.airi.assistant.ai.ModelConfigManager
 import com.airi.assistant.ai.PerformanceMode
@@ -87,6 +86,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.airi.assistant.execution.ExecOrigin
+import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.HybridOrchestrator
 import com.airi.assistant.execution.PrivacyLevel
@@ -97,11 +97,7 @@ import com.airi.assistant.execution.diagnostics.ExecutionDiagnosticsState
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.execution.router.RuntimeRouter
 import com.airi.assistant.execution.security.SecureApiKeyStore
-import com.airi.assistant.agent.AgentLifecycleState
-import com.airi.assistant.agent.ObservationEngine
 import com.airi.assistant.agent.planning.BrainInput
-import com.airi.assistant.agent.planning.PlanGenerator
-import com.airi.assistant.core.CognitiveResult
 import com.airi.assistant.core.UnifiedCognitiveLoop
 import com.airi.assistant.voice.VoskModelManager
 
@@ -210,9 +206,49 @@ data class ModelUiState(
      * "Vision: yes/no" badge in the UI so the user can never mistake
      * "I attached an image" for "the model understood the image".
      */
-    val capabilities: com.airi.assistant.ai.ModelCapabilities =
-        com.airi.assistant.ai.ModelCapabilities.textOnlyFallback()
-)
+    val capabilities: ModelCapabilities =
+        ModelCapabilities.textOnlyFallback(),
+
+    // ── Cloud / Hybrid inference readiness ──────────────────────────────────
+    // True when a cloud or remote model is active AND the execution mode
+    // permits cloud inference. Chat input, voice pipeline, and all other
+    // send-gates must check (isModelReady || isCloudReady) — NOT isModelReady
+    // alone — so that cloud-only setups unlock AIRI without a local model.
+    val isCloudReady: Boolean = false,
+    /**
+     * Display name of the active cloud provider / remote model.
+     * Shown in the top bar subtitle and input bar hint when no local model
+     * is loaded but cloud is active.
+     */
+    val cloudModelName: String = "",
+    /**
+     * True during cloud provider health-check / connection test.
+     * Mirrors isModelLoading for the local path.
+     */
+    val isCloudLoading: Boolean = false,
+    /**
+     * Active cloud provider enum for badge rendering.
+     * Null when no cloud model is active.
+     */
+    val activeCloudProvider: CloudProvider? = null
+) {
+    /**
+     * True when ANY inference source (local OR cloud) is ready to accept
+     * a new message. Use this for all send-gate checks instead of
+     * isModelReady alone.
+     */
+    val isAnyInferenceReady: Boolean get() = isModelReady || isCloudReady
+
+    /**
+     * Display label for the top-bar subtitle and input placeholder.
+     * Prefers local model name when both are active.
+     */
+    val activeModelLabel: String get() = when {
+        isModelReady  -> selectedModelName
+        isCloudReady  -> cloudModelName.ifBlank { "Cloud AI" }
+        else          -> "No model active"
+    }
+}
 
 data class UpgradePrompt(
     val message: String,
@@ -311,17 +347,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // any JSON action plan embedded in it via the TypedPlanGraph DAG engine.
     private val cognitiveLoop            = UnifiedCognitiveLoop()
 
-    // ── Phase 4 — Context Pressure Manager ────────────────────────────────────
-    // Tracks cumulative token usage against the active model's context window.
-    // Exposed as a public StateFlow so UI can show a live pressure indicator.
-    // addTokens() is called on every token-count update during local generation.
-    // reset() is called whenever a new session is loaded / created.
-    private val contextPressureManager   = ServiceLocator.contextPressureManager
-
-    /** Live context window pressure — observe in UI to show warning indicators. */
-    val contextPressure: kotlinx.coroutines.flow.StateFlow<ContextPressureManager.PressureReport> =
-        contextPressureManager.pressure
-
     // ── UI State ──────────────────────────────────────────────────────────────
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -401,38 +426,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _agentState = MutableStateFlow(AgentState())
     val agentState: StateFlow<AgentState> = _agentState.asStateFlow()
-
-    // ── API Key StateFlows (used by AIModelsSettingsScreen) ───────────────────
-
-    private val _openAiApiKey = MutableStateFlow(
-        secureApiKeyStore.getKey(com.airi.assistant.execution.CloudProvider.OPENAI) ?: ""
-    )
-    val openAiApiKey: StateFlow<String> = _openAiApiKey.asStateFlow()
-
-    private val _anthropicApiKey = MutableStateFlow(
-        secureApiKeyStore.getKey(com.airi.assistant.execution.CloudProvider.ANTHROPIC) ?: ""
-    )
-    val anthropicApiKey: StateFlow<String> = _anthropicApiKey.asStateFlow()
-
-    private val _geminiApiKey = MutableStateFlow(
-        secureApiKeyStore.getKey(com.airi.assistant.execution.CloudProvider.GEMINI) ?: ""
-    )
-    val geminiApiKey: StateFlow<String> = _geminiApiKey.asStateFlow()
-
-    fun setOpenAiApiKey(key: String) {
-        secureApiKeyStore.saveKey(com.airi.assistant.execution.CloudProvider.OPENAI, key)
-        _openAiApiKey.value = key.trim()
-    }
-
-    fun setAnthropicApiKey(key: String) {
-        secureApiKeyStore.saveKey(com.airi.assistant.execution.CloudProvider.ANTHROPIC, key)
-        _anthropicApiKey.value = key.trim()
-    }
-
-    fun setGeminiApiKey(key: String) {
-        secureApiKeyStore.saveKey(com.airi.assistant.execution.CloudProvider.GEMINI, key)
-        _geminiApiKey.value = key.trim()
-    }
 
     private val _modelState = MutableStateFlow(createInitialModelState())
     val modelState: StateFlow<ModelUiState> = _modelState.asStateFlow()
@@ -643,23 +636,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     init {
         ModelManager.setLoader(ModelLoader(llamaManager))
         val filter = IntentFilter(ModelDownloadService.ACTION_DOWNLOAD_COMPLETE)
-        ContextCompat.registerReceiver(
-            appContext,
-            downloadCompleteReceiver,
-            filter,
-            ContextCompat.RECEIVER_NOT_EXPORTED
-        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            appContext.registerReceiver(downloadCompleteReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            appContext.registerReceiver(downloadCompleteReceiver, filter)
+        }
         loadInitialSession()
         val savedModel = ModelRegistry.getById(_modelState.value.selectedModelId)
         if (savedModel != null && File(savedModel.path).exists()) {
             loadModel(savedModel)
         }
+        // Restore cloud readiness on startup — if a remote model was active
+        // in the previous session, re-enable cloud inference immediately so
+        // the user doesn't have to reconfigure on every app open.
+        refreshCloudReadiness()
         refreshRecommendedModels()
         runDiagnostics()
         VoskModelManager.init(appContext)
         observeVoiceTranscriptBus()
         observeExecutionStatusBus()
-        wireLlmDelegate()
     }
 
     /**
@@ -720,57 +715,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ── LLM Delegate wiring (Phase 1 — AgentEvent.Delegate("llm_backend") fix) ─
-
-    /**
-     * Wire the real LLM backend into [ProductionAgentOrchestrator] so that
-     * sub-agents emitting [AgentEvent.Delegate] with targetAgentId="llm_backend"
-     * receive a genuine synthesis response instead of a silent stub.
-     *
-     * Called once from [init] after all orchestrators and the hybrid execution
-     * layer are initialised. Idempotent — repeated calls simply overwrite the
-     * lambda reference on the orchestrator.
-     */
-    private fun wireLlmDelegate() {
-        productionOrchestrator.llmDelegate = { prompt -> invokeLlmForDelegate(prompt) }
-    }
-
-    /**
-     * Invoke the Hybrid Execution layer for a sub-agent LLM synthesis request.
-     *
-     * [HybridOrchestrator.executeStream] serializes execution via its internal
-     * Mutex and blocks until the chosen backend (local or cloud) fires
-     * [onComplete] or [onError]. Because [ProductionAgentOrchestrator.executeSingle]
-     * does NOT hold that Mutex, calling this from inside a sub-agent delegate
-     * callback is free of deadlock risk.
-     *
-     * Errors are logged and an empty string is returned so the orchestrator
-     * can fall back gracefully to any stub text the agent emitted.
-     */
-    private suspend fun invokeLlmForDelegate(prompt: String): String {
-        val result = StringBuilder()
-        hybridOrchestrator.executeStream(
-            request = com.airi.assistant.execution.ExecutionRequest(
-                prompt                = prompt,
-                systemPrompt          = "You are AIRI, a helpful AI assistant. Answer clearly and accurately.",
-                maxTokens             = 1024,
-                temperature           = 0.7f,
-                queryType             = com.airi.assistant.ai.QueryType.ANALYTICAL,
-                requiresStreaming      = false,
-                estimatedPromptTokens = (prompt.length / 4).coerceAtLeast(1)
-            ),
-            context    = appContext,
-            onToken    = { token -> result.append(token) },
-            onComplete = { fullText, _, _ ->
-                if (fullText.isNotBlank()) { result.setLength(0); result.append(fullText) }
-            },
-            onError    = { error, _ ->
-                Log.w("AIRI_DELEGATE", "invokeLlmForDelegate error: $error")
-            }
-        )
-        return result.toString()
-    }
-
     // Phase 4: Expose Vosk model readiness so the UI and voice settings screen
     // can show a download prompt without depending on VoskModelManager directly.
     fun isVoiceModelReady(): Boolean = VoskModelManager.isReady(appContext)
@@ -813,8 +757,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             streamAccumulator.setLength(0); _streamingText.value = ""
             _agentState.value = AgentState()
             llamaManager.setHistory(emptyList())
-            // Reset context pressure when starting a fresh conversation.
-            contextPressureManager.reset()
             refreshSessions()
         }
     }
@@ -828,13 +770,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 ChatMessage(text = msg.content, isUser = msg.role == "user", id = msg.id)
             }
             llamaManager.setHistory(history.takeLast(12))
-            // Seed context pressure with a rough estimate of the loaded history size
-            // so the pressure indicator is accurate even for resumed conversations.
-            contextPressureManager.reset()
-            val estimatedExistingTokens = history.sumOf { it.content.length / 4 + 1 }
-            if (estimatedExistingTokens > 0) {
-                contextPressureManager.setUsed(estimatedExistingTokens)
-            }
             refreshSessions()
         }
     }
@@ -1343,54 +1278,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     // The system prompt (ACTION_PLAN_SUFFIX) asks the LLM to append a plan;
                     // if none is present PlanGenerator falls back to a no-op "conversation" step.
                     if (queryType == QueryType.ACTION && !wasToolCall) {
-                        // Bug-3 fix: previously called fire-and-forget (return value discarded),
-                        // so graph execution output (agent LLM synthesis) NEVER reached the UI.
-                        // Now we capture the CognitiveResult and surface any meaningful synthesized
-                        // text as a follow-up assistant message. Text is filtered to exclude
-                        // internal sentinel strings ("node:", "custom:", "UNKNOWN_ACTION:") and
-                        // must be >30 chars to avoid noise from trivial step confirmations.
-                        // Captured sessionId and memoryManager are safe across the Dispatchers.IO
-                        // boundary — both are immutable references for the lifetime of this send.
-                        val capturedSessionId = sessionId
-                        // Bug-6 fix: inject conversation history into UCL so that sub-agents
-                        // receive recentTurns in their SubAgentContext. Captured here (before
-                        // the IO launch) because `history` is a val in the sendMessage scope.
-                        cognitiveLoop.recentTurns = history.takeLast(6)
-                            .map { "${it.role}: ${it.content.take(200)}" }
                         viewModelScope.launch(Dispatchers.IO) {
                             runCatching {
-                                val cogResult = cognitiveLoop.process(
+                                cognitiveLoop.process(
                                     BrainInput(text = trimmedInput),
                                     fullResponse
                                 )
-                                if (cogResult is CognitiveResult.Success) {
-                                    val synthesized = cogResult.results
-                                        .filter { it.result.success && !it.result.message.isNullOrBlank() }
-                                        .mapNotNull { it.result.message }
-                                        .filter { msg ->
-                                            msg.length > 30 &&
-                                            !msg.startsWith("node:") &&
-                                            !msg.startsWith("custom:") &&
-                                            !msg.startsWith("UNKNOWN_ACTION:") &&
-                                            msg.trim() != fullResponse.trim()
-                                        }
-                                        .joinToString("\n\n")
-                                        .trim()
-                                    if (synthesized.isNotBlank()) {
-                                        val assistantMsg = memoryManager.recordChatMessage(
-                                            capturedSessionId, "assistant", synthesized
-                                        )
-                                        _messages.update {
-                                            it + ChatMessage(
-                                                text   = synthesized,
-                                                isUser = false,
-                                                id     = assistantMsg.id
-                                            )
-                                        }
-                                        Log.i("AIRI_UCL",
-                                            "UCL synthesized message surfaced len=${synthesized.length}")
-                                    }
-                                }
                             }.onFailure { e ->
                                 Log.w("AIRI_UCL", "UCL.process failed: ${e.message}")
                             }
@@ -1504,9 +1397,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             _debugState.update { it.copy(lastFirstTokenMs = firstTokenMs) }
                         }
                         tokenCount += tokenBatch.length / 4 + 1
-                        // Feed live token delta into ContextPressureManager so
-                        // the UI pressure indicator updates on every token batch.
-                        contextPressureManager.addTokens(tokenBatch.length / 4 + 1)
                         // PERF: append to accumulator (O(1) amortised) then
                         // publish the full string once — no per-token copy.
                         if (_streamingText.value in allThinkingStages) {
@@ -1727,14 +1617,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             buildEffectiveSystemPrompt(perfMode, queryType)
         }
-        // For ACTION queries, prepend the autonomous planner system prompt so the
-        // LLM understands it is acting as AIRI planner (atomic steps, no vague actions,
-        // retry logic, minimal destructive ops).  ACTION_PLAN_SUFFIX is kept as the
-        // trailing JSON format reminder appended after the persona base.
-        return if (queryType == QueryType.ACTION)
-            PlanGenerator.PLANNER_SYSTEM_PROMPT + "\n\n" + base + ACTION_PLAN_SUFFIX
-        else
-            base
+        // Phase 1: For ACTION queries, append a structured plan request so the LLM
+        // produces a JSON execution plan that UnifiedCognitiveLoop can parse and run.
+        return if (queryType == QueryType.ACTION) base + ACTION_PLAN_SUFFIX else base
     }
 
     private suspend fun streamRemoteResponse(
@@ -1755,9 +1640,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             temperature = perfMode.temperature,
             onToken = { token ->
                 tokenCount++
-                // Track cloud tokens in ContextPressureManager so pressure
-                // indicator is accurate even when using a remote model.
-                contextPressureManager.addTokens(token.length / 4 + 1)
                 withContext(Dispatchers.Main) {
                     val stages = setOf("Thinking...", "Analyzing...", "Planning...", "Generating...")
                     _streamingText.update { current ->
@@ -1935,6 +1817,175 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             severity  = EventSeverity.INFO,
             reason    = "User set execution mode → ${mode.name}"
         )
+        // Refresh cloud readiness: mode switch from LOCAL_ONLY to HYBRID/CLOUD_ONLY
+        // should immediately unlock chat if a remote model is already configured.
+        refreshCloudReadiness()
+    }
+
+    /**
+     * Recomputes cloud readiness and updates [ModelUiState.isCloudReady].
+     * Must be called after any change that affects cloud availability:
+     * execution mode change, remote model activation, permission grant.
+     */
+    /**
+     * Recomputes cloud readiness and updates [ModelUiState.isCloudReady].
+     *
+     * Priority:
+     *  1. [RemoteModelRegistry.getActive()] — user-configured remote or
+     *     a built-in entry created by [activateBuiltinProvider].
+     *  2. [EmbeddedProviderConfig.getActiveProvider()] — built-in prefs
+     *     that haven't been bridged yet (startup restore path).
+     *
+     * In both cases the chat routing in [sendMessage] uses
+     * `RemoteModelRegistry.getActive()` to obtain a [RemoteModel], so
+     * this function also ensures the registry is populated before
+     * refreshing the UI state.
+     */
+    fun refreshCloudReadiness() {
+        val effectiveMode = execModePrefs.effectiveMode
+        if (effectiveMode == ExecutionMode.LOCAL_ONLY) {
+            _modelState.update { it.copy(isCloudReady = false, cloudModelName = "", activeCloudProvider = null) }
+            return
+        }
+        // Path 1: RemoteModelRegistry already has an active entry
+        val activeRemote = RemoteModelRegistry.getActive()
+        if (activeRemote != null) {
+            _modelState.update {
+                it.copy(
+                    isCloudReady        = true,
+                    cloudModelName      = activeRemote.name,
+                    activeCloudProvider = CloudProvider.CUSTOM
+                )
+            }
+            Log.i("AIRI_CLOUD", "Cloud ready via RemoteModel: ${activeRemote.name} → ${activeRemote.serverUrl.take(40)}")
+            return
+        }
+        // Path 2: Built-in provider pref set but no RemoteModel bridged yet
+        // (happens on cold start after activateBuiltinProvider was called in a
+        // previous session — the RemoteModelRegistry entry may have been cleared).
+        // Re-bridge it now so routing works without user interaction.
+        val builtinConfig = com.airi.assistant.execution.cloud.EmbeddedProviderConfig.getActiveProvider(appContext)
+        if (builtinConfig != null) {
+            val bridged = builtinProviderToRemoteModel(builtinConfig)
+            if (bridged != null) {
+                RemoteModelRegistry.add(bridged)
+                RemoteModelRegistry.setActive(bridged.id)
+                _modelState.update {
+                    it.copy(
+                        isCloudReady        = true,
+                        cloudModelName      = builtinConfig.displayLabel,
+                        activeCloudProvider = builtinConfig.provider
+                    )
+                }
+                Log.i("AIRI_CLOUD", "Cloud ready via builtin bridge: ${builtinConfig.displayLabel}")
+                return
+            }
+        }
+        _modelState.update { it.copy(isCloudReady = false, cloudModelName = "", activeCloudProvider = null) }
+    }
+
+    /**
+     * Convert an [EmbeddedProviderConfig.ProviderConfig] into a [RemoteModel]
+     * so that the existing [sendMessage] → [streamRemoteResponse] →
+     * [RemoteModelExecutor] pipeline can route to it without any changes.
+     *
+     * Returns null if the provider requires a user API key that hasn't been
+     * entered yet (so chat stays locked until the key is provided).
+     *
+     * URL note: [RemoteModelExecutor.normalizeUrl] strips any trailing "/v1"
+     * before appending "/v1/chat/completions", so URLs from
+     * [EmbeddedProviderConfig] (which include "/v1") are handled correctly.
+     */
+    private fun builtinProviderToRemoteModel(
+        config: com.airi.assistant.execution.cloud.EmbeddedProviderConfig.ProviderConfig
+    ): RemoteModel? {
+        val apiKey = when (config.tier) {
+            com.airi.assistant.execution.cloud.EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER -> ""
+            else -> {
+                val stored = com.airi.assistant.execution.cloud.EmbeddedProviderConfig.getKey(appContext, config)
+                if (stored.isNullOrBlank()) {
+                    Log.w("AIRI_CLOUD", "Built-in provider ${config.id} has no key — cloud not ready")
+                    return null
+                }
+                stored
+            }
+        }
+        return RemoteModel(
+            id        = "builtin_${config.id}",
+            name      = config.displayLabel,
+            serverUrl = config.baseUrl,  // normalizeUrl() handles any /v1 suffix
+            apiKey    = apiKey,
+            isActive  = true
+        )
+    }
+
+    /**
+     * Activate a built-in free-tier cloud provider.
+     *
+     * 1. Persists the selection in [EmbeddedProviderConfig].
+     * 2. Bridges it into [RemoteModelRegistry] so [sendMessage] routing
+     *    picks it up via [RemoteModelRegistry.getActive()] — no new code
+     *    path needed in the send pipeline.
+     * 3. Switches execution mode to HYBRID if it was LOCAL_ONLY.
+     * 4. Calls [refreshCloudReadiness] so the UI unlocks immediately.
+     */
+    fun activateBuiltinProvider(
+        config: com.airi.assistant.execution.cloud.EmbeddedProviderConfig.ProviderConfig
+    ) {
+        com.airi.assistant.execution.cloud.EmbeddedProviderConfig.setActiveProvider(appContext, config)
+        // Bridge to RemoteModelRegistry so sendMessage() routing finds it
+        val remote = builtinProviderToRemoteModel(config)
+        if (remote != null) {
+            RemoteModelRegistry.add(remote)
+            RemoteModelRegistry.setActive(remote.id)
+            // Ensure internet/cloud routing is enabled
+            execModePrefs.internetPermissionGranted = true
+            if (execModePrefs.executionMode == ExecutionMode.LOCAL_ONLY) {
+                execModePrefs.executionMode = ExecutionMode.HYBRID
+                _executionMode.value = ExecutionMode.HYBRID
+            }
+            Log.i("AIRI_CLOUD", "activateBuiltinProvider: bridged ${config.id} → RemoteModel ${remote.id}")
+        } else {
+            Log.w("AIRI_CLOUD", "activateBuiltinProvider: ${config.id} has no key yet — needs API key entry")
+        }
+        refreshCloudReadiness()
+    }
+
+    /**
+     * Re-activate a built-in provider after its API key has been saved.
+     * Called from [CloudModelStore] after the user taps "Save & Activate"
+     * in the key entry dialog.
+     */
+    fun reactivateBuiltinProviderAfterKeyEntry(
+        config: com.airi.assistant.execution.cloud.EmbeddedProviderConfig.ProviderConfig
+    ) {
+        // Remove any stale registry entry for this provider
+        RemoteModelRegistry.remove("builtin_${config.id}")
+        activateBuiltinProvider(config)
+    }
+
+    /** Activate a user-configured remote model and refresh readiness. */
+    fun activateRemoteModel(model: RemoteModel) {
+        RemoteModelRegistry.add(model)
+        RemoteModelRegistry.setActive(model.id)
+        execModePrefs.internetPermissionGranted = true
+        if (execModePrefs.executionMode == ExecutionMode.LOCAL_ONLY) {
+            execModePrefs.executionMode = ExecutionMode.HYBRID
+            _executionMode.value = ExecutionMode.HYBRID
+        }
+        refreshCloudReadiness()
+    }
+
+    /** Deactivate ALL cloud sources — local-only mode. */
+    fun clearCloudModel() {
+        // Remove all builtin_ prefixed models from the registry
+        val builtinIds = RemoteModelRegistry.getAll()
+            .filter { it.id.startsWith("builtin_") }
+            .map { it.id }
+        builtinIds.forEach { RemoteModelRegistry.remove(it) }
+        RemoteModelRegistry.clearActive()
+        com.airi.assistant.execution.cloud.EmbeddedProviderConfig.clearActiveProvider(appContext)
+        refreshCloudReadiness()
     }
 
     /**
@@ -1962,6 +2013,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             severity  = if (granted) EventSeverity.INFO else EventSeverity.WARN,
             reason    = "Internet permission → $granted"
         )
+        // Permission change may enable or disable cloud — refresh immediately.
+        refreshCloudReadiness()
     }
 
     /** Expose current execution preferences snapshot (read-only) to the UI. */
@@ -2350,27 +2403,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _memoryEntries.value = emptyList()
             _memoryCount.value   = 0
         }
-    }
-
-    fun deleteMemory(id: Long) {
-        viewModelScope.launch {
-            runCatching { memoryManager.deleteMessageById(id) }
-            _memoryEntries.value = runCatching { memoryManager.getSemanticMemories(200) }.getOrElse { emptyList() }
-            _memoryCount.value   = runCatching { memoryManager.getMessageCount() }.getOrElse { 0 }
-        }
-    }
-
-    fun exportData() {
-        Log.i("AIRI_PROOF", "EXPORT: User requested data export")
-    }
-
-    fun clearAllHistory() {
-        viewModelScope.launch {
-            runCatching { memoryManager.clearAll() }
-            _memoryEntries.value = emptyList()
-            _memoryCount.value   = 0
-        }
-        createNewSession()
     }
 
     // ── Model import / selection ──────────────────────────────────────────────
@@ -3053,30 +3085,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // UnifiedCognitiveLoop.process() parses this plan and routes each step through
         // CommandRouter → AccessibilityExecutionEngine → TypedPlanGraph.
         const val ACTION_PLAN_SUFFIX =
-            "\n\nIf this request requires device or system actions, after your natural reply " +
-            "append a JSON execution plan on a SINGLE LINE (no newlines inside):\n" +
+            "\n\nIf this request requires device actions, after your natural reply append " +
+            "a JSON execution plan on a single line:\n" +
             "{\"goal\":\"<goal>\",\"steps\":[{\"id\":\"1\",\"action\":\"<action>\"," +
-            "\"params\":{\"<key>\":\"<value>\"},\"depends_on\":[]}]}\n" +
-            "DEVICE/UI actions — params shown in parentheses:\n" +
-            "  open_app (app), click (target), type (text), search (query),\n" +
-            "  scroll (direction: up|down|left|right), navigate (direction: back|home|recents), wait (durationMs)\n" +
-            "FILE actions:\n" +
-            "  read_file (path), write_file (path; text=content), append_file (path; text=content),\n" +
-            "  list_dir (path), file_exists (path), delete_file (path), make_dir (path)\n" +
-            "  Paths: internal://file.txt  |  cache://tmp.txt  |  external://doc.pdf\n" +
-            "SHELL actions:\n" +
-            "  exec (command — must be an allowed binary e.g. ls, cat, echo, grep, curl, ping, df, ps)\n" +
-            "HTTP actions:\n" +
-            "  http_get (url), http_post (url; body=JSON), http_put (url; body=JSON), http_delete (url)\n" +
-            "SYSTEM/DEVICE info actions:\n" +
-            "  battery_status, network_status, get_device_info, get_clipboard,\n" +
-            "  set_clipboard (text=content), get_volume, get_wifi\n" +
-            "LOG actions:\n" +
-            "  logcat_read (lines=50), logcat_errors (lines=50), read_airi_proof (lines=100)\n" +
-            "GIT actions (repo_path param optional, defaults to app git root):\n" +
-            "  git_status, git_log (limit=10), git_diff (args), git_branch,\n" +
-            "  git_commit (text=message), git_pull\n" +
-            "Rules: only include steps actually needed; omit params that do not apply; " +
-            "use depends_on to express ordering ([] means no dependency)."
+            "\"params\":{\"app\":\"<package_or_name>\",\"target\":\"<ui_element>\"," +
+            "\"text\":\"<text_to_type>\"},\"depends_on\":[]}]}\n" +
+            "Supported actions: open_app, click, type, search, scroll, navigate, wait. " +
+            "Only include steps actually needed; omit params that do not apply."
     }
 }

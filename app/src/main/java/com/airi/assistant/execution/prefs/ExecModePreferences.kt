@@ -39,7 +39,7 @@ class ExecModePreferences(context: Context) {
             ?.let { runCatching { ExecutionMode.valueOf(it) }.getOrNull() }
             ?: ExecutionMode.HYBRID
         set(value) {
-            prefs.edit().putString(KEY_EXEC_MODE, value.name).commit()
+            prefs.edit().putString(KEY_EXEC_MODE, value.name).apply()
         }
 
     // ── Privacy level ─────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ class ExecModePreferences(context: Context) {
             ?.let { runCatching { PrivacyLevel.valueOf(it) }.getOrNull() }
             ?: PrivacyLevel.BALANCED
         set(value) {
-            prefs.edit().putString(KEY_PRIVACY_LEVEL, value.name).commit()
+            prefs.edit().putString(KEY_PRIVACY_LEVEL, value.name).apply()
         }
 
     // ── Preferred cloud provider ──────────────────────────────────────────────
@@ -59,7 +59,7 @@ class ExecModePreferences(context: Context) {
             ?.let { runCatching { CloudProvider.valueOf(it) }.getOrNull() }
             ?: CloudProvider.OPENAI
         set(value) {
-            prefs.edit().putString(KEY_PROVIDER, value.name).commit()
+            prefs.edit().putString(KEY_PROVIDER, value.name).apply()
         }
 
     // ── Network permission ────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ class ExecModePreferences(context: Context) {
     var internetPermissionGranted: Boolean
         get() = prefs.getBoolean(KEY_INTERNET_PERM, false)
         set(value) {
-            prefs.edit().putBoolean(KEY_INTERNET_PERM, value).commit()
+            prefs.edit().putBoolean(KEY_INTERNET_PERM, value).apply()
         }
 
     // ── Offline fallback ──────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ class ExecModePreferences(context: Context) {
     var offlineFallbackEnabled: Boolean
         get() = prefs.getBoolean(KEY_OFFLINE_FALLBACK, true)
         set(value) {
-            prefs.edit().putBoolean(KEY_OFFLINE_FALLBACK, value).commit()
+            prefs.edit().putBoolean(KEY_OFFLINE_FALLBACK, value).apply()
         }
 
     // ── Cloud usage cap ───────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ class ExecModePreferences(context: Context) {
     var maxDailyCloudTokens: Int
         get() = prefs.getInt(KEY_MAX_CLOUD_TOKENS, 50_000)
         set(value) {
-            prefs.edit().putInt(KEY_MAX_CLOUD_TOKENS, value.coerceAtLeast(0)).commit()
+            prefs.edit().putInt(KEY_MAX_CLOUD_TOKENS, value.coerceAtLeast(0)).apply()
         }
 
     /** Running tally for the current calendar day. Reset on date change. */

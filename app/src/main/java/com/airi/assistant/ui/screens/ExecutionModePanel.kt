@@ -97,60 +97,6 @@ fun ExecutionModePanel(
             if (mode != ExecutionMode.values().last()) Spacer(Modifier.height(6.dp))
         }
 
-        // ── Smart Auto (Hybrid) info panel ───────────────────────────────────
-        AnimatedVisibility(
-            visible = currentMode == ExecutionMode.HYBRID,
-            enter   = expandVertically(),
-            exit    = shrinkVertically()
-        ) {
-            Column {
-                Spacer(Modifier.height(10.dp))
-                androidx.compose.foundation.layout.Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
-                        .background(HybridColor.copy(alpha = 0.08f))
-                        .border(
-                            1.dp,
-                            HybridColor.copy(alpha = 0.22f),
-                            androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
-                        )
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Outlined.Hub, null,
-                                tint = HybridColor, modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                "How Smart Auto works",
-                                color = HybridColor, fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        val steps = listOf(
-                            "1. Every request is classified: complexity, privacy sensitivity, token budget.",
-                            "2. Simple queries → local llama.cpp (instant, private, zero cost).",
-                            "3. Complex / long-context tasks → preferred cloud provider.",
-                            "4. If cloud fails or is rate-limited → automatic fallback to local model.",
-                            "5. Maximum Privacy setting always forces local regardless of complexity."
-                        )
-                        steps.forEach { step ->
-                            Text(step, color = DimWhite, fontSize = 10.sp, lineHeight = 14.sp)
-                        }
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            "Tip: Set Privacy → Maximum to guarantee no data leaves the device, even in Hybrid mode.",
-                            color = WarnAmber.copy(alpha = 0.85f),
-                            fontSize = 10.sp, lineHeight = 13.sp
-                        )
-                    }
-                }
-            }
-        }
-
         // ── Internet permission (shown when mode ≠ LOCAL_ONLY) ────────────────
         AnimatedVisibility(
             visible = currentMode != ExecutionMode.LOCAL_ONLY,

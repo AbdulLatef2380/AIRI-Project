@@ -9,7 +9,6 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
-import java.security.SecureRandom
 
 object CustomSkillCrypto {
 
@@ -41,13 +40,8 @@ object CustomSkillCrypto {
 
     fun encrypt(plaintext: String): String = runCatching {
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        val iv = ByteArray(GCM_IV_LENGTH)
-        SecureRandom().nextBytes(iv)
-        cipher.init(
-            Cipher.ENCRYPT_MODE,
-            getOrCreateKey(),
-            GCMParameterSpec(GCM_TAG_LENGTH, iv)
-        )
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
+        val iv = cipher.iv
         val encrypted = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
         val combined = iv + encrypted
         "enc:" + Base64.encodeToString(combined, Base64.NO_WRAP)

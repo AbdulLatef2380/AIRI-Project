@@ -1,15 +1,18 @@
 package com.airi.assistant.ui.screens
 
-import androidx.compose.animation.core.*
+import android.app.Activity
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,160 +22,462 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airi.assistant.ui.components.*
-import com.airi.assistant.ui.theme.*
+import com.airi.assistant.analytics.AnalyticsService
+import com.airi.assistant.billing.BillingManager
+import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.domain.experiment.ExperimentManager
+import com.airi.assistant.domain.monetization.PaywallTriggerEngine
+import kotlinx.coroutines.launch
 
-private data class PlanFeature(val icon: ImageVector, val text: String, val premium: Boolean = true)
-
-private val FEATURES = listOf(
-    PlanFeature(Icons.Outlined.AllInclusive,    "استخدام غير محدود للذكاء الاصطناعي"),
-    PlanFeature(Icons.Outlined.Memory,          "جميع النماذج المحلية والسحابية"),
-    PlanFeature(Icons.Outlined.SmartToy,        "عميل ذكي مستقل بلا قيود"),
-    PlanFeature(Icons.Outlined.Psychology,      "ذاكرة طويلة الأمد ومتقدمة"),
-    PlanFeature(Icons.Outlined.Extension,       "جميع المهارات والموصلات"),
-    PlanFeature(Icons.Outlined.Support,         "دعم أولوية مباشر")
-)
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaywallScreen(
     onBack: () -> Unit,
     onPurchaseSuccess: () -> Unit = {}
 ) {
-    var selectedPlan by remember { mutableStateOf("yearly") }
-    var purchasing   by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val scope = rememberCoroutineScope()
+    val snackbarHost = remember { SnackbarHostState() }
 
-    val inf = rememberInfiniteTransition(label = "paywall_glow")
-    val glowAlpha by inf.animateFloat(0.12f, 0.26f, infiniteRepeatable(tween(2000), RepeatMode.Reverse), label = "g")
+    val billingManager = remember {
+        BillingManager(context, ServiceLocator.subscriptionManager)
+    }
+
+    val billingState by billingManager.billingState.collectAsState()
+    val productDetails by billingManager.productDetails.collectAsState()
+
+    var isRestoring by remember { mutableStateOf(false) }
+
+    // ── Growth intelligence ───────────────────────────────────────────────────
+    val triggerReason      = PaywallTriggerEngine.lastTriggerReason
+    val subscriptionManager = ServiceLocator.subscriptionManager
+    val usagePercent       = remember { PaywallTriggerEngine.getUsagePercent(subscriptionManager) }
+    val ctaText            = remember { ExperimentManager.getValue(ExperimentManager.PAYWALL_CTA) }
+    val showUrgency        = remember { ExperimentManager.getBool(ExperimentManager.PAYWALL_URGENCY) }
+
+    val contextMessage: String? = remember {
+        PaywallTriggerEngine.getPaywallMessage(triggerReason)
+    }
+
+    val upsellLevel = remember { PaywallTriggerEngine.getUpsellLevel() }
+
+    LaunchedEffect(Unit) {
+        AnalyticsService.paywallView(triggerReason.source)
+        AnalyticsService.paywallShown(triggerReason.source, upsellLevel.name.lowercase())
+        billingManager.connect()
+    }
+
+    LaunchedEffect(billingState) {
+        when (val state = billingState) {
+            is BillingManager.BillingState.PurchaseSuccess -> {
+                AnalyticsService.subscribed("premium_monthly")
+                snackbarHost.showSnackbar("Premium activated! Enjoy unlimited access.")
+                onPurchaseSuccess()
+            }
+            is BillingManager.BillingState.Error -> {
+                snackbarHost.showSnackbar(state.message)
+                isRestoring = false
+            }
+            is BillingManager.BillingState.PurchasePending -> {
+                snackbarHost.showSnackbar(state.message)
+                isRestoring = false
+            }
+            else -> isRestoring = false
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { billingManager.destroy() }
+    }
+
+    val accentColor = Color(0xFF7C3AED)
+    val goldColor   = Color(0xFFFFB300)
 
     Scaffold(
-        containerColor = Surface0,
-        topBar = { AiriScreenHeader(title = "الترقية إلى Premium", onBack = onBack) }
+        containerColor = Color.Transparent,
+        snackbarHost   = { SnackbarHost(snackbarHost) },
+        topBar = {
+            TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.8f)),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                },
+                title = {
+                    Text("Upgrade to Premium", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            )
+        }
     ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFF0A0A0A), Color(0xFF0F0520), Color(0xFF0A0A0A))
+                    )
+                )
         ) {
-            // Hero
-            Box(contentAlignment = Alignment.Center) {
-                Box(modifier = Modifier.size(160.dp)
-                    .background(Brush.radialGradient(listOf(SemanticWarning.copy(glowAlpha), Color.Transparent))))
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+
+                // ── Hero Badge ─────────────────────────────────────────────────
                 Box(
-                    modifier = Modifier.size(90.dp).clip(CircleShape)
-                        .background(Brush.radialGradient(listOf(SemanticWarning.copy(0.3f), SemanticWarning.copy(0.08f))))
-                        .border(2.dp, SemanticWarning.copy(0.55f), CircleShape),
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(accentColor.copy(alpha = 0.3f), Color.Transparent)
+                            )
+                        )
+                        .border(2.dp, accentColor.copy(alpha = 0.6f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Outlined.Star, contentDescription = null, tint = SemanticWarning, modifier = Modifier.size(44.dp))
+                    Icon(
+                        Icons.Outlined.Star,
+                        contentDescription = null,
+                        tint   = goldColor,
+                        modifier = Modifier.size(40.dp)
+                    )
                 }
-            }
-            Text("AIRI Premium", color = TextPrimary, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-            Text("اطلق الإمكانات الكاملة\nللذكاء الاصطناعي", color = TextSecondary, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 22.sp)
 
-            // Plan selector
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                PlanOption(
-                    label = "شهري",
-                    price = "$9.99",
-                    period = "/ شهر",
-                    selected = selectedPlan == "monthly",
-                    badge = null,
-                    onClick = { selectedPlan = "monthly" },
-                    modifier = Modifier.weight(1f)
-                )
-                PlanOption(
-                    label = "سنوي",
-                    price = "$59.99",
-                    period = "/ سنة",
-                    selected = selectedPlan == "yearly",
-                    badge = "وفر 50%",
-                    onClick = { selectedPlan = "yearly" },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            // Features
-            Box(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                    .background(Surface1).border(1.dp, BorderLight, RoundedCornerShape(18.dp))
-                    .padding(16.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FEATURES.forEach { feature ->
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Box(
-                                modifier = Modifier.size(32.dp).clip(CircleShape)
-                                    .background(SemanticWarning.copy(0.15f)),
-                                contentAlignment = Alignment.Center
+                // ── AI Power Meter — visible when free usage is high ──────────
+                if (usagePercent >= 40) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Icon(Icons.Outlined.Check, contentDescription = null, tint = SemanticWarning, modifier = Modifier.size(16.dp))
+                                Icon(
+                                    Icons.Outlined.Bolt,
+                                    contentDescription = null,
+                                    tint     = goldColor,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text       = "AI Power",
+                                    fontSize   = 11.sp,
+                                    color      = Color.White.copy(alpha = 0.55f),
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
-                            Text(feature.text, color = TextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            Text(
+                                text     = "${100 - usagePercent}% remaining",
+                                fontSize = 11.sp,
+                                color    = if (usagePercent >= 80) goldColor else Color.White.copy(alpha = 0.45f)
+                            )
+                        }
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = (1f - usagePercent / 100f).coerceIn(0f, 1f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = when {
+                                usagePercent >= 80 -> goldColor
+                                usagePercent >= 60 -> Color(0xFFFF7043)
+                                else               -> accentColor
+                            },
+                            trackColor = Color.White.copy(alpha = 0.1f)
+                        )
+                    }
+                }
+
+                // ── Headline ───────────────────────────────────────────────────
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text       = "AIRI Premium",
+                        fontSize   = 28.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color      = Color.White
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text      = if (contextMessage != null)
+                            contextMessage
+                        else
+                            "Unlock the full power of your on-device AI assistant",
+                        fontSize  = 14.sp,
+                        color     = Color.White.copy(alpha = 0.55f),
+                        textAlign = TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
+                }
+
+                // ── Pricing Card ───────────────────────────────────────────────
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(accentColor.copy(alpha = 0.12f))
+                        .border(1.5.dp, accentColor.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                        .padding(20.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text       = "Monthly",
+                                fontSize   = 12.sp,
+                                color      = Color.White.copy(alpha = 0.55f),
+                                fontWeight = FontWeight.Medium,
+                                letterSpacing = 1.sp
+                            )
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(
+                                    text       = "$4.99",
+                                    fontSize   = 36.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color      = Color.White
+                                )
+                                Text(
+                                    text     = "/month",
+                                    fontSize = 14.sp,
+                                    color    = Color.White.copy(alpha = 0.5f),
+                                    modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
+                                )
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = accentColor.copy(alpha = 0.25f)
+                        ) {
+                            Text(
+                                text       = "PREMIUM",
+                                fontSize   = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color      = accentColor,
+                                letterSpacing = 1.5.sp,
+                                modifier   = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
                         }
                     }
                 }
-            }
 
-            // CTA
-            Button(
-                onClick = { purchasing = true /* trigger billing */ },
-                modifier = Modifier.fillMaxWidth().height(54.dp),
-                shape = RoundedCornerShape(16.dp),
-                enabled = !purchasing,
-                colors = ButtonDefaults.buttonColors(containerColor = SemanticWarning, contentColor = Color(0xFF1A1000))
-            ) {
-                if (purchasing) {
-                    CircularProgressIndicator(color = Color(0xFF1A1000), modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                } else {
+                // ── Benefits List ──────────────────────────────────────────────
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.White.copy(alpha = 0.04f))
+                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
                     Text(
-                        if (selectedPlan == "yearly") "ابدأ تجربة مجانية 7 أيام" else "اشترك الآن",
-                        fontWeight = FontWeight.Bold, fontSize = 16.sp
+                        text       = "What's included",
+                        fontSize   = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color      = Color.White.copy(alpha = 0.6f),
+                        letterSpacing = 0.5.sp
+                    )
+
+                    BenefitRow(
+                        icon        = Icons.Outlined.AllInclusive,
+                        title       = "Unlimited Messages",
+                        description = "Send as many messages as you need, every day"
+                    )
+                    BenefitRow(
+                        icon        = Icons.Outlined.SmartToy,
+                        title       = "Unlimited Agent Execution",
+                        description = "Run AI agents without daily execution caps"
+                    )
+                    BenefitRow(
+                        icon        = Icons.Outlined.AutoAwesome,
+                        title       = "Advanced AI Features",
+                        description = "Background agent, priority model access, and more"
+                    )
+                    BenefitRow(
+                        icon        = Icons.Outlined.Lock,
+                        title       = "Complete Privacy",
+                        description = "All processing stays on your device, always"
+                    )
+                    BenefitRow(
+                        icon        = Icons.Outlined.Bolt,
+                        title       = "Priority Performance",
+                        description = "Fastest response times with optimized inference"
                     )
                 }
-            }
 
-            TextButton(onClick = onBack, colors = ButtonDefaults.textButtonColors(contentColor = TextTertiary)) {
-                Text("متابعة بدون Premium", fontSize = 13.sp)
-            }
+                // ── CTA Button ─────────────────────────────────────────────────
+                Button(
+                    onClick = {
+                        AnalyticsService.upgradeClick()
+                        AnalyticsService.paywallClicked(triggerReason.source)
+                        if (activity != null) {
+                            billingManager.launchPurchaseFlow(activity)
+                        } else {
+                            scope.launch {
+                                snackbarHost.showSnackbar("Unable to open billing from this screen.")
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape  = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accentColor,
+                        contentColor   = Color.White
+                    ),
+                    enabled = billingState !is BillingManager.BillingState.Connecting
+                ) {
+                    if (billingState is BillingManager.BillingState.Connecting) {
+                        CircularProgressIndicator(
+                            color       = Color.White,
+                            strokeWidth = 2.dp,
+                            modifier    = Modifier.size(20.dp)
+                        )
+                    } else {
+                        Icon(Icons.Outlined.Star, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text       = ctaText,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize   = 15.sp
+                        )
+                    }
+                }
 
-            Spacer(Modifier.height(16.dp))
+                // ── Urgency strip (A/B variant B only) ────────────────────────
+                if (showUrgency) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = accentColor.copy(alpha = 0.1f)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Outlined.Bolt,
+                                contentDescription = null,
+                                tint     = accentColor,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text      = "Limited time: unlock full AI power",
+                                fontSize  = 12.sp,
+                                color     = accentColor,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
+                // ── Restore Purchases ──────────────────────────────────────────
+                TextButton(
+                    onClick = {
+                        isRestoring = true
+                        scope.launch {
+                            billingManager.restorePurchases()
+                            if (billingState !is BillingManager.BillingState.PurchaseSuccess) {
+                                snackbarHost.showSnackbar("No active subscription found to restore.")
+                                isRestoring = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    AnimatedVisibility(visible = isRestoring) {
+                        CircularProgressIndicator(
+                            color       = Color.White.copy(alpha = 0.5f),
+                            strokeWidth = 1.5.dp,
+                            modifier    = Modifier.size(14.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(
+                        text  = "Restore Purchases",
+                        color = Color.White.copy(alpha = 0.45f),
+                        fontSize = 13.sp
+                    )
+                }
+
+                // ── Fine Print ─────────────────────────────────────────────────
+                Text(
+                    text = "Subscription renews automatically at \$4.99/month. Cancel anytime in Google Play. " +
+                           "Payment is charged to your Google account at confirmation of purchase.",
+                    fontSize  = 10.sp,
+                    color     = Color.White.copy(alpha = 0.28f),
+                    textAlign = TextAlign.Center,
+                    lineHeight = 15.sp,
+                    modifier  = Modifier.padding(horizontal = 8.dp)
+                )
+
+                Spacer(Modifier.height(16.dp))
+            }
         }
     }
 }
 
 @Composable
-private fun PlanOption(
-    label: String, price: String, period: String,
-    selected: Boolean, badge: String?,
-    onClick: () -> Unit, modifier: Modifier
+private fun BenefitRow(
+    icon: ImageVector,
+    title: String,
+    description: String
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (selected) SemanticWarning.copy(0.14f) else Surface1)
-            .border(
-                width = if (selected) 1.5.dp else 1.dp,
-                color = if (selected) SemanticWarning else BorderLight,
-                shape = RoundedCornerShape(16.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(14.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            if (badge != null) {
-                NeuralBadge(badge, SemanticWarning)
-                Spacer(Modifier.height(6.dp))
-            }
-            Text(label, color = if (selected) SemanticWarning else TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(4.dp))
-            Text(price, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            Text(period, color = TextSecondary, fontSize = 11.sp)
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF7C3AED).copy(alpha = 0.15f))
+                .border(1.dp, Color(0xFF7C3AED).copy(alpha = 0.3f), RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector     = icon,
+                contentDescription = null,
+                tint            = Color(0xFF7C3AED),
+                modifier        = Modifier.size(20.dp)
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text       = title,
+                fontSize   = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color      = Color.White
+            )
+            Text(
+                text    = description,
+                fontSize = 12.sp,
+                color   = Color.White.copy(alpha = 0.45f),
+                lineHeight = 17.sp
+            )
         }
     }
 }

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network security config for AIRI.
+
+  Allows cleartext (HTTP) traffic to:
+    - localhost       — Ollama / LM Studio running on the same device
+    - 10.x.x.x       — Local network Ollama / LM Studio on LAN
+    - 192.168.x.x    — Home/office network local servers
+    - 172.x.x.x      — Docker / private subnet servers
+
+  All other traffic (cloud providers, remote APIs) uses HTTPS only.
+-->
+<network-security-config>
+
+    <!-- Default: only trust well-known CAs for all internet traffic -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+
+    <!-- Localhost: Ollama (11434) / LM Studio (1234) — HTTP permitted -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.0.0</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+
+    <!-- LAN ranges for self-hosted AI servers (Ollama, LM Studio, llama-server) -->
+    <!-- Note: Android network-security-config does not support CIDR; users entering
+         a 192.168.x.x or 172.x.x.x address will need to add their specific host
+         or set usesCleartextTraffic="true" in a debug build. -->
+
+</network-security-config>

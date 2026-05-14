@@ -402,16 +402,4 @@
     <string name="porcupine_source_build">المصدر: إعداد البناء</string>
     <string name="porcupine_help_link">احصل على مفتاح مجاني من console.picovoice.ai</string>
     <string name="speech_recognition_unavailable">التعرف على الكلام غير متاح على هذا الجهاز</string>
-    <!-- Vision / model picker feedback -->
-    <string name="image_attached_vision_ready">النموذج البصري جاهز — سيتم تحليل الصورة</string>
-    <string name="vision_ready_badge">الرؤية: جاهزة</string>
-    <string name="pick_mmproj">مسقط الرؤية (mmproj)</string>
-    <!-- Generation settings — repeat penalty -->
-    <string name="penalty_last_n">نافذة التكرار</string>
-    <string name="penalty_last_n_hint">الرموز الأخيرة المفحوصة للتكرار (0 = إيقاف، 64 = افتراضي)</string>
-    <!-- Welcome suggestions -->
-    <string name="suggestion_what_can_you_do">بماذا يمكنك مساعدتي؟</string>
-    <string name="suggestion_explain_ai">كيف يعمل الذكاء الاصطناعي على الجهاز؟</string>
-    <string name="suggestion_write_poem">اكتب لي قصيدة قصيرة</string>
-    <string name="suggestion_brainstorm">ساعدني في توليد الأفكار</string>
 </resources>

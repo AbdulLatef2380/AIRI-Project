@@ -114,7 +114,7 @@ class ModelDownloadService : Service() {
                         Log.i("AIRI_PROOF", "DOWNLOAD_CANCELLED fileName=$fileName reason=cancel_during_retry")
                         break
                     }
-                    if (attempt < 3) Thread.sleep(1500L * attempt)
+                    if (attempt < 3) kotlinx.coroutines.delay(1500L * attempt)
                 }
             }
             if (!success) {

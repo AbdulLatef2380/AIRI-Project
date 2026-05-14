@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Base AIRI application theme using Material3 -->
-    <style name="Theme.AIRI" parent="Theme.Material3.DayNight.NoActionBar">
+    <!-- Base AIRI application theme -->
+    <style name="Theme.AIRI" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@android:color/black</item>
         <item name="android:statusBarColor">#0A0E27</item>
         <item name="android:navigationBarColor">#0A0E27</item>
@@ -11,6 +11,7 @@
     <!-- Activity theme: full screen for Compose, no action bar -->
     <style name="Theme.AIRI.NoActionBar" parent="Theme.AIRI">
         <item name="android:windowFullscreen">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
 </resources>

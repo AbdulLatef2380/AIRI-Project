@@ -66,10 +66,6 @@ interface MemoryDao {
     @Query("DELETE FROM episodic_memory")
     suspend fun clearSemanticMemories()
 
-    /** Delete a single memory row by its primary key. */
-    @Query("DELETE FROM episodic_memory WHERE id = :id")
-    suspend fun deleteById(id: Long)
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun savePreference(preference: UserPreference)
 

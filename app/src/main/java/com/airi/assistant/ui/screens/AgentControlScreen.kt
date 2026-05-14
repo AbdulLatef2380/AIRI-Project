@@ -1,47 +1,56 @@
 package com.airi.assistant.ui.screens
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airi.assistant.ui.AiriRoute
-import com.airi.assistant.ui.components.*
-import com.airi.assistant.ui.theme.*
+import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.viewmodel.AgentViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AgentControlScreen(
     viewModel: AgentViewModel,
-    onBack: () -> Unit,
-    onNavigate: (String) -> Unit = {}
+    onBack: () -> Unit
 ) {
-    val agentState   by viewModel.agentState.collectAsState()
-    val isRunning    = agentState.isWorking
+    val skillInfos  = remember { viewModel.getSkillInfos().toMutableStateList() }
+    val toolList    = remember { viewModel.getToolList() }
+    val debugMode   by viewModel.debugMode.collectAsState()
 
     Scaffold(
-        containerColor = Surface0,
+        containerColor = Color.Transparent,
         topBar = {
-            AiriScreenHeader(title = "التحكم في العميل", onBack = onBack)
+            TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Black.copy(alpha = 0.65f)
+                ),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                },
+                title = {
+                    Text(
+                        "Agent Control",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            )
         }
     ) { padding ->
         Column(
@@ -49,96 +58,204 @@ fun AgentControlScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Status card
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        Brush.linearGradient(
-                            if (isRunning) listOf(PrimaryAccent.copy(0.18f), AccentDark.copy(0.10f))
-                            else listOf(Surface2, Surface1)
-                        )
-                    )
-                    .border(
-                        1.dp,
-                        if (isRunning) PrimaryAccent.copy(0.4f) else BorderLight,
-                        RoundedCornerShape(20.dp)
-                    )
-                    .padding(20.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Box(
-                        modifier = Modifier.size(52.dp).clip(CircleShape)
-                            .background(if (isRunning) PrimaryAccent.copy(0.22f) else Surface3),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val inf = rememberInfiniteTransition(label = "agent_spin")
-                        val rot by if (isRunning) inf.animateFloat(0f, 360f, infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "rot")
-                        else remember { mutableStateOf(0f) }
-                        Icon(
-                            Icons.Outlined.SmartToy,
-                            contentDescription = null,
-                            tint = if (isRunning) PrimaryAccent else TextTertiary,
-                            modifier = Modifier.size(26.dp).rotate(if (isRunning) rot else 0f)
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(if (isRunning) "العميل نشط" else "العميل في وضع الراحة", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text(
-                            agentState.activeGoalDescription.ifBlank { null }?.take(60) ?: "لا توجد مهمة حالية",
-                            color = TextSecondary, fontSize = 12.sp, maxLines = 2
-                        )
-                    }
-                    NeuralBadge(if (isRunning) "يعمل" else "خامل", if (isRunning) SemanticSuccess else TextTertiary)
-                }
-            }
 
-            // Progress
-            if (isRunning) {
-                AnimatedVisibility(visible = true, enter = fadeIn() + expandVertically()) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                            .background(Surface1).border(1.dp, BorderLight, RoundedCornerShape(16.dp)).padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text("التقدم", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).height(4.dp),
-                            color = PrimaryAccent,
-                            trackColor = Surface3
-                        )
-                        Text("${agentState.nodesCompleted} / ${agentState.nodesTotal} خطوة", color = TextTertiary, fontSize = 11.sp)
-                    }
-                }
-            }
-
-            NeuralSectionLabel("الأدوات والوصول")
-            NeuralSectionCard {
-                NeuralRowItem(icon = Icons.Outlined.ManageHistory, title = "سجل العميل", subtitle = "عرض سجل الإجراءات والخطوات", onClick = { onNavigate(AiriRoute.AGENT_LOGS) })
-                NeuralDivider()
-                NeuralRowItem(icon = Icons.Outlined.Analytics, title = "المراقبة", subtitle = "مقاييس وحالة التشغيل", onClick = { onNavigate(AiriRoute.OBSERVABILITY) })
-                NeuralDivider()
-                NeuralRowItem(icon = Icons.Outlined.Dashboard, title = "لوحة المهام", subtitle = "المهام النشطة والمجدولة", onClick = { onNavigate(AiriRoute.TASK_DASHBOARD) })
-            }
-
-            if (isRunning) {
+            // ── Skills Control ──────────────────────────────────────────────
+            AgentControlCard {
+                AgentSectionHeader(icon = Icons.Outlined.AutoAwesome, title = "Skills")
                 Spacer(Modifier.height(4.dp))
-                Button(
-                    onClick = { viewModel.stopAgent() },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = SemanticError.copy(0.15f), contentColor = SemanticError),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp)
+                Text(
+                    text  = "Toggle skills on/off. Skills require connected integrations.",
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.35f),
+                    modifier = Modifier.padding(bottom = 10.dp)
+                )
+                skillInfos.forEachIndexed { index, info ->
+                    if (index > 0) {
+                        Divider(
+                            color = Color.White.copy(alpha = 0.05f),
+                            modifier = Modifier.padding(vertical = 6.dp)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = controlSkillDisplayName(info.name),
+                                    color = if (info.isConnected) Color.White.copy(alpha = 0.9f)
+                                            else Color.White.copy(alpha = 0.35f),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (info.isConnected)
+                                                Color(0xFF00C853).copy(alpha = 0.15f)
+                                            else Color(0xFFFF5252).copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = if (info.isConnected) "Connected" else "Not Connected",
+                                        fontSize = 9.sp,
+                                        color = if (info.isConnected) Color(0xFF00C853)
+                                                else Color(0xFFFF5252),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = info.description,
+                                color = Color.White.copy(alpha = 0.4f),
+                                fontSize = 11.sp
+                            )
+                        }
+                        Switch(
+                            checked = info.isEnabled && info.isConnected,
+                            onCheckedChange = { enabled ->
+                                if (info.isConnected) {
+                                    skillInfos[index] = info.copy(isEnabled = enabled)
+                                    viewModel.setSkillEnabled(info.name, enabled)
+                                }
+                            },
+                            enabled = info.isConnected,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor   = CosmicAccent,
+                                checkedTrackColor   = CosmicAccent.copy(alpha = 0.3f),
+                                uncheckedThumbColor = Color.White.copy(alpha = 0.4f),
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.1f),
+                                disabledCheckedThumbColor   = Color.White.copy(alpha = 0.2f),
+                                disabledUncheckedThumbColor = Color.White.copy(alpha = 0.15f),
+                                disabledCheckedTrackColor   = Color.White.copy(alpha = 0.08f),
+                                disabledUncheckedTrackColor = Color.White.copy(alpha = 0.05f)
+                            )
+                        )
+                    }
+                }
+            }
+
+            // ── Tools Visibility ────────────────────────────────────────────
+            AgentControlCard {
+                AgentSectionHeader(icon = Icons.Outlined.Build, title = "Available Tools")
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text  = "Tools are the low-level actions that skills use to call external services.",
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.35f),
+                    modifier = Modifier.padding(bottom = 10.dp)
+                )
+                toolList.forEachIndexed { index, (toolName, source) ->
+                    if (index > 0) Divider(
+                        color = Color.White.copy(alpha = 0.04f),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = toolName.replace("_", " "),
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = CosmicAccent.copy(alpha = 0.1f)
+                        ) {
+                            Text(
+                                text = source,
+                                fontSize = 10.sp,
+                                color = CosmicAccent.copy(alpha = 0.85f),
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Debug Mode ──────────────────────────────────────────────────
+            AgentControlCard {
+                AgentSectionHeader(icon = Icons.Outlined.BugReport, title = "Debug Mode")
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text  = "Shows raw tool JSON and reasoning steps in the chat trace.",
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.35f),
+                    modifier = Modifier.padding(bottom = 10.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Outlined.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("إيقاف العميل", fontWeight = FontWeight.SemiBold)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Enable Debug Mode",
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = if (debugMode) "Debug info visible in traces" else "Only results shown",
+                            color = if (debugMode) CosmicAccent.copy(alpha = 0.65f)
+                                    else Color.White.copy(alpha = 0.35f),
+                            fontSize = 11.sp
+                        )
+                    }
+                    Switch(
+                        checked = debugMode,
+                        onCheckedChange = { viewModel.setDebugMode(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor   = CosmicAccent,
+                            checkedTrackColor   = CosmicAccent.copy(alpha = 0.3f),
+                            uncheckedThumbColor = Color.White.copy(alpha = 0.4f),
+                            uncheckedTrackColor = Color.White.copy(alpha = 0.1f)
+                        )
+                    )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun AgentControlCard(content: @Composable ColumnScope.() -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+            .padding(16.dp)
+    ) {
+        Column(content = content)
+    }
+}
+
+@Composable
+private fun AgentSectionHeader(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(title, fontWeight = FontWeight.Bold, color = CosmicAccent, fontSize = 13.sp)
+    }
+}
+
+private fun controlSkillDisplayName(name: String): String = when (name) {
+    "github_guardian"    -> "GitHub Guardian"
+    "telegram_messenger" -> "Telegram Messenger"
+    "gmail_assistant"    -> "Gmail Assistant"
+    "drive_search"       -> "Drive Search"
+    "calendar_events"    -> "Calendar Events"
+    else -> name.replace("_", " ").split(" ").joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
 }

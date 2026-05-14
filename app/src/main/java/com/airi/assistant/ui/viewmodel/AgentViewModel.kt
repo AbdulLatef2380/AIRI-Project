@@ -5,7 +5,6 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import com.airi.assistant.ai.agent.trace.AgentTrace
 import com.airi.assistant.ai.agent.trace.AgentTraceManager
-import com.airi.assistant.core.ProofLogRepository
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.logging.LoggingService
 import com.airi.assistant.domain.skill.SkillService
@@ -25,17 +24,9 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     // ── Domain services ───────────────────────────────────────────────────────
     private val skillService: SkillService = ServiceLocator.skillService
 
-    // ── Trace state ───────────────────────────────────────────────────────────
+    // ── UI State ──────────────────────────────────────────────────────────────
 
     val traces: StateFlow<List<AgentTrace>> = traceManager.traces
-
-    /** Alias kept for UI back-compat. */
-    val agentTraces: StateFlow<List<AgentTrace>> get() = traces
-
-    // ── Agent execution state (mirrored for AgentControlScreen) ───────────────
-
-    private val _agentState = MutableStateFlow(AgentState())
-    val agentState: StateFlow<AgentState> = _agentState.asStateFlow()
 
     private val _debugMode = MutableStateFlow(
         preferences.getBoolean("agent_debug_mode", false)
@@ -44,20 +35,6 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _selectedTrace = MutableStateFlow<AgentTrace?>(null)
     val selectedTrace: StateFlow<AgentTrace?> = _selectedTrace.asStateFlow()
-
-    // ── Live AIRI_PROOF log state ─────────────────────────────────────────────
-
-    /** Live list of parsed AIRI_PROOF logcat entries. Streams in real time. */
-    val proofLog: StateFlow<List<ProofLogRepository.ProofLogEntry>> =
-        ProofLogRepository.instance.entries
-
-    /** True while the background logcat reader is active. */
-    val isLogStreaming: StateFlow<Boolean> = ProofLogRepository.instance.isStreaming
-
-    /** Non-null when the logcat stream encountered an error. */
-    val logStreamError: StateFlow<String?> = ProofLogRepository.instance.errorMessage
-
-    // ── Background agent ──────────────────────────────────────────────────────
 
     val backgroundAgentEnabled: Boolean
         get() = preferences.getBoolean("background_agent_enabled", false)
@@ -88,25 +65,6 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearLogs() = traceManager.clearTraces()
-
-    /** Alias kept for UI back-compat. */
-    fun clearTraces() = clearLogs()
-
-    /** Stop any running agent task and reset state. */
-    fun stopAgent() { _agentState.value = AgentState() }
-
-    // ── Live log actions ──────────────────────────────────────────────────────
-
-    /** Start streaming AIRI_PROOF events. Call from DisposableEffect. */
-    fun startLogStream() = ProofLogRepository.instance.start()
-
-    /** Stop the logcat reader. Call from DisposableEffect's onDispose. */
-    fun stopLogStream() = ProofLogRepository.instance.stop()
-
-    /** Clear all accumulated AIRI_PROOF entries. */
-    fun clearProofLog() = ProofLogRepository.instance.clear()
-
-    // ── Skills ────────────────────────────────────────────────────────────────
 
     fun getSkillInfos() = skillService.getAllSkillInfos()
 

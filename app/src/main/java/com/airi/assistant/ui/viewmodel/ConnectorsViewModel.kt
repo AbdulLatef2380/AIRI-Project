@@ -53,15 +53,6 @@ class ConnectorsViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun toggle(id: String) {
-        val row = _items.value.find { it.meta.id == id } ?: return
-        if (row.state.connected) disconnect(id) else connect(id)
-    }
-
-    fun configure(id: String) {
-        // Configuration dialog is opened at the screen level; ViewModel has no action.
-    }
-
     fun disconnect(id: String) {
         val c = registry.get(id) ?: return
         viewModelScope.launch {

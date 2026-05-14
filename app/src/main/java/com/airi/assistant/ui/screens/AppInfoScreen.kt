@@ -25,8 +25,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.theme.CosmicAccent
-import com.airi.assistant.ui.theme.Surface0
-import com.airi.assistant.ui.theme.Surface1
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,11 +32,11 @@ fun AboutScreen(onBack: () -> Unit) {
     val context = LocalContext.current
 
     Scaffold(
-        containerColor = Surface0,
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Surface1
+                    containerColor = Color.Black.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {

@@ -12,6 +12,7 @@ import com.airi.assistant.voice.VoskModelManager
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.unit.dp
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.unit.Dp
@@ -59,8 +60,6 @@ import com.airi.assistant.core.VoiceManager
 import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
-import com.airi.assistant.ui.theme.PrimaryAccent
-import com.airi.assistant.ui.theme.Surface0
 import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.ui.theme.InputBarBackground
 import com.airi.assistant.ui.viewmodel.AgentState
@@ -74,8 +73,6 @@ import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import com.airi.assistant.ui.components.AgentExecutionPanel
-import com.airi.assistant.ui.components.ContextPressureBar
 import com.airi.assistant.ui.theme.AiBubbleSurface
 import com.airi.assistant.ui.theme.AiBubbleBorder
 import com.airi.assistant.ui.theme.UserBubbleSurface
@@ -95,13 +92,12 @@ fun ChatScreen(
     val context       = LocalContext.current
     val drawerState   = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope         = rememberCoroutineScope()
-    val messages         by viewModel.messages.collectAsState()
-    val streamingText    by viewModel.streamingText.collectAsState()
-    val agentState       by viewModel.agentState.collectAsState()
-    val modelState       by viewModel.modelState.collectAsState()
-    val agentMode        by viewModel.agentMode.collectAsState()
-    val smartReplies     by viewModel.smartReplies.collectAsState()
-    val contextPressure  by viewModel.contextPressure.collectAsState()
+    val messages      by viewModel.messages.collectAsState()
+    val streamingText by viewModel.streamingText.collectAsState()
+    val agentState    by viewModel.agentState.collectAsState()
+    val modelState    by viewModel.modelState.collectAsState()
+    val agentMode     by viewModel.agentMode.collectAsState()
+    val smartReplies  by viewModel.smartReplies.collectAsState()
     val snackbarHost  = remember { SnackbarHostState() }
     val paywallTrigger        by viewModel.paywallTrigger.collectAsState()
     val upgradePrompt         by viewModel.upgradePrompt.collectAsState()
@@ -152,87 +148,46 @@ fun ChatScreen(
 
     val wakeCounter by WakeWordDispatcher.counter
 
-    // ── Speech-to-Text — Dual-engine dispatcher ───────────────────────────────
+    // ── In-app speech-to-text (Vosk on-device, NO Google APIs) ──────────────
     //
-    // PRIMARY  : Android SpeechRecognizer (system STT).  Works on every device
-    //            out-of-the-box — no model download, no Google dialog required.
-    //            Arabic-first (ar-SA) with automatic English fallback.
+    // This screen used to drive android.speech.SpeechRecognizer, which
+    // requires Google's offline voice-search bundle to actually run
+    // offline. On devices without that bundle (many OEMs, GMS-less
+    // hardware) it either popped a Google dialog or silently failed.
     //
-    // ENHANCED : VoskEngine (on-device, 100 % offline).  Auto-selected when a
-    //            Vosk model is installed via Voice Settings.  No Google services,
-    //            no network after the one-off model download.
-    //
-    // Dispatch logic: isReady(Vosk) → VoskEngine, else → NativeSttEngine.
+    // We now stream microphone audio straight into a Vosk Recognizer
+    // (com.alphacephei:vosk-android) loaded from a model the user
+    // downloads via the in-app downloader (VoskModelManager). No
+    // RecognizerIntent, no SpeechRecognizer, no network, no Google.
     val voskEngineHolder = remember { mutableStateOf<VoskEngine?>(null) }
-    val nativeSttHolder  = remember { mutableStateOf<com.airi.assistant.voice.NativeSttEngine?>(null) }
     DisposableEffect(Unit) {
         onDispose {
             voskEngineHolder.value?.release()
             voskEngineHolder.value = null
-            nativeSttHolder.value?.release()
-            nativeSttHolder.value = null
         }
     }
 
     fun stopInAppStt() {
         voskEngineHolder.value?.stop()
-        nativeSttHolder.value?.stop()
     }
 
-    fun handleSttResult(spoken: String, autoSend: Boolean) {
-        if (spoken.isNotBlank()) {
-            if (autoSend) {
-                voiceState     = VoiceSessionState.PROCESSING
-                voiceChatInput = spoken
-            } else {
-                voiceState = VoiceSessionState.IDLE
-                voiceInput = spoken
-            }
-        } else {
+    fun startInAppStt(autoSend: Boolean) {
+        if (!VoskModelManager.isReady(context)) {
             voiceState = VoiceSessionState.IDLE
-        }
-    }
-
-    fun handleSttError(err: String) {
-        Log.w("AIRI_VOICE", "STT error: $err")
-        voskEngineHolder.value?.release(); voskEngineHolder.value = null
-        nativeSttHolder.value?.release();  nativeSttHolder.value = null
-        voiceState = VoiceSessionState.IDLE
-        if (err != "no_speech_detected" && err != "speech_timeout") {
             scope.launch {
-                snackbarHost.showSnackbar(context.getString(R.string.speech_recognition_unavailable))
+                snackbarHost.showSnackbar(
+                    context.getString(R.string.no_voice_model_installed)
+                )
             }
+            return
         }
-    }
-
-    fun startNativeStt(autoSend: Boolean) {
-        nativeSttHolder.value?.release()
-        nativeSttHolder.value = null
-        val engine = com.airi.assistant.voice.NativeSttEngine(context)
-        nativeSttHolder.value = engine
-        voiceState = VoiceSessionState.LISTENING
-        val sttLocale = context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE)
-            .getString("stt_locale", "ar-SA") ?: "ar-SA"
-        engine.start(
-            locale    = sttLocale,
-            onPartial = { partial -> if (partial.isNotBlank()) voiceInput = partial },
-            onFinal   = { spoken ->
-                if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "NativeSTT result len=${spoken.length} autoSend=$autoSend")
-                nativeSttHolder.value = null
-                handleSttResult(spoken, autoSend)
-            },
-            onError = { err -> nativeSttHolder.value = null; handleSttError(err) }
-        )
-    }
-
-    fun startVoskStt(autoSend: Boolean) {
         voskEngineHolder.value?.release()
         voskEngineHolder.value = null
         scope.launch {
             val model = VoskModelManager.loadActiveModel(context)
             if (model == null) {
-                Log.w("AIRI_VOICE", "Vosk model load failed → falling back to native STT")
-                startNativeStt(autoSend)
+                voiceState = VoiceSessionState.IDLE
+                snackbarHost.showSnackbar(context.getString(R.string.voice_model_load_failed))
                 return@launch
             }
             val engine = VoskEngine(context, model)
@@ -243,24 +198,32 @@ fun ChatScreen(
                 onPartial = { /* future: surface live partial text */ },
                 onFinal   = { spoken ->
                     if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "Vosk STT result len=${spoken.length} autoSend=$autoSend")
-                    voskEngineHolder.value?.release(); voskEngineHolder.value = null
-                    handleSttResult(spoken, autoSend)
+                    voskEngineHolder.value?.release()
+                    voskEngineHolder.value = null
+                    if (spoken.isNotBlank()) {
+                        if (autoSend) {
+                            voiceState     = VoiceSessionState.PROCESSING
+                            voiceChatInput = spoken
+                        } else {
+                            voiceState = VoiceSessionState.IDLE
+                            voiceInput = spoken
+                        }
+                    } else {
+                        voiceState = VoiceSessionState.IDLE
+                    }
                 },
-                onError = { err ->
-                    voskEngineHolder.value?.release(); voskEngineHolder.value = null
-                    handleSttError(err)
+                onError   = { err ->
+                    Log.w("AIRI_VOICE", "Vosk STT error: $err")
+                    voskEngineHolder.value?.release()
+                    voskEngineHolder.value = null
+                    voiceState = VoiceSessionState.IDLE
+                    scope.launch {
+                        snackbarHost.showSnackbar(
+                            context.getString(R.string.speech_recognition_unavailable)
+                        )
+                    }
                 }
             )
-        }
-    }
-
-    fun startInAppStt(autoSend: Boolean) {
-        if (VoskModelManager.isReady(context)) {
-            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "STT dispatcher → Vosk (offline) autoSend=$autoSend")
-            startVoskStt(autoSend)
-        } else {
-            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "STT dispatcher → NativeSTT (system) autoSend=$autoSend")
-            startNativeStt(autoSend)
         }
     }
 
@@ -300,6 +263,7 @@ fun ChatScreen(
         if (wakeCounter > 0 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
                 PackageManager.PERMISSION_GRANTED &&
+            VoskModelManager.isReady(context) &&
             voiceState == VoiceSessionState.IDLE) {
             if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "Wake-word dispatcher fired → starting in-app STT (autoSend)")
             startInAppStt(autoSend = true)
@@ -448,7 +412,7 @@ fun ChatScreen(
     LaunchedEffect(voiceLoopRearmTick.value) {
         if (voiceLoopRearmTick.value > 0 &&
             liveChatActiveRef.value &&
-            modelState.isModelReady &&
+            (modelState.isModelReady || modelState.isCloudReady) &&
             !agentState.isWorking
         ) {
             kotlinx.coroutines.delay(350)
@@ -490,7 +454,7 @@ fun ChatScreen(
     val voicePrefs = remember { context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE) }
     LaunchedEffect(voiceChatInput) {
         val input = voiceChatInput
-        if (input.isNotBlank() && modelState.isModelReady && !agentState.isWorking) {
+        if (input.isNotBlank() && (modelState.isModelReady || modelState.isCloudReady) && !agentState.isWorking) {
             if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_VOICE", "VoiceChat auto-send: '${input.take(60)}' len=${input.length}")
             if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_UI", "sendMessage triggered by voice input len=${input.length}")
             voiceChatInput = ""
@@ -728,27 +692,6 @@ fun ChatScreen(
             },
             bottomBar = {
               Column(modifier = Modifier.fillMaxWidth().imePadding()) {
-                // ── Context window pressure indicator ──────────────────────────
-                // Visible only at WARNING (≥70%), CRITICAL (≥90%), OVERFLOW (≥100%).
-                // Slides in/out with animated progress bar + level-appropriate CTA.
-                ContextPressureBar(
-                    report      = contextPressure,
-                    onSummarize = {
-                        Log.i("AIRI_PROOF", "CONTEXT_PRESSURE_SUMMARIZE_REQUESTED " +
-                            "level=${contextPressure.level} used=${contextPressure.usedPercent}%")
-                        viewModel.sendMessage(
-                            "Summarize our conversation so far in 3–4 sentences, " +
-                            "covering the main topics and any conclusions reached."
-                        )
-                    },
-                    onNewChat   = {
-                        Log.i("AIRI_PROOF", "CONTEXT_PRESSURE_NEW_CHAT_REQUESTED " +
-                            "level=${contextPressure.level} used=${contextPressure.usedPercent}%")
-                        viewModel.clearMessages()
-                    }
-                )
-                // ── Live agent execution status panel ─────────────────────────
-                AgentExecutionPanel(agentState = agentState)
                 // ── PHASE 3 (actual fix): unified attachment chip row ──────────
                 // One row, one chip per attachment, regardless of kind. The
                 // image-vs-file-vs-camera distinction is now just an icon +
@@ -1029,6 +972,7 @@ private fun ChatTopBar(
                     text = when {
                         agentState.isWorking         -> stringResource(R.string.generating)
                         modelState.isModelReady      -> modelState.selectedModelName
+                        modelState.isCloudReady      -> "☁ ${modelState.cloudModelName}"
                         modelState.isModelLoading    -> stringResource(R.string.loading_model)
                         else                         -> stringResource(R.string.no_model_active)
                     },
@@ -1036,6 +980,7 @@ private fun ChatTopBar(
                     color = when {
                         agentState.isWorking      -> CosmicAccent
                         modelState.isModelReady   -> CosmicAccent.copy(alpha = 0.8f)
+                        modelState.isCloudReady   -> Color(0xFF4FC3F7).copy(alpha = 0.8f) // sky-blue for cloud
                         else                      -> Color.White.copy(alpha = 0.6f)
                     },
                     maxLines = 1,
@@ -1182,6 +1127,7 @@ fun ChatMessageList(
                     maxLines = 1
                 )
                 Spacer(Modifier.height(6.dp))
+                val anyReady = isModelReady  // passed as parameter — cloud check via modelState below
                 Text(
                     if (isModelReady) stringResource(R.string.ask_anything_model_active)
                     else stringResource(R.string.activate_model_gallery_first),
@@ -1312,7 +1258,7 @@ fun UserBubble(text: String, imageUri: String? = null) {
                     .widthIn(max = 340.dp)
                     .clip(RoundedCornerShape(20.dp, 4.dp, 20.dp, 20.dp))
                     .background(UserBubbleSurface)
-                    .border(1.dp, PrimaryAccent.copy(alpha = 0.35f), RoundedCornerShape(20.dp, 4.dp, 20.dp, 20.dp))
+                    .border(1.dp, CosmicAccent.copy(alpha = 0.28f), RoundedCornerShape(20.dp, 4.dp, 20.dp, 20.dp))
                     .clickable {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
@@ -1838,7 +1784,11 @@ fun ChatInputBar(
 ) {
     var showAttachPopup by remember { mutableStateOf(false) }
     var text by rememberSaveable { mutableStateOf("") }
-    val canSend = text.isNotBlank() && modelState.isModelReady && !modelState.isModelLoading && !isGenerating
+    // PHASE 2 FIX: chat must unlock when LOCAL *or* CLOUD inference is ready.
+    // Previously this only checked isModelReady (local), blocking ALL chat when
+    // no llama.cpp model was loaded even with a cloud provider configured.
+    val isInferenceReady = modelState.isModelReady || modelState.isCloudReady
+    val canSend = text.isNotBlank() && isInferenceReady && !modelState.isModelLoading && !isGenerating
 
     val micPulse = remember { androidx.compose.animation.core.Animatable(1f) }
     LaunchedEffect(voiceState) {
@@ -1967,98 +1917,44 @@ fun ChatInputBar(
                 }
             }
 
-            // ── Model lock banner (Phase 3) ──────────────────────────────
-            // Displayed above the input pill whenever the model is not ready.
-            // • No model selected → amber "tap to select" full-width banner.
-            // • Model loading     → progress bar + model name.
-            // Both states disable text input and send (gated by canSend below).
-            if (!modelState.isModelReady) {
-                if (modelState.isModelLoading) {
-                    // ── Loading state: progress bar banner ──────────────
-                    androidx.compose.foundation.layout.Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                            .background(CosmicAccent.copy(alpha = 0.10f))
-                            .border(1.dp, CosmicAccent.copy(alpha = 0.22f),
-                                androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier    = Modifier.size(13.dp),
-                                    strokeWidth = 1.5.dp,
-                                    color       = CosmicAccent
-                                )
-                                Text(
-                                    text     = stringResource(R.string.loading_model_name,
-                                        modelState.selectedModelName),
-                                    color    = CosmicAccent,
-                                    fontSize = 12.sp,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                                    modifier = Modifier.weight(1f),
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text     = "${modelState.loadProgress}%",
-                                    color    = CosmicAccent.copy(alpha = 0.75f),
-                                    fontSize = 11.sp
-                                )
-                            }
-                            LinearProgressIndicator(
-                                progress    = modelState.loadProgress / 100f,
-                                modifier    = Modifier.fillMaxWidth().height(2.dp)
-                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(1.dp)),
-                                color       = CosmicAccent,
-                                trackColor  = CosmicAccent.copy(alpha = 0.12f)
-                            )
-                        }
-                    }
-                } else {
-                    // ── No model state: full-width "tap to select" banner ─
-                    val noModelAmber = Color(0xFFFFB300)
-                    androidx.compose.foundation.layout.Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                            .background(noModelAmber.copy(alpha = 0.09f))
-                            .border(1.dp, noModelAmber.copy(alpha = 0.28f),
-                                androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                            .clickable(onClick = onOpenModels)
-                            .padding(horizontal = 14.dp, vertical = 11.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Icon(
-                                imageVector     = Icons.Outlined.Warning,
-                                contentDescription = null,
-                                tint            = noModelAmber,
-                                modifier        = Modifier.size(15.dp)
-                            )
-                            Text(
-                                text       = stringResource(R.string.no_model_tap_select),
-                                color      = noModelAmber,
-                                fontSize   = 12.sp,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                                modifier   = Modifier.weight(1f)
-                            )
-                            Icon(
-                                imageVector     = Icons.Outlined.ChevronRight,
-                                contentDescription = null,
-                                tint            = noModelAmber.copy(alpha = 0.6f),
-                                modifier        = Modifier.size(14.dp)
-                            )
-                        }
-                    }
+            // ── Inference source status chip ───────────────────────────────
+            // Shows: warning (no model) | loading indicator | cloud badge | nothing
+            if (!isInferenceReady && !modelState.isModelLoading) {
+                TextButton(onClick = onOpenModels, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp)) {
+                    Icon(Icons.Outlined.Warning, contentDescription = null, tint = Color(0xFFFFCC00), modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(R.string.no_model_tap_select), color = Color(0xFFFFCC00), fontSize = 12.sp)
+                }
+            } else if (modelState.isModelLoading) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp, start = 12.dp)) {
+                    CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp, color = CosmicAccent)
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.loading_model_name, modelState.selectedModelName), color = CosmicAccent.copy(alpha = 0.8f), fontSize = 12.sp)
+                }
+            } else if (modelState.isCloudReady && !modelState.isModelReady) {
+                // Cloud-only active — show a subtle sky-blue chip so user
+                // knows they're in cloud mode (no local model loaded)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(bottom = 4.dp, start = 8.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF4FC3F7).copy(alpha = 0.10f))
+                        .border(1.dp, Color(0xFF4FC3F7).copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                        .clickable { onOpenModels() }
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Icon(Icons.Outlined.Cloud, contentDescription = null,
+                        tint = Color(0xFF4FC3F7), modifier = Modifier.size(11.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        modelState.cloudModelName.ifBlank { "Cloud AI" },
+                        color = Color(0xFF4FC3F7).copy(alpha = 0.85f),
+                        fontSize = 11.sp, fontWeight = FontWeight.Medium
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Icon(Icons.Outlined.Circle, contentDescription = null,
+                        tint = Color(0xFF00C853), modifier = Modifier.size(6.dp))
                 }
             }
 
@@ -2066,7 +1962,7 @@ fun ChatInputBar(
             val isTyping  = text.isNotBlank()
             val showSend  = isTyping || isGenerating
             val mainEnabled = if (showSend) (canSend || isGenerating)
-                              else (modelState.isModelReady && !isGenerating)
+                              else (isInferenceReady && !isGenerating)
 
             // DarkSurface = 0x331A1A1A → dark gray @ 20 % alpha so the
             // starfield behind the pill stays visible (per spec).
@@ -2178,7 +2074,7 @@ fun ChatInputBar(
                             .padding(start = 4.dp)
                             .size(44.dp)
                             .clip(CircleShape)
-                            .clickable(enabled = modelState.isModelReady) { onMicClick() },
+                            .clickable(enabled = isInferenceReady) { onMicClick() },
                         contentAlignment = Alignment.Center
                     ) {
                         if (micActive) {
@@ -2197,7 +2093,7 @@ fun ChatInputBar(
                                 VoiceSessionState.PROCESSING -> Color.White
                                 VoiceSessionState.SPEAKING   -> Color.White
                                 VoiceSessionState.IDLE       ->
-                                    if (modelState.isModelReady) CosmicAccent
+                                    if (isInferenceReady) CosmicAccent
                                     else CosmicAccent.copy(alpha = 0.35f)
                             },
                             modifier = Modifier.size(22.dp)
@@ -2218,7 +2114,7 @@ fun ChatInputBar(
                         }
                         text = newValue
                     },
-                    enabled = modelState.isModelReady && !isGenerating,
+                    enabled = isInferenceReady && !isGenerating,
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 10.dp, vertical = 10.dp),
@@ -2236,6 +2132,7 @@ fun ChatInputBar(
                                         isGenerating              -> stringResource(R.string.generating)
                                         modelState.isModelLoading -> stringResource(R.string.model_is_loading)
                                         modelState.isModelReady   -> stringResource(R.string.message_airi)
+                                        modelState.isCloudReady   -> "Message AIRI via ${modelState.cloudModelName}…"
                                         else                      -> stringResource(R.string.activate_model_first)
                                     },
                                     color = Color.White.copy(alpha = 0.40f),
@@ -2415,7 +2312,7 @@ fun AiriDrawer(
     val initial = email.firstOrNull()?.uppercaseChar()?.toString() ?: "A"
 
     ModalDrawerSheet(
-        drawerContainerColor = Surface0,
+        drawerContainerColor = Color(0xFF0D1124),
         drawerContentColor   = Color.White,
         modifier = Modifier.width(300.dp)
     ) {
@@ -2435,7 +2332,7 @@ fun AiriDrawer(
                 .fillMaxWidth()
                 .background(
                     Brush.verticalGradient(
-                        listOf(PrimaryAccent.copy(alpha = 0.18f), Color.Transparent)
+                        listOf(CosmicAccent.copy(alpha = 0.15f), Color.Transparent)
                     )
                 )
                 .clickable { onNavigate(AiriRoute.PROFILE) }
@@ -2447,8 +2344,8 @@ fun AiriDrawer(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(CircleShape)
-                            .background(PrimaryAccent.copy(alpha = 0.22f))
-                            .border(1.5.dp, PrimaryAccent.copy(alpha = 0.55f), CircleShape),
+                            .background(CosmicAccent.copy(alpha = 0.2f))
+                            .border(1.5.dp, CosmicAccent.copy(alpha = 0.5f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(initial, color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 18.sp)
@@ -2462,7 +2359,7 @@ fun AiriDrawer(
                 Spacer(Modifier.height(12.dp))
                 Surface(
                     shape = RoundedCornerShape(20.dp),
-                    color = if (modelState.isModelReady) PrimaryAccent.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.07f)
+                    color = if (modelState.isModelReady) CosmicAccent.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.07f)
                 ) {
                     Text(
                         text = when {
@@ -2472,7 +2369,7 @@ fun AiriDrawer(
                         },
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                         fontSize = 11.sp,
-                        color = if (modelState.isModelReady) PrimaryAccent else Color.White.copy(alpha = 0.4f)
+                        color = if (modelState.isModelReady) CosmicAccent else Color.White.copy(alpha = 0.4f)
                     )
                 }
             }
@@ -2494,9 +2391,8 @@ fun AiriDrawer(
         Divider(color = Color.White.copy(alpha = 0.06f))
         Spacer(Modifier.height(4.dp))
 
-        DrawerNavItem(icon = Icons.Outlined.ManageHistory,  label = stringResource(R.string.agent_logs),      route = AiriRoute.AGENT_LOGS,      onNavigate = onNavigate)
-        DrawerNavItem(icon = Icons.Outlined.Tune,           label = stringResource(R.string.agent_control),   route = AiriRoute.AGENT_CONTROL,   onNavigate = onNavigate)
-        DrawerNavItem(icon = Icons.Outlined.Dashboard,      label = stringResource(R.string.task_dashboard),  route = AiriRoute.TASK_DASHBOARD,  onNavigate = onNavigate)
+        DrawerNavItem(icon = Icons.Outlined.ManageHistory,  label = stringResource(R.string.agent_logs),    route = AiriRoute.AGENT_LOGS,   onNavigate = onNavigate)
+        DrawerNavItem(icon = Icons.Outlined.Tune,           label = stringResource(R.string.agent_control), route = AiriRoute.AGENT_CONTROL,onNavigate = onNavigate)
 
         Spacer(Modifier.height(8.dp))
 
@@ -2521,7 +2417,7 @@ fun AiriDrawer(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .background(Surface0)
+                .background(Color(0xFF0D1124))
         ) {
             Divider(color = Color.White.copy(alpha = 0.08f))
             DrawerNavItem(

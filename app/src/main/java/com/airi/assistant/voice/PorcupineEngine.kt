@@ -1,73 +1,126 @@
 package com.airi.assistant.voice
 
 import android.content.Context
+import android.util.Log
+import com.airi.assistant.BuildConfig
+import java.io.File
 
 /**
- * PorcupineEngine — DEPRECATED compatibility shim.
+ * Helpers used by [HotwordService] to locate the Porcupine .ppn keyword
+ * file and the AccessKey, plus a tiny secure store for runtime-supplied
+ * keys.
  *
- * This object previously wrapped the Picovoice Porcupine wake-word SDK.
- * Porcupine has been removed; on-device wake-word detection is now handled
- * entirely by [InternalWakeWordEngine] which uses Vosk grammar-constrained
- * keyword spotting (no API key, no proprietary SDK).
+ * Resolution order for the .ppn:
+ *   1. `res/raw/hey_airi.ppn`           (looked up reflectively, no compile dep)
+ *   2. `assets/voice/hey_airi.ppn`      (extracted to internal storage on first run)
  *
- * This shim exists ONLY to avoid breaking any call sites compiled against
- * the old API. All methods delegate to [InternalWakeWordEngine].
+ * Resolution order for the AccessKey:
+ *   1. value the user pasted at runtime via Voice Settings (encrypted prefs)
+ *   2. [BuildConfig.PICOVOICE_ACCESS_KEY] (set at build time via gradle prop / env)
  *
- * ── MIGRATION ──────────────────────────────────────────────────────────
- *   OLD: PorcupineEngine.status(context).ready
- *   NEW: InternalWakeWordEngine.status(context).ready
- *
- *   OLD: PorcupineEngine.setRuntimeAccessKey(context, key)
- *   NEW: No equivalent — no API key is required any more.
+ * When either of (.ppn) or (AccessKey) is missing the wake-word service
+ * refuses to start and the UI explains exactly what's missing.
  */
-@Deprecated(
-    message  = "Picovoice Porcupine has been removed. Use InternalWakeWordEngine instead.",
-    replaceWith = ReplaceWith("InternalWakeWordEngine", "com.airi.assistant.voice.InternalWakeWordEngine")
-)
 object PorcupineEngine {
 
-    /**
-     * Legacy status object for call sites that haven't migrated yet.
-     * Maps onto [InternalWakeWordEngine.Status].
-     */
-    data class Status(
-        /** True when a Vosk model is installed and selected. */
-        val ready: Boolean,
-        /** Always true (no access key required). */
-        val accessKeyPresent: Boolean  = true,
-        /** Always true when a Vosk model is installed. */
-        val ppnPresent: Boolean        = ready,
-        /** Human-readable source label for the active model. */
-        val ppnSourceLabel: String?    = null,
-        /** Legacy field — always null (no key source). */
-        val accessKeySource: String?   = null
-    )
+    private const val TAG = "AIRI_VOICE"
+    private const val PREFS = "airi_voice_secure"
+    private const val KEY_ACCESS_KEY = "picovoice_access_key"
 
-    /**
-     * Returns a [Status] derived from [InternalWakeWordEngine.status].
-     *
-     * The wake-word is ready as long as a Vosk model is installed; no API key
-     * is needed.
-     */
+    private const val PPN_NAME = "hey_airi"
+    private const val ASSET_PATH = "voice/$PPN_NAME.ppn"
+
+    data class Status(
+        val accessKeyPresent: Boolean,
+        val ppnPresent: Boolean,
+        val ppnSourceLabel: String?,
+        val accessKeySource: String?
+    ) {
+        val ready: Boolean get() = accessKeyPresent && ppnPresent
+    }
+
+    /** Snapshot of what's currently configured — drives the Voice Settings UI. */
     fun status(context: Context): Status {
-        val internal = InternalWakeWordEngine.status(context)
+        val (key, keySrc) = resolveAccessKey(context)
+        val ppn = locatePpn(context)
         return Status(
-            ready          = internal.ready,
-            accessKeyPresent = true,
-            ppnPresent     = internal.modelInstalled,
-            ppnSourceLabel = if (internal.modelInstalled) "vosk:${internal.modelName}" else null,
-            accessKeySource = null
+            accessKeyPresent = key.isNotBlank(),
+            ppnPresent       = ppn != null,
+            ppnSourceLabel   = ppn?.second,
+            accessKeySource  = if (key.isNotBlank()) keySrc else null
         )
     }
 
     /**
-     * No-op — no API key is required when using [InternalWakeWordEngine].
-     * Kept for binary compatibility.
+     * Returns an extracted on-disk path for the Porcupine keyword file,
+     * or null if no .ppn is bundled in either location. Porcupine's
+     * Builder needs a real filesystem path, not an asset URI.
      */
-    fun setRuntimeAccessKey(context: Context, key: String?) {
-        /* intentionally empty — Vosk does not need an access key */
+    fun resolvePpnFile(context: Context): File? {
+        val located = locatePpn(context) ?: return null
+        val (file, _) = located
+        return file
     }
 
-    /** @deprecated Use [InternalWakeWordEngine.loadModel] instead. */
-    fun accessKey(context: Context): String = ""
+    fun accessKey(context: Context): String = resolveAccessKey(context).first
+
+    fun setRuntimeAccessKey(context: Context, key: String?) {
+        val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit().also {
+            if (key.isNullOrBlank()) it.remove(KEY_ACCESS_KEY)
+            else it.putString(KEY_ACCESS_KEY, key.trim())
+        }.apply()
+    }
+
+    // ── internals ────────────────────────────────────────────────────────
+
+    /** Returns (key, "runtime"|"build") or ("", null) when nothing is set. */
+    private fun resolveAccessKey(context: Context): Pair<String, String?> {
+        val runtime = context.applicationContext
+            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_ACCESS_KEY, null)
+            .orEmpty()
+            .trim()
+        if (runtime.isNotEmpty()) return runtime to "runtime"
+        val build = BuildConfig.PICOVOICE_ACCESS_KEY.trim()
+        if (build.isNotEmpty()) return build to "build"
+        return "" to null
+    }
+
+    /** Returns (extracted file, human label) or null. */
+    private fun locatePpn(context: Context): Pair<File, String>? {
+        val app = context.applicationContext
+        // 1) res/raw/hey_airi.ppn (preferred)
+        val rawId = app.resources.getIdentifier(PPN_NAME, "raw", app.packageName)
+        if (rawId != 0) {
+            val outFile = File(app.filesDir, "voice/$PPN_NAME.ppn")
+            try {
+                if (!outFile.exists() || outFile.length() == 0L) {
+                    outFile.parentFile?.mkdirs()
+                    app.resources.openRawResource(rawId).use { ins ->
+                        outFile.outputStream().use { out -> ins.copyTo(out) }
+                    }
+                }
+                return outFile to "res/raw/$PPN_NAME.ppn"
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to materialize res/raw/$PPN_NAME.ppn: ${t.message}")
+            }
+        }
+        // 2) assets/voice/hey_airi.ppn
+        return try {
+            val list = app.assets.list("voice")?.toList().orEmpty()
+            if (!list.contains("$PPN_NAME.ppn")) return null
+            val outFile = File(app.filesDir, "voice/$PPN_NAME.ppn")
+            if (!outFile.exists() || outFile.length() == 0L) {
+                outFile.parentFile?.mkdirs()
+                app.assets.open(ASSET_PATH).use { ins ->
+                    outFile.outputStream().use { out -> ins.copyTo(out) }
+                }
+            }
+            outFile to "assets/$ASSET_PATH"
+        } catch (t: Throwable) {
+            Log.d(TAG, "No bundled .ppn found: ${t.message}")
+            null
+        }
+    }
 }

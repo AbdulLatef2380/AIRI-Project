@@ -14,6 +14,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.core.VoiceManager
+import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.voice.realtime.LocalVoicePipeline
 import com.airi.assistant.voice.realtime.RealtimeVoiceProvider
 import kotlinx.coroutines.CoroutineScope
@@ -123,6 +124,10 @@ class LiveVoiceService : Service() {
      */
     private lateinit var voiceAgentRouter: VoiceAgentRouter
 
+    // Barge-in + incremental TTS — wired in onCreate after voiceManager init
+    private val interruptController = VoiceInterruptController(serviceScope)
+    private val incrementalTts by lazy { IncrementalTtsEngine(applicationContext) }
+
     /**
      * Active realtime provider. [LocalVoicePipeline] = on-device Vosk+TTS.
      * Swap to GeminiLiveProvider / OpenAIRealtimeProvider for cloud audio.
@@ -152,6 +157,28 @@ class LiveVoiceService : Service() {
             voiceManager = voiceManager
         )
         Log.i(TAG, "AIRI_PROOF VOICE_AGENT_ROUTER_INIT")
+
+        // Wire VoiceInterruptController → VoiceManager callbacks
+        interruptController.onStopTts          = { voiceManager.stopSpeaking() }
+        interruptController.onCancelGeneration = { serviceScope.launch { voiceManager.stopAll() } }
+        interruptController.onRearmStt         = {
+            serviceScope.launch {
+                session.onResumeListening()
+                sttStartEpochMs = System.currentTimeMillis()
+                voiceManager.startSpeechToText()
+                updateNotification(VoicePipelineState.LISTENING)
+            }
+        }
+        interruptController.onTransitionTo = { state ->
+            when (state) {
+                VoicePipelineState.LISTENING -> session.onResumeListening()
+                VoicePipelineState.IDLE      -> session.endSession()
+                else                          -> session.onBargeIn()
+            }
+            updateNotification(state)
+        }
+        // Init incremental TTS
+        incrementalTts.init()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -290,18 +317,12 @@ class LiveVoiceService : Service() {
 
             override fun onVadInterrupted() {
                 val interruptStart = System.currentTimeMillis()
-                session.onBargeIn()
-                updateNotification(VoicePipelineState.INTERRUPTED)
-                Log.d(TAG, "AIRI_PROOF VAD_BARGE_IN")
-                // VoiceManager has already stopped TTS and released VAD mic.
-                // Re-arm STT immediately.
+                // Route through VoiceInterruptController for barge-in coordination
+                interruptController.onVadSpeechDetected()
+                AgentActivityBus.emit("Barge-in via VAD", com.airi.assistant.ui.activity.ActivityCategory.VOICE)
                 serviceScope.launch {
                     val interruptMs = System.currentTimeMillis() - interruptStart
                     session.recordInterruptionLatency(interruptMs)
-                    session.onResumeListening()
-                    sttStartEpochMs = System.currentTimeMillis()
-                    voiceManager.startSpeechToText()
-                    updateNotification(VoicePipelineState.LISTENING)
                 }
             }
 

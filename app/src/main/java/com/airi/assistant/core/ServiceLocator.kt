@@ -193,6 +193,11 @@ object ServiceLocator {
 
     // ── Connectors layer ─────────────────────────────────────────────────────
 
+    // ── Connector ecosystem (Phase 7) — declared BEFORE connectorRegistry ─────
+    val connectorAuthManager: com.airi.assistant.connector.ConnectorAuthManager by lazy {
+        com.airi.assistant.connector.ConnectorAuthManager(requireContext())
+    }
+
     val connectorRegistry: ConnectorRegistry by lazy {
         val keys = secureStorage
         val llmProviders = listOf(
@@ -206,7 +211,23 @@ object ServiceLocator {
                 registry     = reg,
                 llmProviders = llmProviders,
             )
+            // Register first-class connectors
+            reg.register(com.airi.assistant.connector.app.GitHubConnector(connectorAuthManager))
         }
+    }
+
+    val connectorRuntimeManager: com.airi.assistant.connector.ConnectorRuntimeManager by lazy {
+        com.airi.assistant.connector.ConnectorRuntimeManager(connectorRegistry)
+    }
+
+    val connectorHealthMonitor: com.airi.assistant.connector.ConnectorHealthMonitor by lazy {
+        com.airi.assistant.connector.ConnectorHealthMonitor(connectorRegistry).also { it.start() }
+    }
+
+    // ── Sandbox (Phase 4) ─────────────────────────────────────────────────────
+
+    val sandboxManager: com.airi.assistant.agent.sandbox.SandboxManager by lazy {
+        com.airi.assistant.agent.sandbox.SandboxManager(requireContext())
     }
 
     val agentRouter: AgentRouter by lazy {

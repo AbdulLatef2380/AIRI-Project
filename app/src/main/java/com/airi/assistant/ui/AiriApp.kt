@@ -20,6 +20,7 @@ import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.ui.components.StarBackground
 import com.airi.assistant.ui.screens.AIModelsSettingsScreen
 import com.airi.assistant.ui.screens.AboutScreen
+import com.airi.assistant.ui.plan.AgentPlanViewModel
 import com.airi.assistant.ui.screens.AgentControlScreen
 import com.airi.assistant.ui.screens.AgentLogsScreen
 import com.airi.assistant.ui.screens.DebugPanelScreen
@@ -92,6 +93,7 @@ fun AiriApp() {
     val authService: AuthService     = remember { ServiceLocator.authService }
     val chatViewModel: ChatViewModel = viewModel()
     val agentViewModel: AgentViewModel = viewModel()
+    val planViewModel: AgentPlanViewModel = viewModel()
     val startDest = when {
         authService.isSignedIn() -> AiriRoute.CHAT
         !OnboardingManager.isCompleted() -> AiriRoute.ONBOARDING
@@ -177,6 +179,7 @@ fun AiriApp() {
                 composable(AiriRoute.CHAT) {
                     ChatScreen(
                         viewModel = chatViewModel,
+                        planViewModel = planViewModel,
                         onNavigate = { route ->
                             navController.navigate(route) { launchSingleTop = true }
                         },

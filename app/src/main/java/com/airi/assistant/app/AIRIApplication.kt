@@ -2,6 +2,7 @@ package com.airi.assistant.app
 
 import android.app.Application
 import android.content.Context
+import com.airi.assistant.ui.activity.GlobalAgentEventDispatcher
 import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.core.ServiceLocator
@@ -157,6 +158,14 @@ class AIRIApplication : Application() {
             // ── Execution Watchdog ─────────────────────────────────────────────
             ServiceLocator.executionWatchdog.start()
             LoggingService.info(TAG, "✓ ExecutionWatchdog started")
+
+            // ── Phase 3: Global agent activity feed ───────────────────────────
+            GlobalAgentEventDispatcher.start()
+            LoggingService.info(TAG, "✓ GlobalAgentEventDispatcher started")
+
+            // ── Phase 7: Connector ecosystem ──────────────────────────────────
+            ServiceLocator.connectorHealthMonitor   // triggers lazy init + background ping loop
+            LoggingService.info(TAG, "✓ ConnectorHealthMonitor started")
 
             // ── Cloud Sync ─────────────────────────────────────────────────────
             val prefs = ServiceLocator.userProfileRepository.current

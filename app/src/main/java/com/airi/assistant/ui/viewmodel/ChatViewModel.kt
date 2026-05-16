@@ -2397,6 +2397,50 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearMessages()  { createNewSession() }
 
+    // ── Plus Menu orchestration (Phase 6) ─────────────────────────────────────
+
+    fun handlePlusAction(action: com.airi.assistant.ui.input.PlusMenuAction) {
+        viewModelScope.launch {
+            when (action) {
+                // Media — signal the UI layer via a dedicated state flag
+                // (actual picker launchers live in ChatScreen, not the ViewModel)
+                is com.airi.assistant.ui.input.PlusMenuAction.UploadImage     -> _pendingPlusPickerRequest.value = PlusPickerRequest.IMAGE
+                is com.airi.assistant.ui.input.PlusMenuAction.TakePhoto       -> _pendingPlusPickerRequest.value = PlusPickerRequest.CAMERA
+                is com.airi.assistant.ui.input.PlusMenuAction.UploadFile      -> _pendingPlusPickerRequest.value = PlusPickerRequest.FILE
+
+                // Agent workflows — bootstrap message that triggers planning
+                is com.airi.assistant.ui.input.PlusMenuAction.CreateWebsite   -> sendMessage("Create a complete multi-page website. Describe the site you want:")
+                is com.airi.assistant.ui.input.PlusMenuAction.DevelopApp      -> sendMessage("Design and scaffold a full application. Describe the app:")
+                is com.airi.assistant.ui.input.PlusMenuAction.GenerateSlides  -> sendMessage("Generate a presentation. What is the topic?")
+                is com.airi.assistant.ui.input.PlusMenuAction.LaunchResearch  -> sendMessage("Enter deep research mode. What should I research?")
+                is com.airi.assistant.ui.input.PlusMenuAction.CreateAutomation-> sendMessage("Build a multi-step automated workflow. Describe what to automate:")
+                is com.airi.assistant.ui.input.PlusMenuAction.AnalyzeRepo     -> sendMessage("Analyse a repository. Provide the GitHub URL or paste the code:")
+
+                // Sandbox-backed workflows
+                is com.airi.assistant.ui.input.PlusMenuAction.CodeWorkspace   -> {
+                    val session = com.airi.assistant.core.ServiceLocator.sandboxManager
+                        .createSession("Code Workspace")
+                    sendMessage("Opening coding workspace (session: ${session?.sessionId}). What are we building?")
+                }
+                is com.airi.assistant.ui.input.PlusMenuAction.OpenSandbox     -> {
+                    val session = com.airi.assistant.core.ServiceLocator.sandboxManager
+                        .createSession("Sandbox")
+                    sendMessage("Sandbox opened (session: ${session?.sessionId}). What shall I execute?")
+                }
+
+                // Skills — emit an event that the UI observes to navigate
+                is com.airi.assistant.ui.input.PlusMenuAction.AddSkill        -> _pendingPlusPickerRequest.value = PlusPickerRequest.SKILLS
+            }
+        }
+    }
+
+    // Observable channel for picker/navigation requests triggered by Plus menu
+    private val _pendingPlusPickerRequest = kotlinx.coroutines.flow.MutableStateFlow<PlusPickerRequest?>(null)
+    val pendingPlusPickerRequest: kotlinx.coroutines.flow.StateFlow<PlusPickerRequest?> = _pendingPlusPickerRequest.asStateFlow()
+    fun consumePlusPickerRequest() { _pendingPlusPickerRequest.value = null }
+
+    enum class PlusPickerRequest { IMAGE, CAMERA, FILE, SKILLS }
+
     fun clearMemory() {
         viewModelScope.launch {
             runCatching { memoryManager.clearAll() }

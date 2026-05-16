@@ -86,6 +86,7 @@ enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel,
+    planViewModel: com.airi.assistant.ui.plan.AgentPlanViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     onNavigate: (String) -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
@@ -647,6 +648,18 @@ fun ChatScreen(
         }
     }
 
+    // ── Plus menu picker bridge (Phase 6) ─────────────────────────────────────
+    val plusPickerRequest by viewModel.pendingPlusPickerRequest.collectAsState()
+    LaunchedEffect(plusPickerRequest) {
+        when (plusPickerRequest) {
+            ChatViewModel.PlusPickerRequest.IMAGE   -> { imagePicker.launch("image/*");   viewModel.consumePlusPickerRequest() }
+            ChatViewModel.PlusPickerRequest.CAMERA  -> { cameraLauncher.launch(null);      viewModel.consumePlusPickerRequest() }
+            ChatViewModel.PlusPickerRequest.FILE    -> { filePicker.launch("*/*");         viewModel.consumePlusPickerRequest() }
+            ChatViewModel.PlusPickerRequest.SKILLS  -> { onNavigate(AiriRoute.SKILLS);     viewModel.consumePlusPickerRequest() }
+            null -> { /* no-op */ }
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -692,6 +705,16 @@ fun ChatScreen(
             },
             bottomBar = {
               Column(modifier = Modifier.fillMaxWidth().imePadding()) {
+                // ── Activity Feed (Phase 3) ────────────────────────────────────
+                com.airi.assistant.ui.activity.ActivityFeedComposable(
+                    modifier        = Modifier.fillMaxWidth(),
+                    compactMaxItems = 3
+                )
+                // ── Agent Plan Overlay (Phase 2) ──────────────────────────────
+                com.airi.assistant.ui.plan.AgentPlanOverlay(
+                    modifier      = Modifier.fillMaxWidth(),
+                    planViewModel = planViewModel
+                )
                 // ── PHASE 3 (actual fix): unified attachment chip row ──────────
                 // One row, one chip per attachment, regardless of kind. The
                 // image-vs-file-vs-camera distinction is now just an icon +
@@ -839,7 +862,8 @@ fun ChatScreen(
                             Log.i("AIRI_PROOF", "VOICE_LOOP_STOPPED reason=user_typing")
                             liveChatActiveRef.value = false
                         }
-                    }
+                    },
+                    onPlusAction = { action -> viewModel.handlePlusAction(action) }
                 )
               } // end of bottomBar Column (image-preview chip + ChatInputBar)
             }
@@ -1780,9 +1804,11 @@ fun ChatInputBar(
     onOpenModels: () -> Unit,
     // Fires the first time the user starts typing a brand-new message after
     // the input was empty. ChatScreen uses it to interrupt in-flight TTS.
-    onUserStartedTyping: () -> Unit = {}
+    onUserStartedTyping: () -> Unit = {},
+    onPlusAction: (com.airi.assistant.ui.input.PlusMenuAction) -> Unit = {}
 ) {
     var showAttachPopup by remember { mutableStateOf(false) }
+    var showPlusMenu    by remember { mutableStateOf(false) }
     var text by rememberSaveable { mutableStateOf("") }
     // PHASE 2 FIX: chat must unlock when LOCAL *or* CLOUD inference is ready.
     // Previously this only checked isModelReady (local), blocking ALL chat when
@@ -2208,6 +2234,9 @@ fun ChatInputBar(
                                     AttachBubble(Icons.Outlined.AttachFile, stringResource(R.string.pick_file)) {
                                         showAttachPopup = false; onPickFile()
                                     }
+                                    AttachBubble(Icons.Outlined.Apps, "More") {
+                                        showAttachPopup = false; showPlusMenu = true
+                                    }
                                     // PHASE 3 (revised) — the dedicated vision-
                                     // projector attach button is intentionally
                                     // HIDDEN from the chat attach popup. The
@@ -2231,6 +2260,17 @@ fun ChatInputBar(
                 }
             }
         }
+    }
+
+    // ── Plus Menu Sheet (Phase 6) ─────────────────────────────────────────────
+    if (showPlusMenu) {
+        com.airi.assistant.ui.input.PlusMenuSheet(
+            onDismiss = { showPlusMenu = false },
+            onAction  = { action ->
+                showPlusMenu = false
+                onPlusAction(action)
+            }
+        )
     }
 }
 

@@ -655,7 +655,7 @@ fun ChatScreen(
             ChatViewModel.PlusPickerRequest.IMAGE   -> { imagePicker.launch("image/*");   viewModel.consumePlusPickerRequest() }
             ChatViewModel.PlusPickerRequest.CAMERA  -> { cameraLauncher.launch(null);      viewModel.consumePlusPickerRequest() }
             ChatViewModel.PlusPickerRequest.FILE    -> { filePicker.launch("*/*");         viewModel.consumePlusPickerRequest() }
-            ChatViewModel.PlusPickerRequest.SKILLS  -> { onNavigate(AiriRoute.SKILLS);     viewModel.consumePlusPickerRequest() }
+            ChatViewModel.PlusPickerRequest.SKILLS  -> { onNavigate(AiriRoute.SKILL_MANAGER); viewModel.consumePlusPickerRequest() }
             null -> { /* no-op */ }
         }
     }

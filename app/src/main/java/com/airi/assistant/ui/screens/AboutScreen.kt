@@ -20,7 +20,7 @@ import com.airi.assistant.ui.theme.SurfaceRaised
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreenSimple(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(

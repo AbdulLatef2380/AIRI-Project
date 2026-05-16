@@ -505,7 +505,9 @@ private fun SettingsScreenLegacy(
                                 labelColor = Color.White.copy(alpha = 0.6f)
                             ),
                             border = FilterChipDefaults.filterChipBorder(
-                                borderColor = Color.White.copy(alpha = 0.1f),
+                                enabled             = true,
+                                selected            = selected,
+                                borderColor         = Color.White.copy(alpha = 0.1f),
                                 selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
                             )
                         )

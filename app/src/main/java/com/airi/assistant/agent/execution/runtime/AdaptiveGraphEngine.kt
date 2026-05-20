@@ -94,10 +94,12 @@ class AdaptiveGraphEngine(
     suspend fun execute(
         plan:        ActionPlan,
         nodes:       List<GraphNode>,
-        startNodeId: String = nodes.firstOrNull()?.nodeId ?: return,
+        startNodeId: String? = null,
         context:     SubAgentContext,
         executor:    suspend (GraphNode, SubAgentContext) -> NodeResult
     ): GraphExecutionResult {
+        val resolvedStart = startNodeId ?: nodes.firstOrNull()?.nodeId
+            ?: return GraphExecutionResult(success = false, output = "Empty graph", completedNodes = 0)
         _engineState.value = EngineState.RUNNING
         nodeRegistry.putAll(nodes.associateBy { it.nodeId })
         checkpointStore.load(plan.intent)?.let { cp ->
@@ -108,7 +110,7 @@ class AdaptiveGraphEngine(
         AgentActivityBus.emit("Graph execution started: ${plan.intent.take(60)}", ActivityCategory.ORCHESTRATION)
 
         return try {
-            val result = executeFromNode(startNodeId, context, executor, plan)
+            val result = executeFromNode(resolvedStart, context, executor, plan)
             _engineState.value = EngineState.COMPLETED
             checkpointStore.clear(plan.intent)
             AgentActivityBus.emit("Graph completed ✓", ActivityCategory.ORCHESTRATION)
@@ -275,10 +277,12 @@ class AdaptiveGraphEngine(
         /** Convert a flat [ActionPlan] into a sequential [GraphNode] list. */
         fun buildGraph(plan: ActionPlan): List<GraphNode> {
             val nodes = plan.steps.mapIndexed { i, step ->
+                val actionStr = (step as? PlanStep.Custom)?.action ?: step::class.simpleName ?: "step"
+                val toolStr   = (step as? PlanStep.Custom)?.parameters?.get("tool")
                 GraphNode(
-                    label     = step.action,
-                    action    = step.action,
-                    tool      = step.toolName,
+                    label     = actionStr,
+                    action    = actionStr,
+                    tool      = toolStr,
                     maxRetries = 2,
                     edges     = emptyList()   // filled below
                 )

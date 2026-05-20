@@ -9,7 +9,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -90,7 +89,7 @@ private fun ExpandedFeed(events: List<ActivityEvent>, categoryFilter: ActivityCa
                 Chip(cat.emoji, categoryFilter == cat) { onFilterChange(if (categoryFilter == cat) null else cat) }
             }
         }
-        HorizontalDivider(color = Color.White.copy(alpha = 0.07f))
+        Divider(color = Color.White.copy(alpha = 0.07f))
         LazyColumn(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(vertical = 4.dp)) {
             items(items = events, key = { it.id }) { event ->
                 var detailVisible by remember(event.id) { mutableStateOf(false) }

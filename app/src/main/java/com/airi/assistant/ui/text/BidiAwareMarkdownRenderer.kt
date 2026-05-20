@@ -51,7 +51,7 @@ fun BidiAwareMarkdownRenderer(
 
     CompositionLocalProvider(LocalLayoutDirection provides layoutDir) {
         MarkdownText(
-            markdown = processedText,
+            rawText  = processedText,
             modifier = modifier.fillMaxWidth()
         )
     }

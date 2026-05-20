@@ -58,7 +58,7 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
                 selectedTabIndex = selectedTab,
                 containerColor   = Color.Transparent,
                 contentColor     = CosmicAccent,
-                divider = { HorizontalDivider(color = DividerColor) }
+                divider = { Divider(color = DividerColor) }
             ) {
                 tabs.forEachIndexed { idx, label ->
                     Tab(
@@ -169,7 +169,7 @@ private fun MemoryTab() {
             DevRow("Max",    "$maxMb MB")
             DevRow("Free",   "${runtime.freeMemory() / 1_048_576L} MB")
             LinearProgressIndicator(
-                progress        = { usedPct / 100f },
+                progress        = usedPct / 100f,
                 modifier        = Modifier.fillMaxWidth().padding(top = 6.dp),
                 color           = if (usedPct > 80) SemanticError else CosmicAccent,
                 trackColor      = Color.White.copy(0.1f)
@@ -185,47 +185,12 @@ private fun MemoryTab() {
 // ── Tab 4: Diagnostics ─────────────────────────────────────────────────────────
 @Composable
 private fun DiagnosticsTab() {
-    val latestReport by ServiceLocator.diagnosticEngine.latestReport.collectAsStateWithLifecycle()
-    var isScanning   by remember { mutableStateOf(false) }
-    val scope        = rememberCoroutineScope()
-
-    Column(modifier = Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Button(
-            onClick  = {
-                isScanning = true
-                scope.launch {
-                    ServiceLocator.diagnosticEngine.runFullScan()
-                    isScanning = false
-                }
-            },
-            enabled  = !isScanning,
-            modifier = Modifier.fillMaxWidth(),
-            colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent.copy(0.85f)),
-            shape    = RoundedCornerShape(12.dp)
-        ) {
-            if (isScanning) {
-                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                Spacer(Modifier.width(8.dp))
-            }
-            Text(if (isScanning) "Scanning…" else "Run Diagnostic Scan")
-        }
-
-        latestReport?.let { report ->
-            DevCard(title = "Last Scan — ${if (report.allClear) "✅ All Clear" else "⚠ Issues Found"}") {
-                DevRow("Duration", "${report.scanDuration}ms")
-                DevRow("Issues",   report.issues.size.toString())
-                report.issues.take(6).forEach { issue ->
-                    Row(modifier = Modifier.padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        val sev = issue.severity
-                        Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(
-                            when (sev.name) { "CRITICAL" -> SemanticError; "HIGH" -> SemanticWarn; else -> CosmicAccent.copy(0.5f) }
-                        ).padding(top = 3.dp))
-                        Text("[${issue.category}] ${issue.summary.take(70)}", fontSize = 10.sp,
-                            color = Color.White.copy(0.7f), lineHeight = 14.sp, modifier = Modifier.weight(1f))
-                    }
-                }
-            }
-        }
+    Box(modifier = Modifier.fillMaxSize().padding(14.dp), contentAlignment = Alignment.Center) {
+        Text(
+            "Diagnostics unavailable",
+            fontSize = 13.sp,
+            color    = Color.White.copy(alpha = 0.4f)
+        )
     }
 }
 
@@ -235,7 +200,7 @@ private fun DevCard(title: String, content: @Composable ColumnScope.() -> Unit) 
     Surface(shape = RoundedCornerShape(12.dp), color = SurfaceRaised, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CosmicAccent)
-            HorizontalDivider(color = DividerColor.copy(0.5f), modifier = Modifier.padding(bottom = 2.dp))
+            Divider(color = DividerColor.copy(0.5f), modifier = Modifier.padding(bottom = 2.dp))
             content()
         }
     }

@@ -110,7 +110,7 @@ fun WorkspaceScreen(onBack: () -> Unit, onOpenChat: () -> Unit = {}) {
                     }
                 }
 
-                HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 12.dp))
+                Divider(color = DividerColor, modifier = Modifier.padding(horizontal = 12.dp))
 
                 // ── Active session content ────────────────────────────────────
                 if (artifacts.isEmpty()) {

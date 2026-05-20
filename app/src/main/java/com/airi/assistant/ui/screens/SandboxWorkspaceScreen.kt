@@ -109,7 +109,7 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                     onClose         = { sandboxManager.closeSession(it.sessionId) }
                 )
 
-                HorizontalDivider(color = DividerColor, modifier = Modifier.padding(vertical = 4.dp))
+                Divider(color = DividerColor, modifier = Modifier.padding(vertical = 4.dp))
 
                 // Session info header
                 session?.let { sess ->

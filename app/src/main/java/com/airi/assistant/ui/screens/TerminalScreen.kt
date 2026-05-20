@@ -101,7 +101,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                 }
             }
 
-            HorizontalDivider(color = Color.White.copy(0.08f))
+            Divider(color = Color.White.copy(0.08f))
 
             // Command input bar
             Row(

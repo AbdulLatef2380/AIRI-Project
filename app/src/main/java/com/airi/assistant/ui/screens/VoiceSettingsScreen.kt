@@ -247,7 +247,7 @@ private fun PorcupineCard(
 // ── Installed Vosk models ─────────────────────────────────────────────────────
 @Composable
 private fun InstalledModelsCard(
-    installed: List<VoskModelManager.InstalledModel>,
+    installed: List<VoskModelManager.Installed>,
     activeId: String?,
     onActivate: (String) -> Unit,
     onDelete: (String) -> Unit

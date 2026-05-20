@@ -55,7 +55,7 @@ fun AboutScreen(onBack: () -> Unit) {
                 fontSize = 13.sp, color = Color.White.copy(alpha = 0.4f)
             )
             Spacer(Modifier.height(8.dp))
-            HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+            Divider(color = Color.White.copy(alpha = 0.08f))
             AboutInfoCard("Runtime", "Local-first hybrid inference with llama.cpp GGUF runtime and cloud failover via Anthropic, Gemini, and OpenAI adapters.")
             AboutInfoCard("Voice", "On-device STT via Vosk. Wake-word detection via Porcupine. Full-duplex VAD for barge-in interruption.")
             AboutInfoCard("Privacy", "All local inference stays on-device. Cloud requests pass through a privacy sanitisation gate.")

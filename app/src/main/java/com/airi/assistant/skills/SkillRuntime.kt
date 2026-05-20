@@ -170,7 +170,7 @@ class SkillRuntime(
                 break
             }
             // Pass output as input for the next skill
-            currentParams = currentParams + mapOf("previousOutput" to (lastResult.output ?: ""))
+            currentParams = currentParams + mapOf("previousOutput" to (lastResult.data))
         }
         return lastResult
     }

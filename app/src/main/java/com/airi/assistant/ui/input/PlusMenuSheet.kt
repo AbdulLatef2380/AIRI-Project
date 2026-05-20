@@ -43,7 +43,7 @@ fun PlusMenuSheet(onDismiss: () -> Unit, onAction: (PlusMenuAction) -> Unit) {
                     color = Color.White, modifier = Modifier.weight(1f))
                 TextButton(onClick = onDismiss) { Text("Done", color = CosmicAccent, fontSize = 13.sp) }
             }
-            HorizontalDivider(color = Color.White.copy(alpha = 0.07f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+            Divider(color = Color.White.copy(alpha = 0.07f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             PlusMenuAction.sections.forEach { (title, actions) ->
                 Text(title.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
                     color = Color.White.copy(alpha = 0.35f), letterSpacing = 1.2.sp,

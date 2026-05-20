@@ -318,6 +318,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // ExecModePreferences is the source of truth for execution mode, privacy
     // level, and internet permission. All preference mutations go through it.
     private val execModePrefs  = ExecModePreferences(appContext)
+    val tokenAccountant     = TokenAccountant(appContext)
     private val localBackend   = LocalLlamaBackend(llamaManager)
     private val cloudBackend   = CloudBackend(execModePrefs, appContext, tokenAccountant)
     private val runtimeRouter  = RuntimeRouter(localBackend, cloudBackend, execModePrefs)
@@ -326,7 +327,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // HybridOrchestrator owns the Mutex-serialized execution ownership gate,
     // deterministic failover, privacy sanitisation, and live diagnostics.
     val hybridOrchestrator  = HybridOrchestrator(runtimeRouter, execModePrefs)
-    val tokenAccountant     = TokenAccountant(appContext)
     val secureApiKeyStore   = SecureApiKeyStore(appContext)
 
     // ── Domain services ───────────────────────────────────────────────────────

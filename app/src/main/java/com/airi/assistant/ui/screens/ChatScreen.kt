@@ -20,7 +20,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.horizontalScroll
@@ -87,6 +89,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import com.airi.assistant.ui.theme.AiBubbleSurface
 import com.airi.assistant.ui.theme.AiBubbleBorder
 import com.airi.assistant.ui.theme.UserBubbleSurface
+import com.airi.assistant.ui.theme.SemanticError
 import com.airi.assistant.ui.theme.SemanticSuccess
 import com.airi.assistant.ui.util.MarkdownText
 import androidx.compose.runtime.snapshotFlow
@@ -1312,6 +1315,7 @@ fun ChatMessageList(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun UserBubble(
     text: String,
@@ -1400,7 +1404,7 @@ fun UserBubble(
                         leadingIcon  = { Icon(Icons.Outlined.Share, null, tint = Color.White.copy(0.7f), modifier = Modifier.size(16.dp)) },
                         onClick      = { showContextMenu = false; shareAiResponse(context, displayText) }
                     )
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                    Divider(color = Color.White.copy(alpha = 0.08f))
                     DropdownMenuItem(
                         text         = { Text("حذف", color = SemanticError, fontSize = 14.sp) },
                         leadingIcon  = { Icon(Icons.Outlined.Delete, null, tint = SemanticError.copy(0.7f), modifier = Modifier.size(16.dp)) },

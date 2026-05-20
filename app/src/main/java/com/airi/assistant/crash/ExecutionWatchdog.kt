@@ -42,7 +42,10 @@ class ExecutionWatchdog(
     private val runtime:        ExecutionGraphRuntime,
     private val crashReporter:  OrchestratorCrashReporter,
     private val telemetry:      PrivacyTelemetryReporter,
-    private val autoCancelStuck: Boolean = false
+    private val autoCancelStuck: Boolean = false,
+    // Optional health monitor — when provided, stuck plans are reflected in
+    // the health report so the UI and ConnectorHealthMonitor both see them.
+    private val healthMonitor:  RuntimeHealthMonitor? = null
 ) {
 
     private val TAG   = "ExecutionWatchdog"
@@ -68,7 +71,15 @@ class ExecutionWatchdog(
         val snapshots: List<ExecutionGraphSnapshot> = runtime.allActiveSnapshots()
 
         for (snap in snapshots) {
-            if (snap.executionState != PlanExecutionState.RUNNING) continue
+            // Always keep healthMonitor informed of active plans, not just stuck ones.
+            // recordAgentStart is idempotent-safe (ConcurrentHashMap.put with same key).
+            healthMonitor?.recordAgentStart(snap.planId)
+
+            if (snap.executionState != PlanExecutionState.RUNNING) {
+                // Plan has completed (DONE / FAILED / CANCELLED) — remove from health tracker.
+                healthMonitor?.recordAgentEnd(snap.planId)
+                continue
+            }
             val age = now - snap.startedAtMs
             if (age < STUCK_THRESHOLD_MS) continue
 
@@ -92,6 +103,7 @@ class ExecutionWatchdog(
             if (autoCancelStuck) {
                 LoggingService.warn(TAG, "AIRI_PROOF WATCHDOG_AUTO_CANCEL planId=${snap.planId}")
                 runtime.cancel(snap.planId)
+                healthMonitor?.recordAgentEnd(snap.planId)
             }
         }
     }

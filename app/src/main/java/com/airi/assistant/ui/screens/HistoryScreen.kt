@@ -1,46 +1,38 @@
 package com.airi.assistant.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.airi.assistant.memory.dao.ChatSessionSummary
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.CosmicBlack
+import com.airi.assistant.ui.theme.DividerColor
+import com.airi.assistant.ui.theme.SurfaceCard
+import com.airi.assistant.ui.theme.SurfaceRaised
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -54,95 +46,258 @@ fun HistoryScreen(
     onSessionSelected: () -> Unit
 ) {
     val sessions by viewModel.sessions.collectAsState()
-    var pendingDelete by remember { mutableStateOf<ChatSessionSummary?>(null) }
-
-    LaunchedEffect(Unit) {
-        viewModel.getAllSessions()
-    }
+    var sessionToDelete by remember { mutableStateOf<ChatSessionSummary?>(null) }
 
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
-                title = { Text("Chats", color = Color.White, fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = CosmicBlack.copy(alpha = 0.92f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
                     }
+                },
+                title = {
+                    Text(
+                        text = "السجل",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                },
+                actions = {
+                    // Spacer to balance the close icon
+                    Spacer(Modifier.size(48.dp))
                 }
             )
         }
     ) { padding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
-            if (sessions.isEmpty()) {
-                item {
-                    Text("No saved chats yet.", color = Color.White.copy(alpha = 0.55f))
-                }
-            }
-            items(sessions, key = { it.id }) { session ->
-                Surface(
+            // ── New conversation button ────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(CosmicAccent.copy(alpha = 0.10f))
+                    .border(1.dp, CosmicAccent.copy(alpha = 0.28f), RoundedCornerShape(16.dp))
+                    .clickable { viewModel.clearMessages(); onSessionSelected() }
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .combinedClickable(
-                            onClick = {
+                        .size(30.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(CosmicAccent),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                }
+                Text(
+                    text = "محادثة جديدة",
+                    color = CosmicAccent,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            if (sessions.isEmpty()) {
+                // Empty state
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.06f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Outlined.Forum,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.30f),
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "لا توجد محادثات سابقة",
+                            color = Color.White.copy(alpha = 0.38f),
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    items(sessions, key = { it.id }) { session ->
+                        HistorySessionItem(
+                            session = session,
+                            onSelect = {
                                 viewModel.loadSession(session.id)
                                 onSessionSelected()
                             },
-                            onLongClick = { pendingDelete = session }
-                        ),
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color.White.copy(alpha = 0.07f),
-                    contentColor = Color.White
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(session.title, color = CosmicAccent, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Spacer(Modifier.height(5.dp))
-                        Text(
-                            session.lastMessage ?: "Empty chat",
-                            color = Color.White.copy(alpha = 0.62f),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.bodySmall
+                            onDelete = { sessionToDelete = session }
                         )
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Text("${session.messageCount} messages", color = Color.White.copy(alpha = 0.4f), style = MaterialTheme.typography.labelSmall)
-                            Text(formatSessionTime(session.updatedAt), color = Color.White.copy(alpha = 0.4f), style = MaterialTheme.typography.labelSmall)
-                        }
                     }
                 }
             }
         }
     }
 
-    pendingDelete?.let { session ->
+    // Delete confirmation
+    sessionToDelete?.let { session ->
         AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            containerColor = Color(0xFF12162E),
+            onDismissRequest = { sessionToDelete = null },
+            containerColor = Color(0xFF131728),
             titleContentColor = Color.White,
-            textContentColor = Color.White,
-            title = { Text("Delete chat?") },
-            text = { Text("This removes ${session.title} and its messages from chat history.") },
+            textContentColor = Color.White.copy(alpha = 0.75f),
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text(
+                    "تأكيد الحذف",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.End
+                )
+            },
+            text = {
+                Text(
+                    "هل أنت متأكد؟ سيتم حذف 1 محادثة نهائيًا ولا يمكن التراجع.",
+                    textAlign = TextAlign.End,
+                    fontSize = 14.sp
+                )
+            },
             confirmButton = {
-                Button(onClick = {
-                    viewModel.deleteSession(session.id)
-                    pendingDelete = null
-                }) { Text("Delete") }
+                Button(
+                    onClick = {
+                        viewModel.deleteSession(session.id)
+                        sessionToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF4444),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(0.5f)
+                ) {
+                    Text("حذف", fontWeight = FontWeight.SemiBold)
+                }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
+                OutlinedButton(
+                    onClick = { sessionToDelete = null },
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                    modifier = Modifier.fillMaxWidth(0.45f)
+                ) {
+                    Text("إلغاء", color = Color.White.copy(alpha = 0.75f))
+                }
             }
         )
     }
 }
 
-private fun formatSessionTime(timestamp: Long): String {
-    return SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(timestamp))
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HistorySessionItem(
+    session: ChatSessionSummary,
+    onSelect: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val dateFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    var showActions by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (showActions) CosmicAccent.copy(alpha = 0.06f) else Color.Transparent)
+            .combinedClickable(
+                onClick = onSelect,
+                onLongClick = { showActions = true }
+            )
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        // Left side: dot indicator + actions
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (showActions) {
+                IconButton(
+                    onClick = { showActions = false; onDelete() },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.MoreVert,
+                        contentDescription = "Options",
+                        tint = CosmicAccent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(CosmicAccent)
+                )
+            }
+        }
+
+        // Right side: title + preview + time (RTL)
+        Column(
+            horizontalAlignment = Alignment.End,
+            modifier = Modifier.weight(1f).padding(start = 12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
+            ) {
+                Text(
+                    text = dateFormat.format(Date(session.updatedAt)),
+                    color = Color.White.copy(alpha = 0.35f),
+                    fontSize = 11.sp
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = session.title.ifBlank { "محادثة" },
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = session.lastMessage.orEmpty().ifBlank { "..." },
+                color = Color.White.copy(alpha = 0.42f),
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+
+    Divider(
+        color = DividerColor,
+        modifier = Modifier.padding(start = 14.dp)
+    )
 }

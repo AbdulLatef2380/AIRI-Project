@@ -2,6 +2,10 @@ package com.airi.assistant.core
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -123,6 +127,40 @@ class VoiceManager(
 
     private var tts: TextToSpeech? = null
     @Volatile private var ttsReady = false
+
+    // ── AudioFocus — claimed when TTS starts, released when it stops ──────────
+    // Without AudioFocus, TTS audio fights with music apps and notification
+    // sounds causing distortion or dropped utterances. With it, media pauses
+    // automatically. Focus is abandoned in stopSpeaking() and destroy().
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    @Volatile private var audioFocusHeld = false
+    private val audioFocusRequest: AudioFocusRequest? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            .setOnAudioFocusChangeListener { focusChange ->
+                when (focusChange) {
+                    AudioManager.AUDIOFOCUS_LOSS,
+                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                        Log.i(TAG, "AIRI_PROOF AUDIO_FOCUS_LOST transient=${focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT}")
+                        audioFocusHeld = false
+                        // Stop TTS if focus is permanently lost (another app took over)
+                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                            stopSpeaking()
+                        }
+                    }
+                    AudioManager.AUDIOFOCUS_GAIN -> {
+                        Log.d(TAG, "AIRI_PROOF AUDIO_FOCUS_REGAINED")
+                        audioFocusHeld = true
+                    }
+                }
+            }
+            .build()
+    } else null
 
     // Tracks the utteranceId of the most-recently queued TTS chunk.
     // onSpeakingDone fires only when onDone receives this exact id AND
@@ -255,6 +293,7 @@ class VoiceManager(
             Log.w(TAG, "TTS not ready — speak() skipped")
             return
         }
+        requestAudioFocus()
         ttsGeneration.incrementAndGet()
         val utteranceId = "airi_${System.currentTimeMillis()}"
         lastQueuedUtteranceId.set(utteranceId)
@@ -309,6 +348,7 @@ class VoiceManager(
         }
 
         if (flushed > 0) {
+            requestAudioFocus()
             com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "SPEAKING")
             com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "SPEAKING") }
             Log.i(TAG, "AIRI_PROOF TTS_STREAM_FLUSH chunks=$flushed remaining=${ttsStreamBuffer.length}")
@@ -354,9 +394,36 @@ class VoiceManager(
         ttsStreamBuffer.setLength(0)
         val wasSpeaking = tts?.isSpeaking == true
         tts?.stop()
+        abandonAudioFocus()
         com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "IDLE")
         com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
         Log.i(TAG, "AIRI_PROOF TTS_STOPPED wasSpeaking=$wasSpeaking")
+    }
+
+    // ── AudioFocus helpers ─────────────────────────────────────────────────────
+
+    private fun requestAudioFocus() {
+        if (audioFocusHeld) return
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusRequest != null) {
+            audioManager.requestAudioFocus(audioFocusRequest)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+        }
+        audioFocusHeld = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        Log.d(TAG, "AIRI_PROOF AUDIO_FOCUS_REQUESTED granted=$audioFocusHeld")
+    }
+
+    private fun abandonAudioFocus() {
+        if (!audioFocusHeld) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusRequest != null) {
+            audioManager.abandonAudioFocusRequest(audioFocusRequest)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(null)
+        }
+        audioFocusHeld = false
+        Log.d(TAG, "AIRI_PROOF AUDIO_FOCUS_ABANDONED")
     }
 
     fun isSpeaking(): Boolean = tts?.isSpeaking == true
@@ -674,6 +741,7 @@ class VoiceManager(
         tts?.shutdown()
         tts = null
         ttsReady = false
+        abandonAudioFocus()
 
         Log.i(TAG, "AIRI_PROOF VOICE_MANAGER_DESTROYED")
     }

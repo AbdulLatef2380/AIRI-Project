@@ -482,19 +482,19 @@ private fun ApiKeyEntryDialog(
                 Icon(Icons.Outlined.Key, contentDescription = null,
                     tint = CosmicAccent, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("${config.displayLabel} API Key", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("Connect ${config.displayLabel}", fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Enter your free API key. It's stored encrypted on-device only — never sent to AIRI servers.",
+                    "AIRI uses this key to route requests automatically. Stored encrypted on-device only — never sent to AIRI servers.",
                     color = Color.White.copy(alpha = 0.55f), fontSize = 12.sp
                 )
                 OutlinedTextField(
                     value = key,
                     onValueChange = { key = it },
-                    label = { Text("API Key", color = Color.White.copy(alpha = 0.5f)) },
+                    label = { Text("Access Key", color = Color.White.copy(alpha = 0.5f)) },
                     visualTransformation = if (obscure)
                         androidx.compose.ui.text.input.PasswordVisualTransformation()
                     else androidx.compose.ui.text.input.VisualTransformation.None,

@@ -1,13 +1,24 @@
 package com.airi.assistant.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
@@ -17,12 +28,14 @@ import com.airi.assistant.domain.auth.AuthService
 import com.airi.assistant.domain.experiment.ExperimentManager
 import com.airi.assistant.domain.growth.OnboardingManager
 import com.airi.assistant.domain.growth.ReferralManager
+import com.airi.assistant.ui.components.AiriBottomNavBar
+import com.airi.assistant.ui.components.AiriNavTab
 import com.airi.assistant.ui.components.StarBackground
 import com.airi.assistant.ui.screens.AIModelsSettingsScreen
 import com.airi.assistant.ui.screens.AboutScreen
-import com.airi.assistant.ui.plan.AgentPlanViewModel
 import com.airi.assistant.ui.screens.AgentControlScreen
 import com.airi.assistant.ui.screens.AgentLogsScreen
+import com.airi.assistant.ui.screens.AgentTasksScreen
 import com.airi.assistant.ui.screens.DebugPanelScreen
 import com.airi.assistant.ui.screens.ExecDiagnosticsScreen
 import com.airi.assistant.ui.debug.DebugScreen
@@ -33,6 +46,7 @@ import com.airi.assistant.ui.screens.GeneralSettingsScreen
 import com.airi.assistant.ui.screens.HistoryScreen
 import com.airi.assistant.ui.screens.ConnectorsScreen
 import com.airi.assistant.ui.screens.IntegrationsScreen
+import com.airi.assistant.ui.screens.ModelLibraryScreen
 import com.airi.assistant.ui.screens.LoginScreen
 import com.airi.assistant.ui.screens.MemoryScreen
 import com.airi.assistant.ui.screens.ModelPerformanceScreen
@@ -48,6 +62,7 @@ import com.airi.assistant.ui.screens.SettingsScreen
 import com.airi.assistant.ui.screens.SkillBuilderScreen
 import com.airi.assistant.ui.screens.SkillManagerScreen
 import com.airi.assistant.ui.screens.WelcomeScreen
+import com.airi.assistant.ui.plan.AgentPlanViewModel
 import com.airi.assistant.ui.theme.AIRITheme
 import com.airi.assistant.ui.viewmodel.AgentViewModel
 import com.airi.assistant.ui.viewmodel.ChatViewModel
@@ -77,15 +92,30 @@ object AiriRoute {
     const val DEBUG_PANEL        = "screen_debug_panel"
     const val DEBUG_SCREEN       = "screen_debug_runtime"
     const val EXEC_DIAGNOSTICS   = "screen_exec_diagnostics"
+    const val SANDBOX_WORKSPACE  = "screen_sandbox_workspace"
+    const val WORKSPACE          = "screen_workspace"
+    const val TERMINAL           = "screen_terminal"
+    const val DEVELOPER_CENTER   = "screen_developer_center"
     const val VOICE_SETTINGS          = "screen_voice_settings"
     const val SETTINGS_GENERAL       = "screen_settings_general"
     const val SETTINGS_AI_MODELS     = "screen_settings_ai_models"
     const val SETTINGS_CUSTOMIZATION = "screen_settings_customization"
     const val SETTINGS_PRIVACY       = "screen_settings_privacy"
     const val SETTINGS_ABOUT         = "screen_settings_about"
+    const val AGENT_TASKS            = "screen_agent_tasks"
+    const val MODEL_LIBRARY          = "screen_model_library"
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 }
+
+// Routes where the bottom nav bar should appear
+private val bottomNavRoutes = setOf(
+    AiriRoute.CHAT,
+    AiriRoute.SETTINGS,
+    AiriRoute.SKILL_MANAGER,
+    AiriRoute.AGENT_TASKS,
+    AiriRoute.HISTORY
+)
 
 @Composable
 fun AiriApp() {
@@ -94,314 +124,376 @@ fun AiriApp() {
     val chatViewModel: ChatViewModel = viewModel()
     val agentViewModel: AgentViewModel = viewModel()
     val planViewModel: AgentPlanViewModel = viewModel()
+
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    // Chat is "active" (has messages) — bottom nav hides during active conversation
+    var chatIsActive by remember { mutableStateOf(false) }
+
+    val showBottomNav = currentRoute in bottomNavRoutes && !chatIsActive
+
     val startDest = when {
         authService.isSignedIn() -> AiriRoute.CHAT
         !OnboardingManager.isCompleted() -> AiriRoute.ONBOARDING
         else -> AiriRoute.LOGIN
     }
 
+    // Map current route to selected nav tab
+    val selectedTab = when (currentRoute) {
+        AiriRoute.SKILL_MANAGER -> AiriNavTab.SKILLS
+        AiriRoute.AGENT_TASKS   -> AiriNavTab.SCHEDULE
+        AiriRoute.SETTINGS      -> AiriNavTab.SETTINGS
+        AiriRoute.HISTORY       -> AiriNavTab.CHAT
+        else                    -> AiriNavTab.NEW   // CHAT and others
+    }
+
     AIRITheme {
-        Box(modifier = Modifier.fillMaxSize()) {
-            StarBackground()
-            NavHost(navController = navController, startDestination = startDest) {
-
-                composable(AiriRoute.ONBOARDING) {
-                    OnboardingScreen(
-                        onComplete = {
-                            navController.navigate(AiriRoute.LOGIN) {
-                                popUpTo(AiriRoute.ONBOARDING) { inclusive = true }
-                                launchSingleTop = true
-                            }
-                        },
-                        onSkip = {
-                            navController.navigate(AiriRoute.LOGIN) {
-                                popUpTo(AiriRoute.ONBOARDING) { inclusive = true }
-                                launchSingleTop = true
+        Scaffold(
+            containerColor = Color.Transparent,
+            bottomBar = {
+                AiriBottomNavBar(
+                    selectedTab = selectedTab,
+                    visible     = showBottomNav,
+                    onTabSelected = { tab ->
+                        when (tab) {
+                            AiriNavTab.SKILLS   -> navController.navigate(AiriRoute.SKILL_MANAGER) { launchSingleTop = true; restoreState = true }
+                            AiriNavTab.SCHEDULE -> navController.navigate(AiriRoute.AGENT_TASKS)   { launchSingleTop = true; restoreState = true }
+                            AiriNavTab.SETTINGS -> navController.navigate(AiriRoute.SETTINGS)      { launchSingleTop = true; restoreState = true }
+                            AiriNavTab.CHAT     -> navController.navigate(AiriRoute.HISTORY)       { launchSingleTop = true; restoreState = true }
+                            AiriNavTab.NEW      -> {
+                                chatViewModel.clearMessages()
+                                chatIsActive = false
+                                navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }
                             }
                         }
-                    )
-                }
+                    }
+                )
+            }
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                StarBackground()
+                NavHost(navController = navController, startDestination = startDest) {
 
-                composable(AiriRoute.WELCOME) {
-                    WelcomeScreen(onStart = { navController.navigate(AiriRoute.LOGIN) })
-                }
-
-                composable(AiriRoute.LOGIN) {
-                    LoginScreen(
-                        onSignIn = { email, password, onResult ->
-                            authService.signIn(email, password) { error ->
-                                if (error == null) {
-                                    AnalyticsService.login("email")
-                                    AnalyticsService.funnelStep("open_to_login")
-                                    ReferralManager.completePendingReferral(authService.currentUser()?.uid)
-                                    ExperimentManager.init(
-                                        ServiceLocator.context ?: return@signIn,
-                                        authService.currentUser()?.uid ?: "anonymous"
-                                    )
-                                    navController.navigate(AiriRoute.CHAT) {
-                                        popUpTo(AiriRoute.LOGIN) { inclusive = true }
-                                        launchSingleTop = true
-                                    }
+                    composable(AiriRoute.ONBOARDING) {
+                        OnboardingScreen(
+                            onComplete = {
+                                navController.navigate(AiriRoute.LOGIN) {
+                                    popUpTo(AiriRoute.ONBOARDING) { inclusive = true }
+                                    launchSingleTop = true
                                 }
-                                onResult(error)
-                            }
-                        },
-                        onCreateAccount = { email, password, onResult ->
-                            authService.createAccount(email, password) { error ->
-                                if (error == null) {
-                                    AnalyticsService.signup("email")
-                                    AnalyticsService.funnelStep("open_to_signup")
-                                    ReferralManager.completePendingReferral(authService.currentUser()?.uid)
-                                    ExperimentManager.init(
-                                        ServiceLocator.context ?: return@createAccount,
-                                        authService.currentUser()?.uid ?: "anonymous"
-                                    )
-                                    navController.navigate(AiriRoute.CHAT) {
-                                        popUpTo(AiriRoute.LOGIN) { inclusive = true }
-                                        launchSingleTop = true
-                                    }
+                            },
+                            onSkip = {
+                                navController.navigate(AiriRoute.LOGIN) {
+                                    popUpTo(AiriRoute.ONBOARDING) { inclusive = true }
+                                    launchSingleTop = true
                                 }
-                                onResult(error)
                             }
-                        },
-                        onGoogleLoginSuccess = {
-                            AnalyticsService.login("google")
-                            AnalyticsService.funnelStep("open_to_login")
-                            ReferralManager.completePendingReferral(authService.currentUser()?.uid)
-                            navController.navigate(AiriRoute.CHAT) {
-                                popUpTo(AiriRoute.LOGIN) { inclusive = true }
-                                launchSingleTop = true
+                        )
+                    }
+
+                    composable(AiriRoute.WELCOME) {
+                        WelcomeScreen(onStart = { navController.navigate(AiriRoute.LOGIN) })
+                    }
+
+                    composable(AiriRoute.LOGIN) {
+                        LoginScreen(
+                            onSignIn = { email, password, onResult ->
+                                authService.signIn(email, password) { error ->
+                                    if (error == null) {
+                                        AnalyticsService.login("email")
+                                        AnalyticsService.funnelStep("open_to_login")
+                                        ReferralManager.completePendingReferral(authService.currentUser()?.uid)
+                                        ExperimentManager.init(
+                                            ServiceLocator.context ?: return@signIn,
+                                            authService.currentUser()?.uid ?: "anonymous"
+                                        )
+                                        navController.navigate(AiriRoute.CHAT) {
+                                            popUpTo(AiriRoute.LOGIN) { inclusive = true }
+                                            launchSingleTop = true
+                                        }
+                                    }
+                                    onResult(error)
+                                }
+                            },
+                            onCreateAccount = { email, password, onResult ->
+                                authService.createAccount(email, password) { error ->
+                                    if (error == null) {
+                                        AnalyticsService.signup("email")
+                                        AnalyticsService.funnelStep("open_to_signup")
+                                        ReferralManager.completePendingReferral(authService.currentUser()?.uid)
+                                        ExperimentManager.init(
+                                            ServiceLocator.context ?: return@createAccount,
+                                            authService.currentUser()?.uid ?: "anonymous"
+                                        )
+                                        navController.navigate(AiriRoute.CHAT) {
+                                            popUpTo(AiriRoute.LOGIN) { inclusive = true }
+                                            launchSingleTop = true
+                                        }
+                                    }
+                                    onResult(error)
+                                }
+                            },
+                            onGoogleLoginSuccess = {
+                                AnalyticsService.login("google")
+                                AnalyticsService.funnelStep("open_to_login")
+                                ReferralManager.completePendingReferral(authService.currentUser()?.uid)
+                                navController.navigate(AiriRoute.CHAT) {
+                                    popUpTo(AiriRoute.LOGIN) { inclusive = true }
+                                    launchSingleTop = true
+                                }
                             }
-                        }
-                    )
-                }
+                        )
+                    }
 
-                composable(AiriRoute.CHAT) {
-                    ChatScreen(
-                        viewModel = chatViewModel,
-                        planViewModel = planViewModel,
-                        onNavigate = { route ->
-                            navController.navigate(route) { launchSingleTop = true }
-                        },
-                        onLogout = {
-                            authService.signOut()
-                            chatViewModel.clearMessages()
-                            navController.navigate(AiriRoute.LOGIN) {
-                                popUpTo(AiriRoute.CHAT) { inclusive = true }
-                                launchSingleTop = true
+                    composable(AiriRoute.CHAT) {
+                        ChatScreen(
+                            viewModel = chatViewModel,
+                            onChatActiveChanged = { active -> chatIsActive = active },
+                            onNavigate = { route ->
+                                navController.navigate(route) { launchSingleTop = true }
+                            },
+                            onLogout = {
+                                authService.signOut()
+                                chatViewModel.clearMessages()
+                                chatIsActive = false
+                                navController.navigate(AiriRoute.LOGIN) {
+                                    popUpTo(AiriRoute.CHAT) { inclusive = true }
+                                    launchSingleTop = true
+                                }
                             }
-                        }
-                    )
-                }
+                        )
+                    }
 
-                composable(AiriRoute.MODELS) {
-                    ModelSettingsScreen(
-                        viewModel = chatViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+                    composable(AiriRoute.MODELS) {
+                        ModelSettingsScreen(
+                            viewModel = chatViewModel,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
 
-                composable(AiriRoute.HISTORY) {
-                    HistoryScreen(
-                        viewModel = chatViewModel,
-                        onBack = { navController.popBackStack() },
-                        onSessionSelected = {
-                            navController.navigate(AiriRoute.CHAT) {
-                                launchSingleTop = true
+                    composable(AiriRoute.HISTORY) {
+                        HistoryScreen(
+                            viewModel = chatViewModel,
+                            onBack = { navController.popBackStack() },
+                            onSessionSelected = {
+                                navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }
                             }
-                        }
-                    )
-                }
+                        )
+                    }
 
-                composable(AiriRoute.VOICE_SETTINGS) {
-                    com.airi.assistant.ui.screens.VoiceSettingsScreen(
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+                    composable(AiriRoute.VOICE_SETTINGS) {
+                        com.airi.assistant.ui.screens.VoiceSettingsScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
 
-                composable(AiriRoute.SETTINGS) {
-                    SettingsScreen(
-                        viewModel = chatViewModel,
-                        onBack = { navController.popBackStack() },
-                        onNavigate = { route ->
-                            navController.navigate(route) { launchSingleTop = true }
-                        },
-                        onLogout = {
-                            authService.signOut()
-                            chatViewModel.clearMessages()
-                            navController.navigate(AiriRoute.LOGIN) {
-                                popUpTo(AiriRoute.CHAT) { inclusive = true }
-                                launchSingleTop = true
+                    composable(AiriRoute.SETTINGS) {
+                        SettingsScreen(
+                            viewModel = chatViewModel,
+                            onBack = { navController.popBackStack() },
+                            onNavigate = { route ->
+                                navController.navigate(route) { launchSingleTop = true }
+                            },
+                            onLogout = {
+                                authService.signOut()
+                                chatViewModel.clearMessages()
+                                chatIsActive = false
+                                navController.navigate(AiriRoute.LOGIN) {
+                                    popUpTo(AiriRoute.CHAT) { inclusive = true }
+                                    launchSingleTop = true
+                                }
                             }
-                        }
-                    )
-                }
+                        )
+                    }
 
-                composable(AiriRoute.SETTINGS_GENERAL) {
-                    GeneralSettingsScreen(
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+                    composable(AiriRoute.SETTINGS_GENERAL) {
+                        GeneralSettingsScreen(onBack = { navController.popBackStack() })
+                    }
 
-                composable(AiriRoute.SETTINGS_AI_MODELS) {
-                    AIModelsSettingsScreen(
-                        viewModel  = chatViewModel,
-                        onBack     = { navController.popBackStack() },
-                        onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } }
-                    )
-                }
+                    composable(AiriRoute.SETTINGS_AI_MODELS) {
+                        AIModelsSettingsScreen(
+                            viewModel  = chatViewModel,
+                            onBack     = { navController.popBackStack() },
+                            onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } }
+                        )
+                    }
 
-                composable(AiriRoute.SETTINGS_CUSTOMIZATION) {
-                    CustomizationSettingsScreen(
-                        viewModel  = chatViewModel,
-                        onBack     = { navController.popBackStack() },
-                        onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } }
-                    )
-                }
+                    composable(AiriRoute.SETTINGS_CUSTOMIZATION) {
+                        CustomizationSettingsScreen(
+                            viewModel  = chatViewModel,
+                            onBack     = { navController.popBackStack() },
+                            onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } }
+                        )
+                    }
 
-                composable(AiriRoute.SETTINGS_PRIVACY) {
-                    PrivacyDataSettingsScreen(
-                        viewModel  = chatViewModel,
-                        onBack     = { navController.popBackStack() },
-                        onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } },
-                        onLogout   = {
-                            authService.signOut()
-                            chatViewModel.clearMessages()
-                            navController.navigate(AiriRoute.LOGIN) {
-                                popUpTo(AiriRoute.CHAT) { inclusive = true }
-                                launchSingleTop = true
+                    composable(AiriRoute.SETTINGS_PRIVACY) {
+                        PrivacyDataSettingsScreen(
+                            viewModel  = chatViewModel,
+                            onBack     = { navController.popBackStack() },
+                            onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } },
+                            onLogout   = {
+                                authService.signOut()
+                                chatViewModel.clearMessages()
+                                chatIsActive = false
+                                navController.navigate(AiriRoute.LOGIN) {
+                                    popUpTo(AiriRoute.CHAT) { inclusive = true }
+                                    launchSingleTop = true
+                                }
                             }
-                        }
-                    )
-                }
+                        )
+                    }
 
-                composable(AiriRoute.SETTINGS_ABOUT) {
-                    AboutScreen(
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+                    composable(AiriRoute.SETTINGS_ABOUT) {
+                        AboutScreen(onBack = { navController.popBackStack() })
+                    }
 
-                composable(AiriRoute.MEMORY) {
-                    MemoryScreen(
-                        viewModel = chatViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+                    composable(AiriRoute.MEMORY) {
+                        MemoryScreen(viewModel = chatViewModel, onBack = { navController.popBackStack() })
+                    }
 
-                composable(AiriRoute.INTEGRATIONS) {
-                    IntegrationsScreen(
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+                    composable(AiriRoute.INTEGRATIONS) {
+                        IntegrationsScreen(onBack = { navController.popBackStack() })
+                    }
 
-                composable(AiriRoute.CONNECTORS) {
-                    ConnectorsScreen(
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+                    composable(AiriRoute.CONNECTORS) {
+                        ConnectorsScreen(onBack = { navController.popBackStack() })
+                    }
 
-                composable(AiriRoute.PROFILE) {
-                    ProfileScreen(
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+                    composable(AiriRoute.PROFILE) {
+                        ProfileScreen(onBack = { navController.popBackStack() })
+                    }
 
-                composable(AiriRoute.AGENT_CONTROL) {
-                    AgentControlScreen(
-                        viewModel = agentViewModel,
-                        onBack    = { navController.popBackStack() }
-                    )
-                }
+                    composable(AiriRoute.AGENT_CONTROL) {
+                        AgentControlScreen(
+                            viewModel = agentViewModel,
+                            onBack    = { navController.popBackStack() }
+                        )
+                    }
 
-                composable(AiriRoute.AGENT_LOGS) {
-                    AgentLogsScreen(
-                        viewModel       = agentViewModel,
-                        onBack          = { navController.popBackStack() },
-                        onTraceSelected = {
-                            navController.navigate(AiriRoute.AGENT_TRACE_DETAIL) {
-                                launchSingleTop = true
+                    composable(AiriRoute.AGENT_TASKS) {
+                        AgentTasksScreen(
+                            onBack = { navController.popBackStack() },
+                            onNavigateToAgentControl = {
+                                navController.navigate(AiriRoute.AGENT_CONTROL) { launchSingleTop = true }
                             }
-                        }
-                    )
-                }
+                        )
+                    }
 
-                composable(AiriRoute.AGENT_TRACE_DETAIL) {
-                    AgentTraceDetailScreen(
-                        viewModel = agentViewModel,
-                        onBack    = { navController.popBackStack() }
-                    )
-                }
+                    composable(AiriRoute.MODEL_LIBRARY) {
+                        ModelLibraryScreen(
+                            viewModel = chatViewModel,
+                            onBack    = { navController.popBackStack() }
+                        )
+                    }
 
-                composable(AiriRoute.OBSERVABILITY) {
-                    ObservabilityScreen(
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-
-                composable(AiriRoute.PAYWALL) {
-                    PaywallScreen(
-                        onBack           = { navController.popBackStack() },
-                        onPurchaseSuccess = { navController.popBackStack() }
-                    )
-                }
-
-                composable(AiriRoute.REFERRALS) {
-                    ReferralScreen(onBack = { navController.popBackStack() })
-                }
-
-                composable(AiriRoute.PERFORMANCE) {
-                    PerformanceScreen(
-                        viewModel = chatViewModel,
-                        onBack    = { navController.popBackStack() },
-                        onOpenModelPerformance = { navController.navigate(AiriRoute.MODEL_PERFORMANCE) }
-                    )
-                }
-
-                composable(AiriRoute.MODEL_PERFORMANCE) {
-                    ModelPerformanceScreen(onBack = { navController.popBackStack() })
-                }
-
-                composable(AiriRoute.SKILL_MANAGER) {
-                    SkillManagerScreen(
-                        onBack = { navController.popBackStack() },
-                        onCreate = { navController.navigate(AiriRoute.skillBuilder()) },
-                        onEdit = { skillId -> navController.navigate(AiriRoute.skillBuilder(skillId)) }
-                    )
-                }
-
-                composable(
-                    route = "${AiriRoute.SKILL_BUILDER}/{skillId}",
-                    arguments = listOf(navArgument("skillId") { type = NavType.StringType })
-                ) { entry ->
-                    val skillId = entry.arguments?.getString("skillId")?.takeIf { it != "new" }
-                    SkillBuilderScreen(
-                        skillId = skillId,
-                        onBack = { navController.popBackStack() },
-                        onSaved = {
-                            navController.navigate(AiriRoute.SKILL_MANAGER) {
-                                popUpTo(AiriRoute.SKILL_MANAGER) { inclusive = true }
-                                launchSingleTop = true
+                    composable(AiriRoute.AGENT_LOGS) {
+                        AgentLogsScreen(
+                            viewModel       = agentViewModel,
+                            onBack          = { navController.popBackStack() },
+                            onTraceSelected = {
+                                navController.navigate(AiriRoute.AGENT_TRACE_DETAIL) { launchSingleTop = true }
                             }
-                        }
-                    )
-                }
+                        )
+                    }
 
-                composable(AiriRoute.DEBUG_PANEL) {
-                    DebugPanelScreen(
-                        viewModel = chatViewModel,
-                        onBack    = { navController.popBackStack() }
-                    )
-                }
+                    composable(AiriRoute.AGENT_TRACE_DETAIL) {
+                        AgentTraceDetailScreen(
+                            viewModel = agentViewModel,
+                            onBack    = { navController.popBackStack() }
+                        )
+                    }
 
-                composable(AiriRoute.DEBUG_SCREEN) {
-                    DebugScreen(onBack = { navController.popBackStack() })
-                }
+                    composable(AiriRoute.OBSERVABILITY) {
+                        ObservabilityScreen(onBack = { navController.popBackStack() })
+                    }
 
-                composable(AiriRoute.EXEC_DIAGNOSTICS) {
-                    ExecDiagnosticsScreen(
-                        viewModel = chatViewModel,
-                        onBack    = { navController.popBackStack() }
-                    )
+                    composable(AiriRoute.PAYWALL) {
+                        PaywallScreen(
+                            onBack            = { navController.popBackStack() },
+                            onPurchaseSuccess = { navController.popBackStack() }
+                        )
+                    }
+
+                    composable(AiriRoute.REFERRALS) {
+                        ReferralScreen(onBack = { navController.popBackStack() })
+                    }
+
+                    composable(AiriRoute.PERFORMANCE) {
+                        PerformanceScreen(
+                            viewModel = chatViewModel,
+                            onBack    = { navController.popBackStack() },
+                            onOpenModelPerformance = { navController.navigate(AiriRoute.MODEL_PERFORMANCE) }
+                        )
+                    }
+
+                    composable(AiriRoute.MODEL_PERFORMANCE) {
+                        ModelPerformanceScreen(onBack = { navController.popBackStack() })
+                    }
+
+                    composable(AiriRoute.SKILL_MANAGER) {
+                        SkillManagerScreen(
+                            onBack    = { navController.popBackStack() },
+                            onCreate  = { navController.navigate(AiriRoute.skillBuilder()) },
+                            onEdit    = { skillId -> navController.navigate(AiriRoute.skillBuilder(skillId)) }
+                        )
+                    }
+
+                    composable(
+                        route = "${AiriRoute.SKILL_BUILDER}/{skillId}",
+                        arguments = listOf(navArgument("skillId") { type = NavType.StringType })
+                    ) { entry ->
+                        val skillId = entry.arguments?.getString("skillId")?.takeIf { it != "new" }
+                        SkillBuilderScreen(
+                            skillId = skillId,
+                            onBack  = { navController.popBackStack() },
+                            onSaved = {
+                                navController.navigate(AiriRoute.SKILL_MANAGER) {
+                                    popUpTo(AiriRoute.SKILL_MANAGER) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
+                    }
+
+                    composable(AiriRoute.DEBUG_PANEL) {
+                        DebugPanelScreen(viewModel = chatViewModel, onBack = { navController.popBackStack() })
+                    }
+
+                    composable(AiriRoute.DEBUG_SCREEN) {
+                        DebugScreen(onBack = { navController.popBackStack() })
+                    }
+
+                    composable(AiriRoute.EXEC_DIAGNOSTICS) {
+                        ExecDiagnosticsScreen(viewModel = chatViewModel, onBack = { navController.popBackStack() })
+                    }
+                    composable(AiriRoute.SANDBOX_WORKSPACE) {
+                        com.airi.assistant.ui.screens.SandboxWorkspaceScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable(AiriRoute.WORKSPACE) {
+                        com.airi.assistant.ui.screens.WorkspaceScreen(
+                            onBack       = { navController.popBackStack() },
+                            onOpenChat   = {
+                                navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }
+                            }
+                        )
+                    }
+                    composable(AiriRoute.TERMINAL) {
+                        com.airi.assistant.ui.screens.TerminalScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable(AiriRoute.DEVELOPER_CENTER) {
+                        com.airi.assistant.ui.screens.DeveloperCenterScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
                 }
             }
         }

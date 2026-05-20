@@ -44,8 +44,12 @@ import kotlinx.coroutines.withContext
  * [ExecModePreferences.recordCloudTokens] for the daily budget display.
  */
 class CloudBackend(
-    private val prefs:   ExecModePreferences,
-    private val context: Context
+    private val prefs:          ExecModePreferences,
+    private val context:        Context,
+    // Optional — when provided, successful cloud generations are recorded
+    // with full prompt/completion breakdown for the Diagnostics screen.
+    // Injected by ChatViewModel which owns the singleton TokenAccountant.
+    private val tokenAccountant: com.airi.assistant.execution.accounting.TokenAccountant? = null
 ) : RuntimeBackend {
 
     override val id:           String          = "cloud"
@@ -77,7 +81,7 @@ class CloudBackend(
         }
 
         val provider = prefs.preferredProvider
-        val adapter  = CloudAdapterFactory.create(provider, context)
+        val adapter  = CloudAdapterFactory.create(provider, context, request)
 
         if (!adapter.isAvailable) {
             onError("${provider.displayName}: no API key configured")
@@ -112,6 +116,19 @@ class CloudBackend(
                 if (adapterResult is com.airi.assistant.execution.cloud.CloudProviderAdapter.AdapterResult.Success) {
                     val totalTokens = promptTok + compTok
                     if (totalTokens > 0) prefs.recordCloudTokens(totalTokens)
+                    // Also feed the detailed TokenAccountant for per-provider stats + UI StateFlow
+                    if (totalTokens > 0) {
+                        runCatching {
+                            kotlinx.coroutines.runBlocking {
+                                tokenAccountant?.recordSuccess(
+                                    provider         = provider,
+                                    promptTokens     = promptTok,
+                                    completionTokens = compTok,
+                                    latencyMs        = adapterResult.latencyMs
+                                )
+                            }
+                        }
+                    }
                     RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.INFO,
                         "${provider.displayName} OK: ${adapterResult.latencyMs}ms " +
                         "tokens=${promptTok}p+${compTok}c")
@@ -144,7 +161,7 @@ class CloudBackend(
                 )
                 NetworkGuard.Decision.Allow -> {
                     val provider = prefs.preferredProvider
-                    val adapter  = CloudAdapterFactory.create(provider, context)
+                    val adapter  = CloudAdapterFactory.create(provider, context, request)
                     if (!adapter.isAvailable) {
                         return@withContext ExecutionResult.Failure(
                             error     = "${provider.displayName}: no API key",

@@ -161,6 +161,15 @@ object RoutingPolicy {
         signals: DeviceSignals,
         prefs:   ExecModePreferences
     ): Boolean {
+        // Budget gate: if we're within 10% of the daily cloud token cap,
+        // stop preferring cloud and fall back to local to avoid quota exhaustion
+        // mid-session. The hard block is in effectiveMode; this is the soft
+        // preference shift that happens before the wall is hit.
+        if (prefs.isCloudBudgetExhausted) return false
+        val tokenCap = prefs.maxDailyCloudTokens
+        val tokensUsed = prefs.cloudTokensUsedToday
+        if (tokenCap > 0 && tokensUsed > tokenCap * 0.9) return false
+
         if (request.requiresLongContext)     return true
         if (request.requiresVision &&
             !request.requiresOffline)        return true
@@ -174,6 +183,16 @@ object RoutingPolicy {
 
         // Device can't run local well right now even if not in stress zone
         if (!signals.isLocalCapable)         return true
+
+        // Low battery on cellular: heavy local inference drains battery faster
+        // than a cloud round-trip. Prefer cloud when battery < 15% and not charging.
+        if (!signals.isCharging && signals.batteryLevel < 15 &&
+            signals.networkAvailable)        return true
+
+        // ACTION queries on cellular with sufficient battery → local preferred
+        // (avoids cloud round-trip latency for quick device actions)
+        if (request.queryType == QueryType.ACTION &&
+            signals.networkType == DeviceSignals.NetworkType.CELLULAR) return false
 
         return false
     }

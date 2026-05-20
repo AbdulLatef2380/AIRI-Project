@@ -28,7 +28,7 @@ import com.airi.assistant.ui.theme.CosmicAccent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AppInfoScreenContent(onBack: () -> Unit) {
     val context = LocalContext.current
 
     Scaffold(

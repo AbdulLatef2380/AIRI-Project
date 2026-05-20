@@ -12,6 +12,8 @@ sealed class PlusMenuAction(val label: String, val emoji: String) {
     object CodeWorkspace    : PlusMenuAction("Code workspace",     "💻")
     object AnalyzeRepo      : PlusMenuAction("Analyse repository", "📦")
     object OpenSandbox      : PlusMenuAction("Open sandbox",       "🔬")
+    object OpenWorkspace    : PlusMenuAction("Workspace",          "🗂")
+    object OpenTerminal     : PlusMenuAction("Terminal",           "💻")
     object AddSkill         : PlusMenuAction("Add skill",          "✨")
 
     companion object {
@@ -19,7 +21,7 @@ sealed class PlusMenuAction(val label: String, val emoji: String) {
             "Media & Files"    to listOf(UploadImage, TakePhoto, UploadFile),
             "Agent Workflows"  to listOf(CreateWebsite, DevelopApp, GenerateSlides,
                                           LaunchResearch, CreateAutomation, CodeWorkspace,
-                                          AnalyzeRepo, OpenSandbox),
+                                          AnalyzeRepo, OpenSandbox, OpenWorkspace, OpenTerminal),
             "Skills"           to listOf(AddSkill)
         )
     }

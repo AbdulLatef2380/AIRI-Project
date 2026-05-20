@@ -34,16 +34,15 @@ object CloudAdapterFactory {
     /**
      * Create the best adapter for [provider].
      *
-     * Returns null only if:
-     *  - No API key is available AND
-     *  - The provider has no fallback (Custom with no RemoteModel configured)
-     *
-     * In all other cases a non-null adapter is returned; availability is
-     * checked via [CloudProviderAdapter.isAvailable] at call time.
+     * For [CloudProvider.OPENROUTER], the optional [request] parameter
+     * enables task-based model selection via [OpenRouterAdapter.selectModel].
+     * When null, the default model is used (safe for providers that don't
+     * support per-request model selection).
      */
     fun create(
         provider: CloudProvider,
-        context:  Context
+        context:  Context,
+        request:  com.airi.assistant.execution.ExecutionRequest? = null
     ): CloudProviderAdapter {
         val keyStore = SecureApiKeyStore(context)
         logPresence(provider, keyStore, context)
@@ -52,7 +51,16 @@ object CloudAdapterFactory {
             CloudProvider.GEMINI     -> GeminiAdapter(keyStore)
             CloudProvider.OPENAI     -> OpenAIAdapter(keyStore, CloudProvider.OPENAI)
             CloudProvider.ANTHROPIC  -> AnthropicAdapter(keyStore)
-            CloudProvider.OPENROUTER -> OpenRouterAdapter(keyStore)
+            CloudProvider.OPENROUTER -> {
+                // Intelligent model selection: pick the best OpenRouter model
+                // for this specific request's task type and capabilities.
+                // Falls back to DEFAULT_MODEL when request is null.
+                val selectedModel = request?.let { OpenRouterAdapter.selectModel(it) }
+                    ?: OpenRouterAdapter.DEFAULT_MODEL
+                Log.i(TAG, "OPENROUTER: selected model=$selectedModel " +
+                    "queryType=${request?.queryType} vision=${request?.requiresVision}")
+                OpenRouterAdapter(keyStore, selectedModel)
+            }
             CloudProvider.KIMI       -> OpenAIAdapter(keyStore, CloudProvider.KIMI)
             CloudProvider.CUSTOM     -> buildCustomAdapter(keyStore, context)
         }

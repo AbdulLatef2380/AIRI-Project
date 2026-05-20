@@ -230,6 +230,62 @@ object ServiceLocator {
         com.airi.assistant.agent.sandbox.SandboxManager(requireContext())
     }
 
+    // ── Adaptive Intelligence (Phase 9/10) ────────────────────────────────────
+    val adaptiveIntelligence: com.airi.assistant.agent.learning.AdaptiveIntelligenceEngine by lazy {
+        com.airi.assistant.agent.learning.AdaptiveIntelligenceEngine(requireContext())
+    }
+
+    // ── Phase P2: Multi-agent runtime ─────────────────────────────────────────
+    val agentCapabilityGraph: com.airi.assistant.agent.multiagent.AgentCapabilityGraph
+        get() = com.airi.assistant.agent.multiagent.AgentCapabilityGraph
+
+    val agentTaskDelegator: com.airi.assistant.agent.multiagent.AgentTaskDelegator by lazy {
+        com.airi.assistant.agent.multiagent.AgentTaskDelegator().also {
+            com.airi.assistant.agent.multiagent.AgentCapabilityGraph.installDefaults()
+        }
+    }
+
+    // ── Phase P3: Workspace / Canvas runtime ─────────────────────────────────
+    val artifactManager: com.airi.assistant.workspace.ArtifactManager by lazy {
+        com.airi.assistant.workspace.ArtifactManager(requireContext())
+    }
+
+    val workspaceRuntime: com.airi.assistant.workspace.WorkspaceRuntime by lazy {
+        com.airi.assistant.workspace.WorkspaceRuntime(
+            context         = requireContext(),
+            sandboxManager  = sandboxManager,
+            artifactManager = artifactManager
+        )
+    }
+
+    // ── Phase P5: Dynamic Skills runtime ──────────────────────────────────────
+    val skillRuntime: com.airi.assistant.skills.SkillRuntime by lazy {
+        val skillExec = com.airi.assistant.ai.skills.SkillExecutor(requireContext())
+        com.airi.assistant.skills.SkillRuntime(
+            context                 = requireContext(),
+            skillRegistry           = skillExec.getRegistry(),
+            orchestrator            = com.airi.assistant.ai.skills.AiriSkillOrchestrator,
+            connectorRuntimeManager = connectorRuntimeManager,
+            sandboxManager          = sandboxManager
+        )
+    }
+
+    // ── Phase P6: Permission governance ───────────────────────────────────────
+    val permissionGovernanceLayer: com.airi.assistant.security.PermissionGovernanceLayer by lazy {
+        com.airi.assistant.security.PermissionGovernanceLayer(
+            firewall  = executionFirewall,
+            scopeReg  = scopedPermissionRegistry
+        )
+    }
+
+    // ── Terminal runtime ───────────────────────────────────────────────────────
+    val terminalRuntime: com.airi.assistant.terminal.TerminalRuntime by lazy {
+        com.airi.assistant.terminal.TerminalRuntime(
+            sandboxManager = sandboxManager,
+            governance     = permissionGovernanceLayer
+        )
+    }
+
     val agentRouter: AgentRouter by lazy {
         AgentRouter(connectorRegistry)
     }
@@ -275,7 +331,8 @@ object ServiceLocator {
             runtime         = executionGraphRuntime,
             crashReporter   = crashReporter,
             telemetry       = privacyTelemetryReporter,
-            autoCancelStuck = false
+            autoCancelStuck = false,
+            healthMonitor   = runtimeHealthMonitor
         )
     }
 

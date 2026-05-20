@@ -319,7 +319,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // level, and internet permission. All preference mutations go through it.
     private val execModePrefs  = ExecModePreferences(appContext)
     private val localBackend   = LocalLlamaBackend(llamaManager)
-    private val cloudBackend   = CloudBackend(execModePrefs, appContext)
+    private val cloudBackend   = CloudBackend(execModePrefs, appContext, tokenAccountant)
     private val runtimeRouter  = RuntimeRouter(localBackend, cloudBackend, execModePrefs)
 
     // ── Production execution layer ────────────────────────────────────────────
@@ -407,6 +407,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Live snapshot of the Hybrid Execution layer's runtime state. */
     val execDiagnostics: StateFlow<ExecutionDiagnosticsState> =
         hybridOrchestrator.execDiagnostics
+
+    /**
+     * Live RuntimeHealthMonitor report — emits whenever the 5-min health
+     * check runs. Surfaces memory pressure, stuck agents, and orphan
+     * coroutines to the UI without polling. Collected by SettingsScreen
+     * and any future Health Dashboard.
+     */
+    val runtimeHealth: StateFlow<com.airi.assistant.crash.RuntimeHealthMonitor.HealthReport> =
+        ServiceLocator.runtimeHealthMonitor.health
 
     // ── Local inference token-rate history ────────────────────────────────────
     // Rolling window of the last 20 completed LOCAL-generation tok/s values.
@@ -1651,9 +1660,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
         withContext(Dispatchers.Main) {
             when (result) {
-                is RemoteModelExecutor.RemoteResult.Success ->
+                is RemoteModelExecutor.RemoteResult.Success -> {
+                    // Record to TokenAccountant (detailed per-provider stats + UI StateFlow)
+                    // AND to ExecModePreferences (budget gate). Both run on IO so we
+                    // fire-and-forget from Main to keep the finish() call unblocked.
+                    viewModelScope.launch(Dispatchers.IO) {
+                        runCatching {
+                            val provider = execModePrefs.preferredProvider
+                            tokenAccountant.recordSuccess(
+                                provider         = provider,
+                                promptTokens     = (systemPrompt.length / 4).coerceAtLeast(1),
+                                completionTokens = tokenCount.coerceAtLeast(1),
+                                latencyMs        = result.latencyMs
+                            )
+                        }.onFailure { Log.w("AIRI_ACCOUNTING", "recordSuccess failed: ${it.message}") }
+                    }
                     finish(result.text, result.latencyMs.coerceAtLeast(System.currentTimeMillis() - streamStart), tokenCount)
+                }
                 is RemoteModelExecutor.RemoteResult.Failure -> {
+                    // Record failure for reliability tracking
+                    viewModelScope.launch(Dispatchers.IO) {
+                        runCatching { tokenAccountant.recordFailure(execModePrefs.preferredProvider) }
+                    }
                     val fallback = "الرد تأخر أكثر من 15 ثانية. حاول مرة أخرى أو استخدم نموذج أخف."
                     val sessionId = currentSessionOrCreate()
                     val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fallback)
@@ -1684,6 +1712,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val elapsed = elapsedMs.coerceAtLeast(1L)
         val tps = tokenCount * 1000f / elapsed
         Log.d("AIRI_PERF", "Generation complete: latency=${elapsed}ms tokens=$tokenCount tps=%.2f".format(tps))
+
+        // ── Health monitor: slow generation is a runtime pressure signal ──────
+        // If a local generation takes > 10s it indicates thermal/memory pressure
+        // that the RuntimeSupervisor may not have caught yet (it runs on 15s
+        // intervals). Feed this directly to the health monitor so the HealthReport
+        // reflects actual inference performance, not just system-service polls.
+        if (elapsed > SLOW_GENERATION_WARN_MS && _lastExecOrigin.value == com.airi.assistant.execution.ExecOrigin.LOCAL) {
+            Log.w("AIRI_PROOF", "SLOW_GENERATION elapsedMs=$elapsed tokenCount=$tokenCount tps=%.2f".format(tps))
+            runCatching { ServiceLocator.runtimeHealthMonitor }.getOrNull()
+                ?.also { monitor ->
+                    // Reuse the bus-emit signal as a lightweight "pressure event" counter
+                    // without adding a new API — each slow generation counts as one.
+                    monitor.recordBusEmit()
+                }
+        }
 
         // Pull the native breakdown that LlamaManager just snapshotted and
         // persist it for the Generation Statistics screen.
@@ -2397,6 +2440,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearMessages()  { createNewSession() }
 
+    // ── Message interaction actions (Phase 6) ─────────────────────────────────
+
+    /** Pre-fill the input bar text (for Edit action in user bubble contextual menu). */
+    private val _pendingPrefill = MutableStateFlow<String?>(null)
+    val pendingPrefill: StateFlow<String?> = _pendingPrefill.asStateFlow()
+    fun prefillInput(text: String) { _pendingPrefill.value = text }
+    fun consumePrefill() { _pendingPrefill.value = null }
+
+    /** Delete a message by uid. No-op if uid not found. Updates in-memory state only. */
+    fun deleteMessage(uid: String) {
+        _messages.value = _messages.value.filter { it.uid != uid }
+    }
+
     // ── Plus Menu orchestration (Phase 6) ─────────────────────────────────────
 
     fun handlePlusAction(action: com.airi.assistant.ui.input.PlusMenuAction) {
@@ -2421,12 +2477,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     val session = com.airi.assistant.core.ServiceLocator.sandboxManager
                         .createSession("Code Workspace")
                     sendMessage("Opening coding workspace (session: ${session?.sessionId}). What are we building?")
+                    _pendingPlusPickerRequest.value = PlusPickerRequest.SANDBOX
                 }
                 is com.airi.assistant.ui.input.PlusMenuAction.OpenSandbox     -> {
-                    val session = com.airi.assistant.core.ServiceLocator.sandboxManager
-                        .createSession("Sandbox")
-                    sendMessage("Sandbox opened (session: ${session?.sessionId}). What shall I execute?")
+                    com.airi.assistant.core.ServiceLocator.sandboxManager.createSession("Sandbox")
+                    _pendingPlusPickerRequest.value = PlusPickerRequest.SANDBOX
                 }
+                is com.airi.assistant.ui.input.PlusMenuAction.OpenWorkspace   ->
+                    _pendingPlusPickerRequest.value = PlusPickerRequest.WORKSPACE
+                is com.airi.assistant.ui.input.PlusMenuAction.OpenTerminal    ->
+                    _pendingPlusPickerRequest.value = PlusPickerRequest.TERMINAL
 
                 // Skills — emit an event that the UI observes to navigate
                 is com.airi.assistant.ui.input.PlusMenuAction.AddSkill        -> _pendingPlusPickerRequest.value = PlusPickerRequest.SKILLS
@@ -2439,7 +2499,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val pendingPlusPickerRequest: kotlinx.coroutines.flow.StateFlow<PlusPickerRequest?> = _pendingPlusPickerRequest.asStateFlow()
     fun consumePlusPickerRequest() { _pendingPlusPickerRequest.value = null }
 
-    enum class PlusPickerRequest { IMAGE, CAMERA, FILE, SKILLS }
+    enum class PlusPickerRequest { IMAGE, CAMERA, FILE, SKILLS, SANDBOX, WORKSPACE, TERMINAL }
 
     fun clearMemory() {
         viewModelScope.launch {
@@ -3113,6 +3173,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val KEY_MODEL_REGISTRY = "model_registry_json"
         const val KEY_SCANNED_IDS    = "scanned_model_ids"
         const val KEY_SESSION_ID     = "current_session_id"
+
+        // Generation latency above this on a local model is treated as a
+        // pressure signal and fed to RuntimeHealthMonitor.
+        const val SLOW_GENERATION_WARN_MS = 10_000L
         // ── Phase 1.5 — semantic memory injection budget ────────────────────────
         // Hard cap on the share of n_ctx that semantic recall is allowed to
         // consume. PromptCompressor keeps its own 90% n_ctx budget; this is

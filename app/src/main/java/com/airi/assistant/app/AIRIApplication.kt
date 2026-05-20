@@ -17,6 +17,7 @@ import com.airi.assistant.integrity.PlayIntegrityVerifier
 import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.sync.CloudSyncWorker
 import com.airi.assistant.agent.learning.reinforcement.ReinforcementMemory
+import com.airi.assistant.runtime.recovery.RuntimeRecoveryEngine
 import com.airi.assistant.system.LanguageManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +42,14 @@ class AIRIApplication : Application() {
         try {
             ServiceLocator.context = applicationContext
             LoggingService.info(TAG, "✓ ServiceLocator initialized")
+
+            // ── Crash recovery — must be FIRST after ServiceLocator.context ────
+            // Installs the UncaughtExceptionHandler that writes a crash timestamp
+            // on process death, and logs any prior crash that the app is recovering
+            // from. Must run before any subsystem that might throw on init.
+            val recoveryEngine = RuntimeRecoveryEngine(applicationContext)
+            recoveryEngine.init()
+            LoggingService.info(TAG, "✓ RuntimeRecoveryEngine initialized")
 
             // ── Infrastructure ─────────────────────────────────────────────────
             ServiceLocator.networkService
@@ -166,6 +175,14 @@ class AIRIApplication : Application() {
             // ── Phase 7: Connector ecosystem ──────────────────────────────────
             ServiceLocator.connectorHealthMonitor   // triggers lazy init + background ping loop
             LoggingService.info(TAG, "✓ ConnectorHealthMonitor started")
+
+            // ── Phase P2: Multi-agent capability graph ─────────────────────────
+            com.airi.assistant.agent.multiagent.AgentCapabilityGraph.installDefaults()
+            LoggingService.info(TAG, "✓ AgentCapabilityGraph installed (${com.airi.assistant.agent.multiagent.AgentCapabilityGraph.allActive().size} agents)")
+
+            // ── Phase P6: Permission governance ───────────────────────────────
+            ServiceLocator.permissionGovernanceLayer   // triggers lazy init
+            LoggingService.info(TAG, "✓ PermissionGovernanceLayer ready")
 
             // ── Cloud Sync ─────────────────────────────────────────────────────
             val prefs = ServiceLocator.userProfileRepository.current

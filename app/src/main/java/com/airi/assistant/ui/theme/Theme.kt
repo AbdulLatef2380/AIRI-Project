@@ -11,12 +11,12 @@ import androidx.compose.ui.unit.sp
 
 private val DarkColorScheme = darkColorScheme(
     primary          = CosmicAccent,
-    secondary        = CosmicAccentDark,
+    secondary        = CosmicAccentAlt,
     tertiary         = SemanticSuccess,
     background       = CosmicBlack,
     surface          = SurfaceBase,
     surfaceVariant   = SurfaceRaised,
-    onPrimary        = Color.Black,
+    onPrimary        = Color.White,
     onSecondary      = Color.White,
     onBackground     = Color.White,
     onSurface        = Color.White,

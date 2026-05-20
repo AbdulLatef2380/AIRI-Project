@@ -367,7 +367,7 @@
     <string name="photo_attached">Photo attached</string>
     <!-- Remote model form -->
     <string name="server_url">Server URL</string>
-    <string name="api_key_optional">API Key (optional)</string>
+    <string name="api_key_optional">Auth Key (optional)</string>
     <string name="test_connection">Test Connection</string>
     <string name="remote_model_warning">Using a remote model will send your messages out of device. Make sure you trust the server.</string>
     <string name="enter_server_url_first">Enter a server URL first</string>
@@ -417,4 +417,13 @@
     <string name="suggestion_what_can_you_do">What can you help me with?</string>
     <string name="suggestion_explain_ai">How does on-device AI work?</string>
     <string name="suggestion_write_poem">Write me a short poem</string>
-    <string name="suggestion_brainstorm">Help me brainstorm ideas</string></resources>
+    <string name="suggestion_brainstorm">Help me brainstorm ideas</string>    <!-- Bottom navigation labels -->
+    <string name="nav_skills">مهارات</string>
+    <string name="nav_schedule">مجدول</string>
+    <string name="nav_settings">إعدادات</string>
+    <string name="nav_chat">دردشة</string>
+    <string name="nav_new">جديد</string>
+    <!-- Bottom navigation labels -->
+    <!-- Agent tasks route alias -->
+    <string name="agent_tasks">المهام</string>
+</resources>

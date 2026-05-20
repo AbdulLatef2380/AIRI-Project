@@ -1410,6 +1410,7 @@ fun UserBubble(
             }
         }
     }
+}
 
 @Composable
 fun AiBubble(

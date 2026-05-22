@@ -2545,21 +2545,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 is com.airi.assistant.ui.input.PlusMenuAction.CreateAutomation-> sendMessage("Build a multi-step automated workflow. Describe what to automate:")
                 is com.airi.assistant.ui.input.PlusMenuAction.AnalyzeRepo     -> sendMessage("Analyse a repository. Provide the GitHub URL or paste the code:")
 
-                // Sandbox-backed workflows
-                is com.airi.assistant.ui.input.PlusMenuAction.CodeWorkspace   -> {
-                    val session = com.airi.assistant.core.ServiceLocator.sandboxManager
-                        .createSession("Code Workspace")
-                    sendMessage("Opening coding workspace (session: ${session?.sessionId}). What are we building?")
-                    _pendingPlusPickerRequest.value = PlusPickerRequest.SANDBOX
-                }
-                is com.airi.assistant.ui.input.PlusMenuAction.OpenSandbox     -> {
-                    com.airi.assistant.core.ServiceLocator.sandboxManager.createSession("Sandbox")
-                    _pendingPlusPickerRequest.value = PlusPickerRequest.SANDBOX
-                }
-                is com.airi.assistant.ui.input.PlusMenuAction.OpenWorkspace   ->
-                    _pendingPlusPickerRequest.value = PlusPickerRequest.WORKSPACE
-                is com.airi.assistant.ui.input.PlusMenuAction.OpenTerminal    ->
-                    _pendingPlusPickerRequest.value = PlusPickerRequest.TERMINAL
+                // Phase 1 stabilization: Sandbox / Workspace / Terminal entry points
+                // were removed because the underlying runtimes cannot actually execute
+                // code on stock Android. They will return when a real on-device
+                // runtime (WebAssembly) is wired in.
 
                 // Skills — emit an event that the UI observes to navigate
                 is com.airi.assistant.ui.input.PlusMenuAction.AddSkill        -> _pendingPlusPickerRequest.value = PlusPickerRequest.SKILLS
@@ -2572,7 +2561,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val pendingPlusPickerRequest: kotlinx.coroutines.flow.StateFlow<PlusPickerRequest?> = _pendingPlusPickerRequest.asStateFlow()
     fun consumePlusPickerRequest() { _pendingPlusPickerRequest.value = null }
 
-    enum class PlusPickerRequest { IMAGE, CAMERA, FILE, SKILLS, SANDBOX, WORKSPACE, TERMINAL }
+    enum class PlusPickerRequest { IMAGE, CAMERA, FILE, SKILLS }
 
     fun clearMemory() {
         viewModelScope.launch {

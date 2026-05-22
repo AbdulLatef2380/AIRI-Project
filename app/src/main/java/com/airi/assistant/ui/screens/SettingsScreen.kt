@@ -182,65 +182,19 @@ fun SettingsScreen(
             }
 
             // ── Group 3: Developer & Runtime Tools ────────────────────────
-            // These tools were previously unreachable from any UI path.
-            // Now exposed here so developers and power users can access
-            // the terminal, workspace, sandbox, diagnostics, and agent
-            // observability tools that already exist in the project.
+            // Phase 1 stabilization: trimmed to entries that have a real
+            // backend (Developer Center groups runtime / connectors / memory /
+            // diagnostics tabs). The Terminal, Workspace, and Sandbox screens
+            // were removed from settings nav because their underlying
+            // runtimes cannot execute on stock Android. Performance,
+            // Observability, and Debug panels are reachable inside the
+            // Developer Center.
             SettingsGroup {
-                SettingsNavItem(
-                    icon     = Icons.Outlined.Terminal,
-                    iconTint = Color(0xFF80CBC4),
-                    label    = "الطرفية",
-                    onClick  = { onNavigate(AiriRoute.TERMINAL) }
-                )
-                SettingsDivider()
-                SettingsNavItem(
-                    icon     = Icons.Outlined.Workspaces,
-                    iconTint = Color(0xFF80CBC4),
-                    label    = "مساحة العمل",
-                    onClick  = { onNavigate(AiriRoute.WORKSPACE) }
-                )
-                SettingsDivider()
-                SettingsNavItem(
-                    icon     = Icons.Outlined.Science,
-                    iconTint = Color(0xFF80CBC4),
-                    label    = "Sandbox",
-                    onClick  = { onNavigate(AiriRoute.SANDBOX_WORKSPACE) }
-                )
-                SettingsDivider()
-                SettingsNavItem(
-                    icon     = Icons.Outlined.Analytics,
-                    iconTint = Color(0xFF80CBC4),
-                    label    = "تشخيصات التنفيذ",
-                    onClick  = { onNavigate(AiriRoute.EXEC_DIAGNOSTICS) }
-                )
-                SettingsDivider()
-                SettingsNavItem(
-                    icon     = Icons.Outlined.Monitor,
-                    iconTint = Color(0xFF80CBC4),
-                    label    = "الأداء",
-                    onClick  = { onNavigate(AiriRoute.PERFORMANCE) }
-                )
-                SettingsDivider()
-                SettingsNavItem(
-                    icon     = Icons.Outlined.Visibility,
-                    iconTint = Color(0xFF80CBC4),
-                    label    = "مراقبة الوكيل",
-                    onClick  = { onNavigate(AiriRoute.OBSERVABILITY) }
-                )
-                SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Code,
                     iconTint = Color(0xFF80CBC4),
                     label    = "مركز المطور",
                     onClick  = { onNavigate(AiriRoute.DEVELOPER_CENTER) }
-                )
-                SettingsDivider()
-                SettingsNavItem(
-                    icon     = Icons.Outlined.BugReport,
-                    iconTint = Color(0xFF80CBC4),
-                    label    = "لوحة التصحيح",
-                    onClick  = { onNavigate(AiriRoute.DEBUG_PANEL) }
                 )
             }
 

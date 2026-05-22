@@ -93,9 +93,6 @@ object AiriRoute {
     const val DEBUG_PANEL        = "screen_debug_panel"
     const val DEBUG_SCREEN       = "screen_debug_runtime"
     const val EXEC_DIAGNOSTICS   = "screen_exec_diagnostics"
-    const val SANDBOX_WORKSPACE  = "screen_sandbox_workspace"
-    const val WORKSPACE          = "screen_workspace"
-    const val TERMINAL           = "screen_terminal"
     const val DEVELOPER_CENTER   = "screen_developer_center"
     const val VOICE_SETTINGS          = "screen_voice_settings"
     const val SETTINGS_GENERAL       = "screen_settings_general"
@@ -471,24 +468,6 @@ fun AiriApp() {
 
                     composable(AiriRoute.EXEC_DIAGNOSTICS) {
                         ExecDiagnosticsScreen(viewModel = chatViewModel, onBack = { navController.popBackStack() })
-                    }
-                    composable(AiriRoute.SANDBOX_WORKSPACE) {
-                        com.airi.assistant.ui.screens.SandboxWorkspaceScreen(
-                            onBack = { navController.popBackStack() }
-                        )
-                    }
-                    composable(AiriRoute.WORKSPACE) {
-                        com.airi.assistant.ui.screens.WorkspaceScreen(
-                            onBack       = { navController.popBackStack() },
-                            onOpenChat   = {
-                                navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }
-                            }
-                        )
-                    }
-                    composable(AiriRoute.TERMINAL) {
-                        com.airi.assistant.ui.screens.TerminalScreen(
-                            onBack = { navController.popBackStack() }
-                        )
                     }
                     composable(AiriRoute.DEVELOPER_CENTER) {
                         com.airi.assistant.ui.screens.DeveloperCenterScreen(

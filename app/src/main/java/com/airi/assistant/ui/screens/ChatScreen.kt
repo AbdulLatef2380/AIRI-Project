@@ -473,9 +473,6 @@ fun ChatScreen(
             ChatViewModel.PlusPickerRequest.CAMERA    -> { cameraLauncher.launch(null);             viewModel.consumePlusPickerRequest() }
             ChatViewModel.PlusPickerRequest.FILE      -> { filePicker.launch("*/*");                viewModel.consumePlusPickerRequest() }
             ChatViewModel.PlusPickerRequest.SKILLS    -> { onNavigate(AiriRoute.SKILL_MANAGER);     viewModel.consumePlusPickerRequest() }
-            ChatViewModel.PlusPickerRequest.SANDBOX   -> { onNavigate(AiriRoute.SANDBOX_WORKSPACE); viewModel.consumePlusPickerRequest() }
-            ChatViewModel.PlusPickerRequest.WORKSPACE -> { onNavigate(AiriRoute.WORKSPACE);         viewModel.consumePlusPickerRequest() }
-            ChatViewModel.PlusPickerRequest.TERMINAL  -> { onNavigate(AiriRoute.TERMINAL);          viewModel.consumePlusPickerRequest() }
             null -> { /* no-op */ }
         }
     }
@@ -1293,7 +1290,7 @@ fun ChatMessageList(
                 }
                 Spacer(Modifier.height(20.dp))
                 Text(
-                    text = "كيف يمكنني مساعدتك؟",
+                    text = "كيف يمكنني مساعدتك��",
                     color = Color.White.copy(alpha = 0.88f),
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 20.sp,
@@ -1872,7 +1869,7 @@ fun AiriChatInputBar(
                 .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(20.dp))
         ) {
 
-            // ── Multi-line text field ──────────────────────────────────────
+            // ── Multi-line text field ──────────────────────────────────��───
             Box(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
             ) {

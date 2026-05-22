@@ -34,11 +34,15 @@ import com.airi.assistant.ui.theme.*
  *  1. Runtime — orchestration/agent activity, execution bus state
  *  2. Connectors — health states for all registered connectors
  *  3. Memory — token usage, cache size, embedding count
- *  4. Diagnostics — latest diagnostic report from AiriDiagnosticEngine
+ *  4. Diagnostics — entry points for the deeper diagnostic screens
+ *      (performance, exec diagnostics, debug panel, model perf, agent trace).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DeveloperCenterScreen(onBack: () -> Unit) {
+fun DeveloperCenterScreen(
+    onBack: () -> Unit,
+    onNavigate: (String) -> Unit = {}
+) {
     val tabs = listOf("Runtime", "Connectors", "Memory", "Diagnostics")
     var selectedTab by remember { mutableStateOf(0) }
 
@@ -73,7 +77,7 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
                 0 -> RuntimeTab()
                 1 -> ConnectorsTab()
                 2 -> MemoryTab()
-                3 -> DiagnosticsTab()
+                3 -> DiagnosticsTab(onNavigate)
             }
         }
     }
@@ -184,13 +188,43 @@ private fun MemoryTab() {
 
 // ── Tab 4: Diagnostics ─────────────────────────────────────────────────────────
 @Composable
-private fun DiagnosticsTab() {
-    Box(modifier = Modifier.fillMaxSize().padding(14.dp), contentAlignment = Alignment.Center) {
+private fun DiagnosticsTab(onNavigate: (String) -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         Text(
-            "Diagnostics unavailable",
-            fontSize = 13.sp,
-            color    = Color.White.copy(alpha = 0.4f)
+            "Open a deeper diagnostic surface:",
+            fontSize = 12.sp,
+            color = Color.White.copy(alpha = 0.55f),
+            modifier = Modifier.padding(bottom = 4.dp)
         )
+        DiagShortcut("Performance",            "JVM, llama.cpp, runtime metrics")  { onNavigate(com.airi.assistant.ui.AiriRoute.PERFORMANCE) }
+        DiagShortcut("Model Performance",      "tokens/sec, latency per model")    { onNavigate(com.airi.assistant.ui.AiriRoute.MODEL_PERFORMANCE) }
+        DiagShortcut("Execution Diagnostics",  "token accounting, runtime trace")  { onNavigate(com.airi.assistant.ui.AiriRoute.EXEC_DIAGNOSTICS) }
+        DiagShortcut("Debug Panel",            "debug state, integrity flags")     { onNavigate(com.airi.assistant.ui.AiriRoute.DEBUG_PANEL) }
+        DiagShortcut("Agent Observability",    "agent traces and logs")            { onNavigate(com.airi.assistant.ui.AiriRoute.OBSERVABILITY) }
+    }
+}
+
+@Composable
+private fun DiagShortcut(title: String, subtitle: String, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = SurfaceRaised,
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title,    fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                Text(subtitle, fontSize = 11.sp, color = Color.White.copy(0.4f))
+            }
+            Icon(Icons.Outlined.ChevronRight, null, tint = Color.White.copy(0.5f))
+        }
     }
 }
 

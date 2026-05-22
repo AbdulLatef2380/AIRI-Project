@@ -465,7 +465,8 @@ fun AiriApp() {
                     }
                     composable(AiriRoute.DEVELOPER_CENTER) {
                         com.airi.assistant.ui.screens.DeveloperCenterScreen(
-                            onBack = { navController.popBackStack() }
+                            onBack     = { navController.popBackStack() },
+                            onNavigate = { route -> navController.navigate(route) }
                         )
                     }
                 }

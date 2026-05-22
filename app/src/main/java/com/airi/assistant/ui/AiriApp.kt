@@ -61,7 +61,6 @@ import com.airi.assistant.ui.screens.ReferralScreen
 import com.airi.assistant.ui.screens.SettingsScreen
 import com.airi.assistant.ui.screens.SkillBuilderScreen
 import com.airi.assistant.ui.screens.SkillManagerScreen
-import com.airi.assistant.ui.screens.WelcomeScreen
 import com.airi.assistant.ui.plan.AgentPlanViewModel
 import com.airi.assistant.ui.theme.AIRITheme
 import com.airi.assistant.ui.theme.CosmicBlack
@@ -70,7 +69,6 @@ import com.airi.assistant.ui.viewmodel.ChatViewModel
 
 object AiriRoute {
     const val ONBOARDING         = "screen_onboarding"
-    const val WELCOME            = "screen_welcome"
     const val LOGIN              = "screen_login"
     const val CHAT               = "screen_chat"
     const val HISTORY            = "screen_history"
@@ -192,10 +190,6 @@ fun AiriApp() {
                                 }
                             }
                         )
-                    }
-
-                    composable(AiriRoute.WELCOME) {
-                        WelcomeScreen(onStart = { navController.navigate(AiriRoute.LOGIN) })
                     }
 
                     composable(AiriRoute.LOGIN) {

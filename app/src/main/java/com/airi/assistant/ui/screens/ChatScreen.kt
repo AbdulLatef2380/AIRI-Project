@@ -113,6 +113,7 @@ fun ChatScreen(
     val modelState    by viewModel.modelState.collectAsState()
     val agentMode     by viewModel.agentMode.collectAsState()
     val smartReplies  by viewModel.smartReplies.collectAsState()
+    val todayTokens   by viewModel.todayTokens.collectAsState()
     val snackbarHost  = remember { SnackbarHostState() }
     val paywallTrigger        by viewModel.paywallTrigger.collectAsState()
     val upgradePrompt         by viewModel.upgradePrompt.collectAsState()
@@ -181,7 +182,9 @@ fun ChatScreen(
     fun startInAppStt(autoSend: Boolean) {
         if (!VoskModelManager.isReady(context)) {
             voiceState = VoiceSessionState.IDLE
-            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.no_voice_model_installed)) }
+            // Route to Voice Settings so user can download a model in one tap
+            // instead of hitting a dead-end snackbar with no action path.
+            onNavigate(AiriRoute.VOICE_SETTINGS)
             return
         }
         voskEngineHolder.value?.release()
@@ -495,7 +498,8 @@ fun ChatScreen(
     var showHistoryPanel by remember { mutableStateOf(false) }
 
     Scaffold(
-        containerColor       = Color.Transparent,
+        modifier             = Modifier.fillMaxSize(),
+        containerColor       = CosmicBlack,
         // Disable Scaffold's automatic WindowInsets.ime padding — the bottomBar
         // Column owns .imePadding() exclusively, preventing double application
         // that caused the input bar to jump too far up on keyboard open.
@@ -507,6 +511,7 @@ fun ChatScreen(
                 agentState        = agentState,
                 agentMode         = agentMode,
                 showMenu          = showMenu,
+                todayTokens       = todayTokens,
                 onHistoryOpen     = { showHistoryPanel = true },
                 onModelPickerOpen = { showModelPicker = true },
                 onToggleDropdown  = { showMenu = !showMenu },
@@ -581,7 +586,7 @@ fun ChatScreen(
                         }
                         if (voiceState == VoiceSessionState.LISTENING) { stopInAppStt(); return@mic }
                         when {
-                            !VoskModelManager.isReady(context) -> scope.launch { snackbarHost.showSnackbar(context.getString(R.string.no_voice_model_installed)) }
+                            !VoskModelManager.isReady(context) -> onNavigate(AiriRoute.VOICE_SETTINGS)
                             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> startInAppStt(autoSend = false)
                             else -> micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
@@ -598,7 +603,7 @@ fun ChatScreen(
                             stopInAppStt(); return@vc
                         }
                         when {
-                            !VoskModelManager.isReady(context) -> scope.launch { snackbarHost.showSnackbar(context.getString(R.string.no_voice_model_installed)) }
+                            !VoskModelManager.isReady(context) -> onNavigate(AiriRoute.VOICE_SETTINGS)
                             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> {
                                 liveChatActiveRef.value = true; startInAppStt(autoSend = true)
                             }
@@ -709,6 +714,7 @@ fun ChatScreen(
     if (showModelPicker) {
         AiriModelPickerSheet(
             modelState = modelState,
+            viewModel  = viewModel,
             onDismiss  = { showModelPicker = false },
             onNavigateToModels = { showModelPicker = false; onNavigate(AiriRoute.MODELS) }
         )
@@ -741,6 +747,7 @@ private fun AiriChatTopBar(
     agentState: AgentState,
     agentMode: AgentMode,
     showMenu: Boolean,
+    todayTokens: Long = 0L,
     onHistoryOpen: () -> Unit,
     onModelPickerOpen: () -> Unit,
     onToggleDropdown: () -> Unit,
@@ -753,8 +760,12 @@ private fun AiriChatTopBar(
     onNewChat: () -> Unit,
     onMuteToggle: () -> Unit
 ) {
-    var isMuted by remember { mutableStateOf(false) }
-    val tokenCount = 122 // placeholder — could be wired from ViewModel
+    // Token count formatted for compact display (e.g. 1.2k, 45k)
+    val tokenDisplay = when {
+        todayTokens >= 1_000_000 -> "%.1fM".format(todayTokens / 1_000_000.0)
+        todayTokens >= 1_000     -> "%.1fk".format(todayTokens / 1_000.0)
+        else                     -> todayTokens.toString()
+    }
 
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
@@ -763,18 +774,9 @@ private fun AiriChatTopBar(
         navigationIcon = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = 4.dp)
+                modifier = Modifier.padding(start = 8.dp)
             ) {
-                // Back / menu arrow
-                IconButton(onClick = onNewChat) {
-                    Icon(
-                        Icons.Default.ArrowBack,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.70f),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                // Token count badge
+                // Token count badge — shows real cumulative tokens used today
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
@@ -785,7 +787,7 @@ private fun AiriChatTopBar(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(
-                            text = "$tokenCount",
+                            text = tokenDisplay,
                             color = CosmicAccent,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
@@ -848,15 +850,6 @@ private fun AiriChatTopBar(
             }
         },
         actions = {
-            // Mute toggle
-            IconButton(onClick = { isMuted = !isMuted; onMuteToggle() }) {
-                Icon(
-                    if (isMuted) Icons.Outlined.VolumeUp else Icons.Outlined.VolumeUp,
-                    contentDescription = "Mute",
-                    tint = Color.White.copy(alpha = 0.65f),
-                    modifier = Modifier.size(20.dp)
-                )
-            }
             // History / clock
             IconButton(onClick = onHistoryOpen) {
                 Icon(
@@ -909,13 +902,24 @@ private fun AiriChatTopBar(
 // ─────────────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AiriModelPickerSheet(
     modelState: ModelUiState,
+    viewModel: ChatViewModel,
     onDismiss: () -> Unit,
     onNavigateToModels: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope      = rememberCoroutineScope()
+    val context    = LocalContext.current
+
+    // Build a real model list: local models + cloud models from EmbeddedProviderConfig
+    val localModels  = modelState.availableModels
+    val builtinCloud = remember { com.airi.assistant.execution.cloud.EmbeddedProviderConfig.catalog }
+    val activeProv   = remember { mutableStateOf(
+        com.airi.assistant.execution.cloud.EmbeddedProviderConfig.getActiveProvider(context)
+    ) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -925,8 +929,7 @@ private fun AiriModelPickerSheet(
             Box(modifier = Modifier.padding(vertical = 10.dp)) {
                 Box(
                     modifier = Modifier
-                        .width(36.dp)
-                        .height(4.dp)
+                        .width(36.dp).height(4.dp)
                         .clip(RoundedCornerShape(2.dp))
                         .background(Color.White.copy(alpha = 0.25f))
                 )
@@ -940,76 +943,115 @@ private fun AiriModelPickerSheet(
         ) {
             Text(
                 text = "اختر النموذج",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
+                color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.End,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
             )
 
-            val models = listOf(
-                Triple("Airi Cloud", "سحابي", Icons.Outlined.Cloud),
-                Triple("GPT-4o", "سحابي", Icons.Outlined.Cloud),
-                Triple("Claude Sonnet", "سحابي", Icons.Outlined.Cloud),
-                Triple("Airi Local", "على الجهاز — لا يحتاج إنترنت", Icons.Outlined.Memory)
-            )
-
-            models.forEach { (name, subtitle, icon) ->
-                val isSelected = when {
-                    modelState.isModelReady && name == "Airi Local" -> true
-                    modelState.isCloudReady && modelState.cloudModelName.contains(name, ignoreCase = true) -> true
-                    !modelState.isModelReady && name == "Airi Cloud" -> true
-                    else -> false
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onDismiss() }
-                        .padding(vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Selection check on start (RTL layout so this is the left)
-                    if (isSelected) {
-                        Box(
-                            modifier = Modifier
-                                .size(22.dp)
-                                .clip(CircleShape)
-                                .background(CosmicAccent),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+            // ── Local models ──────────────────────────────────────────────
+            if (localModels.isNotEmpty()) {
+                Text(
+                    "على الجهاز",
+                    color = Color.White.copy(0.45f), fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    textAlign = TextAlign.End
+                )
+                localModels.forEach { model ->
+                    val isSelected = modelState.isModelReady &&
+                        modelState.selectedModelId == model.id
+                    ModelPickerRow(
+                        name      = model.name,
+                        subtitle  = "محلي — خصوصية تامة",
+                        icon      = Icons.Outlined.Memory,
+                        isSelected = isSelected,
+                        onClick   = {
+                            scope.launch {
+                                viewModel.selectModel(model.id)
+                                onDismiss()
+                            }
                         }
-                    } else {
-                        Spacer(Modifier.size(22.dp))
-                    }
-                    // Name + subtitle on end (RTL)
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(name, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                        Text(subtitle, color = Color.White.copy(alpha = 0.45f), fontSize = 12.sp)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(CosmicAccent.copy(alpha = 0.18f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(icon, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
-                    }
+                    )
+                    Divider(color = Color.White.copy(alpha = 0.06f))
                 }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // ── Cloud models (free built-in providers) ────────────────────
+            Text(
+                "سحابي",
+                color = Color.White.copy(0.45f), fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                textAlign = TextAlign.End
+            )
+            builtinCloud.forEach { prov ->
+                val isSelected = modelState.isCloudReady &&
+                    activeProv.value?.id == prov.id
+                ModelPickerRow(
+                    name      = prov.displayName,
+                    subtitle  = prov.description,
+                    icon      = Icons.Outlined.Cloud,
+                    isSelected = isSelected,
+                    onClick   = {
+                        scope.launch {
+                            viewModel.activateBuiltinProvider(prov)
+                            activeProv.value = prov
+                            onDismiss()
+                        }
+                    }
+                )
                 Divider(color = Color.White.copy(alpha = 0.06f))
             }
 
             Spacer(Modifier.height(8.dp))
-            TextButton(
-                onClick = onNavigateToModels,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            TextButton(onClick = onNavigateToModels, modifier = Modifier.fillMaxWidth()) {
                 Text("المزيد من النماذج", color = CosmicAccent, fontSize = 14.sp)
             }
             Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun ModelPickerRow(
+    name: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (isSelected) {
+            Box(
+                modifier = Modifier.size(22.dp).clip(CircleShape).background(CosmicAccent),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+            }
+        } else {
+            Spacer(Modifier.size(22.dp))
+        }
+        Column(
+            modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(subtitle, color = Color.White.copy(0.45f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Box(
+            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp))
+                .background(CosmicAccent.copy(alpha = 0.18f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -1489,13 +1531,25 @@ fun AiBubble(
                     }, modifier = Modifier.size(30.dp)) {
                         Icon(Icons.Outlined.ContentCopy, contentDescription = null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(14.dp))
                     }
-                    // Dislike
-                    IconButton(onClick = {}, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Outlined.ThumbDown, contentDescription = null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(14.dp))
+                    // Dislike / Like — local toggle with haptic; persisted to MemoryManager
+                    // when a feedback API is added in a future pass.
+                    var liked    by remember { mutableStateOf(false) }
+                    var disliked by remember { mutableStateOf(false) }
+                    IconButton(onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        disliked = !disliked; if (disliked) liked = false
+                    }, modifier = Modifier.size(30.dp)) {
+                        Icon(Icons.Outlined.ThumbDown, contentDescription = null,
+                            tint = if (disliked) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.35f),
+                            modifier = Modifier.size(14.dp))
                     }
-                    // Like
-                    IconButton(onClick = {}, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Outlined.ThumbUp, contentDescription = null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(14.dp))
+                    IconButton(onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        liked = !liked; if (liked) disliked = false
+                    }, modifier = Modifier.size(30.dp)) {
+                        Icon(Icons.Outlined.ThumbUp, contentDescription = null,
+                            tint = if (liked) CosmicAccent else Color.White.copy(alpha = 0.35f),
+                            modifier = Modifier.size(14.dp))
                     }
                 }
 
@@ -1935,29 +1989,19 @@ fun AiriChatInputBar(
                     }
                 }
 
-                // Waveform icon (live activity indicator)
-                AnimatedVisibility(visible = !isTyping && !isGenerating, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
-                    Box(
-                        modifier = Modifier.size(36.dp).clip(CircleShape).clickable { onVoiceChatClick() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.Mic, null, tint = Color.White.copy(0.60f), modifier = Modifier.size(18.dp))
-                    }
-                }
-
-                // Connector badge(s) — show active connectors count
+                // Connector badge — tapping opens the real Connectors screen
                 if (!isTyping && !isGenerating) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
                             .background(Color(0xFF1E2438))
                             .border(1.dp, Color.White.copy(0.12f), RoundedCornerShape(20.dp))
-                            .clickable {}
+                            .clickable { onNavigate(AiriRoute.CONNECTORS) }
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("2+", color = Color.White.copy(0.80f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            Icon(Icons.Outlined.Email, null, tint = Color(0xFFFF4444), modifier = Modifier.size(14.dp))
+                            Icon(Icons.Outlined.Hub, null, tint = CosmicAccent, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Outlined.ChevronRight, null, tint = Color.White.copy(0.45f), modifier = Modifier.size(12.dp))
                         }
                     }
                 }
@@ -2125,7 +2169,6 @@ fun AiriDrawer(
                 Spacer(Modifier.height(8.dp))
                 DrawerActionItem(icon = Icons.Outlined.AddComment, label = stringResource(R.string.new_chat), onClick = onNewChat)
                 DrawerNavItem(icon = Icons.Outlined.Forum, label = stringResource(R.string.chats), route = AiriRoute.HISTORY, onNavigate = onNavigate)
-                DrawerNavItem(icon = Icons.Outlined.SmartToy, label = stringResource(R.string.model_gallery), route = AiriRoute.MODELS, onNavigate = onNavigate)
                 DrawerNavItem(icon = Icons.Outlined.Psychology, label = stringResource(R.string.memory), route = AiriRoute.MEMORY, onNavigate = onNavigate)
                 DrawerNavItem(icon = Icons.Outlined.Extension, label = stringResource(R.string.integrations), route = AiriRoute.INTEGRATIONS, onNavigate = onNavigate)
                 DrawerNavItem(icon = Icons.Outlined.BuildCircle, label = stringResource(R.string.custom_skills), route = AiriRoute.SKILL_MANAGER, onNavigate = onNavigate)

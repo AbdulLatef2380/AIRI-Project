@@ -50,3 +50,12 @@ val NavIconActive      = CosmicAccent
 val TokenBadgeColor    = CosmicAccent.copy(alpha = 0.85f)
 val ModelPillBg        = Color(0xFF1C2038)
 val ModelPillBorder    = Color.White.copy(alpha = 0.12f)
+
+// ── Light-mode surface ladder ─────────────────────────────────────────────────
+val LightBackground    = Color(0xFFF2F2F7)
+val LightSurface       = Color(0xFFFFFFFF)
+val LightSurfaceRaised = Color(0xFFF5F5FA)
+val LightSurfaceCard   = Color(0xFFFFFFFF)
+val LightOnBackground  = Color(0xFF1C1C1E)
+val LightOnSurface     = Color(0xFF1C1C1E)
+val LightOutline       = Color(0xFF000000).copy(alpha = 0.10f)

@@ -28,6 +28,7 @@ import com.airi.assistant.R
 import com.airi.assistant.ui.theme.*
 import com.airi.assistant.voice.PorcupineEngine
 import com.airi.assistant.voice.VoskModelManager
+import kotlinx.coroutines.launch
 
 /**
  * VoiceSettingsScreen — manages AIRI's bundled voice stack.
@@ -47,6 +48,7 @@ import com.airi.assistant.voice.VoskModelManager
 fun VoiceSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
+    val scope    = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { VoskModelManager.refreshInstalled(context) }
 
@@ -55,6 +57,12 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
     var porcupineStatus by remember { mutableStateOf(PorcupineEngine.status(context)) }
     var accessKeyInput  by remember { mutableStateOf("") }
     var showKey         by remember { mutableStateOf(false) }
+
+    // Download state
+    var downloadProgress by remember { mutableStateOf<Int?>(null) }  // null = idle
+    var downloadError    by remember { mutableStateOf<String?>(null) }
+
+    val smallEnPreset = VoskModelManager.PRESETS.first()  // vosk-model-small-en-us-0.15
 
     Scaffold(
         topBar = {
@@ -84,6 +92,81 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
 
             // ── System status — all features always enabled ──────────────
             VoiceStatusCard()
+
+            // ── First-run: no model installed — show download prompt ─────
+            if (installed.isEmpty()) {
+                Surface(
+                    shape    = RoundedCornerShape(14.dp),
+                    color    = CosmicAccent.copy(alpha = 0.12f),
+                    modifier = Modifier.fillMaxWidth().border(
+                        1.dp, CosmicAccent.copy(0.4f), RoundedCornerShape(14.dp)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(Icons.Outlined.MicOff, null, tint = CosmicAccent,
+                                modifier = Modifier.size(20.dp))
+                            Text("لا يوجد نموذج صوتي", color = Color.White,
+                                fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                        }
+                        Text(
+                            "قم بتنزيل نموذج الإنجليزية الصغير (~40 ميغابايت) لتفعيل الصوت فوراً. يعمل بالكامل بدون إنترنت.",
+                            color = Color.White.copy(0.65f), fontSize = 13.sp, lineHeight = 18.sp
+                        )
+                        downloadError?.let {
+                            Text(it, color = SemanticError, fontSize = 12.sp)
+                        }
+                        if (downloadProgress != null) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                LinearProgressIndicator(
+                                    progress = (downloadProgress!! / 100f),
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)),
+                                    color = CosmicAccent,
+                                    trackColor = CosmicAccent.copy(0.2f)
+                                )
+                                Text(
+                                    "جارٍ التنزيل… ${downloadProgress!!}%",
+                                    color = CosmicAccent, fontSize = 12.sp
+                                )
+                            }
+                        } else {
+                            Button(
+                                onClick = {
+                                    downloadError = null
+                                    scope.launch {
+                                        val result = VoskModelManager.downloadAndInstall(
+                                            context  = context,
+                                            preset   = smallEnPreset,
+                                            onProgress = { pct -> downloadProgress = pct }
+                                        )
+                                        downloadProgress = null
+                                        when (result) {
+                                            is VoskModelManager.DownloadResult.Ok ->
+                                                snackbar.showSnackbar("✓ تم تثبيت النموذج الصوتي")
+                                            is VoskModelManager.DownloadResult.Failed ->
+                                                downloadError = "فشل التنزيل: ${result.reason}"
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = CosmicAccent,
+                                    contentColor   = Color.White
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("تنزيل النموذج الصغير (إنجليزي، ~40 ميغابايت)",
+                                    fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                }
+            }
 
             // ── Porcupine wake-word ──────────────────────────────────────
             PorcupineCard(

@@ -90,11 +90,6 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center
                     )
-                },
-                actions = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
-                    }
                 }
             )
         }
@@ -124,25 +119,10 @@ fun SettingsScreen(
                 )
                 SettingsDivider()
                 SettingsNavItem(
-                    icon     = Icons.Outlined.Email,
-                    iconTint = Color(0xFFB0B8CC),
-                    label    = "بريد Airi",
-                    badge    = "جديد",
-                    onClick  = { onNavigate(AiriRoute.INTEGRATIONS) }
-                )
-                SettingsDivider()
-                SettingsNavItem(
                     icon     = Icons.Outlined.Settings,
                     iconTint = Color(0xFFB0B8CC),
                     label    = "ضوابط البيانات",
                     onClick  = { onNavigate(AiriRoute.SETTINGS_PRIVACY) }
-                )
-                SettingsDivider()
-                SettingsNavItem(
-                    icon     = Icons.Outlined.Language,
-                    iconTint = Color(0xFFB0B8CC),
-                    label    = "متصفح السحابة",
-                    onClick  = {}
                 )
                 SettingsDivider()
                 SettingsNavItem(
@@ -191,6 +171,76 @@ fun SettingsScreen(
                     label    = "AI Library",
                     trailing = "Smart Routing",
                     onClick  = { onNavigate(AiriRoute.MODEL_LIBRARY) }
+                )
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Mic,
+                    iconTint = Color(0xFF4CAF50),
+                    label    = "الصوت وكلمة التنبيه",
+                    onClick  = { onNavigate(AiriRoute.VOICE_SETTINGS) }
+                )
+            }
+
+            // ── Group 3: Developer & Runtime Tools ────────────────────────
+            // These tools were previously unreachable from any UI path.
+            // Now exposed here so developers and power users can access
+            // the terminal, workspace, sandbox, diagnostics, and agent
+            // observability tools that already exist in the project.
+            SettingsGroup {
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Terminal,
+                    iconTint = Color(0xFF80CBC4),
+                    label    = "الطرفية",
+                    onClick  = { onNavigate(AiriRoute.TERMINAL) }
+                )
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Workspaces,
+                    iconTint = Color(0xFF80CBC4),
+                    label    = "مساحة العمل",
+                    onClick  = { onNavigate(AiriRoute.WORKSPACE) }
+                )
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Science,
+                    iconTint = Color(0xFF80CBC4),
+                    label    = "Sandbox",
+                    onClick  = { onNavigate(AiriRoute.SANDBOX_WORKSPACE) }
+                )
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Analytics,
+                    iconTint = Color(0xFF80CBC4),
+                    label    = "تشخيصات التنفيذ",
+                    onClick  = { onNavigate(AiriRoute.EXEC_DIAGNOSTICS) }
+                )
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Monitor,
+                    iconTint = Color(0xFF80CBC4),
+                    label    = "الأداء",
+                    onClick  = { onNavigate(AiriRoute.PERFORMANCE) }
+                )
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Visibility,
+                    iconTint = Color(0xFF80CBC4),
+                    label    = "مراقبة الوكيل",
+                    onClick  = { onNavigate(AiriRoute.OBSERVABILITY) }
+                )
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Code,
+                    iconTint = Color(0xFF80CBC4),
+                    label    = "مركز المطور",
+                    onClick  = { onNavigate(AiriRoute.DEVELOPER_CENTER) }
+                )
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.BugReport,
+                    iconTint = Color(0xFF80CBC4),
+                    label    = "لوحة التصحيح",
+                    onClick  = { onNavigate(AiriRoute.DEBUG_PANEL) }
                 )
             }
 

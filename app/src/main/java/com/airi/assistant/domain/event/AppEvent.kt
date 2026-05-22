@@ -91,4 +91,25 @@ sealed class AppEvent(
         val dailyTotal: Int,
         val budget:     Int
     ) : AppEvent()
+
+    // ── Memory Pressure Events ─────────────────────────────────────────────────
+    // Fired by AIRIApplication.onTrimMemory(). ChatViewModel subscribes and
+    // unloads LlamaManager at CRITICAL to free JNI heap before the OS kills the process.
+
+    class LowMemoryPressure(
+        val level:    Int,
+        val severity: String   // "BACKGROUND" | "LOW" | "CRITICAL"
+    ) : AppEvent()
+
+    // ── OAuth Deep-Link Events ─────────────────────────────────────────────────
+    // Fired by MainActivity.onNewIntent ONLY after the inbound `state` value
+    // has been validated against OAuthStateRegistry (CSRF protection).
+    // `provider` is the registry-bound provider id; empty for legacy token-paste
+    // flows. New subscribers MUST gate on provider.isNotEmpty().
+
+    class OAuthCallbackReceived(
+        val code:     String,
+        val state:    String,
+        val provider: String = ""   // "" = legacy paste-token; non-empty = CSRF-validated OAuth
+    ) : AppEvent()
 }

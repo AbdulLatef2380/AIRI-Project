@@ -1,6 +1,7 @@
 package com.airi.assistant.app
 
 import android.app.Application
+import android.content.ComponentCallbacks2
 import android.content.Context
 import com.airi.assistant.ui.activity.GlobalAgentEventDispatcher
 import com.airi.assistant.ai.remote.RemoteModelRegistry
@@ -209,5 +210,34 @@ class AIRIApplication : Application() {
             LoggingService.error(TAG, "Initialization error: ${e.message}", e)
             throw e
         }
+    }
+
+    /**
+     * Called by Android when the system is running low on memory.
+     *
+     * At [ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL] or higher we emit
+     * a [AppEvent.LowMemoryPressure] so that [ChatViewModel] (which owns
+     * [LlamaManager]) can unload the native model and free JNI heap.
+     *
+     * We do NOT call LlamaManager directly from here because the ViewModel
+     * owns the manager instance and is the only safe controller of its
+     * lifecycle. The EventBus bridge keeps Application ↔ ViewModel decoupled.
+     */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        val severity = when {
+            level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> "CRITICAL"
+            level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW      -> "LOW"
+            level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN        -> "BACKGROUND"
+            else                                                       -> null
+        } ?: return
+
+        LoggingService.warn(TAG, "onTrimMemory level=$level severity=$severity")
+        com.airi.assistant.domain.event.EventBus.emitSync(
+            com.airi.assistant.domain.event.AppEvent.LowMemoryPressure(level = level, severity = severity)
+        )
+        // Update health monitor so Diagnostics screen reflects the memory event
+        runCatching { ServiceLocator.runtimeHealthMonitor }.getOrNull()
+            ?.recordMemoryPressure(level)
     }
 }

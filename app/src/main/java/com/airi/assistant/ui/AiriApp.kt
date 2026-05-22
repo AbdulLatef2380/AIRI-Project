@@ -28,9 +28,9 @@ import com.airi.assistant.domain.auth.AuthService
 import com.airi.assistant.domain.experiment.ExperimentManager
 import com.airi.assistant.domain.growth.OnboardingManager
 import com.airi.assistant.domain.growth.ReferralManager
+import androidx.compose.foundation.background
 import com.airi.assistant.ui.components.AiriBottomNavBar
 import com.airi.assistant.ui.components.AiriNavTab
-import com.airi.assistant.ui.components.StarBackground
 import com.airi.assistant.ui.screens.AIModelsSettingsScreen
 import com.airi.assistant.ui.screens.AboutScreen
 import com.airi.assistant.ui.screens.AgentControlScreen
@@ -64,6 +64,7 @@ import com.airi.assistant.ui.screens.SkillManagerScreen
 import com.airi.assistant.ui.screens.WelcomeScreen
 import com.airi.assistant.ui.plan.AgentPlanViewModel
 import com.airi.assistant.ui.theme.AIRITheme
+import com.airi.assistant.ui.theme.CosmicBlack
 import com.airi.assistant.ui.viewmodel.AgentViewModel
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 
@@ -150,7 +151,7 @@ fun AiriApp() {
 
     AIRITheme {
         Scaffold(
-            containerColor = Color.Transparent,
+            containerColor = CosmicBlack,
             bottomBar = {
                 AiriBottomNavBar(
                     selectedTab = selectedTab,
@@ -174,9 +175,9 @@ fun AiriApp() {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .background(CosmicBlack)
                     .padding(innerPadding)
             ) {
-                StarBackground()
                 NavHost(navController = navController, startDestination = startDest) {
 
                     composable(AiriRoute.ONBOARDING) {

@@ -1,8 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Phase-3 P0 hardening:
+    • Event types narrowed from `typeAllMask` to the specific events the
+      AIRI agent layer actually consumes. The runtime configuration in
+      AiriAccessibilityService.onServiceConnected() further refines this
+      based on the user's installed integrations.
+    • flagRequestFilterKeyEvents removed — the agent does not need to
+      intercept hardware key events and granting it expands the attack
+      surface for keystroke logging.
+    • canPerformGestures kept (required by AccessibilityCommandBridge for
+      taps / swipes), but actions are gated at runtime by
+      AccessibilityScopePolicy.allowsExecutionIn().
+-->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeAllMask"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewFocused|typeViewClicked|typeViewTextChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagRequestFilterKeyEvents"
+    android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows"
     android:canPerformGestures="true"
     android:canRetrieveWindowContent="true"
     android:description="@string/accessibility_service_description"

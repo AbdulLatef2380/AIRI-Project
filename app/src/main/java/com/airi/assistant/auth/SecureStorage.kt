@@ -6,21 +6,62 @@ import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
+/**
+ * Encrypted storage for OAuth tokens, API keys and device-binding secrets.
+ *
+ * ── Phase-3 P0 hardening ──────────────────────────────────────────────────────
+ * Previous behavior: if EncryptedSharedPreferences failed to initialise (corrupt
+ * keystore, locked device, etc.) the class silently dropped to plaintext
+ * SharedPreferences — meaning tokens and API keys were written to a
+ * world-readable-by-app file in plain text without any visible signal.
+ *
+ * New behavior:
+ *   • If encryption fails, we fall back to an *in-memory only* prefs
+ *     implementation. Reads return null and writes are dropped at process end.
+ *   • [isEncrypted] reports the live state. UI surfaces (Settings, Connectors)
+ *     can read it to warn the user that integrations cannot be persisted on
+ *     this device until the keystore is restored.
+ *   • Plaintext disk writes are never attempted.
+ *
+ * ── Public surface ────────────────────────────────────────────────────────────
+ * All existing call sites (saveGithubToken, getLlmKey, disconnect, …) continue
+ * to compile and run unchanged. The only addition is the [isEncrypted] property.
+ */
 class SecureStorage(context: Context) {
 
-    private val prefs: SharedPreferences = try {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            context,
-            "airi_secure_integrations",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
-    } catch (e: Exception) {
-        context.getSharedPreferences("airi_secure_integrations_fallback", Context.MODE_PRIVATE)
+    /**
+     * True when the underlying store is EncryptedSharedPreferences.
+     * False when the keystore-backed implementation failed to initialise and
+     * we are running on the in-memory fallback.
+     */
+    val isEncrypted: Boolean
+
+    private val prefs: SharedPreferences
+
+    init {
+        var encrypted = false
+        prefs = try {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+            val real = EncryptedSharedPreferences.create(
+                context,
+                "airi_secure_integrations",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+            encrypted = true
+            real
+        } catch (e: Exception) {
+            Log.e(
+                "SecureStorage",
+                "EncryptedSharedPreferences init failed; falling back to IN-MEMORY only " +
+                    "(no plaintext disk writes). Cause: ${e.message}"
+            )
+            InMemorySharedPreferences()
+        }
+        isEncrypted = encrypted
     }
 
     /**
@@ -102,9 +143,6 @@ class SecureStorage(context: Context) {
     fun getGoogleUpdated(): Long = prefs.getLong(KEY_GOOGLE_UPDATED, 0L)
 
     // ─── LLM provider API keys ─────────────────────────────────────────────────
-    // Used by RemoteLlmConnector providers (OpenAI / Anthropic / Gemini).
-    // Keys are read at provider-call time via () -> String? so they can
-    // be rotated without restarting the registry.
 
     fun saveLlmKey(provider: String, key: String) =
         prefs.edit().safePutString(llmKeyPrefName(provider), key).apply()
@@ -118,7 +156,7 @@ class SecureStorage(context: Context) {
     private fun llmKeyPrefName(provider: String): String =
         "llm_key_${provider.lowercase()}"
 
-    // ─── Device binding (DeviceBindingService) ─────────────────────────────────
+    // ─── Device binding ────────────────────────────────────────────────────────
 
     fun saveDeviceFingerprint(fp: String) =
         prefs.edit().safePutString(KEY_DEVICE_FP, fp).apply()
@@ -180,5 +218,70 @@ class SecureStorage(context: Context) {
         private const val KEY_GOOGLE_EMAIL     = "google_email"
         private const val KEY_GOOGLE_ID_TOKEN  = "google_id_token"
         private const val KEY_GOOGLE_UPDATED   = "google_updated"
+    }
+}
+
+/**
+ * Process-lifetime, in-memory SharedPreferences fallback used when the
+ * EncryptedSharedPreferences master key cannot be initialised.
+ *
+ * Discards everything when the process dies. This is intentional: a user with
+ * a broken keystore should re-connect their integrations rather than have
+ * tokens silently persisted in plaintext.
+ *
+ * Thread safety: backed by a synchronized map; commit/apply are no-ops past
+ * the in-memory mutation.
+ */
+private class InMemorySharedPreferences : SharedPreferences {
+    private val map: MutableMap<String, Any?> = java.util.concurrent.ConcurrentHashMap()
+    private val listeners = mutableSetOf<SharedPreferences.OnSharedPreferenceChangeListener>()
+
+    override fun getAll(): MutableMap<String, *> = HashMap(map)
+    override fun getString(key: String?, defValue: String?): String? =
+        (map[key] as? String) ?: defValue
+    @Suppress("UNCHECKED_CAST")
+    override fun getStringSet(key: String?, defValues: MutableSet<String>?): MutableSet<String>? =
+        (map[key] as? Set<String>)?.toMutableSet() ?: defValues
+    override fun getInt(key: String?, defValue: Int): Int = (map[key] as? Int) ?: defValue
+    override fun getLong(key: String?, defValue: Long): Long = (map[key] as? Long) ?: defValue
+    override fun getFloat(key: String?, defValue: Float): Float = (map[key] as? Float) ?: defValue
+    override fun getBoolean(key: String?, defValue: Boolean): Boolean = (map[key] as? Boolean) ?: defValue
+    override fun contains(key: String?): Boolean = map.containsKey(key)
+    override fun edit(): SharedPreferences.Editor = MemEditor()
+    override fun registerOnSharedPreferenceChangeListener(l: SharedPreferences.OnSharedPreferenceChangeListener) {
+        listeners.add(l)
+    }
+    override fun unregisterOnSharedPreferenceChangeListener(l: SharedPreferences.OnSharedPreferenceChangeListener) {
+        listeners.remove(l)
+    }
+
+    private inner class MemEditor : SharedPreferences.Editor {
+        private val pending = mutableMapOf<String, Any?>()
+        private val removals = mutableSetOf<String>()
+        private var clearAll = false
+
+        override fun putString(key: String, value: String?): SharedPreferences.Editor =
+            apply { pending[key] = value }
+        override fun putStringSet(key: String, values: MutableSet<String>?): SharedPreferences.Editor =
+            apply { pending[key] = values }
+        override fun putInt(key: String, value: Int): SharedPreferences.Editor =
+            apply { pending[key] = value }
+        override fun putLong(key: String, value: Long): SharedPreferences.Editor =
+            apply { pending[key] = value }
+        override fun putFloat(key: String, value: Float): SharedPreferences.Editor =
+            apply { pending[key] = value }
+        override fun putBoolean(key: String, value: Boolean): SharedPreferences.Editor =
+            apply { pending[key] = value }
+        override fun remove(key: String): SharedPreferences.Editor =
+            apply { removals.add(key); pending.remove(key) }
+        override fun clear(): SharedPreferences.Editor = apply { clearAll = true }
+        override fun commit(): Boolean { apply(); return true }
+        override fun apply() {
+            if (clearAll) map.clear()
+            for (k in removals) map.remove(k)
+            for ((k, v) in pending) {
+                if (v == null) map.remove(k) else map[k] = v
+            }
+        }
     }
 }

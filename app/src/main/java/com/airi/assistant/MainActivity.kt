@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.airi.assistant.ui.AiriApp
 import com.airi.assistant.domain.growth.ReferralManager
+import com.airi.assistant.oauth.OAuthStateRegistry
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.ui.theme.AIRITheme
 import com.airi.assistant.voice.HotwordService
@@ -74,6 +75,9 @@ class MainActivity : ComponentActivity() {
                 notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+
+        // Cold-start OAuth callback — handles CustomTab redirects that launch the app fresh
+        intent?.let { dispatchOAuthCallback(it) }
 
         setContent {
             AIRITheme {
@@ -165,12 +169,60 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         ReferralManager.captureReferralIntent(intent)
         if (intent.action == ACTION_WAKE_WORD_TRIGGERED) {
-            // The chat screen reads this flag from the singleton dispatcher
-            // and triggers a fresh listening turn. Without consuming it the
-            // wake event would only foreground the activity (already useful)
-            // but not re-arm the mic.
             WakeWordDispatcher.fireTriggered()
         }
+        dispatchOAuthCallback(intent)
+    }
+
+    /**
+     * Handle an OAuth deep-link callback from airi://oauth/callback.
+     *
+     * Called from both [onNewIntent] (warm start) and [onCreate] (cold start
+     * via CustomTab redirect) so the validation path is shared.
+     *
+     * CSRF protection: the inbound `state` is validated against
+     * [OAuthStateRegistry]. Unknown, expired, or replayed states are dropped
+     * silently — the EventBus is never touched.
+     *
+     * Legacy empty-state callbacks (token-paste integrations) still emit
+     * [AppEvent.OAuthCallbackReceived] with `provider=""` so IntegrationsViewModel
+     * can handle them; subscribers must check `provider.isNotEmpty()` to
+     * distinguish a CSRF-validated flow from a paste-token flow.
+     */
+    private fun dispatchOAuthCallback(intent: Intent) {
+        val data = intent.data ?: return
+        if (data.scheme != "airi" || data.host != "oauth") return
+        if (data.pathSegments.firstOrNull() != "callback") return
+
+        val code  = data.getQueryParameter("code") ?: return
+        val state = data.getQueryParameter("state")
+
+        if (state.isNullOrBlank()) {
+            // Legacy paste-token path — emit without provider
+            android.util.Log.d("AIRI_OAUTH", "OAuth callback: no state (legacy paste-token path)")
+            com.airi.assistant.domain.event.EventBus.emit(
+                com.airi.assistant.domain.event.AppEvent.OAuthCallbackReceived(
+                    code = code, state = "", provider = ""
+                )
+            )
+            return
+        }
+
+        // CSRF-validated path: consume the state from the registry
+        val provider = OAuthStateRegistry.consume(state)
+        if (provider == null) {
+            android.util.Log.w("AIRI_OAUTH",
+                "Rejected OAuth callback — state unknown/expired/replayed: ${state.take(8)}…")
+            return
+        }
+
+        android.util.Log.i("AIRI_OAUTH",
+            "OAuth callback validated: provider=$provider code=${code.take(8)}…")
+        com.airi.assistant.domain.event.EventBus.emit(
+            com.airi.assistant.domain.event.AppEvent.OAuthCallbackReceived(
+                code = code, state = state, provider = provider
+            )
+        )
     }
 
     private fun isAccessibilityServiceEnabled(): Boolean {

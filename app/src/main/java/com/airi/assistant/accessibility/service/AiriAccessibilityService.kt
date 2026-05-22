@@ -5,6 +5,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.airi.assistant.accessibility.execution.AccessibilityExecutionEngine
+import com.airi.assistant.accessibility.security.AccessibilityScopePolicy
 import com.airi.assistant.agent.subagent.SubAgentRegistry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,25 +14,29 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * AiriAccessibilityService — Android accessibility service powering the AIRI agent layer.
  *
- * ─────────────────────────────────────────────────────────────────────────────
- * RESPONSIBILITIES
- * ─────────────────────────────────────────────────────────────────────────────
+ * ── Phase-3 P0 hardening ──────────────────────────────────────────────────────
+ * Two surgical changes vs. the prior version:
  *
- *   1. Provide [instance] singleton for AccessibilityCommandBridge + ExecutionEngine.
- *   2. Broadcast live [screenContext] StateFlow for reactive screen understanding.
- *   3. Route accessibility events to [executionEngine] when a task is running.
- *   4. Register the CAPABILITY_ACCESSIBILITY token in SubAgentRegistry when
- *      connected, enabling AndroidAgent routing.
- *   5. Provide [focusedPackage] and [nodeCount] for observability.
+ *   1. Event types narrowed at runtime from `typeAllMask` (declared in
+ *      `accessibility_service_config.xml`) to the specific events the
+ *      agent layer actually consumes. This drastically cuts log noise,
+ *      reduces battery drain, and limits the surface of accidentally
+ *      collected sensitive data (e.g. typing in password fields).
  *
- * ─────────────────────────────────────────────────────────────────────────────
- * SAFETY POLICY
- * ─────────────────────────────────────────────────────────────────────────────
+ *   2. Screen-context publication is gated by [AccessibilityScopePolicy].
+ *      When the user is in a denylisted package (banking, 2FA, password
+ *      managers, system UI…) we publish a *redacted* ScreenState that
+ *      keeps the package name visible but reports `nodeCount=0`, so
+ *      downstream features (chat "what's on my screen?", agent screen
+ *      summaries) cannot leak content from those packages even if the
+ *      user has accessibility enabled.
  *
- *   - All autonomous actions MUST go through [executionEngine.executeTask].
- *   - Direct AccessibilityCommandBridge calls are for targeted, single-step
- *     operations only (e.g., explicit user commands via voice).
- *   - [executionEngine.killSwitch] is always available.
+ * Autonomous-action gating is *not* applied here because the execution
+ * engine ([AccessibilityExecutionEngine]) has not yet been wired up to
+ * consult the policy. That is the next surgical batch — see
+ * `AccessibilityScopePolicy.kt` integration notes. Until then, autonomous
+ * actions retain their previous behavior. The read-side gate, however,
+ * is fully effective from this patch alone.
  */
 class AiriAccessibilityService : AccessibilityService() {
 
@@ -56,6 +61,9 @@ class AiriAccessibilityService : AccessibilityService() {
     /** The execution engine — use this for all autonomous task execution. */
     val executionEngine = AccessibilityExecutionEngine()
 
+    /** Policy for per-package gating. Lazily-initialized via the application context. */
+    private val policy by lazy { AccessibilityScopePolicy.get(applicationContext) }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Service lifecycle
     // ─────────────────────────────────────────────────────────────────────────
@@ -65,7 +73,12 @@ class AiriAccessibilityService : AccessibilityService() {
         instance = this
         ScreenContextHolder.serviceInstance = this
 
-        // Configure event types we care about
+        // Configure event types we care about.
+        //
+        // We deliberately do NOT subscribe to TYPE_VIEW_TEXT_SELECTION_CHANGED,
+        // TYPE_NOTIFICATION_STATE_CHANGED, or TYPE_VIEW_SCROLLED — these fire
+        // at very high rates and would either drown the agent layer in noise
+        // or leak text from password / OTP fields into the logs.
         serviceInfo = serviceInfo?.also { info ->
             info.eventTypes = (
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
@@ -88,7 +101,7 @@ class AiriAccessibilityService : AccessibilityService() {
             // AiriAccessibilityService.isConnected directly as fallback.
         }
 
-        Log.i(TAG, "AIRI_PROOF_ACCESSIBILITY SERVICE_CONNECTED")
+        Log.i(TAG, "AIRI_PROOF_ACCESSIBILITY SERVICE_CONNECTED policyMode=${policy.state.value.mode}")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -99,9 +112,14 @@ class AiriAccessibilityService : AccessibilityService() {
                 updateScreenState(event)
             }
             AccessibilityEvent.TYPE_VIEW_FOCUSED -> {
+                // Only log when reads are policy-allowed for the focused package
+                // and the field is not a password/secure input.
+                val pkg = event.packageName?.toString().orEmpty()
+                if (!policy.readsAllowedFor(pkg)) return
+                if (event.source?.isPassword == true) return
                 val text = event.source?.text?.toString() ?: ""
                 if (text.isNotBlank()) {
-                    Log.v(TAG, "Focus: $text in ${event.packageName}")
+                    Log.v(TAG, "Focus: ${text.take(40)} in $pkg")
                 }
             }
             else -> Unit
@@ -135,6 +153,21 @@ class AiriAccessibilityService : AccessibilityService() {
     private fun updateScreenState(event: AccessibilityEvent) {
         val pkg       = event.packageName?.toString() ?: return
         val className = event.className?.toString() ?: ""
+
+        // Policy-gated read. For denylisted packages we still publish the
+        // package name (so the UI can reflect "AIRI is paused for this app")
+        // but we do NOT walk the node tree.
+        if (!policy.readsAllowedFor(pkg)) {
+            _screenContext.value = ScreenState(
+                packageName = pkg,
+                className   = className,
+                nodeCount   = 0,
+                eventType   = "REDACTED_BY_POLICY",
+                timestampMs = System.currentTimeMillis()
+            )
+            return
+        }
+
         val root      = rootInActiveWindow
         val nodeCount = if (root != null) countNodes(root) else 0
 

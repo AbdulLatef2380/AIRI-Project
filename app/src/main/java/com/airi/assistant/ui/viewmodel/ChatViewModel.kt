@@ -85,6 +85,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.ExecutionMode
@@ -382,6 +383,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val stallActive: StateFlow<Boolean> = _stallActive.asStateFlow()
     fun clearStallHint() { _stallActive.value = false }
 
+    /**
+     * Live total tokens used today across all providers.
+     * Derived from [TokenAccountant.stats] — updates every time a cloud
+     * generation completes. Used by the chat top bar to show a real counter
+     * instead of the previous hardcoded placeholder.
+     */
+    private val _todayTokens = MutableStateFlow(0L)
+    val todayTokens: StateFlow<Long> = _todayTokens.asStateFlow()
+
+    private fun refreshTodayTokens() {
+        _todayTokens.value = tokenAccountant.totalTokensToday()
+    }
+
     // ── Execution mode / origin state ─────────────────────────────────────────
     // Tracks the user's chosen execution mode and which backend produced the
     // most recent response. Exposed as StateFlows so the UI can react without
@@ -664,6 +678,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         VoskModelManager.init(appContext)
         observeVoiceTranscriptBus()
         observeExecutionStatusBus()
+        observeMemoryPressureBus()
+    }
+
+    /**
+     * Subscribe to [AppEvent.LowMemoryPressure] fired by
+     * [AIRIApplication.onTrimMemory].
+     *
+     * At CRITICAL severity we proactively unload the native LlamaManager
+     * model to free JNI heap before Android kills the process. This gives
+     * the OS ~100-500 MB back without a crash.
+     *
+     * The model will be reloaded automatically on the next send via
+     * [loadModel] (the last-used model path is persisted in [ModelRegistry]).
+     */
+    private fun observeMemoryPressureBus() {
+        viewModelScope.launch {
+            com.airi.assistant.domain.event.EventBus.events.collect { event ->
+                if (event is com.airi.assistant.domain.event.AppEvent.LowMemoryPressure) {
+                    if (event.severity == "CRITICAL") {
+                        Log.w("AIRI_MEMORY", "TRIM_MEMORY_RUNNING_CRITICAL — unloading LlamaManager")
+                        runCatching { llamaManager.unloadModel() }
+                            .onSuccess { Log.i("AIRI_MEMORY", "LlamaManager unloaded under memory pressure") }
+                            .onFailure { Log.w("AIRI_MEMORY", "Unload failed: ${it.message}") }
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -1110,7 +1151,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             var tokenCount   = 0
             var firstTokenReceived = false
             var partialCutText = ""
-            // ── ExecutionMode-aware routing ───────────────────────────────────
+
+            // ── First-token watchdog ──────────────────────────────────────────
+            // If no token arrives within 15 s, show a slow-response indicator
+            // so the user knows the app is alive. Cancelled as soon as the
+            // first token lands. Applies to both cloud and local paths.
+            val firstTokenWatchdog = viewModelScope.launch {
+                kotlinx.coroutines.delay(15_000L)
+                if (!firstTokenReceived && _isGenerating.value) {
+                    _streamingText.update { current ->
+                        if (current in setOf("Thinking...", "Analyzing...", "Planning...",
+                                "Generating...", "Reasoning...", "Creating..."))
+                            "⟳ بطيء — جارٍ الانتظار…"
+                        else current
+                    }
+                }
+            }
             // CLOUD_ONLY → always route to remote (deviceWeak=true).
             // LOCAL_ONLY → always route to local (remote=null).
             // HYBRID     → use existing isDeviceWeak() heuristic + RuntimeRouter signals.
@@ -1394,9 +1450,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         thinkingJob = null
                         if (!firstTokenReceived) {
                             firstTokenReceived = true
+                            firstTokenWatchdog.cancel()   // ← cancel slow-response indicator
                             // Transition PREFILL → GENERATE exactly once.
-                            // No allocation beyond the StateFlow write; this
-                            // branch never executes again for this generation.
                             _generationPhase.value = GenerationPhase.GENERATE
                             val firstTokenMs = System.currentTimeMillis() - requestStart
                             Log.d("AIRI_SPEED", "first_token=${firstTokenMs}ms query=${queryType.name}")
@@ -1641,23 +1696,40 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         _lastExecOrigin.value = ExecOrigin.CLOUD   // tag origin before first token
         var tokenCount = 0
-        val result = remoteExecutor.generateStream(
-            model = remote,
-            prompt = prompt,
-            systemPrompt = systemPrompt,
-            maxTokens = perfMode.maxTokens,
-            temperature = perfMode.temperature,
-            onToken = { token ->
-                tokenCount++
-                withContext(Dispatchers.Main) {
-                    val stages = setOf("Thinking...", "Analyzing...", "Planning...", "Generating...")
-                    _streamingText.update { current ->
-                        if (current in stages) token else current + token
+
+        // Wrap in a hard deadline so a stalled HTTP connection never freezes the UI.
+        // 90 s covers even large cloud models on slow connections; LlamaManager's own
+        // watchdog handles the local path separately (DEFAULT_FIRST_TOKEN_TIMEOUT_MS).
+        val result = runCatching {
+            withTimeout(90_000L) {
+                remoteExecutor.generateStream(
+                    model = remote,
+                    prompt = prompt,
+                    systemPrompt = systemPrompt,
+                    maxTokens = perfMode.maxTokens,
+                    temperature = perfMode.temperature,
+                    onToken = { token ->
+                        tokenCount++
+                        withContext(Dispatchers.Main) {
+                            val clearStates = setOf(
+                                "Thinking...", "Analyzing...", "Planning...", "Generating...",
+                                "⟳ بطيء — جارٍ الانتظار…"   // clear slow-response watchdog message
+                            )
+                            _streamingText.update { current ->
+                                if (current in clearStates) token else current + token
+                            }
+                            delay(0)
+                        }
                     }
-                    delay(0)
-                }
+                )
             }
-        )
+        }.getOrElse { throwable ->
+            Log.w("AIRI_CLOUD", "streamRemoteResponse failed: ${throwable.message}")
+            RemoteModelExecutor.RemoteResult.Failure(
+                error     = throwable.message ?: "timeout",
+                latencyMs = System.currentTimeMillis() - streamStart
+            )
+        }
         withContext(Dispatchers.Main) {
             when (result) {
                 is RemoteModelExecutor.RemoteResult.Success -> {
@@ -1674,6 +1746,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 latencyMs        = result.latencyMs
                             )
                         }.onFailure { Log.w("AIRI_ACCOUNTING", "recordSuccess failed: ${it.message}") }
+                        refreshTodayTokens()
                     }
                     finish(result.text, result.latencyMs.coerceAtLeast(System.currentTimeMillis() - streamStart), tokenCount)
                 }

@@ -1,5 +1,8 @@
 package com.airi.assistant.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,15 +23,50 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airi.assistant.connector.ConnectorType
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.CosmicBlack
-import com.airi.assistant.ui.theme.DividerColor
 import com.airi.assistant.ui.theme.SurfaceCard
+import com.airi.assistant.ui.theme.SurfaceRaised
+import com.airi.assistant.ui.theme.SemanticSuccess
+import com.airi.assistant.ui.theme.SemanticError
+import com.airi.assistant.ui.theme.DividerColor
 import com.airi.assistant.ui.viewmodel.ConnectorsViewModel
+
+// ── Tab definition ─────────────────────────────────────────────────────────────
+private data class ConnectorTab(
+    val type: ConnectorType,
+    val label: String,
+    val icon: ImageVector
+)
+
+private val TABS = listOf(
+    ConnectorTab(ConnectorType.API,    "API",    Icons.Outlined.Cloud),
+    ConnectorTab(ConnectorType.APP,    "تطبيقات", Icons.Outlined.Apps),
+    ConnectorTab(ConnectorType.LOCAL,  "الجهاز", Icons.Outlined.PhoneAndroid),
+    ConnectorTab(ConnectorType.MCP,    "MCP",    Icons.Outlined.Extension),
+    ConnectorTab(ConnectorType.SYSTEM, "نظام",   Icons.Outlined.SettingsSuggest),
+)
+
+// ── Icon mapping ───────────────────────────────────────────────────────────────
+private fun iconForId(id: String): ImageVector = when {
+    id.contains("llm")       -> Icons.Outlined.SmartToy
+    id.contains("intent")    -> Icons.Outlined.Android
+    id.contains("voice")     -> Icons.Outlined.Mic
+    id.contains("clipboard") -> Icons.Outlined.ContentCopy
+    id.contains("apps")      -> Icons.Outlined.Apps
+    id.contains("contacts")  -> Icons.Outlined.Contacts
+    id.contains("system")    -> Icons.Outlined.Memory
+    id.contains("mcp")       -> Icons.Outlined.Extension
+    id.contains("github")    -> Icons.Outlined.Code
+    id.contains("telegram")  -> Icons.Outlined.Send
+    id.contains("notion")    -> Icons.Outlined.Description
+    else                     -> Icons.Outlined.Hub
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,243 +74,278 @@ fun ConnectorsScreen(
     viewModel: ConnectorsViewModel = viewModel(),
     onBack: () -> Unit
 ) {
-    val allItems    by viewModel.items.collectAsState()
-    var showAddSheet by remember { mutableStateOf(false) }
+    val allItems     by viewModel.items.collectAsState()
+    val selectedTab  by viewModel.selectedTab.collectAsState()
 
-    val connected    = allItems.filter { it.state.connected }
-    val disconnected = allItems.filter { !it.state.connected }
+    val visibleItems = allItems.filter { it.meta.type == selectedTab }
+    val connectedCount = allItems.count { it.state.connected }
 
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = CosmicBlack,
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = CosmicBlack.copy(alpha = 0.92f)),
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = CosmicBlack.copy(alpha = 0.95f)
+                ),
                 navigationIcon = {
-                    IconButton(onClick = { showAddSheet = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add", tint = CosmicAccent)
-                    }
-                },
-                title = {
-                    Text(
-                        text = "الموصلات",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
-                },
-                actions = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Outlined.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
+                },
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "الموصلات",
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
+                        )
+                        if (connectedCount > 0) {
+                            Text(
+                                text = "$connectedCount متصل",
+                                color = SemanticSuccess,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    // Add-connector affordance is hidden until custom MCP endpoint
+                    // creation is implemented end-to-end. A non-functional "+"
+                    // button on a top-bar is a confirmable dead-end (Bug class:
+                    // UI lie). Re-enable this slot when ConnectorsViewModel
+                    // exposes addCustomConnector() and a corresponding sheet
+                    // is available.
                 }
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(vertical = 12.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
         ) {
-            if (connected.isNotEmpty()) {
-                item {
-                    ConnectorGroup {
-                        connected.forEachIndexed { idx, row ->
-                            ConnectorToggleRow(
-                                name     = row.meta.name,
-                                subLabel = row.meta.type.uiLabel,
-                                icon     = row.meta.type.uiIcon,
-                                iconBg   = row.meta.type.uiColor,
-                                checked  = true,
-                                onToggle = { viewModel.disconnect(row.meta.id) }
-                            )
-                            if (idx < connected.lastIndex)
-                                Divider(color = DividerColor, modifier = Modifier.padding(start = 64.dp))
-                        }
-                    }
-                }
-            }
-
-            if (disconnected.isNotEmpty()) {
-                item {
-                    Text(
-                        "متاحة للاتصال",
-                        color = Color.White.copy(alpha = 0.40f),
-                        fontSize = 12.sp,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
-                        textAlign = TextAlign.End
-                    )
-                }
-                item {
-                    ConnectorGroup {
-                        disconnected.forEachIndexed { idx, row ->
-                            ConnectorConnectRow(
-                                name      = row.meta.name,
-                                subLabel  = row.meta.type.uiLabel,
-                                icon      = row.meta.type.uiIcon,
-                                iconBg    = row.meta.type.uiColor,
-                                onConnect = { viewModel.connect(row.meta.id) }
-                            )
-                            if (idx < disconnected.lastIndex)
-                                Divider(color = DividerColor, modifier = Modifier.padding(start = 64.dp))
-                        }
-                    }
-                }
-            }
-
-            if (allItems.isEmpty()) {
-                item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(top = 80.dp), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Outlined.Hub, null, tint = Color.White.copy(alpha = 0.25f), modifier = Modifier.size(52.dp))
-                            Spacer(Modifier.height(14.dp))
-                            Text("لا توجد موصلات مضافة", color = Color.White.copy(alpha = 0.35f), fontSize = 15.sp)
-                            Spacer(Modifier.height(16.dp))
-                            Button(
-                                onClick = { showAddSheet = true },
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.White)
+            // ── Tab row ────────────────────────────────────────────────────────
+            ScrollableTabRow(
+                selectedTabIndex = TABS.indexOfFirst { it.type == selectedTab }.coerceAtLeast(0),
+                containerColor   = CosmicBlack,
+                contentColor     = CosmicAccent,
+                edgePadding      = 12.dp,
+                divider          = { Divider(color = DividerColor) }
+            ) {
+                TABS.forEach { tab ->
+                    val isSelected = tab.type == selectedTab
+                    val tabCount   = allItems.count { it.meta.type == tab.type }
+                    Tab(
+                        selected = isSelected,
+                        onClick  = { viewModel.selectTab(tab.type) },
+                        text = {
+                            Row(
+                                verticalAlignment      = Alignment.CenterVertically,
+                                horizontalArrangement  = Arrangement.spacedBy(4.dp)
                             ) {
-                                Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("إضافة موصل", fontWeight = FontWeight.SemiBold)
+                                Icon(
+                                    tab.icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = if (isSelected) CosmicAccent else Color.White.copy(0.45f)
+                                )
+                                Text(
+                                    tab.label,
+                                    fontSize = 12.sp,
+                                    color = if (isSelected) CosmicAccent else Color.White.copy(0.45f)
+                                )
+                                if (tabCount > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (isSelected) CosmicAccent.copy(0.25f)
+                                                else Color.White.copy(0.08f)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "$tabCount",
+                                            fontSize = 9.sp,
+                                            color = if (isSelected) CosmicAccent else Color.White.copy(0.45f),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
                         }
+                    )
+                }
+            }
+
+            // ── Connector list ─────────────────────────────────────────────────
+            if (visibleItems.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Outlined.Hub,
+                            contentDescription = null,
+                            tint = Color.White.copy(0.25f),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "لا توجد موصلات في هذه الفئة",
+                            color = Color.White.copy(0.35f),
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(vertical = 14.dp)
+                ) {
+                    items(visibleItems, key = { it.meta.id }) { row ->
+                        ConnectorCard(
+                            row       = row,
+                            onConnect    = { viewModel.connect(row.meta.id) },
+                            onDisconnect = { viewModel.disconnect(row.meta.id) }
+                        )
                     }
                 }
             }
         }
     }
-
-    if (showAddSheet) {
-        AddConnectorSheet(onDismiss = { showAddSheet = false })
-    }
 }
 
 @Composable
-private fun ConnectorGroup(content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(SurfaceCard), content = content)
-}
-
-@Composable
-private fun ConnectorToggleRow(
-    name: String, subLabel: String, icon: ImageVector, iconBg: Color,
-    checked: Boolean, onToggle: (Boolean) -> Unit
+private fun ConnectorCard(
+    row: ConnectorsViewModel.ConnectorRow,
+    onConnect: () -> Unit,
+    onDisconnect: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Switch(
-            checked = checked, onCheckedChange = onToggle,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White, checkedTrackColor = CosmicAccent,
-                uncheckedThumbColor = Color.White.copy(0.6f), uncheckedTrackColor = Color.White.copy(0.15f)
+    var expanded by remember { mutableStateOf(false) }
+    val isConnected = row.state.connected
+    val statusColor = if (isConnected) SemanticSuccess else Color.White.copy(0.30f)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceCard)
+            .border(
+                width = 1.dp,
+                color = if (isConnected) SemanticSuccess.copy(0.25f) else Color.White.copy(0.07f),
+                shape = RoundedCornerShape(14.dp)
             )
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(horizontalAlignment = Alignment.End) {
-                Text(name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                Text(subLabel, color = Color.White.copy(0.45f), fontSize = 12.sp)
-            }
-            Spacer(Modifier.width(12.dp))
-            Box(modifier = Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(iconBg.copy(0.18f)), contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = iconBg, modifier = Modifier.size(20.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun ConnectorConnectRow(
-    name: String, subLabel: String, icon: ImageVector, iconBg: Color, onConnect: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .clickable { expanded = !expanded }
     ) {
-        Button(
-            onClick = onConnect, shape = RoundedCornerShape(10.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.White),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-        ) {
-            Text("اتصال", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(horizontalAlignment = Alignment.End) {
-                Text(name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                Text(subLabel, color = Color.White.copy(0.45f), fontSize = 12.sp)
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Status dot + icon + name
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Status indicator dot
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(statusColor)
+                    )
+                    // Icon tile
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(CosmicAccent.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            iconForId(row.meta.id),
+                            contentDescription = null,
+                            tint = CosmicAccent,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            row.meta.name,
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            if (isConnected) "متصل" else "غير متصل",
+                            color = statusColor,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+                // Connect / Disconnect toggle
+                Switch(
+                    checked  = isConnected,
+                    onCheckedChange = { if (it) onConnect() else onDisconnect() },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor       = Color.White,
+                        checkedTrackColor       = SemanticSuccess,
+                        uncheckedThumbColor     = Color.White.copy(0.6f),
+                        uncheckedTrackColor     = SurfaceRaised
+                    )
+                )
             }
-            Spacer(Modifier.width(12.dp))
-            Box(modifier = Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(iconBg.copy(0.18f)), contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = iconBg, modifier = Modifier.size(20.dp))
+
+            // Expandable description
+            AnimatedVisibility(
+                visible = expanded,
+                enter   = expandVertically(),
+                exit    = shrinkVertically()
+            ) {
+                Column {
+                    Spacer(Modifier.height(10.dp))
+                    Divider(color = Color.White.copy(0.07f))
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        row.meta.description,
+                        color    = Color.White.copy(0.55f),
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                    if (row.state.errorMessage != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.Warning,
+                                contentDescription = null,
+                                tint = SemanticError,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                row.state.errorMessage,
+                                color    = SemanticError,
+                                fontSize = 12.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
             }
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AddConnectorSheet(onDismiss: () -> Unit) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
-        onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color(0xFF111525),
-        dragHandle = {
-            Box(Modifier.padding(vertical = 10.dp)) {
-                Box(Modifier.width(36.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(0.25f)))
-            }
-        }
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
-            Text("إضافة موصل", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), textAlign = TextAlign.End)
-            AddSheetOption("تطبيقات الموصل", "اختر من قائمة التطبيقات المتاحة", onDismiss)
-            Spacer(Modifier.height(10.dp))
-            AddSheetOption("API مخصص", "أضف موصلًا باستخدام API مخصص", onDismiss)
-            Spacer(Modifier.height(24.dp))
-        }
-    }
-}
-
-@Composable
-private fun AddSheetOption(title: String, subtitle: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF1E2438))
-            .clickable(onClick = onClick).padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(Icons.Outlined.ChevronRight, null, tint = Color.White.copy(0.30f), modifier = Modifier.size(20.dp))
-        Column(horizontalAlignment = Alignment.End) {
-            Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = Color.White.copy(0.45f), fontSize = 13.sp)
-        }
-    }
-}
-
-// ── ConnectorType extensions ────────────────────────────────────────────────
-private val ConnectorType.uiLabel: String get() = when (this) {
-    ConnectorType.API    -> "سحابي"
-    ConnectorType.APP    -> "تطبيق"
-    ConnectorType.LOCAL  -> "على الجهاز"
-    ConnectorType.MCP    -> "MCP"
-    ConnectorType.SYSTEM -> "النظام"
-}
-
-private val ConnectorType.uiIcon: ImageVector get() = when (this) {
-    ConnectorType.API    -> Icons.Outlined.Cloud
-    ConnectorType.APP    -> Icons.Outlined.Extension
-    ConnectorType.LOCAL  -> Icons.Outlined.Memory
-    ConnectorType.MCP    -> Icons.Outlined.Hub
-    ConnectorType.SYSTEM -> Icons.Outlined.Settings
-}
-
-private val ConnectorType.uiColor: Color get() = when (this) {
-    ConnectorType.API    -> Color(0xFF7C6FF0)
-    ConnectorType.APP    -> Color(0xFF4FC3F7)
-    ConnectorType.LOCAL  -> Color(0xFF66BB6A)
-    ConnectorType.MCP    -> Color(0xFFFFB74D)
-    ConnectorType.SYSTEM -> Color(0xFF9E9E9E)
 }

@@ -15,11 +15,46 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.security.SecureRandom
 
 class IntegrationsViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Private services (internal domain — ViewModels do not expose services) ─
     private val secureStorage    = SecureStorage(application)
+
+    /**
+     * SECURITY: Per-session CSRF state token for OAuth flows.
+     *
+     * Generated fresh on each ViewModel instantiation. When a future browser
+     * OAuth flow (e.g. Slack, Google Drive, Discord) is initiated, this token
+     * is passed as the `state` parameter in the authorization URL. On callback
+     * reception (via [AppEvent.OAuthCallbackReceived]), the incoming `state`
+     * must match [oauthStateToken] or the callback is rejected as CSRF.
+     *
+     * Current GitHub and Telegram integrations use token-paste flows and do not
+     * use this token. It is here for forward-compatibility with browser OAuth.
+     */
+    private val oauthStateToken: String = buildString {
+        val bytes = ByteArray(24)
+        SecureRandom().nextBytes(bytes)
+        append(android.util.Base64.encodeToString(bytes, android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP))
+    }
+
+    /**
+     * Validate an OAuth callback's state parameter against [oauthStateToken].
+     * Returns true if valid, false if CSRF attack or replay.
+     */
+    fun validateOAuthState(incomingState: String): Boolean {
+        val valid = incomingState.isNotBlank() && incomingState == oauthStateToken
+        if (!valid) {
+            android.util.Log.w("IntegrationsVM", "SECURITY: OAuth state mismatch — possible CSRF. " +
+                "incoming='${incomingState.take(8)}…' expected='${oauthStateToken.take(8)}…'")
+        }
+        return valid
+    }
+
+    /** Returns the current OAuth state token for inclusion in authorization URLs. */
+    fun getOAuthStateToken(): String = oauthStateToken
     private val githubService    = GithubService(secureStorage)
     private val telegramService  = TelegramService(secureStorage)
     private val googleAuthService = GoogleAuthService(application, secureStorage)
@@ -168,6 +203,34 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun onGoogleSignInFailed() {
         // No state change needed — user cancelled or error occurred
+    }
+
+    /**
+     * Handle an OAuth callback received from [AppEvent.OAuthCallbackReceived].
+     *
+     * SECURITY: Validates the `state` parameter to prevent CSRF.
+     * Only called from callers that subscribe to [EventBus.events].
+     */
+    fun handleOAuthCallback(code: String, state: String) {
+        if (!validateOAuthState(state)) {
+            android.util.Log.e("IntegrationsVM",
+                "SECURITY: OAuth callback rejected — state mismatch. Ignoring.")
+            return
+        }
+        // Future: route the code to the appropriate provider based on state prefix
+        // e.g. state = "slack_<random>" → SlackOAuthService.exchangeCode(code)
+        android.util.Log.i("IntegrationsVM", "OAuth callback accepted (state validated), code=${code.take(8)}…")
+    }
+
+    init {
+        // Subscribe to OAuth deep-link callbacks from MainActivity
+        viewModelScope.launch {
+            com.airi.assistant.domain.event.EventBus.events.collect { event ->
+                if (event is com.airi.assistant.domain.event.AppEvent.OAuthCallbackReceived) {
+                    handleOAuthCallback(code = event.code, state = event.state)
+                }
+            }
+        }
     }
 
     fun disconnect(id: String) {

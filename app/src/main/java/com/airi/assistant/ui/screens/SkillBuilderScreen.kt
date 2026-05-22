@@ -342,25 +342,35 @@ fun SkillBuilderScreen(
             }
 
             // ── Type Section ──────────────────────────────────────────────────
+            // SkillType.LOCAL is intentionally hidden from the chip row.
+            // CustomSkillExecutor.execute() rejects LOCAL skills with the message
+            // "Local custom skills are not executable yet." — exposing the chip
+            // let users save a skill that would always fail at run-time. The
+            // enum value remains in source so any pre-existing LOCAL skills
+            // still load (they will surface the executor's rejection message
+            // when triggered) and so the type is available for future on-device
+            // skills without a data migration.
             SkillBuilderSection("Skill Type") {
                 Text(
-                    "API: Calls an external REST API. Webhook: Triggers an event endpoint. Local: Runs on-device (coming soon).",
+                    "API: Calls an external REST API. Webhook: Triggers an event endpoint.",
                     color = Color.White.copy(alpha = 0.45f),
                     fontSize = 12.sp
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SkillType.values().forEach { option ->
-                        FilterChip(
-                            selected = type == option,
-                            onClick = { type = option },
-                            label = { Text(option.name) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
-                                selectedLabelColor = CosmicAccent,
-                                labelColor = Color.White.copy(alpha = 0.72f)
+                    SkillType.values()
+                        .filter { it != SkillType.LOCAL }
+                        .forEach { option ->
+                            FilterChip(
+                                selected = type == option,
+                                onClick = { type = option },
+                                label = { Text(option.name) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
+                                    selectedLabelColor = CosmicAccent,
+                                    labelColor = Color.White.copy(alpha = 0.72f)
+                                )
                             )
-                        )
-                    }
+                        }
                 }
             }
 
@@ -688,7 +698,7 @@ private fun PresetCard(preset: SkillPreset, onClick: () -> Unit) {
     }
 }
 
-// ─── Section Container ────────────────────────────────────────────────────────
+// ─── Section Container ─────────────────────────────────────────────────────���──
 
 @Composable
 private fun SkillBuilderSection(

@@ -100,6 +100,19 @@
                     android:host="referral" />
             </intent-filter>
 
+            <!-- OAuth callback deep-link — receives airi://oauth/callback?code=...
+                 Used by future OAuth providers (Slack, Discord, Notion, Google Drive).
+                 MainActivity routes this to IntegrationsViewModel.handleOAuthCallback(). -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="airi"
+                    android:host="oauth"
+                    android:pathPrefix="/callback" />
+            </intent-filter>
+
         </activity>
 
         <service
@@ -119,6 +132,13 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
+        <!--
+            AiriAccessibilityService — android:exported="true" is REQUIRED by Android
+            for all AccessibilityService implementations. The binding is restricted by
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" which
+            is a system-only permission (protectionLevel="signature"). No third-party
+            app can bind this service. The exported=true here is not a security risk.
+        -->
         <service
             android:name=".accessibility.service.AiriAccessibilityService"
             android:label="@string/app_name"

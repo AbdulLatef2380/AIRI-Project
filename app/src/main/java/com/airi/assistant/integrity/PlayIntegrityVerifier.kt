@@ -6,32 +6,32 @@ import com.google.android.play.core.integrity.IntegrityManagerFactory
 import com.google.android.play.core.integrity.IntegrityTokenRequest
 import kotlinx.coroutines.tasks.await
 import java.security.SecureRandom
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * PlayIntegrityVerifier — thin wrapper around the Play Integrity API.
+ * PlayIntegrityVerifier — thin wrapper around Google Play Integrity.
  *
- * ── PURPOSE ───────────────────────────────────────────────────────────────────
- * Verifies that AIRI is running on a legitimate Android device and an unmodified
- * APK before high-risk agent actions (e.g. cloud inference, subscription purchase,
- * identity operations).
+ * ── Phase-3 P0 hardening ──────────────────────────────────────────────────────
+ * Previous behavior:
+ *   • A successful token request set `_lastVerdict = MEETS_BASIC_INTEGRITY`
+ *     even though the JWS was never decrypted by a backend. Callers reading
+ *     [isVerified] were therefore trusting an opaque opaque token as proof of
+ *     basic integrity, which is incorrect — Play Integrity tokens are JWS
+ *     blobs that *only* a server holding the decryption key can interpret.
+ *   • Nonces were generated per-request but never tracked, so the API allowed
+ *     trivial replay if a caller cached a token.
  *
- * ── VERDICT LEVELS ────────────────────────────────────────────────────────────
- * MEETS_DEVICE_INTEGRITY  → real Android device with Play Services
- * MEETS_BASIC_INTEGRITY   → passes basic Android CTS (may be rooted/emulator)
- * UNVERIFIED              → token obtained but verdict unavailable/degraded
- * UNAVAILABLE             → Play Integrity API not accessible (no Play Services,
- *                           sideloaded, or network down)
- *
- * ── OFFLINE / LOCAL_ONLY POLICY ───────────────────────────────────────────────
- * The full verdict requires a backend round-trip to Google's servers plus your
- * own server to decrypt the JWS. In production, `requestToken()` returns the raw
- * IntegrityToken; send it to your backend via a short-lived nonce to prevent
- * replay attacks. For the current milestone the verdict is logged locally as an
- * AIRI_PROOF signal so that suspicious conditions are visible in crash analytics.
- *
- * ── THREAD SAFETY ─────────────────────────────────────────────────────────────
- * All public methods are suspending and safe to call from any dispatcher.
- * Init is idempotent — multiple calls from AIRIApplication.onCreate() are safe.
+ * New behavior:
+ *   • [isVerified] is now FALSE whenever the verdict is anything other than
+ *     `MEETS_DEVICE_INTEGRITY`. We never auto-promote a token to BASIC_INTEGRITY
+ *     locally. A non-null token without backend verification yields
+ *     [IntegrityVerdict.UNVERIFIED].
+ *   • A backend wiring point [BackendVerifier] is exposed. When set (typically
+ *     by AIRIApplication after configuration), [warmUp] / [requestToken] forward
+ *     the JWS to it and use the returned verdict as the source of truth.
+ *   • Issued nonces are tracked in a small bounded set; [validateNonce] lets
+ *     callers reject replays.
+ *   • All log output is rate-limited so an offline device cannot spam logcat.
  */
 object PlayIntegrityVerifier {
 
@@ -40,76 +40,124 @@ object PlayIntegrityVerifier {
     @Volatile private var _lastVerdict: IntegrityVerdict = IntegrityVerdict.UNAVAILABLE
     @Volatile private var _initialized = false
 
-    /** The most recent verdict returned by the Play Integrity API. */
+    /**
+     * Pluggable backend verifier. When null we cannot decrypt the JWS, so the
+     * verdict stays at UNVERIFIED (never BASIC_INTEGRITY) — see hardening note.
+     */
+    @Volatile var backendVerifier: BackendVerifier? = null
+
+    /** Nonces issued in this process — used to reject replays. Bounded. */
+    private val issuedNonces: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private const val MAX_TRACKED_NONCES = 256
+
+    /** Last warn-log timestamp per category (rate-limit by category). */
+    private val lastLogMs = ConcurrentHashMap<String, Long>()
+    private const val LOG_RATE_LIMIT_MS = 60_000L
+
+    /** Most recent verdict returned by the API + backend. */
     val lastVerdict: IntegrityVerdict get() = _lastVerdict
 
-    /** True once a non-UNAVAILABLE verdict has been received this session. */
+    /**
+     * True ONLY when the device passes full Play Integrity (genuine,
+     * unmodified, on Play Services). Callers gating sensitive operations
+     * should read this property — not [lastVerdict] — and provide a
+     * graceful-degradation path (NOT outright denial) when it returns false,
+     * because plenty of legitimate users (sideload, MIUI) never reach this
+     * verdict.
+     */
     val isVerified: Boolean get() = _lastVerdict == IntegrityVerdict.MEETS_DEVICE_INTEGRITY
+
+    interface BackendVerifier {
+        /**
+         * Forward [token] to your server, which decrypts the JWS and returns
+         * the parsed verdict. Implementations must validate the included nonce
+         * against [validateNonce]. Should be safe to call from IO dispatcher.
+         */
+        suspend fun verify(token: String, nonce: String): IntegrityVerdict
+    }
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    /**
-     * Perform a warm-up integrity check at app start.
-     *
-     * Failure is non-fatal — AIRI continues operating in a degraded trust state.
-     * The result is cached in [lastVerdict] and emitted as an AIRI_PROOF log.
-     */
     suspend fun warmUp(context: Context) {
         if (_initialized) return
         runCatching { check(context, nonce = generateNonce()) }.onFailure { e ->
-            Log.w(TAG, "AIRI_PROOF INTEGRITY_WARMUP_FAILED reason=${e.message?.take(80)}")
+            rateLimitedWarn("WARMUP", "INTEGRITY_WARMUP_FAILED reason=${e.message?.take(80)}")
         }
         _initialized = true
     }
 
-    /**
-     * Request an integrity token for a specific user action.
-     *
-     * @param context  Application context.
-     * @param nonce    Unique per-request nonce (base64, min 16 bytes). Used by
-     *                 your backend to prevent token replay.
-     * @return Raw integrity token string to forward to your backend, or null on failure.
-     */
     suspend fun requestToken(context: Context, nonce: String = generateNonce()): String? =
         runCatching {
             val manager = IntegrityManagerFactory.create(context.applicationContext)
             val request = IntegrityTokenRequest.builder().setNonce(nonce).build()
             manager.requestIntegrityToken(request).await().token()
         }.onFailure { e ->
-            Log.w(TAG, "INTEGRITY_TOKEN_REQUEST_FAILED: ${e.message?.take(80)}")
+            rateLimitedWarn("TOKEN", "INTEGRITY_TOKEN_REQUEST_FAILED: ${e.message?.take(80)}")
         }.getOrNull()
+
+    /**
+     * True if [nonce] was issued by this process and has not been consumed yet.
+     * Calling this consumes the nonce — replay attempts return false.
+     */
+    fun validateNonce(nonce: String): Boolean = issuedNonces.remove(nonce)
 
     // ── Internal ──────────────────────────────────────────────────────────────
 
     private suspend fun check(context: Context, nonce: String) {
         val token = requestToken(context, nonce)
-        _lastVerdict = if (token != null) {
-            // Full verdict decryption requires a server-side call (the token is a JWS).
-            // Until a backend is wired, we treat a non-null token as basic integrity.
-            // Replace this block with a retrofit/ktor call to your verdict endpoint.
-            Log.i(TAG, "AIRI_PROOF INTEGRITY_TOKEN_OBTAINED verdict=MEETS_BASIC_INTEGRITY")
-            IntegrityVerdict.MEETS_BASIC_INTEGRITY
-        } else {
-            Log.w(TAG, "AIRI_PROOF INTEGRITY_UNAVAILABLE")
+        _lastVerdict = if (token == null) {
+            rateLimitedWarn("UNAVAIL", "INTEGRITY_UNAVAILABLE")
             IntegrityVerdict.UNAVAILABLE
+        } else {
+            val backend = backendVerifier
+            if (backend == null) {
+                // SECURITY: do NOT promote to BASIC_INTEGRITY locally — the JWS
+                // hasn't been decrypted. Callers gating sensitive flows on
+                // isVerified will correctly see "not verified".
+                Log.i(TAG, "AIRI_PROOF INTEGRITY_TOKEN_OBTAINED verdict=UNVERIFIED (no backend)")
+                IntegrityVerdict.UNVERIFIED
+            } else {
+                runCatching { backend.verify(token, nonce) }
+                    .onFailure { e ->
+                        rateLimitedWarn("BACKEND",
+                            "INTEGRITY_BACKEND_VERIFY_FAILED: ${e.message?.take(80)}")
+                    }
+                    .getOrDefault(IntegrityVerdict.UNVERIFIED)
+            }
         }
     }
 
     /** Cryptographically-random URL-safe base64 nonce (22 chars ≈ 132 bits). */
     private fun generateNonce(): String {
         val bytes = ByteArray(16).also { SecureRandom().nextBytes(it) }
-        return android.util.Base64.encodeToString(bytes, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
+        val n = android.util.Base64.encodeToString(
+            bytes,
+            android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
+        )
+        // Bound the in-memory set so a long-running process cannot leak.
+        if (issuedNonces.size >= MAX_TRACKED_NONCES) {
+            issuedNonces.clear()
+        }
+        issuedNonces.add(n)
+        return n
+    }
+
+    private fun rateLimitedWarn(category: String, message: String) {
+        val now = System.currentTimeMillis()
+        val last = lastLogMs[category] ?: 0L
+        if (now - last >= LOG_RATE_LIMIT_MS) {
+            lastLogMs[category] = now
+            Log.w(TAG, "AIRI_PROOF $message")
+        }
     }
 }
 
-// ── Verdict enum ──────────────────────────────────────────────────────────────
-
 enum class IntegrityVerdict {
-    /** Real Android device, meets CTS, unmodified APK. */
+    /** Real Android device, meets CTS, unmodified APK (verified by backend). */
     MEETS_DEVICE_INTEGRITY,
-    /** Basic Android CTS passes; may be rooted / developer device. */
+    /** Basic Android CTS passes; may be rooted / developer device (verified by backend). */
     MEETS_BASIC_INTEGRITY,
-    /** Token received but server verdict not yet decoded. */
+    /** Token received but no backend wired to decrypt the JWS — opaque. */
     UNVERIFIED,
     /** Play Integrity API unreachable (no Play Services, offline, sideloaded). */
     UNAVAILABLE

@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -18,6 +19,8 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.ThemeMode
+import com.airi.assistant.ui.theme.ThemePreferences
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,6 +30,10 @@ fun CustomizationSettingsScreen(
     onBack:     () -> Unit,
     onNavigate: (String) -> Unit
 ) {
+    val context            = LocalContext.current
+    val themePrefs         = remember { ThemePreferences.get(context) }
+    val themeMode          by themePrefs.themeMode.collectAsState()
+
     val systemPrompt       by viewModel.systemPrompt.collectAsState()
     val responseStyleState by viewModel.responseStyle.collectAsState()
     var customInstructions by rememberSaveable { mutableStateOf(systemPrompt) }
@@ -64,12 +71,45 @@ fun CustomizationSettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+
+            // ── Theme mode ────────────────────────────────────────────────────
             SettingsSurface {
                 SettingsCategoryHeader(
-                    icon  = Icons.Outlined.Psychology,
-                    title = stringResource(R.string.personalization)
+                    icon  = Icons.Outlined.Palette,
+                    title = "المظهر"
                 )
                 Spacer(Modifier.height(12.dp))
+                Text(
+                    "وضع العرض",
+                    fontSize = 13.sp,
+                    color    = Color.White.copy(alpha = 0.7f)
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val modes = listOf(
+                        ThemeMode.DARK   to "مظلم",
+                        ThemeMode.LIGHT  to "فاتح",
+                        ThemeMode.SYSTEM to "النظام"
+                    )
+                    modes.forEach { (mode, label) ->
+                        FilterChip(
+                            selected = themeMode == mode,
+                            onClick  = { themePrefs.mode = mode },
+                            label    = { Text(label, fontSize = 12.sp) },
+                            colors   = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
+                                selectedLabelColor     = CosmicAccent,
+                                containerColor         = Color.White.copy(alpha = 0.06f),
+                                labelColor             = Color.White.copy(alpha = 0.6f)
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                borderColor         = Color.White.copy(alpha = 0.1f),
+                                selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
+                            )
+                        )
+                    }
+                }
+            }
 
                 Text(
                     stringResource(R.string.custom_instructions),

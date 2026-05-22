@@ -121,6 +121,23 @@ class RuntimeHealthMonitor(
         activeAgentTasks.remove(taskId)
     }
 
+    // ── Public API: memory pressure ────────────────────────────────────────
+
+    /**
+     * Called from [AIRIApplication.onTrimMemory] with the Android trim level.
+     * Records the event to the health report and logs it for crash triage.
+     */
+    fun recordMemoryPressure(level: Int) {
+        LoggingService.warn(TAG, "AIRI_PROOF MEMORY_PRESSURE level=$level")
+        runCatching {
+            crashReporter.reportManual(
+                component = "AIRIApplication",
+                errorTag  = "MEMORY_PRESSURE",
+                message   = "System memory pressure level=$level"
+            )
+        }
+    }
+
     // ── Public API: event bus rate ─────────────────────────────────────────
 
     fun recordBusEmit()  { busEmitCount.incrementAndGet() }

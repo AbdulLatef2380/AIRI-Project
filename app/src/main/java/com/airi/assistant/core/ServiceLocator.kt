@@ -245,19 +245,6 @@ object ServiceLocator {
         }
     }
 
-    // ── Phase P3: Workspace / Canvas runtime ─────────────────────────────────
-    val artifactManager: com.airi.assistant.workspace.ArtifactManager by lazy {
-        com.airi.assistant.workspace.ArtifactManager(requireContext())
-    }
-
-    val workspaceRuntime: com.airi.assistant.workspace.WorkspaceRuntime by lazy {
-        com.airi.assistant.workspace.WorkspaceRuntime(
-            context         = requireContext(),
-            sandboxManager  = sandboxManager,
-            artifactManager = artifactManager
-        )
-    }
-
     // ── Phase P5: Dynamic Skills runtime ──────────────────────────────────────
     val skillRuntime: com.airi.assistant.skills.SkillRuntime by lazy {
         val skillExec = com.airi.assistant.ai.skills.SkillExecutor(requireContext())
@@ -278,13 +265,9 @@ object ServiceLocator {
         )
     }
 
-    // ── Terminal runtime ───────────────────────────────────────────────────────
-    val terminalRuntime: com.airi.assistant.terminal.TerminalRuntime by lazy {
-        com.airi.assistant.terminal.TerminalRuntime(
-            sandboxManager = sandboxManager,
-            governance     = permissionGovernanceLayer
-        )
-    }
+    // Phase 1 stabilization: terminalRuntime / workspaceRuntime / artifactManager
+    // were removed because their only consumers (Terminal/Workspace/Sandbox
+    // screens) have been deleted. The underlying runtimes had no other callers.
 
     val agentRouter: AgentRouter by lazy {
         AgentRouter(connectorRegistry)
@@ -336,7 +319,7 @@ object ServiceLocator {
         )
     }
 
-    // ── Cloud Sync ────────────────────────────────────────────────────────────
+    // ── Cloud Sync ──────────────────────────────────��─────────────────────────
 
     val cloudSyncCoordinator: CloudSyncCoordinator by lazy {
         CloudSyncCoordinator(userProfileRepository)

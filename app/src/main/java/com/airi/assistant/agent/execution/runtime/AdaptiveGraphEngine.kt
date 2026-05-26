@@ -3,7 +3,6 @@ package com.airi.assistant.agent.execution.runtime
 import android.util.Log
 import com.airi.assistant.agent.planning.ActionPlan
 import com.airi.assistant.agent.planning.PlanStep
-import com.airi.assistant.agent.planning.ReActPlanner
 import com.airi.assistant.agent.subagent.SubAgentContext
 import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.ui.activity.ActivityCategory
@@ -25,7 +24,9 @@ import java.util.concurrent.atomic.AtomicInteger
  *  - Persistent execution checkpoints for long-running tasks
  *  - Self-correction loops (auto-retry with revised plan on failure)
  *  - Memory-driven routing (past success/failure weights tool selection)
- *  - Semantic task decomposition via [ReActPlanner]
+ *
+ * Note: ReActPlanner reference removed in Phase 1 — task decomposition now
+ * delegated to [UnifiedCognitiveLoop.executeGraph] via TypedPlanGraph.
  *
  * Design:
  *  Each [GraphNode] is an autonomous unit with its own state, retry budget,

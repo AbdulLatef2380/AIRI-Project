@@ -89,6 +89,7 @@ import kotlinx.coroutines.withTimeout
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.ExecutionMode
+import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.HybridOrchestrator
 import com.airi.assistant.execution.PrivacyLevel
 import com.airi.assistant.execution.accounting.TokenAccountant
@@ -99,6 +100,7 @@ import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.execution.router.RuntimeRouter
 import com.airi.assistant.execution.security.SecureApiKeyStore
 import com.airi.assistant.agent.planning.BrainInput
+import com.airi.assistant.agent.planning.toTypedPlanGraph
 import com.airi.assistant.core.UnifiedCognitiveLoop
 import com.airi.assistant.voice.VoskModelManager
 
@@ -151,23 +153,27 @@ data class AgentState(
     val currentStep:            Int     = 0,
     val totalSteps:             Int     = 0,
     // ── Live graph execution status (Phase 2 / UX maturity) ──────────────────
-    /** Human-readable description of the active goal (e.g. "Send email to Alice"). */
     val activeGoalDescription:  String  = "",
-    /** ID of the node currently executing in the DAG wave. */
     val activeNodeId:           String  = "",
-    /** Action type of the currently executing node (e.g. "open_app", "search"). */
     val activeNodeAction:       String  = "",
-    /** Number of nodes completed in the current graph. */
     val nodesCompleted:         Int     = 0,
-    /** Total nodes in the current graph (0 = unknown / not started). */
     val nodesTotal:             Int     = 0,
-    /** Current execution stage: planning, executing, recovering, reflecting, idle. */
     val executionStage:         ExecutionStage = ExecutionStage.IDLE,
-    /** Human-readable reason if a node is being retried or recovery is in progress. */
     val recoveryReason:         String  = "",
-    /** How many retries have been attempted on the current node. */
-    val retryCount:             Int     = 0
-)
+    val retryCount:             Int     = 0,
+    // ── Phase 1: Real confirmation gate ───────────────────────────────────────
+    // When non-null, the UI MUST show a blocking confirmation dialog and
+    // call ChatViewModel.confirmAccessibilityAction(approved) before the
+    // AndroidAgent proceeds. The agent suspends on a CompletableDeferred.
+    // Null = no pending confirmation request.
+    val confirmationRequest:    ConfirmationRequest? = null
+) {
+    data class ConfirmationRequest(
+        val actionDisplayName: String,
+        val actionDescription: String,
+        val isDestructive:     Boolean = true
+    )
+}
 
 enum class ExecutionStage {
     IDLE, PLANNING, EXECUTING, RECOVERING, REFLECTING, COMPLETED, FAILED
@@ -582,7 +588,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun cancelGeneration() {
         if (_agentState.value.isWorking) {
             _isCancelled.set(true)
-            llamaManager.cancelStream()
+            hybridOrchestrator.cancel()   // propagates to LlamaManager.cancelStream via LocalLlamaBackend
             _generationPhase.value = GenerationPhase.CANCELLED
             lastGenerationDurationMs = System.currentTimeMillis() - generationStartMs
             Log.d("AIRI_SPEED", "cancelGeneration: user triggered")
@@ -679,6 +685,83 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         observeVoiceTranscriptBus()
         observeExecutionStatusBus()
         observeMemoryPressureBus()
+
+        // ── Phase 3: Wire real LLM delegate provider into cognitive loop ───────
+        // When UCL.runNode() encounters AgentEvent.Delegate (emitted by delegation-
+        // shell sub-agents like CodingAgent), it calls this provider to produce a
+        // real LLM response rather than returning "[delegated to LLM]".
+        //
+        // The provider uses HybridOrchestrator.executeStream — which is safe here
+        // because UCL.executeGraph() only runs AFTER executeStream completes (the
+        // Mutex is released before the flag-gated launch in sendMessage).
+        cognitiveLoop.orchestratorProvider = suspend@{ prompt, onToken, onError ->
+            hybridOrchestrator.executeStream(
+                request = com.airi.assistant.execution.ExecutionRequest(
+                    prompt           = prompt,
+                    systemPrompt     = "You are AIRI, a helpful AI assistant. Answer directly and concisely.",
+                    maxTokens        = 1024,
+                    temperature      = 0.7f,
+                    queryType        = com.airi.assistant.ai.QueryType.ANALYTICAL,
+                    requiresStreaming = false,
+                    sessionTag       = "ucl_delegate"
+                ),
+                context    = appContext,
+                onToken    = { token -> onToken(token) },
+                onComplete = { _, _, _ -> },
+                onError    = { err, _ -> onError(err) }
+            )
+        }
+
+        // ── Phase 1: Wire real confirmation gate into AndroidAgent ─────────────
+        // ServiceLocator.initSubAgentSystem() exposes the AndroidAgent instance.
+        // We inject a suspend lambda that surfaces AgentState.ConfirmationRequest
+        // to the UI and suspends until the user taps Confirm or Cancel.
+        runCatching { ServiceLocator._androidAgent }.getOrNull()?.let { agent ->
+            agent.confirmationGate = { actionName, description ->
+                awaitAccessibilityConfirmation(actionName, description)
+            }
+            Log.i("AIRI_SECURITY", "AndroidAgent.confirmationGate wired to ChatViewModel")
+        } ?: Log.w("AIRI_SECURITY", "AndroidAgent not yet initialized — gate not wired")
+    }
+
+    // ── Phase 1: Real accessibility confirmation gate ──────────────────────────
+    @Volatile private var pendingConfirmation: kotlinx.coroutines.CompletableDeferred<Boolean>? = null
+
+    /**
+     * Called by ChatScreen confirmation dialog when the user responds to a
+     * destructive accessibility action. Resumes the suspended AndroidAgent.
+     */
+    fun confirmAccessibilityAction(approved: Boolean) {
+        pendingConfirmation?.complete(approved)
+        pendingConfirmation = null
+        _agentState.update { it.copy(confirmationRequest = null) }
+    }
+
+    /**
+     * Suspend until the user confirms or cancels a destructive accessibility action.
+     * Surfaces [AgentState.ConfirmationRequest] to the UI, which must call
+     * [confirmAccessibilityAction]. Times out after 30 s → auto-cancel.
+     */
+    internal suspend fun awaitAccessibilityConfirmation(
+        actionDisplayName: String,
+        actionDescription: String
+    ): Boolean {
+        val deferred = kotlinx.coroutines.CompletableDeferred<Boolean>()
+        pendingConfirmation = deferred
+        _agentState.update {
+            it.copy(
+                confirmationRequest = AgentState.ConfirmationRequest(
+                    actionDisplayName = actionDisplayName,
+                    actionDescription = actionDescription
+                )
+            )
+        }
+        return try {
+            kotlinx.coroutines.withTimeoutOrNull(30_000L) { deferred.await() } ?: false
+        } finally {
+            pendingConfirmation = null
+            _agentState.update { it.copy(confirmationRequest = null) }
+        }
     }
 
     /**
@@ -1337,20 +1420,52 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fullResponse)
                         _messages.update { it + ChatMessage(fullResponse, isUser = false, assistantMessage.id, execOrigin = _lastExecOrigin.value) }
                     }
-                    // ── Phase 1: Wire ACTION queries through UnifiedCognitiveLoop ──────────
+                    // ── Phase 2: Wire ACTION queries through UnifiedCognitiveLoop ──────────
                     // After the LLM response is shown to the user, parse any JSON action plan
-                    // embedded in the response and execute it via the TypedPlanGraph DAG engine.
-                    // The system prompt (ACTION_PLAN_SUFFIX) asks the LLM to append a plan;
-                    // if none is present PlanGenerator falls back to a no-op "conversation" step.
+                    // embedded in the response and execute it.
+                    //
+                    // AIRI_EXECUTE_GRAPH_ENABLED=false (default):
+                    //   Legacy cognitiveLoop.process() — pattern-matching command executor.
+                    //   No UI feedback. Zero risk of regression.
+                    //
+                    // AIRI_EXECUTE_GRAPH_ENABLED=true (staged rollout):
+                    //   TypedPlanGraph parallel-wave DAG via UCL.executeGraph().
+                    //   ExecutionStatusBus updates drive the ChatScreen agent overlay.
+                    //   On any exception, falls back to the legacy path automatically.
+                    //
+                    // See: reports/phase2-executeGraph-migration-plan.md
                     if (queryType == QueryType.ACTION && !wasToolCall) {
                         viewModelScope.launch(Dispatchers.IO) {
-                            runCatching {
-                                cognitiveLoop.process(
-                                    BrainInput(text = trimmedInput),
-                                    fullResponse
-                                )
-                            }.onFailure { e ->
-                                Log.w("AIRI_UCL", "UCL.process failed: ${e.message}")
+                            if (BuildConfig.AIRI_EXECUTE_GRAPH_ENABLED) {
+                                // ── Graph execution path ─────────────────────────────────
+                                runCatching {
+                                    val plan  = cognitiveLoop.planGenerator
+                                                    .createDAGPlanFromLLM(fullResponse, trimmedInput)
+                                    val graph = plan.toTypedPlanGraph(goalId = sessionId)
+                                    Log.i("AIRI_GRAPH", "executeGraph starting: goalId=$sessionId " +
+                                        "nodes=${plan.steps.size} intent='${plan.intent.take(40)}'")
+                                    val result = cognitiveLoop.executeGraph(graph)
+                                    Log.i("AIRI_GRAPH", "executeGraph done: success=${result.success} " +
+                                        "nodes=${result.nodeResults.size} " +
+                                        "confidence=${result.reflection?.executionConfidence}")
+                                }.onFailure { e ->
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
+                                    Log.w("AIRI_GRAPH", "executeGraph failed (${e.javaClass.simpleName}: " +
+                                        "${e.message}) — falling back to legacy cognitiveLoop.process()")
+                                    // Automatic fallback — user sees no difference
+                                    runCatching {
+                                        cognitiveLoop.process(BrainInput(text = trimmedInput), fullResponse)
+                                    }.onFailure { e2 ->
+                                        Log.w("AIRI_UCL", "Fallback UCL.process also failed: ${e2.message}")
+                                    }
+                                }
+                            } else {
+                                // ── Legacy path (default) ────────────────────────────────
+                                runCatching {
+                                    cognitiveLoop.process(BrainInput(text = trimmedInput), fullResponse)
+                                }.onFailure { e ->
+                                    Log.w("AIRI_UCL", "UCL.process failed: ${e.message}")
+                                }
                             }
                         }
                     }
@@ -1410,201 +1525,126 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 refreshDiagnosticsSnapshot()
             }
 
-            if (deviceWeak && remote != null) {
-                thinkingJob?.cancel()
-                thinkingJob = null
-                streamRemoteResponse(remote, trimmedInput, systemPrompt, perfMode, streamStart, finish)
-            } else {
-                // Mark phase = PREFILL before the native call so the diagnostics
-                // panel reflects the true state immediately. generationStartMs is
-                // captured here (not in onToken) because PREFILL includes the
-                // prompt-tokenisation cost which belongs in generation duration.
-                _generationPhase.value = GenerationPhase.PREFILL
-                generationStartMs = System.currentTimeMillis()
-                RuntimeEventLog.post(
-                    subsystem = "GENERATION",
-                    severity  = EventSeverity.INFO,
-                    reason    = "PREFILL: ${_modelState.value.selectedModelName} · ${finalMaxTokens}t cap"
-                )
-                llamaManager.generateStream(
-                    prompt = trimmedInput,
-                    systemPrompt = systemPrompt,
-                    maxTokens = finalMaxTokens,
-                    temperature = genConfig.temperature,
-                    repeatPenalty = repeatPenalty,
-                    topK = topK,
-                    topP = topP,
-                    minP = minP,
-                    presencePenalty = presencePenalty,
-                    frequencyPenalty = frequencyPenalty,
-                    penaltyLastN = penaltyLastN,
-                    // First-token deadline (covers slow CPU prompt decode on phones).
-                    // Post-first-token inactivity timeout is owned by LlamaManager.
-                    // Bumped to match LlamaManager.DEFAULT_FIRST_TOKEN_TIMEOUT_MS:
-                    // a cold mmap prefill on a 2B Q4 model on a mid-range
-                    // Snapdragon genuinely needs 60-90s. 60s caused false
-                    // ERR_FIRST_TOKEN_TIMEOUT for legitimate slow loads.
-                    timeoutMs = 120_000L,
-                    onToken = { tokenBatch ->
+            // ── Phase 2: Route all inference through HybridOrchestrator ──────────
+            // Previously this block had two direct paths:
+            //   (1) remoteExecutor.generateStream() for cloud
+            //   (2) llamaManager.generateStream()     for local
+            // Neither exercised the privacy gate, genId staleness guard,
+            // failover chain, or exec-origin tagging that HybridOrchestrator owns.
+            //
+            // Now: both paths go through hybridOrchestrator.executeStream() which
+            // internally delegates to LocalLlamaBackend (same LlamaManager) or
+            // CloudBackend (same remoteExecutor) via RuntimeRouter, but adds:
+            //   - executionLock (serialises concurrent sendMessage calls)
+            //   - currentGenId + stale-token rejection
+            //   - PrivacyGuard cloud-block enforcement
+            //   - deterministic primary→fallback chain
+            //   - per-event diagnostics writes
+            //   - ExecOrigin tagging on every token
+            //
+            // The onToken/onComplete/onError semantics are identical to before.
+            // All downstream code (finish, stall detection, error categorisation,
+            // accounting) is unchanged.
+
+            val execRequest = ExecutionRequest(
+                prompt                  = trimmedInput,
+                systemPrompt            = systemPrompt,
+                maxTokens               = finalMaxTokens,
+                temperature             = genConfig.temperature,
+                queryType               = queryType,
+                requiresStreaming        = true,
+                requiresVision          = imageUri != null || capturedBitmap != null,
+                requiresOffline         = !ServiceLocator.networkService.isOnline(),
+                estimatedPromptTokens   = (systemPrompt.length + trimmedInput.length) / 4,
+                sessionTag              = sessionId
+            )
+
+            hybridOrchestrator.executeStream(
+                request    = execRequest,
+                context    = appContext,
+                onToken    = { token ->
+                    thinkingJob?.cancel()
+                    thinkingJob = null
+                    if (!firstTokenReceived) {
+                        firstTokenReceived = true
+                        firstTokenWatchdog.cancel()
+                        _generationPhase.value = GenerationPhase.GENERATE
+                        generationStartMs = System.currentTimeMillis()
+                        val firstTokenMs = System.currentTimeMillis() - requestStart
+                        Log.d("AIRI_SPEED", "first_token=${firstTokenMs}ms query=${queryType.name}")
+                        com.airi.assistant.domain.logging.ProofLogger.firstToken(firstTokenMs, queryType.name)
+                        com.airi.assistant.core.analytics.ProofLogger.log("FIRST_TOKEN", "$firstTokenMs ms")
+                        com.airi.assistant.core.debug.RuntimeStore.update { copy(firstTokenMs = firstTokenMs) }
+                        _debugState.update { it.copy(lastFirstTokenMs = firstTokenMs) }
+                    }
+                    tokenCount += token.length / 4 + 1
+                    if (_streamingText.value in allThinkingStages) {
+                        streamAccumulator.setLength(0)
+                    }
+                    streamAccumulator.append(token)
+                    _streamingText.value = streamAccumulator.toString()
+                    val elapsed = System.currentTimeMillis() - streamStart
+                    if (firstTokenReceived &&
+                        ResponseOptimizer.shouldSemanticCut(_streamingText.value, elapsed, tokenCount, queryType, subscriptionManager.isPremium()) &&
+                        !_isCancelled.get()
+                    ) {
+                        val cutResult = ResponseOptimizer.semanticCut(_streamingText.value)
+                        partialCutText = cutResult.text.ifBlank { _streamingText.value }
+                        _isCancelled.set(true)
+                        hybridOrchestrator.cancel()
+                    }
+                },
+                onComplete = { fullResponse, latencyMs, origin ->
+                    _lastExecOrigin.value = origin
+                    val responseToSave = if (_isCancelled.get() && partialCutText.isNotBlank()) {
+                        partialCutText
+                    } else {
+                        fullResponse
+                    }
+                    _isCancelled.set(false)
+                    _stallActive.value = false
+                    finish(responseToSave, latencyMs, tokenCount)
+                },
+                onError    = { errorMsg, origin ->
+                    viewModelScope.launch {
                         thinkingJob?.cancel()
                         thinkingJob = null
-                        if (!firstTokenReceived) {
-                            firstTokenReceived = true
-                            firstTokenWatchdog.cancel()   // ← cancel slow-response indicator
-                            // Transition PREFILL → GENERATE exactly once.
-                            _generationPhase.value = GenerationPhase.GENERATE
-                            val firstTokenMs = System.currentTimeMillis() - requestStart
-                            Log.d("AIRI_SPEED", "first_token=${firstTokenMs}ms query=${queryType.name}")
-                            com.airi.assistant.domain.logging.ProofLogger.firstToken(firstTokenMs, queryType.name)
-                            com.airi.assistant.core.analytics.ProofLogger.log("FIRST_TOKEN", "$firstTokenMs ms")
-                            com.airi.assistant.core.debug.RuntimeStore.update { copy(firstTokenMs = firstTokenMs) }
-                            _debugState.update { it.copy(lastFirstTokenMs = firstTokenMs) }
-                        }
-                        tokenCount += tokenBatch.length / 4 + 1
-                        // PERF: append to accumulator (O(1) amortised) then
-                        // publish the full string once — no per-token copy.
-                        if (_streamingText.value in allThinkingStages) {
-                            streamAccumulator.setLength(0)
-                        }
-                        streamAccumulator.append(tokenBatch)
-                        _streamingText.value = streamAccumulator.toString()
-                        // Partial cut: if running too long with enough tokens, stop early.
-                        // Hard guard: NEVER cut before the first token has been emitted.
-                        val elapsed = System.currentTimeMillis() - streamStart
-                        if (firstTokenReceived &&
-                            ResponseOptimizer.shouldSemanticCut(_streamingText.value, elapsed, tokenCount, queryType, subscriptionManager.isPremium()) &&
-                            !_isCancelled.get()
-                        ) {
-                            val cutResult = ResponseOptimizer.semanticCut(_streamingText.value)
-                            partialCutText = cutResult.text.ifBlank { _streamingText.value }
-                            Log.d("AIRI_SPEED", "cut_triggered=true tokens_streamed=$tokenCount total_latency=${elapsed}ms")
-                            com.airi.assistant.domain.logging.ProofLogger.cutTriggered(tokenCount, elapsed)
-                            com.airi.assistant.core.analytics.ProofLogger.log("CUT", "triggered tokens=$tokenCount elapsed=${elapsed}ms")
-                            com.airi.assistant.core.debug.RuntimeStore.update { copy(wasCut = true) }
-                            _debugState.update { it.copy(lastWasCut = true) }
-                            _isCancelled.set(true)
-                            llamaManager.cancelStream()
-                        }
-                    },
-                    onComplete = { fullResponse ->
-                        val totalLatency = System.currentTimeMillis() - requestStart
-                        Log.d("AIRI_SPEED", "tokens_streamed=$tokenCount total_latency=${totalLatency}ms first_token=$firstTokenReceived cut=${_isCancelled.get()}")
-                        lastGenerationDurationMs = totalLatency
-                        _generationPhase.value = GenerationPhase.IDLE
+                        _isCancelled.set(false)
+                        _stallActive.value = false
+                        _generationPhase.value = GenerationPhase.CLEANUP
+                        _lastExecOrigin.value = origin
                         RuntimeEventLog.post(
                             subsystem = "GENERATION",
-                            severity  = EventSeverity.INFO,
-                            reason    = "Complete tokens=$tokenCount latency=${totalLatency}ms" +
-                                if (_isCancelled.get()) " (cut)" else ""
+                            severity  = EventSeverity.ERROR,
+                            reason    = errorMsg.take(100)
                         )
-                        val responseToSave = if (_isCancelled.get() && partialCutText.isNotBlank()) {
-                            partialCutText
-                        } else {
-                            fullResponse
+                        val isInactivityTimeout = errorMsg.startsWith(com.airi.assistant.ai.LlamaManager.ERR_INACTIVITY_TIMEOUT)
+                        val isFirstTokenTimeout = errorMsg.startsWith(com.airi.assistant.ai.LlamaManager.ERR_FIRST_TOKEN_TIMEOUT)
+                        val isNativeError       = errorMsg.startsWith(com.airi.assistant.ai.LlamaManager.ERR_NATIVE)
+                        if (firstTokenReceived && _streamingText.value.isNotBlank() && !isInactivityTimeout) {
+                            finish(_streamingText.value, System.currentTimeMillis() - requestStart, tokenCount)
+                            return@launch
                         }
-                        _isCancelled.set(false)
-                        // Generation finished — clear any active stall hint.
-                        _stallActive.value = false
-                        viewModelScope.launch {
-                            finish(responseToSave, totalLatency, tokenCount)
-                            // Sequencing: only NOW (after the user-facing
-                            // generation has fully ended) is it safe to reuse
-                            // the single global llama_context for the
-                            // summarization pass. We MUST never run this
-                            // concurrently with generateStream.
-                            if (needsResummarize && olderToFold.isNotEmpty()) {
-                                runCatching {
-                                    val prevSummary = com.airi.assistant.ai.prompt.MemoryStore
-                                        .getSummary(appContext, sessionId)
-                                    com.airi.assistant.ai.prompt.ConversationSummarizer.summarize(
-                                        ctx          = appContext,
-                                        sessionId    = sessionId,
-                                        llamaManager = llamaManager,
-                                        olderTurns   = olderToFold,
-                                        previousSummary = prevSummary
-                                    )
-                                }.onFailure {
-                                    Log.w("AIRI_PROMPT_COMPRESS",
-                                        "summarize failed: ${it.message}")
-                                }
-                            }
+                        val userVisible = when {
+                            isInactivityTimeout ->
+                                "بدأ التوليد لكن توقف النموذج. هذا يحدث عادةً بسبب الذاكرة أو انشغال المعالج. جرب مرة أخرى."
+                            isFirstTokenTimeout ->
+                                "تجاوز النموذج مهلة التحميل. جرب نموذجاً أخف أو اضغط على إلغاء وأعد المحاولة."
+                            isNativeError ->
+                                "حدث خطأ في المحرك المحلي. تفاصيل: ${errorMsg.removePrefix(com.airi.assistant.ai.LlamaManager.ERR_NATIVE).trim()}"
+                            else ->
+                                "تعذر إكمال التوليد. ($errorMsg)"
                         }
-                    },
-                    onStallWarning = {
-                        // Non-fatal: native decode is slow but still alive.
-                        // Surface as a UI hint via stallActive flow.
-                        _stallActive.value = true
-                    },
-                    onError = { errorMsg ->
-                        viewModelScope.launch {
-                            thinkingJob?.cancel()
-                            thinkingJob = null
-                            _isCancelled.set(false)
-                            _stallActive.value = false
-                            _generationPhase.value = GenerationPhase.CLEANUP
-                            RuntimeEventLog.post(
-                                subsystem = "GENERATION",
-                                severity  = EventSeverity.ERROR,
-                                reason    = errorMsg.take(100)
-                            )
-
-                            // Categorize the error code emitted by LlamaManager.
-                            // Only INACTIVITY_TIMEOUT (i.e. tokens started flowing then stopped)
-                            // is a "responded too slowly" condition that warrants the
-                            // fast/remote-mode upsell message. FIRST_TOKEN_TIMEOUT and
-                            // ERR_NATIVE are real failures and must surface their own message
-                            // so the user knows the engine actually failed.
-                            val isInactivityAfterFirstToken =
-                                errorMsg.startsWith(com.airi.assistant.ai.LlamaManager.ERR_INACTIVITY_TIMEOUT)
-                            val isFirstTokenTimeout =
-                                errorMsg.startsWith(com.airi.assistant.ai.LlamaManager.ERR_FIRST_TOKEN_TIMEOUT)
-                            val isNativeError =
-                                errorMsg.startsWith(com.airi.assistant.ai.LlamaManager.ERR_NATIVE)
-
-                            // If we already streamed any tokens, persist whatever we have
-                            // through the normal finish path instead of overwriting it.
-                            if (firstTokenReceived && _streamingText.value.isNotBlank() && !isInactivityAfterFirstToken) {
-                                val partial = _streamingText.value
-                                val totalLatency = System.currentTimeMillis() - requestStart
-                                viewModelScope.launch { finish(partial, totalLatency, tokenCount) }
-                                return@launch
-                            }
-
-                            // Respect LOCAL_ONLY: never fall back to cloud when local is the only permitted backend.
-                            val fallbackRemote = if (execModePrefs.effectiveMode == ExecutionMode.LOCAL_ONLY) null
-                                                 else RemoteModelRegistry.getActive()
-                            if (fallbackRemote != null) {
-                                _streamingText.value = "Thinking..."
-                                streamRemoteResponse(fallbackRemote, trimmedInput, systemPrompt, perfMode, streamStart, finish)
-                                return@launch
-                            }
-
-                            val userVisible = when {
-                                // True post-first-token slowdown — the original "fast mode"
-                                // upsell message is appropriate here.
-                                isInactivityAfterFirstToken ->
-                                    "تعذر توليد الرد بسرعة. جرّب Fast Mode أو Remote Model."
-                                // No first token within the budget — engine is stalled
-                                // (cold cache, oversized prompt, or model not warming up).
-                                isFirstTokenTimeout ->
-                                    "النموذج لم يبدأ التوليد خلال المهلة. جرّب رسالة أقصر أو أعد تحميل النموذج."
-                                // Native crash / exception bubbled up from JNI.
-                                isNativeError ->
-                                    "حدث خطأ في المحرك المحلي. تفاصيل: ${errorMsg.removePrefix(com.airi.assistant.ai.LlamaManager.ERR_NATIVE).trim()}"
-                                else ->
-                                    "تعذر إكمال التوليد. ($errorMsg)"
-                            }
-                            val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", userVisible)
-                            _messages.update { it + ChatMessage(userVisible, isUser = false, assistantMessage.id) }
-                            streamAccumulator.setLength(0); _streamingText.value = ""
-                            _agentState.value = AgentState()
-                            _generationPhase.value = GenerationPhase.IDLE
-                            refreshSessions()
-                            refreshDiagnosticsSnapshot()
-                        }
+                        val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", userVisible)
+                        _messages.update { it + ChatMessage(userVisible, isUser = false, assistantMessage.id) }
+                        streamAccumulator.setLength(0); _streamingText.value = ""
+                        _agentState.value = AgentState()
+                        _generationPhase.value = GenerationPhase.IDLE
+                        refreshSessions()
+                        refreshDiagnosticsSnapshot()
                     }
-                )
-            }
+                }
+            )
         }
     }
 

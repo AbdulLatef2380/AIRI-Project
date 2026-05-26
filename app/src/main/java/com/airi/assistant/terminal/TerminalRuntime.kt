@@ -185,13 +185,16 @@ class TerminalRuntime(
     private fun appendHelp() {
         val help = listOf(
             "Available commands:",
-            "  ls, cat, echo, mkdir, rm, find, grep   — file operations",
-            "  head, tail, wc, sort, uniq, sed, awk   — text processing",
-            "  curl, wget                              — network (if permitted)",
-            "  git clone, git status, git log          — git operations",
+            "  ls, cat, echo, mkdir, rm, cp, mv       — file operations",
+            "  find, grep, head, tail, wc, sort, uniq — search & text",
+            "  sed, awk                                — text processing",
+            "  git status, git log, git diff           — git read-only",
             "  zip, unzip, tar                         — archive tools",
             "  clear                                   — clear terminal",
-            "  exit                                    — close session"
+            "  exit                                    — close session",
+            "",
+            "Note: curl, wget, git-clone and network commands are not",
+            "available in the sandbox for security reasons."
         )
         help.forEach { appendLine(TerminalLine(text = it)) }
     }

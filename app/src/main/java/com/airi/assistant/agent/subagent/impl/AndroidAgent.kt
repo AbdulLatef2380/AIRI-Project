@@ -38,10 +38,22 @@ class AndroidAgent(
 ) : SubAgent {
 
     companion object {
-        /** Synthetic capability token set by AiriAccessibilityService on connect. */
         const val CAPABILITY_ACCESSIBILITY = "airi_accessibility_enabled"
         private const val TAG = "AndroidAgent"
     }
+
+    /**
+     * Phase 1: Real confirmation gate for destructive actions.
+     *
+     * Set by [ServiceLocator.initSubAgentSystem] after ChatViewModel creates the
+     * ViewModel. When non-null, destructive actions (send, post, delete, share)
+     * SUSPEND until the user responds. Returns true = approved, false = cancelled.
+     *
+     * When null (background/scheduled contexts without an active UI), destructive
+     * actions are BLOCKED rather than auto-approved — fail safe.
+     */
+    @Volatile
+    var confirmationGate: (suspend (actionName: String, description: String) -> Boolean)? = null
 
     override val capability = SubAgentCapability(
         agentId      = "android_agent",
@@ -91,12 +103,28 @@ class AndroidAgent(
         Log.i(TAG, "AIRI_AUDIT ANDROID_AGENT action=${actionType.name} " +
                 "needsConfirm=${actionType.requiresConfirmation} input='${input.take(80)}'")
 
-        // Surface confirmation gate for destructive actions
+        // ── Phase 1: Real blocking confirmation gate ───────────────────────────
+        // Previously: emitted Progress("⚠ Confirmation required… Proceeding…") and
+        // immediately continued — no actual user gate.
+        // Now: suspends until the UI resolves the confirmation dialog.
+        // If no gate is wired (background context), BLOCK the action — fail-safe.
         if (actionType.requiresConfirmation) {
-            emit(AgentEvent.Progress(
-                "⚠ Confirmation required for: ${actionType.displayName}. Proceeding…",
-                25, "confirm"
-            ))
+            val gate = confirmationGate
+            val approved = if (gate != null) {
+                gate(actionType.displayName, "This will ${actionType.displayName.lowercase()} on your device.")
+            } else {
+                Log.w(TAG, "AIRI_AUDIT BLOCKED destructive action '${actionType.name}' — " +
+                    "no confirmation gate wired (background context). Blocking.")
+                false
+            }
+            if (!approved) {
+                emit(AgentEvent.Failed(
+                    reason     = "Action '${actionType.displayName}' cancelled by user.",
+                    recoverable = false
+                ))
+                return@flow
+            }
+            Log.i(TAG, "AIRI_AUDIT CONFIRMED action='${actionType.name}' by user gate")
         }
 
         emit(AgentEvent.ToolCall(

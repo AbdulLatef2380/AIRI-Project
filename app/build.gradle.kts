@@ -44,6 +44,14 @@ android {
                 .ifBlank { System.getenv("PICOVOICE_ACCESS_KEY").orEmpty() }
         buildConfigField("String", "PICOVOICE_ACCESS_KEY", "\"" + picovoiceKey.replace("\"", "\\\"") + "\"")
 
+        // ── Phase 2 feature flag: UCL.executeGraph() integration ──────────────
+        // When false (default): legacy cognitiveLoop.process() path — existing behavior.
+        // When true:            ACTION queries go through TypedPlanGraph parallel-wave DAG.
+        // Controlled here rather than in buildTypes so it can be overridden per-variant.
+        // Staged rollout: debug → internal → limited release → full.
+        // See: reports/phase2-executeGraph-migration-plan.md for rollout plan.
+        buildConfigField("boolean", "AIRI_EXECUTE_GRAPH_ENABLED", "false")
+
         // Native (llama.cpp + JNI bridge) is built from source — see
         // app/src/main/cpp/CMakeLists.txt. No prebuilt .so is shipped; if
         // libairi_native.so ever appears in jniLibs/ it would shadow the
@@ -113,6 +121,9 @@ android {
         debug {
             // Keep debug builds unminified for readable stack traces.
             isMinifyEnabled = false
+            // Stage 1 rollout: enable TypedPlanGraph DAG execution for ACTION queries in debug.
+            // Default is false in defaultConfig (production). See migration plan for stages 2-4.
+            buildConfigField("boolean", "AIRI_EXECUTE_GRAPH_ENABLED", "true")
         }
     }
 

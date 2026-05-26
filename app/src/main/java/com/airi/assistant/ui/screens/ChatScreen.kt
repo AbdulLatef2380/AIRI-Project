@@ -25,6 +25,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -722,6 +723,87 @@ fun ChatScreen(
 
     if (showGenSettings) {
         GenerationSettingsDialog(viewModel = viewModel, onDismiss = { showGenSettings = false })
+    }
+
+    // ── Phase 1: Real accessibility action confirmation dialog ─────────────────
+    // Shown when AndroidAgent requests confirmation for a destructive action
+    // (send message, post content, share, delete).
+    // Suspends the agent until the user responds. Times out after 30 s → cancel.
+    agentState.confirmationRequest?.let { req ->
+        AlertDialog(
+            onDismissRequest = { viewModel.confirmAccessibilityAction(false) },
+            containerColor   = Color(0xFF1A1F35),
+            shape            = RoundedCornerShape(20.dp),
+            icon = {
+                Icon(
+                    Icons.Outlined.Warning,
+                    contentDescription = null,
+                    tint     = Color(0xFFFFB300),
+                    modifier = Modifier.size(28.dp)
+                )
+            },
+            title = {
+                Text(
+                    "تأكيد الإجراء",
+                    color      = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 18.sp
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "AIRI على وشك تنفيذ:",
+                        color    = Color.White.copy(0.7f),
+                        fontSize = 14.sp
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF252B42)
+                    ) {
+                        Text(
+                            req.actionDisplayName,
+                            color      = Color(0xFFFFB300),
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize   = 16.sp,
+                            modifier   = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                        )
+                    }
+                    Text(
+                        req.actionDescription,
+                        color    = Color.White.copy(0.55f),
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                    Text(
+                        "سيؤثر هذا الإجراء على جهازك مباشرةً.",
+                        color    = Color(0xFFFF6B6B).copy(0.8f),
+                        fontSize = 12.sp
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.confirmAccessibilityAction(true) },
+                    colors  = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFB300),
+                        contentColor   = Color.Black
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("تأكيد", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { viewModel.confirmAccessibilityAction(false) },
+                    border  = BorderStroke(1.dp, Color.White.copy(0.3f)),
+                    shape   = RoundedCornerShape(12.dp)
+                ) {
+                    Text("إلغاء", color = Color.White.copy(0.8f))
+                }
+            }
+        )
     }
 
     modelState.loadError?.let { error ->

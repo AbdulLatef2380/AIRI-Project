@@ -19,21 +19,14 @@ import com.airi.assistant.domain.agent.AgentService
 import com.airi.assistant.domain.auth.AuthService
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.agent.durable.DurableTaskManager
-import com.airi.assistant.agent.governance.ModelGovernanceEngine
 import com.airi.assistant.agent.observability.AgentObservabilityHub
 import com.airi.assistant.agent.execution.runtime.ExecutionGraphRuntime
 import com.airi.assistant.agent.execution.runtime.SharedPreferencesSnapshotStore
 import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
-import com.airi.assistant.agent.planning.CoTEngine
-import com.airi.assistant.agent.planning.ReActPlanner
 import com.airi.assistant.agent.scheduler.ScheduledJobOrchestrator
 import com.airi.assistant.agent.subagent.SubAgentRegistry
 import com.airi.assistant.agent.subagent.impl.AndroidAgent
 import com.airi.assistant.agent.subagent.impl.CloudBrowserAgent
-import com.airi.assistant.agent.subagent.impl.CodingAgent
-import com.airi.assistant.agent.subagent.impl.DocumentProcessorAgent
-import com.airi.assistant.agent.subagent.impl.LocalBrowserOperator
-import com.airi.assistant.agent.subagent.impl.MediaGenerationAgent
 import com.airi.assistant.agent.subagent.impl.MemoryAgent
 import com.airi.assistant.agent.subagent.impl.ProductivityAgent
 import com.airi.assistant.agent.subagent.impl.ResearchAgent
@@ -230,11 +223,6 @@ object ServiceLocator {
         com.airi.assistant.agent.sandbox.SandboxManager(requireContext())
     }
 
-    // ── Adaptive Intelligence (Phase 9/10) ────────────────────────────────────
-    val adaptiveIntelligence: com.airi.assistant.agent.learning.AdaptiveIntelligenceEngine by lazy {
-        com.airi.assistant.agent.learning.AdaptiveIntelligenceEngine(requireContext())
-    }
-
     // ── Phase P2: Multi-agent runtime ─────────────────────────────────────────
     val agentCapabilityGraph: com.airi.assistant.agent.multiagent.AgentCapabilityGraph
         get() = com.airi.assistant.agent.multiagent.AgentCapabilityGraph
@@ -376,16 +364,6 @@ object ServiceLocator {
         AccessibilityExecutionEngine()
     }
 
-    // ── CoT / ReAct Planning ─────────────────────────────────────────────────
-
-    val cotEngine: CoTEngine by lazy {
-        CoTEngine()
-    }
-
-    val reActPlanner: ReActPlanner by lazy {
-        ReActPlanner(cotEngine = cotEngine, maxSteps = 6)
-    }
-
     // ── Scheduled Job Orchestration ──────────────────────────────────────────
 
     val scheduledJobOrchestrator: ScheduledJobOrchestrator by lazy {
@@ -422,28 +400,10 @@ object ServiceLocator {
         RagRetriever(memoryManager)
     }
 
-    // ── Model Governance Engine ───────────────────────────────────────────────
-
-    val modelGovernanceEngine: ModelGovernanceEngine by lazy {
-        ModelGovernanceEngine(requireContext(), subscriptionManager)
-    }
-
     // ── Skill Manager Backend ─────────────────────────────────────────────────
 
     val skillManagerBackend: SkillManagerBackend by lazy {
         SkillManagerBackend(requireContext())
-    }
-
-    // ── Closed-Loop Adaptive Intelligence ────────────────────────────────────
-
-    /**
-     * Singleton [PlannerAdaptationEngine] — survives across [UnifiedCognitiveLoop]
-     * instantiations. All accumulated learning (failure rates, agent trust,
-     * strategy scores, avoided actions) is persisted here and feeds back into
-     * every future plan generation call.
-     */
-    val plannerAdaptationEngine: com.airi.assistant.agent.adaptation.PlannerAdaptationEngine by lazy {
-        com.airi.assistant.agent.adaptation.PlannerAdaptationEngine(requireContext())
     }
 
     /**
@@ -454,24 +414,28 @@ object ServiceLocator {
      * Includes all 9 new agent layers from the architecture expansion.
      */
     fun initSubAgentSystem() {
+        val androidAgent = AndroidAgent(accessibilityExecutionEngine)
         val agents = listOf(
-            // ── Core agents (existing) ──────────────────────────────────────
-            CodingAgent(),
+            // Real agents — verified non-delegation-shell implementations.
+            // CodingAgent REMOVED (Phase 1): intercepted code/implement/write/create queries
+            //   and returned "[CodingAgent delegated to LLM]" placeholder, blocking LLM response.
+            // MediaGenerationAgent REMOVED (Phase 1): delegation shell, no real capability.
+            // DocumentProcessorAgent REMOVED (Phase 1): delegation shell.
+            // LocalBrowserOperator REMOVED (Phase 1): delegation shell, 0 real operations.
             ResearchAgent(searchTool),
-            AndroidAgent(accessibilityExecutionEngine),
+            androidAgent,
             ProductivityAgent(calendarTool, alarmTool, notesTool),
             MemoryAgent(memoryManager),
-            // ── New agent layers (architecture expansion) ───────────────────
-            CloudBrowserAgent(requireContext()),
-            LocalBrowserOperator(requireContext()),
-            MediaGenerationAgent(requireContext()),
-            DocumentProcessorAgent(requireContext())
+            CloudBrowserAgent(requireContext())
         )
         SubAgentRegistry.initialize(agents)
+        // Expose the Android agent for confirmation-gate injection by ChatViewModel.init
+        _androidAgent = androidAgent
         scopedPermissionRegistry.installDefaults()
         observabilityHub.refreshRegistrySnapshot()
-
-        // Seed skill manager with any bundled/installed dynamic skills
         runCatching { skillManagerBackend.reload() }
     }
+
+    /** Set by [initSubAgentSystem]; consumed by ChatViewModel to inject the real confirmation gate. */
+    @Volatile var _androidAgent: AndroidAgent? = null
 }

@@ -138,19 +138,11 @@ class AIRIApplication : Application() {
             ServiceLocator.initSubAgentSystem()
             LoggingService.info(TAG, "✓ SubAgentSystem + PermissionRegistry initialized")
 
-            // ── Agent Operating Layer (architecture expansion) ─────────────
-            ServiceLocator.cotEngine
-            ServiceLocator.reActPlanner
-            LoggingService.info(TAG, "✓ CoT/ReAct planner initialized")
-
             ServiceLocator.ragRetriever
             LoggingService.info(TAG, "✓ RAG retriever initialized")
 
             ServiceLocator.creditMeteringEngine
             LoggingService.info(TAG, "✓ CreditMeteringEngine initialized")
-
-            ServiceLocator.modelGovernanceEngine
-            LoggingService.info(TAG, "✓ ModelGovernanceEngine initialized")
 
             ServiceLocator.scheduledJobOrchestrator
             LoggingService.info(TAG, "✓ ScheduledJobOrchestrator initialized")
@@ -236,6 +228,9 @@ class AIRIApplication : Application() {
         com.airi.assistant.domain.event.EventBus.emitSync(
             com.airi.assistant.domain.event.AppEvent.LowMemoryPressure(level = level, severity = severity)
         )
+        // Evict stale graph workspaces — these hold in-memory file trees and
+        // snapshot logs from completed or abandoned executeGraph() runs.
+        com.airi.assistant.agent.workspace.WorkspaceRegistry.pruneStale()
         // Update health monitor so Diagnostics screen reflects the memory event
         runCatching { ServiceLocator.runtimeHealthMonitor }.getOrNull()
             ?.recordMemoryPressure(level)

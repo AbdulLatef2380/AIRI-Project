@@ -352,6 +352,57 @@ if main.exists():
     else:
         bad("MainActivity not wired to OAuthStateRegistry")
 
+print(f"\n{BLD}═══ 26. WORKSPACE REGISTRY EXISTS ══════════════════════════════════{RST}")
+wr = KT / "agent/workspace/WorkspaceRegistry.kt"
+if wr.exists():
+    src = open(wr).read()
+    if all(m in src for m in ["fun get(", "fun release(", "fun pruneStale("]):
+        ok("WorkspaceRegistry.kt present with get/release/pruneStale")
+    else:
+        bad("WorkspaceRegistry.kt missing required methods")
+else:
+    bad("WorkspaceRegistry.kt not found — UCL.executeGraph has unresolved reference")
+
+print(f"\n{BLD}═══ 27. ACTION PLAN CONVERSION EXISTS ══════════════════════════════{RST}")
+ape = KT / "agent/planning/ActionPlanExtensions.kt"
+if ape.exists() and "fun ActionPlan.toTypedPlanGraph" in open(ape).read():
+    ok("ActionPlan.toTypedPlanGraph() extension present")
+else:
+    bad("ActionPlanExtensions.kt missing — ChatViewModel cannot call toTypedPlanGraph()")
+
+print(f"\n{BLD}═══ 28. UCL ADAPTATION ENGINE DEAD REF FIXED ═══════════════════════{RST}")
+ucl = KT / "core/UnifiedCognitiveLoop.kt"
+if ucl.exists():
+    src = open(ucl).read()
+    if "ServiceLocator.plannerAdaptationEngine" in src:
+        bad("UCL still references deleted plannerAdaptationEngine via ServiceLocator")
+    elif "AdaptationEngineStub" in src:
+        ok("UCL.adaptationEngine: AdaptationEngineStub null constant — no ServiceLocator reference")
+    else:
+        warn("UCL.adaptationEngine: cannot confirm fix status")
+
+print(f"\n{BLD}═══ 29. FEATURE FLAG IN BUILD.GRADLE.KTS ═══════════════════════════{RST}")
+build_gradle = REPO / "app/build.gradle.kts"
+if build_gradle.exists():
+    src = open(build_gradle).read()
+    if "AIRI_EXECUTE_GRAPH_ENABLED" in src:
+        debug_on = '"boolean", "AIRI_EXECUTE_GRAPH_ENABLED", "true"' in src
+        ok(f"AIRI_EXECUTE_GRAPH_ENABLED flag present (debug=true: {debug_on}, release=false default)")
+    else:
+        bad("AIRI_EXECUTE_GRAPH_ENABLED feature flag missing from build.gradle.kts")
+
+print(f"\n{BLD}═══ 30. EXECUTE GRAPH FLAG-GATED IN CHAT VIEWMODEL ════════════════{RST}")
+vm = KT / "ui/viewmodel/ChatViewModel.kt"
+if vm.exists():
+    src = open(vm).read()
+    has_flag  = "BuildConfig.AIRI_EXECUTE_GRAPH_ENABLED" in src
+    has_graph = "cognitiveLoop.executeGraph(graph)" in src
+    has_fallback = "Fallback UCL.process" in src or "falling back to legacy" in src
+    if has_flag and has_graph and has_fallback:
+        ok("ChatViewModel: flag-gated executeGraph with automatic legacy fallback")
+    else:
+        bad(f"ChatViewModel: flag={has_flag} graph={has_graph} fallback={has_fallback}")
+
 # ══════════════════════════════════════════════════════════════════════════════
 print(f"\n{'═'*70}")
 print(f"  {GRN}PASS: {len(PASS)}{RST}   {RED}FAIL: {len(FAIL)}{RST}   {YLW}WARN: {len(WARN)}{RST}")

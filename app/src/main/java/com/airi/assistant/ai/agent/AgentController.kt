@@ -6,14 +6,21 @@ import com.airi.assistant.ai.agent.trace.AgentStepType
 import com.airi.assistant.ai.agent.trace.AgentTraceManager
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillExecutor
-import com.airi.assistant.auth.SecureStorage
 import com.airi.assistant.memory.entity.ChatMessage
 
+/**
+ * AgentController — legacy skill-dispatch controller.
+ *
+ * Phase 4 change: [TaskPlanner] and [TaskExecutor] were removed (zero external
+ * callers, delegation shells). The multi-step task planning path (Step 2) has
+ * been removed. Only the real SkillExecutor path (Step 1) remains — this handles
+ * GitHub, Telegram, Gmail, Calendar, Google Drive skill calls.
+ *
+ * If no skill matches, returns null → LLM fallback.
+ */
 class AgentController(private val context: Context) {
 
     private val skillExecutor = SkillExecutor(context)
-    private val taskPlanner   = TaskPlanner(SecureStorage(context))
-    private val taskExecutor  = TaskExecutor(context)
     private val traceManager  = AgentTraceManager.instance
 
     suspend fun handle(
@@ -30,14 +37,14 @@ class AgentController(private val context: Context) {
             traceManager.addStep(
                 traceId,
                 AgentStep(
-                    stepIndex    = 0,
-                    type         = AgentStepType.SKILL,
-                    name         = skillResult.skillName ?: "unknown_skill",
-                    inputParams  = mapOf("query" to input.take(120)),
+                    stepIndex     = 0,
+                    type          = AgentStepType.SKILL,
+                    name          = skillResult.skillName ?: "unknown_skill",
+                    inputParams   = mapOf("query" to input.take(120)),
                     outputSummary = if (skillResult.success) skillResult.data.take(200) else "",
-                    success      = skillResult.success,
-                    error        = skillResult.error,
-                    durationMs   = System.currentTimeMillis() - stepStart
+                    success       = skillResult.success,
+                    error         = skillResult.error,
+                    durationMs    = System.currentTimeMillis() - stepStart
                 )
             )
             val text = if (skillResult.success) skillResult.data
@@ -52,21 +59,8 @@ class AgentController(private val context: Context) {
             )
         }
 
-        // ── Step 2: Multi-step task planner ───────────────────────────────────
-        val task = taskPlanner.plan(input, skillContext)
-        if (task != null && task.steps.isNotEmpty()) {
-            val result = taskExecutor.execute(task, traceId)
-            traceManager.finalizeTrace(traceId, result.summary.take(200), result.success)
-
-            return AgentResult(
-                text     = result.summary,
-                agentTag = "Agent Task",
-                success  = result.success,
-                traceId  = traceId
-            )
-        }
-
-        // ── Step 3: No agent match — close trace, let LLM handle ──────────────
+        // ── Step 2: No agent match — LLM handles ──────────────────────────────
+        // TaskPlanner/TaskExecutor removed in Phase 4 (zero external callers).
         traceManager.finalizeTrace(traceId, "LLM fallback", false)
         return null
     }

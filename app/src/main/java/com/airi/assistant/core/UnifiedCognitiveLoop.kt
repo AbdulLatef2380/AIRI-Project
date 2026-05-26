@@ -92,9 +92,35 @@ class UnifiedCognitiveLoop {
     private val planQualityScorer = PlanQualityScorer()
     private val reflector         = ExecutionReflector()
 
-    /** Singleton adaptation engine — accumulates learning across UCL instances. */
-    private val adaptationEngine
-        by lazy { runCatching { ServiceLocator.plannerAdaptationEngine }.getOrNull() }
+    /**
+     * Optional LLM delegate provider injected by [ChatViewModel] after construction.
+     *
+     * When set, [runNode] resolves [AgentEvent.Delegate] events by forwarding the
+     * sub-agent's structured prompt to the real LLM backend.
+     *
+     * Signature: `suspend (prompt, onToken, onError) -> Unit`
+     *
+     * [ChatViewModel] sets this in its `init` via [cognitiveLoop.orchestratorProvider].
+     * When null (background/scheduled execution), delegation falls back to a descriptive
+     * string — correct behaviour for non-interactive contexts.
+     */
+    @Volatile
+    var orchestratorProvider: (suspend (String, (String) -> Unit, (String) -> Unit) -> Unit)? = null
+
+    /**
+     * Adaptation engine — DISABLED in Phase 1.
+     *
+     * [PlannerAdaptationEngine] was removed in the Phase 1 dead-architecture
+     * cleanup. The adaptation feedback loop will be re-introduced in Phase 3.
+     * Typed as the interface it implemented so all existing ?. call sites compile.
+     */
+    private val adaptationEngine: AdaptationEngineStub? = null
+
+    /** Minimal interface stub so adaptationEngine?. call sites compile after Phase 1 deletion. */
+    private interface AdaptationEngineStub {
+        fun ingest(report: Any?, nodeResults: Any?, goalId: String) {}
+        fun applyToGenerator(generator: PlanGenerator) {}
+    }
 
     // ── Public entry points ───────────────────────────────────────────────────
 
@@ -395,9 +421,54 @@ class UnifiedCognitiveLoop {
                     when (event) {
                         is AgentEvent.Complete      -> resultText = event.result
                         is AgentEvent.PartialResult -> resultText += event.text
-                        is AgentEvent.Failed        -> { failed = true; failReason = event.reason }
-                        is AgentEvent.ToolCall      -> if (BuildConfig.DEBUG) Log.d(TAG, "runNode tool=${event.toolName}")
-                        else                        -> Unit
+
+                        // ── Phase 3: Real Delegate handler ────────────────────────
+                        // Previously this branch was `else -> Unit` — Delegate events
+                        // were silently dropped, leaving resultText = "" and the
+                        // node completing with "[delegated to LLM]".
+                        //
+                        // Now: if a sub-agent delegates to "llm_backend", forward the
+                        // structured prompt through the injected orchestratorProvider.
+                        // If no orchestrator is available (UCL used outside ViewModel
+                        // scope), falls back to a description string.
+                        //
+                        // nestingDepth = 1 in SubAgentContext prevents infinite recursion.
+                        is AgentEvent.Delegate -> {
+                            if (!context.canDelegate) {
+                                Log.w(TAG, "runNode delegate blocked: nestingDepth=${context.nestingDepth}")
+                                resultText = "delegation blocked (nesting limit)"
+                            } else {
+                                Log.i(TAG, "runNode delegating to ${event.targetAgentId}: ${event.subInput.take(60)}")
+                                val provider = orchestratorProvider
+                                if (provider != null) {
+                                    val accumulated = StringBuilder()
+                                    var delegateFailed = false
+                                    // provider is suspend (String, (String)->Unit, (String)->Unit)->Unit
+                                    // The lambda adapts plain callbacks to the suspend executeStream API.
+                                    provider(
+                                        event.subInput,
+                                        { token -> accumulated.append(token) },
+                                        { err -> delegateFailed = true; failReason = err }
+                                    )
+                                    if (!delegateFailed) {
+                                        resultText = accumulated.toString().ifBlank {
+                                            "[agent:${node.activeAction}] task completed"
+                                        }
+                                    } else {
+                                        failed = true
+                                    }
+                                } else {
+                                    // No orchestrator injected — produce a meaningful fallback
+                                    // that at least captures the agent's intent
+                                    Log.d(TAG, "runNode: no orchestratorProvider — delegate fallback for ${node.activeAction}")
+                                    resultText = "[${node.activeAction}] ${event.reason.ifBlank { event.subInput.take(120) }}"
+                                }
+                            }
+                        }
+
+                        is AgentEvent.Failed  -> { failed = true; failReason = event.reason }
+                        is AgentEvent.ToolCall -> if (BuildConfig.DEBUG) Log.d(TAG, "runNode tool=${event.toolName}")
+                        else                   -> Unit
                     }
                 }
             }.onFailure { e ->

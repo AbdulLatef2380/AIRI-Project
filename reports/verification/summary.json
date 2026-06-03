@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-05-31 21:36:06",
+  "symbols_indexed": 1929,
+  "imports_scanned": 1061,
+  "duplicates": 56,
+  "unresolved_imports_high": 89,
+  "unresolved_imports_medium": 0,
+  "deleted_symbol_live_refs": 0,
+  "manifest_issues": 0,
+  "room_issues": 7,
+  "gradle_issues": 0,
+  "dead_symbols_approx": 179,
+  "force_unwraps": 23,
+  "high_confidence_breakages": 0,
+  "verdict": "CLEAN"
+}

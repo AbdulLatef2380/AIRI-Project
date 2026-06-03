@@ -1,8 +1,6 @@
 package com.airi.assistant.agent.observability
 
 import android.util.Log
-import com.airi.assistant.agent.durable.DurableTask
-import com.airi.assistant.agent.durable.DurableTaskStatus
 import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
 import com.airi.assistant.agent.planning.GraphSnapshot
 import com.airi.assistant.agent.planning.GoalNode
@@ -151,19 +149,6 @@ class AgentObservabilityHub {
         }
     }
 
-    fun updateDurableTasks(tasks: List<DurableTask>) {
-        hubScope.launch {
-            update {
-                copy(
-                    durableTasksActive = tasks.count { !it.isTerminal },
-                    durableTasksCompleted = tasks.count { it.status == DurableTaskStatus.COMPLETED },
-                    durableTasksFailed = tasks.count { it.status == DurableTaskStatus.FAILED },
-                    durableTaskQueue = tasks.filter { !it.isTerminal }
-                )
-            }
-        }
-    }
-
     fun updateMemoryMetrics(episodic: Int, semantic: Int, longTerm: Int) {
         hubScope.launch {
             update {
@@ -241,7 +226,6 @@ class AgentObservabilityHub {
         val durableTasksActive: Int = 0,
         val durableTasksCompleted: Int = 0,
         val durableTasksFailed: Int = 0,
-        val durableTaskQueue: List<DurableTask> = emptyList(),
         val recentErrors: List<ErrorRecord> = emptyList(),
         val activeSpanCount: Int = 0,
         val completedSpans: List<TraceSpan> = emptyList(),

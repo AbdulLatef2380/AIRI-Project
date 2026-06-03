@@ -9,8 +9,8 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * PROBLEM SOLVED:
  *   Without a workspace, tool results are only accessible as raw strings in
- *   [SubAgentContext.dependencyResults]. A file path downloaded by [CloudBrowserAgent]
- *   is invisible to [DocumentProcessorAgent] unless the orchestrator manually threads
+ *   [SubAgentContext.dependencyResults]. A file path downloaded by CloudBrowserAgent
+ *   is invisible to agent unless the orchestrator manually threads
  *   the string through every intermediate context copy.
  *
  * REAL EXECUTION:
@@ -75,7 +75,7 @@ class AgentWorkspace(
 
     /**
      * Store a file path artifact under [key].
-     * Used by [DocumentProcessorAgent] and [CloudBrowserAgent] to hand off
+     * Used by agent and CloudBrowserAgent to hand off
      * downloaded/generated files to downstream agents.
      */
     fun putPath(key: String, path: String, producerTaskId: String = "") {

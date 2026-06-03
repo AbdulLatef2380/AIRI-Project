@@ -7,7 +7,6 @@ import com.airi.assistant.ai.skills.AiriSkillOrchestrator
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.ai.skills.SkillResult
-import com.airi.assistant.agent.multiagent.SharedCognitiveBus
 import com.airi.assistant.agent.sandbox.SandboxExecutor
 import com.airi.assistant.agent.sandbox.SandboxManager
 import com.airi.assistant.connector.ConnectorRuntimeManager
@@ -32,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap
  *  - Skill chaining (output of one skill feeds the next)
  *  - Connector-aware execution (skills can invoke connectors via [ConnectorRuntimeManager])
  *  - Sandbox-aware execution (code/shell skills run in [SandboxManager])
- *  - Agent bus notification (results broadcast to [SharedCognitiveBus])
+ *  - Agent bus notification (results broadcast to [AgentActivityBus])
  *  - Permission checking before execution
  *  - Observable execution state for UI
  */
@@ -119,7 +118,7 @@ class SkillRuntime(
 
     /**
      * Execute a skill with full lifecycle management.
-     * Emits events to [AgentActivityBus] and [SharedCognitiveBus].
+     * Emits events to [AgentActivityBus].
      */
     suspend fun execute(
         skill:   AiriSkill,
@@ -137,12 +136,6 @@ class SkillRuntime(
             AgentActivityBus.emit(
                 "${if (result.success) "✓" else "✕"} Skill ${skill.name}: ${result.data.take(60)}",
                 ActivityCategory.TOOL
-            )
-            SharedCognitiveBus.publishResult(
-                fromAgentId = "skill_runtime",
-                topic       = "skill_result:${skill.name}",
-                payload     = result,
-                summary     = result.data.take(60)
             )
             result
         } catch (e: Exception) {

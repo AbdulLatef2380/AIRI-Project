@@ -34,7 +34,7 @@ import kotlinx.coroutines.flow.flow
  *      for a confirmation gate.
  */
 class AndroidAgent(
-    private val engine: AccessibilityExecutionEngine
+    internal val engine: AccessibilityExecutionEngine
 ) : SubAgent {
 
     companion object {

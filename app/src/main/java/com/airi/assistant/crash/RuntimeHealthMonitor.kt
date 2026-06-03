@@ -224,18 +224,6 @@ class RuntimeHealthMonitor(
                 "AIRI_PROOF HEALTH_BUS_SATURATION emits=$emits drains=$drains")
         }
 
-        // ── SharedCognitiveBus replay-cache pressure ───────────────────────────
-        // A non-empty and growing replay cache means agent messages are being
-        // published faster than any subscriber is consuming them. Safe threshold
-        // is < 32 (half the replay=64 capacity). Above that, warn.
-        val cognitiveBusCache = runCatching {
-            com.airi.assistant.agent.multiagent.SharedCognitiveBus.messages.replayCache.size
-        }.getOrDefault(0)
-        if (cognitiveBusCache > 32) {
-            LoggingService.warn(TAG,
-                "AIRI_PROOF HEALTH_COGNITIVE_BUS_PRESSURE size=$cognitiveBusCache")
-        }
-
         val report = HealthReport(
             heapAvailableMb        = heapAvailMb,
             diskFreeMb             = diskFreeMb,

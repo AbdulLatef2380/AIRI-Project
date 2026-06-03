@@ -1,0 +1,123 @@
+{
+  "timestamp": "2026-06-02 23:50:07",
+  "files_analyzed": 395,
+  "symbols_indexed": 1632,
+  "total_issues": 11,
+  "critical": 0,
+  "high": 11,
+  "medium": 0,
+  "high_confidence_blockers": 0,
+  "verdict": "BUILD_CLEAN",
+  "blockers": [
+    {
+      "severity": "HIGH",
+      "confidence": 0.5,
+      "category": "OVERRIDE_TARGET_NOT_FOUND",
+      "file": "integration/TelegramIntegration.kt",
+      "line": 12,
+      "symbol": "TelegramIntegration.disconnect",
+      "message": "'TelegramIntegration.disconnect()' overrides nothing in 'Integration'",
+      "kotlin_error": "Kotlin compiler: \"'disconnect' overrides nothing\""
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 0.5,
+      "category": "OVERRIDE_TARGET_NOT_FOUND",
+      "file": "integration/TelegramIntegration.kt",
+      "line": 14,
+      "symbol": "TelegramIntegration.state",
+      "message": "'TelegramIntegration.state()' overrides nothing in 'Integration'",
+      "kotlin_error": "Kotlin compiler: \"'state' overrides nothing\""
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 0.5,
+      "category": "OVERRIDE_TARGET_NOT_FOUND",
+      "file": "integration/NotionIntegration.kt",
+      "line": 12,
+      "symbol": "NotionIntegration.disconnect",
+      "message": "'NotionIntegration.disconnect()' overrides nothing in 'Integration'",
+      "kotlin_error": "Kotlin compiler: \"'disconnect' overrides nothing\""
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 0.5,
+      "category": "OVERRIDE_TARGET_NOT_FOUND",
+      "file": "integration/NotionIntegration.kt",
+      "line": 14,
+      "symbol": "NotionIntegration.state",
+      "message": "'NotionIntegration.state()' overrides nothing in 'Integration'",
+      "kotlin_error": "Kotlin compiler: \"'state' overrides nothing\""
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 0.5,
+      "category": "OVERRIDE_TARGET_NOT_FOUND",
+      "file": "integration/GithubIntegration.kt",
+      "line": 12,
+      "symbol": "GithubIntegration.disconnect",
+      "message": "'GithubIntegration.disconnect()' overrides nothing in 'Integration'",
+      "kotlin_error": "Kotlin compiler: \"'disconnect' overrides nothing\""
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 0.5,
+      "category": "OVERRIDE_TARGET_NOT_FOUND",
+      "file": "integration/GithubIntegration.kt",
+      "line": 14,
+      "symbol": "GithubIntegration.state",
+      "message": "'GithubIntegration.state()' overrides nothing in 'Integration'",
+      "kotlin_error": "Kotlin compiler: \"'state' overrides nothing\""
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 0.5,
+      "category": "OVERRIDE_TARGET_NOT_FOUND",
+      "file": "ai/skills/impl/CalendarEventsSkill.kt",
+      "line": 46,
+      "symbol": "CalendarEventsSkill.execute",
+      "message": "'CalendarEventsSkill.execute()' overrides nothing in 'AiriSkill'",
+      "kotlin_error": "Kotlin compiler: \"'execute' overrides nothing\""
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 0.5,
+      "category": "OVERRIDE_TARGET_NOT_FOUND",
+      "file": "ai/skills/impl/GmailAssistantSkill.kt",
+      "line": 45,
+      "symbol": "GmailAssistantSkill.execute",
+      "message": "'GmailAssistantSkill.execute()' overrides nothing in 'AiriSkill'",
+      "kotlin_error": "Kotlin compiler: \"'execute' overrides nothing\""
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 0.5,
+      "category": "OVERRIDE_TARGET_NOT_FOUND",
+      "file": "ai/skills/impl/GithubGuardianSkill.kt",
+      "line": 45,
+      "symbol": "GithubGuardianSkill.execute",
+      "message": "'GithubGuardianSkill.execute()' overrides nothing in 'AiriSkill'",
+      "kotlin_error": "Kotlin compiler: \"'execute' overrides nothing\""
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 0.5,
+      "category": "OVERRIDE_TARGET_NOT_FOUND",
+      "file": "ai/skills/impl/DriveSearchSkill.kt",
+      "line": 44,
+      "symbol": "DriveSearchSkill.execute",
+      "message": "'DriveSearchSkill.execute()' overrides nothing in 'AiriSkill'",
+      "kotlin_error": "Kotlin compiler: \"'execute' overrides nothing\""
+    },
+    {
+      "severity": "HIGH",
+      "confidence": 0.5,
+      "category": "OVERRIDE_TARGET_NOT_FOUND",
+      "file": "ai/skills/impl/TelegramMessengerSkill.kt",
+      "line": 43,
+      "symbol": "TelegramMessengerSkill.execute",
+      "message": "'TelegramMessengerSkill.execute()' overrides nothing in 'AiriSkill'",
+      "kotlin_error": "Kotlin compiler: \"'execute' overrides nothing\""
+    }
+  ]
+}

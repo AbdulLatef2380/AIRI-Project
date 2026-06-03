@@ -88,6 +88,9 @@ object SubAgentRegistry {
                 agents.joinToString { it.capability.agentId })
     }
 
+    /** Return an immutable snapshot of all registered agents. */
+    fun getAll(): List<SubAgent> = agents.toList()
+
     /**
      * Returns a snapshot of all runtime capability tokens currently granted.
      * Used by ChatViewModel when building [SubAgentContext.grantedPermissions]

@@ -1,0 +1,254 @@
+package com.airi.assistant.agent.loop.tool
+
+import android.content.Context
+import android.util.Log
+import com.airi.assistant.agent.execution.command.AccessibilityCommandBridge
+import com.airi.assistant.agent.execution.node.NodeScanner
+import com.airi.assistant.accessibility.service.ScreenContextHolder
+import com.airi.assistant.memory.repository.MemoryManager
+import com.airi.assistant.tools.execution.AlarmTool
+import com.airi.assistant.tools.execution.CalendarTool
+import com.airi.assistant.tools.execution.NotesTool
+import com.airi.assistant.tools.execution.SearchTool
+import com.airi.assistant.ui.activity.ActivityCategory
+import com.airi.assistant.ui.activity.AgentActivityBus
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
+/**
+ * ToolDispatcher — maps AgentLoop tool_call names to real implementations.
+ *
+ * Every tool here has:
+ *   - a real execution body (no placeholders)
+ *   - a logged AIRI_PROOF entry for auditing
+ *   - a timeout enforced by the caller (AgentLoop)
+ *
+ * Adding a new tool: add it to [BuiltinTools], add dispatch case here.
+ */
+class ToolDispatcher(
+    private val memoryManager: MemoryManager? = null
+) {
+    companion object {
+        private const val TAG = "AIRI_ToolDispatcher"
+    }
+
+    sealed class ToolResult {
+        data class Success(val output: String) : ToolResult()
+        data class Error(val message: String) : ToolResult()
+    }
+
+    suspend fun execute(
+        toolName: String,
+        args:     Map<String, String>,
+        context:  Context
+    ): ToolResult {
+        Log.i(TAG, "AIRI_PROOF TOOL_DISPATCH tool=$toolName args=${args.entries.joinToString { "${it.key}=${it.value.take(40)}" }}")
+        AgentActivityBus.emit("Tool: $toolName", ActivityCategory.TOOL)
+
+        return when (toolName) {
+
+            // ── Screen observation ─────────────────────────────────────────────
+            "read_screen" -> {
+                val service = ScreenContextHolder.serviceInstance
+                if (service == null) {
+                    ToolResult.Error("Accessibility service not connected. Enable AIRI in Accessibility settings.")
+                } else {
+                    val root = service.rootInActiveWindow
+                    if (root == null) {
+                        ToolResult.Error("No active window available")
+                    } else {
+                        val nodes = NodeScanner.collectAllNodes(root)
+                        val texts = nodes.mapNotNull { it.text?.toString()?.trim() }
+                            .filter { it.isNotBlank() }
+                            .distinct()
+                            .take(40)
+                        val pkg   = service.rootInActiveWindow?.packageName?.toString() ?: "unknown"
+                        val summary = "App: $pkg\nVisible text:\n${texts.joinToString("\n").take(800)}"
+                        Log.i(TAG, "AIRI_PROOF READ_SCREEN pkg=$pkg nodes=${nodes.size} textItems=${texts.size}")
+                        ToolResult.Success(summary)
+                    }
+                }
+            }
+
+            // ── App launch ─────────────────────────────────────────────────────
+            "open_app" -> {
+                val appName = args["app_name"] ?: return ToolResult.Error("Missing app_name")
+                val result = AccessibilityCommandBridge.launchApp(appName)
+                if (result.success) ToolResult.Success("Launched $appName")
+                else ToolResult.Error(result.message)
+            }
+
+            // ── UI interaction ─────────────────────────────────────────────────
+            "tap" -> {
+                val target = args["target"] ?: return ToolResult.Error("Missing target")
+                val result = AccessibilityCommandBridge.click(target)
+                if (result.success) ToolResult.Success("Tapped: $target")
+                else ToolResult.Error(result.message)
+            }
+
+            "type_text" -> {
+                val text = args["text"] ?: return ToolResult.Error("Missing text")
+                val result = AccessibilityCommandBridge.typeText(text)
+                if (result.success) ToolResult.Success("Typed: ${text.take(60)}")
+                else ToolResult.Error(result.message)
+            }
+
+            "scroll_down" -> {
+                val result = AccessibilityCommandBridge.scrollDown()
+                if (result.success) ToolResult.Success("Scrolled down") else ToolResult.Error(result.message)
+            }
+
+            "go_back" -> {
+                val result = AccessibilityCommandBridge.performBack()
+                if (result.success) ToolResult.Success("Pressed back") else ToolResult.Error(result.message)
+            }
+
+            // ── Search ─────────────────────────────────────────────────────────
+            "web_search" -> {
+                val query = args["query"] ?: return ToolResult.Error("Missing query")
+                val searchTool = SearchTool(context)
+                val result = searchTool.searchDuckDuckGo(query)
+                if (result.isNotBlank()) {
+                    Log.i(TAG, "AIRI_PROOF WEB_SEARCH query=${query.take(60)} resultLen=${result.length}")
+                    ToolResult.Success(result)
+                } else {
+                    // Fallback: fire the intent (visible to user)
+                    searchTool.searchViaIntent(query)
+                    ToolResult.Success("Opened web search for: $query")
+                }
+            }
+
+            // ── Memory ─────────────────────────────────────────────────────────
+            "memory_recall" -> {
+                val query = args["query"] ?: return ToolResult.Error("Missing query")
+                val manager = memoryManager
+                if (manager == null) {
+                    ToolResult.Error("Memory not available in this session")
+                } else {
+                    val hits = manager.semanticSearch(query, limit = 5)
+                    if (hits.isEmpty()) {
+                        ToolResult.Success("No relevant memories found for: $query")
+                    } else {
+                        val formatted = hits.joinToString("\n") { "• ${it.content.take(200)}" }
+                        Log.i(TAG, "AIRI_PROOF MEMORY_RECALL query=${query.take(60)} hits=${hits.size}")
+                        ToolResult.Success("Memory results:\n$formatted")
+                    }
+                }
+            }
+
+            // ── Calendar ───────────────────────────────────────────────────────
+            "calendar_read" -> {
+                val days = args["days"]?.toIntOrNull() ?: 7
+                val cal  = CalendarTool(context)
+                val events = cal.getUpcomingEvents(days)
+                if (events.isEmpty()) {
+                    ToolResult.Success("No events found in the next $days days.")
+                } else {
+                    val formatted = events.take(10).joinToString("\n") {
+                        "• ${it.title} — ${it.startFormatted}"
+                    }
+                    Log.i(TAG, "AIRI_PROOF CALENDAR_READ days=$days events=${events.size}")
+                    ToolResult.Success("Upcoming events:\n$formatted")
+                }
+            }
+
+            "calendar_create" -> {
+                val title       = args["title"] ?: return ToolResult.Error("Missing title")
+                val startTime   = args["start_time"] ?: return ToolResult.Error("Missing start_time")
+                val durationMin = args["duration_min"]?.toIntOrNull() ?: 60
+                val cal         = CalendarTool(context)
+                // Parse start_time: try ISO first, then natural language fallback
+                val startMs = parseDateTime(startTime) ?: return ToolResult.Error("Could not parse start_time: $startTime")
+                val endMs   = startMs + durationMin * 60_000L
+                val eventId = cal.createEvent(title, startMs, endMs)
+                if (eventId != null) {
+                    Log.i(TAG, "AIRI_PROOF CALENDAR_CREATE title=${title.take(40)} startMs=$startMs id=$eventId")
+                    ToolResult.Success("Created event: $title at $startTime")
+                } else {
+                    ToolResult.Error("Failed to create calendar event. Calendar permission may be missing.")
+                }
+            }
+
+            // ── Alarm ──────────────────────────────────────────────────────────
+            "set_alarm" -> {
+                val time  = args["time"]  ?: return ToolResult.Error("Missing time")
+                val label = args["label"] ?: "AIRI Alarm"
+                val alarm = AlarmTool(context)
+                val result = alarm.setAlarm(time, label)
+                if (result.success) {
+                    Log.i(TAG, "AIRI_PROOF SET_ALARM time=$time label=$label")
+                    ToolResult.Success("Alarm set for $time: $label")
+                } else {
+                    ToolResult.Error(result.message)
+                }
+            }
+
+            // ── Notes ──────────────────────────────────────────────────────────
+            "create_note" -> {
+                val title   = args["title"]   ?: return ToolResult.Error("Missing title")
+                val content = args["content"] ?: return ToolResult.Error("Missing content")
+                val notes   = NotesTool(context)
+                val result  = notes.createNote(title, content)
+                if (result.success) {
+                    Log.i(TAG, "AIRI_PROOF CREATE_NOTE title=${title.take(40)}")
+                    ToolResult.Success("Note created: $title")
+                } else {
+                    ToolResult.Error(result.message)
+                }
+            }
+
+            // ── Confirmation request (LLM asks user) ──────────────────────────
+            // This tool does NOT execute an action — it signals AgentLoop that
+            // the LLM wants to pause for user confirmation before continuing.
+            // AgentLoop callers (ChatViewModel) must handle StepEvent.ToolExecuted
+            // for "ask_confirmation" and show a dialog before resuming the loop.
+            "ask_confirmation" -> {
+                val action  = args["action"]  ?: "Proceed?"
+                val details = args["details"] ?: ""
+                // Return a special marker that ChatViewModel can detect
+                ToolResult.Success("CONFIRMATION_REQUIRED|$action|$details")
+            }
+
+            else -> {
+                Log.w(TAG, "Unknown tool: $toolName")
+                ToolResult.Error("Unknown tool: $toolName. Available tools: ${BuiltinTools.ALL.map { it.name }.joinToString()}")
+            }
+        }
+    }
+
+    // ── DateTime parsing ───────────────────────────────────────────────────────
+
+    private fun parseDateTime(input: String): Long? {
+        // Try ISO-8601 first
+        runCatching {
+            return java.time.Instant.parse(input).toEpochMilli()
+        }
+        runCatching {
+            val dt = LocalDateTime.parse(input, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+            return dt.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        }
+        // Natural language: "3pm tomorrow", "9am", "tomorrow at 10"
+        val lower = input.lowercase().trim()
+        val now   = java.util.Calendar.getInstance()
+        runCatching {
+            val cal = now.clone() as java.util.Calendar
+            when {
+                lower.contains("tomorrow") -> cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                lower.contains("next week") -> cal.add(java.util.Calendar.WEEK_OF_YEAR, 1)
+            }
+            // Extract HH:mm or h am/pm
+            val timeRegex = Regex("""(\d{1,2})(?::(\d{2}))?\s*(am|pm)?""")
+            val match = timeRegex.find(lower) ?: return@runCatching
+            var hour = match.groupValues[1].toInt()
+            val min  = match.groupValues[2].toIntOrNull() ?: 0
+            val ampm = match.groupValues[3]
+            if (ampm == "pm" && hour < 12) hour += 12
+            if (ampm == "am" && hour == 12) hour = 0
+            cal.set(java.util.Calendar.HOUR_OF_DAY, hour)
+            cal.set(java.util.Calendar.MINUTE, min)
+            cal.set(java.util.Calendar.SECOND, 0)
+            return cal.timeInMillis
+        }
+        return null
+    }
+}

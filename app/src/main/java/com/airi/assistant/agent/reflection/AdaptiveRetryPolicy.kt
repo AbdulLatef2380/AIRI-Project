@@ -1,8 +1,18 @@
 package com.airi.assistant.agent.reflection
 
 import android.util.Log
-import com.airi.assistant.agent.planning.RecoveryStrategy
 import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * Recovery strategy enum — moved inline after RecoveryManager deletion (Phase 9).
+ * Used by AdaptiveRetryPolicy and ProductionAgentOrchestrator.
+ */
+enum class RecoveryStrategy {
+    REPLAN,         // Re-plan the current action differently
+    COMPENSATE,     // Try a compensating action instead
+    REDUCE_SCOPE,   // Narrow the goal and retry
+    ABORT           // Give up on this task
+}
 
 /**
  * AdaptiveRetryPolicy — failure-pattern-aware retry strategy selector.

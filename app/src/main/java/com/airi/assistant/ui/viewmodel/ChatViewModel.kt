@@ -48,7 +48,7 @@ import com.airi.assistant.ai.remote.RemoteModel
 import com.airi.assistant.ai.remote.RemoteModelExecutor
 import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.core.ServiceLocator
-import com.airi.assistant.domain.agent.AgentService
+// AgentService import removed — no longer used in sendMessage after agent-first migration
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
@@ -99,9 +99,6 @@ import com.airi.assistant.execution.diagnostics.ExecutionDiagnosticsState
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.execution.router.RuntimeRouter
 import com.airi.assistant.execution.security.SecureApiKeyStore
-import com.airi.assistant.agent.planning.BrainInput
-import com.airi.assistant.agent.planning.toTypedPlanGraph
-import com.airi.assistant.core.UnifiedCognitiveLoop
 import com.airi.assistant.voice.VoskModelManager
 
 data class ChatMessage(
@@ -337,7 +334,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val secureApiKeyStore   = SecureApiKeyStore(appContext)
 
     // ── Domain services ───────────────────────────────────────────────────────
-    private val agentService             = ServiceLocator.agentService
+    // agentService removed: AgentService.handle() intercepted execution before AgentLoop.
+    // Removed in agent-first migration. AgentService class is no longer used in sendMessage.
     private val skillService             = ServiceLocator.skillService
     private val promptService            = ServiceLocator.promptService
     private val subscriptionManager      = ServiceLocator.subscriptionManager
@@ -352,7 +350,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // ── Phase 1 — UnifiedCognitiveLoop: wired into the ACTION query path ──────
     // Receives the LLM's raw response after generation completes and executes
     // any JSON action plan embedded in it via the TypedPlanGraph DAG engine.
-    private val cognitiveLoop            = UnifiedCognitiveLoop()
+
+    // ── Phase 9: Real AgentLoop — iterative LLM tool-calling loop ────────────
+    // Replaces the regex-DAG (createDAGPlanFromLLM) post-processing path with a
+    // genuine iterative loop: LLM sees tool schemas → emits structured JSON →
+    // ToolDispatcher executes → result fed back into next LLM turn.
+    // Used for ACTION queries when agentLoopEnabled=true.
+    private val toolDispatcher           = com.airi.assistant.agent.loop.tool.ToolDispatcher(
+        memoryManager = runCatching { ServiceLocator.memoryManager }.getOrNull()
+    )
+    val agentLoop                        = com.airi.assistant.agent.loop.AgentLoop(
+        orchestrator = hybridOrchestrator,
+        dispatcher   = toolDispatcher,
+        appContext    = appContext
+    )
 
     // ── UI State ──────────────────────────────────────────────────────────────
 
@@ -446,8 +457,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _tokenRateHistory = MutableStateFlow<List<Float>>(emptyList())
     val tokenRateHistory: StateFlow<List<Float>> = _tokenRateHistory.asStateFlow()
 
-    // Epoch when the last model finished loading — used for runtime uptime.
-    @Volatile private var modelLoadedAtMs        = 0L
     // Epoch when the most recent generateStream call started.
     @Volatile private var generationStartMs      = 0L
     // Duration of the last completed (or cancelled) generation in ms.
@@ -456,8 +465,39 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _agentState = MutableStateFlow(AgentState())
     val agentState: StateFlow<AgentState> = _agentState.asStateFlow()
 
-    private val _modelState = MutableStateFlow(createInitialModelState())
+    // ── ModelController: owns model lifecycle (loadModel, registry, diagnostics) ──
+    // Extracted from ChatViewModel in Phase 9 ViewModel decomposition.
+    // State ownership stays here (_modelState); ModelController mutates via .value.
+    private val _modelState = MutableStateFlow(ModelUiState())   // placeholder until modelController init
     val modelState: StateFlow<ModelUiState> = _modelState.asStateFlow()
+
+    private val modelController = ModelController(
+        appContext              = appContext,
+        viewModelScope          = viewModelScope,
+        llamaManager            = llamaManager,
+        downloadManager         = downloadManager,
+        runtimeSupervisor       = runtimeSupervisor,
+        execModePrefs           = execModePrefs,
+        preferences             = preferences,
+        perfPrefs               = perfPrefs,
+        modelState              = _modelState,
+        performanceModeProvider = { performanceMode },
+        generationPhaseProvider = { generationPhase },
+        onDiagnosticsReady      = { snap ->
+            viewModelScope.launch(Dispatchers.Main) {
+                _runtimeDiagnostics.value = snap.copy(
+                    modelName  = _modelState.value.selectedModelName,
+                    modeSource = if (runtimeSupervisor.isThrottled) ModeSource.SUPERVISOR_THERMAL
+                                 else if (runtimeSupervisor.isMemoryConstrained) ModeSource.SUPERVISOR_MEMORY
+                                 else ModeSource.MANUAL_OVERRIDE
+                )
+            }
+        }
+    )
+
+    init {
+        _modelState.value = modelController.createInitialModelState()
+    }
 
     private val _sessions = MutableStateFlow<List<ChatSessionSummary>>(emptyList())
     val sessions: StateFlow<List<ChatSessionSummary>> = _sessions.asStateFlow()
@@ -588,9 +628,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun cancelGeneration() {
         if (_agentState.value.isWorking) {
             _isCancelled.set(true)
-            hybridOrchestrator.cancel()   // propagates to LlamaManager.cancelStream via LocalLlamaBackend
+            hybridOrchestrator.cancel()
             _generationPhase.value = GenerationPhase.CANCELLED
             lastGenerationDurationMs = System.currentTimeMillis() - generationStartMs
+            modelController.lastGenerationDurationMs = lastGenerationDurationMs   // sync for diagnostics
             Log.d("AIRI_SPEED", "cancelGeneration: user triggered")
             Log.i("AIRI_PROOF", "GEN_CANCEL_REQUESTED source=user_button")
             RuntimeEventLog.post(
@@ -648,7 +689,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val file = File(filePath)
                 if (file.exists() && file.length() > 50_000_000L) {
                     val catalogMeta = ModelCatalog.entries.find { it.fileName == fileName }
-                    val model = createModelFromFile(file, ModelSource.DOWNLOADED, "chat", catalogMeta)
+                    val model = modelController.createModelFromFile(file, ModelSource.DOWNLOADED, "chat", catalogMeta)
                     ModelRegistry.addModel(model)
                     persistRegistry()
                     withContext(Dispatchers.Main) {
@@ -673,7 +714,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         loadInitialSession()
         val savedModel = ModelRegistry.getById(_modelState.value.selectedModelId)
         if (savedModel != null && File(savedModel.path).exists()) {
-            loadModel(savedModel)
+            modelController.loadModel(savedModel)
         }
         // Restore cloud readiness on startup — if a remote model was active
         // in the previous session, re-enable cloud inference immediately so
@@ -691,26 +732,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // shell sub-agents like CodingAgent), it calls this provider to produce a
         // real LLM response rather than returning "[delegated to LLM]".
         //
-        // The provider uses HybridOrchestrator.executeStream — which is safe here
-        // because UCL.executeGraph() only runs AFTER executeStream completes (the
-        // Mutex is released before the flag-gated launch in sendMessage).
-        cognitiveLoop.orchestratorProvider = suspend@{ prompt, onToken, onError ->
-            hybridOrchestrator.executeStream(
-                request = com.airi.assistant.execution.ExecutionRequest(
-                    prompt           = prompt,
-                    systemPrompt     = "You are AIRI, a helpful AI assistant. Answer directly and concisely.",
-                    maxTokens        = 1024,
-                    temperature      = 0.7f,
-                    queryType        = com.airi.assistant.ai.QueryType.ANALYTICAL,
-                    requiresStreaming = false,
-                    sessionTag       = "ucl_delegate"
-                ),
-                context    = appContext,
-                onToken    = { token -> onToken(token) },
-                onComplete = { _, _, _ -> },
-                onError    = { err, _ -> onError(err) }
-            )
-        }
 
         // ── Phase 1: Wire real confirmation gate into AndroidAgent ─────────────
         // ServiceLocator.initSubAgentSystem() exposes the AndroidAgent instance.
@@ -721,6 +742,38 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 awaitAccessibilityConfirmation(actionName, description)
             }
             Log.i("AIRI_SECURITY", "AndroidAgent.confirmationGate wired to ChatViewModel")
+
+            // ── Phase 9: Wire real LLM planner into AccessibilityExecutionEngine ──
+            // The AEE's llmPlanner receives the OBSERVE prompt and returns ONE action
+            // JSON from the LLM. Uses hybridOrchestrator so privacy gate + routing
+            // remain enforced even for accessibility planning requests.
+            //
+            // This replaces the heuristic fallback that was running when llmPlanner
+            // was null — accessibility actions are now LLM-grounded.
+            runCatching {
+                agent.engine.llmPlanner = { prompt ->
+                    val buf = StringBuilder()
+                    hybridOrchestrator.executeStream(
+                        request    = com.airi.assistant.execution.ExecutionRequest(
+                            prompt           = prompt,
+                            systemPrompt     = "You are an Android automation assistant. " +
+                                              "Respond with ONLY a JSON action object as instructed.",
+                            maxTokens        = 128,   // single action JSON is small
+                            temperature      = 0.1f,  // deterministic for safety
+                            requiresStreaming = false,
+                            sessionTag       = "accessibility_planner"
+                        ),
+                        context    = appContext,
+                        onToken    = { tok -> buf.append(tok) },
+                        onComplete = { text, _, _ -> if (text.isNotBlank()) { buf.clear(); buf.append(text) } },
+                        onError    = { err, _ -> Log.w("AIRI_AEE", "LLM planner error: $err") }
+                    )
+                    buf.toString().trim()
+                }
+                Log.i("AIRI_SECURITY", "AccessibilityExecutionEngine.llmPlanner wired to HybridOrchestrator")
+            }.onFailure { e ->
+                Log.w("AIRI_SECURITY", "llmPlanner wire failed: ${e.message} — heuristic fallback active")
+            }
         } ?: Log.w("AIRI_SECURITY", "AndroidAgent not yet initialized — gate not wired")
     }
 
@@ -1080,399 +1133,88 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _smartReplies.value = emptyList()
             _isCancelled.set(false)
 
-            val previewHint = when (queryType) {
-                QueryType.SIMPLE     -> "Thinking..."
-                QueryType.ANALYTICAL -> "Analyzing..."
-                QueryType.ACTION     -> "Preparing..."
-                QueryType.CREATIVE   -> "Imagining..."
-                QueryType.UNKNOWN    -> "Thinking..."
-            }
-            _agentState.value = AgentState(isWorking = true, currentAction = previewHint)
-            _streamingText.value = previewHint
-
-            val allThinkingStages = setOf(
-                "Thinking...", "Analyzing...", "Preparing...", "Imagining...",
-                "Planning...", "Generating...", "Reasoning...", "Creating..."
-            )
-
-            var thinkingJob: kotlinx.coroutines.Job? = viewModelScope.launch {
+            // ── Thinking indicator ───────────────────────────────────────────
+            _agentState.value = AgentState(isWorking = true, currentAction = "Thinking...")
+            _streamingText.value = "Thinking..."
+            val thinkingJob = viewModelScope.launch {
                 kotlinx.coroutines.delay(800)
-                if (_streamingText.value in allThinkingStages) {
-                    val stage2 = when (queryType) {
-                        QueryType.ANALYTICAL -> "Reasoning..."
-                        QueryType.CREATIVE   -> "Creating..."
-                        QueryType.ACTION     -> "Planning..."
-                        else                 -> "Generating..."
-                    }
-                    _streamingText.value = stage2
-                    _agentState.update { it.copy(currentAction = stage2) }
+                if (_streamingText.value == "Thinking...") {
+                    _streamingText.value = "Generating..."
+                    _agentState.update { it.copy(currentAction = "Generating...") }
                 }
             }
 
-            // ── AIRI Ascension: ProductionAgentOrchestrator (Sub-Agent routing) ─
-            // This runs BEFORE AgentService. If a sub-agent handles the input
-            // (calendar, alarm, notes, accessibility, memory, research, coding),
-            // we use that result and skip the rest of the LLM pipeline.
-            val subCtx = buildSubAgentContext(sessionId, history, trimmedInput)
-            val subAgent = withContext(Dispatchers.IO) {
-                com.airi.assistant.agent.subagent.SubAgentRegistry.route(trimmedInput, subCtx)
-            }
+            // ── AGENT-FIRST: every user message enters AgentLoop ─────────────
+            // The LLM decides which tools to call. No keyword classifier gates
+            // tool access. No sub-agent pre-routing. No AgentService intercept.
+            thinkingJob.cancel()
+            Log.i("AIRI_PROOF", "AGENT_LOOP_START input='${trimmedInput.take(60)}' queryType=${queryType.name}")
 
-            if (subAgent != null) {
-                Log.i("AIRI_PROOF", "SUBROUTE agent=${subAgent.capability.agentId} input='${trimmedInput.take(60)}'")
-                val orchResult = runCatching {
-                    withContext(Dispatchers.IO) {
-                        productionOrchestrator.executeSingle(trimmedInput, subCtx) { event ->
-                            when (event) {
-                                is com.airi.assistant.agent.subagent.AgentEvent.Progress ->
-                                    _agentState.update { it.copy(currentAction = event.message) }
-                                is com.airi.assistant.agent.subagent.AgentEvent.PartialResult ->
-                                    _streamingText.value = event.text
-                                else -> {}
-                            }
+            try {
+                val loopResult = agentLoop.run(
+                    input        = trimmedInput,
+                    systemPrompt = systemPrompt,
+                    tools        = com.airi.assistant.agent.loop.tool.BuiltinTools.ALL,
+                    onToken      = { tok ->
+                        tokenCount += tok.length / 4 + 1
+                        if (!firstTokenReceived) {
+                            firstTokenReceived = true
+                            _generationPhase.value = GenerationPhase.GENERATE
+                            generationStartMs = System.currentTimeMillis()
+                            val ftMs = System.currentTimeMillis() - requestStart
+                            _debugState.update { it.copy(lastFirstTokenMs = ftMs) }
+                            Log.d("AIRI_SPEED", "LOOP first_token=${ftMs}ms")
+                        }
+                        if (_streamingText.value == "Generating...") streamAccumulator.setLength(0)
+                        streamAccumulator.append(tok)
+                        _streamingText.value = streamAccumulator.toString()
+                    },
+                    onStepComplete = { stepEvent ->
+                        when (stepEvent) {
+                            is com.airi.assistant.agent.loop.AgentLoop.StepEvent.ToolExecuted ->
+                                Log.i("AIRI_PROOF", "TOOL_EXEC step=${stepEvent.step} tool=${stepEvent.toolName}")
+                            is com.airi.assistant.agent.loop.AgentLoop.StepEvent.FinalAnswer ->
+                                Log.i("AIRI_PROOF", "AGENT_LOOP_FINAL steps=${stepEvent.steps}")
                         }
                     }
-                }.getOrNull()
-
-                if (orchResult is com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator.ExecutionResult.Success &&
-                    orchResult.finalResult.isNotBlank()) {
-                    thinkingJob?.cancel(); thinkingJob = null
-                    _streamingText.value = ""
-                    val assistantMsg = memoryManager.recordChatMessage(
-                        sessionId, "assistant", orchResult.finalResult
-                    )
-                    _messages.update {
-                        it + ChatMessage(
-                            text     = orchResult.finalResult,
-                            isUser   = false,
-                            id       = assistantMsg.id,
-                            agentTag = subAgent.capability.displayName
-                        )
-                    }
-                    AnalyticsService.agentExecuted(subAgent.capability.agentId)
-                    subscriptionManager.recordConsecutiveSuccess()
-                    _agentState.value = AgentState()
-                    refreshSessions()
-                    refreshPowerLevel()
-                    return@launch
-                }
-                // Sub-agent failed or returned empty → fall through to AgentService
-                Log.d("AIRI_PROOF", "SUBROUTE_FALLTHROUGH agent=${subAgent.capability.agentId}")
-            }
-
-            // ── Delegate to AgentService (goes through PolicyEngine + pipeline) ──
-            val simpleQuery = promptService.isSimpleQuery(trimmedInput)
-            val agentServiceResult = if (simpleQuery) {
-                AgentService.AgentServiceResult(agentResult = null, errorMessage = null, isLlmFallback = true)
-            } else {
-                withContext(Dispatchers.IO) { agentService.handle(trimmedInput, history) }
-            }
-
-            when {
-                agentServiceResult.errorMessage != null -> {
-                    thinkingJob?.cancel(); thinkingJob = null
-                    val errMsg = memoryManager.recordChatMessage(
-                        sessionId, "assistant", agentServiceResult.errorMessage
-                    )
-                    _messages.update {
-                        it + ChatMessage(agentServiceResult.errorMessage, isUser = false, id = errMsg.id)
-                    }
-                    _agentState.value = AgentState()
-                    refreshSessions()
-                    return@launch
-                }
-
-                agentServiceResult.agentResult != null -> {
-                    thinkingJob?.cancel(); thinkingJob = null
-                    val agentResult = agentServiceResult.agentResult
-                    val responseText = if (agentResult.success) agentResult.text
-                                       else agentResult.text.ifBlank { "Agent action failed. Please try again." }
-                    if (agentResult.success) {
-                        AnalyticsService.agentExecuted(agentResult.agentTag ?: "unknown")
-                        subscriptionManager.recordConsecutiveSuccess()
-                        // Soft paywall after first agent execution (non-blocking)
-                        val agentLevel = PaywallTriggerEngine.onAgentExecuted(subscriptionManager.isPremium())
-                        if (agentLevel != UpsellLevel.NONE) {
-                            _upgradePrompt.value = UpgradePrompt(
-                                message = PaywallTriggerEngine.getPaywallMessage(PaywallTriggerEngine.TriggerReason.FirstAgentExecution),
-                                source = PaywallTriggerEngine.TriggerReason.FirstAgentExecution.source
-                            )
-                        }
-                    } else {
-                        subscriptionManager.resetConsecutiveSuccesses()
-                    }
-                    if (responseText.isNotBlank()) {
-                        val assistantMsg = memoryManager.recordChatMessage(sessionId, "assistant", responseText)
-                        _messages.update {
-                            it + ChatMessage(
-                                text     = responseText,
-                                isUser   = false,
-                                id       = assistantMsg.id,
-                                agentTag = agentResult.agentTag,
-                                traceId  = agentResult.traceId
-                            )
-                        }
-                    }
-                    _agentState.value = AgentState()
-                    refreshSessions()
-                    refreshPowerLevel()
-                    // Fire soft paywall (message threshold) after agent response is shown
-                    if (triggerPaywallAfterSend && !_paywallTrigger.value) {
-                        _upgradePrompt.value = UpgradePrompt(
-                            message = PaywallTriggerEngine.getPaywallMessage(PaywallTriggerEngine.TriggerReason.MessageThreshold),
-                            source = PaywallTriggerEngine.TriggerReason.MessageThreshold.source
-                        )
-                    }
-                    return@launch
-                }
-
-                // isLlmFallback == true — proceed to local LLM
-            }
-
-            val requestStart = System.currentTimeMillis()
-            val streamStart  = requestStart
-            var tokenCount   = 0
-            var firstTokenReceived = false
-            var partialCutText = ""
-
-            // ── First-token watchdog ──────────────────────────────────────────
-            // If no token arrives within 15 s, show a slow-response indicator
-            // so the user knows the app is alive. Cancelled as soon as the
-            // first token lands. Applies to both cloud and local paths.
-            val firstTokenWatchdog = viewModelScope.launch {
-                kotlinx.coroutines.delay(15_000L)
-                if (!firstTokenReceived && _isGenerating.value) {
-                    _streamingText.update { current ->
-                        if (current in setOf("Thinking...", "Analyzing...", "Planning...",
-                                "Generating...", "Reasoning...", "Creating..."))
-                            "⟳ بطيء — جارٍ الانتظار…"
-                        else current
-                    }
-                }
-            }
-            // CLOUD_ONLY → always route to remote (deviceWeak=true).
-            // LOCAL_ONLY → always route to local (remote=null).
-            // HYBRID     → use existing isDeviceWeak() heuristic + RuntimeRouter signals.
-            val execMode = execModePrefs.effectiveMode
-            val deviceWeak = when (execMode) {
-                ExecutionMode.CLOUD_ONLY -> true
-                ExecutionMode.LOCAL_ONLY -> false
-                ExecutionMode.HYBRID     -> isDeviceWeak()
-            }
-            val remote = when (execMode) {
-                ExecutionMode.LOCAL_ONLY -> null
-                else                     -> RemoteModelRegistry.getActive()
-            }
-            _lastExecOrigin.value = if (deviceWeak && remote != null) ExecOrigin.CLOUD else ExecOrigin.LOCAL
-            val baseSystemPromptCore = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType)
-
-            // ── Phase 1.5 — semantic memory injection ────────────────────────────
-            // The user demanded: "Connect semantic memory to the prompt". We do
-            // it HERE, BEFORE PromptCompressor.compose, so the compressor's
-            // existing 90% n_ctx budget cap is the ultimate guard against KV
-            // overflow. We additionally cap the semantic block at SEMANTIC_PCT
-            // (20%) of n_ctx — semantic memory must never starve the user
-            // prompt or the recent-history slice.
-            //
-            // Budgeting math (anchored to PromptCompressor.estimateTokens =
-            // chars/4): at nCtx=2048 → 20% = 410 tokens ≈ 1640 chars, which
-            // comfortably fits 5 hits at ≤220 chars each.
-            //
-            // ⚠ HARD GUARD: if the embedding model isn't loaded the call
-            // returns "" silently (with VECTOR_SEARCH_SKIPPED already logged)
-            // so we never block the chat path on memory work.
-            val baseSystemPrompt = run {
-                val semanticBudgetTokens = (perfMode.nCtx * SEMANTIC_BUDGET_PCT) / 100
-                val hits = memoryManager.semanticSearch(sessionId, trimmedInput, k = SEMANTIC_TOP_K)
-                val (semBlock, _, _) = memoryManager.embeddingService.formatContextWithBudget(
-                    hits = hits, maxTokens = semanticBudgetTokens
                 )
-                if (semBlock.isBlank()) baseSystemPromptCore
-                else baseSystemPromptCore.trimEnd() + "\n\n" + semBlock
-            }
+                val elapsedMs = System.currentTimeMillis() - requestStart
+                recordGenerationStats(elapsedMs, tokenCount)
+                val tps = if (elapsedMs > 0) tokenCount * 1000f / elapsedMs.coerceAtLeast(1) else 0f
 
-            // ── Memory facts: harvest from THIS user message before composing ───
-            // (so "my name is X" said in this turn participates in compression).
-            val newFacts = com.airi.assistant.ai.prompt.MemoryExtractor.extract(trimmedInput)
-            if (newFacts.isNotEmpty()) {
-                com.airi.assistant.ai.prompt.MemoryStore
-                    .mergeFacts(appContext, sessionId, newFacts)
-                Log.i("AIRI_PROMPT_COMPRESS",
-                    "EXTRACTED facts=${newFacts.size} session=$sessionId")
-            }
-
-            // ── Structured prompt compression ───────────────────────────────────
-            // Replaces the old "send last 12 messages verbatim" path with the
-            // 5-section envelope (System / Memory / Summary / Recent / User) plus
-            // a hard 90% n_ctx token-budget cap. We DO NOT change inference logic
-            // — only the prompt envelope and the trimmed history slice.
-            val activeNCtx = perfMode.nCtx
-            val compressed = com.airi.assistant.ai.prompt.PromptCompressor.compose(
-                ctx               = appContext,
-                baseSystemPrompt  = baseSystemPrompt,
-                history           = history,
-                userInput         = trimmedInput,
-                nCtx              = activeNCtx,
-                sessionId         = sessionId
-            )
-            llamaManager.setHistory(compressed.recentMessages)
-            val systemPrompt = compressed.augmentedSystemPrompt
-            // Remember whether we should re-summarize older turns AFTER this
-            // generation completes (sequencing: never run during generation).
-            val needsResummarize = compressed.shouldResummarize
-            val olderToFold = if (needsResummarize)
-                history.dropLast(compressed.recentMessages.size + compressed.stats.droppedRecent)
-                else emptyList()
-            val uiPrefs = appContext.getSharedPreferences("airi_ui_state", android.content.Context.MODE_PRIVATE)
-            val repeatPenalty    = uiPrefs.getFloat("gen_repeat_penalty",    1.1f)
-            val topK             = uiPrefs.getInt  ("gen_top_k",             40)
-            val topP             = uiPrefs.getFloat("gen_top_p",             0.9f)
-            val minP             = uiPrefs.getFloat("gen_min_p",             0.05f)
-            val presencePenalty  = uiPrefs.getFloat("gen_presence_penalty",  0.0f)
-            val frequencyPenalty = uiPrefs.getFloat("gen_frequency_penalty", 0.0f)
-            // SPEC v4: penalty look-back window (penalty_last_n). Default 64
-            // matches llama.cpp's own sample default and g_sp_penalty_last_n
-            // in LlamaBridge.cpp. Range: 0 (off) .. 256 (aggressive).
-            val penaltyLastN     = uiPrefs.getInt  ("gen_penalty_last_n",    64)
-            // Adaptive token limit — clamp based on available RAM to prevent OOM crashes
-            val availableRamMb = DeviceProfiler.profile(appContext).availableRamMb
-            val adaptiveMaxTokens = when {
-                availableRamMb < 1000 -> minOf(perfMode.maxTokens, 256)
-                availableRamMb < 2000 -> minOf(perfMode.maxTokens, 512)
-                else                  -> perfMode.maxTokens
-            }
-            Log.d("AIRI_PERF", "AdaptiveTokens: requested=${perfMode.maxTokens} clamped=$adaptiveMaxTokens availRAM=${availableRamMb}MB")
-
-            // ── Dynamic generation control — adjust per intent type ───────────────
-            val recentP90 = com.airi.assistant.domain.verification.VerificationTracker.p90LatencyMs()
-            val genConfig = ResponseOptimizer.adaptiveGeneration(
-                queryType = queryType,
-                ramCappedMaxTokens = adaptiveMaxTokens,
-                recentP90Ms = recentP90,
-                isPremium = subscriptionManager.isPremium()
-            )
-            // ── Input-size driven token cap — short inputs need short answers ─────
-            val inputSizeCapped = ResponseOptimizer.inputSizeTokenCap(trimmedInput.length, genConfig.maxTokens)
-            // ── Phase 1 — Soft token cap for free users in degradation zone ───────
-            val finalMaxTokens = when {
-                !subscriptionManager.isPremium() && softPhase >= 2 ->
-                    (inputSizeCapped * PricingConfig.NEAR_LIMIT_TOKEN_FACTOR).toInt().coerceAtLeast(64)
-                !subscriptionManager.isPremium() && softPhase >= 1 ->
-                    (inputSizeCapped * PricingConfig.SOFT_LIMIT_TOKEN_FACTOR).toInt().coerceAtLeast(96)
-                else -> inputSizeCapped
-            }
-            if (softPhase >= 1 && !subscriptionManager.isPremium()) {
-                Log.d("AIRI_MONET", "softTokenCap phase=$softPhase original=$inputSizeCapped capped=$finalMaxTokens")
-            }
-            Log.d("AIRI_SPEED", "input_len=${trimmedInput.length} gen_tokens=${genConfig.maxTokens} final_cap=$finalMaxTokens")
-            Log.d("AIRI_GEN", "mode=${queryType.name} tokens=$finalMaxTokens temp=${genConfig.temperature} model=${_modelState.value.selectedModelName} input_len=${trimmedInput.length}")
-            com.airi.assistant.domain.logging.ProofLogger.streamStarted(
-                queryType = queryType.name,
-                model     = _modelState.value.selectedModelName,
-                tokens    = finalMaxTokens
-            )
-            _debugState.update { it.copy(
-                lastModelName  = _modelState.value.selectedModelName,
-                lastWasCut     = false
-            )}
-            val finish: suspend (String, Long, Int) -> Unit = { fullResponse, elapsedMs, tokens ->
-                recordGenerationStats(elapsedMs, tokens)
-                val tps      = if (elapsedMs > 0) tokens * 1000f / elapsedMs.coerceAtLeast(1) else 0f
-                // Record for the sparkline — local executions only.
-                if (tps > 0f && _lastExecOrigin.value == com.airi.assistant.execution.ExecOrigin.LOCAL) {
-                    _tokenRateHistory.value = (_tokenRateHistory.value + tps).takeLast(20)
-                }
-                val wasCutNow = _isCancelled.get()
-                com.airi.assistant.core.analytics.ProofLogger.log(
-                    "COMPLETE", "latency=${elapsedMs}ms tokens=$tokens tps=%.1f cut=$wasCutNow".format(tps)
+                // Telemetry — preserved; not routing
+                com.airi.assistant.domain.logging.ProofLogger.streamStarted(
+                    queryType = queryType.name, model = _modelState.value.selectedModelName, tokens = tokenCount
                 )
                 com.airi.assistant.domain.verification.VerificationTracker.record(
                     com.airi.assistant.domain.verification.VerificationEvent(
-                        type      = "LLM",
-                        latencyMs = elapsedMs,
-                        tokens    = tokens,
-                        wasCut    = wasCutNow,
-                        queryType = queryType.name
+                        type = "AGENT_LOOP", latencyMs = elapsedMs, tokens = tokenCount,
+                        wasCut = loopResult.cancelled, queryType = queryType.name
                     )
                 )
-                val p50 = com.airi.assistant.domain.verification.VerificationTracker.p50LatencyMs()
-                val p90 = com.airi.assistant.domain.verification.VerificationTracker.p90LatencyMs()
                 com.airi.assistant.core.debug.RuntimeStore.update {
-                    copy(
-                        totalLatencyMs = elapsedMs,
-                        p50LatencyMs = p50,
-                        p90LatencyMs = p90,
-                        tokensPerSecond = tps,
-                        fastPath = false,
-                        wasCut   = wasCutNow
-                    )
+                    copy(totalLatencyMs = elapsedMs, tokensPerSecond = tps, fastPath = false,
+                         wasCut = loopResult.cancelled, lastQueryType = queryType.name)
                 }
                 _debugState.update { it.copy(
-                    lastTotalLatencyMs = elapsedMs,
-                    p50LatencyMs       = p50,
-                    p90LatencyMs       = p90,
-                    lastTokensPerSec   = tps
+                    lastTotalLatencyMs = elapsedMs, lastTokensPerSec = tps,
+                    lastWasCut = loopResult.cancelled, lastModelName = _modelState.value.selectedModelName
                 )}
                 AnalyticsService.responseGenerated(elapsedMs, tps, _modelState.value.selectedModelName, false)
-                if (fullResponse.isNotBlank()) {
-                    val wasToolCall = handleToolIfNeeded(fullResponse, sessionId)
-                    if (!wasToolCall) {
-                        val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fullResponse)
-                        _messages.update { it + ChatMessage(fullResponse, isUser = false, assistantMessage.id, execOrigin = _lastExecOrigin.value) }
-                    }
-                    // ── Phase 2: Wire ACTION queries through UnifiedCognitiveLoop ──────────
-                    // After the LLM response is shown to the user, parse any JSON action plan
-                    // embedded in the response and execute it.
-                    //
-                    // AIRI_EXECUTE_GRAPH_ENABLED=false (default):
-                    //   Legacy cognitiveLoop.process() — pattern-matching command executor.
-                    //   No UI feedback. Zero risk of regression.
-                    //
-                    // AIRI_EXECUTE_GRAPH_ENABLED=true (staged rollout):
-                    //   TypedPlanGraph parallel-wave DAG via UCL.executeGraph().
-                    //   ExecutionStatusBus updates drive the ChatScreen agent overlay.
-                    //   On any exception, falls back to the legacy path automatically.
-                    //
-                    // See: reports/phase2-executeGraph-migration-plan.md
-                    if (queryType == QueryType.ACTION && !wasToolCall) {
-                        viewModelScope.launch(Dispatchers.IO) {
-                            if (BuildConfig.AIRI_EXECUTE_GRAPH_ENABLED) {
-                                // ── Graph execution path ─────────────────────────────────
-                                runCatching {
-                                    val plan  = cognitiveLoop.planGenerator
-                                                    .createDAGPlanFromLLM(fullResponse, trimmedInput)
-                                    val graph = plan.toTypedPlanGraph(goalId = sessionId)
-                                    Log.i("AIRI_GRAPH", "executeGraph starting: goalId=$sessionId " +
-                                        "nodes=${plan.steps.size} intent='${plan.intent.take(40)}'")
-                                    val result = cognitiveLoop.executeGraph(graph)
-                                    Log.i("AIRI_GRAPH", "executeGraph done: success=${result.success} " +
-                                        "nodes=${result.nodeResults.size} " +
-                                        "confidence=${result.reflection?.executionConfidence}")
-                                }.onFailure { e ->
-                                    if (e is kotlinx.coroutines.CancellationException) throw e
-                                    Log.w("AIRI_GRAPH", "executeGraph failed (${e.javaClass.simpleName}: " +
-                                        "${e.message}) — falling back to legacy cognitiveLoop.process()")
-                                    // Automatic fallback — user sees no difference
-                                    runCatching {
-                                        cognitiveLoop.process(BrainInput(text = trimmedInput), fullResponse)
-                                    }.onFailure { e2 ->
-                                        Log.w("AIRI_UCL", "Fallback UCL.process also failed: ${e2.message}")
-                                    }
-                                }
-                            } else {
-                                // ── Legacy path (default) ────────────────────────────────
-                                runCatching {
-                                    cognitiveLoop.process(BrainInput(text = trimmedInput), fullResponse)
-                                }.onFailure { e ->
-                                    Log.w("AIRI_UCL", "UCL.process failed: ${e.message}")
-                                }
-                            }
-                        }
-                    }
-                    refreshSessions()
-                    refreshPowerLevel()
 
-                    // ── Phase 2 — success_moment paywall (after N consecutive good responses) ─
+                if (loopResult.finalAnswer.isNotBlank()) {
+                    val assistantMsg = memoryManager.recordChatMessage(
+                        sessionId, "assistant", loopResult.finalAnswer
+                    )
+                    _messages.update {
+                        it + ChatMessage(
+                            text       = loopResult.finalAnswer,
+                            isUser     = false,
+                            id         = assistantMsg.id,
+                            execOrigin = _lastExecOrigin.value
+                        )
+                    }
+                    _smartReplies.value = ResponseOptimizer.generateSuggestions(loopResult.finalAnswer)
                     subscriptionManager.recordConsecutiveSuccess()
                     val successes = subscriptionManager.getConsecutiveSuccesses()
                     val successLevel = PaywallTriggerEngine.onSuccessfulResponse(successes, subscriptionManager.isPremium())
@@ -1482,24 +1224,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             source = PaywallTriggerEngine.TriggerReason.SuccessMoment.source
                         )
                     }
-
-                    // ── Phase 5 — speed_upsell (slow response detected for free users) ───
-                    val speedLevel = PaywallTriggerEngine.onSlowResponse(elapsedMs, subscriptionManager.isPremium())
-                    if (speedLevel != UpsellLevel.NONE && !_paywallTrigger.value) {
-                        _upgradePrompt.value = UpgradePrompt(
-                            message = PaywallTriggerEngine.getPaywallMessage(PaywallTriggerEngine.TriggerReason.SpeedUpsell),
-                            source = PaywallTriggerEngine.TriggerReason.SpeedUpsell.source
-                        )
-                    }
-
-                    val cutLevel = if (wasCutNow) PaywallTriggerEngine.onResponseCut(subscriptionManager.isPremium()) else UpsellLevel.NONE
-                    if (cutLevel != UpsellLevel.NONE && !_paywallTrigger.value) {
-                        _upgradePrompt.value = UpgradePrompt(
-                            message = PaywallTriggerEngine.getPaywallMessage(PaywallTriggerEngine.TriggerReason.ResponseCut),
-                            source = PaywallTriggerEngine.TriggerReason.ResponseCut.source
-                        )
-                    }
-
                     val powerLevel = PaywallTriggerEngine.onPowerUser(PaywallTriggerEngine.getTotalMessages(), subscriptionManager.isPremium())
                     if (powerLevel != UpsellLevel.NONE && !_paywallTrigger.value) {
                         _upgradePrompt.value = UpgradePrompt(
@@ -1507,195 +1231,36 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             source = PaywallTriggerEngine.TriggerReason.PowerUser.source
                         )
                     }
-
-                    // ── Message threshold upsell ─────────────────────────────────────────
-                    if (triggerPaywallAfterSend && !_paywallTrigger.value && successLevel == UpsellLevel.NONE) {
-                        _upgradePrompt.value = UpgradePrompt(
-                            message = PaywallTriggerEngine.getPaywallMessage(PaywallTriggerEngine.TriggerReason.MessageThreshold),
-                            source = PaywallTriggerEngine.TriggerReason.MessageThreshold.source
-                        )
-                    }
+                    if (triggerPaywallAfterSend) { _paywallTrigger.value = true }
                 }
-                _smartReplies.value = ResponseOptimizer.generateSuggestions(fullResponse)
+                Log.i("AIRI_PROOF", "AGENT_LOOP_COMPLETE steps=${loopResult.stepsUsed} tools=${loopResult.toolsInvoked}")
+
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                Log.e("AIRI_LOOP", "AgentLoop error: ${e.message}")
+                val errMsg = "Error: ${e.message ?: "Unknown error"}"
+                val errRec = memoryManager.recordChatMessage(sessionId, "assistant", errMsg)
+                _messages.update { it + ChatMessage(errMsg, isUser = false, id = errRec.id) }
+            } finally {
                 streamAccumulator.setLength(0); _streamingText.value = ""
-                _agentState.value    = AgentState()
-                // Snapshot after generation: captures final TPS, KV position,
-                // and uptime. Runs on Dispatchers.Default — never on the
-                // main/UI thread and never inside the token hot-path.
-                refreshDiagnosticsSnapshot()
-            }
-
-            // ── Phase 2: Route all inference through HybridOrchestrator ──────────
-            // Previously this block had two direct paths:
-            //   (1) remoteExecutor.generateStream() for cloud
-            //   (2) llamaManager.generateStream()     for local
-            // Neither exercised the privacy gate, genId staleness guard,
-            // failover chain, or exec-origin tagging that HybridOrchestrator owns.
-            //
-            // Now: both paths go through hybridOrchestrator.executeStream() which
-            // internally delegates to LocalLlamaBackend (same LlamaManager) or
-            // CloudBackend (same remoteExecutor) via RuntimeRouter, but adds:
-            //   - executionLock (serialises concurrent sendMessage calls)
-            //   - currentGenId + stale-token rejection
-            //   - PrivacyGuard cloud-block enforcement
-            //   - deterministic primary→fallback chain
-            //   - per-event diagnostics writes
-            //   - ExecOrigin tagging on every token
-            //
-            // The onToken/onComplete/onError semantics are identical to before.
-            // All downstream code (finish, stall detection, error categorisation,
-            // accounting) is unchanged.
-
-            val execRequest = ExecutionRequest(
-                prompt                  = trimmedInput,
-                systemPrompt            = systemPrompt,
-                maxTokens               = finalMaxTokens,
-                temperature             = genConfig.temperature,
-                queryType               = queryType,
-                requiresStreaming        = true,
-                requiresVision          = imageUri != null || capturedBitmap != null,
-                requiresOffline         = !ServiceLocator.networkService.isOnline(),
-                estimatedPromptTokens   = (systemPrompt.length + trimmedInput.length) / 4,
-                sessionTag              = sessionId
-            )
-
-            hybridOrchestrator.executeStream(
-                request    = execRequest,
-                context    = appContext,
-                onToken    = { token ->
-                    thinkingJob?.cancel()
-                    thinkingJob = null
-                    if (!firstTokenReceived) {
-                        firstTokenReceived = true
-                        firstTokenWatchdog.cancel()
-                        _generationPhase.value = GenerationPhase.GENERATE
-                        generationStartMs = System.currentTimeMillis()
-                        val firstTokenMs = System.currentTimeMillis() - requestStart
-                        Log.d("AIRI_SPEED", "first_token=${firstTokenMs}ms query=${queryType.name}")
-                        com.airi.assistant.domain.logging.ProofLogger.firstToken(firstTokenMs, queryType.name)
-                        com.airi.assistant.core.analytics.ProofLogger.log("FIRST_TOKEN", "$firstTokenMs ms")
-                        com.airi.assistant.core.debug.RuntimeStore.update { copy(firstTokenMs = firstTokenMs) }
-                        _debugState.update { it.copy(lastFirstTokenMs = firstTokenMs) }
-                    }
-                    tokenCount += token.length / 4 + 1
-                    if (_streamingText.value in allThinkingStages) {
-                        streamAccumulator.setLength(0)
-                    }
-                    streamAccumulator.append(token)
-                    _streamingText.value = streamAccumulator.toString()
-                    val elapsed = System.currentTimeMillis() - streamStart
-                    if (firstTokenReceived &&
-                        ResponseOptimizer.shouldSemanticCut(_streamingText.value, elapsed, tokenCount, queryType, subscriptionManager.isPremium()) &&
-                        !_isCancelled.get()
-                    ) {
-                        val cutResult = ResponseOptimizer.semanticCut(_streamingText.value)
-                        partialCutText = cutResult.text.ifBlank { _streamingText.value }
-                        _isCancelled.set(true)
-                        hybridOrchestrator.cancel()
-                    }
-                },
-                onComplete = { fullResponse, latencyMs, origin ->
-                    _lastExecOrigin.value = origin
-                    val responseToSave = if (_isCancelled.get() && partialCutText.isNotBlank()) {
-                        partialCutText
-                    } else {
-                        fullResponse
-                    }
-                    _isCancelled.set(false)
-                    _stallActive.value = false
-                    finish(responseToSave, latencyMs, tokenCount)
-                },
-                onError    = { errorMsg, origin ->
-                    viewModelScope.launch {
-                        thinkingJob?.cancel()
-                        thinkingJob = null
-                        _isCancelled.set(false)
-                        _stallActive.value = false
-                        _generationPhase.value = GenerationPhase.CLEANUP
-                        _lastExecOrigin.value = origin
-                        RuntimeEventLog.post(
-                            subsystem = "GENERATION",
-                            severity  = EventSeverity.ERROR,
-                            reason    = errorMsg.take(100)
-                        )
-                        val isInactivityTimeout = errorMsg.startsWith(com.airi.assistant.ai.LlamaManager.ERR_INACTIVITY_TIMEOUT)
-                        val isFirstTokenTimeout = errorMsg.startsWith(com.airi.assistant.ai.LlamaManager.ERR_FIRST_TOKEN_TIMEOUT)
-                        val isNativeError       = errorMsg.startsWith(com.airi.assistant.ai.LlamaManager.ERR_NATIVE)
-                        if (firstTokenReceived && _streamingText.value.isNotBlank() && !isInactivityTimeout) {
-                            finish(_streamingText.value, System.currentTimeMillis() - requestStart, tokenCount)
-                            return@launch
+                _agentState.value = AgentState()
+                _generationPhase.value = GenerationPhase.IDLE
+                _isGenerating.value = false
+                refreshSessions()
+                refreshPowerLevel()
+                if (needsResummarize) {
+                    viewModelScope.launch(Dispatchers.IO) {
+                        runCatching {
+                            com.airi.assistant.ai.prompt.ConversationSummarizer.summarize(
+                                llamaManager, olderToFold, sessionId, appContext
+                            )
                         }
-                        val userVisible = when {
-                            isInactivityTimeout ->
-                                "بدأ التوليد لكن توقف النموذج. هذا يحدث عادةً بسبب الذاكرة أو انشغال المعالج. جرب مرة أخرى."
-                            isFirstTokenTimeout ->
-                                "تجاوز النموذج مهلة التحميل. جرب نموذجاً أخف أو اضغط على إلغاء وأعد المحاولة."
-                            isNativeError ->
-                                "حدث خطأ في المحرك المحلي. تفاصيل: ${errorMsg.removePrefix(com.airi.assistant.ai.LlamaManager.ERR_NATIVE).trim()}"
-                            else ->
-                                "تعذر إكمال التوليد. ($errorMsg)"
-                        }
-                        val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", userVisible)
-                        _messages.update { it + ChatMessage(userVisible, isUser = false, assistantMessage.id) }
-                        streamAccumulator.setLength(0); _streamingText.value = ""
-                        _agentState.value = AgentState()
-                        _generationPhase.value = GenerationPhase.IDLE
-                        refreshSessions()
-                        refreshDiagnosticsSnapshot()
                     }
                 }
-            )
+                modelController.refreshDiagnosticsSnapshot()
+            }
         }
     }
-
-    // ── Tool call processing (delegates to SkillService) ─────────────────────
-
-    private suspend fun handleToolIfNeeded(response: String, sessionId: String): Boolean {
-        return when (val toolResult = skillService.executeToolCall(response)) {
-            is ToolCallResult.NoToolCall -> false
-
-            is ToolCallResult.Executed -> {
-                val toolCall = toolResult.toolCall
-                val result   = toolResult.result
-                AnalyticsService.skillUsed(toolCall.toolName)
-
-                _agentState.value = AgentState(
-                    isWorking     = true,
-                    currentAction = "Running tool: ${toolCall.toolName.replace("_", " ")}…"
-                )
-
-                val followUpPrompt = if (result.success) {
-                    "Tool '${toolCall.toolName}' returned this data:\n${result.data}\n\nExplain this clearly and helpfully to the user."
-                } else {
-                    "Tool '${toolCall.toolName}' failed with error: ${result.error ?: "Unknown error"}. " +
-                            "Inform the user in a friendly, helpful way."
-                }
-
-                val finalResponse = suspendCoroutine<String> { continuation ->
-                    llamaManager.generate(
-                        prompt       = followUpPrompt,
-                        systemPrompt = _agentMode.value.prompt,
-                        maxTokens    = _performanceMode.value.maxTokens,
-                        temperature  = _performanceMode.value.temperature,
-                        onResult     = { text -> continuation.resume(text) }
-                    )
-                }
-
-                if (finalResponse.isNotBlank()) {
-                    val assistantMsg = memoryManager.recordChatMessage(sessionId, "assistant", finalResponse)
-                    _messages.update { it + ChatMessage(finalResponse, isUser = false, assistantMsg.id) }
-                }
-                true
-            }
-
-            is ToolCallResult.Failed -> {
-                val errMsg = memoryManager.recordChatMessage(sessionId, "assistant", toolResult.errorMessage)
-                _messages.update {
-                    it + ChatMessage(toolResult.errorMessage, isUser = false, id = errMsg.id)
-                }
-                true
-            }
-        }
     }
 
     // ── Prompt building (delegates to PromptService) ──────────────────────────
@@ -1716,114 +1281,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         perfMode: PerformanceMode,
         queryType: QueryType = QueryType.UNKNOWN
     ): String {
-        val base = if (promptService.isSimpleQuery(input) || queryType == QueryType.SIMPLE) {
-            promptService.buildSimpleSystemPrompt(_agentMode.value.prompt, perfMode.maxTokens)
-        } else {
-            buildEffectiveSystemPrompt(perfMode, queryType)
-        }
-        // Phase 1: For ACTION queries, append a structured plan request so the LLM
-        // produces a JSON execution plan that UnifiedCognitiveLoop can parse and run.
-        return if (queryType == QueryType.ACTION) base + ACTION_PLAN_SUFFIX else base
+        // queryType no longer gates execution; it's logged for telemetry only.
+        // Always build the full effective system prompt — AgentLoop injects tool
+        // schemas on top of this regardless of query type.
+        return buildEffectiveSystemPrompt(perfMode, queryType)
     }
 
-    private suspend fun streamRemoteResponse(
-        remote: RemoteModel,
-        prompt: String,
-        systemPrompt: String,
-        perfMode: PerformanceMode,
-        streamStart: Long,
-        finish: suspend (String, Long, Int) -> Unit
-    ) {
-        _lastExecOrigin.value = ExecOrigin.CLOUD   // tag origin before first token
-        var tokenCount = 0
 
-        // Wrap in a hard deadline so a stalled HTTP connection never freezes the UI.
-        // 90 s covers even large cloud models on slow connections; LlamaManager's own
-        // watchdog handles the local path separately (DEFAULT_FIRST_TOKEN_TIMEOUT_MS).
-        val result = runCatching {
-            withTimeout(90_000L) {
-                remoteExecutor.generateStream(
-                    model = remote,
-                    prompt = prompt,
-                    systemPrompt = systemPrompt,
-                    maxTokens = perfMode.maxTokens,
-                    temperature = perfMode.temperature,
-                    onToken = { token ->
-                        tokenCount++
-                        withContext(Dispatchers.Main) {
-                            val clearStates = setOf(
-                                "Thinking...", "Analyzing...", "Planning...", "Generating...",
-                                "⟳ بطيء — جارٍ الانتظار…"   // clear slow-response watchdog message
-                            )
-                            _streamingText.update { current ->
-                                if (current in clearStates) token else current + token
-                            }
-                            delay(0)
-                        }
-                    }
-                )
-            }
-        }.getOrElse { throwable ->
-            Log.w("AIRI_CLOUD", "streamRemoteResponse failed: ${throwable.message}")
-            RemoteModelExecutor.RemoteResult.Failure(
-                error     = throwable.message ?: "timeout",
-                latencyMs = System.currentTimeMillis() - streamStart
-            )
-        }
-        withContext(Dispatchers.Main) {
-            when (result) {
-                is RemoteModelExecutor.RemoteResult.Success -> {
-                    // Record to TokenAccountant (detailed per-provider stats + UI StateFlow)
-                    // AND to ExecModePreferences (budget gate). Both run on IO so we
-                    // fire-and-forget from Main to keep the finish() call unblocked.
-                    viewModelScope.launch(Dispatchers.IO) {
-                        runCatching {
-                            val provider = execModePrefs.preferredProvider
-                            tokenAccountant.recordSuccess(
-                                provider         = provider,
-                                promptTokens     = (systemPrompt.length / 4).coerceAtLeast(1),
-                                completionTokens = tokenCount.coerceAtLeast(1),
-                                latencyMs        = result.latencyMs
-                            )
-                        }.onFailure { Log.w("AIRI_ACCOUNTING", "recordSuccess failed: ${it.message}") }
-                        refreshTodayTokens()
-                    }
-                    finish(result.text, result.latencyMs.coerceAtLeast(System.currentTimeMillis() - streamStart), tokenCount)
-                }
-                is RemoteModelExecutor.RemoteResult.Failure -> {
-                    // Record failure for reliability tracking
-                    viewModelScope.launch(Dispatchers.IO) {
-                        runCatching { tokenAccountant.recordFailure(execModePrefs.preferredProvider) }
-                    }
-                    val fallback = "الرد تأخر أكثر من 15 ثانية. حاول مرة أخرى أو استخدم نموذج أخف."
-                    val sessionId = currentSessionOrCreate()
-                    val assistantMessage = memoryManager.recordChatMessage(sessionId, "assistant", fallback)
-                    _messages.update { it + ChatMessage(fallback, isUser = false, assistantMessage.id) }
-                    streamAccumulator.setLength(0); _streamingText.value = ""
-                    _agentState.value = AgentState()
-                    refreshSessions()
-                }
-            }
-        }
-    }
-
-    private fun trimContext(messages: List<MemoryChatMessage>, perfMode: PerformanceMode): List<MemoryChatMessage> {
-        val recent = messages.takeLast(6)
-        val trimmed = ArrayDeque<MemoryChatMessage>()
-        var approxTokens = 0
-        val maxTokens = minOf(perfMode.contextWindow, 1500)
-        for (msg in recent.asReversed()) {
-            val count = (msg.content.length / 4).coerceAtLeast(1)
-            if (trimmed.isNotEmpty() && approxTokens + count > maxTokens) break
-            trimmed.addFirst(msg)
-            approxTokens += count
-        }
-        return trimmed.toList()
-    }
 
     private fun recordGenerationStats(elapsedMs: Long, tokenCount: Int) {
         val elapsed = elapsedMs.coerceAtLeast(1L)
         val tps = tokenCount * 1000f / elapsed
+        // Sync duration to ModelController so diagnostics snapshot reflects last generation
+        lastGenerationDurationMs = elapsed
+        modelController.lastGenerationDurationMs = elapsed
         Log.d("AIRI_PERF", "Generation complete: latency=${elapsed}ms tokens=$tokenCount tps=%.2f".format(tps))
 
         // ── Health monitor: slow generation is a runtime pressure signal ──────
@@ -1894,67 +1365,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return profile.tier == DeviceTier.LOW || profile.availableRamMb < 1500 || profile.cpuCores <= 4
     }
 
-    /**
-     * Build a [SubAgentContext] for the current send-message call.
-     *
-     * Permissions are checked at call time so the routing gate always has
-     * the freshest view (user may have granted/denied since last launch).
-     * Runtime capability tokens (e.g. [AndroidAgent.CAPABILITY_ACCESSIBILITY])
-     * come from [SubAgentRegistry.activeCapabilities] which the
-     * AccessibilityService updates live as it connects/disconnects.
-     */
-    private suspend fun buildSubAgentContext(
-        sessionId: String,
-        history:   List<com.airi.assistant.memory.entity.ChatMessage>,
-        query:     String = ""
-    ): SubAgentContext {
-        val cloudAllowed = execModePrefs.effectiveMode != ExecutionMode.LOCAL_ONLY
-
-        // Android manifest permissions to check for agent routing gate
-        val manifestPerms = listOf(
-            Manifest.permission.READ_CALENDAR,
-            Manifest.permission.WRITE_CALENDAR,
-            Manifest.permission.READ_CONTACTS,
-            Manifest.permission.WRITE_CONTACTS,
-            Manifest.permission.READ_CALL_LOG,
-            Manifest.permission.SEND_SMS
-        )
-        val granted = manifestPerms.filter { perm ->
-            ContextCompat.checkSelfPermission(appContext, perm) == PackageManager.PERMISSION_GRANTED
-        }.toMutableList()
-
-        // Add runtime capability tokens (accessibility, etc.)
-        granted.addAll(
-            com.airi.assistant.agent.subagent.SubAgentRegistry.activeCapabilities()
-        )
-
-        // ── RAG: inject semantically relevant prior context into agent turns ──
-        // Wire: RagRetriever.buildContextBlock() → prepended to recentTurns so
-        // every sub-agent (MemoryAgent, ResearchAgent, etc.) gets relevant prior
-        // context automatically without manual prompt engineering per-agent.
-        val ragRetriever = runCatching { ServiceLocator.ragRetriever }.getOrNull()
-        val ragBlock     = if (ragRetriever != null && query.isNotBlank()) {
-            withContext(Dispatchers.IO) {
-                runCatching { ragRetriever.buildContextBlock(sessionId, query, k = 4) }
-                    .getOrDefault("")
-            }
-        } else ""
-
-        val historyTurns = history.takeLast(6).map { "${it.role}: ${it.content.take(200)}" }
-        val recentTurns  = if (ragBlock.isNotBlank()) {
-            listOf("system_rag: $ragBlock") + historyTurns
-        } else {
-            historyTurns
-        }
-
-        return SubAgentContext(
-            sessionId          = sessionId,
-            userId             = "local_user",
-            recentTurns        = recentTurns,
-            grantedPermissions = granted,
-            privacyLevel       = if (cloudAllowed) SubAgentContext.PRIVACY_STANDARD else SubAgentContext.PRIVACY_MAXIMUM,
-            timeoutMs          = 25_000L
-        )
     }
 
     // ── Hybrid Execution public API ───────────────────────────────────────────
@@ -2042,8 +1452,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Convert an [EmbeddedProviderConfig.ProviderConfig] into a [RemoteModel]
-     * so that the existing [sendMessage] → [streamRemoteResponse] →
-     * [RemoteModelExecutor] pipeline can route to it without any changes.
+     * so that [hybridOrchestrator.executeStream] can route to it via the
+     * [RemoteModelExecutor] pipeline without any changes.
      *
      * Returns null if the provider requires a user API key that hasn't been
      * entered yet (so chat stays locked until the key is provided).
@@ -2363,6 +1773,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         if (_modelState.value.isModelLoading) return
 
+        // ── Phase 4: Privacy gate enforcement ─────────────────────────────────
+        // generateWithImage always uses the local llama.cpp runtime (no cloud path
+        // for multimodal JNI). Explicitly log LOCAL origin so ExecOrigin telemetry
+        // is consistent with the text inference path through HybridOrchestrator.
+        // Image bytes NEVER leave the device — assert this at the call site.
+        Log.i("AIRI_PROOF", "VISION_PRIVACY_GATE origin=LOCAL data=image_bytes_on_device_only")
+        AnalyticsService.inferenceStarted(
+            model  = _modelState.value.selectedModelName,
+            origin = com.airi.assistant.execution.ExecOrigin.LOCAL.name
+        )
+
         val visionReady = _modelState.value.capabilities.vision &&
                           runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
         val attachmentName = imageUri?.lastPathSegment ?: "camera_capture"
@@ -2632,7 +2053,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val file = copy.file
                 Log.i("AIRI_MODEL", "IMPORT SUCCESS path=${file.absolutePath} sourceBytes=${copy.sourceSizeBytes} copiedBytes=${copy.copiedBytes}")
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_IMPORT", true, "path=${file.absolutePath} copied=${copy.copiedBytes}")
-                val model = createModelFromFile(file, ModelSource.LOCAL_FILE, "custom")
+                val model = modelController.createModelFromFile(file, ModelSource.LOCAL_FILE, "custom")
                 when (val v = ModelValidator.validate(file, appContext, model.ramRequiredMb)) {
                     is ValidationResult.Valid -> {
                         ModelRegistry.addModel(model)
@@ -2642,11 +2063,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             .putString(KEY_MODEL_PATH, model.path)
                             .apply()
                         refreshModelList()
-                        loadModel(model)
+                        modelController.loadModel(model)
                     }
                     else -> {
                         file.delete()
-                        val (msg, type) = validationMessage(v)
+                        val (msg, type) = modelController.validationMessage(v)
                         _modelState.update {
                             it.copy(isModelLoading = false, isModelReady = false, loadError = msg,
                                 loadErrorType = type, loadProgress = -1, availableModels = ModelManager.getAllModels())
@@ -2670,7 +2091,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val model = ModelRegistry.getById(modelId) ?: return
         Log.i("AIRI_PROOF", "MODEL_ACTIVATED name=${model.name} id=${model.id} type=${model.type.label} path=${model.path}")
         preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
-        loadModel(model)
+        modelController.loadModel(model)
     }
 
     // ── Chat history import (mirror of export) ────────────────────────────────
@@ -2730,12 +2151,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val catalogMeta = ModelCatalog.entries.find { it.fileName == file.name }
-        val model = createModelFromFile(file, ModelSource.DOWNLOADED, "chat", catalogMeta)
+        val model = modelController.createModelFromFile(file, ModelSource.DOWNLOADED, "chat", catalogMeta)
         ModelRegistry.addModel(model)
         persistRegistry()
         preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
         refreshModelList()
-        loadModel(model)
+        modelController.loadModel(model)
     }
 
     fun downloadCatalogModel(entry: CatalogEntry) {
@@ -2774,12 +2195,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         com.airi.assistant.domain.verification.VerificationTracker.recordCheck("DOWNLOAD", true, "file=${file.absolutePath} size=${file.length()}")
-        val model = createModelFromFile(file, ModelSource.DOWNLOADED, "chat", entry)
+        val model = modelController.createModelFromFile(file, ModelSource.DOWNLOADED, "chat", entry)
         ModelRegistry.addModel(model)
         persistRegistry()
         preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
         refreshModelList()
-        loadModel(model)
+        modelController.loadModel(model)
     }
 
     fun startDefaultModelDownload() {
@@ -2842,13 +2263,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (existingFileNames.contains(s.fileName)) continue
                 val file = File(s.path)
                 val catalogMeta = ModelCatalog.entries.find { it.fileName == s.fileName }
-                val model = createModelFromFile(file, ModelSource.LOCAL_FILE, "custom", catalogMeta)
+                val model = modelController.createModelFromFile(file, ModelSource.LOCAL_FILE, "custom", catalogMeta)
                 ModelRegistry.addModel(model)
                 newScannedIds.add(model.id)
             }
             if (newScannedIds.isNotEmpty()) persistRegistry()
             val allScannedIds = _modelState.value.scannedModelIds + newScannedIds
-            persistScannedIds(allScannedIds)
+            modelController.persistScannedIds(allScannedIds)
             _modelState.update {
                 it.copy(isScanning = false, availableModels = ModelManager.getAllModels(), scannedModelIds = allScannedIds)
             }
@@ -2871,447 +2292,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _sessions.value = memoryManager.getAllSessions()
     }
 
-    private fun loadModel(model: ModelInfo) {
-        val file = File(model.path)
-        val validation = ModelValidator.validate(file, appContext, model.ramRequiredMb)
-        if (validation !is ValidationResult.Valid) {
-            val (msg, type) = validationMessage(validation)
-            _modelState.update {
-                it.copy(selectedModelId = model.id, selectedModelName = model.name,
-                    selectedModelPath = model.path, selectedModelSize = model.size,
-                    isModelLoading = false, isModelReady = false,
-                    loadError = msg, loadErrorType = type, loadProgress = -1,
-                    availableModels = ModelManager.getAllModels())
-            }
-            return
-        }
-        com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MEMORY", true, "model=${model.name} requiredMb=${model.ramRequiredMb}")
-        ModelManager.unload()
-        val loadStart = System.currentTimeMillis()
-        _modelState.update {
-            it.copy(selectedModelId = model.id, selectedModelName = model.name,
-                selectedModelPath = model.path, selectedModelSize = model.size,
-                isModelLoading = true, isModelReady = false,
-                loadError = null, loadErrorType = LoadErrorType.NONE, loadProgress = 0,
-                downloadedModelAvailable = downloadManager.isModelDownloaded(),
-                downloadedModelPath = downloadManager.getModelFile().absolutePath,
-                availableModels = ModelManager.getAllModels())
-        }
-        ModelManager.load(model, onProgress = { percent ->
-            _modelState.update { it.copy(loadProgress = percent) }
-        }) { success ->
-            if (success) {
-                val loadMs = System.currentTimeMillis() - loadStart
-                perfPrefs.edit().putLong("last_model_load_ms", loadMs).apply()
-                AnalyticsService.modelLoaded(model.name, loadMs)
-                preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
-                persistRegistry()
-                Log.i("AIRI_MODEL", "LOAD SUCCESS path=${model.path} model=${model.name} loadMs=$loadMs")
-                Log.i("AIRI_PROOF", "MODEL_LOAD_SUCCESS name=${model.name} type=${model.type.label} loadMs=${loadMs}ms path=${model.path}")
-                com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", true, "path=${model.path} loadMs=$loadMs")
-                modelLoadedAtMs = System.currentTimeMillis()
-                RuntimeEventLog.post(
-                    subsystem = "MODEL",
-                    severity  = EventSeverity.INFO,
-                    reason    = "Loaded: ${model.name} (${model.type.label}) in ${loadMs}ms"
-                )
-                // Start the thermal/memory watchdog now that we have a live model.
-                // stop() is called first so a second model-swap doesn't accumulate
-                // duplicate polling loops.
-                runtimeSupervisor.stop()
-                runtimeSupervisor.start()
-                refreshDiagnosticsSnapshot()
-            } else {
-                val failure = llamaManager.getLastLoadFailure() ?: "native inference engine returned failure"
-                Log.e("AIRI_MODEL", "LOAD FAILED: $failure")
-                Log.e("AIRI_PROOF", "MODEL_LOAD_FAILURE name=${model.name} type=${model.type.label} reason=$failure path=${model.path}")
-                com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", false, failure)
-            }
-            // Auto-detect capabilities ONLY on success. On failure we keep
-            // the prior (or fallback) capability profile so the UI doesn't
-            // claim "vision: no" for a load that never finished.
-            val newCaps = if (success) {
-                com.airi.assistant.ai.ModelCapabilities.detect(model)
-            } else {
-                _modelState.value.capabilities
-            }
-            _modelState.update {
-                val nativeReason = llamaManager.getLastLoadFailure() ?: "unknown reason / سبب غير معروف"
-                it.copy(isModelLoading = false, isModelReady = success,
-                    loadError = if (success) null
-                                else "Model failed to load: $nativeReason\nفشل تحميل النموذج: $nativeReason",
-                    loadErrorType = if (success) LoadErrorType.NONE else LoadErrorType.LOAD_FAILED,
-                    loadProgress = -1, availableModels = ModelManager.getAllModels(),
-                    capabilities = newCaps)
-            }
-            // Vision is auto-managed: when a text model finishes loading we
-            // silently try to re-attach any previously cached projector or a
-            // bundled asset. No user action required; if nothing's there the
-            // chat simply runs in text-only mode.
-            if (success) autoLoadVisionProjectorIfPresent(model)
-        }
-    }
-
-    /**
-     * Silently rehydrates the vision projector after a text model loads.
-     *
-     * Order of preference:
-     *   1. `cacheDir/mmproj_active.gguf`         (sticky from last session)
-     *   2. `filesDir/vision/mmproj.gguf`         (auto-installed projector)
-     *   3. `assets/vision/mmproj.gguf`           (APK-bundled fallback,
-     *                                             copied to cache once)
-     *
-     * Never prompts the user, never opens a picker, never writes a chat
-     * message on absence. The previous manual [loadMmproj] entry point is
-     * preserved for power users who want to point at a specific file.
-     */
-    private fun autoLoadVisionProjectorIfPresent(model: ModelInfo) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val cached = File(appContext.cacheDir, "mmproj_active.gguf")
-            val files  = File(appContext.filesDir, "vision/mmproj.gguf")
-            val source: File? = when {
-                cached.exists() && cached.length() > 1_000_000L -> cached
-                files.exists()  && files.length()  > 1_000_000L -> {
-                    // Promote to the cache path so the existing loader
-                    // contract stays unchanged.
-                    runCatching { files.copyTo(cached, overwrite = true) }.getOrNull()
-                }
-                else -> {
-                    // APK asset fallback (only attempted on first run after
-                    // an install that ships a bundled projector).
-                    runCatching {
-                        appContext.assets.open("vision/mmproj.gguf").use { input ->
-                            cached.outputStream().use { out -> input.copyTo(out) }
-                        }
-                        cached.takeIf { it.length() > 1_000_000L }
-                    }.getOrNull()
-                }
-            }
-            if (source == null) {
-                Log.d("AIRI_PROOF", "MMPROJ_AUTO_SKIP reason=no_projector_present model=${model.name}")
-                return@launch
-            }
-            Log.i("AIRI_PROOF", "MMPROJ_AUTO_TRY path=${source.absolutePath} bytes=${source.length()}")
-            val loaded = llamaManager.loadMmprojSerialized(source.absolutePath)
-            if (loaded) {
-                val caps = com.airi.assistant.ai.ModelCapabilities.detect(model)
-                withContext(Dispatchers.Main) {
-                    _modelState.update { it.copy(capabilities = caps) }
-                }
-                Log.i("AIRI_PROOF", "MMPROJ_AUTO_SUCCESS vision=${caps.vision}")
-            } else {
-                Log.w("AIRI_PROOF", "MMPROJ_AUTO_FAILED path=${source.absolutePath}")
-            }
-        }
-    }
-
-    private fun createInitialModelState(): ModelUiState {
-        restoreRegistry()
-        syncDownloadedModelAvailability()
-        val savedId    = preferences.getString(KEY_MODEL_ID, "").orEmpty()
-        val savedPath  = preferences.getString(KEY_MODEL_PATH, "").orEmpty()
-        val savedModel = ModelRegistry.getById(savedId)
-            ?: ModelRegistry.getAll().firstOrNull { it.path == savedPath }
-            ?: File(savedPath).takeIf { it.exists() && it.length() > 0 }
-                ?.let { f -> createModelFromFile(f, ModelSource.LOCAL_FILE, "custom", ModelCatalog.entries.find { it.fileName == f.name }) }
-        if (savedModel != null) { ModelRegistry.addModel(savedModel); persistRegistry() }
-        val downloadedFile = downloadManager.getModelFile()
-        return ModelUiState(
-            selectedModelId = savedModel?.id.orEmpty(),
-            selectedModelName = savedModel?.name ?: "No model",
-            selectedModelPath = savedModel?.path.orEmpty(),
-            selectedModelSize = savedModel?.size ?: 0L,
-            isModelReady = false,
-            downloadedModelAvailable = downloadManager.isModelDownloaded(),
-            downloadedModelPath = downloadedFile.absolutePath,
-            availableModels = ModelManager.getAllModels(),
-            catalogModels = ModelCatalog.entries,
-            scannedModelIds = restoreScannedIds()
-        )
-    }
-
-    private fun restoreRegistry() {
-        val json = preferences.getString(KEY_MODEL_REGISTRY, null) ?: return
-        val type = object : TypeToken<List<ModelInfo>>() {}.type
-        val restored = runCatching { gson.fromJson<List<ModelInfo>>(json, type) }.getOrNull().orEmpty()
-        ModelRegistry.replaceAll(restored.filter { File(it.path).exists() })
-    }
-
-    private fun persistRegistry() {
-        preferences.edit().putString(KEY_MODEL_REGISTRY, gson.toJson(ModelManager.getAllModels())).apply()
-    }
-
-    private fun syncDownloadedModelAvailability() {
-        val modelsDir = runCatching { downloadManager.getModelsDir() }.getOrNull() ?: return
-        val ggufFiles = modelsDir.listFiles()
-            ?.filter { it.isFile && it.name.lowercase().endsWith(".gguf") && it.length() > 50_000_000L }
-            ?: emptyList()
-        Log.i("AIRI_PROOF", "SYNC_MODELS_SCAN dir=${modelsDir.absolutePath} ggufCount=${ggufFiles.size}")
-        var changed = false
-        for (file in ggufFiles) {
-            val catalogMeta = ModelCatalog.entries.find { it.fileName == file.name }
-            val model = createModelFromFile(file, ModelSource.DOWNLOADED, "chat", catalogMeta)
-            if (ModelRegistry.getById(model.id) == null) {
-                ModelRegistry.addModel(model)
-                changed = true
-                Log.i("AIRI_PROOF", "MODEL_REGISTERED name=${model.name} source=DOWNLOADED_SCAN path=${file.absolutePath}")
-            }
-        }
-        if (changed) persistRegistry()
-    }
-
-    private fun refreshModelList() {
-        _modelState.update { it.copy(availableModels = ModelManager.getAllModels()) }
-    }
-
-    private fun createModelFromFile(
-        file: File, source: ModelSource, type: String, catalogMeta: CatalogEntry? = null
-    ): ModelInfo {
-        val matched = catalogMeta ?: ModelCatalog.entries.find { it.fileName == file.name }
-        return ModelInfo(
-            name          = matched?.name ?: file.nameWithoutExtension,
-            fileName      = file.name,
-            size          = file.length(),
-            quantization  = matched?.quantization ?: detectQuantization(file.name),
-            path          = file.absolutePath,
-            source        = source,
-            id            = file.absolutePath,
-            type          = matched?.type ?: when (type.lowercase()) {
-                "gemma"   -> ModelType.GEMMA
-                "mistral" -> ModelType.MISTRAL
-                "llama"   -> ModelType.LLAMA
-                else      -> ModelType.inferFromFileName(file.name)
-            },
-            isLocal       = true,
-            ramRequiredMb = matched?.ramRequiredMb ?: 0,
-            contextSize   = matched?.contextSize ?: 4096
-        )
-    }
-
-    private fun detectQuantization(fileName: String): String {
-        val lower = fileName.lowercase()
-        return when {
-            "q4_k_m" in lower -> "Q4_K_M"; "q4" in lower -> "4-bit"
-            "q5" in lower -> "5-bit"; "q8" in lower -> "8-bit"; else -> "GGUF"
-        }
-    }
-
-    private fun validationMessage(result: ValidationResult): Pair<String, LoadErrorType> = when (result) {
-        is ValidationResult.FileNotFound    -> "الملف غير موجود أو تم حذفه" to LoadErrorType.FILE_NOT_FOUND
-        is ValidationResult.InvalidFormat   -> "صيغة الملف غير صحيحة — يجب أن يكون ملف GGUF حقيقي" to LoadErrorType.INVALID_FORMAT
-        is ValidationResult.TooSmall        -> "حجم الملف صغير جداً — قد يكون التحميل غير مكتمل" to LoadErrorType.TOO_SMALL
-        is ValidationResult.InsufficientRam -> "الذاكرة غير كافية (مطلوب ${result.requiredMb} MB، متاح ${result.availableMb} MB)" to LoadErrorType.INSUFFICIENT_RAM
-        else -> "خطأ غير متوقع" to LoadErrorType.LOAD_FAILED
-    }
-
-    private fun persistScannedIds(ids: Set<String>) {
-        preferences.edit().putString(KEY_SCANNED_IDS, ids.joinToString("|")).apply()
-    }
-
-    private fun restoreScannedIds(): Set<String> {
-        val raw = preferences.getString(KEY_SCANNED_IDS, "") ?: ""
-        return if (raw.isBlank()) emptySet() else raw.split("|").toSet()
-    }
-
-    // ── Runtime Diagnostics API ───────────────────────────────────────────────
-
-    /**
-     * Called by PerformanceScreen's LaunchedEffect(Unit) when the diagnostics
-     * panel first becomes visible. Triggers a one-shot snapshot so the UI
-     * always shows fresh data rather than the zero-value default.
-     */
-    fun onDiagnosticsScreenVisible() {
-        refreshDiagnosticsSnapshot()
-    }
-
-    /**
-     * Build and emit a fresh [RuntimeDiagnosticsState] snapshot.
-     *
-     * Runs on [Dispatchers.Default] — reads system services (ActivityManager,
-     * PowerManager) and native read-only accessors (getKvPosition, getNCtx,
-     * nativeGetSessionId, nativeGetGenerationId, getModelDescription,
-     * isDraftLoaded). All native calls are wrapped in runCatching so a
-     * not-yet-loaded library returns safe defaults instead of crashing.
-     *
-     * Never called from the token hot-path. Called at:
-     *  - Model load success
-     *  - Generation complete (via finish lambda)
-     *  - Generation error recovery
-     *  - Supervisor override
-     *  - PerformanceScreen open (onDiagnosticsScreenVisible)
-     */
-    private fun refreshDiagnosticsSnapshot() {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
-            // ── Thermal ───────────────────────────────────────────────────────
-            val (thermalLevel, thermalRaw) = readThermalLevel()
-
-            // ── Memory ────────────────────────────────────────────────────────
-            val am = appContext.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-            val memInfo = ActivityManager.MemoryInfo()
-            am.getMemoryInfo(memInfo)
-            val availRamMb  = memInfo.availMem / (1024L * 1024L)
-            val isLowMemory = memInfo.lowMemory
-
-            // ── Context (KV) usage ────────────────────────────────────────────
-            val kvUsed = runCatching { LlamaNative.getKvPosition() }.getOrDefault(0)
-            val kvMax  = runCatching { LlamaNative.getNCtx() }.getOrDefault(0)
-
-            // ── Model info ────────────────────────────────────────────────────
-            val modelName = _modelState.value.selectedModelName.ifBlank { "—" }
-            val modelDesc = runCatching { LlamaNative.getModelDescription() }
-                .getOrDefault("UNAVAILABLE")
-            val modelQuant = extractQuant(modelDesc)
-
-            // ── Speculative / draft ───────────────────────────────────────────
-            val draftActive = runCatching { LlamaNative.isDraftLoaded() }.getOrDefault(false)
-
-            // ── Session / generation IDs ──────────────────────────────────────
-            val sessionId    = runCatching { LlamaNative.nativeGetSessionId() }.getOrDefault(0L)
-            val generationId = runCatching { LlamaNative.nativeGetGenerationId() }.getOrDefault(0L)
-
-            // ── Uptime ────────────────────────────────────────────────────────
-            val uptimeMs = if (modelLoadedAtMs > 0L)
-                System.currentTimeMillis() - modelLoadedAtMs else 0L
-
-            // ── Performance mode ──────────────────────────────────────────────
-            val mode = _performanceMode.value
-
-            // ── Build partial snapshot ────────────────────────────────────────
-            val partial = RuntimeDiagnosticsState(
-                effectiveMode        = mode.name,
-                modeSource           = _modeSource.value,
-                thermalLevel         = thermalLevel,
-                thermalRaw           = thermalRaw,
-                availRamMb           = availRamMb,
-                isLowMemory          = isLowMemory,
-                kvUsed               = kvUsed,
-                kvMax                = kvMax,
-                modelName            = modelName,
-                modelQuant           = modelQuant,
-                generationPhase      = _generationPhase.value,
-                tokensPerSec         = llamaManager.lastMetrics.tokensPerSec,
-                draftModelActive     = draftActive,
-                gpuVulkanActive      = false,   // CPU-only inference; no GPU backend loaded
-                sessionId            = sessionId,
-                generationId         = generationId,
-                replayTokenCount     = 0,
-                nCtx                 = mode.nCtx,
-                nThreads             = mode.nThreads,
-                runtimeUptimeMs      = uptimeMs,
-                generationDurationMs = lastGenerationDurationMs,
-                speculativeActive    = draftActive
-            )
-
-            // ── Pre-compute warnings (avoids work during recomposition) ───────
-            val warnings = buildWarnings(partial)
-            _runtimeDiagnostics.value = partial.copy(warnings = warnings)
-        }
-    }
-
-    /**
-     * Derives active warnings from an immutable [RuntimeDiagnosticsState].
-     * Called on [Dispatchers.Default] inside [refreshDiagnosticsSnapshot].
-     * Returns an empty list when the runtime is healthy.
-     */
-    private fun buildWarnings(state: RuntimeDiagnosticsState): List<String> {
-        val w = mutableListOf<String>()
-
-        if (state.modeSource == ModeSource.SUPERVISOR_THERMAL) {
-            w += "Thermal throttling active — runtime downgraded to ${state.effectiveMode}"
-        }
-        if (state.modeSource == ModeSource.SUPERVISOR_MEMORY) {
-            w += "Low memory pressure — runtime downgraded to ${state.effectiveMode}"
-        }
-        if (state.thermalLevel == ThermalLevel.SEVERE || state.thermalLevel == ThermalLevel.CRITICAL) {
-            if (state.modeSource != ModeSource.SUPERVISOR_THERMAL) {
-                w += "Device thermal status: ${state.thermalLevel.name} — consider reducing workload"
-            }
-        }
-        if (state.isLowMemory && state.modeSource != ModeSource.SUPERVISOR_MEMORY) {
-            w += "System is reporting low memory — model may be evicted from RAM"
-        }
-        if (state.kvMax > 0 && state.kvUsed * 100 / state.kvMax >= 85) {
-            w += "Context nearing overflow (${state.kvUsed}/${state.kvMax} tokens used, ${
-                state.kvUsed * 100 / state.kvMax}%)"
-        }
-        if (state.speculativeActive && !state.draftModelActive) {
-            w += "Speculative decoding enabled but draft model is not loaded"
-        }
-        return w
-    }
-
-    /**
-     * Read the device's current thermal status (API 29+).
-     * Returns [ThermalLevel.NONE] with raw=0 on older devices or on any error.
-     */
-    private fun readThermalLevel(): Pair<ThermalLevel, Int> {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            return ThermalLevel.NONE to 0
-        }
-        return try {
-            val pm = appContext.getSystemService(Context.POWER_SERVICE) as PowerManager
-            val status = pm.currentThermalStatus
-            val level = when {
-                status >= 4 -> ThermalLevel.CRITICAL
-                status == 3 -> ThermalLevel.SEVERE
-                status == 2 -> ThermalLevel.MODERATE
-                status == 1 -> ThermalLevel.LIGHT
-                else        -> ThermalLevel.NONE
-            }
-            level to status
-        } catch (t: Throwable) {
-            Log.w("AIRI_DIAG", "readThermalLevel failed: ${t.message}")
-            ThermalLevel.NONE to 0
-        }
-    }
-
-    /**
-     * Extract a quantization label (e.g. "Q4_K_M", "Q8_0", "F16") from the
-     * raw model description string returned by [LlamaNative.getModelDescription].
-     * Returns "—" if the library is not loaded or the quant label is absent.
-     */
-    private fun extractQuant(modelDesc: String): String {
-        if (modelDesc == "UNAVAILABLE" || modelDesc.isBlank()) return "—"
-        val desc = modelDesc.substringBefore('|')
-        val quantRegex = Regex(
-            "(IQ\\d+[_A-Z]*|Q\\d+[_KM_SLX0]*|BF16|F16|F32)",
-            RegexOption.IGNORE_CASE
-        )
-        return quantRegex.find(desc)?.value ?: "unknown"
-    }
 
     private companion object {
-        const val KEY_MODEL_ID       = "selected_model_id"
-        const val KEY_MODEL_PATH     = "selected_model_path"
-        const val KEY_MODEL_REGISTRY = "model_registry_json"
-        const val KEY_SCANNED_IDS    = "scanned_model_ids"
-        const val KEY_SESSION_ID     = "current_session_id"
+        // KEY_MODEL_ID, KEY_MODEL_PATH, KEY_MODEL_REGISTRY, KEY_SCANNED_IDS
+        // moved to ModelController (Phase 9 ViewModel decomposition).
+        const val KEY_SESSION_ID = "current_session_id"
 
-        // Generation latency above this on a local model is treated as a
-        // pressure signal and fed to RuntimeHealthMonitor.
         const val SLOW_GENERATION_WARN_MS = 10_000L
-        // ── Phase 1.5 — semantic memory injection budget ────────────────────────
-        // Hard cap on the share of n_ctx that semantic recall is allowed to
-        // consume. PromptCompressor keeps its own 90% n_ctx budget; this is
-        // an EARLIER, tighter cap so memory cannot starve the user prompt or
-        // the recent-history slice. 20% means at nCtx=2048 → ≤410 tokens of
-        // recall; at nCtx=4096 → ≤819. Both leave ample room for everything
-        // else and stay well under the llama.cpp KV ceiling that the user
-        // explicitly warned about ("crashes easily with large contexts").
-        const val SEMANTIC_BUDGET_PCT = 20
-        const val SEMANTIC_TOP_K      = 5
-
-        // Phase 1: Appended to the system prompt for QueryType.ACTION requests so the LLM
-        // produces a machine-readable JSON plan alongside its natural-language reply.
-        // UnifiedCognitiveLoop.process() parses this plan and routes each step through
-        // CommandRouter → AccessibilityExecutionEngine → TypedPlanGraph.
-        const val ACTION_PLAN_SUFFIX =
-            "\n\nIf this request requires device actions, after your natural reply append " +
-            "a JSON execution plan on a single line:\n" +
-            "{\"goal\":\"<goal>\",\"steps\":[{\"id\":\"1\",\"action\":\"<action>\"," +
-            "\"params\":{\"app\":\"<package_or_name>\",\"target\":\"<ui_element>\"," +
-            "\"text\":\"<text_to_type>\"},\"depends_on\":[]}]}\n" +
-            "Supported actions: open_app, click, type, search, scroll, navigate, wait. " +
-            "Only include steps actually needed; omit params that do not apply."
+        const val SEMANTIC_BUDGET_PCT     = 20
+        const val SEMANTIC_TOP_K          = 5
     }
 }

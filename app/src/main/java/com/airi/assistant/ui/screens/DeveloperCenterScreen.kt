@@ -84,7 +84,8 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
 private fun RuntimeTab() {
     val events by AgentActivityBus.recentEvents.collectAsStateWithLifecycle()
     val busState by com.airi.assistant.core.ExecutionStatusBus.status.collectAsStateWithLifecycle()
-    val agentCaps = remember { com.airi.assistant.agent.multiagent.AgentCapabilityGraph.allActive() }
+    // Use real registered agents from SubAgentRegistry, not the deleted AgentCapabilityGraph
+    val registeredAgents = remember { com.airi.assistant.agent.subagent.SubAgentRegistry.getAll() }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -97,14 +98,14 @@ private fun RuntimeTab() {
             DevRow("Retries",busState.retryCount.toString())
         }
 
-        // Active agents
-        DevCard(title = "Active Agents (${agentCaps.size})") {
-            agentCaps.forEach { agent ->
+        // Active agents — real list from SubAgentRegistry
+        DevCard(title = "Registered Agents (${registeredAgents.size})") {
+            registeredAgents.forEach { agent ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(vertical = 3.dp)) {
                     Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(SemanticSuccess))
-                    Text(agent.displayName, fontSize = 12.sp, color = Color.White.copy(0.8f), modifier = Modifier.weight(1f))
-                    Text(agent.capabilities.take(3).joinToString(", "), fontSize = 10.sp, color = Color.White.copy(0.35f))
+                    Text(agent.capability.agentId, fontSize = 12.sp, color = Color.White.copy(0.8f), modifier = Modifier.weight(1f))
+                    Text(agent.capability.description.take(40), fontSize = 10.sp, color = Color.White.copy(0.35f))
                 }
             }
         }

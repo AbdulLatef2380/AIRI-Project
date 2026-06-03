@@ -6,9 +6,8 @@ import com.airi.assistant.agent.planning.GoalNode
 import com.airi.assistant.agent.planning.GraphSnapshot
 import com.airi.assistant.agent.planning.NodeStatus
 import com.airi.assistant.agent.planning.RecoveryBranch
-import com.airi.assistant.agent.planning.RecoveryManager
-import com.airi.assistant.agent.planning.RecoveryStrategy
 import com.airi.assistant.agent.reflection.AdaptiveRetryPolicy
+import com.airi.assistant.agent.reflection.RecoveryStrategy
 import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgent
 import com.airi.assistant.agent.subagent.SubAgentCapability
@@ -90,16 +89,10 @@ class ProductionAgentOrchestrator {
     @Volatile
     var observabilityHub: com.airi.assistant.agent.observability.AgentObservabilityHub? = null
 
-    private val recoveryManager      = RecoveryManager()
-
     /**
-     * Adaptive retry policy tracks per-agent-type failure rates across tasks within
-     * this orchestrator's lifetime. When an agent type fails ≥65% of the time over
-     * ≥3 samples, [AdaptiveRetryPolicy.selectStrategy] escalates immediately to
-     * COMPENSATE instead of wasting retry budget on a systematically broken agent.
-     *
-     * Lives on the orchestrator (not RecoveryManager) so it accumulates signal across
-     * all plan executions — RecoveryManager is stateless and decides per-error.
+     * Adaptive retry policy tracks per-agent-type failure rates across tasks.
+     * When an agent type fails ≥65% of the time over ≥3 samples,
+     * selectStrategy() escalates to ABORT instead of wasting retry budget.
      */
     private val adaptiveRetryPolicy = AdaptiveRetryPolicy()
 
@@ -417,10 +410,9 @@ class ProductionAgentOrchestrator {
         if (timedOut == null) {
             val reason = "Task timed out after ${timeoutMs}ms"
             Log.w(TAG, "Task ${task.id} timed out after ${timeoutMs}ms")
-            // On first attempt only (retryAttempt == 0): try once more with half the budget.
-            // shouldRetry(0, COMPENSATE) → 0 < 1 → true; shouldRetry(1, ...) → false → stops.
-            if (recoveryManager.shouldRetry(retryAttempt, RecoveryStrategy.COMPENSATE)) {
-                Log.i(TAG, "Recovery: timeout retry attempt=${retryAttempt + 1} task=${task.id}")
+            // On timeout, allow one retry with half the time budget
+            if (retryAttempt == 0) {
+                Log.i(TAG, "Recovery: timeout retry attempt=1 task=${task.id}")
                 val retryContext = context.copy(timeoutMs = timeoutMs / 2)
                 val retryResult  = executeTask(
                     task.copy(context = retryContext), retryContext,
@@ -429,7 +421,7 @@ class ProductionAgentOrchestrator {
                 taskSpanId?.let {
                     observabilityHub?.endSpan(it, success = retryResult is TaskResult.Success,
                         attributes = mapOf("recovery" to "timeout_retry",
-                                           "attempt"  to (retryAttempt + 1).toString()))
+                                           "attempt"  to "1"))
                 }
                 return retryResult
             }
@@ -439,57 +431,40 @@ class ProductionAgentOrchestrator {
         }
 
         return if (taskError == null) {
-            // Record success so AdaptiveRetryPolicy can track this agent type's reliability.
             adaptiveRetryPolicy.recordSuccess(agent.capability.agentId)
             taskSpanId?.let { observabilityHub?.endSpan(it, success = true,
                 attributes = mapOf("result_len" to resultText.length.toString())) }
             TaskResult.Success(text = resultText, toolsUsed = toolsUsed)
         } else {
             val error = taskError!!
-
-            // ── Adaptive strategy selection ────────────────────────────────────
-            // RecoveryManager.diagnose() classifies the error message (network,
-            // timeout, permission, logic, etc.) but is stateless — it can't see
-            // that this agent type has been failing 4 out of 5 times.
-            //
-            // AdaptiveRetryPolicy overlays that signal: if the agent is
-            // systematically failing, it escalates to COMPENSATE or ABORT before
-            // wasting another retry budget slot.
-            val baseStrategy     = recoveryManager.diagnose(RuntimeException(error))
+            // Classify error: network/timeout errors get one retry; permission/logic errors abort.
+            val shouldAbort = error.contains("permission", ignoreCase = true) ||
+                              error.contains("denied", ignoreCase = true) ||
+                              error.contains("not found", ignoreCase = true) ||
+                              error.contains("invalid", ignoreCase = true)
             val adaptiveDecision = adaptiveRetryPolicy.selectStrategy(
                 actionType     = agent.capability.agentId,
                 failureMessage = error,
                 attemptNumber  = retryAttempt + 1
             )
-            // Take the more conservative (escalated) strategy so systematic failure
-            // patterns are acted on, not masked by blind retry loops.
-            val strategy = when {
-                adaptiveDecision.strategy == RecoveryStrategy.ABORT                          -> RecoveryStrategy.ABORT
-                adaptiveDecision.strategy == RecoveryStrategy.COMPENSATE &&
-                    baseStrategy != RecoveryStrategy.ABORT                                   -> RecoveryStrategy.COMPENSATE
-                else                                                                         -> baseStrategy
-            }
+            val abort = shouldAbort || adaptiveDecision.strategy.name == "ABORT" || retryAttempt >= 2
             adaptiveRetryPolicy.recordFailure(agent.capability.agentId)
 
-            Log.i(TAG, "Recovery: base=$baseStrategy adaptive=${adaptiveDecision.strategy} " +
-                "final=$strategy attempt=$retryAttempt task=${task.id} error=${error.take(80)}")
+            Log.i(TAG, "Recovery: abort=$abort adaptive=${adaptiveDecision.strategy} " +
+                "attempt=$retryAttempt task=${task.id} error=${error.take(80)}")
 
-            // shouldRetry(retryAttempt, strategy) uses the live attempt counter so
-            // each recursive call increments retryAttempt until the budget is exhausted.
-            val finalResult: TaskResult = when {
-                strategy == RecoveryStrategy.ABORT                          -> TaskResult.Failure(error)
-                recoveryManager.shouldRetry(retryAttempt, strategy)        -> {
-                    Log.i(TAG, "Recovery: retrying task=${task.id} attempt=${retryAttempt + 1}")
-                    executeTask(task, context, onEvent, allEvents, workspace, retryAttempt + 1)
-                }
-                else                                                        -> TaskResult.Failure(error)
+            val finalResult: TaskResult = if (abort) {
+                TaskResult.Failure(error)
+            } else {
+                Log.i(TAG, "Recovery: retrying task=${task.id} attempt=${retryAttempt + 1}")
+                executeTask(task, context, onEvent, allEvents, workspace, retryAttempt + 1)
             }
             taskSpanId?.let {
                 observabilityHub?.endSpan(it, success = finalResult is TaskResult.Success,
                     attributes = mapOf(
-                        "recovery_strategy" to strategy.name,
-                        "attempt"           to retryAttempt.toString(),
-                        "error"             to error.take(120)
+                        "abort"    to abort.toString(),
+                        "attempt"  to retryAttempt.toString(),
+                        "error"    to error.take(120)
                     ))
             }
             finalResult

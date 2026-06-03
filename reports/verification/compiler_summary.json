@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-06-01 02:35:30",
+  "files_analyzed": 395,
+  "symbols_indexed": 814,
+  "verdict": "BUILD_LIKELY",
+  "gradle_success_probability_pct": 75,
+  "critical": 0,
+  "high": 90,
+  "medium": 0,
+  "deleted_symbol_live_refs": 0,
+  "deleted_symbol_imports": 0,
+  "reflection_to_deleted": 0,
+  "manifest_issues": 0
+}

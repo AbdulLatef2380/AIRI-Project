@@ -2,6 +2,7 @@ package com.airi.assistant.ai.prompt
 
 import android.content.Context
 import android.util.Log
+import com.airi.assistant.accessibility.security.AccessibilityPolicyGuard
 import com.airi.assistant.memory.entity.ChatMessage
 
 /**
@@ -200,12 +201,17 @@ object PromptCompressor {
             sb.append(baseSystemPrompt.trim()).append('\n')
         }
         if (facts.isNotEmpty()) {
+            // Phase 7: isolate retrieved facts behind injection-prevention boundary
+            val rawFacts = facts.joinToString("\n") { "- $it" }
+            val isolated = AccessibilityPolicyGuard.wrapRetrievedContent(rawFacts)
             sb.append("\n[Memory — known user facts]\n")
-            for (f in facts) sb.append("- ").append(f).append('\n')
+            sb.append(isolated).append('\n')
         }
         if (summary.isNotBlank()) {
+            // Phase 7: isolate conversation summary behind injection-prevention boundary
+            val isolated = AccessibilityPolicyGuard.wrapRetrievedContent(summary.trim())
             sb.append("\n[Summary of earlier conversation]\n")
-              .append(summary.trim()).append('\n')
+            sb.append(isolated).append('\n')
         }
         return sb.toString().trimEnd()
     }

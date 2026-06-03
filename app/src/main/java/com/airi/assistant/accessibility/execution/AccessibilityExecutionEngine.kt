@@ -1,6 +1,7 @@
 package com.airi.assistant.accessibility.execution
 
 import android.util.Log
+import com.airi.assistant.accessibility.security.AccessibilityPolicyGuard
 import com.airi.assistant.accessibility.service.AiriAccessibilityService
 import com.airi.assistant.agent.execution.command.AccessibilityCommandBridge
 import com.airi.assistant.agent.execution.node.NodeScanner
@@ -103,16 +104,29 @@ class AccessibilityExecutionEngine {
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * Execute an autonomous accessibility task.
+     * LLM provider for the PLAN step. Set this before calling [executeTask] so
+     * the engine can ask the model "what is the next single action to take?"
+     * after each OBSERVE step.
      *
-     * Returns a cold [Flow] of [ExecutionEvent] — collect it to drive execution.
-     * The flow completes (successfully or with error) when the task is done.
+     * If null, falls back to a heuristic single-action mapper (open_app / tap / type).
+     * The fallback handles the most common one-step requests without requiring LLM.
+     */
+    var llmPlanner: (suspend (prompt: String) -> String)? = null
+
+    /**
+     * Execute an autonomous accessibility task using the LLM-driven
+     * OBSERVE → PLAN(LLM) → EXECUTE → VERIFY loop.
      *
-     * REQUIRES: AiriAccessibilityService must be enabled and connected.
-     * REQUIRES: User consent must be obtained before calling this.
-     * REQUIRES: Call [reset] if [killSwitch] was previously called.
+     * Key differences from the old regex-based planner:
+     *   • No pre-generated multi-step plan. Each action is decided AFTER observing
+     *     the result of the previous one.
+     *   • The LLM sees the current screen state and task goal, and returns ONE
+     *     action in structured JSON (or "done" / "failed").
+     *   • maxActions enforces a hard cap; no runaway loops.
      *
-     * @param taskDescription Natural-language task (e.g. "Open Settings and turn on Wi-Fi")
+     * REQUIRES: AiriAccessibilityService enabled and connected.
+     * REQUIRES: User consent obtained before calling.
+     * REQUIRES: [reset] called if [killSwitch] was previously used.
      */
     fun executeTask(taskDescription: String): Flow<ExecutionEvent> = flow {
 
@@ -123,11 +137,7 @@ class AccessibilityExecutionEngine {
 
         val service = AiriAccessibilityService.instance
         if (service == null) {
-            emit(ExecutionEvent.PhaseChanged(
-                ExecutionPhase.OBSERVE, "Accessibility service not connected"
-            ))
-            emit(ExecutionEvent.Complete(success = false,
-                summary = "Accessibility service not enabled"))
+            emit(ExecutionEvent.Complete(success = false, summary = "Accessibility service not enabled"))
             return@flow
         }
 
@@ -137,99 +147,86 @@ class AccessibilityExecutionEngine {
 
         var actionCount = 0
         var succeeded   = false
+        val actionHistory = mutableListOf<String>()  // For LLM context
 
         try {
-            // ── PHASE: OBSERVE ─────────────────────────────────────────────
-            emit(ExecutionEvent.PhaseChanged(ExecutionPhase.OBSERVE, "Capturing screen context"))
+            while (actionCount < maxActions && !killed.get()) {
 
-            val screenCtx = observeScreen(service)
-            log(ExecutionPhase.OBSERVE, "App: ${screenCtx.packageName}  Nodes: ${screenCtx.nodeCount}")
-            emit(ExecutionEvent.ScreenObserved(screenCtx))
+                // ── OBSERVE ────────────────────────────────────────────────
+                emit(ExecutionEvent.PhaseChanged(ExecutionPhase.OBSERVE, "Observing screen…"))
+                val screenCtx = observeScreen(service)
+                log(ExecutionPhase.OBSERVE, "App: ${screenCtx.packageName}  Nodes: ${screenCtx.nodeCount}")
+                emit(ExecutionEvent.ScreenObserved(screenCtx))
 
-            // ── PHASE: PLAN ────────────────────────────────────────────────
-            emit(ExecutionEvent.PhaseChanged(ExecutionPhase.PLAN, "Planning actions"))
-
-            val plan = planActions(taskDescription, screenCtx)
-            log(ExecutionPhase.PLAN, "Plan: ${plan.size} actions")
-            emit(ExecutionEvent.PlanReady(plan))
-
-            // ── PHASE: EXECUTE + VERIFY loop ───────────────────────────────
-            for (action in plan) {
-                if (killed.get()) {
-                    emit(ExecutionEvent.Cancelled("Cancelled during execution"))
-                    break
-                }
-                if (actionCount >= maxActions) {
-                    log(ExecutionPhase.EXECUTE, "Max action cap ($maxActions) reached", success = false)
-                    emit(ExecutionEvent.PhaseChanged(ExecutionPhase.EXECUTE,
-                        "Action cap reached — stopping"))
-                    break
+                // ── SECURITY: Package deny-list ────────────────────────────
+                val policyDecision = AccessibilityPolicyGuard.checkPackage(screenCtx.packageName)
+                if (policyDecision is AccessibilityPolicyGuard.PolicyDecision.Denied) {
+                    log(ExecutionPhase.EXECUTE, "BLOCKED: ${policyDecision.reason}", false)
+                    emit(ExecutionEvent.Complete(success = false, summary = policyDecision.reason))
+                    return@flow
                 }
 
-                emit(ExecutionEvent.PhaseChanged(ExecutionPhase.EXECUTE,
-                    "Executing: ${action.description}"))
+                // ── PLAN (LLM decides single next action) ──────────────────
+                emit(ExecutionEvent.PhaseChanged(ExecutionPhase.PLAN, "Deciding next action…"))
+                val action = decideNextAction(taskDescription, screenCtx, actionHistory)
+                log(ExecutionPhase.PLAN, "Next action: ${action.description}")
+                emit(ExecutionEvent.PlanReady(listOf(action)))
 
+                // Done / Observe-only signals
+                if (action is ExecutionAction.Done) {
+                    succeeded = true
+                    break
+                }
+                if (action is ExecutionAction.Observe) {
+                    log(ExecutionPhase.OBSERVE, "Cannot determine next action: ${action.reason}")
+                    emit(ExecutionEvent.Complete(success = false, summary = "Cannot proceed: ${action.reason}"))
+                    return@flow
+                }
+
+                // ── EXECUTE ────────────────────────────────────────────────
+                emit(ExecutionEvent.PhaseChanged(ExecutionPhase.EXECUTE, "Executing: ${action.description}"))
                 var retries = 0
                 var actionSucceeded = false
 
                 while (retries <= maxRetries && !killed.get()) {
                     if (retries > 0) {
                         emit(ExecutionEvent.RecoveryAttempt(retries, action.description))
-                        log(ExecutionPhase.RECOVER, "Retry $retries for: ${action.description}")
                         delay(500L * retries)
                     }
-
                     val result = executeAction(service, action)
                     actionCount++
-                    log(ExecutionPhase.EXECUTE, "${action.description}: ${result.message}",
-                        success = result.success)
-                    emit(ExecutionEvent.ActionExecuted(
-                        action  = action.description,
-                        result  = result.message,
-                        success = result.success
-                    ))
+                    log(ExecutionPhase.EXECUTE, "${action.description}: ${result.message}", result.success)
+                    emit(ExecutionEvent.ActionExecuted(action.description, result.message, result.success))
 
-                    // ── VERIFY ─────────────────────────────────────────────
                     if (result.success) {
-                        emit(ExecutionEvent.PhaseChanged(ExecutionPhase.VERIFY,
-                            "Verifying: ${action.description}"))
-                        delay(300L) // allow UI to settle
-
+                        // ── VERIFY ─────────────────────────────────────────
+                        emit(ExecutionEvent.PhaseChanged(ExecutionPhase.VERIFY, "Verifying…"))
+                        delay(350L)
                         val verified = verifyAction(service, action)
-                        log(ExecutionPhase.VERIFY, "Verified=${verified.passed}: ${verified.details}")
+                        log(ExecutionPhase.VERIFY, "passed=${verified.passed}: ${verified.details}")
                         emit(ExecutionEvent.StepVerified(verified.passed, verified.details))
-
-                        if (verified.passed) {
-                            actionSucceeded = true
-                            break
-                        }
-                        // Failed verify → retry
-                        retries++
-                    } else {
-                        retries++
+                        if (verified.passed) { actionSucceeded = true; break }
                     }
+                    retries++
                 }
 
                 if (!actionSucceeded && !killed.get()) {
-                    log(ExecutionPhase.RECOVER, "Action failed after $retries retries: ${action.description}",
-                        success = false)
-                    emit(ExecutionEvent.PhaseChanged(ExecutionPhase.RECOVER,
-                        "Failed: ${action.description} — attempting recovery"))
-
-                    // Recovery: try pressing Back then re-observe
+                    log(ExecutionPhase.RECOVER, "Action failed: ${action.description}", false)
+                    emit(ExecutionEvent.PhaseChanged(ExecutionPhase.RECOVER, "Recovery: pressing back"))
                     AccessibilityCommandBridge.performBack()
                     delay(400L)
+                    actionHistory.add("FAILED: ${action.description}")
+                } else {
+                    actionHistory.add("OK: ${action.description}")
                 }
             }
 
-            succeeded = !killed.get()
+            succeeded = succeeded || (!killed.get() && actionCount > 0)
 
         } catch (e: CancellationException) {
-            log(ExecutionPhase.EXECUTE, "Task cancelled: ${e.message}", success = false)
             emit(ExecutionEvent.Cancelled(e.message ?: "Cancelled"))
             return@flow
         } catch (e: Exception) {
-            log(ExecutionPhase.EXECUTE, "Task error: ${e.message}", success = false)
             Log.e(TAG, "Task execution error", e)
             emit(ExecutionEvent.Complete(success = false, summary = "Error: ${e.message}"))
             return@flow
@@ -240,11 +237,135 @@ class AccessibilityExecutionEngine {
 
         emit(ExecutionEvent.Complete(
             success = succeeded,
-            summary = if (succeeded) "Task completed ($actionCount actions)"
-                      else "Task stopped ($actionCount actions executed)"
+            summary = if (succeeded) "Done ($actionCount actions)" else "Stopped ($actionCount actions)"
         ))
+    // flowOn(Dispatchers.Default): NodeScanner tree traversal + LLM planner calls are CPU/IO
+    // bound and must NOT block the main thread. AccessibilityService API calls inside
+    // executeAction are dispatched to Main via withContext(Dispatchers.Main) individually.
+    }.flowOn(Dispatchers.Default)
 
-    }.flowOn(Dispatchers.Main)
+    // ─────────────────────────────────────────────────────────────────────────
+    // PLAN — LLM decides ONE next action based on current screen state
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Ask the LLM (or heuristic fallback) what the single next action should be.
+     *
+     * LLM response format — one of:
+     *   {"action":"open_app","app":"Settings"}
+     *   {"action":"tap","target":"Wi-Fi"}
+     *   {"action":"type","text":"hello"}
+     *   {"action":"scroll_down"}
+     *   {"action":"go_back"}
+     *   {"action":"done"}
+     *   {"action":"cannot_proceed","reason":"No relevant element found"}
+     */
+    private suspend fun decideNextAction(
+        task:    String,
+        screen:  ScreenContext,
+        history: List<String>
+    ): ExecutionAction {
+        val planner = llmPlanner
+        if (planner != null) {
+            return askLlmForNextAction(task, screen, history, planner)
+        }
+        // Heuristic fallback for the most common single-step requests
+        return heuristicNextAction(task, screen)
+    }
+
+    private suspend fun askLlmForNextAction(
+        task:    String,
+        screen:  ScreenContext,
+        history: List<String>,
+        planner: suspend (String) -> String
+    ): ExecutionAction {
+        val historyText = if (history.isEmpty()) "None yet."
+                          else history.takeLast(5).joinToString("\n")
+        val prompt = """
+You are controlling an Android device. Your task: "$task"
+
+Current screen:
+  App: ${screen.packageName}
+  Visible text: ${screen.textSummary.take(400)}
+  Has editable field: ${screen.hasEditField}
+  Has scrollable content: ${screen.hasScroll}
+
+Actions taken so far:
+$historyText
+
+Respond with ONLY one JSON object — the single next action to take:
+  {"action":"open_app","app":"<name>"}
+  {"action":"tap","target":"<visible text>"}
+  {"action":"type","text":"<text to enter>"}
+  {"action":"scroll_down"}
+  {"action":"go_back"}
+  {"action":"done"}   ← when the task is fully complete
+  {"action":"cannot_proceed","reason":"<why>"}
+
+No explanation. No markdown. Just the JSON.
+""".trimIndent()
+
+        return try {
+            val response = planner(prompt)
+            parseActionJson(response.trim()) ?: heuristicNextAction(task, screen)
+        } catch (e: Exception) {
+            Log.w(TAG, "LLM planner failed: ${e.message} — using heuristic")
+            heuristicNextAction(task, screen)
+        }
+    }
+
+    private fun parseActionJson(json: String): ExecutionAction? {
+        // Strip markdown fences if the model added them
+        val clean = json.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+        val start = clean.indexOf('{')
+        val end   = clean.lastIndexOf('}')
+        if (start == -1 || end == -1) return null
+        return try {
+            val obj    = org.json.JSONObject(clean.substring(start, end + 1))
+            val action = obj.getString("action")
+            when (action) {
+                "open_app"        -> ExecutionAction.LaunchApp(obj.getString("app"))
+                "tap"             -> ExecutionAction.Click(obj.getString("target"))
+                "type"            -> ExecutionAction.TypeText(obj.getString("text"))
+                "scroll_down"     -> ExecutionAction.ScrollDown
+                "scroll_up"       -> ExecutionAction.ScrollUp
+                "go_back"         -> ExecutionAction.Back
+                "home"            -> ExecutionAction.Home
+                "done"            -> ExecutionAction.Done
+                "cannot_proceed"  -> ExecutionAction.Observe(obj.optString("reason", "Cannot proceed"))
+                else              -> null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "parseActionJson failed: ${e.message} input=${clean.take(80)}")
+            null
+        }
+    }
+
+    /** Heuristic fallback — handles the most common single-step requests without LLM. */
+    private fun heuristicNextAction(task: String, screen: ScreenContext): ExecutionAction {
+        val lower = task.lowercase()
+        // Open app
+        val openMatch = Regex("""(?:open|launch|start)\s+(?:the\s+)?([a-z][a-z\s]{1,24}?)(?:\s+app)?\s*$""").find(lower)
+        if (openMatch != null) return ExecutionAction.LaunchApp(openMatch.groupValues[1].trim())
+        // Tap / click
+        val tapMatch = Regex("""(?:tap|click|press|select)\s+(?:on\s+)?["']?([^"'\n]{2,40})["']?""").find(lower)
+        if (tapMatch != null) return ExecutionAction.Click(tapMatch.groupValues[1].trim())
+        // Type
+        val typeMatch = Regex("""(?:type|enter|write)\s+["']?([^"'\n]{1,120})["']?""").find(lower)
+        if (typeMatch != null) return ExecutionAction.TypeText(typeMatch.groupValues[1].trim())
+        // Search
+        val searchMatch = Regex("""(?:search|find)\s+(?:for\s+)?["']?([^"'\n]{2,60})["']?""").find(lower)
+        if (searchMatch != null) return ExecutionAction.Search(searchMatch.groupValues[1].trim())
+        // Navigation
+        if ("scroll down" in lower || "swipe down" in lower) return ExecutionAction.ScrollDown
+        if ("scroll up"   in lower || "swipe up"   in lower) return ExecutionAction.ScrollUp
+        if ("go back"     in lower || "press back"  in lower) return ExecutionAction.Back
+        if ("go home"     in lower || "home screen" in lower) return ExecutionAction.Home
+        // Fallback: observe the first visible element
+        val firstText = screen.textSummary.split(" | ").firstOrNull()?.trim()
+        return if (!firstText.isNullOrBlank()) ExecutionAction.Click(firstText)
+               else ExecutionAction.Observe("Cannot determine action for: $task")
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // OBSERVE — capture screen context
@@ -270,122 +391,6 @@ class AccessibilityExecutionEngine {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // PLAN — convert task description to action sequence
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Phase 3: Replaced single-pass regex planner with a multi-step compound task
-     * decomposer. The old implementation could only produce one action per
-     * category (one LaunchApp OR one Click etc.) and could not handle requests
-     * like "open Maps and search for coffee" or "send a WhatsApp message to Alice
-     * saying hello". This version:
-     *
-     *  1. Detects compound conjunctions ("and then", "and", "then") to split the
-     *     task into atomic sub-goals before matching.
-     *  2. Produces an ordered multi-step plan where the launch always precedes
-     *     subsequent interaction steps, as required by AccessibilityCommandBridge.
-     *  3. Still supports all original single-action patterns as a fallback.
-     *  4. Deduplicates consecutive identical actions to avoid redundant gestures.
-     */
-    private fun planActions(task: String, ctx: ScreenContext): List<ExecutionAction> {
-        val lower = task.lowercase()
-        val plan  = mutableListOf<ExecutionAction>()
-
-        // ── Step 1: Extract explicit app launch ───────────────────────────────
-        // Must always be the FIRST step — accessibility dispatcher requires the
-        // app to be in foreground before any UI-interaction steps can run.
-        val launchRegex = Regex(
-            """(?:open|launch|start|switch to|go to)\s+(?:the\s+)?([a-z][a-z\s]{0,24}?)\s*(?:app\b)?"""
-        )
-        val launchMatch = launchRegex.find(lower)
-        if (launchMatch != null) {
-            val appName = launchMatch.groupValues[1].trim()
-            if (appName.isNotBlank() && appName !in setOf("the", "a", "an", "my")) {
-                plan += ExecutionAction.LaunchApp(appName)
-            }
-        }
-
-        // ── Step 2: Extract search targets ───────────────────────────────────
-        // Match "search for X", "find X", "look up X", "search X"
-        val searchRegex = Regex(
-            """(?:search(?:\s+for)?|find|look\s+up|look\s+for)\s+["']?([^"'\n,]{2,60}?)["']?(?:\s+(?:on|in|using|with)\b|\s*$|\s*,|\s+and\b)"""
-        )
-        for (match in searchRegex.findAll(lower)) {
-            val query = match.groupValues[1].trim()
-            if (query.isNotBlank()) plan += ExecutionAction.Search(query)
-        }
-
-        // ── Step 3: Extract type / message text ───────────────────────────────
-        // Match "type X", "write X", "send X", "say X", "message X saying Y"
-        val typeRegex = Regex(
-            """(?:type|write|enter|input|send|say|message\s+\S+\s+saying)\s+["']?([^"'\n]{2,120}?)["']?(?:\s*$|,|\s+and\b)"""
-        )
-        for (match in typeRegex.findAll(lower)) {
-            val text = match.groupValues[1].trim()
-            // Avoid duplicating search queries already captured
-            if (text.isNotBlank() && plan.none { it is ExecutionAction.Search && (it as ExecutionAction.Search).query == text }) {
-                plan += ExecutionAction.TypeText(text)
-            }
-        }
-
-        // ── Step 4: Clicks / taps ─────────────────────────────────────────────
-        val clickRegex = Regex(
-            """(?:click|tap|press|select|choose|hit|toggle)\s+(?:on\s+)?["']?([^"',\n]{2,50}?)["']?(?:\s+button|\s+link|\s+option|\s*$|,|\s+and\b)"""
-        )
-        for (match in clickRegex.findAll(lower)) {
-            val target = match.groupValues[1].trim()
-            if (target.isNotBlank()) plan += ExecutionAction.Click(target)
-        }
-
-        // ── Step 5: Scroll gestures ───────────────────────────────────────────
-        if (Regex("""scroll\s+down|swipe\s+down|page\s+down""").containsMatchIn(lower))
-            plan += ExecutionAction.ScrollDown
-        if (Regex("""scroll\s+up|swipe\s+up|page\s+up""").containsMatchIn(lower))
-            plan += ExecutionAction.ScrollUp
-
-        // ── Step 6: Navigation gestures ───────────────────────────────────────
-        if (Regex("""go\s+back|press\s+back|navigate\s+back""").containsMatchIn(lower))
-            plan += ExecutionAction.Back
-        if (Regex("""go\s+home|press\s+home|home\s+screen""").containsMatchIn(lower))
-            plan += ExecutionAction.Home
-
-        // ── Step 7: Compound patterns not captured by generic regex ───────────
-        // "call X", "dial X" → open phone app + type number/name
-        val callRegex = Regex("""(?:call|dial|phone)\s+([a-z][a-z\s]{1,30})""")
-        val callMatch = callRegex.find(lower)
-        if (callMatch != null) {
-            val contact = callMatch.groupValues[1].trim()
-            if (plan.none { it is ExecutionAction.LaunchApp }) {
-                plan.add(0, ExecutionAction.LaunchApp("phone"))
-            }
-            if (plan.none { it is ExecutionAction.Search && (it as ExecutionAction.Search).query == contact }) {
-                plan += ExecutionAction.Search(contact)
-            }
-            plan += ExecutionAction.Click("call")
-        }
-
-        // ── Step 8: Deduplicate consecutive identical actions ─────────────────
-        val deduped = mutableListOf<ExecutionAction>()
-        for (action in plan) {
-            if (deduped.lastOrNull() != action) deduped += action
-        }
-
-        // ── Step 9: Fallback — screen-context click or observe ────────────────
-        if (deduped.isEmpty()) {
-            val firstText = ctx.textSummary.split(" | ").firstOrNull()?.trim()
-            if (!firstText.isNullOrBlank()) {
-                deduped += ExecutionAction.Click(firstText)
-            } else {
-                deduped += ExecutionAction.Observe("No plan derivable from: $task")
-            }
-        }
-
-        Log.i("AEE_PLAN", "planActions input='${task.take(60)}' steps=${deduped.size}: " +
-            deduped.joinToString(" → ") { it::class.simpleName ?: "?" })
-        return deduped
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
     // EXECUTE — dispatch action to AccessibilityCommandBridge
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -393,43 +398,47 @@ class AccessibilityExecutionEngine {
         service: AiriAccessibilityService,
         action: ExecutionAction
     ): ActionResult {
+        // AccessibilityService API calls (performAction, performGlobalAction, etc.) require
+        // the main thread. executeTask flow now runs on Dispatchers.Default for CPU work;
+        // we switch back to Main only for the actual execution bridge call.
         return try {
             withTimeout(actionTimeoutMs) {
-                when (action) {
-                    is ExecutionAction.LaunchApp  -> {
-                        val r = AccessibilityCommandBridge.launchApp(action.appName)
-                        ActionResult(r.success, r.message ?: "")
-                    }
-                    is ExecutionAction.Click      -> {
-                        val r = AccessibilityCommandBridge.click(action.target)
-                        ActionResult(r.success, r.message ?: "")
-                    }
-                    is ExecutionAction.TypeText   -> {
-                        val r = AccessibilityCommandBridge.typeText(action.text)
-                        ActionResult(r.success, r.message ?: "")
-                    }
-                    is ExecutionAction.Search     -> {
-                        val r = AccessibilityCommandBridge.search(action.query)
-                        ActionResult(r.success, r.message ?: "")
-                    }
-                    is ExecutionAction.ScrollDown -> {
-                        val r = AccessibilityCommandBridge.scrollDown()
-                        ActionResult(r.success, r.message ?: "")
-                    }
-                    is ExecutionAction.ScrollUp   -> {
-                        val r = AccessibilityCommandBridge.scrollUp()
-                        ActionResult(r.success, r.message ?: "")
-                    }
-                    is ExecutionAction.Back       -> {
-                        val r = AccessibilityCommandBridge.performBack()
-                        ActionResult(r.success, r.message ?: "")
-                    }
-                    is ExecutionAction.Home       -> {
-                        val r = AccessibilityCommandBridge.performHome()
-                        ActionResult(r.success, r.message ?: "")
-                    }
-                    is ExecutionAction.Observe    -> {
-                        ActionResult(true, action.description)
+                withContext(Dispatchers.Main) {
+                    when (action) {
+                        is ExecutionAction.LaunchApp  -> {
+                            val r = AccessibilityCommandBridge.launchApp(action.appName)
+                            ActionResult(r.success, r.message ?: "")
+                        }
+                        is ExecutionAction.Click      -> {
+                            val r = AccessibilityCommandBridge.click(action.target)
+                            ActionResult(r.success, r.message ?: "")
+                        }
+                        is ExecutionAction.TypeText   -> {
+                            val r = AccessibilityCommandBridge.typeText(action.text)
+                            ActionResult(r.success, r.message ?: "")
+                        }
+                        is ExecutionAction.Search     -> {
+                            val r = AccessibilityCommandBridge.search(action.query)
+                            ActionResult(r.success, r.message ?: "")
+                        }
+                        is ExecutionAction.ScrollDown -> {
+                            val r = AccessibilityCommandBridge.scrollDown()
+                            ActionResult(r.success, r.message ?: "")
+                        }
+                        is ExecutionAction.ScrollUp   -> {
+                            val r = AccessibilityCommandBridge.scrollUp()
+                            ActionResult(r.success, r.message ?: "")
+                        }
+                        is ExecutionAction.Back       -> {
+                            val r = AccessibilityCommandBridge.performBack()
+                            ActionResult(r.success, r.message ?: "")
+                        }
+                        is ExecutionAction.Home       -> {
+                            val r = AccessibilityCommandBridge.performHome()
+                            ActionResult(r.success, r.message ?: "")
+                        }
+                        is ExecutionAction.Done, is ExecutionAction.Observe ->
+                            ActionResult(true, action.description)
                     }
                 }
             }
@@ -531,7 +540,14 @@ class AccessibilityExecutionEngine {
         data object Home                           : ExecutionAction() {
             override val description = "Go home"
         }
-        data class Observe(override val description: String) : ExecutionAction()
+        /** Signals task completion — no more actions needed. */
+        data object Done                           : ExecutionAction() {
+            override val description = "Task complete"
+        }
+        /** Signals the engine cannot determine the next action. */
+        data class Observe(val reason: String)     : ExecutionAction() {
+            override val description = "Observe: $reason"
+        }
     }
 
     data class ScreenContext(

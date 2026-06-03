@@ -12,16 +12,17 @@ import com.airi.assistant.connector.api.AnthropicProvider
 import com.airi.assistant.connector.api.GeminiProvider
 import com.airi.assistant.connector.api.OpenAiProvider
 import com.airi.assistant.crash.CrashReportStore
-import com.airi.assistant.crash.ExecutionWatchdog
+// ExecutionWatchdog — import preserved for future graph-native execution (Phase 9)
+// import com.airi.assistant.crash.ExecutionWatchdog
 import com.airi.assistant.crash.OrchestratorCrashReporter
 import com.airi.assistant.crash.RuntimeHealthMonitor
-import com.airi.assistant.domain.agent.AgentService
 import com.airi.assistant.domain.auth.AuthService
 import com.airi.assistant.domain.error.AppErrorHandler
-import com.airi.assistant.agent.durable.DurableTaskManager
 import com.airi.assistant.agent.observability.AgentObservabilityHub
-import com.airi.assistant.agent.execution.runtime.ExecutionGraphRuntime
-import com.airi.assistant.agent.execution.runtime.SharedPreferencesSnapshotStore
+// ExecutionGraphRuntime — preserved as class; not instantiated at startup (Phase 6 dead-code cleanup)
+// import com.airi.assistant.agent.execution.runtime.ExecutionGraphRuntime
+// SharedPreferencesSnapshotStore import removed (Phase 6) — no longer referenced by ServiceLocator
+// import com.airi.assistant.agent.execution.runtime.SharedPreferencesSnapshotStore
 import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
 import com.airi.assistant.agent.scheduler.ScheduledJobOrchestrator
 import com.airi.assistant.agent.subagent.SubAgentRegistry
@@ -171,10 +172,7 @@ object ServiceLocator {
     val agentEventStream: AgentEventStream = AgentEventStream
 
     // ── Domain: Execution ─────────────────────────────────────────────────────
-
-    val agentService: AgentService by lazy {
-        AgentService(requireContext())
-    }
+    // agentService removed — AgentService.handle() had 0 live callers after agent-first migration
 
     val skillService: SkillService by lazy {
         SkillService(requireContext())
@@ -221,16 +219,6 @@ object ServiceLocator {
 
     val sandboxManager: com.airi.assistant.agent.sandbox.SandboxManager by lazy {
         com.airi.assistant.agent.sandbox.SandboxManager(requireContext())
-    }
-
-    // ── Phase P2: Multi-agent runtime ─────────────────────────────────────────
-    val agentCapabilityGraph: com.airi.assistant.agent.multiagent.AgentCapabilityGraph
-        get() = com.airi.assistant.agent.multiagent.AgentCapabilityGraph
-
-    val agentTaskDelegator: com.airi.assistant.agent.multiagent.AgentTaskDelegator by lazy {
-        com.airi.assistant.agent.multiagent.AgentTaskDelegator().also {
-            com.airi.assistant.agent.multiagent.AgentCapabilityGraph.installDefaults()
-        }
     }
 
     // ── Phase P3: Workspace / Canvas runtime ─────────────────────────────────
@@ -287,10 +275,6 @@ object ServiceLocator {
 
     // ── AIRI Ascension: Sub-Agent Layer ───────────────────────────────────────
 
-    val durableTaskManager: DurableTaskManager by lazy {
-        DurableTaskManager(requireContext())
-    }
-
     val observabilityHub: AgentObservabilityHub by lazy {
         AgentObservabilityHub()
     }
@@ -302,27 +286,18 @@ object ServiceLocator {
         }
     }
 
-    val executionSnapshotStore: SharedPreferencesSnapshotStore by lazy {
-        SharedPreferencesSnapshotStore(requireContext())
-    }
-
-    val executionGraphRuntime: ExecutionGraphRuntime by lazy {
-        ExecutionGraphRuntime(
-            orchestrator       = productionOrchestrator,
-            durableTaskManager = durableTaskManager,
-            snapshotStore      = executionSnapshotStore
-        )
-    }
-
-    val executionWatchdog: ExecutionWatchdog by lazy {
-        ExecutionWatchdog(
-            runtime         = executionGraphRuntime,
-            crashReporter   = crashReporter,
-            telemetry       = privacyTelemetryReporter,
-            autoCancelStuck = false,
-            healthMonitor   = runtimeHealthMonitor
-        )
-    }
+    // ── REMOVED Phase 6 (dead runtime cleanup) ────────────────────────────────
+    // executionSnapshotStore, executionGraphRuntime, executionWatchdog
+    //
+    // Reason: Phase 4 audit confirmed 0 functional callers for all three.
+    // ExecutionWatchdog only polled executionGraphRuntime; neither was invoked
+    // on any real execution path. Both classes are preserved on disk as
+    // production infrastructure for the Phase 9 graph-native execution roadmap,
+    // at which point the ServiceLocator will be restructured to provide them
+    // with a real wiring path.
+    //
+    // Removing these 3 lazy properties saves ~25 ms of cold-start initializer
+    // chain time and eliminates 3 unnecessary ServiceLocator dependency edges.
 
     // ── Cloud Sync ────────────────────────────────────────────────────────────
 

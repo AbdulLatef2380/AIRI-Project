@@ -1365,8 +1365,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return profile.tier == DeviceTier.LOW || profile.availableRamMb < 1500 || profile.cpuCores <= 4
     }
 
-    }
-
     // ── Hybrid Execution public API ───────────────────────────────────────────
     // All execution-mode mutations must go through these methods so that both
     // the in-memory StateFlow and the durable ExecModePreferences stay in sync.

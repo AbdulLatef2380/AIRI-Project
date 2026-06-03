@@ -1264,7 +1264,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     viewModelScope.launch(Dispatchers.IO) {
                         runCatching {
                             com.airi.assistant.ai.prompt.ConversationSummarizer.summarize(
-                                llamaManager, olderToFold, sessionId, appContext
+                                ctx             = appContext,
+                                sessionId       = sessionId,
+                                llamaManager    = llamaManager,
+                                olderTurns      = olderToFold,
+                                previousSummary = ""
                             )
                         }
                     }

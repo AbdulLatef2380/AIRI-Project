@@ -1,0 +1,1 @@
+- [Kotlin Compilation Audit](kotlin-audit.md) — All build-breaking errors fixed; key type locations, ExecutionStatusBus API, ConversationSummarizer signature.

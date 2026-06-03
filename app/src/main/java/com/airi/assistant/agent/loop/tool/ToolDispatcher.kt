@@ -95,12 +95,12 @@ class ToolDispatcher(
 
             "scroll_down" -> {
                 val result = AccessibilityCommandBridge.scrollDown()
-                if (result.success) ToolResult.Success("Scrolled down") else ToolResult.Error(result.message)
+                if (result.success) ToolResult.Success("Scrolled down") else ToolResult.Error(result.message ?: "")
             }
 
             "go_back" -> {
                 val result = AccessibilityCommandBridge.performBack()
-                if (result.success) ToolResult.Success("Pressed back") else ToolResult.Error(result.message)
+                if (result.success) ToolResult.Success("Pressed back") else ToolResult.Error(result.message ?: "")
             }
 
             // ── Search ─────────────────────────────────────────────────────────

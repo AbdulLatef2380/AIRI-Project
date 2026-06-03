@@ -1,0 +1,408 @@
+Skip to content
+AIRI-Project
+Repository navigation
+Code
+Actions
+AIRI Android CI
+Phase 2: remove dead code with zero live callers #975
+Annotations
+1 error and 1 warning
+build
+failed 15 hours ago in 5m 5s
+1s
+1s
+1s
+16s
+20s
+0s
+58s
+3m 25s
+Run ./gradlew assembleDebug \
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.5/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Task :app:airiVerifyOptimization
+AIRI_PROOF: DIAGNOSTICS_START running 4 test scenarios
+AIRI_VERIFY: hi -> FAST_PATH PASS detail=type=SIMPLE fast=true
+AIRI_PROOF: DIAGNOSTICS PASS test="hi -> FAST_PATH" detail="type=SIMPLE fast=true"
+AIRI_VERIFY: Explain TCP handshake -> STREAM PASS detail=type=ANALYTICAL fast=false
+AIRI_PROOF: DIAGNOSTICS PASS test="Explain TCP handshake -> STREAM" detail="type=ANALYTICAL fast=false"
+AIRI_VERIFY: Semantic cut + P50/P90 + adaptive tuning PASS detail=p50=3000ms p90=9000ms semanticCut=true tunedTokens=253
+AIRI_PROOF: DIAGNOSTICS PASS test="Semantic cut + P50/P90 + adaptive tuning" detail="p50=3000ms p90=9000ms semanticCut=true tunedTokens=253"
+AIRI_VERIFY: Monetization data triggers PASS detail=cut=response_cut slow=speed_upsell power=power_user
+AIRI_PROOF: DIAGNOSTICS PASS test="Monetization data triggers" detail="cut=response_cut slow=speed_upsell power=power_user"
+AIRI_OPTIMIZE: VERIFY semanticCut=true p50=3000ms p90=9000ms tunedTokens=253
+AIRI_MONET: VERIFY cut=response_cut slow=speed_upsell power=power_user
+AIRI_PROOF: DIAGNOSTICS_COMPLETE allPassed=true
+AIRI_PROOF: SYSTEM FULLY VERIFIED
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors
+> Task :app:generateDebugBuildConfig
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:injectCrashlyticsMappingFileIdDebug
+> Task :app:processDebugGoogleServices
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:mergeDebugResources
+> Task :app:parseDebugLocalResources
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:compressDebugAssets
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses
+
+> Task :app:configureCMakeRelease[arm64-v8a]
+[CXX5304] This version only understands SDK XML versions up to 3 but an SDK XML file of version 4 was encountered. This can happen if you use versions of Android Studio and the command-line tools that were released at different times.
+[CXX5304] This version only understands SDK XML versions up to 3 but an SDK XML file of version 4 was encountered. This can happen if you use versions of Android Studio and the command-line tools that were released at different times.
+C/C++: -- The CXX compiler identification is Clang 14.0.7
+C/C++: -- The C compiler identification is Clang 14.0.7
+C/C++: -- Detecting CXX compiler ABI info
+C/C++: -- Detecting CXX compiler ABI info - done
+C/C++: -- Check for working CXX compiler: /usr/local/lib/android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ - skipped
+C/C++: -- Detecting CXX compile features
+C/C++: -- Detecting CXX compile features - done
+C/C++: -- Detecting C compiler ABI info
+C/C++: -- Detecting C compiler ABI info - done
+C/C++: -- Check for working C compiler: /usr/local/lib/android/sdk/ndk/25.2.9519653/toolchains/llvm/prebuilt/linux-x86_64/bin/clang - skipped
+C/C++: -- Detecting C compile features
+C/C++: -- Detecting C compile features - done
+C/C++: -- Looking for pthread.h
+C/C++: -- Looking for pthread.h - found
+C/C++: -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+C/C++: -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Failed
+C/C++: -- Looking for pthread_create in pthreads
+C/C++: -- Looking for pthread_create in pthreads - not found
+C/C++: -- Looking for pthread_create in pthread
+C/C++: -- Looking for pthread_create in pthread - not found
+C/C++: -- Check if compiler accepts -pthread
+C/C++: -- Check if compiler accepts -pthread - yes
+C/C++: -- Found Threads: TRUE  
+C/C++: -- Configuring done
+C/C++: -- Generating done
+C/C++: -- Build files have been written to: /home/runner/work/AIRI-Project/AIRI-Project/app/.cxx/Release/1g2j702x/arm64-v8a
+
+> Task :app:processDebugManifestForPackage
+> Task :app:mergeExtDexDebug
+> Task :app:mergeLibDexDebug
+> Task :app:processDebugResources
+
+> Task :app:buildCMakeRelease[arm64-v8a]
+C/C++: ninja: Entering directory `/home/runner/work/AIRI-Project/AIRI-Project/app/.cxx/Release/1g2j702x/arm64-v8a'
+C/C++: [1/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml.cpp.o
+C/C++: [2/75] Building C object CMakeFiles/airi_native.dir/llama/ggml/src/ggml.c.o
+C/C++: [3/75] Building C object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-alloc.c.o
+C/C++: [4/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/gguf.cpp.o
+C/C++: [5/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-threading.cpp.o
+C/C++: [6/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-backend.cpp.o
+C/C++: [7/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-opt.cpp.o
+C/C++: [8/75] Building C object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-quants.c.o
+C/C++: [9/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-backend-reg.cpp.o
+C/C++: [10/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-backend-dl.cpp.o
+C/C++: [11/75] Building C object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/ggml-cpu.c.o
+C/C++: [12/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-backend-meta.cpp.o
+C/C++: [13/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/ggml-cpu.cpp.o
+C/C++: [14/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/repack.cpp.o
+C/C++: [15/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/binary-ops.cpp.o
+C/C++: [16/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/ops.cpp.o
+C/C++: [17/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/traits.cpp.o
+C/C++: [18/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/vec.cpp.o
+C/C++: [19/75] Building C object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/quants.c.o
+C/C++: [20/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/hbm.cpp.o
+C/C++: [21/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/unary-ops.cpp.o
+C/C++: [22/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/amx/amx.cpp.o
+C/C++: [23/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/amx/mmq.cpp.o
+C/C++: [24/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama.cpp.o
+C/C++: [25/75] Building C object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/arch/arm/quants.c.o
+C/C++: [26/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/arch/arm/repack.cpp.o
+C/C++: [27/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/arch/arm/cpu-feats.cpp.o
+C/C++: [28/75] Building CXX object CMakeFiles/airi_native.dir/llama/ggml/src/ggml-cpu/llamafile/sgemm.cpp.o
+C/C++: [29/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-arch.cpp.o
+C/C++: [30/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-adapter.cpp.o
+C/C++: [31/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-batch.cpp.o
+C/C++: [32/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-chat.cpp.o
+C/C++: [33/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-cparams.cpp.o
+C/C++: [34/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-context.cpp.o
+C/C++: [35/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-grammar.cpp.o
+C/C++: [36/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-hparams.cpp.o
+C/C++: [37/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-impl.cpp.o
+C/C++: [38/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-io.cpp.o
+C/C++: [39/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-graph.cpp.o
+C/C++: [40/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-kv-cache-iswa.cpp.o
+C/C++: [41/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-memory.cpp.o
+C/C++: [42/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-memory-hybrid.cpp.o
+C/C++: [43/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-mmap.cpp.o
+C/C++: [44/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-memory-hybrid-iswa.cpp.o
+C/C++: [45/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-kv-cache.cpp.o
+C/C++: [46/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-memory-recurrent.cpp.o
+C/C++: [47/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-model-loader.cpp.o
+C/C++: [48/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-model-saver.cpp.o
+C/C++: [49/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-model.cpp.o
+C/C++: [50/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-quant.cpp.o
+C/C++: [51/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-sampler.cpp.o
+C/C++: [52/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/llama-vocab.cpp.o
+C/C++: [53/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/unicode-data.cpp.o
+C/C++: [54/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/models/llama.cpp.o
+C/C++: [55/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/models/llama4.cpp.o
+C/C++: [56/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/unicode.cpp.o
+C/C++: [57/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/models/qwen.cpp.o
+C/C++: [58/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/models/qwen2.cpp.o
+C/C++: [59/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/models/qwen3.cpp.o
+C/C++: [60/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/models/qwen2vl.cpp.o
+C/C++: [61/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/models/qwen3vl.cpp.o
+C/C++: [62/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/models/gemma.cpp.o
+C/C++: [63/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/models/gemma2-iswa.cpp.o
+C/C++: [64/75] Building CXX object CMakeFiles/airi_native.dir/llama/src/models/gemma3.cpp.o
+C/C++: [65/75] Building CXX object CMakeFiles/airi_native.dir/llama/tools/mtmd/mtmd-image.cpp.o
+C/C++: [66/75] Building CXX object CMakeFiles/airi_native.dir/llama/tools/mtmd/mtmd.cpp.o
+C/C++: [67/75] Building CXX object CMakeFiles/airi_native.dir/llama/tools/mtmd/clip.cpp.o
+C/C++: [68/75] Building CXX object CMakeFiles/airi_native.dir/llama/tools/mtmd/models/llava.cpp.o
+C/C++: [69/75] Building CXX object CMakeFiles/airi_native.dir/llama/tools/mtmd/models/siglip.cpp.o
+C/C++: [70/75] Building CXX object CMakeFiles/airi_native.dir/llama/tools/mtmd/models/gemma4v.cpp.o
+C/C++: [71/75] Building CXX object CMakeFiles/airi_native.dir/llama/tools/mtmd/models/qwen2vl.cpp.o
+C/C++: [72/75] Building CXX object CMakeFiles/airi_native.dir/llama/tools/mtmd/models/qwen3vl.cpp.o
+C/C++: [73/75] Building CXX object CMakeFiles/airi_native.dir/LlamaBridge.cpp.o
+C/C++: [74/75] Building CXX object CMakeFiles/airi_native.dir/llama/tools/mtmd/mtmd-helper.cpp.o
+C/C++: [75/75] Linking CXX shared library /home/runner/work/AIRI-Project/AIRI-Project/app/build/intermediates/cxx/Release/1g2j702x/obj/arm64-v8a/libairi_native.so
+
+> Task :app:mergeDebugJniLibFolders
+> Task :app:mergeDebugNativeLibs
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+
+> Task :app:stripDebugDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libjnidispatch.so.
+
+> Task :app:kspDebugKotlin FAILED
+e: file:///home/runner/work/AIRI-Project/AIRI-Project/app/src/main/java/com/airi/assistant/ui/screens/CustomizationSettingsScreen.kt:206:1 Expecting a top level declaration
+e: file:///home/runner/work/AIRI-Project/AIRI-Project/app/src/main/java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt:1368:5 Expecting a top level declaration
+e: file:///home/runner/work/AIRI-Project/AIRI-Project/app/src/main/java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt:2296:29 Name expected
+e: file:///home/runner/work/AIRI-Project/AIRI-Project/app/src/main/java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt:2305:1 Expecting a top level declaration
+
+FAILURE: Build failed with an exception.
+
+34 actionable tasks: 34 executed
+* What went wrong:
+Execution failed for task ':app:kspDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+* Exception is:
+org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:kspDebugKotlin'.
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:148)
+	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:282)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:146)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:134)
+	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
+	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
+	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
+	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
+	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:199)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:157)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.internal.operations.DefaultBuildOperationExecutor.call(DefaultBuildOperationExecutor.java:73)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
+	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:331)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:318)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:80)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:463)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:380)
+	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
+	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
+Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+	at org.gradle.workers.internal.DefaultWorkerExecutor$WorkItemExecution.waitForCompletion(DefaultWorkerExecutor.java:283)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.lambda$waitForItemsAndGatherFailures$2(DefaultAsyncWorkTracker.java:130)
+	at org.gradle.internal.Factories$1.create(Factories.java:31)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:336)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:319)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLock(DefaultWorkerLeaseService.java:324)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:126)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:92)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForAll(DefaultAsyncWorkTracker.java:78)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForCompletion(DefaultAsyncWorkTracker.java:66)
+	at org.gradle.api.internal.tasks.execution.TaskExecution$3.run(TaskExecution.java:256)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:29)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:26)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:157)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:47)
+	at org.gradle.internal.operations.DefaultBuildOperationExecutor.run(DefaultBuildOperationExecutor.java:68)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeAction(TaskExecution.java:233)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeActions(TaskExecution.java:216)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeWithPreviousOutputFiles(TaskExecution.java:199)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.execute(TaskExecution.java:166)
+	at org.gradle.internal.execution.steps.ExecuteStep.executeInternal(ExecuteStep.java:105)
+	at org.gradle.internal.execution.steps.ExecuteStep.access$000(ExecuteStep.java:44)
+	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:59)
+	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:56)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:199)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:157)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.internal.operations.DefaultBuildOperationExecutor.call(DefaultBuildOperationExecutor.java:73)
+	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:56)
+	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:44)
+	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.execute(RemovePreviousOutputsStep.java:67)
+	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.execute(RemovePreviousOutputsStep.java:37)
+	at org.gradle.internal.execution.steps.CancelExecutionStep.execute(CancelExecutionStep.java:41)
+	at org.gradle.internal.execution.steps.TimeoutStep.executeWithoutTimeout(TimeoutStep.java:74)
+	at org.gradle.internal.execution.steps.TimeoutStep.execute(TimeoutStep.java:55)
+	at org.gradle.internal.execution.steps.CreateOutputsStep.execute(CreateOutputsStep.java:50)
+	at org.gradle.internal.execution.steps.CreateOutputsStep.execute(CreateOutputsStep.java:28)
+	at org.gradle.internal.execution.steps.CaptureStateAfterExecutionStep.executeDelegateBroadcastingChanges(CaptureStateAfterExecutionStep.java:100)
+	at org.gradle.internal.execution.steps.CaptureStateAfterExecutionStep.execute(CaptureStateAfterExecutionStep.java:72)
+	at org.gradle.internal.execution.steps.CaptureStateAfterExecutionStep.execute(CaptureStateAfterExecutionStep.java:50)
+	at org.gradle.internal.execution.steps.ResolveInputChangesStep.execute(ResolveInputChangesStep.java:40)
+	at org.gradle.internal.execution.steps.ResolveInputChangesStep.execute(ResolveInputChangesStep.java:29)
+	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithoutCache(BuildCacheStep.java:179)
+	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$execute$1(BuildCacheStep.java:70)
+	at org.gradle.internal.Either$Right.fold(Either.java:175)
+	at org.gradle.internal.execution.caching.CachingState.fold(CachingState.java:59)
+	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:68)
+	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:46)
+	at org.gradle.internal.execution.steps.StoreExecutionStateStep.execute(StoreExecutionStateStep.java:36)
+	at org.gradle.internal.execution.steps.StoreExecutionStateStep.execute(StoreExecutionStateStep.java:25)
+	at org.gradle.internal.execution.steps.RecordOutputsStep.execute(RecordOutputsStep.java:36)
+	at org.gradle.internal.execution.steps.RecordOutputsStep.execute(RecordOutputsStep.java:22)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.executeBecause(SkipUpToDateStep.java:91)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.lambda$execute$2(SkipUpToDateStep.java:55)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:55)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:37)
+	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:65)
+	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:36)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:37)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:27)
+	at org.gradle.internal.execution.steps.ResolveCachingStateStep.execute(ResolveCachingStateStep.java:76)
+	at org.gradle.internal.execution.steps.ResolveCachingStateStep.execute(ResolveCachingStateStep.java:37)
+	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:108)
+	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:55)
+	at org.gradle.internal.execution.steps.CaptureStateBeforeExecutionStep.execute(CaptureStateBeforeExecutionStep.java:71)
+	at org.gradle.internal.execution.steps.CaptureStateBeforeExecutionStep.execute(CaptureStateBeforeExecutionStep.java:45)
+	at org.gradle.internal.execution.steps.SkipEmptyWorkStep.executeWithNonEmptySources(SkipEmptyWorkStep.java:177)
+	at org.gradle.internal.execution.steps.SkipEmptyWorkStep.execute(SkipEmptyWorkStep.java:86)
+	at org.gradle.internal.execution.steps.SkipEmptyWorkStep.execute(SkipEmptyWorkStep.java:53)
+	at org.gradle.internal.execution.steps.RemoveUntrackedExecutionStateStep.execute(RemoveUntrackedExecutionStateStep.java:32)
+	at org.gradle.internal.execution.steps.RemoveUntrackedExecutionStateStep.execute(RemoveUntrackedExecutionStateStep.java:21)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
+	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:36)
+	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:23)
+	at org.gradle.internal.execution.steps.CleanupStaleOutputsStep.execute(CleanupStaleOutputsStep.java:75)
+	at org.gradle.internal.execution.steps.CleanupStaleOutputsStep.execute(CleanupStaleOutputsStep.java:41)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationFiringStep.java:66)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:66)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:38)
+	at org.gradle.internal.execution.steps.AssignWorkspaceStep.lambda$execute$0(AssignWorkspaceStep.java:32)
+	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:293)
+	at org.gradle.internal.execution.steps.AssignWorkspaceStep.execute(AssignWorkspaceStep.java:30)
+	at org.gradle.internal.execution.steps.AssignWorkspaceStep.execute(AssignWorkspaceStep.java:21)
+	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:37)
+	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:27)
+	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:47)
+	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:34)
+	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:64)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:145)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:134)
+	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
+	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
+	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
+	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
+	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:199)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:157)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.internal.operations.DefaultBuildOperationExecutor.call(DefaultBuildOperationExecutor.java:73)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
+	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:331)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:318)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:80)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:463)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:380)
+	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
+	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
+Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
+	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:20)
+	at org.jetbrains.kotlin.compilerRunner.GradleKotlinCompilerWork.run(GradleKotlinCompilerWork.kt:141)
+	at org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction.execute(GradleCompilerRunnerWithWorkers.kt:73)
+	at org.gradle.workers.internal.DefaultWorkerServer.execute(DefaultWorkerServer.java:63)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:66)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:62)
+	at org.gradle.internal.classloader.ClassLoaderUtils.executeInClassloader(ClassLoaderUtils.java:100)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.lambda$execute$0(NoIsolationWorkerFactory.java:62)
+	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:44)
+	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:41)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:199)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:157)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.internal.operations.DefaultBuildOperationExecutor.call(DefaultBuildOperationExecutor.java:73)
+	at org.gradle.workers.internal.AbstractWorker.executeWrappedInBuildOperation(AbstractWorker.java:41)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.execute(NoIsolationWorkerFactory.java:59)
+	at org.gradle.workers.internal.DefaultWorkerExecutor.lambda$submitWork$0(DefaultWorkerExecutor.java:170)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runExecution(DefaultConditionalExecutionQueue.java:187)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.access$700(DefaultConditionalExecutionQueue.java:120)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner$1.run(DefaultConditionalExecutionQueue.java:162)
+	at org.gradle.internal.Factories$1.create(Factories.java:31)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:264)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:128)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:133)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runBatch(DefaultConditionalExecutionQueue.java:157)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:126)
+	... 2 more
+
+
+BUILD FAILED in 3m 24s
+Error: Process completed with exit code 1.
+0s
+0s
+0s
+1s
+0s

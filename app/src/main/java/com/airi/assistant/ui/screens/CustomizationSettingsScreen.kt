@@ -111,6 +111,7 @@ fun CustomizationSettingsScreen(
                 }
             }
 
+            SettingsSurface {
                 Text(
                     stringResource(R.string.custom_instructions),
                     fontSize = 13.sp,

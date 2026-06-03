@@ -400,6 +400,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val stallActive: StateFlow<Boolean> = _stallActive.asStateFlow()
     fun clearStallHint() { _stallActive.value = false }
 
+    private val _isGenerating = MutableStateFlow(false)
+    val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
+
     /**
      * Live total tokens used today across all providers.
      * Derived from [TokenAccountant.stats] — updates every time a cloud
@@ -481,15 +484,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         preferences             = preferences,
         perfPrefs               = perfPrefs,
         modelState              = _modelState,
-        performanceModeProvider = { performanceMode },
-        generationPhaseProvider = { generationPhase },
+        performanceModeProvider = { _performanceMode.value },
+        generationPhaseProvider = { _generationPhase.value },
         onDiagnosticsReady      = { snap ->
             viewModelScope.launch(Dispatchers.Main) {
                 _runtimeDiagnostics.value = snap.copy(
                     modelName  = _modelState.value.selectedModelName,
-                    modeSource = if (runtimeSupervisor.isThrottled) ModeSource.SUPERVISOR_THERMAL
-                                 else if (runtimeSupervisor.isMemoryConstrained) ModeSource.SUPERVISOR_MEMORY
-                                 else ModeSource.MANUAL_OVERRIDE
+                    modeSource = _modeSource.value
                 )
             }
         }
@@ -498,6 +499,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     init {
         _modelState.value = modelController.createInitialModelState()
     }
+
+    private fun persistRegistry() = modelController.persistRegistry()
+    private fun refreshModelList() = modelController.refreshModelList()
+    private fun refreshDiagnosticsSnapshot() = modelController.refreshDiagnosticsSnapshot()
 
     private val _sessions = MutableStateFlow<List<ChatSessionSummary>>(emptyList())
     val sessions: StateFlow<List<ChatSessionSummary>> = _sessions.asStateFlow()
@@ -1148,6 +1153,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // The LLM decides which tools to call. No keyword classifier gates
             // tool access. No sub-agent pre-routing. No AgentService intercept.
             thinkingJob.cancel()
+            _isGenerating.value = true
+            val systemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType)
+            var tokenCount = 0
+            var firstTokenReceived = false
+            val requestStart = System.currentTimeMillis()
+            var needsResummarize = false
+            val olderToFold: List<com.airi.assistant.memory.entity.ChatMessage> = emptyList()
             Log.i("AIRI_PROOF", "AGENT_LOOP_START input='${trimmedInput.take(60)}' queryType=${queryType.name}")
 
             try {

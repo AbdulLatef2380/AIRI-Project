@@ -89,16 +89,15 @@ Do not mix tool_call JSON with prose in the same message.
         history.add(ConversationTurn.User(input))
 
         ExecutionStatusBus.onGraphStarted(
-            goalId      = "loop_${System.currentTimeMillis()}",
-            description = input.take(80),
-            totalNodes  = MAX_STEPS
+            goalDescription = input.take(80),
+            totalNodes      = MAX_STEPS
         )
 
         try {
             while (stepsUsed < MAX_STEPS && coroutineContext.isActive) {
                 if (System.currentTimeMillis() - startMs > TIMEOUT_MS) {
                     Log.w(TAG, "AgentLoop timed out after ${stepsUsed} steps")
-                    ExecutionStatusBus.onGraphFailed("Loop timed out after $stepsUsed steps")
+                    ExecutionStatusBus.onGraphCompleted(false)
                     val partial = history.lastOrNull { it is ConversationTurn.Assistant }
                         ?.let { (it as ConversationTurn.Assistant).content }
                         ?: "Task timed out. Please try again."
@@ -106,7 +105,7 @@ Do not mix tool_call JSON with prose in the same message.
                 }
 
                 stepsUsed++
-                ExecutionStatusBus.onNodeStarted("step_$stepsUsed", "Step $stepsUsed", stepsUsed)
+                ExecutionStatusBus.onWaveStarted(listOf("step_$stepsUsed"), listOf("Step $stepsUsed"))
 
                 val tokenBuffer = StringBuilder()
                 val rawResponse = callLLM(
@@ -127,8 +126,8 @@ Do not mix tool_call JSON with prose in the same message.
                 if (toolCall == null) {
                     // Final answer — LLM decided it's done
                     history.add(ConversationTurn.Assistant(rawResponse))
-                    ExecutionStatusBus.onNodeCompleted("step_$stepsUsed", true)
-                    ExecutionStatusBus.onGraphCompleted(stepsUsed)
+                    ExecutionStatusBus.onNodeCompleted("step_$stepsUsed", stepsUsed)
+                    ExecutionStatusBus.onGraphCompleted(true)
                     onStepComplete(StepEvent.FinalAnswer(rawResponse, stepsUsed))
                     return LoopResult(rawResponse, stepsUsed, toolsInvoked)
                 }
@@ -139,7 +138,7 @@ Do not mix tool_call JSON with prose in the same message.
                 toolsInvoked.add(toolName)
 
                 Log.i(TAG, "AIRI_PROOF TOOL_CALL step=$stepsUsed tool=$toolName args=${toolArgs.keys.joinToString()}")
-                ExecutionStatusBus.onNodeStarted("tool_$toolName", "Tool: $toolName", stepsUsed)
+                ExecutionStatusBus.onWaveStarted(listOf("tool_$toolName"), listOf("Tool: $toolName"))
 
                 val toolResult = try {
                     dispatcher.execute(toolName, toolArgs, appContext)
@@ -157,7 +156,7 @@ Do not mix tool_call JSON with prose in the same message.
 
                 Log.i(TAG, "AIRI_PROOF TOOL_RESULT tool=$toolName success=${toolResult is ToolDispatcher.ToolResult.Success} len=${resultText.length}")
 
-                ExecutionStatusBus.onNodeCompleted("tool_$toolName", toolResult is ToolDispatcher.ToolResult.Success)
+                ExecutionStatusBus.onNodeCompleted("tool_$toolName", stepsUsed)
                 onStepComplete(StepEvent.ToolExecuted(toolName, toolArgs, resultText, stepsUsed))
 
                 // Append the assistant's tool_call + tool result to history so the LLM
@@ -170,11 +169,11 @@ Do not mix tool_call JSON with prose in the same message.
             Log.w(TAG, "AgentLoop exhausted $MAX_STEPS steps — asking LLM to summarise")
             history.add(ConversationTurn.User("You have reached your step limit. Summarise what you have done and what the final answer is."))
             val summary = callLLM("", fullSystemPrompt, history, emptyList(), onToken)
-            ExecutionStatusBus.onGraphCompleted(stepsUsed)
+            ExecutionStatusBus.onGraphCompleted(true)
             return LoopResult(summary, stepsUsed, toolsInvoked)
 
         } catch (e: CancellationException) {
-            ExecutionStatusBus.onGraphFailed("Cancelled")
+            ExecutionStatusBus.onGraphCompleted(false)
             val last = history.lastOrNull { it is ConversationTurn.Assistant }
                 ?.let { (it as ConversationTurn.Assistant).content } ?: ""
             return LoopResult(last.ifBlank { "Task cancelled." }, stepsUsed, toolsInvoked, cancelled = true)

@@ -75,7 +75,7 @@ class ToolDispatcher(
                 val appName = args["app_name"] ?: return ToolResult.Error("Missing app_name")
                 val result = AccessibilityCommandBridge.launchApp(appName)
                 if (result.success) ToolResult.Success("Launched $appName")
-                else ToolResult.Error(result.message)
+                else ToolResult.Error(result.message ?: "")
             }
 
             // ── UI interaction ─────────────────────────────────────────────────
@@ -83,14 +83,14 @@ class ToolDispatcher(
                 val target = args["target"] ?: return ToolResult.Error("Missing target")
                 val result = AccessibilityCommandBridge.click(target)
                 if (result.success) ToolResult.Success("Tapped: $target")
-                else ToolResult.Error(result.message)
+                else ToolResult.Error(result.message ?: "")
             }
 
             "type_text" -> {
                 val text = args["text"] ?: return ToolResult.Error("Missing text")
                 val result = AccessibilityCommandBridge.typeText(text)
                 if (result.success) ToolResult.Success("Typed: ${text.take(60)}")
-                else ToolResult.Error(result.message)
+                else ToolResult.Error(result.message ?: "")
             }
 
             "scroll_down" -> {
@@ -108,9 +108,9 @@ class ToolDispatcher(
                 val query = args["query"] ?: return ToolResult.Error("Missing query")
                 val searchTool = SearchTool(context)
                 val result = searchTool.searchDuckDuckGo(query)
-                if (result.isNotBlank()) {
-                    Log.i(TAG, "AIRI_PROOF WEB_SEARCH query=${query.take(60)} resultLen=${result.length}")
-                    ToolResult.Success(result)
+                if (result.success) {
+                    Log.i(TAG, "AIRI_PROOF WEB_SEARCH query=${query.take(60)} resultLen=${result.summary.length}")
+                    ToolResult.Success(result.summary)
                 } else {
                     // Fallback: fire the intent (visible to user)
                     searchTool.searchViaIntent(query)
@@ -125,7 +125,7 @@ class ToolDispatcher(
                 if (manager == null) {
                     ToolResult.Error("Memory not available in this session")
                 } else {
-                    val hits = manager.semanticSearch(query, limit = 5)
+                    val hits = manager.getRecentMessages(5)
                     if (hits.isEmpty()) {
                         ToolResult.Success("No relevant memories found for: $query")
                     } else {
@@ -144,9 +144,7 @@ class ToolDispatcher(
                 if (events.isEmpty()) {
                     ToolResult.Success("No events found in the next $days days.")
                 } else {
-                    val formatted = events.take(10).joinToString("\n") {
-                        "• ${it.title} — ${it.startFormatted}"
-                    }
+                    val formatted = cal.summarize(events.take(10))
                     Log.i(TAG, "AIRI_PROOF CALENDAR_READ days=$days events=${events.size}")
                     ToolResult.Success("Upcoming events:\n$formatted")
                 }
@@ -174,7 +172,9 @@ class ToolDispatcher(
                 val time  = args["time"]  ?: return ToolResult.Error("Missing time")
                 val label = args["label"] ?: "AIRI Alarm"
                 val alarm = AlarmTool(context)
-                val result = alarm.setAlarm(time, label)
+                val timePair = alarm.parseTime(time)
+                    ?: return ToolResult.Error("Could not parse time '$time'. Use format like '7:30am' or '14:00'")
+                val result = alarm.setAlarmViaIntent(timePair.first, timePair.second, label)
                 if (result.success) {
                     Log.i(TAG, "AIRI_PROOF SET_ALARM time=$time label=$label")
                     ToolResult.Success("Alarm set for $time: $label")
@@ -188,13 +188,9 @@ class ToolDispatcher(
                 val title   = args["title"]   ?: return ToolResult.Error("Missing title")
                 val content = args["content"] ?: return ToolResult.Error("Missing content")
                 val notes   = NotesTool(context)
-                val result  = notes.createNote(title, content)
-                if (result.success) {
-                    Log.i(TAG, "AIRI_PROOF CREATE_NOTE title=${title.take(40)}")
-                    ToolResult.Success("Note created: $title")
-                } else {
-                    ToolResult.Error(result.message)
-                }
+                val note    = notes.createNote(title, content)
+                Log.i(TAG, "AIRI_PROOF CREATE_NOTE title=${title.take(40)}")
+                ToolResult.Success("Note created: ${note.title}")
             }
 
             // ── Confirmation request (LLM asks user) ──────────────────────────

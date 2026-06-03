@@ -221,19 +221,3 @@ data class WorkspaceSummary(
     val fileList:      List<String>
 )
 
-// ── Global workspace registry ─────────────────────────────────────────────────
-
-object WorkspaceRegistry {
-
-    private val workspaces = ConcurrentHashMap<String, SandboxWorkspace>()
-
-    fun get(goalId: String): SandboxWorkspace =
-        workspaces.getOrPut(goalId) { SandboxWorkspace(goalId) }
-
-    fun release(goalId: String) {
-        workspaces.remove(goalId)
-        Log.d(TAG, "WORKSPACE_RELEASED goalId=$goalId")
-    }
-
-    fun activeGoals(): List<String> = workspaces.keys.toList()
-}

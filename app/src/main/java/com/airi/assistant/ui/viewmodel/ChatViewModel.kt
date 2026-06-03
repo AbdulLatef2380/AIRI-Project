@@ -1261,7 +1261,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-    }
 
     // ── Prompt building (delegates to PromptService) ──────────────────────────
 

@@ -221,19 +221,7 @@ data class WorkspaceSummary(
     val fileList:      List<String>
 )
 
-// ── Global workspace registry ─────────────────────────────────────────────────
-
-object WorkspaceRegistry {
-
-    private val workspaces = ConcurrentHashMap<String, SandboxWorkspace>()
-
-    fun get(goalId: String): SandboxWorkspace =
-        workspaces.getOrPut(goalId) { SandboxWorkspace(goalId) }
-
-    fun release(goalId: String) {
-        workspaces.remove(goalId)
-        Log.d(TAG, "WORKSPACE_RELEASED goalId=$goalId")
-    }
-
-    fun activeGoals(): List<String> = workspaces.keys.toList()
-}
+// NOTE: The global WorkspaceRegistry singleton lives in its own file
+// (WorkspaceRegistry.kt) — it provides get/release plus pruneStale/activeCount
+// used by AIRIApplication.onTrimMemory. The duplicate object that previously
+// lived here has been removed to resolve the redeclaration conflict.

@@ -9,8 +9,6 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
-import androidx.work.Worker
-import androidx.work.WorkerParameters
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
 import org.json.JSONArray
@@ -237,32 +235,7 @@ data class ScheduledJob(
 
 enum class ScheduleType { ONE_TIME, PERIODIC }
 
-/**
- * WorkManager worker that fires the agent dispatch when the scheduled
- * time arrives. It reads the job metadata from [inputData], builds a
- * minimal [SubAgentContext], and posts the result via [EventBus].
- *
- * In a full production build this would call the real SubAgentRegistry;
- * here it posts a [AppEvent.GenericInfo] so the event bus carries the
- * payload — the orchestrator picks it up on the next app foreground.
- */
-class ScheduledAgentWorker(
-    appContext: Context,
-    params: WorkerParameters
-) : Worker(appContext, params) {
-
-    override fun doWork(): Result {
-        val jobId   = inputData.getString("job_id")   ?: return Result.failure()
-        val agentId = inputData.getString("agent_id") ?: return Result.failure()
-        val payload = inputData.getString("payload")  ?: return Result.failure()
-        val label   = inputData.getString("label")    ?: ""
-
-        Log.i("ScheduledAgentWorker",
-            "AIRI_PROOF SCHEDULED_JOB_FIRED id=$jobId agent=$agentId label=$label")
-
-        EventBus.emitSync(AppEvent.GenericInfo(
-            "ScheduledJob fired: $label (agent=$agentId payload=${payload.take(60)})"
-        ))
-        return Result.success()
-    }
-}
+// NOTE: The ScheduledAgentWorker that WorkManager dispatches lives in its own
+// file (ScheduledAgentWorker.kt) — a full CoroutineWorker that routes through
+// SubAgentRegistry / ProductionAgentOrchestrator. The previous minimal stub
+// that lived here was a duplicate top-level declaration and has been removed.

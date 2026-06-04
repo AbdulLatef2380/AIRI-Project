@@ -984,7 +984,6 @@ private fun AiriChatTopBar(
 // ─────────────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AiriModelPickerSheet(
     modelState: ModelUiState,
@@ -1071,7 +1070,7 @@ private fun AiriModelPickerSheet(
                 val isSelected = modelState.isCloudReady &&
                     activeProv.value?.id == prov.id
                 ModelPickerRow(
-                    name      = prov.displayName,
+                    name      = prov.displayLabel,
                     subtitle  = prov.description,
                     icon      = Icons.Outlined.Cloud,
                     isSelected = isSelected,

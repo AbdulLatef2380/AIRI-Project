@@ -299,12 +299,6 @@ private fun LiveHubTab() {
                     StatusCountChip("Done",      snapshot.durableTasksCompleted, SemanticSuccess, Modifier.weight(1f))
                     StatusCountChip("Failed",    snapshot.durableTasksFailed,    SemanticError,   Modifier.weight(1f))
                 }
-                if (snapshot.durableTaskQueue.isNotEmpty()) {
-                    Spacer(Modifier.height(6.dp))
-                    snapshot.durableTaskQueue.take(5).forEach { task ->
-                        MetricRow(task.title.take(40), task.status.name)
-                    }
-                }
             }
         }
 

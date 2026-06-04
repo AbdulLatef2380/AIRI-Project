@@ -277,9 +277,6 @@ fun SkillManagerScreen(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun DropdownMenuItem.Companion.Stub() {}   // suppress unused warning
-
-@Composable
 private fun AddOption(icon: ImageVector, label: String, onClick: () -> Unit) {
     DropdownMenuItem(
         leadingIcon = { Icon(icon, null, tint = CosmicAccent, modifier = Modifier.size(18.dp)) },

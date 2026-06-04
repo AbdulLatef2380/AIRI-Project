@@ -61,7 +61,7 @@ object WorkspaceRegistry {
     fun release(goalId: String) {
         val ws = active.remove(goalId)
         if (ws != null) {
-            Log.i(TAG, "WORKSPACE_RELEASE goalId=$goalId snapshots=${ws.listSnapshots().size}")
+            Log.i(TAG, "WORKSPACE_RELEASE goalId=$goalId artifacts=${ws.snapshot().artifacts.size}")
         }
     }
 
@@ -75,7 +75,7 @@ object WorkspaceRegistry {
     fun pruneStale(maxAgeMs: Long = 30 * 60 * 1_000L) {
         val cutoff = System.currentTimeMillis() - maxAgeMs
         val stale  = active.entries.filter { (_, ws) ->
-            val lastSnap = ws.listSnapshots().lastOrNull()?.timestampMs ?: 0L
+            val lastSnap = ws.snapshot().artifacts.maxOfOrNull { it.createdAtMs } ?: 0L
             lastSnap < cutoff
         }.map { it.key }
         stale.forEach { id ->

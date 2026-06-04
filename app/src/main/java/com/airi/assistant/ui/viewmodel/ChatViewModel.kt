@@ -503,6 +503,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun persistRegistry() = modelController.persistRegistry()
     private fun refreshModelList() = modelController.refreshModelList()
     private fun refreshDiagnosticsSnapshot() = modelController.refreshDiagnosticsSnapshot()
+    fun onDiagnosticsScreenVisible() = modelController.refreshDiagnosticsSnapshot()
+    private fun syncDownloadedModelAvailability() = modelController.syncDownloadedModelAvailability()
 
     private val _sessions = MutableStateFlow<List<ChatSessionSummary>>(emptyList())
     val sessions: StateFlow<List<ChatSessionSummary>> = _sessions.asStateFlow()
@@ -1792,10 +1794,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // is consistent with the text inference path through HybridOrchestrator.
         // Image bytes NEVER leave the device — assert this at the call site.
         Log.i("AIRI_PROOF", "VISION_PRIVACY_GATE origin=LOCAL data=image_bytes_on_device_only")
-        AnalyticsService.inferenceStarted(
-            model  = _modelState.value.selectedModelName,
-            origin = com.airi.assistant.execution.ExecOrigin.LOCAL.name
-        )
+        AnalyticsService.modelLoaded(_modelState.value.selectedModelName, 0L)
 
         val visionReady = _modelState.value.capabilities.vision &&
                           runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
@@ -2072,8 +2071,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         ModelRegistry.addModel(model)
                         persistRegistry()
                         preferences.edit()
-                            .putString(KEY_MODEL_ID, model.id)
-                            .putString(KEY_MODEL_PATH, model.path)
+                            .putString(ModelController.KEY_MODEL_ID, model.id)
+                            .putString(ModelController.KEY_MODEL_PATH, model.path)
                             .apply()
                         refreshModelList()
                         modelController.loadModel(model)
@@ -2103,7 +2102,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun selectModel(modelId: String) {
         val model = ModelRegistry.getById(modelId) ?: return
         Log.i("AIRI_PROOF", "MODEL_ACTIVATED name=${model.name} id=${model.id} type=${model.type.label} path=${model.path}")
-        preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
+        preferences.edit().putString(ModelController.KEY_MODEL_ID, model.id).putString(ModelController.KEY_MODEL_PATH, model.path).apply()
         modelController.loadModel(model)
     }
 
@@ -2167,7 +2166,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val model = modelController.createModelFromFile(file, ModelSource.DOWNLOADED, "chat", catalogMeta)
         ModelRegistry.addModel(model)
         persistRegistry()
-        preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
+        preferences.edit().putString(ModelController.KEY_MODEL_ID, model.id).putString(ModelController.KEY_MODEL_PATH, model.path).apply()
         refreshModelList()
         modelController.loadModel(model)
     }
@@ -2211,7 +2210,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val model = modelController.createModelFromFile(file, ModelSource.DOWNLOADED, "chat", entry)
         ModelRegistry.addModel(model)
         persistRegistry()
-        preferences.edit().putString(KEY_MODEL_ID, model.id).putString(KEY_MODEL_PATH, model.path).apply()
+        preferences.edit().putString(ModelController.KEY_MODEL_ID, model.id).putString(ModelController.KEY_MODEL_PATH, model.path).apply()
         refreshModelList()
         modelController.loadModel(model)
     }

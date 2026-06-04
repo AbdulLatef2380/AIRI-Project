@@ -176,10 +176,6 @@ private fun MemoryTab() {
                 trackColor      = Color.White.copy(0.1f)
             )
         }
-        DevCard(title = "Adaptive Intelligence") {
-            val json = remember { ServiceLocator.adaptiveIntelligence.exportSummaryJson() }
-            Text(json, fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = Color.White.copy(0.65f), lineHeight = 15.sp)
-        }
     }
 }
 

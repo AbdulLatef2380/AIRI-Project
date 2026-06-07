@@ -287,7 +287,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // back to the UI so the PerformanceScreen and stats overlay stay accurate.
     // The supervisor never upgrades autonomously; it only caps resources at the
     // user's chosen ceiling when thermal or memory pressure is sustained.
-    private val runtimeSupervisor = RuntimeSupervisor(
+    private val runtimeSupervisor: RuntimeSupervisor = RuntimeSupervisor(
         context      = appContext,
         llamaManager = llamaManager,
         modeProvider = { _performanceMode.value },

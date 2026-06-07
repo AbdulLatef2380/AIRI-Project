@@ -41,6 +41,7 @@ import com.airi.assistant.domain.permission.PermissionService
 import com.airi.assistant.domain.policy.PolicyEngine
 import com.airi.assistant.domain.prompt.PromptService
 import com.airi.assistant.domain.sharing.ChatSharingService
+import com.airi.assistant.agent.durable.DurableTaskManager
 import com.airi.assistant.agent.learning.SkillOutcomeScorer
 import com.airi.assistant.agent.workspace.WorkspaceRegistry
 import com.airi.assistant.domain.policy.UnifiedPolicyGate
@@ -343,6 +344,12 @@ object ServiceLocator {
 
     val scheduledJobOrchestrator: ScheduledJobOrchestrator by lazy {
         ScheduledJobOrchestrator(requireContext())
+    }
+
+    // ── Durable Task Manager ───────────────────────────────────────────────────
+
+    val durableTaskManager: DurableTaskManager by lazy {
+        DurableTaskManager(requireContext())
     }
 
     // ── Credit / Consumption Metering ────────────────────────────────────────

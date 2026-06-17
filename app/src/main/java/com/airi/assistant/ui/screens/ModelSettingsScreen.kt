@@ -54,6 +54,7 @@ import com.airi.assistant.ai.remote.RemoteModelExecutor
 import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.ui.viewmodel.LoadErrorType
 import com.airi.assistant.ui.viewmodel.ModelUiState
@@ -125,6 +126,11 @@ fun ModelSettingsScreen(
         uri?.let { viewModel.importModel(it) }
     }
 
+    // B-23: Embedding model picker — user selects a GGUF embedding file
+    val embeddingPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        uri?.let { viewModel.loadEmbeddingFromUri(context, it) }
+    }
+
     val storagePermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -165,13 +171,13 @@ fun ModelSettingsScreen(
                         stringResource(R.string.model_settings),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        color = Color.White,
+                        color = AiriTheme.onBackground,
                         fontWeight = FontWeight.Bold
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -258,7 +264,7 @@ fun ModelSettingsScreen(
                             Text(
                                 "No downloaded models yet. Browse below to get started.",
                                 fontSize = 14.sp,
-                                color = Color.White.copy(alpha = 0.45f),
+                                color = AiriTheme.onBackground.copy(alpha = 0.45f),
                                 lineHeight = 20.sp
                             )
                         }
@@ -340,11 +346,24 @@ fun ModelSettingsScreen(
             // without requiring a local GGUF model.
             item {
                 Spacer(Modifier.height(8.dp))
-                Divider(color = Color.White.copy(alpha = 0.06f))
+                Divider(color = AiriTheme.outline.copy(alpha = 0.3f))
                 Spacer(Modifier.height(8.dp))
                 CloudModelStoreSection(
                     viewModel  = viewModel,
                     modelState = modelState
+                )
+            }
+
+            // B-23: Embedding model picker — enables semantic memory search.
+            // Without an embedding model, memory_recall falls back to
+            // chronological recall regardless of query content.
+            item {
+                Spacer(Modifier.height(8.dp))
+                Divider(color = AiriTheme.outline.copy(alpha = 0.3f))
+                Spacer(Modifier.height(8.dp))
+                EmbeddingModelSection(
+                    viewModel       = viewModel,
+                    embeddingPicker = embeddingPicker
                 )
             }
         }
@@ -490,7 +509,7 @@ fun RefModelGroupAccordion(
                             Text(
                                 "$count",
                                 fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.65f)
+                                color = AiriTheme.onSurfaceVariant
                             )
                         }
                     }
@@ -498,7 +517,7 @@ fun RefModelGroupAccordion(
                         imageVector = if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                         contentDescription = if (isExpanded) "Collapse" else "Expand",
                         modifier = Modifier.size(20.dp),
-                        tint = Color.White.copy(alpha = 0.55f)
+                        tint = AiriTheme.onBackground.copy(alpha = 0.55f)
                     )
                 }
             }
@@ -582,7 +601,7 @@ fun RefDownloadedModelCard(
                         model.name,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White,
+                        color = AiriTheme.onBackground,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
@@ -603,12 +622,12 @@ fun RefDownloadedModelCard(
                             Icons.Outlined.Memory,
                             contentDescription = null,
                             modifier = Modifier.size(10.dp),
-                            tint = Color.White.copy(alpha = 0.45f)
+                            tint = AiriTheme.onBackground.copy(alpha = 0.45f)
                         )
                         Text(
                             model.size.toReadableSize(),
                             fontSize = 11.sp,
-                            color = Color.White.copy(alpha = 0.50f)
+                            color = AiriTheme.onBackground.copy(alpha = 0.50f)
                         )
                     }
                     // statusDot: 8x8, borderRadius 4
@@ -685,7 +704,7 @@ fun RefDownloadedModelCard(
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp,
-                            color = Color.White
+                            color = AiriTheme.onBackground
                         )
                     } else {
                         Text(
@@ -711,7 +730,7 @@ fun RefDownloadedModelCard(
                         Icons.Outlined.Settings,
                         contentDescription = stringResource(R.string.model_settings_icon),
                         modifier = Modifier.size(20.dp),
-                        tint = Color.White.copy(alpha = 0.65f)
+                        tint = AiriTheme.onBackground.copy(alpha = 0.65f)
                     )
                 }
 
@@ -747,7 +766,7 @@ fun RefDownloadedModelCard(
                         imageVector = if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                         contentDescription = if (isExpanded) stringResource(R.string.collapse) else stringResource(R.string.expand),
                         modifier = Modifier.size(16.dp),
-                        tint = Color.White.copy(alpha = 0.55f)
+                        tint = AiriTheme.onBackground.copy(alpha = 0.55f)
                     )
                 }
             }
@@ -771,13 +790,13 @@ fun RefDownloadedModelCard(
                                 "Model",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Color.White.copy(alpha = 0.45f),
+                                color = AiriTheme.onBackground.copy(alpha = 0.45f),
                                 modifier = Modifier.padding(bottom = 4.dp)
                             )
                             Text(
                                 model.name,
                                 fontSize = 14.sp,
-                                color = Color.White,
+                                color = AiriTheme.onBackground,
                                 lineHeight = 20.sp
                             )
                             if (model.path.isNotBlank()) {
@@ -785,7 +804,7 @@ fun RefDownloadedModelCard(
                                 Text(
                                     model.path,
                                     fontSize = 11.sp,
-                                    color = Color.White.copy(alpha = 0.35f),
+                                    color = AiriTheme.outline,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -851,7 +870,7 @@ fun RefCatalogModelCard(
             .padding(6.dp) // margin: 6
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.08f),
+                color = AiriTheme.outline.copy(alpha = 0.3f),
                 shape = RoundedCornerShape(24.dp) // borderRadius: 24
             )
             .clip(RoundedCornerShape(24.dp))
@@ -890,7 +909,7 @@ fun RefCatalogModelCard(
                         entry.name,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White,
+                        color = AiriTheme.onBackground,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
@@ -1057,7 +1076,7 @@ fun RefCatalogModelCard(
                         imageVector = if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                         contentDescription = if (isExpanded) stringResource(R.string.collapse) else stringResource(R.string.expand),
                         modifier = Modifier.size(16.dp),
-                        tint = Color.White.copy(alpha = 0.55f)
+                        tint = AiriTheme.onBackground.copy(alpha = 0.55f)
                     )
                 }
             }
@@ -1081,7 +1100,7 @@ fun RefCatalogModelCard(
                                 entry.description,
                                 modifier = Modifier.padding(12.dp),
                                 fontSize = 13.sp,
-                                color = Color.White.copy(alpha = 0.68f),
+                                color = AiriTheme.onBackground.copy(alpha = 0.68f),
                                 lineHeight = 19.sp
                             )
                         }
@@ -1143,7 +1162,7 @@ private fun RefDetailCard(
                 label,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color.White.copy(alpha = 0.40f),
+                color = AiriTheme.onBackground.copy(alpha = 0.40f),
                 modifier = Modifier.padding(bottom = 3.dp)
             )
             Text(
@@ -1190,7 +1209,7 @@ private fun ModelStoreHero(totalRamMb: Int, storageBytes: Long) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     "اكتشف عقل AIRI الجديد",
-                    color = Color.White,
+                    color = AiriTheme.onBackground,
                     fontSize = 26.sp,
                     lineHeight = 32.sp,
                     fontWeight = FontWeight.Bold,
@@ -1199,7 +1218,7 @@ private fun ModelStoreHero(totalRamMb: Int, storageBytes: Long) {
                 )
                 Text(
                     "نماذج محلية مختارة حسب ذاكرة الجهاز والتخزين والمعالج.",
-                    color = Color.White.copy(alpha = 0.68f),
+                    color = AiriTheme.onBackground.copy(alpha = 0.68f),
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                     maxLines = 2,
@@ -1216,11 +1235,11 @@ private fun ModelStoreHero(totalRamMb: Int, storageBytes: Long) {
                     .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Outlined.Search, contentDescription = null, tint = Color.White.copy(alpha = 0.54f), modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.Search, contentDescription = null, tint = AiriTheme.onBackground.copy(alpha = 0.54f), modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "Search models • RAM ${totalRamMb}MB • ${storageBytes.toReadableSize()} free",
-                    color = Color.White.copy(alpha = 0.54f),
+                    color = AiriTheme.onBackground.copy(alpha = 0.54f),
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1397,7 +1416,7 @@ fun CatalogCard(
             .heightIn(min = 160.dp)
             .border(
                 width = 0.5.dp,
-                color = Color.White.copy(alpha = 0.10f),
+                color = AiriTheme.onBackground.copy(alpha = 0.10f),
                 shape = RoundedCornerShape(24.dp)
             ),
         shape = RoundedCornerShape(24.dp),
@@ -1462,7 +1481,7 @@ fun CatalogCard(
 
             AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Divider(color = Color.White.copy(alpha = 0.08f))
+                    Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
                     DetailRow("parameters", "CTX ${entry.contextSize.contextLabel()} • ${entry.quantization}")
                     DetailRow("last update", "Catalog verified")
                     DetailRow("architecture", entry.type.label)
@@ -1496,7 +1515,7 @@ private fun ManufacturerIcon(type: ModelType) {
 
 @Composable
 private fun StoreChip(label: String, color: Color, monospace: Boolean = false) {
-    Surface(shape = CircleShape, color = color, contentColor = Color.White) {
+    Surface(shape = CircleShape, color = color, contentColor = AiriTheme.onBackground) {
         Text(
             label,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -1538,7 +1557,7 @@ private fun StoreDownloadButton(
         modifier = Modifier.height(42.dp).widthIn(min = 88.dp)
     ) {
         if (isDownloading) {
-            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = AiriTheme.onBackground)
         } else {
             Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
         }
@@ -1548,8 +1567,8 @@ private fun StoreDownloadButton(
 @Composable
 private fun DetailRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = Color.White.copy(alpha = 0.45f), fontSize = 12.sp)
-        Text(value, color = Color.White.copy(alpha = 0.78f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, color = AiriTheme.onBackground.copy(alpha = 0.45f), fontSize = 12.sp)
+        Text(value, color = AiriTheme.onBackground.copy(alpha = 0.78f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -1689,7 +1708,7 @@ fun ModelCard(
                             Icons.Outlined.Settings,
                             contentDescription = stringResource(R.string.model_settings_icon),
                             modifier = Modifier.size(18.dp),
-                            tint = Color.White.copy(alpha = 0.7f)
+                            tint = AiriTheme.onBackground.copy(alpha = 0.7f)
                         )
                     }
                 }
@@ -1701,7 +1720,7 @@ fun ModelCard(
                         if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                         contentDescription = if (expanded) stringResource(R.string.collapse) else stringResource(R.string.expand),
                         modifier = Modifier.size(18.dp),
-                        tint = Color.White.copy(alpha = 0.5f)
+                        tint = AiriTheme.onSurfaceVariant
                     )
                 }
             }
@@ -1745,17 +1764,17 @@ fun ModelCard(
 
             AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Divider(color = Color.White.copy(alpha = 0.1f))
+                    Divider(color = AiriTheme.outline.copy(alpha = 0.35f))
                     Text(
                         subtitle,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.5f)
+                        color = AiriTheme.onSurfaceVariant
                     )
                     metadata.forEach { tag ->
                         Text(
                             "· $tag",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.65f)
+                            color = AiriTheme.onSurfaceVariant
                         )
                     }
                 }
@@ -2277,7 +2296,7 @@ fun AddModelBottomSheet(
                             Text(
                                 stringResource(R.string.import_gguf_from_storage),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.6f)
+                                color = AiriTheme.onSurfaceVariant
                             )
                         }
                     }
@@ -2422,5 +2441,88 @@ private fun AddRemoteModelContent(
                 modifier = Modifier.weight(1f)
             ) { Text(stringResource(R.string.save)) }
         }
+    }
+}
+
+// ── B-23: EmbeddingModelSection ───────────────────────────────────────────────
+// Allows users to select an embedding GGUF file. Enables semantic memory search
+// in memory_recall tool. Without this, recall falls back to chronological order.
+@Composable
+private fun EmbeddingModelSection(
+    viewModel:       ChatViewModel,
+    embeddingPicker: androidx.activity.result.ActivityResultLauncher<Array<String>>
+) {
+    val embeddingReady by viewModel.embeddingModelReady.collectAsState()
+    val embeddingPath  by viewModel.embeddingModelPath.collectAsState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        SectionHeader(
+            title    = "Embedding Model",
+            subtitle = "Enables semantic memory search. Recommended: bge-small-en-v1.5.Q8_0.gguf (~130 MB)"
+        )
+
+        Surface(
+            shape  = RoundedCornerShape(14.dp),
+            color  = Color(0xFF1C1C1E),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (embeddingReady) Color(0xFF30D158) else Color(0xFF636366))
+                        )
+                        Text(
+                            if (embeddingReady) "Loaded" else "Not loaded",
+                            fontSize   = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color      = AiriTheme.onBackground
+                        )
+                    }
+                    Text(
+                        embeddingPath?.substringAfterLast("/") ?: "No embedding model selected",
+                        fontSize  = 11.sp,
+                        color     = AiriTheme.onBackground.copy(alpha = 0.5f),
+                        maxLines  = 1,
+                        overflow  = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier  = Modifier.padding(start = 14.dp)
+                    )
+                }
+                TextButton(
+                    onClick = { embeddingPicker.launch(arrayOf("application/octet-stream", "*/*")) }
+                ) {
+                    Text(
+                        if (embeddingReady) "Change" else "Select GGUF",
+                        color    = Color(0xFF0A84FF),
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        }
+
+        Text(
+            "Choose a GGUF embedding model (bge, e5, gte, nomic-embed, etc.). " +
+            "Enables AIRI to find relevant memories based on meaning, not just recency.",
+            fontSize   = 11.sp,
+            color      = AiriTheme.onBackground.copy(alpha = 0.45f),
+            lineHeight = 16.sp
+        )
     }
 }

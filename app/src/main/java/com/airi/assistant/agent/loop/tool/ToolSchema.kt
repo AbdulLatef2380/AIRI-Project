@@ -136,16 +136,24 @@ object BuiltinTools {
         dangerous = false
     )
 
-    /** Full set of tools for an ACTION-capable session. */
+    val FETCH_URL = ToolSchema(
+        name        = "fetch_url",
+        description = "Fetch the full text content of a web page. Use after web_search to read the actual content, verify facts, or extract detailed information from a specific URL.",
+        parameters  = mapOf("url" to ToolSchema.Param("string", "Full URL to fetch (must start with https://)")),
+        category    = ToolSchema.Category.SEARCH,
+        dangerous   = false
+    )
+
+        /** Full set of tools for an ACTION-capable session. */
     val ALL: List<ToolSchema> = listOf(
         READ_SCREEN, OPEN_APP, TAP, TYPE_TEXT, SCROLL_DOWN, GO_BACK,
-        WEB_SEARCH, MEMORY_RECALL,
+        WEB_SEARCH, FETCH_URL, MEMORY_RECALL,
         CALENDAR_READ, CALENDAR_CREATE, SET_ALARM, CREATE_NOTE,
         ASK_CONFIRMATION
     )
 
     /** Minimal set for plain chat (no accessibility, no calendar write). */
     val CHAT_ONLY: List<ToolSchema> = listOf(
-        WEB_SEARCH, MEMORY_RECALL, CALENDAR_READ, CREATE_NOTE
+        WEB_SEARCH, FETCH_URL, MEMORY_RECALL, CALENDAR_READ, CREATE_NOTE
     )
 }

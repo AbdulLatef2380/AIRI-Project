@@ -32,6 +32,7 @@ import com.airi.assistant.ui.theme.SemanticSuccess
 import com.airi.assistant.ui.theme.SemanticWarn
 import com.airi.assistant.ui.theme.SurfaceFloating
 import com.airi.assistant.ui.theme.SurfaceRaised
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.voice.VoicePipelineState
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -50,11 +51,11 @@ fun ObservabilityScreen(onBack: () -> Unit) {
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
-                    Text("Observability", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 17.sp)
+                    Text("Observability", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, fontSize = 17.sp)
                 }
             )
         }
@@ -110,7 +111,7 @@ private fun EventsTab() {
         ) {
             Text(
                 "${entries.size} events",
-                color    = Color.White.copy(alpha = 0.4f),
+                color    = AiriTheme.onBackground.copy(alpha = 0.4f),
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace
             )
@@ -121,12 +122,12 @@ private fun EventsTab() {
                 },
                 modifier = Modifier.size(32.dp)
             ) {
-                Icon(Icons.Default.Delete, contentDescription = "Clear", tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Delete, contentDescription = "Clear", tint = AiriTheme.outline, modifier = Modifier.size(16.dp))
             }
         }
         if (entries.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No events recorded yet", color = Color.White.copy(alpha = 0.3f), fontSize = 13.sp)
+                Text("No events recorded yet", color = AiriTheme.outline, fontSize = 13.sp)
             }
         } else {
             LazyColumn(
@@ -179,7 +180,7 @@ private fun EventCard(entry: ExecutionHistoryStore.HistoryEntry) {
                     )
                     Text(
                         entry.formattedTime,
-                        color      = Color.White.copy(alpha = 0.35f),
+                        color      = AiriTheme.onBackground.copy(alpha = 0.35f),
                         fontSize   = 10.sp,
                         fontFamily = FontFamily.Monospace
                     )
@@ -187,7 +188,7 @@ private fun EventCard(entry: ExecutionHistoryStore.HistoryEntry) {
                 if (entry.details.isNotBlank()) {
                     Text(
                         entry.details.take(120),
-                        color    = Color.White.copy(alpha = 0.6f),
+                        color    = AiriTheme.onBackground.copy(alpha = 0.6f),
                         fontSize = 10.sp,
                         maxLines = 2
                     )
@@ -314,14 +315,14 @@ private fun LiveHubTab() {
                         ) {
                             Text(
                                 time,
-                                color      = Color.White.copy(alpha = 0.35f),
+                                color      = AiriTheme.onBackground.copy(alpha = 0.35f),
                                 fontSize   = 9.sp,
                                 fontFamily = FontFamily.Monospace,
                                 modifier   = Modifier.width(54.dp)
                             )
                             Column {
                                 Text(err.agentId, color = SemanticError, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                                Text(err.reason.take(100), color = Color.White.copy(alpha = 0.55f), fontSize = 9.sp)
+                                Text(err.reason.take(100), color = AiriTheme.onSurfaceVariant, fontSize = 9.sp)
                             }
                         }
                     }
@@ -334,7 +335,7 @@ private fun LiveHubTab() {
             item {
                 HubCard(title = "Registered Agents (${snapshot.registeredAgents.size})") {
                     snapshot.registeredAgents.forEach { cap ->
-                        MetricRow(cap.displayName, cap.agentId, color = Color.White.copy(alpha = 0.75f))
+                        MetricRow(cap.displayName, cap.agentId, color = AiriTheme.onBackground.copy(alpha = 0.75f))
                     }
                 }
             }
@@ -349,7 +350,7 @@ private fun MetricRow(label: String, value: String, color: Color = Color.White.c
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment     = Alignment.CenterVertically
     ) {
-        Text(label, color = Color.White.copy(alpha = 0.45f), fontSize = 11.sp)
+        Text(label, color = AiriTheme.onSurfaceVariant.copy(alpha = 0.45f), fontSize = 11.sp)
         Text(value, color = color, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
     }
 }
@@ -362,12 +363,12 @@ private fun AgentMetricRow(agentId: String, executions: Int, errors: Int, lastLa
         verticalAlignment     = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(agentId, color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            Text(agentId, color = AiriTheme.onBackground.copy(alpha = 0.75f), fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             if (errors > 0) Text("$errors error${if (errors > 1) "s" else ""}", color = SemanticError, fontSize = 9.sp)
         }
         Column(horizontalAlignment = Alignment.End) {
             Text("$executions runs", color = CosmicAccent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-            if (lastLatencyMs != null) Text("${lastLatencyMs}ms", color = Color.White.copy(alpha = 0.35f), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+            if (lastLatencyMs != null) Text("${lastLatencyMs}ms", color = AiriTheme.outline, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
         }
     }
 }
@@ -387,12 +388,12 @@ private fun GraphTab() {
         item {
             HubCard(title = "Plan Graph") {
                 if (graph == null) {
-                    Text("No graph yet", color = Color.White.copy(alpha = 0.35f), fontSize = 12.sp)
+                    Text("No graph yet", color = AiriTheme.outline, fontSize = 12.sp)
                 } else {
                     Column {
                         Text(
                             graph.description.take(80),
-                            color      = Color.White.copy(alpha = 0.7f),
+                            color      = AiriTheme.onBackground.copy(alpha = 0.7f),
                             fontSize   = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -415,7 +416,7 @@ private fun GraphTab() {
                         Spacer(Modifier.height(4.dp))
                         Text(
                             "${(graph.completionFraction * 100).toInt()}% · ${graph.doneNodes + graph.skippedNodes}/${graph.totalNodes} nodes",
-                            color      = Color.White.copy(alpha = 0.4f),
+                            color      = AiriTheme.onBackground.copy(alpha = 0.4f),
                             fontSize   = 10.sp,
                             fontFamily = FontFamily.Monospace
                         )
@@ -452,17 +453,17 @@ private fun GraphNodeCard(node: com.airi.assistant.agent.planning.GoalNode) {
                 Text(status, color = fg, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             }
             Spacer(Modifier.height(4.dp))
-            Text("action: ${node.activeAction}", color = Color.White.copy(alpha = 0.6f), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Text("action: ${node.activeAction}", color = AiriTheme.onSurfaceVariant, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             if (node.dependsOn.isNotEmpty()) {
-                Text("depends: ${node.dependsOn.joinToString()}", color = Color.White.copy(alpha = 0.4f), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                Text("depends: ${node.dependsOn.joinToString()}", color = AiriTheme.onSurfaceVariant, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
             }
             if (node.failReason != null) {
                 Text("error: ${node.failReason}", color = SemanticError.copy(alpha = 0.8f), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
             }
             if (node.attempts > 0) {
-                Text("attempts: ${node.attempts}", color = Color.White.copy(alpha = 0.3f), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                Text("attempts: ${node.attempts}", color = AiriTheme.outline, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
             }
-            Text("recovery: ${node.recoveryBranch::class.simpleName}", color = Color.White.copy(alpha = 0.35f), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+            Text("recovery: ${node.recoveryBranch::class.simpleName}", color = AiriTheme.outline, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
         }
     }
 }
@@ -484,7 +485,7 @@ private fun TracesTab() {
         ) {
             Text(
                 "${spans.size} completed spans · ${snapshot.activeSpanCount} active",
-                color      = Color.White.copy(alpha = 0.4f),
+                color      = AiriTheme.onBackground.copy(alpha = 0.4f),
                 fontSize   = 11.sp,
                 fontFamily = FontFamily.Monospace
             )
@@ -492,7 +493,7 @@ private fun TracesTab() {
 
         if (spans.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No trace spans yet", color = Color.White.copy(alpha = 0.3f), fontSize = 13.sp)
+                Text("No trace spans yet", color = AiriTheme.outline, fontSize = 13.sp)
             }
         } else {
             LazyColumn(
@@ -538,7 +539,7 @@ private fun TraceSpanCard(span: TraceSpan) {
                     Spacer(Modifier.width(8.dp))
                     Text(
                         span.name,
-                        color      = Color.White.copy(alpha = 0.85f),
+                        color      = AiriTheme.onBackground.copy(alpha = 0.85f),
                         fontSize   = 12.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines   = if (expanded) Int.MAX_VALUE else 1
@@ -559,13 +560,13 @@ private fun TraceSpanCard(span: TraceSpan) {
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             "$k: ",
-                            color      = Color.White.copy(alpha = 0.35f),
+                            color      = AiriTheme.onBackground.copy(alpha = 0.35f),
                             fontSize   = 10.sp,
                             fontFamily = FontFamily.Monospace
                         )
                         Text(
                             v.take(120),
-                            color      = Color.White.copy(alpha = 0.65f),
+                            color      = AiriTheme.onBackground.copy(alpha = 0.65f),
                             fontSize   = 10.sp,
                             fontFamily = FontFamily.Monospace
                         )
@@ -576,7 +577,7 @@ private fun TraceSpanCard(span: TraceSpan) {
                 Spacer(Modifier.height(2.dp))
                 Text(
                     "parent: ${span.parentSpanId}",
-                    color      = Color.White.copy(alpha = 0.25f),
+                    color      = AiriTheme.onBackground.copy(alpha = 0.25f),
                     fontSize   = 9.sp,
                     fontFamily = FontFamily.Monospace
                 )
@@ -592,7 +593,7 @@ private fun HubCard(title: String, content: @Composable ColumnScope.() -> Unit) 
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape    = RoundedCornerShape(12.dp),
-        color    = SurfaceRaised
+        color    = AiriTheme.surfaceVariant
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
@@ -611,12 +612,12 @@ private fun HubCard(title: String, content: @Composable ColumnScope.() -> Unit) 
 
 @Composable
 private fun StatusCountChip(label: String, count: Int, color: Color, modifier: Modifier) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(6.dp), color = SurfaceFloating) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(6.dp), color = AiriTheme.surfaceVariant) {
         Column(
             modifier             = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalAlignment  = Alignment.CenterHorizontally
         ) {
-            Text(label, color = Color.White.copy(alpha = 0.45f), fontSize = 9.sp)
+            Text(label, color = AiriTheme.onSurfaceVariant.copy(alpha = 0.45f), fontSize = 9.sp)
             Text(
                 "$count",
                 color      = if (count > 0) color else Color.White.copy(alpha = 0.3f),

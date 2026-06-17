@@ -357,7 +357,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // ToolDispatcher executes → result fed back into next LLM turn.
     // Used for ACTION queries when agentLoopEnabled=true.
     private val toolDispatcher           = com.airi.assistant.agent.loop.tool.ToolDispatcher(
-        memoryManager = runCatching { ServiceLocator.memoryManager }.getOrNull()
+        memoryManager     = runCatching { ServiceLocator.memoryManager }.getOrNull(),
+        sessionIdProvider = { _currentSessionId.value },  // P1-1: live session for semantic memory
+        // Brave Search API key — read at call time so key changes take effect immediately
+        braveApiKeyProvider = {
+            runCatching {
+                ServiceLocator.secureApiKeyStore.getKey(
+                    com.airi.assistant.execution.CloudProvider.BRAVE
+                )
+            }.getOrNull()
+        }
     )
     val agentLoop                        = com.airi.assistant.agent.loop.AgentLoop(
         orchestrator = hybridOrchestrator,
@@ -472,6 +481,39 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // Extracted from ChatViewModel in Phase 9 ViewModel decomposition.
     // State ownership stays here (_modelState); ModelController mutates via .value.
     private val _modelState = MutableStateFlow(ModelUiState())   // placeholder until modelController init
+
+    // B-23: Tracks whether an embedding model is loaded (drives EmbeddingModelSection UI)
+    private val _embeddingModelReady = MutableStateFlow(false)
+    val embeddingModelReady: StateFlow<Boolean> = _embeddingModelReady.asStateFlow()
+    private val _embeddingModelPath = MutableStateFlow<String?>(null)
+    val embeddingModelPath: StateFlow<String?> = _embeddingModelPath.asStateFlow()
+
+    /**
+     * B-23: Load an embedding GGUF from a URI selected via the file picker.
+     * Persists the path to SharedPreferences for auto-reload on next launch.
+     */
+    fun loadEmbeddingFromUri(context: Context, uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Persist to an internal copy so the Uri doesn't expire
+                val fileName = "embedding_model.gguf"
+                val dest = java.io.File(context.filesDir, fileName)
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    dest.outputStream().use { output -> input.copyTo(output) }
+                }
+                val ok = llamaManager.loadEmbeddingFromPath(dest.absolutePath)
+                _embeddingModelReady.value = ok
+                _embeddingModelPath.value  = if (ok) dest.absolutePath else null
+                if (ok) {
+                    preferences.edit().putString("embedding_model_path", dest.absolutePath).apply()
+                    Log.i("AIRI", "B-23: Embedding model loaded from URI → ${dest.absolutePath}")
+                }
+            } catch (e: Throwable) {
+                Log.e("AIRI", "loadEmbeddingFromUri failed: ${e.message}", e)
+                _embeddingModelReady.value = false
+            }
+        }
+    }
     val modelState: StateFlow<ModelUiState> = _modelState.asStateFlow()
 
     private val modelController = ModelController(
@@ -506,8 +548,57 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun onDiagnosticsScreenVisible() = modelController.refreshDiagnosticsSnapshot()
     private fun syncDownloadedModelAvailability() = modelController.syncDownloadedModelAvailability()
 
+    // B-08 / LiveVoiceService: Real-time voice mode state
+    // VoicePipelineState drives the ChatScreen voice FAB appearance
+    private val _voicePipelineState = MutableStateFlow(
+        com.airi.assistant.voice.VoicePipelineState.IDLE
+    )
+    val voicePipelineState: StateFlow<com.airi.assistant.voice.VoicePipelineState> =
+        _voicePipelineState.asStateFlow()
+
+    private val _voiceModeActive = MutableStateFlow(false)
+    val voiceModeActive: StateFlow<Boolean> = _voiceModeActive.asStateFlow()
+
+    /**
+     * Toggle real-time voice conversation mode.
+     * Starts or stops [LiveVoiceService].
+     * Requires RECORD_AUDIO permission — caller must verify before invoking.
+     */
+    fun toggleVoiceMode() {
+        viewModelScope.launch {
+            val context = appContext
+            if (_voiceModeActive.value) {
+                // Stop voice mode
+                com.airi.assistant.voice.LiveVoiceService.stop(context)
+                _voiceModeActive.value = false
+                _voicePipelineState.value = com.airi.assistant.voice.VoicePipelineState.IDLE
+                Log.i("AIRI_PROOF", "VOICE_MODE_STOPPED")
+            } else {
+                // Check RECORD_AUDIO permission before starting
+                val permGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.RECORD_AUDIO
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (!permGranted) {
+                    Log.w("AIRI_PROOF", "VOICE_MODE_DENIED reason=no_record_audio_permission")
+                    return@launch
+                }
+                com.airi.assistant.voice.LiveVoiceService.start(context)
+                _voiceModeActive.value = true
+                _voicePipelineState.value = com.airi.assistant.voice.VoicePipelineState.LISTENING
+                Log.i("AIRI_PROOF", "VOICE_MODE_STARTED")
+            }
+        }
+    }
+
     private val _sessions = MutableStateFlow<List<ChatSessionSummary>>(emptyList())
     val sessions: StateFlow<List<ChatSessionSummary>> = _sessions.asStateFlow()
+
+    // B-17: Real-time network connectivity state — drives offline banner in ChatScreen.
+    // ConnectivityMonitor.observe() auto-unregisters when viewModelScope is cancelled.
+    private val _isOnline = MutableStateFlow(
+        com.airi.assistant.execution.network.ConnectivityMonitor.isOnline(appContext)
+    )
+    val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
 
     private val _currentSessionId = MutableStateFlow("")
     val currentSessionId: StateFlow<String> = _currentSessionId.asStateFlow()
@@ -733,6 +824,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         observeVoiceTranscriptBus()
         observeExecutionStatusBus()
         observeMemoryPressureBus()
+
+        // B-17: Subscribe to real-time connectivity changes so ChatScreen can show
+        // an offline banner and routing auto-degrades to local when internet is lost.
+        viewModelScope.launch {
+            com.airi.assistant.execution.network.ConnectivityMonitor
+                .observe(appContext)
+                .collect { online -> _isOnline.value = online }
+        }
 
         // ── Phase 3: Wire real LLM delegate provider into cognitive loop ───────
         // When UCL.runNode() encounters AgentEvent.Delegate (emitted by delegation-
@@ -1185,10 +1284,34 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     },
                     onStepComplete = { stepEvent ->
                         when (stepEvent) {
-                            is com.airi.assistant.agent.loop.AgentLoop.StepEvent.ToolExecuted ->
+                            is com.airi.assistant.agent.loop.AgentLoop.StepEvent.ToolExecuted -> {
                                 Log.i("AIRI_PROOF", "TOOL_EXEC step=${stepEvent.step} tool=${stepEvent.toolName}")
-                            is com.airi.assistant.agent.loop.AgentLoop.StepEvent.FinalAnswer ->
+                                // P0-2: Handle ask_confirmation tool result.
+                                // When the agent calls ask_confirmation, ToolDispatcher returns
+                                // "CONFIRMATION_REQUIRED|action|details". Surface this as a real
+                                // blocking dialog via the existing confirmation gate, then inject
+                                // the user's decision back into the loop as the tool result.
+                                val result = stepEvent.result
+                                if (result.startsWith("CONFIRMATION_REQUIRED|")) {
+                                    val parts   = result.split("|", limit = 3)
+                                    val action  = parts.getOrElse(1) { "Proceed?" }
+                                    val details = parts.getOrElse(2) { "" }
+                                    // awaitAccessibilityConfirmation suspends until user responds
+                                    // or 30 s timeout (auto-cancel). It updates _agentState so
+                                    // ChatScreen shows the blocking dialog.
+                                    val approved = awaitAccessibilityConfirmation(action, details)
+                                    // Return the decision as the effective tool result —
+                                    // AgentLoop will use this string in history instead of the marker.
+                                    if (approved) "User confirmed: proceed with $action"
+                                    else          "User denied: do not proceed with $action"
+                                } else {
+                                    null  // no override — AgentLoop uses original result
+                                }
+                            }
+                            is com.airi.assistant.agent.loop.AgentLoop.StepEvent.FinalAnswer -> {
                                 Log.i("AIRI_PROOF", "AGENT_LOOP_FINAL steps=${stepEvent.steps}")
+                                null
+                            }
                         }
                     }
                 )

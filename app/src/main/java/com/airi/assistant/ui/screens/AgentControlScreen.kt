@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.AgentViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,14 +41,14 @@ fun AgentControlScreen(
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
                     Text(
                         "Agent Control",
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = AiriTheme.onBackground
                     )
                 }
             )
@@ -69,13 +70,13 @@ fun AgentControlScreen(
                 Text(
                     text  = "Toggle skills on/off. Skills require connected integrations.",
                     fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.35f),
+                    color = AiriTheme.outline,
                     modifier = Modifier.padding(bottom = 10.dp)
                 )
                 skillInfos.forEachIndexed { index, info ->
                     if (index > 0) {
                         Divider(
-                            color = Color.White.copy(alpha = 0.05f),
+                            color = AiriTheme.outline.copy(alpha = 0.2f),
                             modifier = Modifier.padding(vertical = 6.dp)
                         )
                     }
@@ -110,7 +111,7 @@ fun AgentControlScreen(
                             }
                             Text(
                                 text = info.description,
-                                color = Color.White.copy(alpha = 0.4f),
+                                color = AiriTheme.onSurfaceVariant,
                                 fontSize = 11.sp
                             )
                         }
@@ -145,12 +146,12 @@ fun AgentControlScreen(
                 Text(
                     text  = "Tools are the low-level actions that skills use to call external services.",
                     fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.35f),
+                    color = AiriTheme.outline,
                     modifier = Modifier.padding(bottom = 10.dp)
                 )
                 toolList.forEachIndexed { index, (toolName, source) ->
                     if (index > 0) Divider(
-                        color = Color.White.copy(alpha = 0.04f),
+                        color = AiriTheme.outline.copy(alpha = 0.04f),
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
                     Row(
@@ -161,7 +162,7 @@ fun AgentControlScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = toolName.replace("_", " "),
-                                color = Color.White.copy(alpha = 0.8f),
+                                color = AiriTheme.onBackground.copy(alpha = 0.8f),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -188,7 +189,7 @@ fun AgentControlScreen(
                 Text(
                     text  = "Shows raw tool JSON and reasoning steps in the chat trace.",
                     fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.35f),
+                    color = AiriTheme.outline,
                     modifier = Modifier.padding(bottom = 10.dp)
                 )
                 Row(
@@ -198,7 +199,7 @@ fun AgentControlScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Enable Debug Mode",
-                            color = Color.White.copy(alpha = 0.9f),
+                            color = AiriTheme.onBackground.copy(alpha = 0.9f),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )

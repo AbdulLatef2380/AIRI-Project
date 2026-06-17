@@ -16,7 +16,7 @@ enum class PerformanceMode(
         label                = "Fast",
         description          = "Low context + aggressive truncation — fastest responses",
         maxTokens            = 128,
-        contextWindow        = 1500,
+        contextWindow        = 1024,   // matches nCtx exactly
         aggressiveTruncation = true,
         temperature          = 0.7f,
         nCtx                 = 1024,
@@ -26,7 +26,7 @@ enum class PerformanceMode(
         label                = "Balanced",
         description          = "Default — good quality without sacrificing speed",
         maxTokens            = 256,
-        contextWindow        = 3000,
+        contextWindow        = 1536,   // matches nCtx exactly
         aggressiveTruncation = false,
         temperature          = 0.8f,
         nCtx                 = 1536,
@@ -36,7 +36,7 @@ enum class PerformanceMode(
         label                = "Quality",
         description          = "Full context + slower — best accuracy",
         maxTokens            = 512,
-        contextWindow        = 6000,
+        contextWindow        = 2048,   // matches nCtx exactly (was misleadingly 6000)
         aggressiveTruncation = false,
         temperature          = 0.9f,
         nCtx                 = 2048,

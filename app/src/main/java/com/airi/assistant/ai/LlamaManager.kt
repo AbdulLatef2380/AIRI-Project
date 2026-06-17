@@ -137,15 +137,20 @@ class LlamaManager(private val context: Context) {
         //   generation reserve     256 tok
         //   ─────────────────────────────
         //   total                 1366 tok  < 1536  (170 tok headroom)
+        // B-02 FIX: Token budget derived dynamically from the active nCtx so
+        // QUALITY mode (nCtx=2048) uses ~1432 history tokens instead of 750,
+        // and FAST mode (nCtx=1024) uses a tighter ~408 tokens.
         //
-        // The former value of 1024 omitted template overhead and system block,
-        // making estimated usage 1024+200+80+80+256 = 1640 > 1536. This caused
-        // reconcileSession to throw CONTEXT_OVERFLOW on turn 2–3 of a typical
-        // Arabic conversation, which the user experienced as "prompt corruption".
+        // Budget formula: nCtx - NON_HISTORY_OVERHEAD, where overhead = 616 tokens:
+        //   system block  ~200  (persona + memory injection)
+        //   template tags  ~80  (chat-ml roles + separators)
+        //   user fragment  ~80  (current message estimate)
+        //   generation reserve ~256 (maxTokens headroom)
         //
-        // Token-based — NOT message-count-based — because a single Arabic /
-        // CJK message can be 200-400 tokens while an English yes/no is 5.
-        const val MAX_HISTORY_TOKENS = 750
+        // The floor of 256 prevents pathological over-trimming on tiny models.
+        // The ceil of Int.MAX_VALUE is not needed — nCtx is always a sane value.
+        private const val NON_HISTORY_OVERHEAD = 616
+        private const val MIN_HISTORY_TOKENS   = 256
     }
 
     /**
@@ -171,6 +176,11 @@ class LlamaManager(private val context: Context) {
 
     @Volatile var lastMetrics: LastInferenceMetrics = LastInferenceMetrics.EMPTY
         private set
+
+    // B-02: dynamic history budget — updated by applyRuntimeMode() when the user changes
+    // performance mode. Defaults to BALANCED budget (1536 - 616 = 920, coerced to floor).
+    @Volatile private var maxHistoryTokens: Int =
+        (PerformanceMode.BALANCED.nCtx - NON_HISTORY_OVERHEAD).coerceAtLeast(MIN_HISTORY_TOKENS)
 
     /** Snapshot the native counters into [lastMetrics] (call after a gen). */
     private fun refreshMetrics() {
@@ -220,8 +230,10 @@ class LlamaManager(private val context: Context) {
             lifecycleLock.withLock {
                 try {
                     LlamaNative.setRuntimeMode(mode.nCtx, mode.nThreads)
+                    // B-02: update dynamic history budget to match new nCtx
+                    maxHistoryTokens = (mode.nCtx - NON_HISTORY_OVERHEAD).coerceAtLeast(MIN_HISTORY_TOKENS)
                     invalidateSession()
-                    Log.i(TAG, "RUNTIME_MODE_APPLIED mode=${mode.name} n_ctx=${mode.nCtx} threads=${mode.nThreads}")
+                    Log.i(TAG, "RUNTIME_MODE_APPLIED mode=${mode.name} n_ctx=${mode.nCtx} threads=${mode.nThreads} maxHistoryTokens=$maxHistoryTokens")
                 } catch (e: Throwable) {
                     Log.e(TAG, "applyRuntimeMode failed: ${e.message}", e)
                 }
@@ -282,13 +294,28 @@ class LlamaManager(private val context: Context) {
         invalidateSession()
         // 4. Clear the in-flight cancel latch — the next turn starts fresh.
         cancelRequested.set(false)
+        // B-01: Notify UI that context was reset so user understands memory was cleared.
+        runCatching {
+            com.airi.assistant.core.debug.RuntimeEventLog.post(
+                subsystem = "LlamaManager",
+                severity  = com.airi.assistant.core.debug.EventSeverity.WARN,
+                reason    = "CONTEXT_RESET reason=$reason"
+            )
+        }
+        runCatching {
+            com.airi.assistant.ui.activity.AgentActivityBus.emit(
+                message  = "Context window full — older conversation history was cleared to continue.",
+                category = com.airi.assistant.ui.activity.ActivityCategory.SYSTEM,
+                severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
+            )
+        }
     }
 
     /**
      * SPEC v3 — TOKEN-BUDGET HISTORY TRIM
      *
      * Drops the OLDEST messages from `messages` until the running total of
-     * `nativeCountTokens(content)` is ≤ MAX_HISTORY_TOKENS. Always preserves
+     * `nativeCountTokens(content)` is ≤ maxHistoryTokens. Always preserves
      * the youngest message even if it alone exceeds the budget — the
      * preflight in `generateStream` is the safety net for that case (it will
      * fullReset on PREFLIGHT_OVERFLOW and re-prime from a clean slate).
@@ -298,7 +325,7 @@ class LlamaManager(private val context: Context) {
      * either over-trims (drops two messages instead of one) or under-trims
      * (keeps a stale pair past budget). Token accuracy wins over chat-pair
      * symmetry — the alternative is a fixed-message-count budget which we
-     * already ruled out (see MAX_HISTORY_TOKENS doc).
+     * already ruled out (see maxHistoryTokens doc).
      *
      * Returns the trimmed list. Pure: never mutates `messages` in place.
      * Falls back to the input unchanged if the native tokenizer is
@@ -325,23 +352,23 @@ class LlamaManager(private val context: Context) {
             counts[i] = n
             total += n
         }
-        if (total <= MAX_HISTORY_TOKENS) {
+        if (total <= maxHistoryTokens) {
             Log.i("AIRI_PROOF",
-                "TRIM_TOKENS_NOOP total=$total budget=$MAX_HISTORY_TOKENS " +
+                "TRIM_TOKENS_NOOP total=$total budget=$maxHistoryTokens " +
                 "messages=${messages.size}")
             return messages
         }
         // Drop oldest until under budget OR only the youngest remains.
         var firstKept = 0
         var running = total
-        while (firstKept < messages.size - 1 && running > MAX_HISTORY_TOKENS) {
+        while (firstKept < messages.size - 1 && running > maxHistoryTokens) {
             running -= counts[firstKept]
             firstKept++
         }
         val kept = messages.subList(firstKept, messages.size).toList()
         Log.i("AIRI_PROOF",
             "TRIM_TOKENS_APPLIED dropped=$firstKept kept=${kept.size} " +
-            "total_before=$total total_after=$running budget=$MAX_HISTORY_TOKENS")
+            "total_before=$total total_after=$running budget=$maxHistoryTokens")
         return kept
     }
 
@@ -574,7 +601,7 @@ class LlamaManager(private val context: Context) {
             // CONTEXT_OVERFLOW the exception propagates to the outer catch,
             // which calls fullReset() and surfaces an error; the next turn then
             // re-primes from the trimmed chatHistory (which by then will be
-            // shorter due to MAX_HISTORY_TOKENS trimming).
+            // shorter due to maxHistoryTokens trimming).
             for (msg in chatHistory) {
                 // ── SPEC v3 — Kotlin-level cancel guard ──────────────────────
                 // The native g_cancel_requested check fires at the start of the
@@ -832,11 +859,11 @@ class LlamaManager(private val context: Context) {
 
                 // ── TOKEN-BASED HISTORY BUDGET ────────────────────────────────
                 // Trim chatHistory so the raw content tokens stay within
-                // MAX_HISTORY_TOKENS. This accounts for the fact that a single
+                // maxHistoryTokens. This accounts for the fact that a single
                 // Arabic / CJK message can be 200-400 tokens, so a fixed
                 // message-count cap (maxHistory=4) is insufficient on its own.
                 // Template overhead (~15 tok/msg) and system + user + generate
-                // headroom are NOT counted by nativeCountTokens — MAX_HISTORY_TOKENS
+                // headroom are NOT counted by nativeCountTokens — maxHistoryTokens
                 // is set conservatively (750) to leave room for all of those.
                 // If trimming removes any messages the KV is now a SUPERSET of
                 // the new chatHistory; invalidate so reconcileSession hard-resets.
@@ -847,7 +874,7 @@ class LlamaManager(private val context: Context) {
                     chatHistory.addAll(trimmedByTokens)
                     Log.i("AIRI_PROOF",
                         "HISTORY_TOKEN_TRIM dropped=${historyBeforeTrim - chatHistory.size} " +
-                        "kept=${chatHistory.size} budget_tokens=$MAX_HISTORY_TOKENS " +
+                        "kept=${chatHistory.size} budget_tokens=$maxHistoryTokens " +
                         "→ invalidating session (KV superset of new history)")
                     invalidateSession()
                 }
@@ -1741,6 +1768,31 @@ class LlamaManager(private val context: Context) {
      * observable from logcat without verbose logging.
      */
     @Volatile private var loadedEmbeddingPath: String? = null
+
+    /**
+     * B-23: Load an embedding model from an explicit file path chosen by the user.
+     * Returns true on success, false on failure.
+     * Unlike [maybeAutoLoadEmbeddingModel] this accepts any GGUF path —
+     * it does not require a chat model to be loaded first.
+     */
+    suspend fun loadEmbeddingFromPath(path: String): Boolean = withContext(llamaDispatcher) {
+        if (path == loadedEmbeddingPath) {
+            Log.i(TAG, "EMBEDDING_LOAD_SKIPPED reason=already_loaded path=$path")
+            return@withContext true
+        }
+        return@withContext try {
+            Log.i(TAG, "AIRI_PROOF EMBEDDING_LOAD_REQUESTED path=$path")
+            val result = LlamaNative.loadEmbeddingModel(path)
+            val ok = result == "LOAD_SUCCESS" || result == "Success"
+            if (ok) loadedEmbeddingPath = path
+            Log.i(TAG, "AIRI_PROOF EMBEDDING_LOAD_RESULT ok=$ok native=$result")
+            ok
+        } catch (e: Throwable) {
+            Log.e(TAG, "loadEmbeddingFromPath threw: ${e.message}", e)
+            false
+        }
+    }
+
     fun maybeAutoLoadEmbeddingModel(modelPath: String) {
         if (!isLoaded) {
             Log.i("AIRI_PROOF", "EMBEDDING_AUTOLOAD_SKIPPED reason=model_not_loaded")

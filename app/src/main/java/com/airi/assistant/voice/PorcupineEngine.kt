@@ -3,7 +3,9 @@ package com.airi.assistant.voice
 import android.content.Context
 import android.util.Log
 import com.airi.assistant.BuildConfig
+import com.airi.assistant.auth.SecureStorage
 import java.io.File
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Helpers used by [HotwordService] to locate the Porcupine .ppn keyword
@@ -15,20 +17,44 @@ import java.io.File
  *   2. `assets/voice/hey_airi.ppn`      (extracted to internal storage on first run)
  *
  * Resolution order for the AccessKey:
- *   1. value the user pasted at runtime via Voice Settings (encrypted prefs)
+ *   1. value the user pasted at runtime via Voice Settings (EncryptedSharedPreferences)
  *   2. [BuildConfig.PICOVOICE_ACCESS_KEY] (set at build time via gradle prop / env)
  *
  * When either of (.ppn) or (AccessKey) is missing the wake-word service
  * refuses to start and the UI explains exactly what's missing.
+ *
+ * P0-7 FIX: AccessKey is now stored in EncryptedSharedPreferences via SecureStorage.
+ * Previously it was stored in plain SharedPreferences named "airi_voice_secure".
+ * A one-time migration reads any previously stored plaintext key and re-saves it
+ * encrypted, then deletes the plaintext copy.
  */
 object PorcupineEngine {
 
     private const val TAG = "AIRI_VOICE"
-    private const val PREFS = "airi_voice_secure"
-    private const val KEY_ACCESS_KEY = "picovoice_access_key"
 
-    private const val PPN_NAME = "hey_airi"
+    // P0-7: legacy plaintext prefs — used only for one-time migration
+    private const val LEGACY_PREFS    = "airi_voice_secure"
+    private const val LEGACY_KEY      = "picovoice_access_key"
+
+    // Key name used with SecureStorage.saveLlmKey / getLlmKey / clearLlmKey
+    private const val SECURE_KEY_NAME = "picovoice"
+
+    private const val PPN_NAME   = "hey_airi"
     private const val ASSET_PATH = "voice/$PPN_NAME.ppn"
+
+    // P0-7: Cache a SecureStorage instance per ApplicationContext.
+    // SecureStorage(context) is safe to construct multiple times but
+    // allocates a MasterKey + EncryptedSharedPreferences on each call —
+    // cache it to avoid repeated crypto initialisation.
+    private val secureStorageRef = AtomicReference<SecureStorage?>(null)
+
+    private fun secureStorage(context: Context): SecureStorage {
+        val existing = secureStorageRef.get()
+        if (existing != null) return existing
+        val created = SecureStorage(context.applicationContext)
+        secureStorageRef.compareAndSet(null, created)
+        return secureStorageRef.get()!!
+    }
 
     data class Status(
         val accessKeyPresent: Boolean,
@@ -41,6 +67,7 @@ object PorcupineEngine {
 
     /** Snapshot of what's currently configured — drives the Voice Settings UI. */
     fun status(context: Context): Status {
+        maybeRunLegacyMigration(context)
         val (key, keySrc) = resolveAccessKey(context)
         val ppn = locatePpn(context)
         return Status(
@@ -53,35 +80,52 @@ object PorcupineEngine {
 
     /**
      * Returns an extracted on-disk path for the Porcupine keyword file,
-     * or null if no .ppn is bundled in either location. Porcupine's
-     * Builder needs a real filesystem path, not an asset URI.
+     * or null if no .ppn is bundled in either location.
      */
     fun resolvePpnFile(context: Context): File? {
         val located = locatePpn(context) ?: return null
-        val (file, _) = located
-        return file
+        return located.first
     }
 
-    fun accessKey(context: Context): String = resolveAccessKey(context).first
+    fun accessKey(context: Context): String {
+        maybeRunLegacyMigration(context)
+        return resolveAccessKey(context).first
+    }
 
+    /** P0-7: Saves key to EncryptedSharedPreferences via SecureStorage. */
     fun setRuntimeAccessKey(context: Context, key: String?) {
-        val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit().also {
-            if (key.isNullOrBlank()) it.remove(KEY_ACCESS_KEY)
-            else it.putString(KEY_ACCESS_KEY, key.trim())
-        }.apply()
+        val store = secureStorage(context)
+        if (key.isNullOrBlank()) {
+            store.clearLlmKey(SECURE_KEY_NAME)        // correct method name: clearLlmKey
+        } else {
+            store.saveLlmKey(SECURE_KEY_NAME, key.trim())
+        }
     }
 
     // ── internals ────────────────────────────────────────────────────────
 
+    /**
+     * One-time migration: if a key exists in old plaintext prefs,
+     * copy it to EncryptedSharedPreferences and delete the plaintext copy.
+     * Safe to call multiple times — no-ops immediately when no legacy key found.
+     */
+    private fun maybeRunLegacyMigration(context: Context) {
+        val legacyPrefs = context.applicationContext
+            .getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
+        val legacyKey = legacyPrefs.getString(LEGACY_KEY, null)?.trim().orEmpty()
+        if (legacyKey.isNotEmpty()) {
+            Log.i(TAG, "Migrating Picovoice key from plaintext prefs to EncryptedSharedPreferences")
+            secureStorage(context).saveLlmKey(SECURE_KEY_NAME, legacyKey)
+            legacyPrefs.edit().remove(LEGACY_KEY).apply()
+        }
+    }
+
     /** Returns (key, "runtime"|"build") or ("", null) when nothing is set. */
     private fun resolveAccessKey(context: Context): Pair<String, String?> {
-        val runtime = context.applicationContext
-            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_ACCESS_KEY, null)
-            .orEmpty()
-            .trim()
+        // 1. Runtime key from EncryptedSharedPreferences
+        val runtime = secureStorage(context).getLlmKey(SECURE_KEY_NAME).orEmpty().trim()
         if (runtime.isNotEmpty()) return runtime to "runtime"
+        // 2. Build-time key from BuildConfig
         val build = BuildConfig.PICOVOICE_ACCESS_KEY.trim()
         if (build.isNotEmpty()) return build to "build"
         return "" to null

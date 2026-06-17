@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.AiriTheme
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -162,7 +163,7 @@ fun LoginScreen(
                 text       = "مرحباً بك في AIRI",
                 fontSize   = 28.sp,
                 fontWeight = FontWeight.Bold,
-                color      = Color.White,
+                color      = AiriTheme.onBackground,
                 textAlign  = TextAlign.Center
             )
 
@@ -205,7 +206,7 @@ fun LoginScreen(
                 )
                 Text(
                     text     = "  أو  ",
-                    color    = Color.White.copy(alpha = 0.45f),
+                    color    = AiriTheme.onBackground.copy(alpha = 0.45f),
                     fontSize = 13.sp
                 )
                 Divider(
@@ -258,7 +259,7 @@ fun LoginScreen(
                                 imageVector = if (passwordVisible) Icons.Outlined.Visibility
                                               else Icons.Outlined.VisibilityOff,
                                 contentDescription = if (passwordVisible) "Hide" else "Show",
-                                tint = Color.White.copy(alpha = 0.5f)
+                                tint = AiriTheme.onSurfaceVariant
                             )
                         }
                     },
@@ -313,7 +314,7 @@ fun LoginScreen(
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
-                            color       = Color.White,
+                            color       = AiriTheme.onBackground,
                             strokeWidth = 2.dp,
                             modifier    = Modifier.size(20.dp)
                         )
@@ -395,7 +396,7 @@ private fun LoginButton(
                     imageVector        = icon,
                     contentDescription = null,
                     modifier           = Modifier.size(20.dp),
-                    tint               = Color.White.copy(alpha = 0.8f)
+                    tint               = AiriTheme.onBackground.copy(alpha = 0.8f)
                 )
             }
             Spacer(Modifier.width(12.dp))
@@ -403,7 +404,7 @@ private fun LoginButton(
                 text       = text,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 16.sp,
-                color      = Color.White
+                color      = AiriTheme.onBackground
             )
         }
     }

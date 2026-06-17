@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.components
 
+import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -105,7 +106,7 @@ fun LockedFeatureRow(
                     text       = title,
                     fontSize   = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color      = Color.White.copy(alpha = 0.7f)
+                    color      = AiriTheme.onBackground.copy(alpha = 0.7f)
                 )
                 PremiumBadge()
             }
@@ -114,7 +115,7 @@ fun LockedFeatureRow(
                 Text(
                     text     = description,
                     fontSize = 12.sp,
-                    color    = Color.White.copy(alpha = 0.35f)
+                    color    = AiriTheme.onBackground.copy(alpha = 0.35f)
                 )
             }
         }

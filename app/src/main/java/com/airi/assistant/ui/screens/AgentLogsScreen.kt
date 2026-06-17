@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ai.agent.trace.AgentTrace
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.AgentViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -47,13 +48,13 @@ fun AgentLogsScreen(
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
                     Column {
-                        Text("Agent Logs", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 16.sp)
-                        Text("${traces.size} traces recorded", fontSize = 11.sp, color = Color.White.copy(alpha = 0.4f))
+                        Text("Agent Logs", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, fontSize = 16.sp)
+                        Text("${traces.size} traces recorded", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                     }
                 },
                 actions = {
@@ -81,11 +82,11 @@ fun AgentLogsScreen(
                         modifier = Modifier.size(56.dp)
                     )
                     Spacer(Modifier.height(12.dp))
-                    Text("No agent traces yet", color = Color.White.copy(alpha = 0.55f), fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    Text("No agent traces yet", color = AiriTheme.onSurfaceVariant, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(6.dp))
                     Text(
                         "Traces appear when skills or tasks are executed",
-                        color = Color.White.copy(alpha = 0.3f),
+                        color = AiriTheme.outline,
                         fontSize = 13.sp
                     )
                 }
@@ -157,7 +158,7 @@ private fun TraceListItem(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = trace.originalInput,
-                    color = Color.White.copy(alpha = 0.9f),
+                    color = AiriTheme.onBackground.copy(alpha = 0.9f),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 2,
@@ -170,17 +171,17 @@ private fun TraceListItem(
                 ) {
                     Text(
                         text = timeStr,
-                        color = Color.White.copy(alpha = 0.35f),
+                        color = AiriTheme.outline,
                         fontSize = 11.sp
                     )
-                    Text("•", color = Color.White.copy(alpha = 0.2f), fontSize = 10.sp)
+                    Text("•", color = AiriTheme.outline.copy(alpha = 0.6f), fontSize = 10.sp)
                     Text(
                         text = "${trace.stepCount} step${if (trace.stepCount != 1) "s" else ""}",
                         color = CosmicAccent.copy(alpha = 0.7f),
                         fontSize = 11.sp
                     )
                     if (trace.hasErrors) {
-                        Text("•", color = Color.White.copy(alpha = 0.2f), fontSize = 10.sp)
+                        Text("•", color = AiriTheme.outline.copy(alpha = 0.6f), fontSize = 10.sp)
                         Text(
                             text = "Has errors",
                             color = Color(0xFFFF5252).copy(alpha = 0.8f),
@@ -192,7 +193,7 @@ private fun TraceListItem(
             Icon(
                 Icons.Outlined.ChevronRight,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.25f),
+                tint = AiriTheme.outline.copy(alpha = 0.25f),
                 modifier = Modifier.size(18.dp)
             )
         }

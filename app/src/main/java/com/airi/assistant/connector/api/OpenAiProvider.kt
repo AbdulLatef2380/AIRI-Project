@@ -94,9 +94,15 @@ class OpenAiProvider(
     companion object {
         private val JSON = "application/json".toMediaType()
 
+        // B-16: Read timeout covers the ENTIRE response body.
+        // On a stalled stream this means waiting 120 s before detecting the issue.
+        // The per-token watchdog in CloudBackend / HybridOrchestrator coroutine
+        // context handles individual token stalls via kotlinx.coroutines.withTimeout.
+        // Here we lower the body read timeout to 45 s (reasonable for most responses)
+        // so a completely stalled server is detected in under a minute rather than 2.
         fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
+            .readTimeout(45, TimeUnit.SECONDS)   // B-16: was 120 s — too long for stall detection
             .writeTimeout(20, TimeUnit.SECONDS)
             .build()
     }

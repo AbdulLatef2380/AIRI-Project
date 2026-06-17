@@ -33,6 +33,7 @@ import com.airi.assistant.ui.theme.CosmicBlack
 import com.airi.assistant.ui.theme.DividerColor
 import com.airi.assistant.ui.theme.SurfaceCard
 import com.airi.assistant.ui.theme.SurfaceRaised
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -52,16 +53,16 @@ fun HistoryScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = CosmicBlack.copy(alpha = 0.92f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background.copy(alpha = 0.92f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
                     Text(
                         text = "السجل",
-                        color = Color.White,
+                        color = AiriTheme.onBackground,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.fillMaxWidth(),
@@ -100,7 +101,7 @@ fun HistoryScreen(
                         .background(CosmicAccent),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Outlined.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.Add, contentDescription = null, tint = AiriTheme.onBackground, modifier = Modifier.size(18.dp))
                 }
                 Text(
                     text = "محادثة جديدة",
@@ -129,14 +130,14 @@ fun HistoryScreen(
                             Icon(
                                 Icons.Outlined.Forum,
                                 contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.30f),
+                                tint = AiriTheme.onSurfaceVariant.copy(alpha = 0.30f),
                                 modifier = Modifier.size(32.dp)
                             )
                         }
                         Spacer(Modifier.height(16.dp))
                         Text(
                             "لا توجد محادثات سابقة",
-                            color = Color.White.copy(alpha = 0.38f),
+                            color = AiriTheme.onSurfaceVariant.copy(alpha = 0.38f),
                             fontSize = 15.sp
                         )
                     }
@@ -207,7 +208,7 @@ fun HistoryScreen(
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                     modifier = Modifier.fillMaxWidth(0.45f)
                 ) {
-                    Text("إلغاء", color = Color.White.copy(alpha = 0.75f))
+                    Text("إلغاء", color = AiriTheme.onBackground.copy(alpha = 0.75f))
                 }
             }
         )
@@ -272,13 +273,13 @@ private fun HistorySessionItem(
             ) {
                 Text(
                     text = dateFormat.format(Date(session.updatedAt)),
-                    color = Color.White.copy(alpha = 0.35f),
+                    color = AiriTheme.outline,
                     fontSize = 11.sp
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = session.title.ifBlank { "محادثة" },
-                    color = Color.White,
+                    color = AiriTheme.onBackground,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -288,7 +289,7 @@ private fun HistorySessionItem(
             Spacer(Modifier.height(2.dp))
             Text(
                 text = session.lastMessage.orEmpty().ifBlank { "..." },
-                color = Color.White.copy(alpha = 0.42f),
+                color = AiriTheme.onSurfaceVariant.copy(alpha = 0.42f),
                 fontSize = 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -297,7 +298,7 @@ private fun HistorySessionItem(
     }
 
     Divider(
-        color = DividerColor,
+        color = AiriTheme.outline,
         modifier = Modifier.padding(start = 14.dp)
     )
 }

@@ -35,6 +35,7 @@ import com.airi.assistant.ai.PerformanceMode
 import com.airi.assistant.ai.SpeculativeManager
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,10 +77,10 @@ fun PerformanceScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.performance_device), fontWeight = FontWeight.Bold, color = Color.White) },
+                title = { Text(stringResource(R.string.performance_device), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f))
@@ -212,7 +213,7 @@ fun PerformanceScreen(
                     Text(
                         stringResource(R.string.perf_footer_note),
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.4f),
+                        color = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 4.dp)
                     )
                 }
@@ -261,7 +262,7 @@ private fun PerformanceModeCard(
                         )
                         Text(
                             mode.description,
-                            color    = Color.White.copy(alpha = 0.55f),
+                            color    = AiriTheme.onBackground.copy(alpha = 0.55f),
                             fontSize = 11.sp
                         )
                     }
@@ -299,11 +300,11 @@ private fun PerfStatCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
-                Text(label, color = Color.White.copy(alpha = 0.65f), fontSize = 13.sp)
+                Text(label, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
                 Text(value, color = CosmicAccent.copy(alpha = 0.9f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
             if (idx < rows.lastIndex) {
-                Divider(color = Color.White.copy(alpha = 0.04f), modifier = Modifier.padding(vertical = 2.dp))
+                Divider(color = AiriTheme.outline.copy(alpha = 0.04f), modifier = Modifier.padding(vertical = 2.dp))
             }
         }
     }
@@ -408,7 +409,7 @@ private fun SpecDecodingCard() {
 
         Text(
             stringResource(R.string.spec_subtitle),
-            color = Color.White.copy(alpha = 0.55f),
+            color = AiriTheme.onSurfaceVariant,
             fontSize = 12.sp
         )
         Spacer(Modifier.height(10.dp))
@@ -420,7 +421,7 @@ private fun SpecDecodingCard() {
         ) {
             Text(
                 stringResource(R.string.spec_enable),
-                color = Color.White,
+                color = AiriTheme.onBackground,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f)
@@ -448,7 +449,7 @@ private fun SpecDecodingCard() {
             loadStatus != null -> stringResource(R.string.spec_status_load_failed, loadStatus!!)
             else -> stringResource(R.string.spec_status_no_draft)
         }
-        Text(statusText, color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp)
+        Text(statusText, color = AiriTheme.onBackground.copy(alpha = 0.75f), fontSize = 12.sp)
 
         Spacer(Modifier.height(8.dp))
 

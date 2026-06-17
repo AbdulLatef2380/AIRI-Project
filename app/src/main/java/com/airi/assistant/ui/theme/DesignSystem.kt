@@ -215,3 +215,37 @@ object AIRIShadows {
     val successGlow = SemanticSuccess.copy(alpha = 0.22f)
     val errorGlow   = SemanticError.copy(alpha = 0.22f)
 }
+
+// ── B-11: Theme-aware surface helpers ─────────────────────────────────────────
+// These @Composable properties read from MaterialTheme.colorScheme and
+// therefore respond to Dark / Light / AMOLED mode switches.
+// Screens that adopt these instead of hardcoded CosmicBlack/SurfaceCard will
+// automatically support all three themes.
+//
+// Migration path (incremental — no big-bang rewrite required):
+//   Old: color = CosmicBlack
+//   New: color = AiriTheme.background
+//
+//   Old: color = SurfaceCard
+//   New: color = AiriTheme.surface
+//
+//   Old: color = Color.White
+//   New: color = AiriTheme.onBackground
+//
+//   Old: color = Color.White.copy(alpha = 0.6f)
+//   New: color = AiriTheme.onSurfaceVariant
+
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable as ComposeAnnotation
+
+object AiriTheme {
+    val background: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.background
+    val surface: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.surface
+    val surfaceVariant: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.surfaceVariant
+    val onBackground: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.onBackground
+    val onSurface: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.onSurface
+    val onSurfaceVariant: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.onSurfaceVariant
+    val primary: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.primary
+    val outline: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.outline
+    val error: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.error
+}

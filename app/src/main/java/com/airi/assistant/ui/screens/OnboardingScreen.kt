@@ -18,9 +18,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Accessibility
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,8 +39,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.domain.growth.OnboardingManager
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.allPermissionsGranted
 import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.accompanist.permissions.rememberPermissionState
 
 /**
@@ -66,6 +71,19 @@ fun OnboardingScreen(
 
     val micPermissionState = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
 
+    // B-05: Notifications permission — required for agent task alerts on API 33+
+    val notificationsPermissionState = if (android.os.Build.VERSION.SDK_INT >= 33) {
+        rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
+    } else null
+
+    // B-06: Calendar permissions — required for CalendarTool and ProductivityAgent
+    val calendarPermissionsState = rememberMultiplePermissionsState(
+        listOf(
+            Manifest.permission.READ_CALENDAR,
+            Manifest.permission.WRITE_CALENDAR
+        )
+    )
+
     val pages = remember {
         listOf(
             OnboardingPage(
@@ -84,6 +102,20 @@ fun OnboardingScreen(
                 title    = "Voice Mode",
                 subtitle = "Speak naturally to AIRI. Microphone access powers hands-free voice commands and real-time voice conversations. You can skip this and use text only.",
                 permissionKey = "microphone"
+            ),
+            // B-05: Notifications page — lets agent send task reminders and alerts
+            OnboardingPage(
+                icon     = Icons.Outlined.Notifications,
+                title    = "Stay Informed",
+                subtitle = "Allow notifications so AIRI can alert you when background tasks complete, reminders fire, or your agent needs attention. You can manage this in Settings anytime.",
+                permissionKey = "notifications"
+            ),
+            // B-06: Calendar page — lets AIRI read/create events via CalendarTool
+            OnboardingPage(
+                icon     = Icons.Outlined.CalendarMonth,
+                title    = "Calendar Access",
+                subtitle = "AIRI can read your schedule and create events when you ask. Calendar access is optional — you can skip this and grant it later in Settings.",
+                permissionKey = "calendar"
             ),
             OnboardingPage(
                 icon     = Icons.Outlined.Lock,
@@ -114,7 +146,7 @@ fun OnboardingScreen(
             onClick = { OnboardingManager.skip(); onSkip() },
             modifier = Modifier.align(Alignment.TopEnd)
         ) {
-            Text("Skip", color = Color.White.copy(alpha = 0.55f), fontSize = 14.sp)
+            Text("Skip", color = AiriTheme.onSurfaceVariant, fontSize = 14.sp)
         }
 
         // Page content
@@ -149,7 +181,7 @@ fun OnboardingScreen(
 
                 Text(
                     text       = p.title,
-                    color      = Color.White,
+                    color      = AiriTheme.onBackground,
                     fontSize   = 28.sp,
                     fontWeight = FontWeight.ExtraBold,
                     lineHeight = 34.sp,
@@ -158,7 +190,7 @@ fun OnboardingScreen(
 
                 Text(
                     text      = p.subtitle,
-                    color     = Color.White.copy(alpha = 0.65f),
+                    color     = AiriTheme.onSurfaceVariant,
                     fontSize  = 15.sp,
                     lineHeight = 23.sp,
                     textAlign  = TextAlign.Center
@@ -168,6 +200,8 @@ fun OnboardingScreen(
                 when (p.permissionKey) {
                     "accessibility" -> AccessibilityPermissionCard(context)
                     "microphone"    -> MicrophonePermissionCard(micPermissionState, context)
+                    "notifications" -> NotificationsPermissionCard(notificationsPermissionState)
+                    "calendar"      -> CalendarPermissionCard(calendarPermissionsState)
                     "privacy"       -> PrivacyExplanationCard()
                     else            -> SocialProofStrip()
                 }
@@ -299,8 +333,8 @@ private fun PrivacyRow(label: String, detail: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
         Icon(Icons.Outlined.CheckCircle, null, tint = CosmicAccent, modifier = Modifier.size(16.dp).padding(top = 2.dp))
         Column {
-            Text(label,  color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            Text(detail, color = Color.White.copy(alpha = 0.55f), fontSize = 12.sp, lineHeight = 17.sp)
+            Text(label,  color = AiriTheme.onBackground, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(detail, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 17.sp)
         }
     }
 }
@@ -326,7 +360,7 @@ private fun PermissionCard(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(title, color = if (isGranted) CosmicAccent else Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        Text(body, color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp, lineHeight = 18.sp)
+        Text(body, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 18.sp)
         if (buttonText != null) {
             TextButton(
                 onClick = onClick,
@@ -336,6 +370,45 @@ private fun PermissionCard(
             }
         }
     }
+}
+
+// B-05: Notifications permission card — POST_NOTIFICATIONS required on API 33+
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+private fun NotificationsPermissionCard(
+    permissionState: com.google.accompanist.permissions.PermissionState?
+) {
+    // On API < 33, notifications are granted at install time — show as enabled.
+    val granted = permissionState?.status?.isGranted ?: true
+    PermissionCard(
+        title      = if (granted) "Notifications: Enabled ✓" else "Notifications: Not enabled",
+        body       = if (granted)
+            "AIRI can send you task alerts, reminders, and agent status updates."
+        else
+            "Allow notifications so AIRI can alert you when tasks finish or agents need your input. You can manage this in Settings anytime.",
+        buttonText = if (granted) null else "Grant Access",
+        isGranted  = granted,
+        onClick    = { permissionState?.launchPermissionRequest() }
+    )
+}
+
+// B-06: Calendar permission card — READ_CALENDAR + WRITE_CALENDAR for CalendarTool
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+private fun CalendarPermissionCard(
+    permissionsState: com.google.accompanist.permissions.MultiplePermissionsState
+) {
+    val granted = permissionsState.allPermissionsGranted
+    PermissionCard(
+        title      = if (granted) "Calendar: Enabled ✓" else "Calendar: Not enabled",
+        body       = if (granted)
+            "AIRI can read your schedule and create events when you ask."
+        else
+            "Allow calendar access so AIRI can check your schedule, set reminders, and create events when you ask. Optional — skip to enable later.",
+        buttonText = if (granted) null else "Grant Access",
+        isGranted  = granted,
+        onClick    = { permissionsState.launchMultiplePermissionRequest() }
+    )
 }
 
 @Composable
@@ -350,7 +423,7 @@ private fun SocialProofStrip() {
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Icon(Icons.Outlined.AutoAwesome, null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
-        Text("Private by default. Powerful by design.", color = Color.White.copy(alpha = 0.76f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text("Private by default. Powerful by design.", color = AiriTheme.onBackground.copy(alpha = 0.76f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
 

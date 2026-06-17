@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -48,7 +49,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Outlined.Terminal, null, tint = SemanticSuccess, modifier = Modifier.size(16.dp))
-                        Text("Terminal", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Text("Terminal", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                         if (isRunning) {
                             Box(modifier = Modifier.clip(RoundedCornerShape(6.dp))
                                 .background(SemanticSuccess.copy(0.15f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
@@ -57,7 +58,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                         }
                     }
                 },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, null, tint = Color.White) } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, null, tint = AiriTheme.onBackground) } },
                 actions = {
                     IconButton(onClick = { runtime.clearOutput() }) {
                         Icon(Icons.Outlined.CleaningServices, null, tint = Color.White.copy(0.6f))
@@ -131,7 +132,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                     textStyle = LocalTextStyle.current.copy(
                         fontSize   = 12.sp,
                         fontFamily = FontFamily.Monospace,
-                        color      = Color.White
+                        color      = AiriTheme.onBackground
                     ),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor   = Color.Transparent,

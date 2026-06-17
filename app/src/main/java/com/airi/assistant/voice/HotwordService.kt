@@ -20,6 +20,8 @@ import androidx.core.content.ContextCompat
 import ai.picovoice.porcupine.Porcupine
 import com.airi.assistant.R
 import kotlin.concurrent.thread
+// P0-V2: TFLite Interpreter for OpenWakeWord inference
+import org.tensorflow.lite.Interpreter
 
 /**
  * Foreground service that runs the Picovoice Porcupine on-device wake-word
@@ -56,21 +58,125 @@ class HotwordService : Service() {
             return START_NOT_STICKY
         }
 
+        // P0-V2: Try OpenWakeWord first — no API key or account required.
+        // Falls back to Porcupine if the .tflite model is not bundled
+        // but a Porcupine key + .ppn file are available.
+        val owwStatus = OpenWakeWordEngine.status(this)
+        if (owwStatus.ready) {
+            return startWithOpenWakeWord()
+        }
+
+        Log.d(TAG, "OpenWakeWord not ready (${owwStatus.reason}), trying Porcupine")
+
         val accessKey = PorcupineEngine.accessKey(this)
         val ppnFile   = PorcupineEngine.resolvePpnFile(this)
         if (accessKey.isBlank()) {
-            Log.w(TAG, "AIRI_PROOF HOTWORD_DISABLED reason=missing_access_key — see VoiceSettings")
+            Log.w(TAG, "AIRI_PROOF HOTWORD_DISABLED reason=missing_access_key_and_oww_model — see VoiceSettings")
             stopSelf()
             return START_NOT_STICKY
         }
         if (ppnFile == null) {
-            Log.w(TAG, "AIRI_PROOF HOTWORD_DISABLED reason=missing_ppn — drop hey_airi.ppn into res/raw or assets/voice")
+            Log.w(TAG, "AIRI_PROOF HOTWORD_DISABLED reason=missing_ppn_and_oww_model — drop hey_airi.ppn or hey_airi.tflite into assets/voice/")
             stopSelf()
             return START_NOT_STICKY
         }
 
+        return startWithPorcupine(accessKey, ppnFile)
+    }
+
+    // ── OpenWakeWord engine path ──────────────────────────────────────────
+
+    private fun startWithOpenWakeWord(): Int {
+        val modelFile = OpenWakeWordEngine.resolveModelFile(this) ?: run {
+            Log.w(TAG, "OWW model resolved to null — stopping")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        val frameLength = OpenWakeWordEngine.frameSamples
+        val sampleRate  = OpenWakeWordEngine.sampleRate
+
+        val minBuf = AudioRecord.getMinBufferSize(
+            sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
+        )
+        val bufSize = maxOf(minBuf, frameLength * 2 * 4)
+
+        val rec = try {
+            AudioRecord(
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                sampleRate,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                bufSize
+            )
+        } catch (t: Throwable) {
+            Log.w(TAG, "AudioRecord (OWW) create failed: ${t.message}", t)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (rec.state != AudioRecord.STATE_INITIALIZED) {
+            runCatching { rec.release() }
+            Log.w(TAG, "AudioRecord (OWW) not initialized — stopping")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        // Load TFLite interpreter
+        val interpreter = try {
+            org.tensorflow.lite.Interpreter(modelFile)
+        } catch (t: Throwable) {
+            Log.w(TAG, "TFLite Interpreter init failed: ${t.message}, falling back to Porcupine", t)
+            runCatching { rec.release() }
+            // Retry with Porcupine
+            val accessKey = PorcupineEngine.accessKey(this)
+            val ppnFile   = PorcupineEngine.resolvePpnFile(this)
+            if (accessKey.isBlank() || ppnFile == null) { stopSelf(); return START_NOT_STICKY }
+            return startWithPorcupine(accessKey, ppnFile)
+        }
+
+        audioRecord = rec
+        running = true
+
+        captureThread = kotlin.concurrent.thread(name = "AiriOWW", isDaemon = true) {
+            try {
+                rec.startRecording()
+                Log.i(TAG, "AIRI_PROOF HOTWORD_STARTED engine=openWakeWord frameLength=$frameLength sampleRate=$sampleRate")
+                val frame   = ShortArray(frameLength)
+                // OWW output: single float score in [0,1]
+                val output  = Array(1) { FloatArray(1) }
+
+                while (running) {
+                    val read = rec.read(frame, 0, frameLength)
+                    if (read < frameLength) continue
+
+                    val floatInput = OpenWakeWordEngine.normalizeFrame(frame)
+                    val input      = Array(1) { floatInput }
+                    try {
+                        interpreter.run(input, output)
+                        val score = output[0][0]
+                        if (score >= OpenWakeWordEngine.threshold) {
+                            Log.i(TAG, "AIRI_PROOF OWW_DETECTION score=$score")
+                            fireWake(engine = "openWakeWord")
+                        }
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "OWW inference failed: ${t.message}")
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "OWW capture loop failed: ${t.message}", t)
+            } finally {
+                runCatching { rec.stop() }
+                runCatching { interpreter.close() }
+            }
+        }
+        return START_STICKY
+    }
+
+    // ── Porcupine engine path ─────────────────────────────────────────────
+
+    private fun startWithPorcupine(accessKey: String, ppnFile: java.io.File): Int {
         val pp = try {
-            Porcupine.Builder()
+            ai.picovoice.porcupine.Porcupine.Builder()
                 .setAccessKey(accessKey)
                 .setKeywordPath(ppnFile.absolutePath)
                 .setSensitivity(0.6f)
@@ -88,7 +194,7 @@ class HotwordService : Service() {
         val minBuf = AudioRecord.getMinBufferSize(
             sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
         )
-        val bufSize = maxOf(minBuf, frameLength * 2 * 4) // shorts → bytes ×2
+        val bufSize = maxOf(minBuf, frameLength * 2 * 4)
 
         val rec = try {
             AudioRecord(
@@ -100,14 +206,14 @@ class HotwordService : Service() {
             )
         } catch (t: Throwable) {
             Log.w(TAG, "AudioRecord create failed: ${t.message}", t)
-            try { pp.delete() } catch (_: Throwable) {}
+            runCatching { pp.delete() }
             porcupine = null
             stopSelf()
             return START_NOT_STICKY
         }
         if (rec.state != AudioRecord.STATE_INITIALIZED) {
-            try { rec.release() } catch (_: Throwable) {}
-            try { pp.delete() } catch (_: Throwable) {}
+            runCatching { rec.release() }
+            runCatching { pp.delete() }
             porcupine = null
             Log.w(TAG, "AudioRecord not initialized — stopping")
             stopSelf()
@@ -116,34 +222,30 @@ class HotwordService : Service() {
         audioRecord = rec
         running = true
 
-        captureThread = thread(name = "AiriPorcupine", isDaemon = true) {
+        captureThread = kotlin.concurrent.thread(name = "AiriPorcupine", isDaemon = true) {
             try {
                 rec.startRecording()
                 Log.i(TAG, "AIRI_PROOF HOTWORD_STARTED engine=porcupine frameLength=$frameLength sampleRate=$sampleRate")
                 val frame = ShortArray(frameLength)
                 while (running) {
                     val read = rec.read(frame, 0, frameLength)
-                    if (read <= 0) continue
-                    if (read < frameLength) continue
-                    val keywordIndex = try {
-                        pp.process(frame)
-                    } catch (t: Throwable) {
-                        Log.w(TAG, "porcupine.process failed: ${t.message}")
-                        -1
+                    if (read <= 0 || read < frameLength) continue
+                    val keywordIndex = try { pp.process(frame) } catch (t: Throwable) {
+                        Log.w(TAG, "porcupine.process failed: ${t.message}"); -1
                     }
-                    if (keywordIndex >= 0) fireWake()
+                    if (keywordIndex >= 0) fireWake(engine = "porcupine")
                 }
             } catch (t: Throwable) {
-                Log.w(TAG, "Capture loop failed: ${t.message}", t)
+                Log.w(TAG, "Porcupine capture loop failed: ${t.message}", t)
             } finally {
-                try { rec.stop() } catch (_: Throwable) {}
+                runCatching { rec.stop() }
             }
         }
         return START_STICKY
     }
 
-    private fun fireWake() {
-        Log.i(TAG, "AIRI_PROOF HOTWORD_DETECTED engine=porcupine")
+    private fun fireWake(engine: String = "unknown") {
+        Log.i(TAG, "AIRI_PROOF HOTWORD_DETECTED engine=$engine")
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             putExtra(EXTRA_FROM_WAKE_WORD, true)

@@ -66,7 +66,8 @@ enum class CloudProvider {
     ANTHROPIC,
     OPENROUTER,
     KIMI,
-    CUSTOM;
+    CUSTOM,
+    BRAVE;     // Brave Search API — used by SearchTool for real web search
 
     val displayName: String get() = when (this) {
         GEMINI      -> "Google Gemini"
@@ -75,6 +76,7 @@ enum class CloudProvider {
         OPENROUTER  -> "OpenRouter"
         KIMI        -> "Moonshot Kimi"
         CUSTOM      -> "Custom endpoint"
+        BRAVE       -> "Brave Search"
     }
 }
 

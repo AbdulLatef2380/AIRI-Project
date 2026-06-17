@@ -46,6 +46,7 @@ import com.airi.assistant.domain.customskill.SkillConfig
 import com.airi.assistant.domain.customskill.SkillType
 import com.airi.assistant.domain.policy.PolicyEngine
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -258,13 +259,13 @@ fun SkillBuilderScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.72f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
                     Text(
                         if (existing == null) "Create Skill" else "Edit Skill",
-                        color = Color.White,
+                        color = AiriTheme.onBackground,
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -315,7 +316,7 @@ fun SkillBuilderScreen(
             ) {
                 Text(
                     "Start from a pre-built template to save time. You can edit everything after applying.",
-                    color = Color.White.copy(alpha = 0.55f),
+                    color = AiriTheme.onSurfaceVariant,
                     fontSize = 12.sp
                 )
                 Spacer(Modifier.height(4.dp))
@@ -353,7 +354,7 @@ fun SkillBuilderScreen(
             SkillBuilderSection("Skill Type") {
                 Text(
                     "API: Calls an external REST API. Webhook: Triggers an event endpoint.",
-                    color = Color.White.copy(alpha = 0.45f),
+                    color = AiriTheme.onBackground.copy(alpha = 0.45f),
                     fontSize = 12.sp
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -385,7 +386,7 @@ fun SkillBuilderScreen(
                 )
                 Text(
                     "HTTP Method — choose how the request is sent:",
-                    color = Color.White.copy(alpha = 0.45f),
+                    color = AiriTheme.onBackground.copy(alpha = 0.45f),
                     fontSize = 12.sp
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -415,7 +416,7 @@ fun SkillBuilderScreen(
             SkillBuilderSection("Headers") {
                 Text(
                     "Add HTTP headers such as Authorization or API keys. Sensitive values (API keys, tokens) are encrypted before storage.",
-                    color = Color.White.copy(alpha = 0.45f),
+                    color = AiriTheme.onBackground.copy(alpha = 0.45f),
                     fontSize = 12.sp
                 )
                 HeaderEditor(headers)
@@ -425,7 +426,7 @@ fun SkillBuilderScreen(
             SkillBuilderSection("Body Template") {
                 Text(
                     "Write the JSON body to send with the request. Use template variables to inject dynamic values at runtime.",
-                    color = Color.White.copy(alpha = 0.45f),
+                    color = AiriTheme.onBackground.copy(alpha = 0.45f),
                     fontSize = 12.sp
                 )
                 SkillTextField(
@@ -542,7 +543,7 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
                 }
                 Text(
                     text = if (result.success) "Skill responded successfully" else "Skill did not respond",
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = AiriTheme.onSurfaceVariant,
                     fontSize = 13.sp
                 )
             }
@@ -550,7 +551,7 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
             if (result.success && result.rawOutput.isNotBlank()) {
                 // ── Formatted success result ──────────────────────────────────
                 val formatted = remember(result.rawOutput) { formatSkillOutput(result.rawOutput) }
-                Text("Response", color = Color.White.copy(alpha = 0.45f), fontSize = 11.sp)
+                Text("Response", color = AiriTheme.onBackground.copy(alpha = 0.45f), fontSize = 11.sp)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -570,7 +571,7 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
 
             if (!result.errorMessage.isNullOrBlank()) {
                 // ── Error display ─────────────────────────────────────────────
-                Text("Error", color = Color.White.copy(alpha = 0.45f), fontSize = 11.sp)
+                Text("Error", color = AiriTheme.onBackground.copy(alpha = 0.45f), fontSize = 11.sp)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -588,7 +589,7 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
                 }
                 Text(
                     "Fix the error above, then test again before saving.",
-                    color = Color.White.copy(alpha = 0.38f),
+                    color = AiriTheme.onBackground.copy(alpha = 0.38f),
                     fontSize = 11.sp
                 )
             }
@@ -661,7 +662,7 @@ private fun TemplateVariablesHint() {
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.widthIn(min = 160.dp)
                 )
-                Text("— $explanation", color = Color.White.copy(alpha = 0.45f), fontSize = 11.sp)
+                Text("— $explanation", color = AiriTheme.onBackground.copy(alpha = 0.45f), fontSize = 11.sp)
             }
         }
     }
@@ -683,8 +684,8 @@ private fun PresetCard(preset: SkillPreset, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(preset.label, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Text(preset.description, color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+            Text(preset.label, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text(preset.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
         }
         Surface(shape = RoundedCornerShape(999.dp), color = CosmicAccent.copy(alpha = 0.15f)) {
             Text(
@@ -779,7 +780,7 @@ private fun SkillTextField(
         if (!helperText.isNullOrBlank()) {
             Text(
                 text = helperText,
-                color = Color.White.copy(alpha = 0.38f),
+                color = AiriTheme.onBackground.copy(alpha = 0.38f),
                 fontSize = 11.sp,
                 modifier = Modifier.padding(horizontal = 4.dp)
             )

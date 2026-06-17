@@ -37,6 +37,7 @@ import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.CosmicBlack
 import com.airi.assistant.ui.theme.SemanticError
 import com.airi.assistant.ui.theme.SurfaceCard
+import com.airi.assistant.ui.theme.AiriTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -87,24 +88,24 @@ fun SkillManagerScreen(
     }
 
     Scaffold(
-        containerColor = CosmicBlack,
+        containerColor = AiriTheme.background,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = CosmicBlack.copy(alpha = 0.95f)
+                    containerColor = AiriTheme.background.copy(alpha = 0.95f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
                     Column {
-                        Text("المهارات", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("المهارات", color = AiriTheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         if (skills.isNotEmpty()) {
                             Text(
                                 "${skills.size} مهارة",
-                                color = Color.White.copy(0.45f), fontSize = 11.sp
+                                color = AiriTheme.onBackground.copy(0.45f), fontSize = 11.sp
                             )
                         }
                     }
@@ -230,13 +231,13 @@ fun SkillManagerScreen(
                         )
                         Text(
                             "لا توجد مهارات مخصصة بعد",
-                            color = Color.White,
+                            color = AiriTheme.onBackground,
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp
                         )
                         Text(
                             "أنشئ مهارات API أو استوردها، ويمكن لـ AIRI استخدامها كأدوات.",
-                            color = Color.White.copy(0.55f),
+                            color = AiriTheme.onBackground.copy(0.55f),
                             fontSize = 14.sp
                         )
                         Button(
@@ -295,12 +296,12 @@ private fun GitHubImportDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor   = Color(0xFF111525),
-        title = { Text("استيراد من GitHub", color = Color.White, fontWeight = FontWeight.Bold) },
+        title = { Text("استيراد من GitHub", color = AiriTheme.onBackground, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     "الصق رابط الملف الخام (raw) لملف JSON الخاص بالمهارة من GitHub.",
-                    color = Color.White.copy(0.6f), fontSize = 13.sp
+                    color = AiriTheme.onBackground.copy(0.6f), fontSize = 13.sp
                 )
                 OutlinedTextField(
                     value         = rawUrl,
@@ -308,7 +309,7 @@ private fun GitHubImportDialog(
                     placeholder   = {
                         Text(
                             "https://raw.githubusercontent.com/…/skill.json",
-                            color = Color.White.copy(0.3f), fontSize = 11.sp
+                            color = AiriTheme.onBackground.copy(0.3f), fontSize = 11.sp
                         )
                     },
                     singleLine = true,
@@ -335,7 +336,7 @@ private fun GitHubImportDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("إلغاء", color = Color.White.copy(0.55f)) }
+            TextButton(onClick = onDismiss) { Text("إلغاء", color = AiriTheme.onBackground.copy(0.55f)) }
         }
     )
 }
@@ -353,13 +354,13 @@ private fun AiSkillCreateDialog(
         onDismissRequest = onDismiss,
         containerColor   = Color(0xFF111525),
         title = {
-            Text("إنشاء مهارة مع AIRI", color = Color.White, fontWeight = FontWeight.Bold)
+            Text("إنشاء مهارة مع AIRI", color = AiriTheme.onBackground, fontWeight = FontWeight.Bold)
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     "أدخل تفاصيل المهارة وسيقوم AIRI بإعداد الهيكل الكامل لها.",
-                    color = Color.White.copy(0.6f), fontSize = 13.sp
+                    color = AiriTheme.onBackground.copy(0.6f), fontSize = 13.sp
                 )
                 SkillTextField("اسم المهارة", name) { name = it }
                 SkillTextField("وصف المهارة", description) { description = it }
@@ -378,7 +379,7 @@ private fun AiSkillCreateDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("إلغاء", color = Color.White.copy(0.55f)) }
+            TextButton(onClick = onDismiss) { Text("إلغاء", color = AiriTheme.onBackground.copy(0.55f)) }
         }
     )
 }
@@ -393,7 +394,7 @@ private fun SkillTextField(
     OutlinedTextField(
         value         = value,
         onValueChange = onValueChange,
-        label         = { Text(label, fontSize = 12.sp, color = Color.White.copy(0.5f)) },
+        label         = { Text(label, fontSize = 12.sp, color = AiriTheme.onBackground.copy(0.5f)) },
         singleLine    = true,
         modifier      = Modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(keyboardType = keyboard),
@@ -447,7 +448,7 @@ private fun SkillCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(SurfaceCard)
+            .background(AiriTheme.surface)
             .border(1.dp, Color.White.copy(0.07f), RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .padding(16.dp),
@@ -463,7 +464,7 @@ private fun SkillCard(
             ) {
                 Text(
                     skill.name,
-                    color = Color.White,
+                    color = AiriTheme.onBackground,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
                     maxLines = 1,
@@ -483,14 +484,14 @@ private fun SkillCard(
             }
             Text(
                 skill.description,
-                color = Color.White.copy(0.55f),
+                color = AiriTheme.onBackground.copy(0.55f),
                 fontSize = 13.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 skill.config.endpoint,
-                color = Color.White.copy(0.3f),
+                color = AiriTheme.onBackground.copy(0.3f),
                 fontSize = 11.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis

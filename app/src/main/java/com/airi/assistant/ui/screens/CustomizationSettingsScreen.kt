@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -54,11 +55,11 @@ fun CustomizationSettingsScreen(
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
-                    Text("Customization", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Customization", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
                 }
             )
         }
@@ -82,14 +83,15 @@ fun CustomizationSettingsScreen(
                 Text(
                     "وضع العرض",
                     fontSize = 13.sp,
-                    color    = Color.White.copy(alpha = 0.7f)
+                    color    = AiriTheme.onBackground.copy(alpha = 0.7f)
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val modes = listOf(
                         ThemeMode.DARK   to "مظلم",
                         ThemeMode.LIGHT  to "فاتح",
-                        ThemeMode.SYSTEM to "النظام"
+                        ThemeMode.SYSTEM to "النظام",
+                        ThemeMode.AMOLED to "AMOLED"   // B-28: pure black for OLED
                     )
                     modes.forEach { (mode, label) ->
                         FilterChip(
@@ -115,7 +117,7 @@ fun CustomizationSettingsScreen(
                 Text(
                     stringResource(R.string.custom_instructions),
                     fontSize = 13.sp,
-                    color    = Color.White.copy(alpha = 0.7f)
+                    color    = AiriTheme.onBackground.copy(alpha = 0.7f)
                 )
                 Spacer(Modifier.height(6.dp))
                 OutlinedTextField(
@@ -127,7 +129,7 @@ fun CustomizationSettingsScreen(
                     placeholder = {
                         Text(
                             stringResource(R.string.custom_instructions_placeholder),
-                            color    = Color.White.copy(alpha = 0.28f),
+                            color    = AiriTheme.onBackground.copy(alpha = 0.28f),
                             fontSize = 12.sp
                         )
                     },
@@ -144,7 +146,7 @@ fun CustomizationSettingsScreen(
                 Text(
                     stringResource(R.string.applied_next_session),
                     fontSize = 10.sp,
-                    color    = Color.White.copy(alpha = 0.3f),
+                    color    = AiriTheme.onBackground.copy(alpha = 0.3f),
                     modifier = Modifier.padding(top = 4.dp)
                 )
 
@@ -152,7 +154,7 @@ fun CustomizationSettingsScreen(
                 Text(
                     stringResource(R.string.response_style),
                     fontSize = 13.sp,
-                    color    = Color.White.copy(alpha = 0.7f)
+                    color    = AiriTheme.onBackground.copy(alpha = 0.7f)
                 )
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -191,7 +193,7 @@ fun CustomizationSettingsScreen(
                     sublabel = stringResource(R.string.browse_conversation_history)
                 ) { onNavigate(AiriRoute.MEMORY) }
                 Divider(
-                    color    = Color.White.copy(alpha = 0.06f),
+                    color    = AiriTheme.onBackground.copy(alpha = 0.06f),
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
                 SettingsActionRow(

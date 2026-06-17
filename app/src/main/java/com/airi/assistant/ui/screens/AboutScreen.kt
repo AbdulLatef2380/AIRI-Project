@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.BuildConfig
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SurfaceRaised
+import com.airi.assistant.ui.theme.AiriTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,10 +25,10 @@ fun AboutScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("About AIRI", color = Color.White, fontWeight = FontWeight.SemiBold) },
+                title = { Text("About AIRI", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -47,31 +48,31 @@ fun AboutScreen(onBack: () -> Unit) {
             Text("AIRI", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = CosmicAccent)
             Text(
                 "Autonomous AI Operating System",
-                fontSize = 16.sp, color = Color.White.copy(alpha = 0.7f),
+                fontSize = 16.sp, color = AiriTheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
             Text(
                 "Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                fontSize = 13.sp, color = Color.White.copy(alpha = 0.4f)
+                fontSize = 13.sp, color = AiriTheme.onSurfaceVariant
             )
             Spacer(Modifier.height(8.dp))
-            Divider(color = Color.White.copy(alpha = 0.08f))
+            Divider(color = AiriTheme.outline.copy(alpha = 0.08f))
             AboutInfoCard("Runtime", "Local-first hybrid inference with llama.cpp GGUF runtime and cloud failover via Anthropic, Gemini, and OpenAI adapters.")
             AboutInfoCard("Voice", "On-device STT via Vosk. Wake-word detection via Porcupine. Full-duplex VAD for barge-in interruption.")
             AboutInfoCard("Privacy", "All local inference stays on-device. Cloud requests pass through a privacy sanitisation gate.")
             AboutInfoCard("Stack", "Kotlin · Jetpack Compose · Coroutines · StateFlow · Room · JNI/NDK · llama.cpp")
             Spacer(Modifier.height(8.dp))
-            Text("© 2025 AIRI. All rights reserved.", fontSize = 12.sp, color = Color.White.copy(alpha = 0.3f))
+            Text("© 2025 AIRI. All rights reserved.", fontSize = 12.sp, color = AiriTheme.outline)
         }
     }
 }
 
 @Composable
 private fun AboutInfoCard(title: String, body: String) {
-    Surface(shape = MaterialTheme.shapes.medium, color = SurfaceRaised, modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = MaterialTheme.shapes.medium, color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CosmicAccent)
-            Text(body, fontSize = 13.sp, color = Color.White.copy(alpha = 0.7f), lineHeight = 19.sp)
+            Text(body, fontSize = 13.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 19.sp)
         }
     }
 }

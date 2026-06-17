@@ -26,7 +26,11 @@ import java.time.format.DateTimeFormatter
  * Adding a new tool: add it to [BuiltinTools], add dispatch case here.
  */
 class ToolDispatcher(
-    private val memoryManager: MemoryManager? = null
+    private val memoryManager:      MemoryManager? = null,
+    // P1-1: session context for semantic memory search
+    private val sessionIdProvider:  (() -> String)? = null,
+    // Brave Search API key — injected from SecureApiKeyStore at construction time
+    private val braveApiKeyProvider: (() -> String?)? = null
 ) {
     companion object {
         private const val TAG = "AIRI_ToolDispatcher"
@@ -106,16 +110,61 @@ class ToolDispatcher(
             // ── Search ─────────────────────────────────────────────────────────
             "web_search" -> {
                 val query = args["query"] ?: return ToolResult.Error("Missing query")
-                val searchTool = SearchTool(context)
-                val result = searchTool.searchDuckDuckGo(query)
-                if (result.success) {
-                    Log.i(TAG, "AIRI_PROOF WEB_SEARCH query=${query.take(60)} resultLen=${result.summary.length}")
-                    ToolResult.Success(result.summary)
-                } else {
-                    // Fallback: fire the intent (visible to user)
-                    searchTool.searchViaIntent(query)
-                    ToolResult.Success("Opened web search for: $query")
+                val searchTool = SearchTool(context, braveApiKey = braveApiKeyProvider?.invoke())
+
+                // Try Brave Search first (real web results + Jina content extraction)
+                val braveKey = braveApiKeyProvider?.invoke()
+                if (!braveKey.isNullOrBlank()) {
+                    val brave = searchTool.searchBrave(query, count = 5, enrich = true)
+                    if (brave.success) {
+                        Log.i(TAG, "AIRI_PROOF WEB_SEARCH_BRAVE query=${query.take(60)} results=${brave.results.size} hasContent=${brave.topContent != null}")
+                        return ToolResult.Success(brave.toAgentString())
+                    }
+                    Log.w(TAG, "Brave search failed (${brave.error}), falling back to DDG")
                 }
+
+                // Fallback: DDG Instant Answers (~30% coverage but always free)
+                val ddg = searchTool.searchDuckDuckGo(query)
+                if (ddg.success) {
+                    Log.i(TAG, "AIRI_PROOF WEB_SEARCH_DDG query=${query.take(60)} resultLen=${ddg.summary.length}")
+                    return ToolResult.Success(ddg.summary)
+                }
+
+                // Last resort: open browser (no content returned, but user can see it)
+                Log.w(TAG, "AIRI_PROOF WEB_SEARCH_FALLBACK query=${query.take(60)} — opening browser")
+                searchTool.searchViaIntent(query)
+                ToolResult.Success(
+                    "Search opened in browser for: $query\n\n" +
+                    "Note: No API key configured for Brave Search. " +
+                    "Add one in Settings → AI Models → Manage API Keys to enable full web search."
+                )
+            }
+
+            "fetch_url" -> {
+                val url = args["url"] ?: return ToolResult.Error("Missing url parameter")
+                if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                    return ToolResult.Error("Invalid URL — must start with http:// or https://")
+                }
+                val searchTool = SearchTool(context, braveApiKey = braveApiKeyProvider?.invoke())
+                Log.i(TAG, "AIRI_PROOF FETCH_URL url=${url.take(80)}")
+
+                // Try Jina Reader first (clean markdown, handles JS-rendered pages)
+                val jina = searchTool.fetchViaJina(url, maxChars = 4000)
+                if (jina.success && jina.content.isNotBlank()) {
+                    Log.i(TAG, "AIRI_PROOF FETCH_URL_JINA_OK chars=${jina.content.length}")
+                    return ToolResult.Success(
+                        "Content from ${url}:\n\n${jina.content}"
+                    )
+                }
+
+                // Fallback: direct HTTP fetch with HTML stripping
+                val direct = searchTool.fetchPageContent(url)
+                if (direct.success && direct.content.isNotBlank()) {
+                    Log.i(TAG, "AIRI_PROOF FETCH_URL_DIRECT_OK chars=${direct.content.length}")
+                    return ToolResult.Success("Content from ${url}:\n\n${direct.content}")
+                }
+
+                ToolResult.Error("Could not fetch content from: $url (tried Jina Reader and direct fetch)")
             }
 
             // ── Memory ─────────────────────────────────────────────────────────
@@ -125,13 +174,29 @@ class ToolDispatcher(
                 if (manager == null) {
                     ToolResult.Error("Memory not available in this session")
                 } else {
-                    val hits = manager.getRecentMessages(5)
-                    if (hits.isEmpty()) {
-                        ToolResult.Success("No relevant memories found for: $query")
+                    // P1-1: Use semantic search when embedding model is ready;
+                    // fall back to recent messages when no embedding model is loaded.
+                    val sessionId = sessionIdProvider?.invoke().orEmpty()
+                    if (manager.isSemanticMemoryReady() && sessionId.isNotEmpty()) {
+                        val ranked = manager.semanticSearch(sessionId, query, k = 5)
+                        Log.i(TAG, "AIRI_PROOF MEMORY_RECALL mode=semantic query=${query.take(60)} hits=${ranked.size}")
+                        if (ranked.isEmpty()) {
+                            ToolResult.Success("No memories found for: $query")
+                        } else {
+                            val formatted = ranked.joinToString("\n") { item ->
+                                "• ${item.message.content.take(200)}"
+                            }
+                            ToolResult.Success("Memory results (semantic):\n$formatted")
+                        }
                     } else {
-                        val formatted = hits.joinToString("\n") { "• ${it.content.take(200)}" }
-                        Log.i(TAG, "AIRI_PROOF MEMORY_RECALL query=${query.take(60)} hits=${hits.size}")
-                        ToolResult.Success("Memory results:\n$formatted")
+                        val recent = manager.getRecentMessages(5)
+                        Log.i(TAG, "AIRI_PROOF MEMORY_RECALL mode=recent query=${query.take(60)} hits=${recent.size}")
+                        if (recent.isEmpty()) {
+                            ToolResult.Success("No memories found for: $query")
+                        } else {
+                            val formatted = recent.joinToString("\n") { "• ${it.content.take(200)}" }
+                            ToolResult.Success("Memory results (recent, no embedding model):\n$formatted")
+                        }
                     }
                 }
             }

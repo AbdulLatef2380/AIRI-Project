@@ -27,6 +27,7 @@ import com.airi.assistant.system.LanguageOption
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SurfaceRaised
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 
 fun Context.findActivity(): Activity? {
@@ -42,7 +43,7 @@ fun Context.findActivity(): Activity? {
 fun SettingsSurface(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         shape    = RoundedCornerShape(16.dp),
-        color    = SurfaceRaised,
+        color    = AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -68,7 +69,7 @@ fun SettingsCategoryHeader(icon: ImageVector, title: String) {
             text       = title,
             fontSize   = 14.sp,
             fontWeight = FontWeight.SemiBold,
-            color      = Color.White
+            color      = AiriTheme.onBackground
         )
     }
 }
@@ -84,15 +85,15 @@ fun SettingsNavigationRow(label: String, sublabel: String = "", onClick: () -> U
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, fontSize = 14.sp, color = Color.White)
+            Text(label, fontSize = 14.sp, color = AiriTheme.onBackground)
             if (sublabel.isNotEmpty()) {
-                Text(sublabel, fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
+                Text(sublabel, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
             }
         }
         Icon(
             imageVector        = Icons.Outlined.ChevronRight,
             contentDescription = null,
-            tint               = Color.White.copy(alpha = 0.35f),
+            tint               = AiriTheme.onSurfaceVariant.copy(alpha = 0.35f),
             modifier           = Modifier.size(18.dp)
         )
     }
@@ -120,7 +121,7 @@ fun SettingsActionRow(
                 color    = if (destructive) Color(0xFFFF6B6B) else Color.White
             )
             if (sublabel.isNotEmpty()) {
-                Text(sublabel, fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
+                Text(sublabel, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
             }
         }
     }
@@ -135,8 +136,8 @@ fun SettingsInfoRow(label: String, value: String) {
         verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, fontSize = 13.sp, color = Color.White.copy(alpha = 0.7f))
-        Text(value, fontSize = 13.sp, color = Color.White)
+        Text(label, fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
+        Text(value, fontSize = 13.sp, color = AiriTheme.onBackground)
     }
 }
 
@@ -182,7 +183,7 @@ fun DefaultAssistantSection(activity: Activity?) {
         Text(
             text     = "Set AIRI as the default digital assistant in Android system settings.",
             fontSize = 12.sp,
-            color    = Color.White.copy(alpha = 0.6f)
+            color    = AiriTheme.onBackground.copy(alpha = 0.6f)
         )
     }
 }
@@ -207,20 +208,31 @@ fun SkillsSection(viewModel: ChatViewModel) {
         Text(
             text     = "Manage enabled skills and custom skill builders.",
             fontSize = 12.sp,
-            color    = Color.White.copy(alpha = 0.6f)
+            color    = AiriTheme.onBackground.copy(alpha = 0.6f)
         )
     }
 }
 
 @Composable
-fun ApiKeysSection() {
+// B-09 FIX: was a dead label — now navigates to ModelLibraryScreen where keys
+// are actually entered via SecureApiKeyStore. onNavigate defaults to no-op so
+// the AIModelsSettingsScreen zero-arg call still compiles; the call site in that
+// screen is also updated to pass onNavigate.
+fun ApiKeysSection(onNavigate: (String) -> Unit = {}) {
     SettingsSurface {
         SettingsCategoryHeader(icon = Icons.Outlined.Key, title = "API Keys")
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
-            text     = "Configure API keys for cloud providers.",
-            fontSize = 12.sp,
-            color    = Color.White.copy(alpha = 0.6f)
+            text      = "Add OpenAI, Anthropic, or Gemini keys to enable cloud models.",
+            fontSize  = 12.sp,
+            color     = AiriTheme.onSurfaceVariant,
+            lineHeight = 17.sp
+        )
+        Spacer(Modifier.height(8.dp))
+        SettingsNavigationRow(
+            label    = "Manage API Keys",
+            sublabel = "Add, edit, or remove cloud provider keys",
+            onClick  = { onNavigate(com.airi.assistant.ui.AiriRoute.MODEL_LIBRARY) }
         )
     }
 }

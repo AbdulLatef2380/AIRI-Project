@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.userProfileChangeRequest
 
@@ -75,14 +76,14 @@ fun ProfileScreen(onBack: () -> Unit) {
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
                     Text(
                         stringResource(R.string.edit_profile),
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = AiriTheme.onBackground
                     )
                 }
             )
@@ -120,7 +121,7 @@ fun ProfileScreen(onBack: () -> Unit) {
             }
 
             if (email.isNotBlank()) {
-                Text(email, color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
+                Text(email, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
             }
 
             Spacer(Modifier.height(4.dp))
@@ -186,7 +187,7 @@ private fun ProfileField(
             value = value,
             onValueChange = onValueChange,
             readOnly = readOnly,
-            placeholder = { Text(placeholder, color = Color.White.copy(alpha = 0.25f)) },
+            placeholder = { Text(placeholder, color = AiriTheme.outline) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             shape = RoundedCornerShape(12.dp),

@@ -66,6 +66,24 @@ private val AIRITypography = Typography(
     labelSmall     = TextStyle(fontWeight = FontWeight.Medium,   fontSize = 10.sp, lineHeight = 14.sp, letterSpacing = 0.4.sp),
 )
 
+// ── AMOLED colour scheme — pure black for OLED power saving (B-28) ───────────
+private val AmoledColorScheme = darkColorScheme(
+    primary          = CosmicAccent,
+    secondary        = CosmicAccentAlt,
+    tertiary         = SemanticSuccess,
+    background       = Color.Black,          // pure black — saves OLED power
+    surface          = Color(0xFF0A0A0A),    // near-black surface
+    surfaceVariant   = Color(0xFF111111),    // slightly raised
+    onPrimary        = Color.White,
+    onSecondary      = Color.White,
+    onBackground     = Color.White,
+    onSurface        = Color.White,
+    onSurfaceVariant = Color.White.copy(alpha = 0.65f),
+    outline          = Color.White.copy(alpha = 0.12f),
+    error            = SemanticError,
+    onError          = Color.White,
+)
+
 /**
  * Root theme composable.
  *
@@ -76,6 +94,7 @@ private val AIRITypography = Typography(
  * - [ThemeMode.DARK]   → always dark
  * - [ThemeMode.LIGHT]  → always light
  * - [ThemeMode.SYSTEM] → follows isSystemInDarkTheme()
+ * - [ThemeMode.AMOLED] → pure black for OLED screens (B-28)
  */
 @Composable
 fun AIRITheme(content: @Composable () -> Unit) {
@@ -84,14 +103,15 @@ fun AIRITheme(content: @Composable () -> Unit) {
     val themeMode        by themePrefs.themeMode.collectAsState()
     val systemIsDark     = isSystemInDarkTheme()
 
-    val useDark = when (themeMode) {
-        ThemeMode.DARK   -> true
-        ThemeMode.LIGHT  -> false
-        ThemeMode.SYSTEM -> systemIsDark
+    val colorScheme = when (themeMode) {
+        ThemeMode.DARK   -> DarkColorScheme
+        ThemeMode.LIGHT  -> LightColorScheme
+        ThemeMode.SYSTEM -> if (systemIsDark) DarkColorScheme else LightColorScheme
+        ThemeMode.AMOLED -> AmoledColorScheme
     }
 
     MaterialTheme(
-        colorScheme = if (useDark) DarkColorScheme else LightColorScheme,
+        colorScheme = colorScheme,
         typography  = AIRITypography,
         content     = content,
     )

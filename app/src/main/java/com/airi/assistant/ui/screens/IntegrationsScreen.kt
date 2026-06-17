@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.AiriTheme
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -118,7 +119,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
                 title = {
                     Text(
                         stringResource(R.string.integrations_title),
-                        color = Color.White,
+                        color = AiriTheme.onBackground,
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -127,7 +128,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
                         Icon(
                             Icons.Default.ArrowBack,
                             contentDescription = stringResource(R.string.back),
-                            tint = Color.White
+                            tint = AiriTheme.onBackground
                         )
                     }
                 }
@@ -147,13 +148,13 @@ fun IntegrationsScreen(onBack: () -> Unit) {
                         stringResource(R.string.integrations_section_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = AiriTheme.onBackground
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
                         stringResource(R.string.integrations_section_description),
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.55f),
+                        color = AiriTheme.onSurfaceVariant,
                         lineHeight = 18.sp
                     )
                 }
@@ -250,7 +251,7 @@ private fun IntegrationCard(
             .fillMaxWidth()
             .border(0.5.dp, borderColor, RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
-        color = Color.White.copy(alpha = cardAlpha),
+        color = AiriTheme.onBackground.copy(alpha = cardAlpha),
         contentColor = Color.White,
         tonalElevation = 0.dp
     ) {
@@ -301,7 +302,7 @@ private fun IntegrationCard(
                     Text(
                         item.description,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.60f),
+                        color = AiriTheme.onBackground.copy(alpha = 0.60f),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -318,13 +319,13 @@ private fun IntegrationCard(
             ) {
                 Column {
                     Spacer(Modifier.height(10.dp))
-                    Divider(color = Color.White.copy(alpha = 0.08f))
+                    Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
                     Spacer(Modifier.height(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
                             stringResource(R.string.integration_connected_as),
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.42f)
+                            color = AiriTheme.onBackground.copy(alpha = 0.42f)
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -354,7 +355,7 @@ private fun IntegrationCard(
                         Text(
                             stringResource(R.string.integration_last_updated, formatTime(item.lastUpdated)),
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.35f),
+                            color = AiriTheme.outline,
                             modifier = Modifier.padding(start = 20.dp)
                         )
                     }
@@ -386,7 +387,7 @@ private fun IntegrationCard(
                     ),
                     shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text(stringResource(R.string.integration_connect), color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.integration_connect), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -471,7 +472,7 @@ private fun TokenDialog(
                 Text(
                     title,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = AiriTheme.onBackground,
                     style = MaterialTheme.typography.titleLarge
                 )
             }
@@ -482,7 +483,7 @@ private fun TokenDialog(
                 Text(
                     stringResource(R.string.integration_dialog_steps_title),
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.6f)
+                    color = AiriTheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(10.dp))
 
@@ -502,14 +503,14 @@ private fun TokenDialog(
                                 "${index + 1}",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = AiriTheme.onBackground
                             )
                         }
                         Spacer(Modifier.width(8.dp))
                         Text(
                             step,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.82f),
+                            color = AiriTheme.onBackground.copy(alpha = 0.82f),
                             lineHeight = 18.sp,
                             modifier = Modifier.weight(1f)
                         )
@@ -517,7 +518,7 @@ private fun TokenDialog(
                 }
 
                 Spacer(Modifier.height(16.dp))
-                Divider(color = Color.White.copy(alpha = 0.08f))
+                Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
                 Spacer(Modifier.height(16.dp))
 
                 // Token input — forced to LTR so the placeholder examples
@@ -527,11 +528,11 @@ private fun TokenDialog(
                     OutlinedTextField(
                         value = token,
                         onValueChange = onTokenChange,
-                        label = { Text(inputLabel, color = Color.White.copy(alpha = 0.6f)) },
+                        label = { Text(inputLabel, color = AiriTheme.onSurfaceVariant) },
                         placeholder = {
                             Text(
                                 inputHint,
-                                color = Color.White.copy(alpha = 0.25f),
+                                color = AiriTheme.outline,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp
                             )
@@ -592,7 +593,7 @@ private fun TokenDialog(
                         Text(
                             stringResource(R.string.integration_dialog_validating),
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.6f)
+                            color = AiriTheme.onSurfaceVariant
                         )
                     }
                 }
@@ -607,7 +608,7 @@ private fun TokenDialog(
                     disabledContainerColor = Color(0xFF6D28D9).copy(alpha = 0.35f)
                 )
             ) {
-                Text(stringResource(R.string.integration_connect), color = Color.White)
+                Text(stringResource(R.string.integration_connect), color = AiriTheme.onBackground)
             }
         },
         dismissButton = {
@@ -615,7 +616,7 @@ private fun TokenDialog(
                 onClick = onDismiss,
                 enabled = !loading
             ) {
-                Text(stringResource(R.string.cancel), color = Color.White.copy(alpha = 0.55f))
+                Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
             }
         }
     )

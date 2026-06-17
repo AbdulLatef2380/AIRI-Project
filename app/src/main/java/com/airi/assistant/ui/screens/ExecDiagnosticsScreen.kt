@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -99,14 +100,14 @@ fun ExecDiagnosticsScreen(
             tonalElevation   = 0.dp,
             title = {
                 Text("Reset Token Stats",
-                    color      = Color.White,
+                    color      = AiriTheme.onBackground,
                     fontWeight = FontWeight.Bold)
             },
             text = {
                 Text(
                     "Clear today's token usage counters for all providers? " +
                     "This only affects local tracking — it does not affect billing.",
-                    color    = Color.White.copy(alpha = 0.75f),
+                    color    = AiriTheme.onBackground.copy(alpha = 0.75f),
                     fontSize = 14.sp,
                     lineHeight = 20.sp
                 )
@@ -138,7 +139,7 @@ fun ExecDiagnosticsScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack,
                             contentDescription = "Back",
-                            tint = Color.White)
+                            tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
@@ -146,7 +147,7 @@ fun ExecDiagnosticsScreen(
                         Text(
                             "Execution Diagnostics",
                             fontWeight = FontWeight.Bold,
-                            color      = Color.White,
+                            color      = AiriTheme.onBackground,
                             fontSize   = 17.sp
                         )
                         Text(
@@ -162,7 +163,7 @@ fun ExecDiagnosticsScreen(
                         Icon(
                             Icons.Outlined.Refresh,
                             contentDescription = "Reset today's token stats",
-                            tint = Color.White.copy(alpha = 0.60f)
+                            tint = AiriTheme.onSurfaceVariant
                         )
                     }
                 }
@@ -796,7 +797,7 @@ private fun TransitionEventRow(event: ExecTransitionEvent) {
                         append("  →  ")
                         append(to)
                     },
-                    color      = Color.White.copy(alpha = 0.88f),
+                    color      = AiriTheme.onBackground.copy(alpha = 0.88f),
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 12.sp
                 )
@@ -881,7 +882,7 @@ private fun ExRow(
 @Composable
 private fun ExDivider() {
     Divider(
-        color    = Color.White.copy(alpha = 0.05f),
+        color    = AiriTheme.onBackground.copy(alpha = 0.05f),
         modifier = Modifier.padding(vertical = 4.dp)
     )
 }

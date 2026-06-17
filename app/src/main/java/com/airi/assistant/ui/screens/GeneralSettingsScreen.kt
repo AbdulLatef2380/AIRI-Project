@@ -23,6 +23,7 @@ import com.airi.assistant.R
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.system.LanguageOption
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,11 +51,11 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
-                    Text("General", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("General", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
                 }
             )
         }
@@ -137,7 +138,7 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
             },
             dismissButton = {
                 TextButton(onClick = { pendingLanguage = null }) {
-                    Text(stringResource(R.string.cancel), color = Color.White.copy(alpha = 0.6f))
+                    Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
                 }
             }
         )

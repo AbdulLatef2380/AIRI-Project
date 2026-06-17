@@ -61,7 +61,8 @@ import com.airi.assistant.ui.screens.ReferralScreen
 import com.airi.assistant.ui.screens.SettingsScreen
 import com.airi.assistant.ui.screens.SkillBuilderScreen
 import com.airi.assistant.ui.screens.SkillManagerScreen
-import com.airi.assistant.ui.screens.WelcomeScreen
+import com.airi.assistant.ui.screens.TemplatesScreen
+import com.airi.assistant.ui.screens.AppInfoScreen
 import com.airi.assistant.ui.plan.AgentPlanViewModel
 import com.airi.assistant.ui.theme.AIRITheme
 import com.airi.assistant.ui.theme.CosmicBlack
@@ -70,7 +71,7 @@ import com.airi.assistant.ui.viewmodel.ChatViewModel
 
 object AiriRoute {
     const val ONBOARDING         = "screen_onboarding"
-    const val WELCOME            = "screen_welcome"
+    // B-12: WELCOME route removed — was registered but had no callers
     const val LOGIN              = "screen_login"
     const val CHAT               = "screen_chat"
     const val HISTORY            = "screen_history"
@@ -88,6 +89,8 @@ object AiriRoute {
     const val REFERRALS          = "screen_referrals"
     const val SKILL_MANAGER      = "screen_skill_manager"
     const val SKILL_BUILDER      = "screen_skill_builder"
+    const val TEMPLATES          = "screen_templates"   // B-13: was unreachable
+    const val APP_INFO           = "screen_app_info"    // B-13: was unreachable
     const val PERFORMANCE        = "screen_performance"
     const val MODEL_PERFORMANCE  = "screen_model_performance"
     const val DEBUG_PANEL        = "screen_debug_panel"
@@ -189,6 +192,7 @@ fun AiriApp() {
                                 }
                             },
                             onSkip = {
+                                OnboardingManager.skip()  // P0-8: persist skip so onboarding never repeats (also logs analytics)
                                 navController.navigate(AiriRoute.LOGIN) {
                                     popUpTo(AiriRoute.ONBOARDING) { inclusive = true }
                                     launchSingleTop = true
@@ -197,9 +201,7 @@ fun AiriApp() {
                         )
                     }
 
-                    composable(AiriRoute.WELCOME) {
-                        WelcomeScreen(onStart = { navController.navigate(AiriRoute.LOGIN) })
-                    }
+                    // B-12: WELCOME composable removed — was unreachable
 
                     composable(AiriRoute.LOGIN) {
                         LoginScreen(
@@ -209,6 +211,7 @@ fun AiriApp() {
                                         AnalyticsService.login("email")
                                         AnalyticsService.funnelStep("open_to_login")
                                         ReferralManager.completePendingReferral(authService.currentUser()?.uid)
+                                        ReferralManager.grantFirstLaunchBonus()  // B-10
                                         ExperimentManager.init(
                                             ServiceLocator.context ?: return@signIn,
                                             authService.currentUser()?.uid ?: "anonymous"
@@ -227,6 +230,7 @@ fun AiriApp() {
                                         AnalyticsService.signup("email")
                                         AnalyticsService.funnelStep("open_to_signup")
                                         ReferralManager.completePendingReferral(authService.currentUser()?.uid)
+                                        ReferralManager.grantFirstLaunchBonus()  // B-10
                                         ExperimentManager.init(
                                             ServiceLocator.context ?: return@createAccount,
                                             authService.currentUser()?.uid ?: "anonymous"
@@ -243,6 +247,7 @@ fun AiriApp() {
                                 AnalyticsService.login("google")
                                 AnalyticsService.funnelStep("open_to_login")
                                 ReferralManager.completePendingReferral(authService.currentUser()?.uid)
+                                ReferralManager.grantFirstLaunchBonus()  // B-10
                                 navController.navigate(AiriRoute.CHAT) {
                                     popUpTo(AiriRoute.LOGIN) { inclusive = true }
                                     launchSingleTop = true
@@ -463,6 +468,18 @@ fun AiriApp() {
 
                     composable(AiriRoute.DEBUG_PANEL) {
                         DebugPanelScreen(viewModel = chatViewModel, onBack = { navController.popBackStack() })
+                    }
+
+                    // B-13: TemplatesScreen and AppInfoScreen — now reachable
+                    composable(AiriRoute.TEMPLATES) {
+                        TemplatesScreen(
+                            viewModel = chatViewModel,
+                            onBack    = { navController.popBackStack() }
+                        )
+                    }
+
+                    composable(AiriRoute.APP_INFO) {
+                        AppInfoScreen(onBack = { navController.popBackStack() })
                     }
 
                     composable(AiriRoute.DEBUG_SCREEN) {

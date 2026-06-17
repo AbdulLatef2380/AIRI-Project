@@ -152,23 +152,39 @@ class SandboxExecutor(private val session: SandboxSession) {
 
             val proc = pb.start()
             val output = StringBuilder()
-            proc.inputStream.bufferedReader().use { reader ->
-                val buf = CharArray(4096)
-                while (true) {
-                    val n = reader.read(buf)
-                    if (n < 0) break
-                    if (output.length + n > OUTPUT_LIMIT_BYTES) {
-                        output.append(buf, 0, OUTPUT_LIMIT_BYTES - output.length)
-                        output.append("\n[output truncated at $OUTPUT_LIMIT_BYTES bytes]")
-                        runCatching { proc.destroyForcibly() }
-                        break
+            // P0-4: Guarantee process cleanup on any exit path including coroutine cancellation.
+            try {
+                proc.inputStream.bufferedReader().use { reader ->
+                    val buf = CharArray(4096)
+                    while (true) {
+                        val n = reader.read(buf)
+                        if (n < 0) break
+                        if (output.length + n > OUTPUT_LIMIT_BYTES) {
+                            output.append(buf, 0, OUTPUT_LIMIT_BYTES - output.length)
+                            output.append("\n[output truncated at $OUTPUT_LIMIT_BYTES bytes]")
+                            runCatching { proc.destroyForcibly() }
+                            break
+                        }
+                        output.append(buf, 0, n)
                     }
-                    output.append(buf, 0, n)
                 }
+                // P0-4: Use timed waitFor to prevent ANR when subprocess hangs.
+                // The outer withTimeoutOrNull caps wall-clock time, but a subprocess
+                // that has closed stdout while still running would block proc.waitFor()
+                // indefinitely. 5 s is generous for any allowlisted binary.
+                @Suppress("BlockingMethodInNonBlockingContext")
+                val finished = proc.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
+                if (finished) {
+                    val exit = proc.exitValue()
+                    if (exit == 0) ExecutionResult.Success(output.toString(), exit)
+                    else ExecutionResult.Failure(output.toString(), exit, retryable = false)
+                } else {
+                    ExecutionResult.Failure("Process timed out after 5 s", retryable = false)
+                }
+            } finally {
+                // Runs on normal exit, exception, AND coroutine cancellation.
+                runCatching { proc.destroyForcibly() }
             }
-            val exit = proc.waitFor()
-            if (exit == 0) ExecutionResult.Success(output.toString(), exit)
-            else ExecutionResult.Failure(output.toString(), exit, retryable = false)
         } catch (e: Exception) {
             Log.w(TAG, "Shell error: ${e.message}")
             ExecutionResult.Failure("Error: ${e.message}")

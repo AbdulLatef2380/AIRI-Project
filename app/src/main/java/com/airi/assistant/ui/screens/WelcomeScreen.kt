@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
@@ -34,7 +35,7 @@ fun WelcomeScreen(onStart: () -> Unit) {
         Text(
             text = "Welcome to the Future with Airi",
             fontSize = 24.sp,
-            color = Color.White,
+            color = AiriTheme.onBackground,
             textAlign = TextAlign.Center
         )
 

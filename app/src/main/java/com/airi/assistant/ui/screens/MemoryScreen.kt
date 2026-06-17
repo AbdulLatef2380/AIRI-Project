@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.memory.entity.ChatMessage
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -48,12 +49,12 @@ fun MemoryScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, null, tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, null, tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
                     Column {
-                        Text("Memory", fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Memory", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
                         Text("$memoryCount stored interactions", fontSize = 11.sp, color = CosmicAccent.copy(alpha = 0.75f))
                     }
                 },
@@ -73,9 +74,9 @@ fun MemoryScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Outlined.Psychology, null, tint = CosmicAccent.copy(alpha = 0.3f), modifier = Modifier.size(64.dp))
                     Spacer(Modifier.height(16.dp))
-                    Text("No memory yet", color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text("No memory yet", color = AiriTheme.onSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Spacer(Modifier.height(8.dp))
-                    Text("Start a conversation to build memory", color = Color.White.copy(alpha = 0.35f), fontSize = 13.sp)
+                    Text("Start a conversation to build memory", color = AiriTheme.outline, fontSize = 13.sp)
                 }
             }
         } else {
@@ -99,7 +100,7 @@ fun MemoryScreen(
                             Spacer(Modifier.height(4.dp))
                             Text(
                                 "AIRI uses a sliding window of recent interactions as context for each new message. The full history is stored in the local database.",
-                                color = Color.White.copy(alpha = 0.55f),
+                                color = AiriTheme.onSurfaceVariant,
                                 fontSize = 12.sp,
                                 lineHeight = 18.sp
                             )
@@ -134,7 +135,7 @@ fun MemoryScreen(
                 ) { Text("Clear Memory") }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirm = false }) { Text("Cancel", color = Color.White.copy(alpha = 0.6f)) }
+                TextButton(onClick = { showConfirm = false }) { Text("Cancel", color = AiriTheme.onSurfaceVariant) }
             }
         )
     }
@@ -182,10 +183,10 @@ private fun MemoryEntryCard(msg: ChatMessage) {
                         color = if (isUser) CosmicAccent.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.4f),
                         fontWeight = FontWeight.Bold
                     )
-                    Text(timestamp, fontSize = 10.sp, color = Color.White.copy(alpha = 0.25f))
+                    Text(timestamp, fontSize = 10.sp, color = AiriTheme.outline)
                 }
                 Spacer(Modifier.height(4.dp))
-                Text(msg.content, color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp, lineHeight = 19.sp)
+                Text(msg.content, color = AiriTheme.onBackground.copy(alpha = 0.85f), fontSize = 13.sp, lineHeight = 19.sp)
             }
         }
     }

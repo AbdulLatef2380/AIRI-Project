@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,11 +41,11 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
-                    Text("About AIRI", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("About AIRI", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
                 }
             )
         }
@@ -77,13 +78,13 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                     Spacer(Modifier.height(12.dp))
                     Text(
                         "AIRI",
-                        color      = Color.White,
+                        color      = AiriTheme.onBackground,
                         fontWeight = FontWeight.Bold,
                         fontSize   = 26.sp
                     )
                     Text(
                         "Android Artificial Intelligence Runtime Interface",
-                        color     = Color.White.copy(alpha = 0.5f),
+                        color     = AiriTheme.onBackground.copy(alpha = 0.5f),
                         fontSize  = 11.sp,
                         textAlign = TextAlign.Center,
                         lineHeight = 15.sp
@@ -129,7 +130,7 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                     "• API keys stored in EncryptedSharedPreferences (AES-256 GCM)\n" +
                     "• Chat history stored only on this device\n" +
                     "• No analytics or telemetry sent without your consent",
-                    color      = Color.White.copy(alpha = 0.72f),
+                    color      = AiriTheme.onBackground.copy(alpha = 0.72f),
                     fontSize   = 13.sp,
                     lineHeight = 20.sp
                 )
@@ -187,7 +188,7 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
             AboutCard(icon = Icons.Outlined.Code, title = "Open-Source Acknowledgements") {
                 Text(
                     "AIRI is built on the shoulders of open-source giants:",
-                    color    = Color.White.copy(alpha = 0.55f),
+                    color    = AiriTheme.onBackground.copy(alpha = 0.55f),
                     fontSize = 12.sp
                 )
                 Spacer(Modifier.height(8.dp))
@@ -207,8 +208,8 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                             .padding(vertical = 3.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(lib,     color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                        Text(license, color = Color.White.copy(alpha = 0.38f), fontSize = 11.sp)
+                        Text(lib,     color = AiriTheme.onBackground.copy(alpha = 0.8f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text(license, color = AiriTheme.onBackground.copy(alpha = 0.38f), fontSize = 11.sp)
                     }
                 }
             }
@@ -239,7 +240,7 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
 
             Text(
                 "© 2025 AIRI Project. All rights reserved.",
-                color     = Color.White.copy(alpha = 0.22f),
+                color     = AiriTheme.onBackground.copy(alpha = 0.22f),
                 fontSize  = 11.sp,
                 textAlign = TextAlign.Center,
                 modifier  = Modifier.fillMaxWidth()
@@ -287,8 +288,8 @@ private fun AboutRow(label: String, value: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment     = Alignment.CenterVertically
     ) {
-        Text(label, color = Color.White.copy(alpha = 0.45f), fontSize = 13.sp)
-        Text(value, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp)
+        Text(label, color = AiriTheme.onBackground.copy(alpha = 0.45f), fontSize = 13.sp)
+        Text(value, color = AiriTheme.onBackground.copy(alpha = 0.78f), fontSize = 13.sp)
     }
 }
 
@@ -297,7 +298,7 @@ private fun TermsSection(heading: String, body: () -> String) {
     Spacer(Modifier.height(8.dp))
     Text(heading, color = CosmicAccent, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
     Spacer(Modifier.height(3.dp))
-    Text(body(), color = Color.White.copy(alpha = 0.65f), fontSize = 12.sp, lineHeight = 18.sp)
+    Text(body(), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 18.sp)
 }
 
 // Legacy composables kept for backward compatibility if any old route still references them.
@@ -325,6 +326,6 @@ fun AppInfoSectionCard(title: String, content: @Composable ColumnScope.() -> Uni
 fun InfoLine(label: String, value: String) {
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
         Text(label, color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-        Text(value, color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp)
+        Text(value, color = AiriTheme.onBackground.copy(alpha = 0.75f), fontSize = 12.sp)
     }
 }

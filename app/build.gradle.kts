@@ -253,6 +253,16 @@ dependencies {
     // When either is missing the wake-word service exits cleanly and the
     // UI shows the user how to enable it. See PorcupineEngine.kt.
     implementation(libs.porcupineAndroid)
+
+    // ── TensorFlow Lite (OpenWakeWord — P0-V2) ───────────────────────────
+    // TFLite runtime for OpenWakeWord on-device wake-word inference.
+    // OpenWakeWord is Apache 2.0 — no account or API key required.
+    // The model asset (hey_airi.tflite ~6MB) is extracted from
+    // app/src/main/assets/voice/hey_airi.tflite by OpenWakeWordEngine.kt.
+    // When the asset is absent the engine returns ready=false and the
+    // existing Porcupine path is used as a fallback. See HotwordService.kt.
+    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 }
 
 tasks.register("airiVerifyOptimization") {

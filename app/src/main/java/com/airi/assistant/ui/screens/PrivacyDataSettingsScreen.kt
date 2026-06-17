@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.AiriTheme
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -76,11 +77,11 @@ fun PrivacyDataSettingsScreen(
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
-                    Text("Privacy & Data", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Privacy & Data", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
                 }
             )
         }
@@ -104,7 +105,7 @@ fun PrivacyDataSettingsScreen(
                     sublabel = stringResource(R.string.download_chat_history)
                 ) { exportChatLauncher.launch(ChatExporter.buildFileName()) }
                 Divider(
-                    color    = Color.White.copy(alpha = 0.06f),
+                    color    = AiriTheme.onBackground.copy(alpha = 0.06f),
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
                 SettingsActionRow(
@@ -112,7 +113,7 @@ fun PrivacyDataSettingsScreen(
                     sublabel = stringResource(R.string.import_chat_history)
                 ) { importChatLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }
                 Divider(
-                    color    = Color.White.copy(alpha = 0.06f),
+                    color    = AiriTheme.onBackground.copy(alpha = 0.06f),
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
                 SettingsActionRow(
@@ -120,7 +121,7 @@ fun PrivacyDataSettingsScreen(
                     sublabel = stringResource(R.string.remove_from_display)
                 ) { viewModel.clearMessages() }
                 Divider(
-                    color    = Color.White.copy(alpha = 0.06f),
+                    color    = AiriTheme.onBackground.copy(alpha = 0.06f),
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
                 SettingsActionRow(
@@ -158,7 +159,7 @@ fun PrivacyDataSettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text(stringResource(R.string.cancel), color = Color.White.copy(alpha = 0.6f))
+                    Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
                 }
             }
         )

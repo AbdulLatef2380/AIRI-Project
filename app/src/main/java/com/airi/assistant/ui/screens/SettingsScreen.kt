@@ -45,6 +45,7 @@ import com.airi.assistant.domain.monetization.PaywallTriggerEngine
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.components.PremiumBadge
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicBlack
 import com.airi.assistant.ui.theme.DividerColor
 import com.airi.assistant.ui.theme.SurfaceCard
@@ -75,16 +76,16 @@ fun SettingsScreen(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = CosmicBlack.copy(alpha = 0.92f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background.copy(alpha = 0.92f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
                     Text(
                         text = "الإعدادات",
-                        color = Color.White,
+                        color = AiriTheme.onBackground,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.fillMaxWidth(),
@@ -259,7 +260,7 @@ fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(SurfaceCard),
+            .background(AiriTheme.surface),
         content = content
     )
 }
@@ -318,22 +319,22 @@ fun SettingsNavItem(
                         .background(CosmicAccent)
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
-                    Text(badge, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Text(badge, color = AiriTheme.onBackground, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.width(8.dp))
             }
             if (trailing != null) {
-                Text(trailing, color = Color.White.copy(alpha = 0.40f), fontSize = 13.sp)
+                Text(trailing, color = AiriTheme.onSurfaceVariant.copy(alpha = 0.40f), fontSize = 13.sp)
                 Spacer(Modifier.width(8.dp))
             }
-            Text(label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Normal)
+            Text(label, color = AiriTheme.onBackground, fontSize = 15.sp, fontWeight = FontWeight.Normal)
         }
 
         // Trailing arrow
         Icon(
             Icons.Outlined.ChevronRight,
             contentDescription = null,
-            tint = Color.White.copy(alpha = 0.28f),
+            tint = AiriTheme.outline.copy(alpha = 0.28f),
             modifier = Modifier.size(18.dp)
         )
     }
@@ -366,7 +367,7 @@ fun SettingsToggleItem(
 
         Text(
             text = label,
-            color = Color.White,
+            color = AiriTheme.onBackground,
             fontSize = 15.sp,
             modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
             textAlign = TextAlign.End

@@ -66,13 +66,16 @@ Do not mix tool_call JSON with prose in the same message.
      * @param tools          Tools available for this session. If empty, runs single-turn LLM.
      * @param onToken        Called with each streaming token (for live UI updates).
      * @param onStepComplete Called after each completed step (tool execution or partial answer).
+     *                       Return a non-null String to REPLACE the tool result that the LLM sees.
+     *                       This is used by ChatViewModel to inject a user confirmation decision
+     *                       when the agent calls ask_confirmation (P0-2 fix).
      */
     suspend fun run(
         input:          String,
         systemPrompt:   String,
         tools:          List<ToolSchema>,
         onToken:        suspend (String) -> Unit,
-        onStepComplete: suspend (StepEvent) -> Unit = {}
+        onStepComplete: suspend (StepEvent) -> String? = { null }
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
         val toolsInvoked = mutableListOf<String>()
@@ -122,9 +125,43 @@ Do not mix tool_call JSON with prose in the same message.
                 Log.d(TAG, "Step $stepsUsed response: ${rawResponse.take(120)}")
 
                 // Parse: tool_call block or final answer?
-                val toolCall = parseToolCall(rawResponse)
+                var toolCall = parseToolCall(rawResponse)
+
+                // Retry: if the response looks like a malformed tool call (contains
+                // "tool_call" text but JSON parsing failed), ask the model to re-emit
+                // only the JSON. This handles cases where the model wraps the JSON in
+                // prose or uses a slightly wrong format on the first attempt.
+                if (toolCall == null && rawResponse.contains("tool_call") && stepsUsed < MAX_STEPS) {
+                    Log.w(TAG, "AIRI_PROOF TOOL_CALL_PARSE_RETRY step=$stepsUsed — response had 'tool_call' text but parse failed; retrying")
+                    val retryPrompt = "[SYSTEM] Your previous response contained a tool_call but the JSON was malformed. " +
+                        "Reply with ONLY a valid JSON object in this exact format, no other text:\n" +
+                        "{\"tool_call\":{\"name\":\"<tool_name>\",\"args\":{\"param\":\"value\"}}}"
+                    val retryHistory = history.toMutableList().also {
+                        it.add(ConversationTurn.Assistant(rawResponse))
+                        it.add(ConversationTurn.User(retryPrompt))
+                    }
+                    val retryResponse = try {
+                        callLLM(
+                            prompt       = "",
+                            systemPrompt = fullSystemPrompt,
+                            history      = retryHistory,
+                            tools        = tools,
+                            onToken      = {}   // don't stream retry to UI
+                        )
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Tool call retry callLLM failed: ${e.message}")
+                        ""
+                    }
+                    if (retryResponse.isNotBlank()) {
+                        toolCall = parseToolCall(retryResponse)
+                        if (toolCall != null) {
+                            Log.i(TAG, "AIRI_PROOF TOOL_CALL_RETRY_OK step=$stepsUsed tool=${toolCall.first}")
+                        }
+                    }
+                }
+
                 if (toolCall == null) {
-                    // Final answer — LLM decided it's done
+                    // Final answer — LLM decided it's done (or retry also failed)
                     history.add(ConversationTurn.Assistant(rawResponse))
                     ExecutionStatusBus.onNodeCompleted("step_$stepsUsed", stepsUsed)
                     ExecutionStatusBus.onGraphCompleted(true)
@@ -157,12 +194,15 @@ Do not mix tool_call JSON with prose in the same message.
                 Log.i(TAG, "AIRI_PROOF TOOL_RESULT tool=$toolName success=${toolResult is ToolDispatcher.ToolResult.Success} len=${resultText.length}")
 
                 ExecutionStatusBus.onNodeCompleted("tool_$toolName", stepsUsed)
-                onStepComplete(StepEvent.ToolExecuted(toolName, toolArgs, resultText, stepsUsed))
+                // P0-2: onStepComplete may return a non-null String to replace the tool result
+                // (used when the agent calls ask_confirmation and ChatViewModel suspends for user input)
+                val effectiveResult = onStepComplete(StepEvent.ToolExecuted(toolName, toolArgs, resultText, stepsUsed))
+                    ?: resultText
 
                 // Append the assistant's tool_call + tool result to history so the LLM
                 // sees what it asked for and what it got back.
                 history.add(ConversationTurn.Assistant(rawResponse))
-                history.add(ConversationTurn.ToolResult(toolName, resultText))
+                history.add(ConversationTurn.ToolResult(toolName, effectiveResult))
             }
 
             // Exhausted step budget — ask LLM to summarise what it has
@@ -216,7 +256,7 @@ Do not mix tool_call JSON with prose in the same message.
             request    = ExecutionRequest(
                 prompt           = fullPrompt,
                 systemPrompt     = systemPrompt,
-                maxTokens        = 512,
+                maxTokens        = 1024,   // B-03: was 512 — too low for complex tool JSON + reasoning
                 temperature      = 0.3f,   // low temp for structured decisions
                 requiresStreaming = true,
                 sessionTag       = "agent_loop"
@@ -251,19 +291,28 @@ Do not mix tool_call JSON with prose in the same message.
      *   {"tool_call":{"name":"calendar_read","args":{"days":"7"}}}
      */
     private fun parseToolCall(response: String): Pair<String, Map<String, String>>? {
-        val start = response.indexOf("{\"tool_call\"")
+        // P1-3: Strip markdown code fences before searching for JSON.
+        // Some models wrap their tool_call JSON in ```json ... ``` or ``` ... ```.
+        // The regex removes the opening fence (with optional language tag) and the
+        // closing fence, leaving the raw JSON for the brace-depth parser below.
+        val cleaned = response
+            .replace(Regex("```(?:json)?\\s*", RegexOption.IGNORE_CASE), "")
+            .replace("```", "")
+            .trim()
+
+        val start = cleaned.indexOf("{\"tool_call\"")
         if (start == -1) return null
         return try {
             // Find the matching closing brace
             var depth = 0
             var end = start
-            for (i in start until response.length) {
-                when (response[i]) {
+            for (i in start until cleaned.length) {
+                when (cleaned[i]) {
                     '{' -> depth++
                     '}' -> { depth--; if (depth == 0) { end = i; break } }
                 }
             }
-            val jsonStr = response.substring(start, end + 1)
+            val jsonStr = cleaned.substring(start, end + 1)
             val root    = JSONObject(jsonStr).getJSONObject("tool_call")
             val name    = root.getString("name")
             val argsObj = root.optJSONObject("args") ?: org.json.JSONObject()

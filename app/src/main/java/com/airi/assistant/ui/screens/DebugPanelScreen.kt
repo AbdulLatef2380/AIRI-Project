@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -200,7 +201,7 @@ private fun DebugRow(label: String, value: String) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, color = LabelColor, fontSize = 12.sp)
-        Text(value, color = Color.White, fontSize = 12.sp, fontFamily = MonoFont)
+        Text(value, color = AiriTheme.onBackground, fontSize = 12.sp, fontFamily = MonoFont)
     }
 }
 

@@ -201,10 +201,11 @@ object ServiceLocator {
             ConnectorBootstrap.installDefaults(
                 appContext   = requireContext(),
                 registry     = reg,
+                authManager  = connectorAuthManager,   // P1-7: for GitHubConnector
                 llmProviders = llmProviders,
             )
-            // Register first-class connectors
-            reg.register(com.airi.assistant.connector.app.GitHubConnector(connectorAuthManager))
+            // GitHubConnector is now registered inside ConnectorBootstrap.installDefaults.
+            // No duplicate registration needed here.
         }
     }
 

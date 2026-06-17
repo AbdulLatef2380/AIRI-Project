@@ -26,6 +26,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.ui.theme.*
+import com.airi.assistant.ui.theme.AiriTheme
 
 /**
  * DeveloperCenterScreen — AIRI internal tooling dashboard.
@@ -45,12 +46,12 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Developer Center", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color.White) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, null, tint = Color.White) } },
+                title = { Text("Developer Center", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, null, tint = AiriTheme.onBackground) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         },
-        containerColor = CosmicBlack
+        containerColor = AiriTheme.background
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Tab bar
@@ -58,7 +59,7 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
                 selectedTabIndex = selectedTab,
                 containerColor   = Color.Transparent,
                 contentColor     = CosmicAccent,
-                divider = { Divider(color = DividerColor) }
+                divider = { Divider(color = AiriTheme.outline) }
             ) {
                 tabs.forEachIndexed { idx, label ->
                     Tab(
@@ -104,8 +105,8 @@ private fun RuntimeTab() {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(vertical = 3.dp)) {
                     Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(SemanticSuccess))
-                    Text(agent.capability.agentId, fontSize = 12.sp, color = Color.White.copy(0.8f), modifier = Modifier.weight(1f))
-                    Text(agent.capability.description.take(40), fontSize = 10.sp, color = Color.White.copy(0.35f))
+                    Text(agent.capability.agentId, fontSize = 12.sp, color = AiriTheme.onBackground.copy(alpha = 0.8f), modifier = Modifier.weight(1f))
+                    Text(agent.capability.description.take(40), fontSize = 10.sp, color = AiriTheme.onSurfaceVariant.copy(alpha = 0.35f))
                 }
             }
         }
@@ -115,7 +116,7 @@ private fun RuntimeTab() {
             events.take(10).forEach { event ->
                 Row(modifier = Modifier.padding(vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(event.category.emoji, fontSize = 11.sp)
-                    Text(event.message.take(80), fontSize = 10.sp, color = Color.White.copy(0.65f), lineHeight = 14.sp, modifier = Modifier.weight(1f))
+                    Text(event.message.take(80), fontSize = 10.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 14.sp, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -130,26 +131,26 @@ private fun ConnectorsTab() {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         contentPadding = PaddingValues(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(healthSummary, key = { it.connectorId }) { entry ->
-            Surface(shape = RoundedCornerShape(12.dp), color = SurfaceRaised, modifier = Modifier.fillMaxWidth()) {
+            Surface(shape = RoundedCornerShape(12.dp), color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(modifier = Modifier.size(9.dp).clip(CircleShape)
                         .background(if (entry.isConnected) SemanticSuccess else SemanticError))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(entry.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                        Text(entry.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
                         Text(
                             if (entry.isConnected) "Online" else (entry.errorMessage?.take(50) ?: "Offline"),
                             fontSize = 11.sp,
                             color = if (entry.isConnected) SemanticSuccess.copy(0.8f) else SemanticError.copy(0.7f)
                         )
                     }
-                    Text(entry.connectorId, fontSize = 10.sp, color = Color.White.copy(0.25f), fontFamily = FontFamily.Monospace)
+                    Text(entry.connectorId, fontSize = 10.sp, color = AiriTheme.outline.copy(alpha = 0.25f), fontFamily = FontFamily.Monospace)
                 }
             }
         }
         if (healthSummary.isEmpty()) {
             item { Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
-                Text("No connector health data", color = Color.White.copy(0.3f), fontSize = 13.sp) }
+                Text("No connector health data", color = AiriTheme.onSurfaceVariant.copy(alpha = 0.3f), fontSize = 13.sp) }
             }
         }
     }
@@ -158,46 +159,101 @@ private fun ConnectorsTab() {
 // ── Tab 3: Memory ──────────────────────────────────────────────────────────────
 @Composable
 private fun MemoryTab() {
-    val runtime = Runtime.getRuntime()
-    val usedMb  = (runtime.totalMemory() - runtime.freeMemory()) / 1_048_576L
-    val maxMb   = runtime.maxMemory() / 1_048_576L
-    val usedPct = (usedMb.toFloat() / maxMb * 100).toInt()
+    // JVM heap stats
+    val runtime  = Runtime.getRuntime()
+    val usedMb   = (runtime.totalMemory() - runtime.freeMemory()) / 1_048_576L
+    val maxMb    = runtime.maxMemory() / 1_048_576L
+    val usedPct  = (usedMb.toFloat() / maxMb * 100).toInt()
 
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    // B-15: Room / AI memory stats — loaded asynchronously
+    var memoryCount   by remember { mutableStateOf<Int?>(null) }
+    var sessionCount  by remember { mutableStateOf<Int?>(null) }
+    var embeddingReady by remember { mutableStateOf<Boolean?>(null) }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val mgr = com.airi.assistant.core.ServiceLocator.memoryManager
+                memoryCount    = mgr.getMessageCount()
+                sessionCount   = mgr.getAllSessions().size
+                embeddingReady = mgr.isSemanticMemoryReady()
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // ── AI Memory (Room) ──────────────────────────────────────────────
+        DevCard(title = "AI Memory (Room Database)") {
+            DevRow("Messages stored", memoryCount?.toString() ?: "loading…")
+            DevRow("Sessions",        sessionCount?.toString() ?: "loading…")
+            DevRow("Semantic search", when (embeddingReady) {
+                true  -> "✓ Active — embedding model loaded"
+                false -> "✗ Inactive — no embedding model"
+                null  -> "loading…"
+            })
+        }
+
+        // ── JVM Heap ─────────────────────────────────────────────────────
         DevCard(title = "JVM Heap") {
             DevRow("Used",   "$usedMb MB ($usedPct%)")
             DevRow("Max",    "$maxMb MB")
             DevRow("Free",   "${runtime.freeMemory() / 1_048_576L} MB")
             LinearProgressIndicator(
-                progress        = usedPct / 100f,
-                modifier        = Modifier.fillMaxWidth().padding(top = 6.dp),
-                color           = if (usedPct > 80) SemanticError else CosmicAccent,
-                trackColor      = Color.White.copy(0.1f)
+                progress   = usedPct / 100f,
+                modifier   = Modifier.fillMaxWidth().padding(top = 6.dp),
+                color      = if (usedPct > 80) SemanticError else CosmicAccent,
+                trackColor = Color.White.copy(0.1f)
             )
         }
     }
 }
 
 // ── Tab 4: Diagnostics ─────────────────────────────────────────────────────────
+// B-14 FIX: Was a static placeholder. Now runs DiagnosticsRunner on first composition.
 @Composable
 private fun DiagnosticsTab() {
-    Box(modifier = Modifier.fillMaxSize().padding(14.dp), contentAlignment = Alignment.Center) {
-        Text(
-            "Diagnostics unavailable",
-            fontSize = 13.sp,
-            color    = Color.White.copy(alpha = 0.4f)
-        )
+    var report  by remember { mutableStateOf<com.airi.assistant.domain.diagnostics.DiagnosticsRunner.DiagnosticsReport?>(null) }
+    var running by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        running = true
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            report = com.airi.assistant.domain.diagnostics.DiagnosticsRunner.runDiagnostics()
+        }
+        running = false
+    }
+    Column(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Diagnostics", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+            if (running) Text("Running…", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+            else report?.let { r ->
+                Text(if (r.allPassed) "✓ All passed" else "✗ ${r.results.count { !it.passed }} failed",
+                    fontSize = 11.sp, color = if (r.allPassed) Color(0xFF30D158) else Color(0xFFFF453A))
+            }
+        }
+        report?.results?.forEach { test ->
+            Surface(shape = RoundedCornerShape(8.dp), color = if (test.passed) Color(0xFF1A251A) else Color(0xFF251A1A), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (test.passed) "✓" else "✗", fontSize = 12.sp, color = if (test.passed) Color(0xFF30D158) else Color(0xFFFF453A), fontWeight = FontWeight.Bold)
+                        Text(test.name, fontSize = 11.sp, color = AiriTheme.onBackground, fontWeight = FontWeight.Medium)
+                    }
+                    Text(test.detail, fontSize = 10.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 13.sp, modifier = Modifier.padding(start = 18.dp))
+                }
+            }
+        } ?: if (!running) Text("No results.", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
     }
 }
 
 // ── Reusable dev UI components ────────────────────────────────────────────────
 @Composable
 private fun DevCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Surface(shape = RoundedCornerShape(12.dp), color = SurfaceRaised, modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = RoundedCornerShape(12.dp), color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CosmicAccent)
-            Divider(color = DividerColor.copy(0.5f), modifier = Modifier.padding(bottom = 2.dp))
+            Divider(color = AiriTheme.outline.copy(0.5f), modifier = Modifier.padding(bottom = 2.dp))
             content()
         }
     }
@@ -206,7 +262,7 @@ private fun DevCard(title: String, content: @Composable ColumnScope.() -> Unit) 
 @Composable
 private fun DevRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, fontSize = 11.sp, color = Color.White.copy(0.45f))
-        Text(value, fontSize = 11.sp, color = Color.White.copy(0.85f), fontFamily = FontFamily.Monospace)
+        Text(label, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant.copy(alpha = 0.45f))
+        Text(value, fontSize = 11.sp, color = AiriTheme.onBackground.copy(alpha = 0.85f), fontFamily = FontFamily.Monospace)
     }
 }

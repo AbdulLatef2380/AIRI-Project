@@ -109,6 +109,92 @@ object VoskModelManager {
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         _activeModelId.value = prefs.getString(KEY_ACTIVE, null)
         refreshInstalled(context)
+        // P0-V1: Auto-extract bundled Vosk model from assets on first launch.
+        // If no models are installed, check whether the small-EN model zip
+        // was bundled in assets/voice/. Extract it synchronously during init
+        // (init is always called from a background-capable context in ServiceLocator).
+        if (_installed.value.isEmpty()) {
+            extractBundledModelIfPresent(context)
+        }
+    }
+
+    /**
+     * P0-V1: Extract a bundled Vosk model zip from assets into the models directory.
+     *
+     * Place `vosk-model-small-en-us-0.15.zip` in:
+     *   `app/src/main/assets/voice/vosk-model-small-en-us-0.15.zip`
+     *
+     * The zip is extracted lazily on first launch only (idem-potent via existence check).
+     * This lets the APK ship with offline voice capability without an internet connection.
+     *
+     * If the asset is not present (CI builds without the 40 MB asset), this is a safe no-op.
+     */
+    private fun extractBundledModelIfPresent(context: Context) {
+        val app = context.applicationContext
+        val assetPath = "voice/vosk-model-small-en-us-0.15.zip"
+        val targetId  = "vosk-model-small-en-us-0.15"
+        val finalDir  = File(rootDir(context), targetId)
+
+        // Already extracted — nothing to do
+        if (isValidVoskModel(finalDir)) {
+            refreshInstalled(context)
+            return
+        }
+
+        // Check if the asset exists (absent in CI builds without the asset)
+        val assetFiles = runCatching { app.assets.list("voice") }.getOrNull() ?: return
+        if ("vosk-model-small-en-us-0.15.zip" !in assetFiles) {
+            Log.d(TAG, "No bundled Vosk model found in assets/voice/ — skipping auto-extract")
+            return
+        }
+
+        Log.i(TAG, "AIRI_PROOF VOSK_BUNDLE_EXTRACT extracting $assetPath → $finalDir")
+        try {
+            rootDir(context).mkdirs()
+            finalDir.deleteRecursively()
+
+            app.assets.open(assetPath).buffered().use { assetStream ->
+                ZipInputStream(assetStream).use { zis ->
+                    var topPrefix: String? = null
+                    var entry = zis.nextEntry
+                    while (entry != null) {
+                        val name = entry.name.replace('\\', '/')
+                        if (topPrefix == null) {
+                            val firstSlash = name.indexOf('/')
+                            topPrefix = if (firstSlash > 0) name.substring(0, firstSlash + 1) else ""
+                        }
+                        val rel = if (topPrefix!!.isNotEmpty() && name.startsWith(topPrefix!!))
+                            name.substring(topPrefix!!.length) else name
+                        if (rel.isNotEmpty()) {
+                            val outFile = File(finalDir, rel)
+                            // ZipSlip protection
+                            if (!outFile.canonicalPath.startsWith(finalDir.canonicalPath)) {
+                                throw SecurityException("Zip entry escapes destination: $name")
+                            }
+                            if (entry.isDirectory) outFile.mkdirs()
+                            else {
+                                outFile.parentFile?.mkdirs()
+                                FileOutputStream(outFile).use { out -> zis.copyTo(out, 64 * 1024) }
+                            }
+                        }
+                        zis.closeEntry()
+                        entry = zis.nextEntry
+                    }
+                }
+            }
+
+            if (isValidVoskModel(finalDir)) {
+                refreshInstalled(context)
+                if (_activeModelId.value == null) setActive(context, targetId)
+                Log.i(TAG, "AIRI_PROOF VOSK_BUNDLE_OK model=$targetId")
+            } else {
+                finalDir.deleteRecursively()
+                Log.w(TAG, "Bundled zip extracted but model validation failed — deleted")
+            }
+        } catch (t: Throwable) {
+            finalDir.deleteRecursively()
+            Log.e(TAG, "Bundled model extraction failed: ${t.message}", t)
+        }
     }
 
     fun refreshInstalled(context: Context) {
@@ -183,6 +269,35 @@ object VoskModelManager {
      * @param customId  override id (used when downloading a custom URL)
      * @param expectedSha256  optional override; pass null to use [Preset.sha256]
      */
+    /**
+     * P0-V1 companion: trigger an automatic download of the small-EN model
+     * when no model is installed AND no bundled asset was found.
+     *
+     * Called from [VoiceSettingsScreen] on first open. Shows a progress dialog.
+     * This is the safety net for release builds that don't bundle the 40MB asset.
+     *
+     * Flow:
+     *   1. [init] tries bundled asset → sets installed if found
+     *   2. If still empty, [VoiceSettingsScreen] calls this method
+     *   3. Downloads vosk-model-small-en-us-0.15 in background
+     *   4. Activates the model when complete
+     *
+     * @return true if download was triggered (model was absent), false if model already present
+     */
+    suspend fun triggerFirstRunDownloadIfNeeded(
+        context: Context,
+        onProgress: (Int) -> Unit = {}
+    ): Boolean {
+        if (_installed.value.isNotEmpty()) return false   // already have a model
+
+        Log.i(TAG, "AIRI_PROOF VOSK_FIRST_RUN_DOWNLOAD no bundled asset found — downloading small model")
+        val preset = PRESETS.firstOrNull { it.id.contains("small-en") }
+            ?: return false   // no preset available
+
+        val result = downloadAndInstall(context, preset, onProgress = onProgress)
+        return result is DownloadResult.Success
+    }
+
     suspend fun downloadAndInstall(
         context: Context,
         preset: Preset,

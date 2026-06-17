@@ -27,6 +27,7 @@ import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.cloud.EmbeddedProviderConfig
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.ui.viewmodel.ModelUiState
 import kotlinx.coroutines.launch
@@ -87,9 +88,9 @@ fun CloudModelStoreSection(
             Spacer(Modifier.width(12.dp))
             Column {
                 Text("Cloud & Hybrid Models", fontWeight = FontWeight.Bold,
-                    color = Color.White, fontSize = 15.sp)
+                    color = AiriTheme.onBackground, fontSize = 15.sp)
                 Text("Free tiers · External APIs · Local servers",
-                    color = Color.White.copy(alpha = 0.45f), fontSize = 11.sp)
+                    color = AiriTheme.onSurfaceVariant.copy(alpha = 0.45f), fontSize = 11.sp)
             }
         }
 
@@ -109,7 +110,7 @@ fun CloudModelStoreSection(
         // ── Free providers catalog ────────────────────────────────────────────
         Text(
             "Free Providers",
-            color = Color.White.copy(alpha = 0.55f),
+            color = AiriTheme.onSurfaceVariant,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
@@ -163,17 +164,17 @@ fun CloudModelStoreSection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(Icons.Outlined.SettingsEthernet, contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.55f), modifier = Modifier.size(18.dp))
+                    tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Custom / Advanced Endpoint", color = Color.White, fontSize = 13.sp,
+                    Text("Custom / Advanced Endpoint", color = AiriTheme.onBackground, fontSize = 13.sp,
                         fontWeight = FontWeight.Medium)
                     Text("llama-server · LM Studio · Any OpenAI-compatible API",
-                        color = Color.White.copy(alpha = 0.4f), fontSize = 11.sp)
+                        color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
                 }
                 Icon(
                     if (showAdvanced) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                    contentDescription = null, tint = Color.White.copy(alpha = 0.4f),
+                    contentDescription = null, tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -270,7 +271,7 @@ private fun CloudInferenceModePicker(
     }
     Text(
         modeDesc,
-        color = Color.White.copy(alpha = 0.35f),
+        color = AiriTheme.outline,
         fontSize = 10.sp,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
     )
@@ -339,7 +340,7 @@ private fun EmbeddedProviderCard(
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(config.displayLabel, color = Color.White,
+                        Text(config.displayLabel, color = AiriTheme.onBackground,
                             fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.width(6.dp))
                         // Tier badge
@@ -365,7 +366,7 @@ private fun EmbeddedProviderCard(
                             }
                         }
                     }
-                    Text(config.description, color = Color.White.copy(alpha = 0.45f),
+                    Text(config.description, color = AiriTheme.onSurfaceVariant.copy(alpha = 0.45f),
                         fontSize = 11.sp, lineHeight = 15.sp)
                     // Context window + RPM
                     if (config.contextWindow.isNotBlank() || config.rpmLimit.isNotBlank()) {
@@ -395,7 +396,7 @@ private fun EmbeddedProviderCard(
                         modifier = Modifier.height(34.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
                     ) {
-                        Text("Deactivate", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                        Text("Deactivate", color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
                     }
                 } else {
                     // Activate / Get key
@@ -436,9 +437,9 @@ private fun EmbeddedProviderCard(
                     ) {
                         Icon(Icons.Outlined.OpenInNew, contentDescription = null,
                             modifier = Modifier.size(13.dp),
-                            tint = Color.White.copy(alpha = 0.45f))
+                            tint = AiriTheme.onSurfaceVariant.copy(alpha = 0.45f))
                         Spacer(Modifier.width(3.dp))
-                        Text("Get Free Key", color = Color.White.copy(alpha = 0.45f), fontSize = 11.sp)
+                        Text("Get Free Key", color = AiriTheme.onSurfaceVariant.copy(alpha = 0.45f), fontSize = 11.sp)
                     }
                 }
             }
@@ -489,12 +490,12 @@ private fun ApiKeyEntryDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     "AIRI uses this key to route requests automatically. Stored encrypted on-device only — never sent to AIRI servers.",
-                    color = Color.White.copy(alpha = 0.55f), fontSize = 12.sp
+                    color = AiriTheme.onSurfaceVariant, fontSize = 12.sp
                 )
                 OutlinedTextField(
                     value = key,
                     onValueChange = { key = it },
-                    label = { Text("Access Key", color = Color.White.copy(alpha = 0.5f)) },
+                    label = { Text("Access Key", color = AiriTheme.onSurfaceVariant) },
                     visualTransformation = if (obscure)
                         androidx.compose.ui.text.input.PasswordVisualTransformation()
                     else androidx.compose.ui.text.input.VisualTransformation.None,
@@ -552,7 +553,7 @@ private fun ApiKeyEntryDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color.White.copy(alpha = 0.5f))
+                Text("Cancel", color = AiriTheme.onSurfaceVariant)
             }
         }
     )
@@ -581,8 +582,8 @@ private fun AddRemoteModelInlineContent(
     ) {
         OutlinedTextField(
             value = modelName, onValueChange = { modelName = it },
-            label = { Text("Model Name", color = Color.White.copy(alpha = 0.5f)) },
-            placeholder = { Text("e.g. My Llama Server", color = Color.White.copy(alpha = 0.3f)) },
+            label = { Text("Model Name", color = AiriTheme.onSurfaceVariant) },
+            placeholder = { Text("e.g. My Llama Server", color = AiriTheme.outline) },
             singleLine = true, modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = CosmicAccent,
@@ -592,8 +593,8 @@ private fun AddRemoteModelInlineContent(
         )
         OutlinedTextField(
             value = serverUrl, onValueChange = { serverUrl = it },
-            label = { Text("Server URL", color = Color.White.copy(alpha = 0.5f)) },
-            placeholder = { Text("http://192.168.x.x:8080/v1", color = Color.White.copy(alpha = 0.3f)) },
+            label = { Text("Server URL", color = AiriTheme.onSurfaceVariant) },
+            placeholder = { Text("http://192.168.x.x:8080/v1", color = AiriTheme.outline) },
             singleLine = true, modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = CosmicAccent,
@@ -603,7 +604,7 @@ private fun AddRemoteModelInlineContent(
         )
         OutlinedTextField(
             value = apiKey, onValueChange = { apiKey = it },
-            label = { Text("API Key (optional)", color = Color.White.copy(alpha = 0.5f)) },
+            label = { Text("API Key (optional)", color = AiriTheme.onSurfaceVariant) },
             singleLine = true, modifier = Modifier.fillMaxWidth(),
             visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
             colors = OutlinedTextFieldDefaults.colors(
@@ -617,7 +618,7 @@ private fun AddRemoteModelInlineContent(
                 shape = RoundedCornerShape(8.dp),
                 color = if (it.startsWith("✓")) Color(0xFF1B5E20) else Color(0xFF7F0000)
             ) {
-                Text(it, color = Color.White, fontSize = 12.sp,
+                Text(it, color = AiriTheme.onBackground, fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
             }
         }

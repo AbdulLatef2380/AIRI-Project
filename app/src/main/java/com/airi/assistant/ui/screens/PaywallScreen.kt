@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.AiriTheme
 import android.app.Activity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -107,11 +108,11 @@ fun PaywallScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.8f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
-                    Text("Upgrade to Premium", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Upgrade to Premium", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
                 }
             )
         }
@@ -179,7 +180,7 @@ fun PaywallScreen(
                                 Text(
                                     text       = "AI Power",
                                     fontSize   = 11.sp,
-                                    color      = Color.White.copy(alpha = 0.55f),
+                                    color      = AiriTheme.onBackground.copy(alpha = 0.55f),
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -211,7 +212,7 @@ fun PaywallScreen(
                         text       = "AIRI Premium",
                         fontSize   = 28.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color      = Color.White
+                        color      = AiriTheme.onBackground
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
@@ -220,7 +221,7 @@ fun PaywallScreen(
                         else
                             "Unlock the full power of your on-device AI assistant",
                         fontSize  = 14.sp,
-                        color     = Color.White.copy(alpha = 0.55f),
+                        color     = AiriTheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                         lineHeight = 20.sp
                     )
@@ -244,7 +245,7 @@ fun PaywallScreen(
                             Text(
                                 text       = "Monthly",
                                 fontSize   = 12.sp,
-                                color      = Color.White.copy(alpha = 0.55f),
+                                color      = AiriTheme.onBackground.copy(alpha = 0.55f),
                                 fontWeight = FontWeight.Medium,
                                 letterSpacing = 1.sp
                             )
@@ -253,12 +254,12 @@ fun PaywallScreen(
                                     text       = "$4.99",
                                     fontSize   = 36.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color      = Color.White
+                                    color      = AiriTheme.onBackground
                                 )
                                 Text(
                                     text     = "/month",
                                     fontSize = 14.sp,
-                                    color    = Color.White.copy(alpha = 0.5f),
+                                    color    = AiriTheme.onBackground.copy(alpha = 0.5f),
                                     modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
                                 )
                             }
@@ -293,7 +294,7 @@ fun PaywallScreen(
                         text       = "What's included",
                         fontSize   = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color      = Color.White.copy(alpha = 0.6f),
+                        color      = AiriTheme.onBackground.copy(alpha = 0.6f),
                         letterSpacing = 0.5.sp
                     )
 
@@ -349,7 +350,7 @@ fun PaywallScreen(
                 ) {
                     if (billingState is BillingManager.BillingState.Connecting) {
                         CircularProgressIndicator(
-                            color       = Color.White,
+                            color       = AiriTheme.onBackground,
                             strokeWidth = 2.dp,
                             modifier    = Modifier.size(20.dp)
                         )
@@ -410,7 +411,7 @@ fun PaywallScreen(
                 ) {
                     AnimatedVisibility(visible = isRestoring) {
                         CircularProgressIndicator(
-                            color       = Color.White.copy(alpha = 0.5f),
+                            color       = AiriTheme.onSurfaceVariant.copy(alpha = 0.5f),
                             strokeWidth = 1.5.dp,
                             modifier    = Modifier.size(14.dp)
                         )
@@ -418,7 +419,7 @@ fun PaywallScreen(
                     }
                     Text(
                         text  = "Restore Purchases",
-                        color = Color.White.copy(alpha = 0.45f),
+                        color = AiriTheme.onSurfaceVariant.copy(alpha = 0.45f),
                         fontSize = 13.sp
                     )
                 }
@@ -428,7 +429,7 @@ fun PaywallScreen(
                     text = "Subscription renews automatically at \$4.99/month. Cancel anytime in Google Play. " +
                            "Payment is charged to your Google account at confirmation of purchase.",
                     fontSize  = 10.sp,
-                    color     = Color.White.copy(alpha = 0.28f),
+                    color     = AiriTheme.outline.copy(alpha = 0.28f),
                     textAlign = TextAlign.Center,
                     lineHeight = 15.sp,
                     modifier  = Modifier.padding(horizontal = 8.dp)
@@ -470,12 +471,12 @@ private fun BenefitRow(
                 text       = title,
                 fontSize   = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-                color      = Color.White
+                color      = AiriTheme.onBackground
             )
             Text(
                 text    = description,
                 fontSize = 12.sp,
-                color   = Color.White.copy(alpha = 0.45f),
+                color   = AiriTheme.onBackground.copy(alpha = 0.45f),
                 lineHeight = 17.sp
             )
         }

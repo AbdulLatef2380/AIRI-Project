@@ -16,13 +16,30 @@ object ReferralManager {
     private const val KEY_PENDING_CODE = "pending_referral_code"
     private const val KEY_JOINED_CODES = "joined_codes"
     private const val KEY_BONUS_MESSAGES = "bonus_messages"
-    private const val KEY_SHARE_BONUS_GRANTED = "share_bonus_granted"
+    private const val KEY_SHARE_BONUS_GRANTED       = "share_bonus_granted"
+    // B-10: one-time welcome grant so new users never see "Bonus messages: 0" on first open
+    private const val KEY_FIRST_LAUNCH_BONUS_GRANTED = "first_launch_bonus_granted"
+    private const val FIRST_LAUNCH_BONUS             = 20
     private const val BONUS_MESSAGES = 20
 
     private var context: Context? = null
 
     fun init(appContext: Context) {
         context = appContext.applicationContext
+    }
+
+    /**
+     * B-10 FIX: Grant a one-time welcome bonus on first login so new users
+     * never see "Bonus messages available: 0" when they first open ReferralScreen.
+     * Safe to call multiple times — idempotent via KEY_FIRST_LAUNCH_BONUS_GRANTED flag.
+     */
+    fun grantFirstLaunchBonus() {
+        val prefs = prefs() ?: return
+        if (!prefs.getBoolean(KEY_FIRST_LAUNCH_BONUS_GRANTED, false)) {
+            addBonusMessages(FIRST_LAUNCH_BONUS)
+            prefs.edit().putBoolean(KEY_FIRST_LAUNCH_BONUS_GRANTED, true).apply()
+            LoggingService.info(TAG, "First-launch bonus granted: $FIRST_LAUNCH_BONUS messages")
+        }
     }
 
     fun captureReferralIntent(intent: Intent?) {

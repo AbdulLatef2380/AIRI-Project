@@ -199,6 +199,19 @@ class HybridOrchestrator(
                     lastFallbackTo    = backend.id,
                     lastFallbackReason = lastError.take(80)
                 )}
+                // B-07: Post a user-visible activity event so ChatScreen can show a
+                // non-intrusive notice that cloud failed and local model is being used.
+                if (allBackends[idx - 1].origin == com.airi.assistant.execution.ExecOrigin.CLOUD
+                    && backend.origin == com.airi.assistant.execution.ExecOrigin.LOCAL) {
+                    com.airi.assistant.ui.activity.AgentActivityBus.emit(
+                        com.airi.assistant.ui.activity.ActivityEvent(
+                            message  = "Cloud model unavailable — using local model",
+                            detail   = lastError.take(80),
+                            category = com.airi.assistant.ui.activity.ActivityCategory.ROUTING,
+                            severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
+                        )
+                    )
+                }
             }
 
             updateDiagnostics { copy(

@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.debug
 
+import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -156,7 +157,7 @@ private fun MetricRow(label: String, value: String) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, color = LABEL, fontSize = 12.sp)
-        Text(value, color = Color.White, fontSize = 12.sp, fontFamily = MONO)
+        Text(value, color = AiriTheme.onBackground, fontSize = 12.sp, fontFamily = MONO)
     }
 }
 
@@ -194,7 +195,7 @@ private fun EventRow(event: VerificationEvent) {
             fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp))
         Text(event.queryType, color = LABEL, fontSize = 10.sp, fontFamily = MONO,
             modifier = Modifier.width(72.dp))
-        Text("${event.latencyMs}ms", color = Color.White, fontSize = 10.sp, fontFamily = MONO,
+        Text("${event.latencyMs}ms", color = AiriTheme.onBackground, fontSize = 10.sp, fontFamily = MONO,
             modifier = Modifier.width(56.dp))
         if (event.wasCut) {
             Text("CUT", color = RED, fontSize = 9.sp, fontFamily = MONO, fontWeight = FontWeight.Bold)

@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.activity
 
+import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -59,11 +60,11 @@ private fun CompactFeed(events: List<ActivityEvent>, totalCount: Int, onExpand: 
                 Text(event.category.emoji, fontSize = 11.sp)
                 Text(event.message.take(72), fontSize = 11.sp,
                     color = sevColor(event.severity).copy(alpha = 0.85f), maxLines = 1, modifier = Modifier.weight(1f))
-                Text(fmtTime(event.timestampMs), fontSize = 10.sp, color = Color.White.copy(alpha = 0.25f))
+                Text(fmtTime(event.timestampMs), fontSize = 10.sp, color = AiriTheme.onBackground.copy(alpha = 0.25f))
             }
         }
         if (totalCount > events.size)
-            Text("+${totalCount - events.size} more — tap to expand", fontSize = 10.sp, color = Color.White.copy(alpha = 0.3f))
+            Text("+${totalCount - events.size} more — tap to expand", fontSize = 10.sp, color = AiriTheme.onBackground.copy(alpha = 0.3f))
     }
 }
 
@@ -77,10 +78,10 @@ private fun ExpandedFeed(events: List<ActivityEvent>, categoryFilter: ActivityCa
         // Header
         Row(verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
-            Text("Activity", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.weight(1f))
-            Text("Clear", fontSize = 11.sp, color = Color.White.copy(alpha = 0.35f),
+            Text("Activity", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground, modifier = Modifier.weight(1f))
+            Text("Clear", fontSize = 11.sp, color = AiriTheme.onBackground.copy(alpha = 0.35f),
                 modifier = Modifier.clickable(onClick = onClear).padding(horizontal = 8.dp))
-            Text("⌄", fontSize = 14.sp, color = Color.White.copy(alpha = 0.5f), modifier = Modifier.clickable(onClick = onCollapse))
+            Text("⌄", fontSize = 14.sp, color = AiriTheme.onBackground.copy(alpha = 0.5f), modifier = Modifier.clickable(onClick = onCollapse))
         }
         // Category chips
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
@@ -90,7 +91,7 @@ private fun ExpandedFeed(events: List<ActivityEvent>, categoryFilter: ActivityCa
                 Chip(cat.emoji, categoryFilter == cat) { onFilterChange(if (categoryFilter == cat) null else cat) }
             }
         }
-        Divider(color = Color.White.copy(alpha = 0.07f))
+        Divider(color = AiriTheme.onBackground.copy(alpha = 0.07f))
         LazyColumn(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(vertical = 4.dp)) {
             items(items = events, key = { it.id }) { event ->
                 var detailVisible by remember(event.id) { mutableStateOf(false) }
@@ -102,13 +103,13 @@ private fun ExpandedFeed(events: List<ActivityEvent>, categoryFilter: ActivityCa
                         Text(event.category.emoji, fontSize = 13.sp, modifier = Modifier.padding(top = 1.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(event.message, fontSize = 12.sp, color = sevColor(event.severity), lineHeight = 17.sp)
-                            Text("${event.category.label} · ${fmtTime(event.timestampMs)}", fontSize = 10.sp, color = Color.White.copy(alpha = 0.3f))
+                            Text("${event.category.label} · ${fmtTime(event.timestampMs)}", fontSize = 10.sp, color = AiriTheme.onBackground.copy(alpha = 0.3f))
                         }
                         if (event.severity != ActivitySeverity.INFO)
                             Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(sevColor(event.severity)).padding(top = 4.dp))
                     }
                     AnimatedVisibility(visible = detailVisible && hasDetail) {
-                        Text(event.detail ?: "", fontSize = 11.sp, color = Color.White.copy(alpha = 0.45f), lineHeight = 16.sp,
+                        Text(event.detail ?: "", fontSize = 11.sp, color = AiriTheme.onBackground.copy(alpha = 0.45f), lineHeight = 16.sp,
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp, start = 21.dp)
                                 .clip(RoundedCornerShape(6.dp)).background(Color.White.copy(alpha = 0.04f)).padding(8.dp))
                     }

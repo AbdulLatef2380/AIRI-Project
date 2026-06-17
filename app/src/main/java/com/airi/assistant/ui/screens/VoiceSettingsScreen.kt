@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.*
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.voice.PorcupineEngine
 import com.airi.assistant.voice.VoskModelManager
 import kotlinx.coroutines.launch
@@ -50,11 +51,30 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
     val snackbar = remember { SnackbarHostState() }
     val scope    = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) { VoskModelManager.refreshInstalled(context) }
+    LaunchedEffect(Unit) {
+        VoskModelManager.refreshInstalled(context)
+        // P0-V1 companion: if no model present after checking bundled assets,
+        // offer to download automatically (no user action needed).
+        // This covers release builds that could not include the 40MB asset.
+        if (VoskModelManager.installed.value.isEmpty()) {
+            scope.launch {
+                val triggered = VoskModelManager.triggerFirstRunDownloadIfNeeded(
+                    context,
+                    onProgress = { pct -> downloadProgress = pct }
+                )
+                if (triggered) {
+                    downloadProgress = null
+                    snackbar.showSnackbar("Voice model downloaded and activated")
+                }
+            }
+        }
+    }
 
     val installed by VoskModelManager.installed.collectAsState()
     val activeId  by VoskModelManager.activeModelId.collectAsState()
     var porcupineStatus by remember { mutableStateOf(PorcupineEngine.status(context)) }
+    // P0-V2: OpenWakeWord status — ready when hey_airi.tflite is in assets/voice/
+    val owwStatus by remember { mutableStateOf(OpenWakeWordEngine.status(context)) }
     var accessKeyInput  by remember { mutableStateOf("") }
     var showKey         by remember { mutableStateOf(false) }
 
@@ -68,18 +88,18 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Voice Settings", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text("Voice Settings", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         },
         snackbarHost   = { SnackbarHost(snackbar) },
-        containerColor = CosmicBlack
+        containerColor = AiriTheme.background
     ) { padding ->
         Column(
             modifier = Modifier
@@ -90,8 +110,12 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
-            // ── System status — all features always enabled ──────────────
-            VoiceStatusCard()
+            // ── System status — real availability from engine state ──────
+            VoiceStatusCard(
+                porcupineStatus = porcupineStatus,
+                owwStatus       = owwStatus,
+                voskReady       = VoskModelManager.isReady(context)
+            )
 
             // ── First-run: no model installed — show download prompt ─────
             if (installed.isEmpty()) {
@@ -112,12 +136,12 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                         ) {
                             Icon(Icons.Outlined.MicOff, null, tint = CosmicAccent,
                                 modifier = Modifier.size(20.dp))
-                            Text("لا يوجد نموذج صوتي", color = Color.White,
+                            Text("لا يوجد نموذج صوتي", color = AiriTheme.onBackground,
                                 fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                         }
                         Text(
                             "قم بتنزيل نموذج الإنجليزية الصغير (~40 ميغابايت) لتفعيل الصوت فوراً. يعمل بالكامل بدون إنترنت.",
-                            color = Color.White.copy(0.65f), fontSize = 13.sp, lineHeight = 18.sp
+                            color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 18.sp
                         )
                         downloadError?.let {
                             Text(it, color = SemanticError, fontSize = 12.sp)
@@ -201,35 +225,70 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
 
 // ── Voice system status card ───────────────────────────────────────────────────
 @Composable
-private fun VoiceStatusCard() {
+private fun VoiceStatusCard(
+    porcupineStatus: PorcupineEngine.Status,
+    owwStatus:       OpenWakeWordEngine.Status,
+    voskReady:       Boolean
+) {
+    val context = LocalContext.current
+
+    // Derive real feature availability from engine state
+    // Wake word: OpenWakeWord (no account) preferred; Porcupine as fallback
+    val wakeWordReady   = owwStatus.ready || porcupineStatus.ready
+    val sttReady        = voskReady                      // needs downloaded model
+    // VAD is part of VoskEngine — available when STT model is loaded
+    val vadReady        = voskReady
+    // Android TextToSpeech is always available on any Android device
+    val ttsReady        = true
+    // Live/duplex requires LiveVoiceService (disabled in manifest) — never ready yet
+    val liveReady       = false
+    // Barge-in requires both live session and VAD — not ready until live is ready
+    val bargeInReady    = false
+
+    val allReady = wakeWordReady && sttReady && vadReady && ttsReady && liveReady
+
     Surface(
-        shape  = RoundedCornerShape(14.dp),
-        color  = SurfaceRaised,
+        shape    = RoundedCornerShape(14.dp),
+        color    = AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Voice System", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+            Text("Voice System", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
             Text(
-                "AIRI voice stack is fully bundled and automatically configured. " +
-                "All voice features are always available.",
-                fontSize = 12.sp, color = Color.White.copy(alpha = 0.55f), lineHeight = 17.sp
+                if (allReady)
+                    "All voice features are active."
+                else
+                    "Some voice features require setup. See details below.",
+                fontSize = 12.sp,
+                color    = AiriTheme.onBackground.copy(alpha = 0.55f),
+                lineHeight = 17.sp
             )
             Spacer(Modifier.height(2.dp))
+
             val features = listOf(
-                "Wake word detection (Porcupine)" to true,
-                "On-device STT (Vosk)"           to true,
-                "Voice activity detection (VAD)" to true,
-                "Text-to-speech (TTS)"           to true,
-                "Live / duplex conversation"     to true,
-                "Barge-in interruption"          to true
+                (if (owwStatus.ready) "Wake word (OpenWakeWord) ✓" else if (porcupineStatus.ready) "Wake word (Porcupine) ✓" else "Wake word detection") to wakeWordReady,
+                "On-device STT (Vosk)"           to sttReady,
+                "Voice activity detection (VAD)" to vadReady,
+                "Text-to-speech (TTS)"           to ttsReady,
+                "Live / duplex conversation"     to liveReady,
+                "Barge-in interruption"          to bargeInReady
             )
             features.forEach { (label, enabled) ->
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    verticalAlignment    = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Box(
-                        modifier = Modifier.size(8.dp).clip(CircleShape)
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
                             .background(if (enabled) SemanticSuccess else SemanticError)
                     )
-                    Text(label, fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
+                    Text(
+                        label,
+                        fontSize = 12.sp,
+                        color    = AiriTheme.onBackground.copy(alpha = if (enabled) 0.9f else 0.5f)
+                    )
                 }
             }
         }
@@ -247,11 +306,11 @@ private fun PorcupineCard(
     onSave: () -> Unit,
     onClear: () -> Unit
 ) {
-    Surface(shape = RoundedCornerShape(14.dp), color = SurfaceRaised, modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = RoundedCornerShape(14.dp), color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Outlined.Mic, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
-                Text("Wake Word (Porcupine)", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                Text("Wake Word (Porcupine)", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
             }
 
             // Status indicator
@@ -289,7 +348,7 @@ private fun PorcupineCard(
                         Icon(
                             if (showKey) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
                             contentDescription = if (showKey) "Hide" else "Show",
-                            tint = Color.White.copy(alpha = 0.5f)
+                            tint = AiriTheme.onSurfaceVariant
                         )
                     }
                 },
@@ -315,7 +374,7 @@ private fun PorcupineCard(
                     onClick = onClear,
                     shape   = RoundedCornerShape(10.dp),
                     border  = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
-                ) { Text("Clear", fontSize = 13.sp, color = Color.White.copy(alpha = 0.7f)) }
+                ) { Text("Clear", fontSize = 13.sp, color = AiriTheme.onSurfaceVariant) }
             }
 
             Text(
@@ -335,11 +394,11 @@ private fun InstalledModelsCard(
     onActivate: (String) -> Unit,
     onDelete: (String) -> Unit
 ) {
-    Surface(shape = RoundedCornerShape(14.dp), color = SurfaceRaised, modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = RoundedCornerShape(14.dp), color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Outlined.RecordVoiceOver, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
-                Text("Installed Models", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                Text("Installed Models", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
             }
 
             if (installed.isEmpty()) {
@@ -350,7 +409,7 @@ private fun InstalledModelsCard(
                     Text(
                         "No models installed. Copy a Vosk model folder into the app's files directory under \"vosk/\".",
                         fontSize = 12.sp,
-                        color    = Color.White.copy(alpha = 0.4f),
+                        color    = AiriTheme.onBackground.copy(alpha = 0.4f),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
@@ -375,7 +434,7 @@ private fun InstalledModelsCard(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(model.displayName, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                                Text(model.displayName, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
                                 if (isActive) {
                                     Box(
                                         modifier = Modifier
@@ -387,7 +446,7 @@ private fun InstalledModelsCard(
                             }
                             Text(
                                 "${model.locale} · ${model.sizeBytes / (1024 * 1024)} MB",
-                                fontSize = 11.sp, color = Color.White.copy(alpha = 0.4f)
+                                fontSize = 11.sp, color = AiriTheme.onSurfaceVariant
                             )
                         }
                         if (!isActive) {

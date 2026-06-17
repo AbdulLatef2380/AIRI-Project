@@ -23,6 +23,7 @@ import com.airi.assistant.ai.agent.trace.AgentStep
 import com.airi.assistant.ai.agent.trace.AgentStepType
 import com.airi.assistant.ai.agent.trace.AgentTrace
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.AgentViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -55,13 +56,13 @@ fun AgentTraceDetailScreen(
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
                     Column {
-                        Text("Trace Detail", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 16.sp)
-                        Text(timeStr, fontSize = 11.sp, color = Color.White.copy(alpha = 0.4f))
+                        Text("Trace Detail", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, fontSize = 16.sp)
+                        Text(timeStr, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                     }
                 }
             )
@@ -84,7 +85,7 @@ fun AgentTraceDetailScreen(
                         Text("User Input", color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text(t.originalInput, color = Color.White.copy(alpha = 0.9f), fontSize = 14.sp, lineHeight = 20.sp)
+                    Text(t.originalInput, color = AiriTheme.onBackground.copy(alpha = 0.9f), fontSize = 14.sp, lineHeight = 20.sp)
                 }
             }
 
@@ -124,7 +125,7 @@ fun AgentTraceDetailScreen(
                     }
                     Text(
                         "${t.successCount}/${t.stepCount} steps",
-                        color = Color.White.copy(alpha = 0.55f),
+                        color = AiriTheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
                 }
@@ -158,7 +159,7 @@ fun AgentTraceDetailScreen(
                         Spacer(Modifier.height(8.dp))
                         Text(
                             text = t.finalResult,
-                            color = Color.White.copy(alpha = 0.85f),
+                            color = AiriTheme.onBackground.copy(alpha = 0.85f),
                             fontSize = 13.sp,
                             lineHeight = 19.sp
                         )
@@ -196,8 +197,8 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
                 }
                 Spacer(Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(step.displayName, color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Text(step.typeLabel, color = Color.White.copy(alpha = 0.35f), fontSize = 10.sp)
+                    Text(step.displayName, color = AiriTheme.onBackground.copy(alpha = 0.9f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(step.typeLabel, color = AiriTheme.outline, fontSize = 10.sp)
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -206,7 +207,7 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
                     if (step.durationMs > 0) {
                         Text(
                             text = "${step.durationMs}ms",
-                            color = Color.White.copy(alpha = 0.3f),
+                            color = AiriTheme.outline,
                             fontSize = 10.sp
                         )
                     }
@@ -235,7 +236,7 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
                         step.inputParams.forEach { (k, v) ->
                             Text(
                                 text = "$k: $v",
-                                color = Color.White.copy(alpha = 0.6f),
+                                color = AiriTheme.onSurfaceVariant,
                                 fontSize = 11.sp
                             )
                         }

@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -105,7 +106,7 @@ fun ExecutionModePanel(
         ) {
             Column {
                 Spacer(Modifier.height(12.dp))
-                Divider(color = Color.White.copy(alpha = 0.05f))
+                Divider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
                 Spacer(Modifier.height(12.dp))
 
                 Row(
@@ -116,7 +117,7 @@ fun ExecutionModePanel(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             "Internet Permission",
-                            color = Color.White,
+                            color = AiriTheme.onBackground,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -146,7 +147,7 @@ fun ExecutionModePanel(
         ) {
             Column {
                 Spacer(Modifier.height(12.dp))
-                Divider(color = Color.White.copy(alpha = 0.05f))
+                Divider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
                 Spacer(Modifier.height(12.dp))
 
                 // Provider preference
@@ -158,7 +159,7 @@ fun ExecutionModePanel(
                 )
 
                 Spacer(Modifier.height(12.dp))
-                Divider(color = Color.White.copy(alpha = 0.05f))
+                Divider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
                 Spacer(Modifier.height(12.dp))
 
                 // Offline fallback toggle
@@ -170,7 +171,7 @@ fun ExecutionModePanel(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             "Offline Fallback",
-                            color = Color.White,
+                            color = AiriTheme.onBackground,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -200,7 +201,7 @@ fun ExecutionModePanel(
 
         // ── Privacy level ─────────────────────────────────────────────────────
         Spacer(Modifier.height(12.dp))
-        Divider(color = Color.White.copy(alpha = 0.05f))
+        Divider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
         Spacer(Modifier.height(12.dp))
         SettingsCategoryHeader(icon = Icons.Outlined.Shield, title = "Privacy Level")
         Spacer(Modifier.height(8.dp))

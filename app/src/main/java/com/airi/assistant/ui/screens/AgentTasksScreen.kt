@@ -28,6 +28,7 @@ import com.airi.assistant.agent.scheduler.ScheduledJob
 import com.airi.assistant.agent.scheduler.ScheduledJobOrchestrator
 import com.airi.assistant.agent.scheduler.ScheduleType
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicBlack
 import com.airi.assistant.ui.theme.SurfaceCard
 import java.text.DateFormat
@@ -59,6 +60,16 @@ fun AgentTasksScreen(
     val context = LocalContext.current
     val orchestrator = remember { ScheduledJobOrchestrator(context) }
 
+    // B-18: SCHEDULE_EXACT_ALARM — required on API 31+ for exact WorkManager timing.
+    val canScheduleExact = remember {
+        mutableStateOf(
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                (context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager)
+                    .canScheduleExactAlarms()
+            } else true
+        )
+    }
+
     var selectedTab    by remember { mutableStateOf(0) }
     var showAddDialog  by remember { mutableStateOf(false) }
     var jobs           by remember { mutableStateOf(orchestrator.listJobs()) }
@@ -71,11 +82,11 @@ fun AgentTasksScreen(
     val completed = jobs.filter { it.triggerAtMs <= now && it.type == ScheduleType.ONE_TIME }
 
     Scaffold(
-        containerColor = CosmicBlack,
+        containerColor = AiriTheme.background,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = CosmicBlack.copy(alpha = 0.92f)
+                    containerColor = AiriTheme.background.copy(alpha = 0.92f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = { showAddDialog = true }) {
@@ -85,7 +96,7 @@ fun AgentTasksScreen(
                 title = {
                     Text(
                         text = "المهام",
-                        color = Color.White,
+                        color = AiriTheme.onBackground,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.fillMaxWidth(),
@@ -94,7 +105,7 @@ fun AgentTasksScreen(
                 },
                 actions = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 }
             )
@@ -129,7 +140,7 @@ fun AgentTasksScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(SurfaceCard),
+                    .background(AiriTheme.surface),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 TaskTab(label = "مجدول (${pending.size})", isSelected = selectedTab == 0,
@@ -143,11 +154,11 @@ fun AgentTasksScreen(
             if (displayJobs.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Icon(Icons.Outlined.Schedule, null, tint = Color.White.copy(0.25f), modifier = Modifier.size(52.dp))
+                        Icon(Icons.Outlined.Schedule, null, tint = AiriTheme.onBackground.copy(0.25f), modifier = Modifier.size(52.dp))
                         Text(
                             if (selectedTab == 0) "لا توجد مهام مجدولة\nاضغط + لإضافة مهمة"
                             else "لا توجد مهام مكتملة",
-                            color = Color.White.copy(0.35f),
+                            color = AiriTheme.onBackground.copy(0.35f),
                             fontSize = 15.sp,
                             textAlign = TextAlign.Center
                         )
@@ -161,6 +172,43 @@ fun AgentTasksScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)
                 ) {
+                    // B-18: Warn if SCHEDULE_EXACT_ALARM not granted (API 31+)
+                    if (!canScheduleExact.value && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF2A2010),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Warning,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFFD60A),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Exact alarms not permitted", fontSize = 12.sp,
+                                            color = Color(0xFFFFD60A), fontWeight = FontWeight.SemiBold)
+                                        Text("Scheduled tasks may fire late. Tap to grant permission.",
+                                            fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                                    }
+                                    TextButton(onClick = {
+                                        val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                                            android.content.Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                                        } else null
+                                        intent?.let { context.startActivity(it) }
+                                        canScheduleExact.value = (context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager).canScheduleExactAlarms()
+                                    }) { Text("Fix", color = Color(0xFF0A84FF), fontSize = 12.sp) }
+                                }
+                            }
+                        }
+                    }
+
                     items(displayJobs, key = { it.id }) { job ->
                         RealTaskItem(
                             job      = job,
@@ -238,7 +286,7 @@ private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(SurfaceCard)
+            .background(AiriTheme.surface)
             .border(
                 1.dp,
                 if (!isPast) CosmicAccent.copy(0.15f) else Color.White.copy(0.06f),
@@ -265,10 +313,10 @@ private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
         Spacer(Modifier.width(8.dp))
 
         Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f)) {
-            Text(job.label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(job.label, color = AiriTheme.onBackground, fontSize = 15.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(2.dp))
             Text(triggerDate, color = CosmicAccent.copy(0.8f), fontSize = 12.sp)
-            Text(typeLabel, color = Color.White.copy(0.45f), fontSize = 11.sp)
+            Text(typeLabel, color = AiriTheme.onBackground.copy(0.45f), fontSize = 11.sp)
         }
 
         Spacer(Modifier.width(10.dp))
@@ -311,7 +359,7 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
                 OutlinedTextField(
                     value = taskName,
                     onValueChange = { taskName = it },
-                    placeholder = { Text("اسم المهمة أو وصفها", color = Color.White.copy(0.35f)) },
+                    placeholder = { Text("اسم المهمة أو وصفها", color = AiriTheme.onBackground.copy(0.35f)) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
@@ -324,7 +372,7 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
                 OutlinedTextField(
                     value = delayInput,
                     onValueChange = { if (it.all { c -> c.isDigit() }) delayInput = it },
-                    label = { Text("التأخير (بالدقائق)", fontSize = 12.sp, color = Color.White.copy(0.55f)) },
+                    label = { Text("التأخير (بالدقائق)", fontSize = 12.sp, color = AiriTheme.onBackground.copy(0.55f)) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
@@ -337,7 +385,7 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
                 )
                 Text(
                     "الحد الأدنى: 1 دقيقة. WorkManager يطبق حداً أدنى 15 دقيقة للمهام المتكررة.",
-                    color = Color.White.copy(0.3f), fontSize = 11.sp, lineHeight = 15.sp
+                    color = AiriTheme.onBackground.copy(0.3f), fontSize = 11.sp, lineHeight = 15.sp
                 )
             }
         },
@@ -347,13 +395,13 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
                     val delay = delayInput.toLongOrNull()?.coerceAtLeast(1L) ?: 1L
                     onAdd(taskName.trim(), delay)
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = AiriTheme.onBackground),
                 shape  = RoundedCornerShape(12.dp),
                 enabled = taskName.isNotBlank()
             ) { Text("جدولة") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("إلغاء", color = Color.White.copy(0.6f)) }
+            TextButton(onClick = onDismiss) { Text("إلغاء", color = AiriTheme.onBackground.copy(0.6f)) }
         }
     )
 }

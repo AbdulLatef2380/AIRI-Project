@@ -109,4 +109,5 @@ private val CloudProvider.storageId: String get() = when (this) {
     CloudProvider.OPENROUTER -> "openrouter"
     CloudProvider.KIMI       -> "kimi"
     CloudProvider.CUSTOM     -> "custom"
+    CloudProvider.BRAVE      -> "brave_search"   // Brave Search API key
 }

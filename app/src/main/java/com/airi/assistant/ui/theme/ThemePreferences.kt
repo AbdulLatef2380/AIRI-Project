@@ -9,17 +9,13 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * Persists the user's chosen theme mode across process restarts.
  *
- * Three modes are supported:
+ * Four modes are supported:
  *  - [ThemeMode.DARK]   — always dark (default, matches original app behaviour)
  *  - [ThemeMode.LIGHT]  — always light
  *  - [ThemeMode.SYSTEM] — follows the OS dark/light setting
- *
- * Stored in a dedicated SharedPreferences file so it can be cleared
- * independently of execution or privacy prefs. Exposes [themeMode] as a
- * [StateFlow] so Compose collectors recompose immediately when the value
- * changes without requiring a process restart.
+ *  - [ThemeMode.AMOLED] — pure black background for OLED power saving (B-28)
  */
-enum class ThemeMode { DARK, LIGHT, SYSTEM }
+enum class ThemeMode { DARK, LIGHT, SYSTEM, AMOLED }
 
 class ThemePreferences(context: Context) {
 

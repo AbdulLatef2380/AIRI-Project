@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airi.assistant.connector.ConnectorType
 import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicBlack
 import com.airi.assistant.ui.theme.SurfaceCard
 import com.airi.assistant.ui.theme.SurfaceRaised
@@ -77,26 +78,40 @@ fun ConnectorsScreen(
     val allItems     by viewModel.items.collectAsState()
     val selectedTab  by viewModel.selectedTab.collectAsState()
 
-    val visibleItems = allItems.filter { it.meta.type == selectedTab }
+    val visibleItems   = allItems.filter { it.meta.type == selectedTab }
     val connectedCount = allItems.count { it.state.connected }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // B-19: READ_CONTACTS runtime permission — requested when user taps connect
+    // on the Contacts connector. The connector itself checks permission and
+    // shows an error message; this launcher provides the in-app request path.
+    val contactsPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            // Re-attempt connection after permission granted
+            viewModel.connect("contacts_local")
+        }
+    }
+
     Scaffold(
-        containerColor = CosmicBlack,
+        containerColor = AiriTheme.background,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = CosmicBlack.copy(alpha = 0.95f)
+                    containerColor = AiriTheme.background.copy(alpha = 0.95f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = "الموصلات",
-                            color = Color.White,
+                            color = AiriTheme.onBackground,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.Center
@@ -132,7 +147,7 @@ fun ConnectorsScreen(
                 containerColor   = CosmicBlack,
                 contentColor     = CosmicAccent,
                 edgePadding      = 12.dp,
-                divider          = { Divider(color = DividerColor) }
+                divider          = { Divider(color = AiriTheme.outline) }
             ) {
                 TABS.forEach { tab ->
                     val isSelected = tab.type == selectedTab
@@ -191,13 +206,13 @@ fun ConnectorsScreen(
                         Icon(
                             Icons.Outlined.Hub,
                             contentDescription = null,
-                            tint = Color.White.copy(0.25f),
+                            tint = AiriTheme.outline.copy(alpha = 0.25f),
                             modifier = Modifier.size(48.dp)
                         )
                         Spacer(Modifier.height(12.dp))
                         Text(
                             "لا توجد موصلات في هذه الفئة",
-                            color = Color.White.copy(0.35f),
+                            color = AiriTheme.onSurfaceVariant.copy(alpha = 0.35f),
                             fontSize = 14.sp
                         )
                     }
@@ -212,8 +227,21 @@ fun ConnectorsScreen(
                 ) {
                     items(visibleItems, key = { it.meta.id }) { row ->
                         ConnectorCard(
-                            row       = row,
-                            onConnect    = { viewModel.connect(row.meta.id) },
+                            row          = row,
+                            onConnect    = {
+                                // B-19: Request READ_CONTACTS permission before connecting contacts
+                                if (row.meta.id == "contacts_local" &&
+                                    android.content.pm.PackageManager.PERMISSION_DENIED ==
+                                    androidx.core.content.ContextCompat.checkSelfPermission(
+                                        context,
+                                        android.Manifest.permission.READ_CONTACTS
+                                    )
+                                ) {
+                                    contactsPermLauncher.launch(android.Manifest.permission.READ_CONTACTS)
+                                } else {
+                                    viewModel.connect(row.meta.id)
+                                }
+                            },
                             onDisconnect = { viewModel.disconnect(row.meta.id) }
                         )
                     }
@@ -237,7 +265,7 @@ private fun ConnectorCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(SurfaceCard)
+            .background(AiriTheme.surface)
             .border(
                 width = 1.dp,
                 color = if (isConnected) SemanticSuccess.copy(0.25f) else Color.White.copy(0.07f),
@@ -281,7 +309,7 @@ private fun ConnectorCard(
                     Column {
                         Text(
                             row.meta.name,
-                            color = Color.White,
+                            color = AiriTheme.onBackground,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
@@ -315,11 +343,11 @@ private fun ConnectorCard(
             ) {
                 Column {
                     Spacer(Modifier.height(10.dp))
-                    Divider(color = Color.White.copy(0.07f))
+                    Divider(color = AiriTheme.outline.copy(alpha = 0.07f))
                     Spacer(Modifier.height(10.dp))
                     Text(
                         row.meta.description,
-                        color    = Color.White.copy(0.55f),
+                        color    = AiriTheme.onBackground.copy(0.55f),
                         fontSize = 13.sp,
                         lineHeight = 18.sp
                     )

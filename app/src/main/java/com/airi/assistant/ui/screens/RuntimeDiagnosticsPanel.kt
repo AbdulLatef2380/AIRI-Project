@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -484,7 +485,7 @@ private fun EventRow(event: com.airi.assistant.core.debug.RuntimeEvent) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 event.reason,
-                color    = Color.White.copy(alpha = 0.80f),
+                color    = AiriTheme.onBackground.copy(alpha = 0.80f),
                 fontSize = 11.sp,
                 lineHeight = 14.sp
             )
@@ -500,7 +501,7 @@ private fun EventRow(event: com.airi.assistant.core.debug.RuntimeEvent) {
 @Composable
 private fun DiagDivider() {
     Divider(
-        color    = Color.White.copy(alpha = 0.05f),
+        color    = AiriTheme.onBackground.copy(alpha = 0.05f),
         modifier = Modifier.padding(vertical = 5.dp)
     )
 }

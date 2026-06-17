@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -38,11 +39,11 @@ fun AIModelsSettingsScreen(
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
-                    Text("AI & Models", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("AI & Models", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
                 }
             )
         }
@@ -57,7 +58,7 @@ fun AIModelsSettingsScreen(
         ) {
             SkillsSection(viewModel = viewModel)
 
-            ApiKeysSection()
+            ApiKeysSection(onNavigate = onNavigate)
 
             ExecutionModePanel(
                 currentMode             = executionMode,

@@ -66,6 +66,7 @@ import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.CosmicAccentDark
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicBlack
 import com.airi.assistant.ui.theme.DividerColor
 import com.airi.assistant.ui.theme.GlassPurple
@@ -115,6 +116,11 @@ fun ChatScreen(
     val agentMode     by viewModel.agentMode.collectAsState()
     val smartReplies  by viewModel.smartReplies.collectAsState()
     val todayTokens   by viewModel.todayTokens.collectAsState()
+    // B-17: real-time network state — drives offline banner
+    val isOnline      by viewModel.isOnline.collectAsState()
+    // LiveVoiceService — voice mode state
+    val voiceModeActive    by viewModel.voiceModeActive.collectAsState()
+    val voicePipelineState by viewModel.voicePipelineState.collectAsState()
     val snackbarHost  = remember { SnackbarHostState() }
     val paywallTrigger        by viewModel.paywallTrigger.collectAsState()
     val upgradePrompt         by viewModel.upgradePrompt.collectAsState()
@@ -500,7 +506,7 @@ fun ChatScreen(
 
     Scaffold(
         modifier             = Modifier.fillMaxSize(),
-        containerColor       = CosmicBlack,
+        containerColor       = AiriTheme.background,
         // Disable Scaffold's automatic WindowInsets.ime padding — the bottomBar
         // Column owns .imePadding() exclusively, preventing double application
         // that caused the input bar to jump too far up on keyboard open.
@@ -603,10 +609,21 @@ fun ChatScreen(
                             if (liveChatActiveRef.value) liveChatActiveRef.value = false
                             stopInAppStt(); return@vc
                         }
+                        // Toggle LiveVoiceService (full-duplex) when Vosk model is available
                         when {
                             !VoskModelManager.isReady(context) -> onNavigate(AiriRoute.VOICE_SETTINGS)
-                            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> {
-                                liveChatActiveRef.value = true; startInAppStt(autoSend = true)
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                                == PackageManager.PERMISSION_GRANTED -> {
+                                // Use LiveVoiceService for full-duplex; fallback to in-app STT
+                                viewModel.toggleVoiceMode()
+                                if (!voiceModeActive) {
+                                    // Also start in-app STT as visual feedback
+                                    liveChatActiveRef.value = true
+                                    startInAppStt(autoSend = true)
+                                } else {
+                                    liveChatActiveRef.value = false
+                                    stopInAppStt()
+                                }
                             }
                             else -> voiceChatPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
@@ -685,10 +702,44 @@ fun ChatScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("System Integrity Failed", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("System Integrity Failed", color = AiriTheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         TextButton(onClick = { viewModel.clearSystemIntegrityFailed() }) {
-                            Text("Dismiss", color = Color.White, fontSize = 12.sp)
+                            Text("Dismiss", color = AiriTheme.onBackground, fontSize = 12.sp)
                         }
+                    }
+                }
+            }
+
+            // B-17: Offline mode banner — shown when device has no internet.
+            // Informs user that cloud models are unavailable and local model is active.
+            AnimatedVisibility(
+                visible  = !isOnline,
+                enter    = slideInVertically { -it } + fadeIn(),
+                exit     = slideOutVertically { -it } + fadeOut(),
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = if (systemIntegrityFailed) 48.dp else 0.dp)
+            ) {
+                Surface(
+                    color    = Color(0xFF1A1A2E),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier              = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment     = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector        = androidx.compose.material.icons.Icons.Outlined.WifiOff,
+                            contentDescription = null,
+                            tint               = AiriTheme.onSurfaceVariant,
+                            modifier           = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text     = "Offline — using local model only",
+                            color    = AiriTheme.onBackground.copy(alpha = 0.75f),
+                            fontSize = 12.sp
+                        )
                     }
                 }
             }
@@ -745,7 +796,7 @@ fun ChatScreen(
             title = {
                 Text(
                     "تأكيد الإجراء",
-                    color      = Color.White,
+                    color      = AiriTheme.onBackground,
                     fontWeight = FontWeight.Bold,
                     fontSize   = 18.sp
                 )
@@ -754,7 +805,7 @@ fun ChatScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "AIRI على وشك تنفيذ:",
-                        color    = Color.White.copy(0.7f),
+                        color    = AiriTheme.onBackground.copy(0.7f),
                         fontSize = 14.sp
                     )
                     Surface(
@@ -771,7 +822,7 @@ fun ChatScreen(
                     }
                     Text(
                         req.actionDescription,
-                        color    = Color.White.copy(0.55f),
+                        color    = AiriTheme.onBackground.copy(0.55f),
                         fontSize = 13.sp,
                         lineHeight = 18.sp
                     )
@@ -800,7 +851,7 @@ fun ChatScreen(
                     border  = BorderStroke(1.dp, Color.White.copy(0.3f)),
                     shape   = RoundedCornerShape(12.dp)
                 ) {
-                    Text("إلغاء", color = Color.White.copy(0.8f))
+                    Text("إلغاء", color = AiriTheme.onBackground.copy(0.8f))
                 }
             }
         )
@@ -851,7 +902,7 @@ private fun AiriChatTopBar(
 
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = CosmicBlack.copy(alpha = 0.92f)
+            containerColor = AiriTheme.background.copy(alpha = 0.92f)
         ),
         navigationIcon = {
             Row(
@@ -904,7 +955,7 @@ private fun AiriChatTopBar(
                     Icon(
                         Icons.Default.KeyboardArrowDown,
                         contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.70f),
+                        tint = AiriTheme.onBackground.copy(alpha = 0.70f),
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
@@ -915,7 +966,7 @@ private fun AiriChatTopBar(
                             modelState.isModelLoading -> stringResource(R.string.loading_model)
                             else                      -> "Airi Cloud"
                         },
-                        color = Color.White,
+                        color = AiriTheme.onBackground,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
@@ -925,7 +976,7 @@ private fun AiriChatTopBar(
                     Icon(
                         if (modelState.isModelReady) Icons.Outlined.Memory else Icons.Outlined.Cloud,
                         contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.55f),
+                        tint = AiriTheme.onBackground.copy(alpha = 0.55f),
                         modifier = Modifier.size(14.dp)
                     )
                 }
@@ -937,7 +988,7 @@ private fun AiriChatTopBar(
                 Icon(
                     Icons.Outlined.History,
                     contentDescription = "History",
-                    tint = Color.White.copy(alpha = 0.65f),
+                    tint = AiriTheme.onBackground.copy(alpha = 0.65f),
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -950,26 +1001,26 @@ private fun AiriChatTopBar(
                         modifier = Modifier.background(Color(0xFF1A1F3A))
                     ) {
                         DropdownMenuItem(
-                            text  = { Text(stringResource(R.string.generation_settings), color = Color.White) },
+                            text  = { Text(stringResource(R.string.generation_settings), color = AiriTheme.onBackground) },
                             leadingIcon = { Icon(Icons.Outlined.Tune, contentDescription = null, tint = CosmicAccent) },
                             onClick = onGenSettings
                         )
                         AgentMode.values().forEach { mode ->
                             DropdownMenuItem(
-                                text = { Text(mode.label, color = if (mode == agentMode) CosmicAccent else Color.White) },
+                                text = { Text(mode.label, color = if (mode == agentMode) CosmicAccent else AiriTheme.onBackground) },
                                 leadingIcon = { Icon(Icons.Outlined.Psychology, contentDescription = null, tint = CosmicAccent) },
                                 onClick = { onModeSelected(mode); onDismissDropdown() }
                             )
                         }
                         DropdownMenuItem(
-                            text  = { Text(stringResource(R.string.switch_model), color = Color.White) },
+                            text  = { Text(stringResource(R.string.switch_model), color = AiriTheme.onBackground) },
                             leadingIcon = { Icon(Icons.Outlined.SmartToy, contentDescription = null, tint = CosmicAccent) },
                             onClick = onSwitchModel
                         )
-                        Divider(color = Color.White.copy(alpha = 0.1f))
+                        Divider(color = AiriTheme.outline.copy(alpha = 0.35f))
                         DropdownMenuItem(
-                            text  = { Text(stringResource(R.string.export_chat), color = Color.White) },
-                            leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = Color.White.copy(alpha = 0.6f)) },
+                            text  = { Text(stringResource(R.string.export_chat), color = AiriTheme.onBackground) },
+                            leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
                             onClick = onExportChat
                         )
                     }
@@ -1024,7 +1075,7 @@ private fun AiriModelPickerSheet(
         ) {
             Text(
                 text = "اختر النموذج",
-                color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                color = AiriTheme.onBackground, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.End,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
             )
@@ -1033,7 +1084,7 @@ private fun AiriModelPickerSheet(
             if (localModels.isNotEmpty()) {
                 Text(
                     "على الجهاز",
-                    color = Color.White.copy(0.45f), fontSize = 11.sp,
+                    color = AiriTheme.onBackground.copy(0.45f), fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     textAlign = TextAlign.End
@@ -1053,7 +1104,7 @@ private fun AiriModelPickerSheet(
                             }
                         }
                     )
-                    Divider(color = Color.White.copy(alpha = 0.06f))
+                    Divider(color = AiriTheme.outline.copy(alpha = 0.3f))
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -1061,7 +1112,7 @@ private fun AiriModelPickerSheet(
             // ── Cloud models (free built-in providers) ────────────────────
             Text(
                 "سحابي",
-                color = Color.White.copy(0.45f), fontSize = 11.sp,
+                color = AiriTheme.onBackground.copy(0.45f), fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 textAlign = TextAlign.End
@@ -1082,7 +1133,7 @@ private fun AiriModelPickerSheet(
                         }
                     }
                 )
-                Divider(color = Color.White.copy(alpha = 0.06f))
+                Divider(color = AiriTheme.outline.copy(alpha = 0.3f))
             }
 
             Spacer(Modifier.height(8.dp))
@@ -1115,7 +1166,7 @@ private fun ModelPickerRow(
                 modifier = Modifier.size(22.dp).clip(CircleShape).background(CosmicAccent),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                Icon(Icons.Default.Check, null, tint = AiriTheme.onBackground, modifier = Modifier.size(14.dp))
             }
         } else {
             Spacer(Modifier.size(22.dp))
@@ -1124,8 +1175,8 @@ private fun ModelPickerRow(
             modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
             horizontalAlignment = Alignment.End
         ) {
-            Text(name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            Text(subtitle, color = Color.White.copy(0.45f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(name, color = AiriTheme.onBackground, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(subtitle, color = AiriTheme.onBackground.copy(0.45f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Box(
             modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp))
@@ -1166,17 +1217,17 @@ private fun AiriHistoryPanel(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White.copy(alpha = 0.7f))
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = AiriTheme.onBackground.copy(alpha = 0.7f))
                 }
                 Text(
                     "السجل",
-                    color = Color.White,
+                    color = AiriTheme.onBackground,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
 
-            Divider(color = DividerColor)
+            Divider(color = AiriTheme.outline)
 
             // New conversation button
             Row(
@@ -1198,7 +1249,7 @@ private fun AiriHistoryPanel(
                         .background(CosmicAccent),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Add, contentDescription = null, tint = AiriTheme.onBackground, modifier = Modifier.size(16.dp))
                 }
                 Text(
                     "محادثة جديدة",
@@ -1217,13 +1268,13 @@ private fun AiriHistoryPanel(
                         Icon(
                             Icons.Outlined.Forum,
                             contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.25f),
+                            tint = AiriTheme.onBackground.copy(alpha = 0.25f),
                             modifier = Modifier.size(48.dp)
                         )
                         Spacer(Modifier.height(12.dp))
                         Text(
                             "لا توجد محادثات سابقة",
-                            color = Color.White.copy(alpha = 0.35f),
+                            color = AiriTheme.outline,
                             fontSize = 14.sp
                         )
                     }
@@ -1247,13 +1298,13 @@ private fun AiriHistoryPanel(
                             Text(
                                 java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
                                     .format(java.util.Date(session.updatedAt)),
-                                color = Color.White.copy(alpha = 0.40f),
+                                color = AiriTheme.onBackground.copy(alpha = 0.40f),
                                 fontSize = 11.sp
                             )
                             Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                                 Text(
                                     session.title.ifBlank { "محادثة" },
-                                    color = Color.White,
+                                    color = AiriTheme.onBackground,
                                     fontSize = 14.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -1261,14 +1312,14 @@ private fun AiriHistoryPanel(
                                 )
                                 Text(
                                     session.lastMessage.orEmpty().ifBlank { "..." },
-                                    color = Color.White.copy(alpha = 0.45f),
+                                    color = AiriTheme.onBackground.copy(alpha = 0.45f),
                                     fontSize = 12.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
-                        Divider(color = DividerColor)
+                        Divider(color = AiriTheme.outline)
                     }
                 }
             }
@@ -1375,7 +1426,7 @@ fun ChatMessageList(
                 Spacer(Modifier.height(20.dp))
                 Text(
                     text = "كيف يمكنني مساعدتك؟",
-                    color = Color.White.copy(alpha = 0.88f),
+                    color = AiriTheme.onBackground.copy(alpha = 0.88f),
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 20.sp,
                     textAlign = TextAlign.Center
@@ -1385,7 +1436,7 @@ fun ChatMessageList(
                     Button(
                         onClick = onOpenModels,
                         shape = RoundedCornerShape(24.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.White)
+                        colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = AiriTheme.onBackground)
                     ) {
                         Icon(Icons.Outlined.SmartToy, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(8.dp))
@@ -1493,7 +1544,7 @@ fun UserBubble(
                         if (displayText.isNotBlank()) Spacer(Modifier.height(8.dp))
                     }
                     if (displayText.isNotBlank() || imageUri == null) {
-                        Text(text = displayText, color = Color.White, fontSize = 15.sp, lineHeight = 23.sp)
+                        Text(text = displayText, color = AiriTheme.onBackground, fontSize = 15.sp, lineHeight = 23.sp)
                     }
                 }
 
@@ -1504,8 +1555,8 @@ fun UserBubble(
                     modifier         = Modifier.background(Color(0xFF1A1F35))
                 ) {
                     DropdownMenuItem(
-                        text         = { Text("نسخ", color = Color.White, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.ContentCopy, null, tint = Color.White.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                        text         = { Text("نسخ", color = AiriTheme.onBackground, fontSize = 14.sp) },
+                        leadingIcon  = { Icon(Icons.Outlined.ContentCopy, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
                         onClick      = {
                             showContextMenu = false
                             val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -1513,21 +1564,21 @@ fun UserBubble(
                         }
                     )
                     DropdownMenuItem(
-                        text         = { Text("تعديل", color = Color.White, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.Edit, null, tint = Color.White.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                        text         = { Text("تعديل", color = AiriTheme.onBackground, fontSize = 14.sp) },
+                        leadingIcon  = { Icon(Icons.Outlined.Edit, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
                         onClick      = { showContextMenu = false; onEdit() }
                     )
                     DropdownMenuItem(
-                        text         = { Text("تحديد نص", color = Color.White, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.TextFields, null, tint = Color.White.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                        text         = { Text("تحديد نص", color = AiriTheme.onBackground, fontSize = 14.sp) },
+                        leadingIcon  = { Icon(Icons.Outlined.TextFields, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
                         onClick      = { showContextMenu = false /* text selection handled by system */ }
                     )
                     DropdownMenuItem(
-                        text         = { Text("مشاركة", color = Color.White, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.Share, null, tint = Color.White.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                        text         = { Text("مشاركة", color = AiriTheme.onBackground, fontSize = 14.sp) },
+                        leadingIcon  = { Icon(Icons.Outlined.Share, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
                         onClick      = { showContextMenu = false; shareAiResponse(context, displayText) }
                     )
-                    Divider(color = Color.White.copy(alpha = 0.08f))
+                    Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
                     DropdownMenuItem(
                         text         = { Text("حذف", color = SemanticError, fontSize = 14.sp) },
                         leadingIcon  = { Icon(Icons.Outlined.Delete, null, tint = SemanticError.copy(0.7f), modifier = Modifier.size(16.dp)) },
@@ -1602,7 +1653,7 @@ fun AiBubble(
                 Row(modifier = Modifier.padding(start = 2.dp, top = 1.dp), verticalAlignment = Alignment.CenterVertically) {
                     // Speak
                     IconButton(onClick = { onSpeak(text) }, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Outlined.VolumeUp, contentDescription = null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(14.dp))
+                        Icon(Icons.Outlined.VolumeUp, contentDescription = null, tint = AiriTheme.outline, modifier = Modifier.size(14.dp))
                     }
                     // Copy
                     IconButton(onClick = {
@@ -1610,7 +1661,7 @@ fun AiBubble(
                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
                     }, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Outlined.ContentCopy, contentDescription = null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(14.dp))
+                        Icon(Icons.Outlined.ContentCopy, contentDescription = null, tint = AiriTheme.outline, modifier = Modifier.size(14.dp))
                     }
                     // Dislike / Like — local toggle with haptic; persisted to MemoryManager
                     // when a feedback API is added in a future pass.
@@ -1665,13 +1716,13 @@ fun AiBubble(
                             )
                         }
                         if (traceExpanded) {
-                            Divider(color = Color.White.copy(0.05f))
+                            Divider(color = AiriTheme.onBackground.copy(0.05f))
                             Column(modifier = Modifier.padding(10.dp)) {
                                 trace.steps.forEachIndexed { i, step ->
                                     Row(modifier = Modifier.padding(vertical = 2.dp)) {
                                         Text("${i+1}.", color = CosmicAccent.copy(0.6f), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(14.dp))
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Text(step.displayName, color = Color.White.copy(0.85f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                            Text(step.displayName, color = AiriTheme.onBackground.copy(0.85f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
                                             val detail = step.error ?: step.outputSummary.take(80)
                                             if (detail.isNotBlank()) Text(detail, color = if (step.error != null) Color(0xFFFF5252).copy(0.8f) else Color.White.copy(0.4f), fontSize = 10.sp)
                                         }
@@ -1726,7 +1777,7 @@ fun AiStreamingBubble(text: String) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text       = text,
-                    color      = Color.White.copy(alpha = if (isThinkingStage) 0.50f else 0.93f),
+                    color      = AiriTheme.onBackground.copy(alpha = if (isThinkingStage) 0.50f else 0.93f),
                     fontSize   = 15.sp, lineHeight = 23.sp,
                     fontStyle  = if (isThinkingStage) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
                     modifier   = Modifier.weight(1f, fill = false)
@@ -1776,11 +1827,11 @@ private fun AttachmentChip(
         }
         Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(attachment.displayName, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, color = Color.White.copy(0.55f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(attachment.displayName, color = AiriTheme.onBackground, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, color = AiriTheme.onBackground.copy(0.55f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
-            Icon(Icons.Default.Close, contentDescription = null, tint = Color.White.copy(0.7f), modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Close, contentDescription = null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -1966,7 +2017,7 @@ fun AiriChatInputBar(
                     enabled = isInferenceReady && !isGenerating,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp, max = if (isExpanded) 180.dp else 60.dp),
                     textStyle = androidx.compose.ui.text.TextStyle(
-                        color = Color.White, fontSize = 15.sp,
+                        color = AiriTheme.onBackground, fontSize = 15.sp,
                         textAlign = TextAlign.End   // RTL default
                     ),
                     cursorBrush = androidx.compose.ui.graphics.SolidColor(CosmicAccent),
@@ -1980,7 +2031,7 @@ fun AiriChatInputBar(
                                         modelState.isModelLoading -> stringResource(R.string.model_is_loading)
                                         else                      -> "قم بتعيين مهمة أو اسأل أي شيء"
                                     },
-                                    color = Color.White.copy(0.35f),
+                                    color = AiriTheme.onBackground.copy(0.35f),
                                     fontSize = 15.sp,
                                     modifier = Modifier.fillMaxWidth(),
                                     textAlign = TextAlign.End
@@ -2032,9 +2083,9 @@ fun AiriChatInputBar(
                         label = "main_btn"
                     ) { state ->
                         when (state) {
-                            "stop" -> Icon(Icons.Default.Stop, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                            "send" -> Icon(Icons.Default.ArrowUpward, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                            else   -> Icon(Icons.Default.GraphicEq, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            "stop" -> Icon(Icons.Default.Stop, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                            "send" -> Icon(Icons.Default.ArrowUpward, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                            else   -> Icon(Icons.Default.GraphicEq, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -2048,7 +2099,7 @@ fun AiriChatInputBar(
                         .clickable(enabled = !isGenerating) { showAttachPopup = true },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Add, null, tint = Color.White.copy(if (!isGenerating) 0.7f else 0.3f), modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Add, null, tint = AiriTheme.onBackground.copy(if (!isGenerating) 0.7f else 0.3f), modifier = Modifier.size(20.dp))
                 }
 
                 // Mic button
@@ -2082,7 +2133,7 @@ fun AiriChatInputBar(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Icon(Icons.Outlined.Hub, null, tint = CosmicAccent, modifier = Modifier.size(14.dp))
-                            Icon(Icons.Outlined.ChevronRight, null, tint = Color.White.copy(0.45f), modifier = Modifier.size(12.dp))
+                            Icon(Icons.Outlined.ChevronRight, null, tint = AiriTheme.onBackground.copy(0.45f), modifier = Modifier.size(12.dp))
                         }
                     }
                 }
@@ -2094,7 +2145,7 @@ fun AiriChatInputBar(
                     Icon(
                         if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
                         null,
-                        tint = Color.White.copy(0.45f),
+                        tint = AiriTheme.onBackground.copy(0.45f),
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -2185,7 +2236,7 @@ private fun AttachBubble(
             Icon(icon, contentDescription = label, tint = CosmicAccent, modifier = Modifier.size(24.dp))
         }
         Spacer(Modifier.height(4.dp))
-        Text(label, color = Color.White.copy(0.7f), fontSize = 10.sp, maxLines = 1, textAlign = TextAlign.Center)
+        Text(label, color = AiriTheme.onBackground.copy(0.7f), fontSize = 10.sp, maxLines = 1, textAlign = TextAlign.Center)
     }
 }
 
@@ -2200,11 +2251,11 @@ private fun ModelErrorDialog(error: String, errorType: String, onDismiss: () -> 
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(error)
-                Text(errorType, color = Color.White.copy(0.45f), fontSize = 12.sp)
+                Text(errorType, color = AiriTheme.onBackground.copy(0.45f), fontSize = 12.sp)
             }
         },
         confirmButton = {
-            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.White)) {
+            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = AiriTheme.onBackground)) {
                 Text(stringResource(R.string.ok))
             }
         }
@@ -2240,13 +2291,13 @@ fun AiriDrawer(
                             ) { Text(initial, color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
                             Spacer(Modifier.width(12.dp))
                             Column {
-                                Text(stringResource(R.string.app_agent_title), fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
-                                Text(email, color = Color.White.copy(0.5f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(stringResource(R.string.app_agent_title), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, fontSize = 15.sp)
+                                Text(email, color = AiriTheme.onBackground.copy(0.5f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
                 }
-                Divider(color = Color.White.copy(0.06f))
+                Divider(color = AiriTheme.onBackground.copy(0.06f))
                 Spacer(Modifier.height(8.dp))
                 DrawerActionItem(icon = Icons.Outlined.AddComment, label = stringResource(R.string.new_chat), onClick = onNewChat)
                 DrawerNavItem(icon = Icons.Outlined.Forum, label = stringResource(R.string.chats), route = AiriRoute.HISTORY, onNavigate = onNavigate)
@@ -2255,7 +2306,7 @@ fun AiriDrawer(
                 DrawerNavItem(icon = Icons.Outlined.BuildCircle, label = stringResource(R.string.custom_skills), route = AiriRoute.SKILL_MANAGER, onNavigate = onNavigate)
                 DrawerNavItem(icon = Icons.Outlined.Share, label = stringResource(R.string.invite_friends), route = AiriRoute.REFERRALS, onNavigate = onNavigate)
                 Spacer(Modifier.height(4.dp))
-                Divider(color = Color.White.copy(0.06f))
+                Divider(color = AiriTheme.onBackground.copy(0.06f))
                 Spacer(Modifier.height(4.dp))
                 DrawerNavItem(icon = Icons.Outlined.ManageHistory, label = stringResource(R.string.agent_logs), route = AiriRoute.AGENT_LOGS, onNavigate = onNavigate)
                 DrawerNavItem(icon = Icons.Outlined.Tune, label = stringResource(R.string.agent_control), route = AiriRoute.AGENT_CONTROL, onNavigate = onNavigate)
@@ -2265,7 +2316,7 @@ fun AiriDrawer(
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xFF0D1124))))
             )
             Column(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color(0xFF0D1124))) {
-                Divider(color = Color.White.copy(0.08f))
+                Divider(color = AiriTheme.onBackground.copy(0.08f))
                 DrawerNavItem(icon = Icons.Outlined.Settings, label = stringResource(R.string.settings), route = AiriRoute.SETTINGS, onNavigate = onNavigate)
                 DrawerActionItem(icon = Icons.Outlined.Logout, label = stringResource(R.string.sign_out), tint = Color(0xFFFF6B6B), onClick = onLogout)
                 Spacer(Modifier.height(16.dp))
@@ -2284,8 +2335,8 @@ private fun shareAiResponse(context: android.content.Context, response: String) 
 @Composable
 private fun DrawerNavItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, route: String, onNavigate: (String) -> Unit) {
     NavigationDrawerItem(
-        icon = { Icon(icon, null, tint = Color.White.copy(0.7f)) },
-        label = { Text(label, color = Color.White) },
+        icon = { Icon(icon, null, tint = AiriTheme.onBackground.copy(0.7f)) },
+        label = { Text(label, color = AiriTheme.onBackground) },
         selected = false,
         onClick = { onNavigate(route) },
         colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent),
@@ -2317,7 +2368,7 @@ private fun GenerationSettingsDialog(viewModel: ChatViewModel, onDismiss: () -> 
         title = { Text(stringResource(R.string.generation_settings), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(stringResource(R.string.generation_settings_description), color = Color.White.copy(0.5f), fontSize = 12.sp)
+                Text(stringResource(R.string.generation_settings_description), color = AiriTheme.onBackground.copy(0.5f), fontSize = 12.sp)
                 Column {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(stringResource(R.string.temperature), fontSize = 13.sp)
@@ -2325,7 +2376,7 @@ private fun GenerationSettingsDialog(viewModel: ChatViewModel, onDismiss: () -> 
                     }
                     Slider(value = temperature, onValueChange = { viewModel.setTemperature(it) }, valueRange = 0.1f..2.0f,
                         colors = SliderDefaults.colors(thumbColor = CosmicAccent, activeTrackColor = CosmicAccent))
-                    Text(stringResource(R.string.temperature_hint), color = Color.White.copy(0.35f), fontSize = 11.sp)
+                    Text(stringResource(R.string.temperature_hint), color = AiriTheme.onBackground.copy(0.35f), fontSize = 11.sp)
                 }
                 Column {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -2340,19 +2391,19 @@ private fun GenerationSettingsDialog(viewModel: ChatViewModel, onDismiss: () -> 
                     Spacer(Modifier.height(4.dp))
                     OutlinedTextField(
                         value = systemPrompt, onValueChange = { viewModel.setSystemPrompt(it) },
-                        placeholder = { Text(stringResource(R.string.leave_empty_default), color = Color.White.copy(0.3f), fontSize = 12.sp) },
+                        placeholder = { Text(stringResource(R.string.leave_empty_default), color = AiriTheme.onBackground.copy(0.3f), fontSize = 12.sp) },
                         minLines = 2, maxLines = 4,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = Color.White.copy(0.15f), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = Color.White.copy(0.15f), focusedTextColor = Color.White, unfocusedTextColor = AiriTheme.onBackground)
                     )
                 }
             }
         },
         confirmButton = {
-            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.White)) {
+            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = AiriTheme.onBackground)) {
                 Text(stringResource(R.string.save))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = Color.White.copy(0.6f)) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(0.6f)) } }
     )
 }
 
@@ -2388,7 +2439,7 @@ private fun ScrollToBottomFab(visible: Boolean, onClick: () -> Unit, modifier: M
             modifier = Modifier.size(36.dp).clip(CircleShape).background(CosmicAccent.copy(0.90f)).clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.KeyboardArrowDown, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
         }
     }
 }

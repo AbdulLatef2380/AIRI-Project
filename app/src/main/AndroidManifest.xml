@@ -121,18 +121,16 @@
             android:foregroundServiceType="dataSync" />
 
         <!--
-            DEPRECATED Phase 6 — LiveVoiceService
-            Phase 4 audit: 0 real startService() callers. The entire realtime voice
-            stack (GeminiLiveProvider, OpenAIRealtimeProvider, FullDuplexVadEngine,
-            IncrementalTtsEngine, DuplexConversationRuntime) is unreachable. Preserved
-            in manifest with android:enabled="false" to prevent accidental binding.
-            Will be wired to VoiceAgentRouter in a future voice modernization phase.
+            LiveVoiceService — bidirectional real-time voice conversation.
+            Local pipeline: Vosk STT + Android TTS (LocalVoicePipeline, always available).
+            Cloud pipeline: GeminiLiveProvider or OpenAIRealtimeProvider (when API key set).
+            Activated via ChatScreen voice mode button after RECORD_AUDIO granted.
         -->
         <service
             android:name=".voice.LiveVoiceService"
             android:exported="false"
             android:foregroundServiceType="microphone"
-            android:enabled="false" />
+            android:enabled="true" />
 
         <!-- On-device wake-word listener ("Hey AIRI") — see HotwordService.kt -->
         <service

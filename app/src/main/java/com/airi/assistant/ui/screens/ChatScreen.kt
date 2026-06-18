@@ -125,6 +125,7 @@ fun ChatScreen(
     val paywallTrigger        by viewModel.paywallTrigger.collectAsState()
     val upgradePrompt         by viewModel.upgradePrompt.collectAsState()
     val systemIntegrityFailed by viewModel.systemIntegrityFailed.collectAsState()
+    val contextResetWarning   by viewModel.contextResetWarning.collectAsState()
 
     // Chat is "active" when there are messages or the AI is responding
     val chatIsActive = messages.isNotEmpty() || streamingText.isNotEmpty() || agentState.isWorking
@@ -150,6 +151,16 @@ fun ChatScreen(
             AnalyticsService.upgradeClick()
             onNavigate(AiriRoute.PAYWALL)
         }
+    }
+
+    LaunchedEffect(contextResetWarning) {
+        val warning = contextResetWarning ?: return@LaunchedEffect
+        snackbarHost.showSnackbar(
+            message           = "⚠️ Context reset — $warning",
+            withDismissAction = true,
+            duration          = SnackbarDuration.Long
+        )
+        viewModel.acknowledgeContextReset()
     }
 
     LaunchedEffect(Unit) {
@@ -740,6 +751,60 @@ fun ChatScreen(
                             color    = AiriTheme.onBackground.copy(alpha = 0.75f),
                             fontSize = 12.sp
                         )
+                    }
+                }
+            }
+
+            // P1-D: Context Reset Warning Banner
+            // Shown as a temporary amber banner whenever the active context window
+            // is cleared (new session, session switch, or model swap). Users can
+            // dismiss it manually; it also auto-dismisses after the snackbar fires.
+            val topOffset = when {
+                systemIntegrityFailed && !isOnline -> 96.dp
+                systemIntegrityFailed              -> 48.dp
+                !isOnline                          -> 48.dp
+                else                               -> 0.dp
+            }
+            AnimatedVisibility(
+                visible  = contextResetWarning != null,
+                enter    = slideInVertically { -it } + fadeIn(),
+                exit     = slideOutVertically { -it } + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = topOffset)
+            ) {
+                Surface(
+                    color    = Color(0xFFB45309),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier              = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment     = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment     = Alignment.CenterVertically,
+                            modifier              = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector        = androidx.compose.material.icons.Icons.Outlined.Warning,
+                                contentDescription = null,
+                                tint               = Color.White,
+                                modifier           = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text     = "Context reset — conversation history cleared",
+                                color    = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        TextButton(onClick = { viewModel.acknowledgeContextReset() }) {
+                            Text("OK", color = Color.White, fontSize = 12.sp)
+                        }
                     }
                 }
             }

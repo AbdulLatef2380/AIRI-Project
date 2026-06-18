@@ -100,6 +100,7 @@ import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.execution.router.RuntimeRouter
 import com.airi.assistant.execution.security.SecureApiKeyStore
 import com.airi.assistant.voice.VoskModelManager
+import com.airi.assistant.ui.activity.AgentActivityBus
 
 data class ChatMessage(
     val text: String,
@@ -476,6 +477,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _agentState = MutableStateFlow(AgentState())
     val agentState: StateFlow<AgentState> = _agentState.asStateFlow()
+
+    // ── Context Reset Warning ─────────────────────────────────────────────────
+    // Emits a non-null reason string whenever the active context window is
+    // cleared: new-session creation while conversation is live, switching to a
+    // different session, or a model swap that resets the kv-cache. The UI
+    // shows a snackbar + activity-feed entry so the user is never silently
+    // surprised by lost context. Consumed by observing and calling
+    // acknowledgeContextReset() after display.
+    private val _contextResetWarning = MutableStateFlow<String?>(null)
+    val contextResetWarning: StateFlow<String?> = _contextResetWarning.asStateFlow()
+    fun acknowledgeContextReset() { _contextResetWarning.value = null }
 
     // ── ModelController: owns model lifecycle (loadModel, registry, diagnostics) ──
     // Extracted from ChatViewModel in Phase 9 ViewModel decomposition.
@@ -1042,6 +1054,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun createNewSession() {
         viewModelScope.launch {
+            val hadMessages = _messages.value.isNotEmpty()
             val session = memoryManager.createSession()
             _currentSessionId.value = session.id
             preferences.edit().putString(KEY_SESSION_ID, session.id).apply()
@@ -1050,11 +1063,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _agentState.value = AgentState()
             llamaManager.setHistory(emptyList())
             refreshSessions()
+            if (hadMessages) {
+                val reason = "New conversation started — previous context has been cleared."
+                _contextResetWarning.value = reason
+                AgentActivityBus.emit(
+                    message  = "Context reset: new session",
+                    category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
+                    severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
+                    detail   = reason
+                )
+                Log.i("AIRI_PROOF", "CONTEXT_RESET trigger=new_session hadMessages=true")
+            }
         }
     }
 
     fun loadSession(sessionId: String) {
         viewModelScope.launch {
+            val previousId      = _currentSessionId.value
+            val hadMessages     = _messages.value.isNotEmpty()
+            val switchingSessions = previousId.isNotEmpty() && previousId != sessionId && hadMessages
             val history = runCatching { memoryManager.loadSession(sessionId) }.getOrElse { emptyList() }
             _currentSessionId.value = sessionId
             preferences.edit().putString(KEY_SESSION_ID, sessionId).apply()
@@ -1063,6 +1090,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             llamaManager.setHistory(history.takeLast(12))
             refreshSessions()
+            if (switchingSessions) {
+                val reason = "Switched to a different session — active context has been replaced."
+                _contextResetWarning.value = reason
+                AgentActivityBus.emit(
+                    message  = "Context reset: session switched",
+                    category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
+                    severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
+                    detail   = reason
+                )
+                Log.i("AIRI_PROOF", "CONTEXT_RESET trigger=session_switch from=$previousId to=$sessionId")
+            }
         }
     }
 

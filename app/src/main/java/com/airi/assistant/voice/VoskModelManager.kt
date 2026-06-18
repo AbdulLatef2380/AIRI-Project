@@ -295,7 +295,7 @@ object VoskModelManager {
             ?: return false   // no preset available
 
         val result = downloadAndInstall(context, preset, onProgress = onProgress)
-        return result is DownloadResult.Success
+        return result is DownloadResult.Ok
     }
 
     suspend fun downloadAndInstall(

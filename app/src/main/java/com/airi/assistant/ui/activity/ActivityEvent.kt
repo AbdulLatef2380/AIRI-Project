@@ -22,7 +22,8 @@ enum class ActivityCategory(val label: String, val emoji: String) {
     ORCHESTRATION("Orchestration", "⚙"),
     MODEL        ("Model",         "🤖"),
     ACCESSIBILITY("Accessibility", "♿"),
-    SYSTEM       ("System",        "📡")
+    SYSTEM       ("System",        "📡"),
+    CONTEXT_RESET("Context Reset", "⚠️")
 }
 
 enum class ActivitySeverity { INFO, WARN, ERROR }

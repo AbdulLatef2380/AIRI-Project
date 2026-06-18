@@ -2,10 +2,8 @@ package com.airi.assistant.ui.screens
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,15 +22,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airi.assistant.billing.BillingRecord
 import com.airi.assistant.billing.CreditPackage
 import com.airi.assistant.billing.StripeManager
 import com.airi.assistant.domain.monetization.SubscriptionManager
-import com.airi.assistant.domain.monetization.SubscriptionTier
 import com.airi.assistant.ui.theme.*
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.*
 
 /**
  * StripePaymentScreen — credit packs + subscription purchase UI.

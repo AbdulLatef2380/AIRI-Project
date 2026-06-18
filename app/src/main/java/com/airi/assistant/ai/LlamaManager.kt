@@ -302,10 +302,12 @@ class LlamaManager(private val context: Context) {
                 reason    = "CONTEXT_RESET reason=$reason"
             )
         }
+        // P1-D: Emit CONTEXT_RESET (not SYSTEM) so the ChatViewModel observer
+        // can surface the warning banner and snackbar to the user.
         runCatching {
             com.airi.assistant.ui.activity.AgentActivityBus.emit(
                 message  = "Context window full — older conversation history was cleared to continue.",
-                category = com.airi.assistant.ui.activity.ActivityCategory.SYSTEM,
+                category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
                 severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
             )
         }
@@ -405,6 +407,15 @@ class LlamaManager(private val context: Context) {
                 isLoaded = true
                 Log.i(TAG, "LOAD SUCCESS path=${modelFile.absolutePath}")
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", true, "path=${modelFile.absolutePath}")
+                // P1-D: Model swap destroys the previous KV cache and resets the context.
+                // Emit CONTEXT_RESET so the observer in ChatViewModel surfaces the banner.
+                runCatching {
+                    com.airi.assistant.ui.activity.AgentActivityBus.emit(
+                        message  = "Model reloaded — context window was reset.",
+                        category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
+                        severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
+                    )
+                }
                 // PHASE 3: opportunistically attach the matching mmproj
                 // sidecar so the unified attach flow can do real vision
                 // inference without the user touching a separate button.
@@ -425,6 +436,14 @@ class LlamaManager(private val context: Context) {
                 if (isLoaded) {
                     Log.i(TAG, "LOAD SUCCESS path=${modelFile.absolutePath}")
                     com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", true, "path=${modelFile.absolutePath}")
+                    // P1-D: Also emit on the legacy load path.
+                    runCatching {
+                        com.airi.assistant.ui.activity.AgentActivityBus.emit(
+                            message  = "Model reloaded — context window was reset.",
+                            category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
+                            severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
+                        )
+                    }
                     // PHASE 3: same auto-mmproj wiring as the primary path.
                     maybeAutoLoadMmproj(modelFile.absolutePath)
                     // PHASE 5: same auto-embedding wiring as the primary path.
@@ -490,6 +509,15 @@ class LlamaManager(private val context: Context) {
                 Log.i("AIRI_PROOF",
                     "UNLOAD_COMPLETE kv_cleared=true model_mmap_held=true " +
                     "note=loadModel_will_free_weights")
+                // P1-D: Model unload clears chatHistory and destroys the KV cache.
+                // Emit CONTEXT_RESET so the ChatViewModel observer can surface the banner.
+                runCatching {
+                    com.airi.assistant.ui.activity.AgentActivityBus.emit(
+                        message  = "Model unloaded — context window was cleared.",
+                        category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
+                        severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
+                    )
+                }
             }
         }
     }

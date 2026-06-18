@@ -832,10 +832,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         refreshCloudReadiness()
         refreshRecommendedModels()
         runDiagnostics()
-        VoskModelManager.init(appContext)
+        // P0-V1: Run Vosk init off the main thread — extractBundledModelIfPresent()
+        // does zip file I/O which must never block the ViewModel init coroutine.
+        viewModelScope.launch(Dispatchers.IO) {
+            VoskModelManager.init(appContext)
+        }
         observeVoiceTranscriptBus()
         observeExecutionStatusBus()
         observeMemoryPressureBus()
+        observeActivityBusForContextReset()
 
         // B-17: Subscribe to real-time connectivity changes so ChatScreen can show
         // an offline banner and routing auto-degrades to local when internet is lost.
@@ -975,6 +980,43 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             com.airi.assistant.core.ExecutionStatusBus.status.collect { busState ->
                 _agentState.value = busState
+            }
+        }
+    }
+
+    /**
+     * P1-D: Centralized context-reset observer.
+     *
+     * LlamaManager emits [ActivityCategory.CONTEXT_RESET] to [AgentActivityBus]
+     * from three native destruction paths:
+     *   • fullReset()   — KV overflow, gen error, preflight overflow
+     *   • loadModel()   — model swap destroys prior KV cache
+     *   • unloadModel() — explicit unload clears chatHistory + KV
+     *
+     * This bridges those events into [_contextResetWarning] so the banner
+     * and snackbar in ChatScreen appear without any direct LlamaManager↔ViewModel coupling.
+     *
+     * Session-switch and new-session paths set [_contextResetWarning] directly
+     * (createNewSession / loadSession) — they do NOT emit to the bus, so there
+     * is no double-fire risk.
+     */
+    private fun observeActivityBusForContextReset() {
+        viewModelScope.launch {
+            AgentActivityBus.events.collect { event ->
+                if (event.category == com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET &&
+                    event.severity == com.airi.assistant.ui.activity.ActivitySeverity.WARN) {
+                    val isNativeReset = event.message.startsWith("Context window") ||
+                        event.message.startsWith("Model reload") ||
+                        event.message.startsWith("Model unload")
+                    // Only surface the warning when there is an active conversation to lose.
+                    // Model load at startup with an empty history is not a context loss event.
+                    val hasActiveConversation = _messages.value.isNotEmpty()
+                    if (isNativeReset && hasActiveConversation && _contextResetWarning.value == null) {
+                        _contextResetWarning.value = event.message
+                        Log.i("AIRI_PROOF",
+                            "CONTEXT_RESET_BUS_OBSERVED msg='${event.message.take(60)}'")
+                    }
+                }
             }
         }
     }

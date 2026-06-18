@@ -105,14 +105,21 @@ object VoskModelManager {
         .callTimeout(60, TimeUnit.MINUTES)
         .build()
 
+    /**
+     * Initialize the model catalogue.
+     *
+     * Must be called from a background thread (Dispatchers.IO or similar) —
+     * [extractBundledModelIfPresent] performs zip I/O which must not block Main.
+     * ChatViewModel fulfils this contract by calling `init` inside
+     * `viewModelScope.launch(Dispatchers.IO)`.
+     */
     fun init(context: Context) {
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         _activeModelId.value = prefs.getString(KEY_ACTIVE, null)
         refreshInstalled(context)
         // P0-V1: Auto-extract bundled Vosk model from assets on first launch.
         // If no models are installed, check whether the small-EN model zip
-        // was bundled in assets/voice/. Extract it synchronously during init
-        // (init is always called from a background-capable context in ServiceLocator).
+        // was bundled in assets/voice/. Called on Dispatchers.IO (see above).
         if (_installed.value.isEmpty()) {
             extractBundledModelIfPresent(context)
         }

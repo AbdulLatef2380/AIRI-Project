@@ -135,11 +135,110 @@ class SkillRegistry(private val context: Context) {
     }
 
     data class SkillInfo(
-        val name: String,
-        val description: String,
-        val isConnected: Boolean,
-        val isEnabled: Boolean
+        val name:         String,
+        val description:  String,
+        val isConnected:  Boolean,
+        val isEnabled:    Boolean,
+        val version:      String       = "1.0.0",
+        val dependencies: List<String> = emptyList(),
+        val author:       String       = "builtin"
     )
+
+    // ── Version registry (persisted in SharedPreferences) ─────────────────────
+
+    private val versionPrefs by lazy {
+        context.getSharedPreferences("airi_skill_versions", Context.MODE_PRIVATE)
+    }
+
+    /**
+     * Record the installed version of a skill.
+     * Called by [installSkillWithVersion] and on first boot for built-ins.
+     */
+    fun setInstalledVersion(skillName: String, version: String) {
+        versionPrefs.edit().putString("v_$skillName", version).apply()
+    }
+
+    /** Returns the currently installed version, or "1.0.0" if not recorded. */
+    fun getInstalledVersion(skillName: String): String =
+        versionPrefs.getString("v_$skillName", "1.0.0") ?: "1.0.0"
+
+    /**
+     * Install or upgrade a skill from a [SkillInfo] descriptor.
+     *
+     * Version comparison follows Semantic Versioning (major.minor.patch).
+     * Downgrade is blocked unless [allowDowngrade] is true.
+     *
+     * @return [InstallResult] describing what happened.
+     */
+    fun installSkillWithVersion(
+        info:           SkillInfo,
+        allowDowngrade: Boolean = false
+    ): InstallResult {
+        val existing = getInstalledVersion(info.name)
+        val action = when {
+            compareVersions(info.version, existing) > 0  -> "upgrade"
+            compareVersions(info.version, existing) == 0 -> "same"
+            allowDowngrade                                -> "downgrade"
+            else                                          -> return InstallResult.Blocked(
+                "Downgrade from $existing to ${info.version} blocked for skill '${info.name}'. " +
+                "Pass allowDowngrade=true to force."
+            )
+        }
+        val depResult = validateDependencies(info.dependencies)
+        if (!depResult.satisfied) {
+            return InstallResult.DependencyFailure(depResult.missing)
+        }
+        setSkillEnabled(info.name, true)
+        setInstalledVersion(info.name, info.version)
+        android.util.Log.i(
+            "SkillRegistry",
+            "AIRI_PROOF SKILL_INSTALLED name=${info.name} version=${info.version} action=$action"
+        )
+        return InstallResult.Success(info.name, info.version, action)
+    }
+
+    /**
+     * Validate that all dependency skill IDs are installed and enabled.
+     *
+     * A dependency is satisfied when it appears in [getAllSkillInfos] with
+     * [SkillInfo.isEnabled] = true. Unconnected but enabled skills count —
+     * connection state is a runtime concern, not an install-time constraint.
+     */
+    fun validateDependencies(dependencies: List<String>): DependencyValidation {
+        if (dependencies.isEmpty()) return DependencyValidation(satisfied = true, missing = emptyList())
+        val enabledNames = getAllSkillInfos()
+            .filter { it.isEnabled }
+            .map { it.name }
+            .toSet()
+        val missing = dependencies.filter { dep -> dep !in enabledNames }
+        return DependencyValidation(satisfied = missing.isEmpty(), missing = missing)
+    }
+
+    /** Result of [validateDependencies]. */
+    data class DependencyValidation(val satisfied: Boolean, val missing: List<String>)
+
+    /** Result of [installSkillWithVersion]. */
+    sealed class InstallResult {
+        data class Success(val name: String, val version: String, val action: String) : InstallResult()
+        data class Blocked(val reason: String) : InstallResult()
+        data class DependencyFailure(val missingDeps: List<String>) : InstallResult()
+    }
+
+    /**
+     * Semantic version comparison. Returns positive if [a] > [b], 0 if equal, negative if [a] < [b].
+     * Parses "major.minor.patch" — falls back to string comparison on parse error.
+     */
+    private fun compareVersions(a: String, b: String): Int {
+        fun parts(v: String) = v.split(".").map { it.trim().toIntOrNull() ?: 0 }
+        val pa = parts(a)
+        val pb = parts(b)
+        val len = maxOf(pa.size, pb.size)
+        for (i in 0 until len) {
+            val diff = (pa.getOrElse(i) { 0 }) - (pb.getOrElse(i) { 0 })
+            if (diff != 0) return diff
+        }
+        return 0
+    }
 
     fun getAllSkillInfos(): List<SkillInfo> = listOf(
         SkillInfo(

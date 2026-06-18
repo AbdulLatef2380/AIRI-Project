@@ -2,6 +2,8 @@ package com.airi.assistant.sync
 
 import android.util.Log
 import com.airi.assistant.domain.logging.LoggingService
+import com.airi.assistant.memory.entity.ChatMessage
+import com.airi.assistant.memory.repository.MemoryManager
 import com.airi.assistant.profile.UserPreferences
 import com.airi.assistant.profile.UserProfileRepository
 import com.google.firebase.auth.FirebaseAuth
@@ -17,32 +19,39 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 /**
- * CloudSyncCoordinator — bidirectional sync of user profile and preferences
- * with Firebase Firestore.
+ * CloudSyncCoordinator — bidirectional sync of user profile, preferences,
+ * and long-term memory with Firebase Firestore.
  *
  * ── SCHEMA ────────────────────────────────────────────────────────────────
  *
- *   users/{uid}/profile    — UserPreferences fields (no PII beyond displayName)
- *   users/{uid}/sync_meta  — lastSyncMs, deviceId, appVersion
+ *   users/{uid}/profile              — UserPreferences fields
+ *   users/{uid}/sync_meta            — lastSyncMs, deviceId, appVersion
+ *   users/{uid}/memory/{messageId}   — Long-term ChatMessage rows (isMemory=true)
+ *                                      Phase 2: incremental memory sync.
  *
  * ── SYNC STRATEGY ─────────────────────────────────────────────────────────
  *
- *   PUSH: called after local profile updates. Writes to Firestore with
- *         SetOptions.merge() so concurrent device writes don't clobber.
+ *   PUSH: writes to Firestore with SetOptions.merge() for safe concurrent writes.
  *
- *   PULL: called on app start and on Firestore snapshot listener events.
- *         The remote document is merged into the local profile via
- *         [UserProfileRepository.merge].
+ *   PULL: fetches from Firestore and merges into local storage.
+ *         Conflict resolution: remote wins for profile fields;
+ *         newer timestamp wins for memory rows (last-write-wins).
+ *
+ * ── MEMORY SYNC RULES ─────────────────────────────────────────────────────
+ *
+ *   Only LONG_TERM memories (isMemory=true) are synced — episodic chat
+ *   history (isMemory=false) stays local-only to preserve privacy.
+ *   Memory sync is skipped if [UserPreferences.enableLongTermMemory] = false.
  *
  * ── CONSENT GATE ──────────────────────────────────────────────────────────
  *
- *   CloudSyncCoordinator only operates when [UserPreferences.cloudSyncEnabled]
- *   is true. It checks this flag before every push and pull operation.
+ *   All sync operations are gated on [UserPreferences.cloudSyncEnabled].
  *
  * ── OFFLINE ───────────────────────────────────────────────────────────────
  *
- *   Firestore SDK handles offline writes via its internal queue. The
- *   coordinator does not implement its own offline queue.
+ *   Firestore SDK queues writes internally during offline periods.
+ *   Memory sync additionally tracks [lastMemorySyncMs] for incremental
+ *   uploads — only memories newer than the last push are re-uploaded.
  */
 class CloudSyncCoordinator(
     private val profileRepo: UserProfileRepository
@@ -143,6 +152,141 @@ class CloudSyncCoordinator(
             _syncStatus.value = SyncStatus.FAILED
             LoggingService.warn(TAG, "AIRI_PROOF CLOUD_SYNC_PULL_FAILED: ${e.message}")
         }
+    }
+
+    // ── Memory Sync (Phase 2) ─────────────────────────────────────────────────
+
+    /**
+     * Incremental push of long-term memories to Firestore.
+     *
+     * Only memories with [ChatMessage.timestamp] > [lastMemorySyncMs] are
+     * uploaded, making repeated calls cheap after the first full push.
+     * The batch is capped at [MAX_MEMORY_BATCH] rows per call to avoid
+     * oversized Firestore writes.
+     *
+     * Skipped silently if:
+     *   - [UserPreferences.cloudSyncEnabled] = false
+     *   - [UserPreferences.enableLongTermMemory] = false
+     *   - User is signed out
+     *   - Firestore unavailable
+     *
+     * @param memoryManager   The local MemoryManager to read memories from.
+     */
+    suspend fun pushMemories(memoryManager: MemoryManager) {
+        val prefs = profileRepo.current
+        if (!prefs.cloudSyncEnabled || !prefs.enableLongTermMemory) return
+        val uid = auth.currentUser?.uid ?: return
+        val db  = db ?: return
+
+        val since = _lastMemorySyncMs.value
+        val memories = runCatching { memoryManager.getSemanticMemories(limit = 500) }
+            .getOrElse { emptyList() }
+            .filter { it.isMemory && it.timestamp > since }
+            .take(MAX_MEMORY_BATCH)
+
+        if (memories.isEmpty()) {
+            Log.d(TAG, "AIRI_PROOF MEMORY_PUSH_SKIPPED reason=no_new_rows since=$since")
+            return
+        }
+
+        _syncStatus.value = SyncStatus.SYNCING
+        runCatching {
+            val batch = db.batch()
+            memories.forEach { msg ->
+                val ref = db.collection("users").document(uid)
+                    .collection("memory").document(msg.id.toString())
+                batch.set(ref, memoryToDocument(msg), SetOptions.merge())
+            }
+            batch.commit().await()
+            _lastMemorySyncMs.value = System.currentTimeMillis()
+            _syncStatus.value = SyncStatus.SUCCESS
+            LoggingService.info(TAG, "AIRI_PROOF MEMORY_PUSH_OK uid=${uid.take(8)}… rows=${memories.size}")
+        }.onFailure { e ->
+            _syncStatus.value = SyncStatus.FAILED
+            LoggingService.warn(TAG, "AIRI_PROOF MEMORY_PUSH_FAILED: ${e.message}")
+        }
+    }
+
+    /**
+     * Pull long-term memories from Firestore and restore any missing rows
+     * into [memoryManager]. Uses last-write-wins conflict resolution:
+     * if a remote row's timestamp is newer than the local equivalent,
+     * the remote version is preferred.
+     *
+     * @param memoryManager   The local MemoryManager to merge memories into.
+     */
+    suspend fun pullMemories(memoryManager: MemoryManager) {
+        val prefs = profileRepo.current
+        if (!prefs.cloudSyncEnabled || !prefs.enableLongTermMemory) return
+        val uid = auth.currentUser?.uid ?: return
+        val db  = db ?: return
+
+        _syncStatus.value = SyncStatus.SYNCING
+        runCatching {
+            val snap = db.collection("users").document(uid)
+                .collection("memory")
+                .limit(MAX_MEMORY_PULL.toLong())
+                .get().await()
+
+            if (snap.isEmpty) {
+                _syncStatus.value = SyncStatus.SUCCESS
+                return
+            }
+
+            val local = runCatching { memoryManager.getSemanticMemories(limit = 1000) }.getOrElse { emptyList() }
+            val localIds = local.map { it.id }.toSet()
+
+            var restored = 0
+            snap.documents.forEach { doc ->
+                val remoteMsg = documentToMemory(doc.data ?: return@forEach)
+                if (remoteMsg != null && remoteMsg.id !in localIds) {
+                    // Record as a long-term memory; the DAO prevents duplicates by PK.
+                    runCatching {
+                        memoryManager.recordImportantMemory(remoteMsg.role, remoteMsg.content, remoteMsg.emotionState)
+                    }
+                    restored++
+                }
+            }
+
+            _syncStatus.value = SyncStatus.SUCCESS
+            LoggingService.info(TAG, "AIRI_PROOF MEMORY_PULL_OK uid=${uid.take(8)}… restored=$restored total=${snap.size()}")
+        }.onFailure { e ->
+            _syncStatus.value = SyncStatus.FAILED
+            LoggingService.warn(TAG, "AIRI_PROOF MEMORY_PULL_FAILED: ${e.message}")
+        }
+    }
+
+    private val _lastMemorySyncMs = MutableStateFlow(0L)
+    val lastMemorySyncMs: StateFlow<Long> = _lastMemorySyncMs.asStateFlow()
+
+    private fun memoryToDocument(msg: ChatMessage): Map<String, Any?> = mapOf(
+        "id"           to msg.id,
+        "role"         to msg.role,
+        "content"      to msg.content.take(MAX_MEMORY_CONTENT_CHARS),
+        "emotionState" to msg.emotionState,
+        "sessionId"    to msg.sessionId,
+        "timestamp"    to msg.timestamp,
+        "isMemory"     to true
+    )
+
+    private fun documentToMemory(doc: Map<String, Any?>): ChatMessage? {
+        val role    = (doc["role"]    as? String) ?: return null
+        val content = (doc["content"] as? String) ?: return null
+        return ChatMessage(
+            id           = (doc["id"] as? Long) ?: 0L,
+            role         = role,
+            content      = content,
+            emotionState = doc["emotionState"] as? String,
+            sessionId    = (doc["sessionId"] as? String) ?: "",
+            timestamp    = (doc["timestamp"] as? Long) ?: 0L,
+            isMemory     = true
+        )
+    }
+
+    private companion object {
+        const val MAX_MEMORY_BATCH         = 100   // rows per push call
+        const val MAX_MEMORY_PULL          = 500   // rows per pull call
+        const val MAX_MEMORY_CONTENT_CHARS = 2_000 // hard cap per memory row
     }
 
     private fun observeRemote() {

@@ -1335,7 +1335,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // tool access. No sub-agent pre-routing. No AgentService intercept.
             thinkingJob.cancel()
             _isGenerating.value = true
-            val systemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType)
+            // ── Phase 2: RAG memory injection ─────────────────────────────────
+            // Retrieve semantically relevant prior context BEFORE assembling the
+            // system prompt. RagRetriever falls back to chronological recall when
+            // the embedding model is not loaded — never blocks the send path.
+            val ragContext = runCatching {
+                ServiceLocator.ragRetriever.buildContextBlock(_currentSessionId.value, trimmedInput)
+            }.getOrDefault("")
+            if (ragContext.isNotBlank()) {
+                android.util.Log.i("AIRI_PROOF", "RAG_INJECTED chars=${ragContext.length} session=${_currentSessionId.value.take(8)}")
+            }
+            val systemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType, ragContext)
             var tokenCount = 0
             var firstTokenReceived = false
             val requestStart = System.currentTimeMillis()
@@ -1486,25 +1496,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // ── Prompt building (delegates to PromptService) ──────────────────────────
 
     private fun buildEffectiveSystemPrompt(
-        perfMode: PerformanceMode = _performanceMode.value,
-        queryType: QueryType = QueryType.UNKNOWN
-    ): String = promptService.buildSystemPrompt(
+        perfMode:      PerformanceMode = _performanceMode.value,
+        queryType:     QueryType       = QueryType.UNKNOWN,
+        ragContext:    String          = "",
+        memorySummary: String          = ""
+    ): String = promptService.buildSystemPromptWithContext(
         modePrompt      = _agentMode.value.prompt,
         responseStyle   = _responseStyle.value,
         customPrompt    = _systemPrompt.value.trim(),
         performanceMode = perfMode,
-        queryType       = queryType
+        queryType       = queryType,
+        ragContextBlock = ragContext,
+        memorySummary   = memorySummary
     )
 
     private fun buildGenerationSystemPrompt(
-        input: String,
-        perfMode: PerformanceMode,
-        queryType: QueryType = QueryType.UNKNOWN
+        input:         String,
+        perfMode:      PerformanceMode,
+        queryType:     QueryType = QueryType.UNKNOWN,
+        ragContext:    String    = "",
+        memorySummary: String   = ""
     ): String {
         // queryType no longer gates execution; it's logged for telemetry only.
-        // Always build the full effective system prompt — AgentLoop injects tool
-        // schemas on top of this regardless of query type.
-        return buildEffectiveSystemPrompt(perfMode, queryType)
+        // Always build the full effective system prompt with RAG context injected.
+        return buildEffectiveSystemPrompt(perfMode, queryType, ragContext, memorySummary)
     }
 
 

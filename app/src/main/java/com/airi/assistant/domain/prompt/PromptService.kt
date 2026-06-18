@@ -26,30 +26,90 @@ STRICT RESPONSE RULES — follow every rule exactly:
 9. Never apologize for being concise.
 10. If asked for a single thing, give exactly one thing."""
 
+    /**
+     * Build the system prompt WITHOUT RAG context (legacy path, no memory injection).
+     * Use [buildSystemPromptWithContext] for full Phase 2 dynamic injection.
+     */
     fun buildSystemPrompt(
         modePrompt: String,
         responseStyle: String,
         customPrompt: String,
         performanceMode: PerformanceMode = PerformanceMode.BALANCED,
         queryType: QueryType = QueryType.UNKNOWN
+    ): String = buildSystemPromptWithContext(
+        modePrompt      = modePrompt,
+        responseStyle   = responseStyle,
+        customPrompt    = customPrompt,
+        performanceMode = performanceMode,
+        queryType       = queryType,
+        ragContextBlock = "",
+        memorySummary   = ""
+    )
+
+    /**
+     * Build the fully-dynamic system prompt with RAG memory injection.
+     *
+     * Phase 2 upgrade over [buildSystemPrompt]: this variant accepts the
+     * pre-retrieved semantic memory block from [RagRetriever.buildContextBlock]
+     * and the compressed conversation summary from [ConversationSummarizer].
+     *
+     * ── INJECTION ORDER ──────────────────────────────────────────────────────
+     *   1. Agent mode persona ([modePrompt])
+     *   2. Conversation summary (older turns, if provided)
+     *   3. RAG context block (semantic memory hits, if provided)
+     *   4. Response-style / performance hints
+     *   5. Quality rules (always)
+     *   6. User custom prompt override
+     *   7. Tool descriptions (omitted in FAST mode)
+     *   8. Skill descriptions (omitted in FAST mode)
+     *
+     * @param ragContextBlock   Formatted RAG block from [RagRetriever.buildContextBlock].
+     *                          Empty string → slot is skipped. Hard-trimmed to
+     *                          [MAX_RAG_CHARS] to prevent context overflow.
+     * @param memorySummary     Compressed summary of older turns from
+     *                          [ConversationSummarizer]. Empty → omitted.
+     */
+    fun buildSystemPromptWithContext(
+        modePrompt:      String,
+        responseStyle:   String,
+        customPrompt:    String,
+        performanceMode: PerformanceMode = PerformanceMode.BALANCED,
+        queryType:       QueryType       = QueryType.UNKNOWN,
+        ragContextBlock: String          = "",
+        memorySummary:   String          = ""
     ): String = buildString {
+        // ── 1. Agent persona ───────────────────────────────────────────────────
         append(modePrompt)
 
-        // Response-style hint
+        // ── 2. Conversation summary (compressed older turns) ────────────────────
+        if (memorySummary.isNotBlank()) {
+            append("\n\n--- Conversation summary (prior context) ---\n")
+            append(memorySummary.trim().take(MAX_SUMMARY_CHARS))
+            append("\n--- End of summary ---")
+        }
+
+        // ── 3. RAG semantic memory block ────────────────────────────────────────
+        val trimmedRag = ragContextBlock.trim().take(MAX_RAG_CHARS)
+        if (trimmedRag.isNotBlank()) {
+            append("\n\n")
+            append(trimmedRag)
+        }
+
+        // ── 4. Response-style hint ──────────────────────────────────────────────
         when (responseStyle) {
             "concise"  -> append("\nKeep responses brief and to the point. Avoid unnecessary elaboration.")
             "detailed" -> append("\nProvide detailed, comprehensive responses with examples and explanations where helpful.")
             else       -> append("\nBalance detail and brevity.")
         }
 
-        // Performance-mode hint
+        // ── 5. Performance-mode hint ────────────────────────────────────────────
         when (performanceMode) {
             PerformanceMode.FAST    -> append("\nRespond very concisely. 2–3 sentences max unless strictly required.")
             PerformanceMode.QUALITY -> append("\nProvide thorough, well-structured answers with reasoning.")
             else                    -> Unit
         }
 
-        // Query-type specific guidance
+        // ── 6. Query-type specific guidance ─────────────────────────────────────
         when (queryType) {
             QueryType.SIMPLE     -> append("\nSIMPLE query: answer in 1-2 sentences ONLY. Do not expand.")
             QueryType.ANALYTICAL -> append("\nANALYTICAL query: structure your answer with clear reasoning. Stop when the point is made.")
@@ -58,7 +118,7 @@ STRICT RESPONSE RULES — follow every rule exactly:
             QueryType.UNKNOWN    -> Unit
         }
 
-        // Inject quality rules into every prompt
+        // ── 7. Quality rules (always injected) ──────────────────────────────────
         append(QUALITY_RULES)
 
         if (customPrompt.isNotBlank()) {
@@ -66,6 +126,7 @@ STRICT RESPONSE RULES — follow every rule exactly:
             append(customPrompt)
         }
 
+        // ── 8. Tool + Skill blocks (omitted in FAST mode for latency) ────────────
         if (performanceMode != PerformanceMode.FAST) {
             val toolBlock = toolRegistry.buildToolDescriptionBlock()
             if (toolBlock.isNotBlank()) append(toolBlock)
@@ -93,4 +154,11 @@ STRICT RESPONSE RULES — follow every rule exactly:
         "step by step", "how do i", "what is the difference", "pros and cons",
         "اشرح", "قارن", "اكتب", "أنشئ", "حلل", "لخّص", "ترجم", "الفرق بين"
     )
+
+    private companion object {
+        // Hard char caps for injected context blocks.
+        // 2400 chars ≈ 600 tokens — safe for a 4096-token context model.
+        const val MAX_RAG_CHARS     = 2_400
+        const val MAX_SUMMARY_CHARS = 1_600
+    }
 }

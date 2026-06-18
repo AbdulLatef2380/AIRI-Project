@@ -383,6 +383,16 @@ object ServiceLocator {
         RagRetriever(memoryManager)
     }
 
+    // ── Media Library ─────────────────────────────────────────────────────────
+
+    val mediaLibrary: com.airi.assistant.media.MediaLibrary by lazy {
+        com.airi.assistant.media.MediaLibrary(requireContext())
+    }
+
+    // ── Dynamic Prompt Engine ─────────────────────────────────────────────────
+    // Singleton object — exposes the stateless dynamic prompt assembler.
+    val dynamicPromptEngine get() = com.airi.assistant.ai.prompt.DynamicPromptEngine
+
     // ── Skill Manager Backend ─────────────────────────────────────────────────
 
     val skillManagerBackend: SkillManagerBackend by lazy {

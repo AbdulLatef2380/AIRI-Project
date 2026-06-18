@@ -363,6 +363,46 @@ object ServiceLocator {
         com.airi.assistant.execution.accounting.TokenAccountant(requireContext())
     }
 
+    // ── Phase 4: Zapier / IFTTT connectors ───────────────────────────────────
+
+    val zapierConnector: com.airi.assistant.connector.app.ZapierConnector by lazy {
+        com.airi.assistant.connector.app.ZapierConnector(connectorAuthManager)
+    }
+
+    val iftttConnector: com.airi.assistant.connector.app.IftttConnector by lazy {
+        com.airi.assistant.connector.app.IftttConnector(connectorAuthManager)
+    }
+
+    // ── Phase 4: Stripe / Billing ─────────────────────────────────────────────
+
+    val billingHistoryStore: com.airi.assistant.billing.BillingHistoryStore by lazy {
+        com.airi.assistant.billing.BillingHistoryStore(requireContext())
+    }
+
+    val stripeManager: com.airi.assistant.billing.StripeManager by lazy {
+        com.airi.assistant.billing.StripeManager(
+            context             = requireContext(),
+            subscriptionManager = subscriptionManager,
+            billingHistory      = billingHistoryStore,
+            authManager         = connectorAuthManager
+        )
+    }
+
+    // ── Phase 4: Developer Marketplace ────────────────────────────────────────
+
+    val marketplaceRepository: com.airi.assistant.marketplace.MarketplaceRepository by lazy {
+        com.airi.assistant.marketplace.MarketplaceRepository(
+            context       = requireContext(),
+            skillRegistry = com.airi.assistant.ai.skills.SkillExecutor(requireContext()).getRegistry()
+        )
+    }
+
+    // ── Phase 4: Community Skills ─────────────────────────────────────────────
+
+    val communitySkillHub: com.airi.assistant.community.CommunitySkillHub by lazy {
+        com.airi.assistant.community.CommunitySkillHub(requireContext())
+    }
+
     // ── Self-Improvement + Unified Policy ────────────────────────────────────
 
     val skillOutcomeScorer: SkillOutcomeScorer by lazy {

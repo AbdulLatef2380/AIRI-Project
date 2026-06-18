@@ -117,6 +117,13 @@ object AiriRoute {
     const val UPDATE_SCREEN          = "screen_update"
     const val VOICE_PERSONALIZATION  = "screen_voice_personalization"
 
+    // ── Phase 4 routes ────────────────────────────────────────────────────────
+    const val ZAPIER_IFTTT           = "screen_zapier_ifttt"
+    const val STRIPE_PAYMENT         = "screen_stripe_payment"
+    const val BILLING_HISTORY        = "screen_billing_history"
+    const val MARKETPLACE            = "screen_marketplace"
+    const val COMMUNITY_SKILLS       = "screen_community_skills"
+
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 }
 
@@ -323,6 +330,46 @@ fun AiriApp() {
 
                     composable(AiriRoute.UPDATE_SCREEN) {
                         UpdateScreen(onBack = { navController.popBackStack() })
+                    }
+
+                    // ── Phase 4 screens ───────────────────────────────────────
+                    composable(AiriRoute.ZAPIER_IFTTT) {
+                        val zapier = com.airi.assistant.core.ServiceLocator.zapierConnector
+                        val ifttt  = com.airi.assistant.core.ServiceLocator.iftttConnector
+                        com.airi.assistant.ui.screens.ZapierIftttScreen(
+                            zapierConnector = zapier,
+                            iftttConnector  = ifttt,
+                            onBack          = { navController.popBackStack() }
+                        )
+                    }
+
+                    composable(AiriRoute.STRIPE_PAYMENT) {
+                        com.airi.assistant.ui.screens.StripePaymentScreen(
+                            stripeManager       = com.airi.assistant.core.ServiceLocator.stripeManager,
+                            subscriptionManager = com.airi.assistant.core.ServiceLocator.subscriptionManager,
+                            onBack              = { navController.popBackStack() }
+                        )
+                    }
+
+                    composable(AiriRoute.BILLING_HISTORY) {
+                        com.airi.assistant.ui.screens.BillingHistoryScreen(
+                            billingHistoryStore = com.airi.assistant.core.ServiceLocator.billingHistoryStore,
+                            onBack              = { navController.popBackStack() }
+                        )
+                    }
+
+                    composable(AiriRoute.MARKETPLACE) {
+                        com.airi.assistant.ui.screens.MarketplaceScreen(
+                            repository = com.airi.assistant.core.ServiceLocator.marketplaceRepository,
+                            onBack     = { navController.popBackStack() }
+                        )
+                    }
+
+                    composable(AiriRoute.COMMUNITY_SKILLS) {
+                        com.airi.assistant.ui.screens.CommunitySkillsScreen(
+                            hub    = com.airi.assistant.core.ServiceLocator.communitySkillHub,
+                            onBack = { navController.popBackStack() }
+                        )
                     }
 
                     composable(AiriRoute.SETTINGS) {

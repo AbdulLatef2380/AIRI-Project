@@ -3,7 +3,9 @@ package com.airi.assistant.connector
 import android.content.Context
 import com.airi.assistant.connector.api.RemoteLlmConnector
 import com.airi.assistant.connector.app.GitHubConnector
+import com.airi.assistant.connector.app.IftttConnector
 import com.airi.assistant.connector.app.TelegramConnector
+import com.airi.assistant.connector.app.ZapierConnector
 import com.airi.assistant.connector.legacy.IntegrationConnectorAdapter
 import com.airi.assistant.connector.local.AndroidIntentConnector
 import com.airi.assistant.connector.local.ClipboardConnector
@@ -49,6 +51,10 @@ object ConnectorBootstrap {
         registry.register(InMemoryMcpConnector())
 
         // ── APP tab ──────────────────────────────────────────────────
+        // ── Phase 4: Automation connectors ───────────────────────────────────
+        registry.register(ZapierConnector(authManager))
+        registry.register(IftttConnector(authManager))
+
         // P1-7: Replace legacy GitHub adapter with first-class GitHubConnector.
         // GitHubConnector supports list_repos, list_issues, create_issue,
         // search_code, get_file, list_prs — the full agent-usable capability set.

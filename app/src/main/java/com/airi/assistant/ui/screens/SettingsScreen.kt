@@ -206,6 +206,47 @@ fun SettingsScreen(
                 )
             }
 
+            // ── Group: Automation & Payments ──────────────────────────────
+            SettingsGroup {
+                SettingsNavItem(
+                    icon     = Icons.Outlined.AutoAwesome,
+                    iconTint = Color(0xFFFF4A00),
+                    label    = "Zapier & IFTTT",
+                    onClick  = { onNavigate(AiriRoute.ZAPIER_IFTTT) }
+                )
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.CreditCard,
+                    iconTint = Color(0xFF635BFF),
+                    label    = "Buy Credits / Premium",
+                    onClick  = { onNavigate(AiriRoute.STRIPE_PAYMENT) }
+                )
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.ReceiptLong,
+                    iconTint = Color(0xFF22C55E),
+                    label    = "Billing History",
+                    onClick  = { onNavigate(AiriRoute.BILLING_HISTORY) }
+                )
+            }
+
+            // ── Group: Skills Ecosystem ───────────────────────────────────
+            SettingsGroup {
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Store,
+                    iconTint = Color(0xFF7C6AF7),
+                    label    = "Skill Marketplace",
+                    onClick  = { onNavigate(AiriRoute.MARKETPLACE) }
+                )
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Groups,
+                    iconTint = Color(0xFF06B6D4),
+                    label    = "Community Skills",
+                    onClick  = { onNavigate(AiriRoute.COMMUNITY_SKILLS) }
+                )
+            }
+
             // ── Group 3: Developer & Runtime Tools ────────────────────────
             // These tools were previously unreachable from any UI path.
             // Now exposed here so developers and power users can access

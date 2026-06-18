@@ -27,6 +27,9 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
 
+@Composable
+fun AppInfoScreen(onBack: () -> Unit) = AppInfoScreenContent(onBack)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppInfoScreenContent(onBack: () -> Unit) {

@@ -568,7 +568,7 @@ fun ChatScreen(
                         }
                     }
                 }
-                AiriChatInputBar(
+                AdvancedChatInputBar(
                     modelState    = modelState,
                     isGenerating  = agentState.isWorking,
                     voiceInput    = voiceInput,

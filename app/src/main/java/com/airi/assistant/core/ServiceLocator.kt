@@ -359,6 +359,10 @@ object ServiceLocator {
         CreditMeteringEngine(requireContext(), subscriptionManager)
     }
 
+    val tokenAccountant: com.airi.assistant.execution.accounting.TokenAccountant by lazy {
+        com.airi.assistant.execution.accounting.TokenAccountant(requireContext())
+    }
+
     // ── Self-Improvement + Unified Policy ────────────────────────────────────
 
     val skillOutcomeScorer: SkillOutcomeScorer by lazy {

@@ -44,8 +44,9 @@ class IncrementalTtsEngine(private val context: Context) {
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = Locale.getDefault()
-                tts?.setSpeechRate(1.05f)
-                tts?.setPitch(0.95f)
+                // Apply user personalization settings (pitch, rate, selected voice).
+                // Falls back to sensible defaults if no preferences have been saved yet.
+                VoicePreferencesStore.apply(context, tts!!)
                 ttsReady = true
                 setupListener()
                 onReady()

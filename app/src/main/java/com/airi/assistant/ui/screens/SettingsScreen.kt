@@ -182,6 +182,30 @@ fun SettingsScreen(
                 )
             }
 
+            // ── Group 3: Account & System ─────────────────────────────────
+            SettingsGroup {
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Token,
+                    iconTint = Color(0xFF7C6AF7),
+                    label    = "Credits & Usage",
+                    onClick  = { onNavigate(AiriRoute.CREDITS) }
+                )
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Security,
+                    iconTint = Color(0xFF22C55E),
+                    label    = "Permissions",
+                    onClick  = { onNavigate(AiriRoute.PERMISSIONS_SCREEN) }
+                )
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.SystemUpdate,
+                    iconTint = Color(0xFF06B6D4),
+                    label    = "Updates",
+                    onClick  = { onNavigate(AiriRoute.UPDATE_SCREEN) }
+                )
+            }
+
             // ── Group 3: Developer & Runtime Tools ────────────────────────
             // These tools were previously unreachable from any UI path.
             // Now exposed here so developers and power users can access

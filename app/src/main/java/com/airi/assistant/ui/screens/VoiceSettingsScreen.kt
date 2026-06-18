@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -46,7 +47,10 @@ import kotlinx.coroutines.launch
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VoiceSettingsScreen(onBack: () -> Unit) {
+fun VoiceSettingsScreen(
+    onBack: () -> Unit,
+    onNavigateToPersonalization: () -> Unit = {}
+) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope    = rememberCoroutineScope()
@@ -109,6 +113,37 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+
+            // ── Voice Personalization shortcut ───────────────────────────
+            Surface(
+                shape    = RoundedCornerShape(14.dp),
+                color    = CosmicAccent.copy(alpha = 0.08f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, CosmicAccent.copy(0.25f), RoundedCornerShape(14.dp))
+                    .clickable { onNavigateToPersonalization() }
+            ) {
+                Row(
+                    modifier              = Modifier.padding(14.dp),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(Icons.Outlined.Tune, null, tint = CosmicAccent, modifier = Modifier.size(22.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Voice Personalization",
+                            fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            color = AiriTheme.onBackground
+                        )
+                        Text(
+                            "Pitch, speed, personality presets & voice selection",
+                            fontSize = 12.sp, color = AiriTheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(Icons.Filled.ChevronRight, null, tint = AiriTheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp))
+                }
+            }
 
             // ── System status — real availability from engine state ──────
             VoiceStatusCard(

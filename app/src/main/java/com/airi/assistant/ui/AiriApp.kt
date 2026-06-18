@@ -63,6 +63,10 @@ import com.airi.assistant.ui.screens.SkillBuilderScreen
 import com.airi.assistant.ui.screens.SkillManagerScreen
 import com.airi.assistant.ui.screens.TemplatesScreen
 import com.airi.assistant.ui.screens.AppInfoScreen
+import com.airi.assistant.ui.screens.CreditsScreen
+import com.airi.assistant.ui.screens.PermissionsScreen
+import com.airi.assistant.ui.screens.UpdateScreen
+import com.airi.assistant.ui.screens.VoicePersonalizationScreen
 import com.airi.assistant.ui.plan.AgentPlanViewModel
 import com.airi.assistant.ui.theme.AIRITheme
 import com.airi.assistant.ui.theme.CosmicBlack
@@ -108,6 +112,10 @@ object AiriRoute {
     const val SETTINGS_ABOUT         = "screen_settings_about"
     const val AGENT_TASKS            = "screen_agent_tasks"
     const val MODEL_LIBRARY          = "screen_model_library"
+    const val CREDITS                = "screen_credits"
+    const val PERMISSIONS_SCREEN     = "screen_permissions"
+    const val UPDATE_SCREEN          = "screen_update"
+    const val VOICE_PERSONALIZATION  = "screen_voice_personalization"
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 }
@@ -294,8 +302,27 @@ fun AiriApp() {
 
                     composable(AiriRoute.VOICE_SETTINGS) {
                         com.airi.assistant.ui.screens.VoiceSettingsScreen(
-                            onBack = { navController.popBackStack() }
+                            onBack = { navController.popBackStack() },
+                            onNavigateToPersonalization = {
+                                navController.navigate(AiriRoute.VOICE_PERSONALIZATION) { launchSingleTop = true }
+                            }
                         )
+                    }
+
+                    composable(AiriRoute.VOICE_PERSONALIZATION) {
+                        VoicePersonalizationScreen(onBack = { navController.popBackStack() })
+                    }
+
+                    composable(AiriRoute.CREDITS) {
+                        CreditsScreen(onBack = { navController.popBackStack() })
+                    }
+
+                    composable(AiriRoute.PERMISSIONS_SCREEN) {
+                        PermissionsScreen(onBack = { navController.popBackStack() })
+                    }
+
+                    composable(AiriRoute.UPDATE_SCREEN) {
+                        UpdateScreen(onBack = { navController.popBackStack() })
                     }
 
                     composable(AiriRoute.SETTINGS) {

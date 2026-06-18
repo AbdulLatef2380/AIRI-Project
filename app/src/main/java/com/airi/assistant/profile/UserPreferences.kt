@@ -56,6 +56,8 @@ data class UserPreferences(
     val hotwordEnabled:        Boolean = false,
     val preferredTtsVoice:     String  = "default",
     val speechRate:            Float   = 1.0f,
+    val ttsPitch:              Float   = 0.95f,
+    val ttsPersonalityPreset:  String  = "STANDARD",
 
     // ── Notifications ─────────────────────────────────────────────────────
     val taskCompletionNotify:  Boolean = true,

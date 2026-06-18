@@ -1,2 +1,3 @@
 - [Kotlin Compilation Audit](kotlin-audit.md) — All build-breaking errors fixed; key type locations, ExecutionStatusBus API, ConversationSummarizer signature.
 - [Phase 2 Architecture Decisions](phase2-architecture.md) — What was already built vs what needed adding; RAG wiring path, new files added, sync rules.
+- [Phase 3 Architecture Decisions](phase3-architecture.md) — Phase 3 feature map, navigation wiring pattern, VoicePreferencesStore design, AdvancedChatInputBar wrapper strategy.

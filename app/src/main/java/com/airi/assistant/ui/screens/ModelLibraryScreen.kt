@@ -25,10 +25,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Context
+import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.cloud.EmbeddedProviderConfig
 import com.airi.assistant.execution.cloud.OpenRouterAdapter
 import com.airi.assistant.execution.prefs.ExecModePreferences
+import com.airi.assistant.execution.security.SecureApiKeyStore
 import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.ChatViewModel
@@ -198,14 +201,14 @@ fun ModelLibraryScreen(
                 SectionHeader(
                     icon  = Icons.Outlined.Search,
                     title = "Search & Research",
-                    badge = if (SecureApiKeyStore.isConfigured(context, CloudProvider.BRAVE)) "ACTIVE" else null,
+                    badge = if (SecureApiKeyStore(context).hasKey(CloudProvider.BRAVE)) "ACTIVE" else null,
                     badgeColor = Color(0xFFFF6D00)
                 )
             }
             item {
                 BraveSearchApiCard(
                     context     = context,
-                    hasBraveKey = runCatching { com.airi.assistant.core.ServiceLocator.secureApiKeyStore.isConfigured(com.airi.assistant.execution.CloudProvider.BRAVE) }.getOrDefault(false),
+                    hasBraveKey = runCatching { com.airi.assistant.core.ServiceLocator.secureApiKeyStore.hasKey(com.airi.assistant.execution.CloudProvider.BRAVE) }.getOrDefault(false),
                     onEnterKey  = { keyDialogProvider = CloudProvider.BRAVE }
                 )
             }

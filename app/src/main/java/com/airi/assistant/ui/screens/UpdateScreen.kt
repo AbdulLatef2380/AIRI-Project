@@ -366,7 +366,7 @@ private fun ReleaseNoteCard(release: ReleaseNote, isExpanded: Boolean, onToggle:
 
                     if (release.fixes.isNotEmpty()) {
                         Spacer(Modifier.height(10.dp))
-                        HorizontalDivider(color = DividerColor)
+                        Divider(color = DividerColor)
                         Spacer(Modifier.height(10.dp))
                         Text("Bug fixes", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                             color = SemanticSuccess, modifier = Modifier.padding(bottom = 8.dp))

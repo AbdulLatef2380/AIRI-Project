@@ -67,9 +67,10 @@ class VoskVoiceBackend(private val context: Context) : VoiceConnector.VoiceBacke
         }
     }
 
-    override suspend fun release() = withContext(Dispatchers.IO) {
+    override suspend fun release(): Unit = withContext(Dispatchers.IO) {
         runCatching { loadedModel?.close() }
         loadedModel = null
         Log.i(TAG, "released")
+        Unit
     }
 }

@@ -292,7 +292,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                         checked     = voiceEnabled,
                         onChecked   = { voiceEnabled = it }
                     )
-                    HorizontalDivider(
+                    Divider(
                         modifier = Modifier.padding(vertical = 8.dp),
                         color = DividerColor
                     )

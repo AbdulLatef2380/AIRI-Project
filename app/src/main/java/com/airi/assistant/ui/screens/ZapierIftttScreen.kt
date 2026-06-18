@@ -78,9 +78,11 @@ fun ZapierIftttScreen(
                 containerColor   = AiriTheme.background,
                 contentColor     = CosmicAccent,
                 indicator        = { tabPositions ->
-                    TabRowDefaults.SecondaryIndicator(
-                        Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                        color = CosmicAccent
+                    Box(
+                        Modifier
+                            .tabIndicatorOffset(tabPositions[selectedTab])
+                            .height(2.dp)
+                            .background(CosmicAccent)
                     )
                 }
             ) {

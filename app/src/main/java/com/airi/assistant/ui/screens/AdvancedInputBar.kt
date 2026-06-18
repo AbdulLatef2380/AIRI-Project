@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.theme.*
+import com.airi.assistant.ui.viewmodel.ModelUiState
 
 /**
  * AdvancedChatInputBar — Phase 3 replacement for AiriChatInputBar.

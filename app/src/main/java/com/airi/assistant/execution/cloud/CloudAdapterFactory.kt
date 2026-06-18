@@ -63,6 +63,9 @@ object CloudAdapterFactory {
             }
             CloudProvider.KIMI       -> OpenAIAdapter(keyStore, CloudProvider.KIMI)
             CloudProvider.CUSTOM     -> buildCustomAdapter(keyStore, context)
+            CloudProvider.BRAVE      -> throw IllegalArgumentException(
+                "BRAVE is a search API key, not an LLM provider. Use SearchTool instead of CloudAdapterFactory."
+            )
         }
     }
 

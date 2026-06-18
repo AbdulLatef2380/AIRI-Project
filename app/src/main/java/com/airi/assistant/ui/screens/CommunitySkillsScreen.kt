@@ -1,3 +1,4 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
 package com.airi.assistant.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
@@ -170,7 +171,7 @@ private fun CommunitySkillCard(
                     skill.sourceUrl?.let {
                         Text("Source: $it", fontSize = 11.sp, color = CosmicAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    HorizontalDivider(color = DividerColor)
+                    Divider(color = DividerColor)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = { onSandboxTest(skill) },

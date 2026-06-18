@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.theme.AiriTheme
+import com.airi.assistant.voice.OpenWakeWordEngine
 import com.airi.assistant.voice.PorcupineEngine
 import com.airi.assistant.voice.VoskModelManager
 import kotlinx.coroutines.launch
@@ -55,6 +56,10 @@ fun VoiceSettingsScreen(
     val snackbar = remember { SnackbarHostState() }
     val scope    = rememberCoroutineScope()
 
+    // Download state — declared before LaunchedEffect so it can be captured in the lambda
+    var downloadProgress by remember { mutableStateOf<Int?>(null) }  // null = idle
+    var downloadError    by remember { mutableStateOf<String?>(null) }
+
     LaunchedEffect(Unit) {
         VoskModelManager.refreshInstalled(context)
         // P0-V1 companion: if no model present after checking bundled assets,
@@ -81,10 +86,6 @@ fun VoiceSettingsScreen(
     val owwStatus by remember { mutableStateOf(OpenWakeWordEngine.status(context)) }
     var accessKeyInput  by remember { mutableStateOf("") }
     var showKey         by remember { mutableStateOf(false) }
-
-    // Download state
-    var downloadProgress by remember { mutableStateOf<Int?>(null) }  // null = idle
-    var downloadError    by remember { mutableStateOf<String?>(null) }
 
     val smallEnPreset = VoskModelManager.PRESETS.first()  // vosk-model-small-en-us-0.15
 

@@ -243,7 +243,7 @@ private fun DiagnosticsTab() {
                     Text(test.detail, fontSize = 10.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 13.sp, modifier = Modifier.padding(start = 18.dp))
                 }
             }
-        } ?: if (!running) Text("No results.", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
+        } ?: if (!running) Text("No results.", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant) else Unit
     }
 }
 

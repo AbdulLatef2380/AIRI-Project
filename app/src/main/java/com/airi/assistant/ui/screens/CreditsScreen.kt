@@ -131,7 +131,7 @@ fun CreditsScreen(onBack: () -> Unit) {
                             TokenProviderRow(provider = provider, stats = stats)
                             Spacer(Modifier.height(8.dp))
                         }
-                        HorizontalDivider(color = DividerColor, modifier = Modifier.padding(vertical = 4.dp))
+                        Divider(color = DividerColor, modifier = Modifier.padding(vertical = 4.dp))
                         val totalTokens = tokenStats.values.sumOf { it.totalTokens }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -153,14 +153,14 @@ fun CreditsScreen(onBack: () -> Unit) {
             item {
                 CreditsCard(title = "Lifetime Statistics", icon = Icons.Outlined.Timeline) {
                     StatRow("Total credits consumed", snapshot.lifetimeTotal.toString())
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(vertical = 8.dp))
+                    Divider(color = DividerColor, modifier = Modifier.padding(vertical = 8.dp))
                     StatRow(
                         "Subscription tier",
                         if (snapshot.budget > 500) "Premium ✓" else "Free"
                     )
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(vertical = 8.dp))
+                    Divider(color = DividerColor, modifier = Modifier.padding(vertical = 8.dp))
                     StatRow("Daily budget", "${snapshot.budget} credits")
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(vertical = 8.dp))
+                    Divider(color = DividerColor, modifier = Modifier.padding(vertical = 8.dp))
                     StatRow("Credits remaining today", "${snapshot.remaining}")
                 }
             }

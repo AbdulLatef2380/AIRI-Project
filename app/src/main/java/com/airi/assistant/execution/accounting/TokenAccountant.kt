@@ -71,6 +71,7 @@ class TokenAccountant(context: Context) {
             CloudProvider.OPENROUTER -> Pair(0.10, 0.40)    // average across models
             CloudProvider.KIMI       -> Pair(0.12, 0.50)    // moonshot-v1-8k approximate
             CloudProvider.CUSTOM     -> Pair(0.0,  0.0)     // unknown
+            CloudProvider.BRAVE      -> Pair(0.0,  0.0)     // search API, not token-priced
         }
     }
 

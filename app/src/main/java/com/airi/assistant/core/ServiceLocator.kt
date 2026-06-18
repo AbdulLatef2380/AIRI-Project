@@ -2,6 +2,7 @@ package com.airi.assistant.core
 
 import android.content.Context
 import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.execution.security.SecureApiKeyStore
 import com.airi.assistant.auth.identity.BiometricGatekeeper
 import com.airi.assistant.auth.identity.DeviceBindingService
 import com.airi.assistant.auth.identity.SessionManager
@@ -98,6 +99,10 @@ object ServiceLocator {
 
     val secureStorage: SecureStorage by lazy {
         SecureStorage(requireContext())
+    }
+
+    val secureApiKeyStore: SecureApiKeyStore by lazy {
+        SecureApiKeyStore(requireContext())
     }
 
     val deviceBindingService: DeviceBindingService by lazy {

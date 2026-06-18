@@ -80,9 +80,8 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
                 val display  = if (username.isNotBlank()) "@$username" else "Bot"
                 _state.value = ConnectorState(
                     connected   = true,
-                    available   = true,
                     statusLine  = "Connected as $display",
-                    connectedAt = System.currentTimeMillis()
+                    lastUpdatedMs = System.currentTimeMillis()
                 )
                 AgentActivityBus.emit("Telegram connected as $display", ActivityCategory.CONNECTOR)
                 Log.i(TAG, "AIRI_PROOF TELEGRAM_CONNECTED bot=$display")

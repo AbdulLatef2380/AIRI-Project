@@ -544,7 +544,7 @@ fun ChatScreen(
             )
         },
         bottomBar = {
-            Column(modifier = Modifier.fillMaxWidth().imePadding()) {
+            Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
                 // ── Activity Feed (Phase 3) ────────────────────────────────────
                 com.airi.assistant.ui.activity.ActivityFeedComposable(
                     modifier        = Modifier.fillMaxWidth(),

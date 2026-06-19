@@ -25,10 +25,10 @@ fun AboutScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("About AIRI", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
+                title = { Text(stringResource(R.string.about_airi_title), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -45,7 +45,7 @@ fun AboutScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("AIRI", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = CosmicAccent)
+            Text(stringResource(R.string.app_name), fontSize = 48.sp, fontWeight = FontWeight.Bold, color = CosmicAccent)
             Text(
                 "Autonomous AI Operating System",
                 fontSize = 16.sp, color = AiriTheme.onSurfaceVariant,
@@ -62,7 +62,7 @@ fun AboutScreen(onBack: () -> Unit) {
             AboutInfoCard("Privacy", "All local inference stays on-device. Cloud requests pass through a privacy sanitisation gate.")
             AboutInfoCard("Stack", "Kotlin · Jetpack Compose · Coroutines · StateFlow · Room · JNI/NDK · llama.cpp")
             Spacer(Modifier.height(8.dp))
-            Text("© 2025 AIRI. All rights reserved.", fontSize = 12.sp, color = AiriTheme.outline)
+            Text(stringResource(R.string.copyright_notice), fontSize = 12.sp, color = AiriTheme.outline)
         }
     }
 }

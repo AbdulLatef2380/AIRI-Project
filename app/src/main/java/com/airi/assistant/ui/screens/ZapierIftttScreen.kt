@@ -62,7 +62,7 @@ fun ZapierIftttScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Automation", fontWeight = FontWeight.SemiBold) },
+                title = { Text(stringResource(R.string.zapier_ifttt_title), fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
                 },
@@ -144,7 +144,7 @@ private fun ZapierTab(
                 shape  = RoundedCornerShape(16.dp)
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Authentication", fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+                    Text(stringResource(R.string.zapier_auth_section), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                     Text(
                         "Zapier uses OAuth 2.0. Clicking 'Connect' opens Zapier's authorization page in your browser.",
                         fontSize = 13.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 18.sp
@@ -166,7 +166,7 @@ private fun ZapierTab(
                                 if (isConnecting) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                                 else Icon(Icons.Default.OpenInBrowser, null, Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Connect with Zapier")
+                                Text(stringResource(R.string.zapier_connect_button))
                             }
                         } else {
                             OutlinedButton(
@@ -174,7 +174,7 @@ private fun ZapierTab(
                             ) {
                                 Icon(Icons.Default.LinkOff, null, Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Disconnect")
+                                Text(stringResource(R.string.disconnect))
                             }
                         }
                     }
@@ -192,7 +192,7 @@ private fun ZapierTab(
                 shape  = RoundedCornerShape(16.dp)
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("AIRI → Zapier Triggers", fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+                    Text(stringResource(R.string.zapier_triggers_section), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                     val triggers = listOf(
                         "message_sent"     to "Fires when AIRI sends a message",
                         "agent_completed"  to "Fires when an agent task finishes",
@@ -226,11 +226,11 @@ private fun ZapierTab(
                 shape  = RoundedCornerShape(16.dp)
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Test Webhook", fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+                    Text(stringResource(R.string.test_webhook), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                     OutlinedTextField(
                         value         = testHookUrl,
                         onValueChange = { testHookUrl = it },
-                        label         = { Text("Zapier REST Hook URL") },
+                        label         = { Text(stringResource(R.string.zapier_hook_url_label)) },
                         placeholder   = { Text("https://hooks.zapier.com/hooks/catch/...") },
                         modifier      = Modifier.fillMaxWidth(),
                         singleLine    = true,
@@ -239,7 +239,7 @@ private fun ZapierTab(
                     OutlinedTextField(
                         value         = testPayload,
                         onValueChange = { testPayload = it },
-                        label         = { Text("Payload (optional JSON or text)") },
+                        label         = { Text(stringResource(R.string.zapier_payload_label)) },
                         modifier      = Modifier.fillMaxWidth().height(80.dp),
                         colors        = inputColors()
                     )
@@ -266,7 +266,7 @@ private fun ZapierTab(
                     ) {
                         Icon(Icons.Default.Send, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Send Test")
+                        Text(stringResource(R.string.send_test))
                     }
                     testResult?.let {
                         Text(it, fontSize = 12.sp, color = if (it.startsWith("Error")) SemanticError else SemanticSuccess)
@@ -312,7 +312,7 @@ private fun IftttTab(
                 shape  = RoundedCornerShape(16.dp)
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Webhook Key", fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+                    Text(stringResource(R.string.zapier_webhook_key_section), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                     Text(
                         "Get your Maker Webhook key from ifttt.com/maker_webhooks/settings",
                         fontSize = 13.sp, color = AiriTheme.onSurfaceVariant
@@ -320,7 +320,7 @@ private fun IftttTab(
                     OutlinedTextField(
                         value         = webhookKey,
                         onValueChange = { webhookKey = it },
-                        label         = { Text("IFTTT Maker Key") },
+                        label         = { Text(stringResource(R.string.ifttt_maker_key_label)) },
                         modifier      = Modifier.fillMaxWidth(),
                         singleLine    = true,
                         visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -346,7 +346,7 @@ private fun IftttTab(
                     ) {
                         Icon(Icons.Default.Save, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Save Key")
+                        Text(stringResource(R.string.ifttt_save_key))
                     }
                 }
             }
@@ -359,12 +359,12 @@ private fun IftttTab(
                 shape  = RoundedCornerShape(16.dp)
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Test Applet Trigger", fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+                    Text(stringResource(R.string.test_applet_trigger), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                     OutlinedTextField(
                         value         = eventName,
                         onValueChange = { eventName = it },
-                        label         = { Text("Event Name") },
-                        placeholder   = { Text("e.g. airi_alert") },
+                        label         = { Text(stringResource(R.string.ifttt_event_name_label)) },
+                        placeholder   = { Text(stringResource(R.string.ifttt_event_placeholder)) },
                         modifier      = Modifier.fillMaxWidth(),
                         singleLine    = true,
                         colors        = inputColors()
@@ -372,7 +372,7 @@ private fun IftttTab(
                     OutlinedTextField(
                         value         = value1,
                         onValueChange = { value1 = it },
-                        label         = { Text("Value 1 (optional)") },
+                        label         = { Text(stringResource(R.string.ifttt_value1_label)) },
                         modifier      = Modifier.fillMaxWidth(),
                         singleLine    = true,
                         colors        = inputColors()
@@ -403,7 +403,7 @@ private fun IftttTab(
                         if (isTesting) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
                         else Icon(Icons.Default.PlayArrow, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Trigger Applet")
+                        Text(stringResource(R.string.ifttt_trigger_applet))
                     }
                     triggerResult?.let {
                         Text(it, fontSize = 12.sp, color = if (it.startsWith("Error")) SemanticError else SemanticSuccess)
@@ -419,7 +419,7 @@ private fun IftttTab(
                 shape  = RoundedCornerShape(16.dp)
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("How AIRI Uses IFTTT", fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+                    Text(stringResource(R.string.ifttt_how_section), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                     val useCases = listOf(
                         "📧" to "Send email alerts when an agent task completes",
                         "💡" to "Control smart lights based on AIRI reminders",

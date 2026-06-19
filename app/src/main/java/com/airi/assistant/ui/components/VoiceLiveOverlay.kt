@@ -111,7 +111,7 @@ fun VoiceLiveOverlay(
                 ) {
                     Icon(
                         imageVector        = Icons.Outlined.Close,
-                        contentDescription = "Stop voice",
+                        contentDescription = stringResource(R.string.cd_stop_voice),
                         tint               = SemanticError,
                         modifier           = Modifier.size(22.dp)
                     )

@@ -1023,7 +1023,7 @@ fun RefCatalogModelCard(
                             color = Color(0xFF007AFF)
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("Downloading…", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text(stringResource(R.string.downloading), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     } else {
                         Icon(
                             Icons.Outlined.Download,
@@ -1054,11 +1054,11 @@ fun RefCatalogModelCard(
                     ) {
                         Icon(
                             Icons.Outlined.Close,
-                            contentDescription = "Cancel download",
+                            contentDescription = stringResource(R.string.cd_cancel_download),
                             modifier = Modifier.size(15.dp)
                         )
                         Spacer(Modifier.width(6.dp))
-                        Text("Cancel", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text(stringResource(R.string.cancel), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     }
                 }
 
@@ -2204,7 +2204,7 @@ fun ModelPerCardSettingsDialog(
                                     },
                                     label     = { Text(word) },
                                     trailingIcon = {
-                                        Icon(Icons.Outlined.Close, contentDescription = "Remove", modifier = Modifier.size(14.dp))
+                                        Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.cd_remove_model), modifier = Modifier.size(14.dp))
                                     }
                                 )
                             }
@@ -2227,7 +2227,7 @@ fun ModelPerCardSettingsDialog(
                                 }
                             }
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "Add")
+                            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_add_model))
                         }
                     }
                 }

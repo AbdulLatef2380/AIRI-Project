@@ -398,7 +398,7 @@ private fun CloudTokenUsageBar(used: Int, cap: Int) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Cloud tokens today", color = DimWhite, fontSize = 11.sp)
+            Text(stringResource(R.string.exec_cloud_tokens_today), color = DimWhite, fontSize = 11.sp)
             Text(
                 "$used / $cap  (${pct.toInt()}%)",
                 color    = color,

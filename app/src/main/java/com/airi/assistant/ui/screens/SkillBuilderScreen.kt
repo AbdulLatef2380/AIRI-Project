@@ -259,7 +259,7 @@ fun SkillBuilderScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.72f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
@@ -278,7 +278,7 @@ fun SkillBuilderScreen(
                         )
                     } else {
                         TextButton(onClick = ::save, enabled = !isSaving) {
-                            Text("Save", color = CosmicAccent, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.save), color = CosmicAccent, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -454,11 +454,11 @@ fun SkillBuilderScreen(
                     if (isTesting) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), color = CosmicAccent, strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text("Testing...", fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.testing_label), fontWeight = FontWeight.SemiBold)
                     } else {
                         Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Test Skill", fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.test_skill), fontWeight = FontWeight.SemiBold)
                     }
                 }
 
@@ -472,11 +472,11 @@ fun SkillBuilderScreen(
                     if (isSaving) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.Black, strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text("Saving...", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.skill_builder_saving), fontWeight = FontWeight.Bold)
                     } else {
                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Save Skill", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.skill_builder_save_skill), fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -551,7 +551,7 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
             if (result.success && result.rawOutput.isNotBlank()) {
                 // ── Formatted success result ──────────────────────────────────
                 val formatted = remember(result.rawOutput) { formatSkillOutput(result.rawOutput) }
-                Text("Response", color = AiriTheme.onBackground.copy(alpha = 0.45f), fontSize = 11.sp)
+                Text(stringResource(R.string.skill_builder_response), color = AiriTheme.onBackground.copy(alpha = 0.45f), fontSize = 11.sp)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -571,7 +571,7 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
 
             if (!result.errorMessage.isNullOrBlank()) {
                 // ── Error display ─────────────────────────────────────────────
-                Text("Error", color = AiriTheme.onBackground.copy(alpha = 0.45f), fontSize = 11.sp)
+                Text(stringResource(R.string.skill_builder_error), color = AiriTheme.onBackground.copy(alpha = 0.45f), fontSize = 11.sp)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -595,7 +595,7 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
             }
 
             TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                Text("Dismiss", color = CosmicAccent, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.dismiss), color = CosmicAccent, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -651,7 +651,7 @@ private fun TemplateVariablesHint() {
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(Icons.Outlined.Info, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(14.dp))
-            Text("Available template variables", color = CosmicAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.skill_builder_template_vars), color = CosmicAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
         }
         variables.forEach { (variable, explanation) ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -802,7 +802,7 @@ private fun HeaderEditor(headers: SnapshotStateList<HeaderInput>) {
                     value = header.key,
                     onValueChange = { headers[index] = header.copy(key = it) },
                     modifier = Modifier.weight(1f),
-                    label = { Text("Key") },
+                    label = { Text(stringResource(R.string.skill_builder_header_key)) },
                     singleLine = true,
                     colors = headerFieldColors()
                 )
@@ -810,7 +810,7 @@ private fun HeaderEditor(headers: SnapshotStateList<HeaderInput>) {
                     value = header.value,
                     onValueChange = { headers[index] = header.copy(value = it) },
                     modifier = Modifier.weight(1f),
-                    label = { Text("Value") },
+                    label = { Text(stringResource(R.string.skill_builder_header_value)) },
                     singleLine = true,
                     colors = headerFieldColors()
                 )
@@ -820,14 +820,14 @@ private fun HeaderEditor(headers: SnapshotStateList<HeaderInput>) {
                         else headers[index] = HeaderInput(header.id, "", "")
                     }
                 ) {
-                    Icon(Icons.Outlined.Delete, contentDescription = "Remove header", tint = Color(0xFFFF6B6B))
+                    Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.skill_builder_remove_header_cd), tint = Color(0xFFFF6B6B))
                 }
             }
         }
         TextButton(onClick = { headers.add(HeaderInput(UUID.randomUUID().toString(), "", "")) }) {
             Icon(Icons.Outlined.Add, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Add header", color = CosmicAccent)
+            Text(stringResource(R.string.skill_builder_add_header), color = CosmicAccent)
         }
     }
 }

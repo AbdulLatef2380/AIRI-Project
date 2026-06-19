@@ -51,7 +51,7 @@ fun BillingHistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Billing History", fontWeight = FontWeight.SemiBold) },
+                title = { Text(stringResource(R.string.billing_history_title), fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
                 },
@@ -91,7 +91,7 @@ fun BillingHistoryScreen(
                     FilterChip(
                         selected = filterStatus == null,
                         onClick  = { filterStatus = null },
-                        label    = { Text("All") },
+                        label    = { Text(stringResource(R.string.billing_tab_all)) },
                         colors   = FilterChipDefaults.filterChipColors(selectedContainerColor = CosmicAccent.copy(0.15f))
                     )
                     BillingRecord.Status.entries.forEach { s ->
@@ -111,7 +111,7 @@ fun BillingHistoryScreen(
                     Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Default.ReceiptLong, null, Modifier.size(48.dp), tint = AiriTheme.onSurfaceVariant)
-                            Text("No billing records", color = AiriTheme.onSurfaceVariant)
+                            Text(stringResource(R.string.billing_no_records), color = AiriTheme.onSurfaceVariant)
                         }
                     }
                 }

@@ -78,7 +78,7 @@ fun AgentPlanOverlay(
             AnimatedVisibility(visible = isExpanded, enter = expandVertically(), exit = shrinkVertically()) {
                 if (steps.isEmpty()) {
                     Box(modifier = Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
-                        Text("Initialising plan…", fontSize = 12.sp, color = Color.White.copy(alpha = 0.4f))
+                        Text(stringResource(R.string.agent_plan_initialising), fontSize = 12.sp, color = Color.White.copy(alpha = 0.4f))
                     }
                 } else {
                     LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp)) {

@@ -101,16 +101,16 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Voice Personalization", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.voice_personalization_title), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 actions = {
                     TextButton(onClick = ::saveSettings) {
-                        Text("Save", color = CosmicAccent, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.save), color = CosmicAccent, fontWeight = FontWeight.SemiBold)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -195,12 +195,12 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Low", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                        Text(stringResource(R.string.voice_pitch_low), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                         Text(
                             "%.2fx".format(pitch), fontSize = 14.sp,
                             fontWeight = FontWeight.Bold, color = CosmicAccent
                         )
-                        Text("High", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                        Text(stringResource(R.string.voice_pitch_high), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                     }
                     Slider(
                         value         = pitch,
@@ -228,12 +228,12 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Slow", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                        Text(stringResource(R.string.voice_speed_slow), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                         Text(
                             "%.2fx".format(rate), fontSize = 14.sp,
                             fontWeight = FontWeight.Bold, color = CosmicAccent
                         )
-                        Text("Fast", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                        Text(stringResource(R.string.voice_speed_fast), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                     }
                     Slider(
                         value         = rate,
@@ -316,7 +316,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                 ) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Preview Voice", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(stringResource(R.string.voice_preview_button), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 }
                 Spacer(Modifier.height(12.dp))
                 Button(
@@ -325,7 +325,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                     colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccentDark),
                     shape    = RoundedCornerShape(14.dp)
                 ) {
-                    Text("Save Preferences", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(stringResource(R.string.voice_save_preferences), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 }
                 Spacer(Modifier.height(32.dp))
             }

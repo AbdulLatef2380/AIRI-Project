@@ -63,7 +63,7 @@ fun WorkspaceScreen(onBack: () -> Unit, onOpenChat: () -> Unit = {}) {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Workspace", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+                        Text(stringResource(R.string.workspace_title), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                         if (sessions.isNotEmpty()) {
                             Box(modifier = Modifier.clip(CircleShape).background(CosmicAccent.copy(0.18f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
                                 Text("${sessions.size}", fontSize = 11.sp, color = CosmicAccent)
@@ -139,12 +139,12 @@ fun WorkspaceScreen(onBack: () -> Unit, onOpenChat: () -> Unit = {}) {
         if (showNewWorkspace) {
             AlertDialog(
                 onDismissRequest = { showNewWorkspace = false },
-                title = { Text("New Workspace", color = AiriTheme.onBackground) },
+                title = { Text(stringResource(R.string.workspace_new_dialog_title), color = AiriTheme.onBackground) },
                 text = {
                     OutlinedTextField(
                         value         = newWorkspaceName,
                         onValueChange = { newWorkspaceName = it },
-                        label         = { Text("Workspace name", fontSize = 13.sp) },
+                        label         = { Text(stringResource(R.string.workspace_name_label), fontSize = 13.sp) },
                         singleLine    = true,
                         modifier      = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -162,10 +162,10 @@ fun WorkspaceScreen(onBack: () -> Unit, onOpenChat: () -> Unit = {}) {
                             newWorkspaceName = ""
                             showNewWorkspace = false
                         }
-                    }) { Text("Create", color = CosmicAccent) }
+                    }) { Text(stringResource(R.string.create), color = CosmicAccent) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showNewWorkspace = false }) { Text("Cancel", color = AiriTheme.onBackground.copy(0.5f)) }
+                    TextButton(onClick = { showNewWorkspace = false }) { Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(0.5f)) }
                 },
                 containerColor = Color(0xFF141826)
             )
@@ -223,12 +223,12 @@ private fun WorkspaceEmptyState(onCreate: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Icon(Icons.Outlined.WorkOutline, null, tint = CosmicAccent.copy(0.5f), modifier = Modifier.size(48.dp))
-            Text("No Workspaces", fontSize = 16.sp, color = AiriTheme.onBackground.copy(0.6f))
-            Text("Create a workspace to organise AI-generated artifacts", fontSize = 13.sp, color = AiriTheme.onBackground.copy(0.35f))
+            Text(stringResource(R.string.workspace_no_workspaces), fontSize = 16.sp, color = AiriTheme.onBackground.copy(0.6f))
+            Text(stringResource(R.string.workspace_no_workspaces_desc), fontSize = 13.sp, color = AiriTheme.onBackground.copy(0.35f))
             Button(onClick = onCreate, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent.copy(0.85f)), shape = RoundedCornerShape(12.dp)) {
                 Icon(Icons.Outlined.Add, null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("New Workspace")
+                Text(stringResource(R.string.workspace_new_button))
             }
         }
     }
@@ -239,11 +239,11 @@ private fun ArtifactEmptyState(onCreateFromChat: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(Icons.Outlined.FolderOpen, null, tint = CosmicAccent.copy(0.4f), modifier = Modifier.size(40.dp))
-            Text("No artifacts yet", fontSize = 15.sp, color = AiriTheme.onBackground.copy(0.5f))
-            Text("Ask AIRI to generate code, files, or content", fontSize = 13.sp, color = AiriTheme.onBackground.copy(0.3f))
+            Text(stringResource(R.string.workspace_no_artifacts), fontSize = 15.sp, color = AiriTheme.onBackground.copy(0.5f))
+            Text(stringResource(R.string.workspace_no_artifacts_desc), fontSize = 13.sp, color = AiriTheme.onBackground.copy(0.3f))
             OutlinedButton(onClick = onCreateFromChat, shape = RoundedCornerShape(10.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, CosmicAccent.copy(0.4f))) {
-                Text("Open Chat", color = CosmicAccent, fontSize = 13.sp)
+                Text(stringResource(R.string.workspace_open_chat), color = CosmicAccent, fontSize = 13.sp)
             }
         }
     }

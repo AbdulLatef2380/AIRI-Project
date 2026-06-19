@@ -232,7 +232,7 @@ fun LoginScreen(
                 OutlinedTextField(
                     value         = email,
                     onValueChange = { email = it; errorMessage = null },
-                    label         = { Text("Email") },
+                    label         = { Text(stringResource(R.string.login_email_label)) },
                     leadingIcon   = {
                         Icon(Icons.Outlined.Email, contentDescription = null,
                             tint = accentColor.copy(alpha = 0.8f))
@@ -248,7 +248,7 @@ fun LoginScreen(
                 OutlinedTextField(
                     value         = password,
                     onValueChange = { password = it; errorMessage = null },
-                    label         = { Text("Password") },
+                    label         = { Text(stringResource(R.string.login_password_label)) },
                     leadingIcon   = {
                         Icon(Icons.Outlined.Lock, contentDescription = null,
                             tint = accentColor.copy(alpha = 0.8f))

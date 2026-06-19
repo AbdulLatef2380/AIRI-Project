@@ -99,7 +99,7 @@ fun ExecDiagnosticsScreen(
             containerColor   = Color(0xFF141C30),
             tonalElevation   = 0.dp,
             title = {
-                Text("Reset Token Stats",
+                Text(stringResource(R.string.exec_reset_token_stats),
                     color      = AiriTheme.onBackground,
                     fontWeight = FontWeight.Bold)
             },
@@ -117,12 +117,12 @@ fun ExecDiagnosticsScreen(
                     scope.launch { viewModel.tokenAccountant.resetToday() }
                     showResetDialog = false
                 }) {
-                    Text("Reset", color = ExError, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.reset), color = ExError, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showResetDialog = false }) {
-                    Text("Cancel", color = ExDim)
+                    Text(stringResource(R.string.cancel), color = ExDim)
                 }
             }
         )
@@ -138,7 +138,7 @@ fun ExecDiagnosticsScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.back),
                             tint = AiriTheme.onBackground)
                     }
                 },
@@ -162,7 +162,7 @@ fun ExecDiagnosticsScreen(
                     IconButton(onClick = { showResetDialog = true }) {
                         Icon(
                             Icons.Outlined.Refresh,
-                            contentDescription = "Reset today's token stats",
+                            contentDescription = stringResource(R.string.cd_reset_token_stats),
                             tint = AiriTheme.onSurfaceVariant
                         )
                     }
@@ -600,7 +600,7 @@ private fun BudgetTab(
             Icon(Icons.Outlined.Refresh, contentDescription = null,
                 modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Reset Today's Stats", fontSize = 13.sp)
+            Text(stringResource(R.string.exec_reset_today), fontSize = 13.sp)
         }
 
         Spacer(Modifier.height(16.dp))

@@ -108,11 +108,11 @@ fun PaywallScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.8f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
-                    Text("Upgrade to Premium", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
+                    Text(stringResource(R.string.upgrade_to_premium), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
                 }
             )
         }

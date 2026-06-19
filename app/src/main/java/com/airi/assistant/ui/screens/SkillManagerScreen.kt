@@ -98,7 +98,7 @@ fun SkillManagerScreen(
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
@@ -115,7 +115,7 @@ fun SkillManagerScreen(
                 actions = {
                     Box {
                         IconButton(onClick = { showAddMenu = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "Add skill", tint = CosmicAccent)
+                            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_add_skill), tint = CosmicAccent)
                         }
                         DropdownMenu(
                             expanded         = showAddMenu,
@@ -502,7 +502,7 @@ private fun SkillCard(
         IconButton(onClick = onDelete) {
             Icon(
                 Icons.Outlined.Delete,
-                contentDescription = "Delete",
+                contentDescription = stringResource(R.string.cd_delete),
                 tint = Color(0xFFFF6B6B)
             )
         }

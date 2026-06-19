@@ -21,6 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 import com.airi.assistant.ai.agent.trace.AgentTrace
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
@@ -48,19 +50,19 @@ fun AgentLogsScreen(
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
                     Column {
-                        Text("Agent Logs", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, fontSize = 16.sp)
+                        Text(stringResource(R.string.agent_logs), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, fontSize = 16.sp)
                         Text("${traces.size} traces recorded", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                     }
                 },
                 actions = {
                     if (traces.isNotEmpty()) {
                         TextButton(onClick = { viewModel.clearLogs() }) {
-                            Text("Clear", color = Color(0xFFFF6B6B).copy(alpha = 0.8f), fontSize = 12.sp)
+                            Text(stringResource(R.string.clear), color = Color(0xFFFF6B6B).copy(alpha = 0.8f), fontSize = 12.sp)
                         }
                     }
                 }
@@ -82,7 +84,7 @@ fun AgentLogsScreen(
                         modifier = Modifier.size(56.dp)
                     )
                     Spacer(Modifier.height(12.dp))
-                    Text("No agent traces yet", color = AiriTheme.onSurfaceVariant, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.agent_logs_no_traces), color = AiriTheme.onSurfaceVariant, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(6.dp))
                     Text(
                         "Traces appear when skills or tasks are executed",

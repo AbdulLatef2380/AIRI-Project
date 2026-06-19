@@ -77,11 +77,11 @@ fun PrivacyDataSettingsScreen(
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
-                    Text("Privacy & Data", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
+                    Text(stringResource(R.string.privacy_data_title), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
                 }
             )
         }

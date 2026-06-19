@@ -56,7 +56,7 @@ fun WelcomeScreen(onStart: () -> Unit) {
             ),
             border = BorderStroke(2.dp, CosmicAccent)
         ) {
-            Text("Get Started", color = CosmicAccent)
+            Text(stringResource(R.string.get_started), color = CosmicAccent)
         }
     }
 }

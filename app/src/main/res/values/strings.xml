@@ -818,4 +818,279 @@
     <string name="vosk_download_small_btn">Download small model (English, ~40 MB)</string>
     <string name="vosk_downloading_progress">Downloading… %1$d%%</string>
     <string name="vosk_install_success">✓ Voice model installed</string>
+
+    <!-- Generic actions / shared -->
+    <string name="clear">Clear</string>
+    <string name="done">Done</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="create">Create</string>
+    <string name="close">Close</string>
+    <string name="refresh">Refresh</string>
+    <string name="run">Run</string>
+    <string name="remove">Remove</string>
+    <string name="options">Options</string>
+    <string name="downloading">Downloading…</string>
+    <string name="skip">Skip</string>
+    <string name="get_started">Get Started</string>
+    <string name="deactivate">Deactivate</string>
+    <string name="history">History</string>
+    <string name="debug">Debug</string>
+    <string name="reset">Reset</string>
+    <string name="open_app_settings">Open App Settings</string>
+
+    <!-- About screen -->
+    <string name="about_airi_title">About AIRI</string>
+
+    <!-- Agent Trace Detail screen -->
+    <string name="trace_detail_title">Trace Detail</string>
+    <string name="trace_user_input_label">User Input</string>
+    <string name="trace_execution_steps">Execution Steps</string>
+    <string name="trace_final_result">Final Result</string>
+    <string name="trace_input_badge">INPUT</string>
+
+    <!-- Activity Feed -->
+    <string name="activity_feed_title">Activity</string>
+    <string name="activity_feed_more">+%1$d more — tap to expand</string>
+
+    <!-- Agent Plan -->
+    <string name="agent_plan_initialising">Initialising plan…</string>
+    <string name="agent_plan_retry_count">Retry %1$d</string>
+
+    <!-- Billing History screen -->
+    <string name="billing_history_title">Billing History</string>
+    <string name="billing_tab_all">All</string>
+    <string name="billing_no_records">No billing records</string>
+
+    <!-- Chat screen -->
+    <string name="system_integrity_failed">System Integrity Failed</string>
+
+    <!-- Cloud Model Store screen -->
+    <string name="cloud_models_title">Cloud &amp; Hybrid Models</string>
+    <string name="cloud_models_subtitle">Free tiers · External APIs · Local servers</string>
+    <string name="cloud_custom_endpoint_label">Custom / Advanced Endpoint</string>
+    <string name="cloud_custom_endpoint_desc">llama-server · LM Studio · Any OpenAI-compatible API</string>
+    <string name="cloud_active_badge">ACTIVE</string>
+    <string name="cloud_get_free_key">Get Free Key</string>
+    <string name="cloud_access_key_label">Access Key</string>
+    <string name="cloud_save_activate">Save &amp; Activate</string>
+    <string name="cloud_model_name_placeholder">e.g. My Llama Server</string>
+    <string name="cloud_api_key_optional_label">API Key (optional)</string>
+    <string name="cloud_add_use">Add &amp; Use</string>
+
+    <!-- Community Skills screen -->
+    <string name="community_skills_title">Community Skills</string>
+    <string name="community_no_skills">No community skills yet</string>
+    <string name="community_no_skills_desc">Import skills from the Import tab.</string>
+    <string name="community_sandbox">Sandbox</string>
+    <string name="community_trust">Trust</string>
+    <string name="community_import_title">Import Community Skill</string>
+    <string name="community_security_scan_active">Security Scan Active</string>
+    <string name="community_select_skill_trust">Select a skill to view its trust score</string>
+    <string name="community_select_skill_trust_desc">Tap the Trust button on any skill in My Skills.</string>
+    <string name="community_score_suffix">/ 100</string>
+    <string name="community_trust_signals">Trust Signals</string>
+
+    <!-- Credits screen -->
+    <string name="credits_usage_title">Credits &amp; Usage</string>
+    <string name="credits_total_today">Total today</string>
+    <string name="credits_remaining">remaining</string>
+
+    <!-- Customization settings screen -->
+    <string name="customization_title">Customization</string>
+
+    <!-- Developer Center screen -->
+    <string name="developer_center_title">Developer Center</string>
+    <string name="developer_no_connector_health">No connector health data</string>
+    <string name="developer_diagnostics">Diagnostics</string>
+    <string name="developer_running">Running…</string>
+    <string name="developer_no_results">No results.</string>
+
+    <!-- Exec Diagnostics screen -->
+    <string name="exec_reset_token_stats">Reset Token Stats</string>
+    <string name="exec_reset_today">Reset Today\'s Stats</string>
+    <string name="exec_cloud_tokens_today">Cloud tokens today</string>
+
+    <!-- Memory screen -->
+    <string name="memory_title">Memory</string>
+    <string name="memory_clear_dialog_body">This will permanently delete all stored interactions. The AI context will be reset. This action cannot be undone.</string>
+    <string name="memory_clear_button">Clear Memory</string>
+    <string name="memory_no_memory">No memory yet</string>
+    <string name="memory_no_memory_desc">Start a conversation to build memory</string>
+    <string name="memory_episodic_section">Episodic Memory</string>
+
+    <!-- Model Library screen -->
+    <string name="model_library_title">AI Library</string>
+    <string name="model_library_subtitle">AIRI routes automatically</string>
+    <string name="brave_search_title">Brave Search API</string>
+    <string name="brave_search_desc">Free: 2,000 searches/month · brave.com/search/api</string>
+    <string name="brave_key_dialog_body">Get a free key at brave.com/search/api (2,000 searches/month free)</string>
+    <string name="brave_key_placeholder">BSA...</string>
+    <string name="model_library_active_ai">Active AI</string>
+    <string name="model_library_smart_routing">Smart Routing</string>
+    <string name="auto_badge">AUTO</string>
+    <string name="api_key_label">API Key</string>
+
+    <!-- Observability screen -->
+    <string name="observability_no_events">No events recorded yet</string>
+    <string name="observability_no_graph">No graph yet</string>
+    <string name="observability_no_spans">No trace spans yet</string>
+
+    <!-- Onboarding screen -->
+    <string name="onboarding_tagline">Private by default. Powerful by design.</string>
+
+    <!-- Permissions screen -->
+    <string name="permissions_title">Permissions</string>
+    <string name="permissions_special_badge">Special</string>
+    <string name="permissions_why_needed">Why AIRI needs this</string>
+
+    <!-- Privacy &amp; Data settings screen -->
+    <string name="privacy_data_title">Privacy &amp; Data</string>
+
+    <!-- Plus Menu sheet -->
+    <string name="plus_menu_create_explore">Create &amp; Explore</string>
+
+    <!-- Referral screen -->
+    <string name="referral_heading">Grow with AIRI</string>
+    <string name="referral_code_label">Your referral code</string>
+    <string name="referral_bonus_available">Bonus messages available: %1$d</string>
+    <string name="referral_code_field_label">Have a referral code?</string>
+    <string name="referral_redeem">Redeem welcome bonus</string>
+
+    <!-- Sandbox Workspace screen -->
+    <string name="sandbox_title">Sandbox</string>
+    <string name="sandbox_new_session_cd">New session</string>
+    <string name="sandbox_no_executions">No executions yet — run a command below</string>
+    <string name="sandbox_no_sessions">No active sandbox sessions</string>
+    <string name="sandbox_no_sessions_desc">Create a session to start running isolated tasks</string>
+    <string name="sandbox_new_session_button">New Session</string>
+    <string name="sandbox_close_session_cd">Close session</string>
+    <string name="sandbox_run_cd">Run</string>
+    <string name="sandbox_command_placeholder">shell command…</string>
+
+    <!-- Skill Builder screen -->
+    <string name="skill_builder_saving">Saving...</string>
+    <string name="skill_builder_save_skill">Save Skill</string>
+    <string name="skill_builder_testing">Testing...</string>
+    <string name="skill_builder_response">Response</string>
+    <string name="skill_builder_error">Error</string>
+    <string name="skill_builder_template_vars">Available template variables</string>
+    <string name="skill_builder_header_key">Key</string>
+    <string name="skill_builder_header_value">Value</string>
+    <string name="skill_builder_add_header">Add header</string>
+    <string name="skill_builder_remove_header_cd">Remove header</string>
+
+    <!-- Stripe Payment screen -->
+    <string name="payment_title">Purchase</string>
+    <string name="payment_monthly">Monthly</string>
+    <string name="payment_annual">Annual</string>
+    <string name="payment_save_20">Save 20%</string>
+    <string name="payment_subscribe_now">Subscribe Now</string>
+    <string name="payment_airi_premium">✨ AIRI Premium</string>
+    <string name="payment_premium_desc">Unlock the full power of AIRI with 10× more credits, all connectors, marketplace access, and developer APIs.</string>
+    <string name="payment_premium_active">You\'re on AIRI Premium! 🎉</string>
+    <string name="payment_premium_active_desc">2,000 daily credits, all features unlocked.</string>
+    <string name="payment_stripe_footer">Payments processed securely by Stripe. AIRI never stores card details.</string>
+    <string name="payment_bonus_included">+%1$d%% bonus included</string>
+
+    <!-- Terminal screen -->
+    <string name="terminal_title">Terminal</string>
+    <string name="terminal_running_badge">Running</string>
+    <string name="terminal_running_status">Running…</string>
+    <string name="terminal_command_placeholder">command…</string>
+
+    <!-- Update screen -->
+    <string name="updates_title">Updates</string>
+    <string name="updates_check">Check for Updates</string>
+    <string name="updates_available_version">AIRI %1$s is available</string>
+    <string name="updates_install_from_store">Tap Install to update from the Play Store</string>
+    <string name="updates_install">Install</string>
+    <string name="updates_whats_new">What\'s new</string>
+    <string name="updates_bug_fixes">Bug fixes</string>
+
+    <!-- Voice Personalization screen -->
+    <string name="voice_personalization_title">Voice Personalization</string>
+    <string name="voice_pitch_low">Low</string>
+    <string name="voice_pitch_high">High</string>
+    <string name="voice_speed_slow">Slow</string>
+    <string name="voice_speed_fast">Fast</string>
+    <string name="voice_preview_button">Preview Voice</string>
+    <string name="voice_save_preferences">Save Preferences</string>
+
+    <!-- Voice Settings screen (additional) -->
+    <string name="voice_settings_title">Voice Settings</string>
+    <string name="voice_system_section">Voice System</string>
+    <string name="wake_word_porcupine_section">Wake Word (Porcupine)</string>
+    <string name="porcupine_access_key_label">Porcupine access key</string>
+    <string name="voice_save_key">Save key</string>
+    <string name="voice_installed_models">Installed Models</string>
+    <string name="voice_delete_model_cd">Delete model</string>
+
+    <!-- Workspace screen -->
+    <string name="workspace_title">Workspace</string>
+    <string name="workspace_new_dialog_title">New Workspace</string>
+    <string name="workspace_name_label">Workspace name</string>
+    <string name="workspace_no_workspaces">No Workspaces</string>
+    <string name="workspace_no_workspaces_desc">Create a workspace to organise AI-generated artifacts</string>
+    <string name="workspace_new_button">New Workspace</string>
+    <string name="workspace_no_artifacts">No artifacts yet</string>
+    <string name="workspace_no_artifacts_desc">Ask AIRI to generate code, files, or content</string>
+    <string name="workspace_open_chat">Open Chat</string>
+
+    <!-- Zapier / IFTTT screen -->
+    <string name="zapier_ifttt_title">Automation</string>
+    <string name="zapier_auth_section">Authentication</string>
+    <string name="zapier_connect_button">Connect with Zapier</string>
+    <string name="zapier_triggers_section">AIRI → Zapier Triggers</string>
+    <string name="zapier_webhook_section">Test Webhook</string>
+    <string name="zapier_hook_url_label">Zapier REST Hook URL</string>
+    <string name="zapier_payload_label">Payload (optional JSON or text)</string>
+    <string name="zapier_send_test">Send Test</string>
+    <string name="zapier_webhook_key_section">Webhook Key</string>
+    <string name="ifttt_maker_key_label">IFTTT Maker Key</string>
+    <string name="ifttt_save_key">Save Key</string>
+    <string name="ifttt_test_trigger_section">Test Applet Trigger</string>
+    <string name="ifttt_event_name_label">Event Name</string>
+    <string name="ifttt_event_placeholder">e.g. airi_alert</string>
+    <string name="ifttt_value1_label">Value 1 (optional)</string>
+    <string name="ifttt_trigger_applet">Trigger Applet</string>
+    <string name="ifttt_how_section">How AIRI Uses IFTTT</string>
+
+    <!-- Content descriptions (icons) -->
+    <string name="cd_premium_locked">Locked</string>
+    <string name="cd_premium_badge">Premium</string>
+    <string name="cd_stop_voice">Stop voice</string>
+    <string name="cd_clear_memory">Clear memory</string>
+    <string name="cd_reset_token_stats">Reset today\'s token stats</string>
+    <string name="cd_cancel_download">Cancel download</string>
+    <string name="cd_add_task">Add task</string>
+    <string name="cd_add_skill">Add skill</string>
+    <string name="cd_delete">Delete</string>
+    <string name="cd_options">Options</string>
+    <string name="cd_close">Close</string>
+    <string name="cd_history">History</string>
+    <string name="cd_refresh">Refresh</string>
+    <string name="cd_debug">Debug</string>
+    <string name="cd_remove_header">Remove header</string>
+    <string name="cd_remove_model">Remove</string>
+    <string name="cd_add_model">Add</string>
+
+    <!-- Format strings -->
+    <string name="connect_label">Connect %1$s</string>
+    <string name="voice_personalization_shortcut_desc">Pitch, speed, personality presets &amp; voice selection</string>
+
+    <!-- Community Skills import tab (additional) -->
+    <string name="community_import_desc">Import skill.json from a URL or paste it directly.</string>
+    <string name="community_import_from_url">Import from URL</string>
+    <string name="community_import_json">Import JSON</string>
+    <string name="community_security_scan_desc">All imports are scanned for dangerous patterns before being stored.</string>
+
+    <!-- Agent Logs screen -->
+    <string name="agent_logs_no_traces">No agent traces yet</string>
+
+    <!-- Login screen -->
+    <string name="login_email_label">Email</string>
+    <string name="login_password_label">Password</string>
+
+    <!-- Testing state -->
+    <string name="testing_label">Testing…</string>
 </resources>

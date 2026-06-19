@@ -46,7 +46,7 @@ fun AgentPlanCard(step: PlanStepModel, depth: Int = 0, modifier: Modifier = Modi
                 if (!step.subLabel.isNullOrBlank())
                     Text(step.subLabel, fontSize = 11.sp, color = Color.White.copy(alpha = 0.4f), maxLines = 1)
                 if (step.retryCount > 0)
-                    Text("Retry ${step.retryCount}", fontSize = 10.sp, color = SemanticWarn.copy(alpha = 0.8f))
+                    Text(stringResource(R.string.agent_plan_retry_count, step.retryCount), fontSize = 10.sp, color = SemanticWarn.copy(alpha = 0.8f))
             }
             step.elapsedLabel?.let { Text(it, fontSize = 10.sp, color = Color.White.copy(alpha = 0.3f), modifier = Modifier.padding(start = 8.dp)) }
         }

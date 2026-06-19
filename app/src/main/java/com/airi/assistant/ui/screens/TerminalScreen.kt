@@ -49,11 +49,11 @@ fun TerminalScreen(onBack: () -> Unit) {
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Outlined.Terminal, null, tint = SemanticSuccess, modifier = Modifier.size(16.dp))
-                        Text("Terminal", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+                        Text(stringResource(R.string.terminal_title), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                         if (isRunning) {
                             Box(modifier = Modifier.clip(RoundedCornerShape(6.dp))
                                 .background(SemanticSuccess.copy(0.15f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                                Text("Running", fontSize = 10.sp, color = SemanticSuccess)
+                                Text(stringResource(R.string.terminal_running_badge), fontSize = 10.sp, color = SemanticSuccess)
                             }
                         }
                     }
@@ -96,7 +96,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                     item(key = "spinner") {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(vertical = 4.dp)) {
                             CircularProgressIndicator(color = SemanticSuccess, modifier = Modifier.size(10.dp), strokeWidth = 1.5.dp)
-                            Text("Running…", fontSize = 11.sp, color = SemanticSuccess.copy(0.7f), fontFamily = FontFamily.Monospace)
+                            Text(stringResource(R.string.terminal_running_status), fontSize = 11.sp, color = SemanticSuccess.copy(0.7f), fontFamily = FontFamily.Monospace)
                         }
                     }
                 }
@@ -117,7 +117,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                 TextField(
                     value         = input,
                     onValueChange = { input = it },
-                    placeholder   = { Text("command…", fontSize = 12.sp, color = Color.White.copy(0.25f), fontFamily = FontFamily.Monospace) },
+                    placeholder   = { Text(stringResource(R.string.terminal_command_placeholder), fontSize = 12.sp, color = Color.White.copy(0.25f), fontFamily = FontFamily.Monospace) },
                     singleLine    = true,
                     modifier      = Modifier.weight(1f).onKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown) {

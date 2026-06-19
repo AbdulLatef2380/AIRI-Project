@@ -55,7 +55,7 @@ fun StripePaymentScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Purchase", fontWeight = FontWeight.SemiBold) },
+                title = { Text(stringResource(R.string.payment_title), fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
                 },
@@ -195,7 +195,7 @@ private fun PremiumTab(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment     = Alignment.CenterVertically
                 ) {
-                    Text("Monthly", color = if (!annual) AiriTheme.onBackground else AiriTheme.onSurfaceVariant, fontWeight = if (!annual) FontWeight.SemiBold else FontWeight.Normal)
+                    Text(stringResource(R.string.payment_monthly), color = if (!annual) AiriTheme.onBackground else AiriTheme.onSurfaceVariant, fontWeight = if (!annual) FontWeight.SemiBold else FontWeight.Normal)
                     Spacer(Modifier.width(8.dp))
                     Switch(
                         checked    = annual,
@@ -203,10 +203,10 @@ private fun PremiumTab(
                         colors     = SwitchDefaults.colors(checkedThumbColor = CosmicAccent, checkedTrackColor = CosmicAccent.copy(alpha = 0.3f))
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("Annual", color = if (annual) AiriTheme.onBackground else AiriTheme.onSurfaceVariant, fontWeight = if (annual) FontWeight.SemiBold else FontWeight.Normal)
+                    Text(stringResource(R.string.payment_annual), color = if (annual) AiriTheme.onBackground else AiriTheme.onSurfaceVariant, fontWeight = if (annual) FontWeight.SemiBold else FontWeight.Normal)
                     if (annual) {
                         Spacer(Modifier.width(6.dp))
-                        Badge(containerColor = SemanticSuccess) { Text("Save 20%", color = Color.White, fontSize = 10.sp) }
+                        Badge(containerColor = SemanticSuccess) { Text(stringResource(R.string.payment_save_20), color = Color.White, fontSize = 10.sp) }
                     }
                 }
             }
@@ -246,7 +246,7 @@ private fun PremiumTab(
                             shape    = RoundedCornerShape(14.dp),
                             colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
                         ) {
-                            Text("Subscribe Now", fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.payment_subscribe_now), fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -282,7 +282,7 @@ private fun CreditPackCard(pack: CreditPackage, isSelected: Boolean, onClick: ()
                 }
                 Text("${pack.totalCredits.toLocaleStr()} credits", fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
                 if (pack.bonusPercent > 0) {
-                    Text("+${pack.bonusPercent}% bonus included", fontSize = 11.sp, color = SemanticSuccess)
+                    Text(stringResource(R.string.payment_bonus_included, pack.bonusPercent), fontSize = 11.sp, color = SemanticSuccess)
                 }
             }
             Column(horizontalAlignment = Alignment.End) {
@@ -301,8 +301,8 @@ private fun PremiumHeroCard() {
             .padding(24.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("✨ AIRI Premium", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color.White)
-            Text("Unlock the full power of AIRI with 10× more credits, all connectors, marketplace access, and developer APIs.", color = Color.White.copy(alpha = 0.9f), fontSize = 14.sp, lineHeight = 20.sp)
+            Text(stringResource(R.string.payment_airi_premium), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color.White)
+            Text(stringResource(R.string.payment_premium_desc), color = Color.White.copy(alpha = 0.9f), fontSize = 14.sp, lineHeight = 20.sp)
         }
     }
 }
@@ -318,8 +318,8 @@ private fun PremiumActiveBanner() {
             Icon(Icons.Default.Stars, null, Modifier.size(32.dp), tint = SemanticSuccess)
             Spacer(Modifier.width(12.dp))
             Column {
-                Text("You're on AIRI Premium! 🎉", fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
-                Text("2,000 daily credits, all features unlocked.", fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
+                Text(stringResource(R.string.payment_premium_active), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+                Text(stringResource(R.string.payment_premium_active_desc), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
             }
         }
     }
@@ -359,7 +359,7 @@ private fun SecurityBadge() {
     ) {
         Icon(Icons.Default.Lock, null, Modifier.size(12.dp), tint = AiriTheme.onSurfaceVariant)
         Spacer(Modifier.width(4.dp))
-        Text("Payments processed securely by Stripe. AIRI never stores card details.", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        Text(stringResource(R.string.payment_stripe_footer), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }
 

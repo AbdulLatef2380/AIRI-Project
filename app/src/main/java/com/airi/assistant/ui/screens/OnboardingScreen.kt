@@ -145,7 +145,7 @@ fun OnboardingScreen(
             onClick = { OnboardingManager.skip(); onSkip() },
             modifier = Modifier.align(Alignment.TopEnd)
         ) {
-            Text("Skip", color = AiriTheme.onSurfaceVariant, fontSize = 14.sp)
+            Text(stringResource(R.string.skip), color = AiriTheme.onSurfaceVariant, fontSize = 14.sp)
         }
 
         // Page content
@@ -422,7 +422,7 @@ private fun SocialProofStrip() {
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Icon(Icons.Outlined.AutoAwesome, null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
-        Text("Private by default. Powerful by design.", color = AiriTheme.onBackground.copy(alpha = 0.76f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(stringResource(R.string.onboarding_tagline), color = AiriTheme.onBackground.copy(alpha = 0.76f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
 

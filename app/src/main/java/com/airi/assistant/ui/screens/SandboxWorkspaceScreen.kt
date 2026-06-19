@@ -70,7 +70,7 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Sandbox", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+                        Text(stringResource(R.string.sandbox_title), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                         if (activeSessions.isNotEmpty()) {
                             Box(modifier = Modifier.clip(CircleShape).background(CosmicAccent.copy(alpha = 0.22f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
                                 Text("${activeSessions.size} active", fontSize = 11.sp, color = CosmicAccent)
@@ -80,14 +80,14 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 actions = {
                     IconButton(onClick = {
                         scope.launch { sandboxManager.createSession("New Workspace") }
                     }) {
-                        Icon(Icons.Outlined.Add, contentDescription = "New session", tint = CosmicAccent)
+                        Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.sandbox_new_session_cd), tint = CosmicAccent)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -129,7 +129,7 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                 ) {
                     if (logs.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("No executions yet — run a command below", fontSize = 12.sp, color = AiriTheme.outline)
+                            Text(stringResource(R.string.sandbox_no_executions), fontSize = 12.sp, color = AiriTheme.outline)
                         }
                     } else {
                         LazyColumn(
@@ -179,8 +179,8 @@ private fun SandboxEmptyState(onCreate: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Icon(Icons.Outlined.Terminal, contentDescription = null, tint = CosmicAccent.copy(alpha = 0.5f), modifier = Modifier.size(48.dp))
-            Text("No active sandbox sessions", fontSize = 15.sp, color = AiriTheme.onSurfaceVariant)
-            Text("Create a session to start running isolated tasks", fontSize = 13.sp, color = AiriTheme.outline)
+            Text(stringResource(R.string.sandbox_no_sessions), fontSize = 15.sp, color = AiriTheme.onSurfaceVariant)
+            Text(stringResource(R.string.sandbox_no_sessions_desc), fontSize = 13.sp, color = AiriTheme.outline)
             Button(
                 onClick = onCreate,
                 colors  = ButtonDefaults.buttonColors(containerColor = CosmicAccent.copy(alpha = 0.85f)),
@@ -188,7 +188,7 @@ private fun SandboxEmptyState(onCreate: () -> Unit) {
             ) {
                 Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("New Session")
+                Text(stringResource(R.string.sandbox_new_session_button))
             }
         }
     }
@@ -219,7 +219,7 @@ private fun SessionSelectorRow(
                 Text(sess.label.take(18), fontSize = 12.sp, color = if (isSelected) CosmicAccent else Color.White.copy(alpha = 0.7f))
                 Spacer(Modifier.width(6.dp))
                 Icon(
-                    Icons.Outlined.Close, contentDescription = "Close session",
+                    Icons.Outlined.Close, contentDescription = stringResource(R.string.sandbox_close_session_cd),
                     tint = AiriTheme.outline,
                     modifier = Modifier.size(12.dp).clickable { onClose(sess) }
                 )
@@ -277,7 +277,7 @@ private fun SandboxCommandBar(
         OutlinedTextField(
             value          = value,
             onValueChange  = onValue,
-            placeholder    = { Text("shell command…", fontSize = 12.sp, color = AiriTheme.outline, fontFamily = FontFamily.Monospace) },
+            placeholder    = { Text(stringResource(R.string.sandbox_command_placeholder), fontSize = 12.sp, color = AiriTheme.outline, fontFamily = FontFamily.Monospace) },
             singleLine     = true,
             modifier       = Modifier.weight(1f).height(46.dp),
             textStyle      = LocalTextStyle.current.copy(fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AiriTheme.onBackground),
@@ -299,7 +299,7 @@ private fun SandboxCommandBar(
             if (isExecuting) {
                 CircularProgressIndicator(color = CosmicAccent, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
             } else {
-                Icon(Icons.Outlined.PlayArrow, contentDescription = "Run", tint = AiriTheme.onBackground)
+                Icon(Icons.Outlined.PlayArrow, contentDescription = stringResource(R.string.sandbox_run_cd), tint = AiriTheme.onBackground)
             }
         }
     }

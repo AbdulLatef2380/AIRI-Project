@@ -58,7 +58,7 @@ fun HistoryScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background.copy(alpha = 0.92f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AiriTheme.onBackground)
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_close), tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
@@ -249,7 +249,7 @@ private fun HistorySessionItem(
                 ) {
                     Icon(
                         Icons.Outlined.MoreVert,
-                        contentDescription = "Options",
+                        contentDescription = stringResource(R.string.cd_options),
                         tint = CosmicAccent,
                         modifier = Modifier.size(18.dp)
                     )

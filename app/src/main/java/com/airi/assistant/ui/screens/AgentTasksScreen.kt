@@ -92,7 +92,7 @@ fun AgentTasksScreen(
                 ),
                 navigationIcon = {
                     IconButton(onClick = { showAddDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add task", tint = CosmicAccent)
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_add_task), tint = CosmicAccent)
                     }
                 },
                 title = {
@@ -107,7 +107,7 @@ fun AgentTasksScreen(
                 },
                 actions = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 }
             )

@@ -713,9 +713,9 @@ fun ChatScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("System Integrity Failed", color = AiriTheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(stringResource(R.string.system_integrity_failed), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         TextButton(onClick = { viewModel.clearSystemIntegrityFailed() }) {
-                            Text("Dismiss", color = AiriTheme.onBackground, fontSize = 12.sp)
+                            Text(stringResource(R.string.dismiss), color = AiriTheme.onBackground, fontSize = 12.sp)
                         }
                     }
                 }
@@ -803,7 +803,7 @@ fun ChatScreen(
                             )
                         }
                         TextButton(onClick = { viewModel.acknowledgeContextReset() }) {
-                            Text("OK", color = Color.White, fontSize = 12.sp)
+                            Text(stringResource(R.string.ok), color = Color.White, fontSize = 12.sp)
                         }
                     }
                 }
@@ -1052,7 +1052,7 @@ private fun AiriChatTopBar(
             IconButton(onClick = onHistoryOpen) {
                 Icon(
                     Icons.Outlined.History,
-                    contentDescription = "History",
+                    contentDescription = stringResource(R.string.cd_history),
                     tint = AiriTheme.onBackground.copy(alpha = 0.65f),
                     modifier = Modifier.size(20.dp)
                 )
@@ -1282,7 +1282,7 @@ private fun AiriHistoryPanel(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = AiriTheme.onBackground.copy(alpha = 0.7f))
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_close), tint = AiriTheme.onBackground.copy(alpha = 0.7f))
                 }
                 Text(
                     "السجل",

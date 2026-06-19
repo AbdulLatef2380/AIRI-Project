@@ -59,7 +59,7 @@ fun DebugPanelScreen(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.BugReport, contentDescription = "Debug", tint = CosmicAccent)
+                Icon(Icons.Default.BugReport, contentDescription = stringResource(R.string.cd_debug), tint = CosmicAccent)
             }
             Spacer(Modifier.width(8.dp))
             Text("Debug Panel", color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 20.sp)

@@ -39,11 +39,11 @@ fun AIModelsSettingsScreen(
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
-                    Text("AI & Models", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
+                    Text(stringResource(R.string.settings_group_ai_models), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
                 }
             )
         }

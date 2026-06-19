@@ -119,11 +119,11 @@ fun UpdateScreen(onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Updates", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.updates_title), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -257,7 +257,7 @@ private fun UpdateStatusCard(checkState: CheckState, onCheckNow: () -> Unit) {
                     colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
                     shape    = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Check for Updates", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.updates_check), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -278,9 +278,9 @@ private fun UpdateBanner(newVersion: String, onInstall: () -> Unit) {
         ) {
             Text("🆕", fontSize = 24.sp)
             Column(modifier = Modifier.weight(1f)) {
-                Text("AIRI $newVersion is available", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                Text(stringResource(R.string.updates_available_version, newVersion), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     color = AiriTheme.onBackground)
-                Text("Tap Install to update from the Play Store", fontSize = 12.sp,
+                Text(stringResource(R.string.updates_install_from_store), fontSize = 12.sp,
                     color = AiriTheme.onSurfaceVariant)
             }
             Button(
@@ -289,7 +289,7 @@ private fun UpdateBanner(newVersion: String, onInstall: () -> Unit) {
                 shape    = RoundedCornerShape(10.dp),
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
             ) {
-                Text("Install", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.updates_install), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -350,7 +350,7 @@ private fun ReleaseNoteCard(release: ReleaseNote, isExpanded: Boolean, onToggle:
             AnimatedVisibility(visible = isExpanded, enter = expandVertically(), exit = shrinkVertically()) {
                 Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
                     if (release.highlights.isNotEmpty()) {
-                        Text("What's new", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        Text(stringResource(R.string.updates_whats_new), fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                             color = CosmicAccent, modifier = Modifier.padding(bottom = 8.dp))
                         release.highlights.forEach { (emoji, text) ->
                             Row(
@@ -368,7 +368,7 @@ private fun ReleaseNoteCard(release: ReleaseNote, isExpanded: Boolean, onToggle:
                         Spacer(Modifier.height(10.dp))
                         Divider(color = DividerColor)
                         Spacer(Modifier.height(10.dp))
-                        Text("Bug fixes", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        Text(stringResource(R.string.updates_bug_fixes), fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                             color = SemanticSuccess, modifier = Modifier.padding(bottom = 8.dp))
                         release.fixes.forEach { fix ->
                             Row(

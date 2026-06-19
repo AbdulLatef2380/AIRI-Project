@@ -46,7 +46,7 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Developer Center", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground) },
+                title = { Text(stringResource(R.string.developer_center_title), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, null, tint = AiriTheme.onBackground) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
@@ -150,7 +150,7 @@ private fun ConnectorsTab() {
         }
         if (healthSummary.isEmpty()) {
             item { Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
-                Text("No connector health data", color = AiriTheme.onSurfaceVariant.copy(alpha = 0.3f), fontSize = 13.sp) }
+                Text(stringResource(R.string.developer_no_connector_health), color = AiriTheme.onSurfaceVariant.copy(alpha = 0.3f), fontSize = 13.sp) }
             }
         }
     }
@@ -226,8 +226,8 @@ private fun DiagnosticsTab() {
     }
     Column(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Diagnostics", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
-            if (running) Text("Running…", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+            Text(stringResource(R.string.developer_diagnostics), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+            if (running) Text(stringResource(R.string.developer_running), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
             else report?.let { r ->
                 Text(if (r.allPassed) "✓ All passed" else "✗ ${r.results.count { !it.passed }} failed",
                     fontSize = 11.sp, color = if (r.allPassed) Color(0xFF30D158) else Color(0xFFFF453A))
@@ -243,7 +243,7 @@ private fun DiagnosticsTab() {
                     Text(test.detail, fontSize = 10.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 13.sp, modifier = Modifier.padding(start = 18.dp))
                 }
             }
-        } ?: if (!running) Text("No results.", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant) else Unit
+        } ?: if (!running) Text(stringResource(R.string.developer_no_results), fontSize = 12.sp, color = AiriTheme.onSurfaceVariant) else Unit
     }
 }
 

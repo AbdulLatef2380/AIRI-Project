@@ -90,13 +90,13 @@ fun ModelLibraryScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
                     Column {
-                        Text("AI Library", color = AiriTheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("AIRI routes automatically", color = AiriTheme.onSurfaceVariant.copy(alpha = 0.45f), fontSize = 11.sp)
+                        Text(stringResource(R.string.model_library_title), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(stringResource(R.string.model_library_subtitle), color = AiriTheme.onSurfaceVariant.copy(alpha = 0.45f), fontSize = 11.sp)
                     }
                 }
             )
@@ -304,7 +304,7 @@ private fun BraveSearchApiCard(
                 Icon(Icons.Outlined.Search, null, tint = Color(0xFFFF6D00), modifier = Modifier.size(20.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text("Brave Search API", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+                Text(stringResource(R.string.brave_search_title), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                 Text(
                     if (hasBraveKey) "Enabled — real web results + page content"
                     else "Not configured — using DDG fallback (~30% coverage)",
@@ -312,7 +312,7 @@ private fun BraveSearchApiCard(
                     color    = if (hasBraveKey) Color(0xFF30D158) else Color.White.copy(alpha = 0.5f),
                     lineHeight = 14.sp
                 )
-                Text("Free: 2,000 searches/month · brave.com/search/api", fontSize = 10.sp,
+                Text(stringResource(R.string.brave_search_desc), fontSize = 10.sp,
                     color = AiriTheme.outline)
             }
             TextButton(onClick = onEnterKey) {
@@ -336,12 +336,12 @@ private fun BraveKeyEntryDialog(
         title = { Text("${provider.displayName} API Key", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Get a free key at brave.com/search/api (2,000 searches/month free)",
+                Text(stringResource(R.string.brave_key_dialog_body),
                     fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
                 OutlinedTextField(
                     value         = input,
                     onValueChange = { input = it },
-                    placeholder   = { Text("BSA...", color = AiriTheme.outline) },
+                    placeholder   = { Text(stringResource(R.string.brave_key_placeholder), color = AiriTheme.outline) },
                     singleLine    = true,
                     modifier      = Modifier.fillMaxWidth()
                 )
@@ -349,10 +349,10 @@ private fun BraveKeyEntryDialog(
         },
         confirmButton = {
             Button(onClick = { if (input.isNotBlank()) onConfirm(input.trim()) }) {
-                Text("Save")
+                Text(stringResource(R.string.save))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = AiriTheme.onSurfaceVariant) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant) } }
     )
 }
 
@@ -389,7 +389,7 @@ private fun ActiveRoutingCard(modelState: ModelUiState) {
             )
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("Active AI", color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
+                Text(stringResource(R.string.model_library_active_ai), color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
                 Text(
                     activeLabel,
                     color      = AiriTheme.onBackground,
@@ -434,7 +434,7 @@ private fun SmartRoutingModeCard(
                 Icon(Icons.Outlined.Tune, contentDescription = null,
                     tint = CosmicAccent, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Smart Routing", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Text(stringResource(R.string.model_library_smart_routing), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             }
             Spacer(Modifier.height(12.dp))
 
@@ -590,7 +590,7 @@ private fun CloudProviderCard(
                         modifier = Modifier.height(34.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp)
                     ) {
-                        Text("Deactivate", fontSize = 12.sp)
+                        Text(stringResource(R.string.deactivate), fontSize = 12.sp)
                     }
                 } else {
                     Button(
@@ -691,7 +691,7 @@ private fun OpenRouterTaskModelCard(entry: TaskModelEntry) {
                 shape = RoundedCornerShape(6.dp),
                 color = Color(0xFF7C4DFF).copy(alpha = 0.15f)
             ) {
-                Text("AUTO", color = Color(0xFF7C4DFF), fontSize = 9.sp,
+                Text(stringResource(R.string.auto_badge), color = Color(0xFF7C4DFF), fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
             }
@@ -757,7 +757,7 @@ private fun ApiKeyEntryDialog(
         containerColor   = SurfaceCard,
         shape            = RoundedCornerShape(16.dp),
         title = {
-            Text("Connect ${config.displayLabel}", color = AiriTheme.onBackground,
+            Text(stringResource(R.string.connect_label, config.displayLabel), color = AiriTheme.onBackground,
                 fontWeight = FontWeight.Bold, fontSize = 16.sp)
         },
         text = {
@@ -770,7 +770,7 @@ private fun ApiKeyEntryDialog(
                 OutlinedTextField(
                     value         = key,
                     onValueChange = { key = it },
-                    label         = { Text("API Key", color = AiriTheme.onSurfaceVariant) },
+                    label         = { Text(stringResource(R.string.api_key_label), color = AiriTheme.onSurfaceVariant) },
                     singleLine    = true,
                     colors        = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
@@ -803,11 +803,11 @@ private fun ApiKeyEntryDialog(
                 onClick  = { if (key.isNotBlank()) onConfirm(key.trim()) },
                 enabled  = key.isNotBlank(),
                 colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
-            ) { Text("Connect", fontWeight = FontWeight.SemiBold) }
+            ) { Text(stringResource(R.string.connect), fontWeight = FontWeight.SemiBold) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = AiriTheme.onSurfaceVariant)
+                Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
             }
         }
     )

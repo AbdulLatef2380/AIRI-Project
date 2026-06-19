@@ -57,7 +57,7 @@ fun PremiumBadge(
         ) {
             Icon(
                 imageVector = if (onUnlockClick != null) Icons.Outlined.Lock else Icons.Outlined.Star,
-                contentDescription = "Premium",
+                contentDescription = stringResource(R.string.cd_premium_badge),
                 tint     = goldColor,
                 modifier = Modifier.size(if (compact) 10.dp else 14.dp)
             )
@@ -121,7 +121,7 @@ fun LockedFeatureRow(
         }
         Icon(
             Icons.Outlined.Lock,
-            contentDescription = "Locked",
+            contentDescription = stringResource(R.string.cd_premium_locked),
             tint     = goldColor.copy(alpha = 0.5f),
             modifier = Modifier.size(16.dp)
         )

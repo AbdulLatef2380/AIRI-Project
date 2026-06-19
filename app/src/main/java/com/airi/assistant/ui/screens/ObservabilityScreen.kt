@@ -51,11 +51,11 @@ fun ObservabilityScreen(onBack: () -> Unit) {
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
-                    Text("Observability", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, fontSize = 17.sp)
+                    Text(stringResource(R.string.observability), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, fontSize = 17.sp)
                 }
             )
         }
@@ -122,12 +122,12 @@ private fun EventsTab() {
                 },
                 modifier = Modifier.size(32.dp)
             ) {
-                Icon(Icons.Default.Delete, contentDescription = "Clear", tint = AiriTheme.outline, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_close), tint = AiriTheme.outline, modifier = Modifier.size(16.dp))
             }
         }
         if (entries.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No events recorded yet", color = AiriTheme.outline, fontSize = 13.sp)
+                Text(stringResource(R.string.observability_no_events), color = AiriTheme.outline, fontSize = 13.sp)
             }
         } else {
             LazyColumn(
@@ -388,7 +388,7 @@ private fun GraphTab() {
         item {
             HubCard(title = "Plan Graph") {
                 if (graph == null) {
-                    Text("No graph yet", color = AiriTheme.outline, fontSize = 12.sp)
+                    Text(stringResource(R.string.observability_no_graph), color = AiriTheme.outline, fontSize = 12.sp)
                 } else {
                     Column {
                         Text(
@@ -493,7 +493,7 @@ private fun TracesTab() {
 
         if (spans.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No trace spans yet", color = AiriTheme.outline, fontSize = 13.sp)
+                Text(stringResource(R.string.observability_no_spans), color = AiriTheme.outline, fontSize = 13.sp)
             }
         } else {
             LazyColumn(

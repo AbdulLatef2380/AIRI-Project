@@ -44,11 +44,11 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
-                    Text("About AIRI", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
+                    Text(stringResource(R.string.about_airi_title), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
                 }
             )
         }

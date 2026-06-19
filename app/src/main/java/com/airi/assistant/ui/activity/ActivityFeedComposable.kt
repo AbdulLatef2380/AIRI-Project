@@ -64,7 +64,7 @@ private fun CompactFeed(events: List<ActivityEvent>, totalCount: Int, onExpand: 
             }
         }
         if (totalCount > events.size)
-            Text("+${totalCount - events.size} more — tap to expand", fontSize = 10.sp, color = AiriTheme.onBackground.copy(alpha = 0.3f))
+            Text(stringResource(R.string.activity_feed_more, totalCount - events.size), fontSize = 10.sp, color = AiriTheme.onBackground.copy(alpha = 0.3f))
     }
 }
 
@@ -78,8 +78,8 @@ private fun ExpandedFeed(events: List<ActivityEvent>, categoryFilter: ActivityCa
         // Header
         Row(verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
-            Text("Activity", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground, modifier = Modifier.weight(1f))
-            Text("Clear", fontSize = 11.sp, color = AiriTheme.onBackground.copy(alpha = 0.35f),
+            Text(stringResource(R.string.activity_feed_title), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.clear), fontSize = 11.sp, color = AiriTheme.onBackground.copy(alpha = 0.35f),
                 modifier = Modifier.clickable(onClick = onClear).padding(horizontal = 8.dp))
             Text("⌄", fontSize = 14.sp, color = AiriTheme.onBackground.copy(alpha = 0.5f), modifier = Modifier.clickable(onClick = onCollapse))
         }

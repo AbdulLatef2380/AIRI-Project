@@ -40,9 +40,9 @@ fun PlusMenuSheet(onDismiss: () -> Unit, onAction: (PlusMenuAction) -> Unit) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
-                Text("Create & Explore", fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                Text(stringResource(R.string.plus_menu_create_explore), fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
                     color = AiriTheme.onBackground, modifier = Modifier.weight(1f))
-                TextButton(onClick = onDismiss) { Text("Done", color = CosmicAccent, fontSize = 13.sp) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.done), color = CosmicAccent, fontSize = 13.sp) }
             }
             Divider(color = AiriTheme.onBackground.copy(alpha = 0.07f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             PlusMenuAction.sections.forEach { (title, actions) ->

@@ -57,7 +57,7 @@ fun CommunitySkillsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Community Skills", fontWeight = FontWeight.SemiBold) },
+                title = { Text(stringResource(R.string.community_skills_title), fontWeight = FontWeight.SemiBold) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background)
             )
@@ -113,8 +113,8 @@ private fun MySkillsTab(
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Default.Groups, null, Modifier.size(56.dp), tint = AiriTheme.onSurfaceVariant)
-                Text("No community skills yet", color = AiriTheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
-                Text("Import skills from the Import tab.", fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
+                Text(stringResource(R.string.community_no_skills), color = AiriTheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.community_no_skills_desc), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
             }
         }
         return
@@ -179,7 +179,7 @@ private fun CommunitySkillCard(
                         ) {
                             Icon(Icons.Default.Science, null, Modifier.size(14.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Sandbox", fontSize = 12.sp)
+                            Text(stringResource(R.string.community_sandbox), fontSize = 12.sp)
                         }
                         OutlinedButton(
                             onClick = { onTrustTap(skill) },
@@ -187,7 +187,7 @@ private fun CommunitySkillCard(
                         ) {
                             Icon(Icons.Default.Shield, null, Modifier.size(14.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Trust", fontSize = 12.sp)
+                            Text(stringResource(R.string.community_trust), fontSize = 12.sp)
                         }
                         Spacer(Modifier.weight(1f))
                         IconButton(onClick = { onRemove(skill) }, modifier = Modifier.size(32.dp)) {
@@ -230,8 +230,8 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
         modifier            = Modifier.fillMaxSize()
     ) {
         item {
-            Text("Import Community Skill", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = AiriTheme.onBackground)
-            Text("Import skill.json from a URL or paste it directly.", fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
+            Text(stringResource(R.string.community_import_title), fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = AiriTheme.onBackground)
+            Text(stringResource(R.string.community_import_desc), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
         }
 
         item {
@@ -253,7 +253,7 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                 OutlinedTextField(
                     value         = importUrl,
                     onValueChange = { importUrl = it; result = null },
-                    label         = { Text("Skill URL (HTTPS only)") },
+                    label         = { Text(stringResource(R.string.skill_url_label)) },
                     placeholder   = { Text("https://raw.githubusercontent.com/…/skill.json") },
                     modifier      = Modifier.fillMaxWidth(),
                     singleLine    = true,
@@ -280,7 +280,7 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                     if (isLoading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
                     else Icon(Icons.Default.Download, null, Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Import from URL")
+                    Text(stringResource(R.string.community_import_from_url))
                 }
             }
         } else {
@@ -288,7 +288,7 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                 OutlinedTextField(
                     value         = jsonPaste,
                     onValueChange = { jsonPaste = it; result = null },
-                    label         = { Text("Paste skill.json") },
+                    label         = { Text(stringResource(R.string.paste_skill_json_label)) },
                     modifier      = Modifier.fillMaxWidth().height(200.dp),
                     textStyle     = LocalTextStyle.current.copy(fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
                     colors        = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = DividerColor)
@@ -313,7 +313,7 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                 ) {
                     Icon(Icons.Default.Code, null, Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Import JSON")
+                    Text(stringResource(R.string.community_import_json))
                 }
             }
         }
@@ -340,8 +340,8 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                     Icon(Icons.Default.Security, null, Modifier.size(20.dp), tint = CosmicAccent)
                     Spacer(Modifier.width(8.dp))
                     Column {
-                        Text("Security Scan Active", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
-                        Text("All imports are scanned for dangerous patterns before being stored.", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                        Text(stringResource(R.string.community_security_scan_active), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
+                        Text(stringResource(R.string.community_security_scan_desc), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                     }
                 }
             }
@@ -357,8 +357,8 @@ private fun TrustScoreTab(skill: CommunitySkill?, hub: CommunitySkillHub) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Default.Shield, null, Modifier.size(48.dp), tint = AiriTheme.onSurfaceVariant)
-                Text("Select a skill to view its trust score", color = AiriTheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                Text("Tap the Trust button on any skill in My Skills.", fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
+                Text(stringResource(R.string.community_select_skill_trust), color = AiriTheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text(stringResource(R.string.community_select_skill_trust_desc), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
             }
         }
         return
@@ -388,7 +388,7 @@ private fun TrustScoreTab(skill: CommunitySkill?, hub: CommunitySkillHub) {
                     Spacer(Modifier.width(16.dp))
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("${breakdown.totalScore}", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = tierColor(breakdown.tier))
-                        Text("/ 100", fontSize = 14.sp, color = AiriTheme.onSurfaceVariant)
+                        Text(stringResource(R.string.community_score_suffix), fontSize = 14.sp, color = AiriTheme.onSurfaceVariant)
                     }
                 }
             }
@@ -396,7 +396,7 @@ private fun TrustScoreTab(skill: CommunitySkill?, hub: CommunitySkillHub) {
 
         // ── Signals ──────────────────────────────────────────────────────
         item {
-            Text("Trust Signals", fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+            Text(stringResource(R.string.community_trust_signals), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
         }
 
         items(breakdown.signals) { signal ->

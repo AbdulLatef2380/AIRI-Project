@@ -54,16 +54,16 @@ fun CreditsScreen(onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Credits & Usage", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.credits_usage_title), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 actions = {
                     IconButton(onClick = ::refresh) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = AiriTheme.onBackground)
+                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.cd_refresh), tint = AiriTheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -138,7 +138,7 @@ fun CreditsScreen(onBack: () -> Unit) {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Total today", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            Text(stringResource(R.string.credits_total_today), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                                 color = AiriTheme.onBackground)
                             Text(
                                 formatTokens(totalTokens),
@@ -222,7 +222,7 @@ private fun CreditBalanceCard(snapshot: MeterSnapshot) {
                         fontSize = 28.sp, fontWeight = FontWeight.ExtraBold,
                         color = ringColor
                     )
-                    Text("remaining", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                    Text(stringResource(R.string.credits_remaining), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                 }
             }
 

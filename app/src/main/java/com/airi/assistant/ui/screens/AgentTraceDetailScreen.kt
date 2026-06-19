@@ -56,12 +56,12 @@ fun AgentTraceDetailScreen(
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
                     Column {
-                        Text("Trace Detail", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, fontSize = 16.sp)
+                        Text(stringResource(R.string.trace_detail_title), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, fontSize = 16.sp)
                         Text(timeStr, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                     }
                 }
@@ -82,7 +82,7 @@ fun AgentTraceDetailScreen(
                         Icon(Icons.Outlined.Forum, contentDescription = null,
                             tint = CosmicAccent, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("User Input", color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.trace_user_input_label), color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(t.originalInput, color = AiriTheme.onBackground.copy(alpha = 0.9f), fontSize = 14.sp, lineHeight = 20.sp)
@@ -138,7 +138,7 @@ fun AgentTraceDetailScreen(
                         Icon(Icons.Outlined.Timeline, contentDescription = null,
                             tint = CosmicAccent, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Execution Steps", color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.trace_execution_steps), color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 itemsIndexed(t.steps) { idx, step ->
@@ -154,7 +154,7 @@ fun AgentTraceDetailScreen(
                             Icon(Icons.Outlined.OpenInNew, contentDescription = null,
                                 tint = CosmicAccent, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Final Result", color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.trace_final_result), color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                         Spacer(Modifier.height(8.dp))
                         Text(
@@ -231,7 +231,7 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
                         .padding(8.dp)
                 ) {
                     Column {
-                        Text("INPUT", color = CosmicAccent.copy(alpha = 0.5f), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.trace_input_badge), color = CosmicAccent.copy(alpha = 0.5f), fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(2.dp))
                         step.inputParams.forEach { (k, v) ->
                             Text(

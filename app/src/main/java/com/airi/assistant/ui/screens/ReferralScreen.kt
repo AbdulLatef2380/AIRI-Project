@@ -53,10 +53,10 @@ fun ReferralScreen(onBack: () -> Unit) {
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.75f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
-                title = { Text("Invite friends", color = AiriTheme.onBackground, fontWeight = FontWeight.Bold) }
+                title = { Text(stringResource(R.string.invite_friends), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold) }
             )
         }
     ) { padding ->
@@ -70,7 +70,7 @@ fun ReferralScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             Icon(Icons.Outlined.CardGiftcard, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(54.dp))
-            Text("Grow with AIRI", color = AiriTheme.onBackground, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+            Text(stringResource(R.string.referral_heading), color = AiriTheme.onBackground, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
             Text(
                 "Share AIRI with friends. You get +20 bonus messages for inviting, and new users get +20 welcome messages when they join with your code.",
                 color = AiriTheme.onSurfaceVariant,
@@ -89,9 +89,9 @@ fun ReferralScreen(onBack: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Your referral code", color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                Text(stringResource(R.string.referral_code_label), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
                 Text(code, color = CosmicAccent, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp)
-                Text("Bonus messages available: $bonus", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+                Text(stringResource(R.string.referral_bonus_available, bonus), color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
             }
 
             ReferralButton(Icons.Outlined.Send, "Share on WhatsApp") {
@@ -116,7 +116,7 @@ fun ReferralScreen(onBack: () -> Unit) {
                 value = codeInput,
                 onValueChange = { codeInput = it.uppercase() },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Have a referral code?", color = AiriTheme.onSurfaceVariant) },
+                label = { Text(stringResource(R.string.referral_code_field_label), color = AiriTheme.onSurfaceVariant) },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = CosmicAccent,
@@ -135,7 +135,7 @@ fun ReferralScreen(onBack: () -> Unit) {
             ) {
                 Icon(Icons.Outlined.Redeem, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Redeem welcome bonus", color = CosmicAccent)
+                Text(stringResource(R.string.referral_redeem), color = CosmicAccent)
             }
         }
     }

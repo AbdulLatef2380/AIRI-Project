@@ -195,11 +195,11 @@ fun PermissionsScreen(onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Permissions", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.permissions_title), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -280,7 +280,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
                 ) {
                     Icon(Icons.Filled.OpenInNew, null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Open App Settings", color = CosmicAccent, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.open_app_settings), color = CosmicAccent, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
             }
 
@@ -386,7 +386,7 @@ private fun PermissionRow(perm: PermissionInfo, isGranted: Boolean) {
                     color = SemanticWarn.copy(0.12f),
                     modifier = Modifier.border(0.5.dp, SemanticWarn.copy(0.3f), RoundedCornerShape(6.dp))
                 ) {
-                    Text("Special", fontSize = 10.sp, color = SemanticWarn,
+                    Text(stringResource(R.string.permissions_special_badge), fontSize = 10.sp, color = SemanticWarn,
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
                 }
             } else {
@@ -408,7 +408,7 @@ private fun PermissionRow(perm: PermissionInfo, isGranted: Boolean) {
                 )
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Why AIRI needs this", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = CosmicAccent)
+                    Text(stringResource(R.string.permissions_why_needed), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = CosmicAccent)
                     Text(perm.whyNeeded, fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 17.sp)
                 }
             }

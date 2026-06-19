@@ -54,13 +54,13 @@ fun MemoryScreen(
                 },
                 title = {
                     Column {
-                        Text("Memory", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
+                        Text(stringResource(R.string.memory_title), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
                         Text("$memoryCount stored interactions", fontSize = 11.sp, color = CosmicAccent.copy(alpha = 0.75f))
                     }
                 },
                 actions = {
                     IconButton(onClick = { showConfirm = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Clear memory", tint = Color(0xFFFF6B6B))
+                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_clear_memory), tint = Color(0xFFFF6B6B))
                     }
                 }
             )
@@ -74,9 +74,9 @@ fun MemoryScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Outlined.Psychology, null, tint = CosmicAccent.copy(alpha = 0.3f), modifier = Modifier.size(64.dp))
                     Spacer(Modifier.height(16.dp))
-                    Text("No memory yet", color = AiriTheme.onSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text(stringResource(R.string.memory_no_memory), color = AiriTheme.onSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Spacer(Modifier.height(8.dp))
-                    Text("Start a conversation to build memory", color = AiriTheme.outline, fontSize = 13.sp)
+                    Text(stringResource(R.string.memory_no_memory_desc), color = AiriTheme.outline, fontSize = 13.sp)
                 }
             }
         } else {
@@ -96,7 +96,7 @@ fun MemoryScreen(
                             .padding(16.dp)
                     ) {
                         Column {
-                            Text("Episodic Memory", fontWeight = FontWeight.Bold, color = CosmicAccent, fontSize = 13.sp)
+                            Text(stringResource(R.string.memory_episodic_section), fontWeight = FontWeight.Bold, color = CosmicAccent, fontSize = 13.sp)
                             Spacer(Modifier.height(4.dp))
                             Text(
                                 "AIRI uses a sliding window of recent interactions as context for each new message. The full history is stored in the local database.",
@@ -123,8 +123,8 @@ fun MemoryScreen(
             titleContentColor = Color.White,
             textContentColor  = Color.White.copy(alpha = 0.7f),
             shape            = RoundedCornerShape(20.dp),
-            title = { Text("Clear All Memory", fontWeight = FontWeight.Bold) },
-            text  = { Text("This will permanently delete all stored interactions. The AI context will be reset. This action cannot be undone.") },
+            title = { Text(stringResource(R.string.clear_all_memory), fontWeight = FontWeight.Bold) },
+            text  = { Text(stringResource(R.string.memory_clear_dialog_body)) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -132,10 +132,10 @@ fun MemoryScreen(
                         viewModel.clearMemory()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCC3333))
-                ) { Text("Clear Memory") }
+                ) { Text(stringResource(R.string.memory_clear_button)) }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirm = false }) { Text("Cancel", color = AiriTheme.onSurfaceVariant) }
+                TextButton(onClick = { showConfirm = false }) { Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant) }
             }
         )
     }

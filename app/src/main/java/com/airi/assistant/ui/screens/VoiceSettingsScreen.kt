@@ -94,11 +94,11 @@ fun VoiceSettingsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Voice Settings", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.voice_settings_title), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -138,7 +138,7 @@ fun VoiceSettingsScreen(
                             color = AiriTheme.onBackground
                         )
                         Text(
-                            "Pitch, speed, personality presets & voice selection",
+                            stringResource(R.string.voice_personalization_shortcut_desc),
                             fontSize = 12.sp, color = AiriTheme.onSurfaceVariant
                         )
                     }
@@ -192,7 +192,7 @@ fun VoiceSettingsScreen(
                                     trackColor = CosmicAccent.copy(0.2f)
                                 )
                                 Text(
-                                    "جارٍ التنزيل… ${downloadProgress!!}%",
+                                    stringResource(R.string.vosk_downloading_progress, downloadProgress!!),
                                     color = CosmicAccent, fontSize = 12.sp
                                 )
                             }
@@ -290,7 +290,7 @@ private fun VoiceStatusCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Voice System", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+            Text(stringResource(R.string.voice_system_section), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
             Text(
                 if (allReady)
                     "All voice features are active."
@@ -347,7 +347,7 @@ private fun PorcupineCard(
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Outlined.Mic, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
-                Text("Wake Word (Porcupine)", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+                Text(stringResource(R.string.wake_word_porcupine_section), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
             }
 
             // Status indicator
@@ -376,7 +376,7 @@ private fun PorcupineCard(
             OutlinedTextField(
                 value             = accessKeyInput,
                 onValueChange     = onKeyChange,
-                label             = { Text("Porcupine access key", fontSize = 12.sp) },
+                label             = { Text(stringResource(R.string.porcupine_access_key_label), fontSize = 12.sp) },
                 singleLine        = true,
                 visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions   = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -405,13 +405,13 @@ private fun PorcupineCard(
                     modifier = Modifier.weight(1f),
                     colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent.copy(alpha = 0.85f)),
                     shape    = RoundedCornerShape(10.dp)
-                ) { Text("Save key", fontSize = 13.sp) }
+                ) { Text(stringResource(R.string.voice_save_key), fontSize = 13.sp) }
 
                 OutlinedButton(
                     onClick = onClear,
                     shape   = RoundedCornerShape(10.dp),
                     border  = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
-                ) { Text("Clear", fontSize = 13.sp, color = AiriTheme.onSurfaceVariant) }
+                ) { Text(stringResource(R.string.clear), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant) }
             }
 
             Text(
@@ -435,7 +435,7 @@ private fun InstalledModelsCard(
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Outlined.RecordVoiceOver, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
-                Text("Installed Models", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+                Text(stringResource(R.string.voice_installed_models), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
             }
 
             if (installed.isEmpty()) {
@@ -478,7 +478,7 @@ private fun InstalledModelsCard(
                                             .clip(CircleShape)
                                             .background(SemanticSuccess.copy(alpha = 0.18f))
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) { Text("Active", fontSize = 9.sp, color = SemanticSuccess, fontWeight = FontWeight.SemiBold) }
+                                    ) { Text(stringResource(R.string.active), fontSize = 9.sp, color = SemanticSuccess, fontWeight = FontWeight.SemiBold) }
                                 }
                             }
                             Text(
@@ -490,13 +490,13 @@ private fun InstalledModelsCard(
                             TextButton(
                                 onClick = { onActivate(model.id) },
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                            ) { Text("Activate", fontSize = 12.sp, color = CosmicAccent) }
+                            ) { Text(stringResource(R.string.activate), fontSize = 12.sp, color = CosmicAccent) }
                         }
                         IconButton(
                             onClick  = { onDelete(model.id) },
                             modifier = Modifier.size(36.dp)
                         ) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Delete model",
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.voice_delete_model_cd),
                                 tint = SemanticError.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
                         }
                     }

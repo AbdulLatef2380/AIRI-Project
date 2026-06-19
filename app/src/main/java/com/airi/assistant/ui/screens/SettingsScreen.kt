@@ -84,7 +84,7 @@ fun SettingsScreen(
                 },
                 title = {
                     Text(
-                        text = "الإعدادات",
+                        text = stringResource(R.string.settings),
                         color = AiriTheme.onBackground,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -108,42 +108,42 @@ fun SettingsScreen(
                 SettingsNavItem(
                     icon     = Icons.Outlined.History,
                     iconTint = Color(0xFF7B8DFF),
-                    label    = "المهام المجدولة",
+                    label    = stringResource(R.string.settings_agent_tasks),
                     onClick  = { onNavigate(AiriRoute.AGENT_TASKS) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Psychology,
                     iconTint = Color(0xFFB0B8CC),
-                    label    = "معرفة",
+                    label    = stringResource(R.string.settings_knowledge),
                     onClick  = { onNavigate(AiriRoute.MEMORY) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Settings,
                     iconTint = Color(0xFFB0B8CC),
-                    label    = "ضوابط البيانات",
+                    label    = stringResource(R.string.settings_data_controls),
                     onClick  = { onNavigate(AiriRoute.SETTINGS_PRIVACY) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Star,
                     iconTint = Color(0xFFB0B8CC),
-                    label    = "المهارات",
+                    label    = stringResource(R.string.settings_skills),
                     onClick  = { onNavigate(AiriRoute.SKILL_MANAGER) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Hub,
                     iconTint = Color(0xFFB0B8CC),
-                    label    = "موصلات",
+                    label    = stringResource(R.string.settings_connectors),
                     onClick  = { onNavigate(AiriRoute.CONNECTORS) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Extension,
                     iconTint = Color(0xFFB0B8CC),
-                    label    = "التكاملات",
+                    label    = stringResource(R.string.integrations),
                     onClick  = { onNavigate(AiriRoute.INTEGRATIONS) }
                 )
             }
@@ -153,31 +153,31 @@ fun SettingsScreen(
                 SettingsNavItem(
                     icon     = Icons.Outlined.Language,
                     iconTint = Color(0xFFB0B8CC),
-                    label    = "اللغة",
-                    trailing = "العربية",
+                    label    = stringResource(R.string.language),
+                    trailing = LanguageManager.getLanguageOption(LanguageManager.getCurrentLanguage(context)).displayName,
                     onClick  = { onNavigate(AiriRoute.SETTINGS_GENERAL) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Palette,
                     iconTint = Color(0xFFB0B8CC),
-                    label    = "المظهر",
-                    trailing = "اتباع النظام",
+                    label    = stringResource(R.string.appearance),
+                    trailing = stringResource(R.string.settings_follow_system),
                     onClick  = { onNavigate(AiriRoute.SETTINGS_CUSTOMIZATION) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.AutoAwesome,
                     iconTint = Color(0xFF7C4DFF),
-                    label    = "AI Library",
-                    trailing = "Smart Routing",
+                    label    = stringResource(R.string.settings_ai_library),
+                    trailing = stringResource(R.string.settings_smart_routing),
                     onClick  = { onNavigate(AiriRoute.MODEL_LIBRARY) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Mic,
                     iconTint = Color(0xFF4CAF50),
-                    label    = "الصوت وكلمة التنبيه",
+                    label    = stringResource(R.string.settings_voice_wakeword),
                     onClick  = { onNavigate(AiriRoute.VOICE_SETTINGS) }
                 )
             }
@@ -187,21 +187,21 @@ fun SettingsScreen(
                 SettingsNavItem(
                     icon     = Icons.Outlined.Token,
                     iconTint = Color(0xFF7C6AF7),
-                    label    = "Credits & Usage",
+                    label    = stringResource(R.string.settings_credits_usage),
                     onClick  = { onNavigate(AiriRoute.CREDITS) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Security,
                     iconTint = Color(0xFF22C55E),
-                    label    = "Permissions",
+                    label    = stringResource(R.string.settings_permissions),
                     onClick  = { onNavigate(AiriRoute.PERMISSIONS_SCREEN) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.SystemUpdate,
                     iconTint = Color(0xFF06B6D4),
-                    label    = "Updates",
+                    label    = stringResource(R.string.settings_updates),
                     onClick  = { onNavigate(AiriRoute.UPDATE_SCREEN) }
                 )
             }
@@ -211,21 +211,21 @@ fun SettingsScreen(
                 SettingsNavItem(
                     icon     = Icons.Outlined.AutoAwesome,
                     iconTint = Color(0xFFFF4A00),
-                    label    = "Zapier & IFTTT",
+                    label    = stringResource(R.string.settings_zapier_ifttt),
                     onClick  = { onNavigate(AiriRoute.ZAPIER_IFTTT) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.CreditCard,
                     iconTint = Color(0xFF635BFF),
-                    label    = "Buy Credits / Premium",
+                    label    = stringResource(R.string.settings_buy_credits),
                     onClick  = { onNavigate(AiriRoute.STRIPE_PAYMENT) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.ReceiptLong,
                     iconTint = Color(0xFF22C55E),
-                    label    = "Billing History",
+                    label    = stringResource(R.string.settings_billing_history),
                     onClick  = { onNavigate(AiriRoute.BILLING_HISTORY) }
                 )
             }
@@ -235,14 +235,14 @@ fun SettingsScreen(
                 SettingsNavItem(
                     icon     = Icons.Outlined.Store,
                     iconTint = Color(0xFF7C6AF7),
-                    label    = "Skill Marketplace",
+                    label    = stringResource(R.string.settings_skill_marketplace),
                     onClick  = { onNavigate(AiriRoute.MARKETPLACE) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Groups,
                     iconTint = Color(0xFF06B6D4),
-                    label    = "Community Skills",
+                    label    = stringResource(R.string.settings_community_skills),
                     onClick  = { onNavigate(AiriRoute.COMMUNITY_SKILLS) }
                 )
             }
@@ -256,56 +256,56 @@ fun SettingsScreen(
                 SettingsNavItem(
                     icon     = Icons.Outlined.Terminal,
                     iconTint = Color(0xFF80CBC4),
-                    label    = "الطرفية",
+                    label    = stringResource(R.string.settings_terminal),
                     onClick  = { onNavigate(AiriRoute.TERMINAL) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Workspaces,
                     iconTint = Color(0xFF80CBC4),
-                    label    = "مساحة العمل",
+                    label    = stringResource(R.string.settings_workspace),
                     onClick  = { onNavigate(AiriRoute.WORKSPACE) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Science,
                     iconTint = Color(0xFF80CBC4),
-                    label    = "Sandbox",
+                    label    = stringResource(R.string.settings_sandbox),
                     onClick  = { onNavigate(AiriRoute.SANDBOX_WORKSPACE) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Analytics,
                     iconTint = Color(0xFF80CBC4),
-                    label    = "تشخيصات التنفيذ",
+                    label    = stringResource(R.string.settings_exec_diagnostics),
                     onClick  = { onNavigate(AiriRoute.EXEC_DIAGNOSTICS) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Monitor,
                     iconTint = Color(0xFF80CBC4),
-                    label    = "الأداء",
+                    label    = stringResource(R.string.performance),
                     onClick  = { onNavigate(AiriRoute.PERFORMANCE) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Visibility,
                     iconTint = Color(0xFF80CBC4),
-                    label    = "مراقبة الوكيل",
+                    label    = stringResource(R.string.settings_agent_observability),
                     onClick  = { onNavigate(AiriRoute.OBSERVABILITY) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Code,
                     iconTint = Color(0xFF80CBC4),
-                    label    = "مركز المطور",
+                    label    = stringResource(R.string.settings_developer_center),
                     onClick  = { onNavigate(AiriRoute.DEVELOPER_CENTER) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.BugReport,
                     iconTint = Color(0xFF80CBC4),
-                    label    = "لوحة التصحيح",
+                    label    = stringResource(R.string.settings_debug_panel),
                     onClick  = { onNavigate(AiriRoute.DEBUG_PANEL) }
                 )
             }

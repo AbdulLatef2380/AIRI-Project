@@ -2,3 +2,4 @@
 - [Phase 2 Architecture Decisions](phase2-architecture.md) — What was already built vs what needed adding; RAG wiring path, new files added, sync rules.
 - [Phase 3 Architecture Decisions](phase3-architecture.md) — Phase 3 feature map, navigation wiring pattern, VoicePreferencesStore design, AdvancedChatInputBar wrapper strategy.
 - [Phase 4 Architecture Decisions](phase4-architecture.md) — All Phase 4 domain, UI, wiring. Connector/ServiceLocator patterns, API surface verified.
+- [Localization Patterns](localization-patterns.md) — Mixed-language bug root cause, string resource approach for coroutine snackbar messages, tab label pattern.

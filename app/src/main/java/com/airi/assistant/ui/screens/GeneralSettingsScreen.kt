@@ -55,7 +55,7 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                     }
                 },
                 title = {
-                    Text("General", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
+                    Text(stringResource(R.string.settings_general), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
                 }
             )
         }

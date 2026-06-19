@@ -426,4 +426,65 @@
     <!-- Bottom navigation labels -->
     <!-- Agent tasks route alias -->
     <string name="agent_tasks">المهام</string>
+
+    <!-- Settings screen navigation labels -->
+    <string name="settings_agent_tasks">Scheduled Tasks</string>
+    <string name="settings_knowledge">Knowledge</string>
+    <string name="settings_data_controls">Data Controls</string>
+    <string name="settings_skills">Skills</string>
+    <string name="settings_connectors">Connectors</string>
+    <string name="settings_follow_system">Follow System</string>
+    <string name="settings_ai_library">AI Library</string>
+    <string name="settings_smart_routing">Smart Routing</string>
+    <string name="settings_voice_wakeword">Voice &amp; Wake Word</string>
+    <string name="settings_credits_usage">Credits &amp; Usage</string>
+    <string name="settings_permissions">Permissions</string>
+    <string name="settings_updates">Updates</string>
+    <string name="settings_zapier_ifttt">Zapier &amp; IFTTT</string>
+    <string name="settings_buy_credits">Buy Credits / Premium</string>
+    <string name="settings_billing_history">Billing History</string>
+    <string name="settings_skill_marketplace">Skill Marketplace</string>
+    <string name="settings_community_skills">Community Skills</string>
+    <string name="settings_terminal">Terminal</string>
+    <string name="settings_workspace">Workspace</string>
+    <string name="settings_sandbox">Sandbox</string>
+    <string name="settings_exec_diagnostics">Execution Diagnostics</string>
+    <string name="settings_agent_observability">Agent Observability</string>
+    <string name="settings_developer_center">Developer Center</string>
+    <string name="settings_debug_panel">Debug Panel</string>
+    <string name="settings_general">General</string>
+    <!-- Marketplace screen -->
+    <string name="marketplace_title">Marketplace</string>
+    <string name="marketplace_check_updates">Check updates</string>
+    <string name="marketplace_tab_explore">Explore</string>
+    <string name="marketplace_tab_installed">Installed (%1$d)</string>
+    <string name="marketplace_tab_publish">Publish</string>
+    <string name="marketplace_search_hint">Search skills…</string>
+    <string name="marketplace_no_skills">No skills found</string>
+    <string name="marketplace_featured">⭐ Featured</string>
+    <string name="marketplace_all_skills">All Skills</string>
+    <string name="marketplace_install">Install</string>
+    <string name="marketplace_installed_badge">Installed</string>
+    <string name="marketplace_update">Update</string>
+    <string name="marketplace_install_success">✓ %1$s installed!</string>
+    <string name="marketplace_install_failed">Install failed — try again.</string>
+    <string name="marketplace_removed">%1$s removed.</string>
+    <string name="marketplace_updated">✓ %1$s updated to v%2$s</string>
+    <string name="marketplace_submitted">Submitted! Submission ID: %1$s</string>
+    <string name="marketplace_submit_failed">Submission failed — check your manifest.</string>
+    <string name="marketplace_no_installed">No skills installed</string>
+    <string name="marketplace_explore_hint">Browse the Explore tab to find skills.</string>
+    <string name="marketplace_publish_title">Publish a Skill</string>
+    <string name="marketplace_publish_subtitle">Share your skill with the AIRI community.</string>
+    <string name="marketplace_publisher_name">Your Name / Publisher Name</string>
+    <string name="marketplace_repo_url">Repository URL (GitHub, optional)</string>
+    <string name="marketplace_open_source">This skill is open source</string>
+    <string name="marketplace_manifest_label">skill.json Manifest</string>
+    <string name="marketplace_validate">Validate</string>
+    <string name="marketplace_reset">Reset</string>
+    <string name="marketplace_manifest_valid">Manifest is valid ✓</string>
+    <string name="marketplace_manifest_invalid">Validation failed</string>
+    <string name="marketplace_terms">I agree to the AIRI Marketplace Terms of Service</string>
+    <string name="marketplace_submit_review">Submit for Review</string>
+    <string name="marketplace_installs_count">%1$s installs</string>
 </resources>

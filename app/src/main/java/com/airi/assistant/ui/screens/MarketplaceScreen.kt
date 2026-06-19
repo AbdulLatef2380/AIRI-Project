@@ -16,8 +16,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import com.airi.assistant.R
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,6 +46,7 @@ fun MarketplaceScreen(
     repository: MarketplaceRepository,
     onBack:     () -> Unit = {}
 ) {
+    val context   = LocalContext.current
     val scope     = rememberCoroutineScope()
     val catalog   by repository.catalog.collectAsState()
     val installed by repository.installed.collectAsState()
@@ -56,6 +60,11 @@ fun MarketplaceScreen(
 
     val snackState = remember { SnackbarHostState() }
 
+    val tabExplore   = stringResource(R.string.marketplace_tab_explore)
+    val tabInstalled = stringResource(R.string.marketplace_tab_installed, installed.size)
+    val tabPublish   = stringResource(R.string.marketplace_tab_publish)
+    val tabLabels    = listOf(tabExplore, tabInstalled, tabPublish)
+
     LaunchedEffect(Unit) { repository.fetchFeatured() }
 
     LaunchedEffect(snackMessage) {
@@ -65,13 +74,13 @@ fun MarketplaceScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Marketplace", fontWeight = FontWeight.SemiBold) },
+                title = { Text(stringResource(R.string.marketplace_title), fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, stringResource(R.string.back)) }
                 },
                 actions = {
                     IconButton(onClick = { scope.launch { repository.checkUpdates() } }) {
-                        Icon(Icons.Default.Refresh, "Check updates", tint = AiriTheme.onSurfaceVariant)
+                        Icon(Icons.Default.Refresh, stringResource(R.string.marketplace_check_updates), tint = AiriTheme.onSurfaceVariant)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background)
@@ -86,7 +95,7 @@ fun MarketplaceScreen(
                 containerColor   = AiriTheme.background,
                 contentColor     = CosmicAccent
             ) {
-                listOf("Explore", "Installed (${installed.size})", "Publish").forEachIndexed { i, t ->
+                tabLabels.forEachIndexed { i, t ->
                     Tab(selected = selectedTab == i, onClick = { selectedTab = i },
                         text = { Text(t, color = if (selectedTab == i) CosmicAccent else AiriTheme.onSurfaceVariant, fontSize = 13.sp) })
                 }
@@ -106,8 +115,8 @@ fun MarketplaceScreen(
                         scope.launch {
                             val r = repository.install(skill)
                             snackMessage = if (r is MarketplaceRepository.MarketplaceResult.InstallSuccess)
-                                "✓ ${skill.name} installed!"
-                            else "Install failed — try again."
+                                context.getString(R.string.marketplace_install_success, skill.name)
+                            else context.getString(R.string.marketplace_install_failed)
                         }
                     }
                 )
@@ -116,13 +125,13 @@ fun MarketplaceScreen(
                     onUninstall = { skill ->
                         scope.launch {
                             repository.uninstall(skill.id)
-                            snackMessage = "${skill.name} removed."
+                            snackMessage = context.getString(R.string.marketplace_removed, skill.name)
                         }
                     },
                     onUpdate   = { skill ->
                         scope.launch {
                             repository.update(skill)
-                            snackMessage = "✓ ${skill.name} updated to v${skill.version}"
+                            snackMessage = context.getString(R.string.marketplace_updated, skill.name, skill.version)
                         }
                     }
                 )
@@ -131,8 +140,8 @@ fun MarketplaceScreen(
                         scope.launch {
                             val r = repository.publish(submission)
                             snackMessage = if (r is MarketplaceRepository.MarketplaceResult.PublishSuccess)
-                                "Submitted! Submission ID: ${r.submissionId.take(12)}"
-                            else "Submission failed — check your manifest."
+                                context.getString(R.string.marketplace_submitted, r.submissionId.take(12))
+                            else context.getString(R.string.marketplace_submit_failed)
                         }
                     }
                 )
@@ -167,7 +176,7 @@ private fun ExploreTab(
             OutlinedTextField(
                 value         = searchQuery,
                 onValueChange = onSearchChange,
-                placeholder   = { Text("Search skills…") },
+                placeholder   = { Text(stringResource(R.string.marketplace_search_hint)) },
                 leadingIcon   = { Icon(Icons.Default.Search, null) },
                 trailingIcon  = if (searchQuery.isNotBlank()) ({
                     IconButton(onClick = { onSearchChange("") }) {
@@ -228,14 +237,14 @@ private fun ExploreTab(
         } else if (catalog.isEmpty()) {
             item {
                 Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
-                    Text("No skills found", color = AiriTheme.onSurfaceVariant)
+                    Text(stringResource(R.string.marketplace_no_skills), color = AiriTheme.onSurfaceVariant)
                 }
             }
         } else {
             // ── Featured section ────────────────────────────────────────
             val featured = catalog.filter { it.isFeatured }
             if (featured.isNotEmpty() && selectedCategory == null && searchQuery.isBlank()) {
-                item { Text("⭐ Featured", fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground) }
+                item { Text(stringResource(R.string.marketplace_featured), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground) }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(featured) { skill ->
@@ -243,7 +252,7 @@ private fun ExploreTab(
                         }
                     }
                 }
-                item { Text("All Skills", fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground) }
+                item { Text(stringResource(R.string.marketplace_all_skills), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground) }
             }
 
             items(
@@ -282,10 +291,10 @@ private fun FeaturedSkillCard(skill: MarketplaceSkill, onInstall: (MarketplaceSk
                 Text(skill.ratingStars, fontSize = 11.sp, color = Color(0xFFFFC107))
                 if (!skill.isInstalled) {
                     TextButton(onClick = { onInstall(skill) }, contentPadding = PaddingValues(0.dp)) {
-                        Text("Install", color = CosmicAccent, fontSize = 12.sp)
+                        Text(stringResource(R.string.marketplace_install), color = CosmicAccent, fontSize = 12.sp)
                     }
                 } else {
-                    Text("Installed", fontSize = 12.sp, color = SemanticSuccess)
+                    Text(stringResource(R.string.marketplace_installed_badge), fontSize = 12.sp, color = SemanticSuccess)
                 }
             }
         }
@@ -313,24 +322,24 @@ private fun SkillListRow(skill: MarketplaceSkill, onInstall: (MarketplaceSkill) 
                 Text(skill.description, fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(skill.ratingStars, fontSize = 11.sp, color = Color(0xFFFFC107))
-                    Text("${"%,d".format(skill.stats.installCount)} installs", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                    Text(stringResource(R.string.marketplace_installs_count, "%,d".format(skill.stats.installCount)), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                 }
             }
             Spacer(Modifier.width(8.dp))
             if (skill.isInstalled) {
                 if (skill.hasUpdate) {
                     OutlinedButton(onClick = { onInstall(skill) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
-                        Text("Update", fontSize = 12.sp, color = SemanticWarn)
+                        Text(stringResource(R.string.marketplace_update), fontSize = 12.sp, color = SemanticWarn)
                     }
                 } else {
-                    Icon(Icons.Default.CheckCircle, "Installed", Modifier.size(20.dp), tint = SemanticSuccess)
+                    Icon(Icons.Default.CheckCircle, stringResource(R.string.marketplace_installed_badge), Modifier.size(20.dp), tint = SemanticSuccess)
                 }
             } else {
                 Button(
                     onClick = { onInstall(skill) },
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     colors  = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
-                ) { Text("Install", fontSize = 12.sp) }
+                ) { Text(stringResource(R.string.marketplace_install), fontSize = 12.sp) }
             }
         }
     }
@@ -348,8 +357,8 @@ private fun InstalledTab(
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Default.Extension, null, Modifier.size(56.dp), tint = AiriTheme.onSurfaceVariant)
-                Text("No skills installed", color = AiriTheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
-                Text("Browse the Explore tab to find skills.", fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
+                Text(stringResource(R.string.marketplace_no_installed), color = AiriTheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.marketplace_explore_hint), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
             }
         }
         return
@@ -369,14 +378,14 @@ private fun InstalledTab(
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(skill.name, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
-                            if (skill.hasUpdate) Badge(containerColor = SemanticWarn) { Text("Update", color = Color.White, fontSize = 9.sp) }
+                            if (skill.hasUpdate) Badge(containerColor = SemanticWarn) { Text(stringResource(R.string.marketplace_update), color = Color.White, fontSize = 9.sp) }
                         }
                         Text("v${skill.installedVersion ?: skill.version} · ${skill.publisher.displayName}", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         if (skill.hasUpdate) {
                             IconButton(onClick = { onUpdate(skill) }) {
-                                Icon(Icons.Default.SystemUpdate, "Update", tint = SemanticWarn)
+                                Icon(Icons.Default.SystemUpdate, stringResource(R.string.marketplace_update), tint = SemanticWarn)
                             }
                         }
                         IconButton(onClick = { onUninstall(skill) }) {
@@ -407,31 +416,31 @@ private fun PublishTab(onPublish: (SkillPublisher.SkillSubmission) -> Unit) {
         modifier            = Modifier.fillMaxSize()
     ) {
         item {
-            Text("Publish a Skill", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = AiriTheme.onBackground)
-            Text("Share your skill with the AIRI community.", fontSize = 14.sp, color = AiriTheme.onSurfaceVariant)
+            Text(stringResource(R.string.marketplace_publish_title), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = AiriTheme.onBackground)
+            Text(stringResource(R.string.marketplace_publish_subtitle), fontSize = 14.sp, color = AiriTheme.onSurfaceVariant)
         }
 
         item {
             OutlinedTextField(value = publisherName, onValueChange = { publisherName = it },
-                label = { Text("Your Name / Publisher Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                label = { Text(stringResource(R.string.marketplace_publisher_name)) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = DividerColor))
         }
 
         item {
             OutlinedTextField(value = repositoryUrl, onValueChange = { repositoryUrl = it },
-                label = { Text("Repository URL (GitHub, optional)") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                label = { Text(stringResource(R.string.marketplace_repo_url)) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = DividerColor))
         }
 
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = isOpenSource, onCheckedChange = { isOpenSource = it }, colors = CheckboxDefaults.colors(checkedColor = CosmicAccent))
-                Text("This skill is open source", color = AiriTheme.onBackground)
+                Text(stringResource(R.string.marketplace_open_source), color = AiriTheme.onBackground)
             }
         }
 
         item {
-            Text("skill.json Manifest", fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+            Text(stringResource(R.string.marketplace_manifest_label), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
             Spacer(Modifier.height(6.dp))
             OutlinedTextField(
                 value         = manifestJson,
@@ -447,12 +456,12 @@ private fun PublishTab(onPublish: (SkillPublisher.SkillSubmission) -> Unit) {
                 OutlinedButton(onClick = { validationResult = SkillPublisher.validateManifest(manifestJson) }) {
                     Icon(Icons.Default.CheckCircle, null, Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Validate")
+                    Text(stringResource(R.string.marketplace_validate))
                 }
                 OutlinedButton(onClick = { manifestJson = SkillPublisher.TEMPLATE_JSON; validationResult = null }) {
                     Icon(Icons.Default.RestartAlt, null, Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Reset")
+                    Text(stringResource(R.string.marketplace_reset))
                 }
             }
         }
@@ -468,7 +477,7 @@ private fun PublishTab(onPublish: (SkillPublisher.SkillSubmission) -> Unit) {
                             Icon(if (vr.isValid) Icons.Default.CheckCircle else Icons.Default.Error, null,
                                 Modifier.size(16.dp), tint = if (vr.isValid) SemanticSuccess else SemanticError)
                             Spacer(Modifier.width(6.dp))
-                            Text(if (vr.isValid) "Manifest is valid ✓" else "Validation failed", fontWeight = FontWeight.SemiBold,
+                            Text(if (vr.isValid) stringResource(R.string.marketplace_manifest_valid) else stringResource(R.string.marketplace_manifest_invalid), fontWeight = FontWeight.SemiBold,
                                 color = if (vr.isValid) SemanticSuccess else SemanticError)
                         }
                         vr.errors.forEach   { Text("• $it", fontSize = 12.sp, color = SemanticError) }
@@ -481,7 +490,7 @@ private fun PublishTab(onPublish: (SkillPublisher.SkillSubmission) -> Unit) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = termsAccepted, onCheckedChange = { termsAccepted = it }, colors = CheckboxDefaults.colors(checkedColor = CosmicAccent))
-                Text("I agree to the AIRI Marketplace Terms of Service", fontSize = 13.sp, color = AiriTheme.onBackground)
+                Text(stringResource(R.string.marketplace_terms), fontSize = 13.sp, color = AiriTheme.onBackground)
             }
         }
 
@@ -506,7 +515,7 @@ private fun PublishTab(onPublish: (SkillPublisher.SkillSubmission) -> Unit) {
             ) {
                 Icon(Icons.Default.Publish, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Submit for Review", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.marketplace_submit_review), fontWeight = FontWeight.SemiBold)
             }
         }
     }

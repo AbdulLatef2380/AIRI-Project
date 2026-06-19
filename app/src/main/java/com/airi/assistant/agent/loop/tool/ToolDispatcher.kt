@@ -24,13 +24,18 @@ import java.time.format.DateTimeFormatter
  *   - a timeout enforced by the caller (AgentLoop)
  *
  * Adding a new tool: add it to [BuiltinTools], add dispatch case here.
+ *
+ * Tools whose names start with "skill_" are automatically forwarded to the
+ * [SkillToolBridge] which routes them to the matching registered [AiriSkill].
  */
 class ToolDispatcher(
     private val memoryManager:      MemoryManager? = null,
     // P1-1: session context for semantic memory search
     private val sessionIdProvider:  (() -> String)? = null,
     // Brave Search API key — injected from SecureApiKeyStore at construction time
-    private val braveApiKeyProvider: (() -> String?)? = null
+    private val braveApiKeyProvider: (() -> String?)? = null,
+    // Optional skill tool bridge — handles all "skill_*" tool names
+    private val skillToolBridge: com.airi.assistant.ai.skills.SkillToolBridge? = null
 ) {
     companion object {
         private const val TAG = "AIRI_ToolDispatcher"
@@ -270,9 +275,18 @@ class ToolDispatcher(
                 ToolResult.Success("CONFIRMATION_REQUIRED|$action|$details")
             }
 
+            // ── Skill invocations (skill_*) ────────────────────────────────────
             else -> {
-                Log.w(TAG, "Unknown tool: $toolName")
-                ToolResult.Error("Unknown tool: $toolName. Available tools: ${BuiltinTools.ALL.map { it.name }.joinToString()}")
+                // Route any "skill_*" prefixed tool call through the SkillToolBridge
+                val bridge = skillToolBridge
+                if (bridge != null && bridge.handles(toolName)) {
+                    Log.i(TAG, "AIRI_PROOF SKILL_TOOL_DISPATCH tool=$toolName")
+                    val result = bridge.invoke(toolName, args)
+                    ToolResult.Success(result)
+                } else {
+                    Log.w(TAG, "Unknown tool: $toolName")
+                    ToolResult.Error("Unknown tool: $toolName. Available tools: ${BuiltinTools.ALL.map { it.name }.joinToString()}")
+                }
             }
         }
     }

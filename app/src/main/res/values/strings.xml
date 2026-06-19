@@ -1093,4 +1093,41 @@
 
     <!-- Testing state -->
     <string name="testing_label">Testing…</string>
+
+    <!-- Marketplace GitHub Import tab -->
+    <string name="marketplace_tab_import">Import</string>
+    <string name="marketplace_import_title">Import from GitHub</string>
+    <string name="marketplace_import_subtitle">Install a skill directly from a GitHub repository or raw skill.json URL.</string>
+    <string name="marketplace_import_url_label">GitHub URL or skill.json URL</string>
+    <string name="marketplace_import_formats_title">Supported URL formats:</string>
+    <string name="marketplace_import_button">Import Skill</string>
+    <string name="marketplace_import_loading">Importing…</string>
+    <string name="marketplace_import_success">Skill "%1$s" imported successfully</string>
+    <string name="marketplace_import_success_label">Imported: %1$s</string>
+    <string name="marketplace_import_error_label">Import failed</string>
+
+    <!-- Official skill library display names -->
+    <string name="skill_name_web_search">Web Search</string>
+    <string name="skill_name_website_reader">Website Reader</string>
+    <string name="skill_name_research_agent">Research Agent</string>
+    <string name="skill_name_translator">Translator</string>
+    <string name="skill_name_code_assistant">Code Assistant</string>
+    <string name="skill_name_task_planner">Task Planner</string>
+    <string name="skill_name_memory_manager">Memory Manager</string>
+    <string name="skill_name_document_reader">Document Reader</string>
+    <string name="skill_name_file_manager">File Manager</string>
+
+    <!-- Skill permission access levels -->
+    <string name="skill_memory_access_none">No Memory Access</string>
+    <string name="skill_memory_access_read_only">Read Only</string>
+    <string name="skill_memory_access_read_write">Read / Write</string>
+    <string name="skill_memory_access_full">Full Access</string>
+    <string name="skill_model_access_none">No Model Access</string>
+    <string name="skill_model_access_chat">Chat (Text Generation)</string>
+    <string name="skill_model_access_routing">Chat + Routing</string>
+
+    <!-- Skill manifest validation -->
+    <string name="skill_manifest_valid">Manifest is valid</string>
+    <string name="skill_manifest_invalid">Manifest has errors</string>
+    <string name="skill_manifest_warnings">Warnings: %1$d</string>
 </resources>

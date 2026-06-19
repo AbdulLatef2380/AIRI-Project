@@ -3,10 +3,19 @@ package com.airi.assistant.ai.skills
 import android.Manifest
 import android.content.Context
 import com.airi.assistant.ai.skills.impl.CalendarEventsSkill
+import com.airi.assistant.ai.skills.impl.CodeAssistantSkill
+import com.airi.assistant.ai.skills.impl.DocumentReaderSkill
 import com.airi.assistant.ai.skills.impl.DriveSearchSkill
+import com.airi.assistant.ai.skills.impl.FileManagerSkill
 import com.airi.assistant.ai.skills.impl.GithubGuardianSkill
 import com.airi.assistant.ai.skills.impl.GmailAssistantSkill
+import com.airi.assistant.ai.skills.impl.MemoryManagerSkill
+import com.airi.assistant.ai.skills.impl.ResearchAgentSkill
+import com.airi.assistant.ai.skills.impl.TaskPlannerSkill
 import com.airi.assistant.ai.skills.impl.TelegramMessengerSkill
+import com.airi.assistant.ai.skills.impl.TranslatorSkill
+import com.airi.assistant.ai.skills.impl.WebSearchSkill
+import com.airi.assistant.ai.skills.impl.WebsiteReaderSkill
 import com.airi.assistant.auth.SecureStorage
 import com.airi.assistant.domain.customskill.CustomSkillRepository
 
@@ -27,6 +36,89 @@ class SkillRegistry(private val context: Context) {
 
     private fun registerOrchestrationDescriptors() {
         val descriptors = listOf(
+            // ── Official skills ───────────────────────────────────────────────
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "web_search",
+                displayName = "Web Search",
+                description = "Search the web for current information, news, facts",
+                keywords    = listOf("search", "find", "look up", "google", "web", "internet", "news", "latest", "what is", "who is", "how to", "current"),
+                intents     = listOf("search for", "look up", "find information", "google", "web search"),
+                offlineOk   = false,
+                priorityBias = 0.80f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "website_reader",
+                displayName = "Website Reader",
+                description = "Fetch and read content from any web page URL",
+                keywords    = listOf("read", "fetch", "open url", "visit", "content from", "http", "https", "www"),
+                intents     = listOf("read page", "fetch url", "open website", "read content"),
+                offlineOk   = false,
+                priorityBias = 0.75f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "research_agent",
+                displayName = "Research Agent",
+                description = "Deep research: search multiple sources and synthesize",
+                keywords    = listOf("research", "investigate", "deep dive", "analysis", "analyze", "comprehensive", "report"),
+                intents     = listOf("research", "deep dive", "investigate topic", "write a report"),
+                offlineOk   = false,
+                priorityBias = 0.85f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "translator",
+                displayName = "Translator",
+                description = "Translate text between any languages",
+                keywords    = listOf("translate", "translation", "in french", "in spanish", "in arabic", "in german", "in chinese", "to english"),
+                intents     = listOf("translate", "how do you say", "translate to"),
+                offlineOk   = false,
+                priorityBias = 0.85f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "code_assistant",
+                displayName = "Code Assistant",
+                description = "Write, explain, review, debug, and refactor code",
+                keywords    = listOf("code", "program", "function", "class", "debug", "bug", "kotlin", "python", "javascript", "java", "implement", "refactor"),
+                intents     = listOf("write code", "debug", "explain code", "review code", "refactor"),
+                offlineOk   = false,
+                priorityBias = 0.80f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "task_planner",
+                displayName = "Task Planner",
+                description = "Break down goals into actionable step-by-step plans",
+                keywords    = listOf("plan", "planning", "roadmap", "steps", "organize", "schedule", "project", "milestone", "checklist"),
+                intents     = listOf("plan", "create roadmap", "break down task", "organize project"),
+                offlineOk   = false,
+                priorityBias = 0.75f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "memory_manager",
+                displayName = "Memory Manager",
+                description = "Search, recall, and save information to persistent memory",
+                keywords    = listOf("remember", "recall", "memory", "save to memory", "what did i", "do you remember", "previously"),
+                intents     = listOf("remember", "recall from memory", "save to memory"),
+                offlineOk   = true,
+                priorityBias = 0.70f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "document_reader",
+                displayName = "Document Reader",
+                description = "Read and extract text from documents on device",
+                keywords    = listOf("read document", "open file", "document", "pdf", "text file", "read file", "content of"),
+                intents     = listOf("read document", "open file", "extract text"),
+                offlineOk   = true,
+                priorityBias = 0.70f
+            ),
+            AiriSkillOrchestrator.SkillDescriptor(
+                skillId     = "file_manager",
+                displayName = "File Manager",
+                description = "List, search, and inspect files in device storage",
+                keywords    = listOf("files", "folder", "directory", "storage", "downloads", "documents", "list files", "search files"),
+                intents     = listOf("list files", "find file", "show storage", "search files"),
+                offlineOk   = true,
+                priorityBias = 0.65f
+            ),
+            // ── Connector skills ──────────────────────────────────────────────
             AiriSkillOrchestrator.SkillDescriptor(
                 skillId     = "github_guardian",
                 displayName = "GitHub Guardian",
@@ -119,6 +211,18 @@ class SkillRegistry(private val context: Context) {
     fun getAvailableSkills(): List<AiriSkill> {
         val skills = mutableListOf<AiriSkill>()
 
+        // ── Always-available official skills ─────────────────────────────────
+        if (isSkillEnabled("web_search"))       skills.add(WebSearchSkill(context))
+        if (isSkillEnabled("website_reader"))   skills.add(WebsiteReaderSkill(context))
+        if (isSkillEnabled("research_agent"))   skills.add(ResearchAgentSkill(context))
+        if (isSkillEnabled("translator"))       skills.add(TranslatorSkill(context))
+        if (isSkillEnabled("code_assistant"))   skills.add(CodeAssistantSkill(context))
+        if (isSkillEnabled("task_planner"))     skills.add(TaskPlannerSkill(context))
+        if (isSkillEnabled("memory_manager"))   skills.add(MemoryManagerSkill(context))
+        if (isSkillEnabled("document_reader"))  skills.add(DocumentReaderSkill(context))
+        if (isSkillEnabled("file_manager"))     skills.add(FileManagerSkill(context))
+
+        // ── Connector-backed skills ───────────────────────────────────────────
         if (secureStorage.isGithubConnected() && isSkillEnabled("github_guardian")) {
             skills.add(GithubGuardianSkill(context))
         }
@@ -127,7 +231,7 @@ class SkillRegistry(private val context: Context) {
         }
         if (secureStorage.isGoogleConnected()) {
             if (isSkillEnabled("gmail_assistant")) skills.add(GmailAssistantSkill(context))
-            if (isSkillEnabled("drive_search")) skills.add(DriveSearchSkill(context))
+            if (isSkillEnabled("drive_search"))    skills.add(DriveSearchSkill(context))
             if (isSkillEnabled("calendar_events")) skills.add(CalendarEventsSkill(context))
         }
 
@@ -240,44 +344,27 @@ class SkillRegistry(private val context: Context) {
         return 0
     }
 
-    fun getAllSkillInfos(): List<SkillInfo> = listOf(
-        SkillInfo(
-            name = "github_guardian",
-            description = "Check GitHub repositories and profile",
-            isConnected = secureStorage.isGithubConnected(),
-            isEnabled = isSkillEnabled("github_guardian")
-        ),
-        SkillInfo(
-            name = "telegram_messenger",
-            description = "Send messages via Telegram bot",
-            isConnected = secureStorage.isTelegramConnected(),
-            isEnabled = isSkillEnabled("telegram_messenger")
-        ),
-        SkillInfo(
-            name = "gmail_assistant",
-            description = "Read and summarize Gmail emails",
-            isConnected = secureStorage.isGoogleConnected(),
-            isEnabled = isSkillEnabled("gmail_assistant")
-        ),
-        SkillInfo(
-            name = "drive_search",
-            description = "Search files in Google Drive",
-            isConnected = secureStorage.isGoogleConnected(),
-            isEnabled = isSkillEnabled("drive_search")
-        ),
-        SkillInfo(
-            name = "calendar_events",
-            description = "Get upcoming Google Calendar events",
-            isConnected = secureStorage.isGoogleConnected(),
-            isEnabled = isSkillEnabled("calendar_events")
-        )
-    ) + customSkillRepository.getAllSkills().map { skill ->
-        SkillInfo(
-            name = skill.name,
-            description = skill.description,
-            isConnected = true,
-            isEnabled = true
-        )
+    fun getAllSkillInfos(): List<SkillInfo> = buildList {
+        // ── Always-available official skills ─────────────────────────────────
+        add(SkillInfo("web_search",      "Search the web for current information",           isConnected = true,  isEnabled = isSkillEnabled("web_search"),      version = "1.1.0", author = "AIRI Official"))
+        add(SkillInfo("website_reader",  "Fetch and read content from web pages",            isConnected = true,  isEnabled = isSkillEnabled("website_reader"),  version = "1.0.0", author = "AIRI Official"))
+        add(SkillInfo("research_agent",  "Deep research using multiple web sources",         isConnected = true,  isEnabled = isSkillEnabled("research_agent"),  version = "1.0.0", author = "AIRI Official"))
+        add(SkillInfo("translator",      "Translate text between any languages",             isConnected = true,  isEnabled = isSkillEnabled("translator"),      version = "1.0.0", author = "AIRI Official"))
+        add(SkillInfo("code_assistant",  "Write, explain, review, and debug code",          isConnected = true,  isEnabled = isSkillEnabled("code_assistant"),  version = "1.0.0", author = "AIRI Official"))
+        add(SkillInfo("task_planner",    "Break down goals into step-by-step plans",        isConnected = true,  isEnabled = isSkillEnabled("task_planner"),    version = "1.0.0", author = "AIRI Official"))
+        add(SkillInfo("memory_manager",  "Search and save to AIRI's persistent memory",     isConnected = true,  isEnabled = isSkillEnabled("memory_manager"),  version = "1.0.0", author = "AIRI Official"))
+        add(SkillInfo("document_reader", "Read text documents stored on device",            isConnected = true,  isEnabled = isSkillEnabled("document_reader"), version = "1.0.0", author = "AIRI Official"))
+        add(SkillInfo("file_manager",    "List and search files in device storage",         isConnected = true,  isEnabled = isSkillEnabled("file_manager"),    version = "1.0.0", author = "AIRI Official"))
+        // ── Connector-backed skills ───────────────────────────────────────────
+        add(SkillInfo("github_guardian",    "Check GitHub repositories and profile",        isConnected = secureStorage.isGithubConnected(),   isEnabled = isSkillEnabled("github_guardian"),    author = "AIRI Official"))
+        add(SkillInfo("telegram_messenger", "Send messages via Telegram bot",               isConnected = secureStorage.isTelegramConnected(), isEnabled = isSkillEnabled("telegram_messenger"), author = "AIRI Official"))
+        add(SkillInfo("gmail_assistant",    "Read and summarize Gmail emails",              isConnected = secureStorage.isGoogleConnected(),   isEnabled = isSkillEnabled("gmail_assistant"),    author = "AIRI Official"))
+        add(SkillInfo("drive_search",       "Search files in Google Drive",                 isConnected = secureStorage.isGoogleConnected(),   isEnabled = isSkillEnabled("drive_search"),       author = "AIRI Official"))
+        add(SkillInfo("calendar_events",    "Get upcoming Google Calendar events",          isConnected = secureStorage.isGoogleConnected(),   isEnabled = isSkillEnabled("calendar_events"),    author = "AIRI Official"))
+        // ── Custom / user-installed skills ────────────────────────────────────
+        addAll(customSkillRepository.getAllSkills().map { skill ->
+            SkillInfo(name = skill.name, description = skill.description, isConnected = true, isEnabled = true)
+        })
     }
 
     fun buildSkillDescriptionBlock(): String {
@@ -313,6 +400,42 @@ class SkillRegistry(private val context: Context) {
 
     private companion object {
         private val SKILL_METADATA = mapOf(
+            "web_search" to SkillMeta(
+                whenToUse = "When user asks about current events, facts, news, or needs information from the internet",
+                expectedInput = "Natural language search query (e.g. 'latest AI news', 'who is the CEO of Apple')"
+            ),
+            "website_reader" to SkillMeta(
+                whenToUse = "When user provides a URL and wants its content read or summarized",
+                expectedInput = "URL string (must start with https://)"
+            ),
+            "research_agent" to SkillMeta(
+                whenToUse = "When user wants a deep, comprehensive analysis of a topic using multiple sources",
+                expectedInput = "Research question or topic (e.g. 'research the history of quantum computing')"
+            ),
+            "translator" to SkillMeta(
+                whenToUse = "When user asks to translate text to another language",
+                expectedInput = "Text to translate and target language (e.g. 'translate hello to French')"
+            ),
+            "code_assistant" to SkillMeta(
+                whenToUse = "When user asks to write, explain, debug, review, or refactor code",
+                expectedInput = "Coding task description with optional code snippet"
+            ),
+            "task_planner" to SkillMeta(
+                whenToUse = "When user wants to break down a project or goal into actionable steps",
+                expectedInput = "Goal or project description (e.g. 'plan how to launch a mobile app')"
+            ),
+            "memory_manager" to SkillMeta(
+                whenToUse = "When user wants to save information to memory or recall past conversations",
+                expectedInput = "Action ('recall'/'save') and query or content"
+            ),
+            "document_reader" to SkillMeta(
+                whenToUse = "When user shares a document file and asks to read or analyze it",
+                expectedInput = "Content URI of the document shared from the device"
+            ),
+            "file_manager" to SkillMeta(
+                whenToUse = "When user asks to list, find, or get info about files on their device",
+                expectedInput = "Action ('list'/'search'/'storage_info') and optional directory/query"
+            ),
             "github_guardian" to SkillMeta(
                 whenToUse = "When user asks about their GitHub repos, profile, stars, or code activity",
                 expectedInput = "Natural language query about GitHub (e.g. 'show my repos', 'how many stars do I have')"

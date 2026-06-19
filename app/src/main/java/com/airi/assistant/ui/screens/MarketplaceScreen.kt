@@ -19,12 +19,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.LocalTextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import com.airi.assistant.R
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airi.assistant.marketplace.GitHubSkillImporter
 import com.airi.assistant.marketplace.MarketplaceRepository
 import com.airi.assistant.marketplace.MarketplaceSkill
 import com.airi.assistant.marketplace.SkillPublisher
@@ -63,7 +66,8 @@ fun MarketplaceScreen(
     val tabExplore   = stringResource(R.string.marketplace_tab_explore)
     val tabInstalled = stringResource(R.string.marketplace_tab_installed, installed.size)
     val tabPublish   = stringResource(R.string.marketplace_tab_publish)
-    val tabLabels    = listOf(tabExplore, tabInstalled, tabPublish)
+    val tabImport    = stringResource(R.string.marketplace_tab_import)
+    val tabLabels    = listOf(tabExplore, tabInstalled, tabImport, tabPublish)
 
     LaunchedEffect(Unit) { repository.fetchFeatured() }
 
@@ -135,7 +139,15 @@ fun MarketplaceScreen(
                         }
                     }
                 )
-                2 -> PublishTab(
+                2 -> GitHubImportTab(
+                    onImported = { skillName ->
+                        snackMessage = context.getString(R.string.marketplace_import_success, skillName)
+                    },
+                    onError = { msg ->
+                        snackMessage = context.getString(R.string.skill_import_github_failed, msg)
+                    }
+                )
+                3 -> PublishTab(
                     onPublish = { submission ->
                         scope.launch {
                             val r = repository.publish(submission)
@@ -391,6 +403,139 @@ private fun InstalledTab(
                         IconButton(onClick = { onUninstall(skill) }) {
                             Icon(Icons.Default.Delete, "Uninstall", tint = SemanticError)
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── GitHub Import Tab ─────────────────────────────────────────────────────────
+
+@Composable
+private fun GitHubImportTab(
+    onImported: (String) -> Unit,
+    onError:    (String) -> Unit
+) {
+    val scope   = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    var url          by remember { mutableStateOf("") }
+    var isLoading    by remember { mutableStateOf(false) }
+    var result       by remember { mutableStateOf<GitHubSkillImporter.ImportResult?>(null) }
+
+    LazyColumn(
+        contentPadding      = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        modifier            = Modifier.fillMaxSize()
+    ) {
+        item {
+            Text(
+                stringResource(R.string.marketplace_import_title),
+                fontWeight = FontWeight.Bold, fontSize = 20.sp, color = AiriTheme.onBackground
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.marketplace_import_subtitle),
+                fontSize = 14.sp, color = AiriTheme.onSurfaceVariant
+            )
+        }
+
+        item {
+            OutlinedTextField(
+                value         = url,
+                onValueChange = { url = it; result = null },
+                label         = { Text(stringResource(R.string.marketplace_import_url_label)) },
+                placeholder   = { Text("https://github.com/user/my-skill", color = AiriTheme.onSurfaceVariant.copy(0.5f)) },
+                modifier      = Modifier.fillMaxWidth(),
+                singleLine    = true,
+                colors        = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor   = CosmicAccent,
+                    unfocusedBorderColor = DividerColor
+                )
+            )
+        }
+
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
+                shape  = RoundedCornerShape(12.dp)
+            ) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(stringResource(R.string.marketplace_import_formats_title), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = AiriTheme.onBackground)
+                    Text("• https://github.com/user/repo", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
+                    Text("• https://raw.githubusercontent.com/user/repo/main/skill.json", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
+                }
+            }
+        }
+
+        item {
+            Button(
+                onClick = {
+                    if (url.isBlank()) { onError("Please enter a URL"); return@Button }
+                    isLoading = true
+                    result    = null
+                    scope.launch {
+                        val r = GitHubSkillImporter.importFromUrl(url.trim())
+                        result    = r
+                        isLoading = false
+                        if (r.success && r.skill != null) {
+                            onImported(r.manifest?.name ?: r.skill.name)
+                        } else if (!r.success) {
+                            onError(r.errors.firstOrNull() ?: "Import failed")
+                        }
+                    }
+                },
+                enabled  = url.isNotBlank() && !isLoading,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+                shape    = RoundedCornerShape(14.dp)
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.marketplace_import_loading))
+                } else {
+                    Icon(Icons.Default.Download, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.marketplace_import_button), fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+
+        result?.let { r ->
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (r.success) SemanticSuccess.copy(0.1f) else SemanticError.copy(0.1f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(
+                                if (r.success) Icons.Default.CheckCircle else Icons.Default.Error,
+                                null, Modifier.size(18.dp),
+                                tint = if (r.success) SemanticSuccess else SemanticError
+                            )
+                            Text(
+                                if (r.success) stringResource(R.string.marketplace_import_success_label, r.manifest?.name ?: "")
+                                else           stringResource(R.string.marketplace_import_error_label),
+                                fontWeight = FontWeight.SemiBold,
+                                color      = if (r.success) SemanticSuccess else SemanticError
+                            )
+                        }
+                        if (r.success) {
+                            r.manifest?.let { m ->
+                                Text("ID: ${m.id}  •  v${m.version}  •  by ${m.author}", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
+                                Text(m.description, fontSize = 13.sp, color = AiriTheme.onBackground)
+                                if (m.tools.isNotEmpty()) {
+                                    Text("Tools: ${m.tools.joinToString { it.name }}", fontSize = 12.sp, color = CosmicAccent)
+                                }
+                            }
+                        }
+                        r.errors.forEach   { Text("• $it", fontSize = 12.sp, color = SemanticError) }
+                        r.warnings.forEach { Text("⚠ $it", fontSize = 12.sp, color = SemanticWarn) }
                     }
                 }
             }

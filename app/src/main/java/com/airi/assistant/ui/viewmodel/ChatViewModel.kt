@@ -66,6 +66,7 @@ import com.airi.assistant.memory.dao.ChatSessionSummary
 import com.airi.assistant.memory.entity.ChatMessage as MemoryChatMessage
 import com.airi.assistant.memory.repository.MemoryManager
 import com.airi.assistant.ai.skills.SkillRegistry
+import com.airi.assistant.ai.skills.SkillToolBridge
 import com.airi.assistant.tools.FileUtils
 import com.airi.assistant.tools.ModelDownloadManager
 import com.airi.assistant.tools.ModelDownloadService
@@ -357,6 +358,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // genuine iterative loop: LLM sees tool schemas → emits structured JSON →
     // ToolDispatcher executes → result fed back into next LLM turn.
     // Used for ACTION queries when agentLoopEnabled=true.
+    private val skillToolBridge          = SkillToolBridge(
+        registry = SkillRegistry(appContext),
+        context  = appContext
+    )
     private val toolDispatcher           = com.airi.assistant.agent.loop.tool.ToolDispatcher(
         memoryManager     = runCatching { ServiceLocator.memoryManager }.getOrNull(),
         sessionIdProvider = { _currentSessionId.value },  // P1-1: live session for semantic memory
@@ -367,7 +372,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     com.airi.assistant.execution.CloudProvider.BRAVE
                 )
             }.getOrNull()
-        }
+        },
+        skillToolBridge = skillToolBridge
     )
     val agentLoop                        = com.airi.assistant.agent.loop.AgentLoop(
         orchestrator = hybridOrchestrator,

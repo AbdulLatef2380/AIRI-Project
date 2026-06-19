@@ -820,29 +820,19 @@
     <string name="vosk_install_success">✓ Voice model installed</string>
 
     <!-- Generic actions / shared -->
-    <string name="clear">Clear</string>
     <string name="done">Done</string>
-    <string name="dismiss">Dismiss</string>
-    <string name="create">Create</string>
     <string name="close">Close</string>
     <string name="refresh">Refresh</string>
     <string name="run">Run</string>
     <string name="remove">Remove</string>
     <string name="options">Options</string>
     <string name="downloading">Downloading…</string>
-    <string name="skip">Skip</string>
-    <string name="get_started">Get Started</string>
-    <string name="deactivate">Deactivate</string>
     <string name="history">History</string>
     <string name="debug">Debug</string>
-    <string name="reset">Reset</string>
-    <string name="open_app_settings">Open App Settings</string>
 
     <!-- About screen -->
-    <string name="about_airi_title">About AIRI</string>
 
     <!-- Agent Trace Detail screen -->
-    <string name="trace_detail_title">Trace Detail</string>
     <string name="trace_user_input_label">User Input</string>
     <string name="trace_execution_steps">Execution Steps</string>
     <string name="trace_final_result">Final Result</string>
@@ -896,7 +886,6 @@
     <string name="credits_remaining">remaining</string>
 
     <!-- Customization settings screen -->
-    <string name="customization_title">Customization</string>
 
     <!-- Developer Center screen -->
     <string name="developer_center_title">Developer Center</string>
@@ -922,12 +911,9 @@
     <string name="model_library_title">AI Library</string>
     <string name="model_library_subtitle">AIRI routes automatically</string>
     <string name="brave_search_title">Brave Search API</string>
-    <string name="brave_search_desc">Free: 2,000 searches/month · brave.com/search/api</string>
     <string name="brave_key_dialog_body">Get a free key at brave.com/search/api (2,000 searches/month free)</string>
-    <string name="brave_key_placeholder">BSA...</string>
     <string name="model_library_active_ai">Active AI</string>
     <string name="model_library_smart_routing">Smart Routing</string>
-    <string name="auto_badge">AUTO</string>
     <string name="api_key_label">API Key</string>
 
     <!-- Observability screen -->
@@ -936,7 +922,6 @@
     <string name="observability_no_spans">No trace spans yet</string>
 
     <!-- Onboarding screen -->
-    <string name="onboarding_tagline">Private by default. Powerful by design.</string>
 
     <!-- Permissions screen -->
     <string name="permissions_title">Permissions</string>
@@ -944,7 +929,6 @@
     <string name="permissions_why_needed">Why AIRI needs this</string>
 
     <!-- Privacy &amp; Data settings screen -->
-    <string name="privacy_data_title">Privacy &amp; Data</string>
 
     <!-- Plus Menu sheet -->
     <string name="plus_menu_create_explore">Create &amp; Explore</string>
@@ -1008,7 +992,6 @@
     <string name="updates_bug_fixes">Bug fixes</string>
 
     <!-- Voice Personalization screen -->
-    <string name="voice_personalization_title">Voice Personalization</string>
     <string name="voice_pitch_low">Low</string>
     <string name="voice_pitch_high">High</string>
     <string name="voice_speed_slow">Slow</string>
@@ -1017,10 +1000,7 @@
     <string name="voice_save_preferences">Save Preferences</string>
 
     <!-- Voice Settings screen (additional) -->
-    <string name="voice_settings_title">Voice Settings</string>
-    <string name="voice_system_section">Voice System</string>
     <string name="wake_word_porcupine_section">Wake Word (Porcupine)</string>
-    <string name="porcupine_access_key_label">Porcupine access key</string>
     <string name="voice_save_key">Save key</string>
     <string name="voice_installed_models">Installed Models</string>
     <string name="voice_delete_model_cd">Delete model</string>
@@ -1028,7 +1008,6 @@
     <!-- Workspace screen -->
     <string name="workspace_title">Workspace</string>
     <string name="workspace_new_dialog_title">New Workspace</string>
-    <string name="workspace_name_label">Workspace name</string>
     <string name="workspace_no_workspaces">No Workspaces</string>
     <string name="workspace_no_workspaces_desc">Create a workspace to organise AI-generated artifacts</string>
     <string name="workspace_new_button">New Workspace</string>
@@ -1040,13 +1019,10 @@
     <string name="zapier_ifttt_title">Automation</string>
     <string name="zapier_auth_section">Authentication</string>
     <string name="zapier_connect_button">Connect with Zapier</string>
-    <string name="zapier_triggers_section">AIRI → Zapier Triggers</string>
     <string name="zapier_webhook_section">Test Webhook</string>
-    <string name="zapier_hook_url_label">Zapier REST Hook URL</string>
     <string name="zapier_payload_label">Payload (optional JSON or text)</string>
     <string name="zapier_send_test">Send Test</string>
     <string name="zapier_webhook_key_section">Webhook Key</string>
-    <string name="ifttt_maker_key_label">IFTTT Maker Key</string>
     <string name="ifttt_save_key">Save Key</string>
     <string name="ifttt_test_trigger_section">Test Applet Trigger</string>
     <string name="ifttt_event_name_label">Event Name</string>
@@ -1059,18 +1035,8 @@
     <string name="cd_premium_locked">Locked</string>
     <string name="cd_premium_badge">Premium</string>
     <string name="cd_stop_voice">Stop voice</string>
-    <string name="cd_clear_memory">Clear memory</string>
     <string name="cd_reset_token_stats">Reset today\'s token stats</string>
-    <string name="cd_cancel_download">Cancel download</string>
-    <string name="cd_add_task">Add task</string>
-    <string name="cd_add_skill">Add skill</string>
     <string name="cd_delete">Delete</string>
-    <string name="cd_options">Options</string>
-    <string name="cd_close">Close</string>
-    <string name="cd_history">History</string>
-    <string name="cd_refresh">Refresh</string>
-    <string name="cd_debug">Debug</string>
-    <string name="cd_remove_header">Remove header</string>
     <string name="cd_remove_model">Remove</string>
     <string name="cd_add_model">Add</string>
 

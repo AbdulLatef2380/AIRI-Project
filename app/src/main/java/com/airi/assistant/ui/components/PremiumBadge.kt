@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.domain.monetization.PaywallTriggerEngine
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 private val accentColor = Color(0xFF7C3AED)
 private val goldColor   = Color(0xFFFFB300)

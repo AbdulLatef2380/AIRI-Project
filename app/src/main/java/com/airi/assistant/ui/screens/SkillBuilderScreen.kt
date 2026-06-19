@@ -49,6 +49,8 @@ import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
 import kotlinx.coroutines.launch
 import java.util.UUID
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 // ─── Preset Templates ────────────────────────────────────────────────────────
 

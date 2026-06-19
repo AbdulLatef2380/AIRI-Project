@@ -26,6 +26,8 @@ import com.airi.assistant.community.CommunitySkillHub
 import com.airi.assistant.community.TrustScoringEngine
 import com.airi.assistant.ui.theme.*
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 /**
  * CommunitySkillsScreen — import, verify, sandbox-test, and manage community skills.

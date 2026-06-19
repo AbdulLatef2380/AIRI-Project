@@ -7,7 +7,6 @@ import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.error.AppError
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.logging.LoggingService
-import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
@@ -87,7 +86,6 @@ class CustomSkillExecutor(private val context: Context) {
 
         val bodyInput = input.toMutableMap().apply {
             putIfAbsent("timestamp", System.currentTimeMillis())
-            putIfAbsent("user_id", FirebaseAuth.getInstance().currentUser?.uid.orEmpty())
         }
         val body = CustomSkillTemplateEngine.render(skill.config.bodyTemplate, bodyInput)
         val requestBody = if (method in setOf("GET", "HEAD")) null

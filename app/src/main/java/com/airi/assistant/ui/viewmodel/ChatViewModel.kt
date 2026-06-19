@@ -65,6 +65,7 @@ import com.airi.assistant.domain.skill.SkillService.ToolCallResult
 import com.airi.assistant.memory.dao.ChatSessionSummary
 import com.airi.assistant.memory.entity.ChatMessage as MemoryChatMessage
 import com.airi.assistant.memory.repository.MemoryManager
+import com.airi.assistant.ai.skills.SkillModelBridge
 import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.ai.skills.SkillToolBridge
 import com.airi.assistant.tools.FileUtils
@@ -359,8 +360,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // ToolDispatcher executes → result fed back into next LLM turn.
     // Used for ACTION queries when agentLoopEnabled=true.
     private val skillToolBridge          = SkillToolBridge(
-        registry = SkillRegistry(appContext),
-        context  = appContext
+        registry    = SkillRegistry(appContext),
+        context     = appContext,
+        modelBridge = SkillModelBridge.create(hybridOrchestrator, appContext)
     )
     private val toolDispatcher           = com.airi.assistant.agent.loop.tool.ToolDispatcher(
         memoryManager     = runCatching { ServiceLocator.memoryManager }.getOrNull(),
@@ -1081,6 +1083,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         runtimeSupervisor.stop()
         RuntimeEventLog.clear()
         runCatching { appContext.unregisterReceiver(downloadCompleteReceiver) }
+        runCatching { ServiceLocator.skillRuntime.destroy() }
     }
 
     // ── Session Management ────────────────────────────────────────────────────

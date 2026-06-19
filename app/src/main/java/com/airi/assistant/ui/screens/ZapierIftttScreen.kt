@@ -26,6 +26,8 @@ import com.airi.assistant.connector.app.IftttConnector
 import com.airi.assistant.connector.app.ZapierConnector
 import com.airi.assistant.ui.theme.*
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 /**
  * ZapierIftttScreen — combined connector setup screen for Zapier and IFTTT.

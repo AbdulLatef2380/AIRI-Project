@@ -23,6 +23,8 @@ import com.airi.assistant.domain.diagnostics.DiagnosticsRunner
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.ui.viewmodel.DebugState
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 private val DarkSurface    = Color(0xFF0D0F1E)
 private val CardBg         = Color(0xFF141628)

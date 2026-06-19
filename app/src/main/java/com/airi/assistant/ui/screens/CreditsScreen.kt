@@ -33,6 +33,8 @@ import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.accounting.TokenAccountant
 import com.airi.assistant.ui.theme.*
 import kotlin.math.min
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

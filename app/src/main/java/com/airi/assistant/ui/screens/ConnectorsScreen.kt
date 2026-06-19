@@ -39,6 +39,8 @@ import com.airi.assistant.ui.theme.SemanticSuccess
 import com.airi.assistant.ui.theme.SemanticError
 import com.airi.assistant.ui.theme.DividerColor
 import com.airi.assistant.ui.viewmodel.ConnectorsViewModel
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 // ── Tab definition ─────────────────────────────────────────────────────────────
 private data class ConnectorTab(

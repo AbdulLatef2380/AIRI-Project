@@ -8,7 +8,7 @@ object CustomSkillSecurity {
     fun isValidEndpoint(endpoint: String): Boolean {
         val uri = runCatching { Uri.parse(endpoint.trim()) }.getOrNull() ?: return false
         val scheme = uri.scheme?.lowercase() ?: return false
-        return scheme in setOf("https", "http") && !uri.host.isNullOrBlank()
+        return scheme == "https" && !uri.host.isNullOrBlank()
     }
 
     fun sanitizeUrl(endpoint: String): String {

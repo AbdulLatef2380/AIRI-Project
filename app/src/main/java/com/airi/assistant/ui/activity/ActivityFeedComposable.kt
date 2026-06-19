@@ -24,6 +24,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airi.assistant.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 @Composable
 fun ActivityFeedComposable(modifier: Modifier = Modifier, compactMaxItems: Int = 3) {

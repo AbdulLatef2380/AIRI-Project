@@ -15,6 +15,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.viewmodel.ChatViewModel
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

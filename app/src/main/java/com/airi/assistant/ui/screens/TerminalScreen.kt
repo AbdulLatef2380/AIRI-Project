@@ -26,6 +26,8 @@ import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.terminal.TerminalRuntime
 import com.airi.assistant.ui.theme.*
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

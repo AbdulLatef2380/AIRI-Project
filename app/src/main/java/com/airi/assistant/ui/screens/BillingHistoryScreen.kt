@@ -22,6 +22,8 @@ import com.airi.assistant.billing.BillingRecord
 import com.airi.assistant.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 /**
  * BillingHistoryScreen — shows the complete billing history from [BillingHistoryStore].

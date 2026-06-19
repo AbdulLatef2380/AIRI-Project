@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.screens.VoiceSessionState
 import com.airi.assistant.ui.theme.*
 import kotlin.math.*
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 /**
  * VoiceLiveOverlay — cinematic full-screen voice conversation UI.

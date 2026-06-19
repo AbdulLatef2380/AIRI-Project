@@ -28,6 +28,8 @@ import com.airi.assistant.billing.StripeManager
 import com.airi.assistant.domain.monetization.SubscriptionManager
 import com.airi.assistant.ui.theme.*
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 /**
  * StripePaymentScreen — credit packs + subscription purchase UI.

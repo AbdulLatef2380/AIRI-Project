@@ -40,6 +40,8 @@ import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ExecDiagnosticsScreen — Hybrid Execution layer live diagnostics

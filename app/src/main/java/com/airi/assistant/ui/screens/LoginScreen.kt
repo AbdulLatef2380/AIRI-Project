@@ -39,6 +39,7 @@ import com.airi.assistant.analytics.AnalyticsService
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.OAuthProvider
+import androidx.compose.ui.res.stringResource
 
 @Composable
 fun LoginScreen(

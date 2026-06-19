@@ -27,6 +27,8 @@ import com.airi.assistant.ui.viewmodel.ChatViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

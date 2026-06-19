@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 @Composable
 fun AppInfoScreen(onBack: () -> Unit) = AppInfoScreenContent(onBack)

@@ -14,6 +14,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import com.airi.assistant.R
 
 class ModelDownloadService : Service() {
 

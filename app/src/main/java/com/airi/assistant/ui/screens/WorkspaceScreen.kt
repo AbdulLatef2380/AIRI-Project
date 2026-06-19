@@ -30,6 +30,8 @@ import com.airi.assistant.workspace.WorkspaceRuntime
 import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.theme.AiriTheme
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 /**
  * WorkspaceScreen — Claude Artifacts / Replit-style workspace UI.

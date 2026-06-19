@@ -21,6 +21,8 @@ import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SemanticError
 import com.airi.assistant.ui.theme.SemanticSuccess
 import com.airi.assistant.ui.theme.SemanticWarn
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 @Composable
 fun AgentPlanCard(step: PlanStepModel, depth: Int = 0, modifier: Modifier = Modifier) {

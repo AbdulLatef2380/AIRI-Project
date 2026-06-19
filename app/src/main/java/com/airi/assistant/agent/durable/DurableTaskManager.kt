@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import com.airi.assistant.R
 
 /**
  * Manager for durable long-running tasks that survive app closure.

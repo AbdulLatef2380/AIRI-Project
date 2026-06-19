@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.ai.skills.SkillManifest
 import com.airi.assistant.ai.skills.SkillMemoryAccess
 import com.airi.assistant.ai.skills.SkillModelAccess
+import kotlinx.coroutines.launch
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.CosmicAccentAlt
@@ -380,9 +381,7 @@ private fun ToolsStep(
                     expandedTool = t.id
                 },
                 modifier = Modifier.fillMaxWidth(),
-                border   = ButtonDefaults.outlinedButtonBorder.copy(brush = null).let {
-                    androidx.compose.foundation.BorderStroke(1.dp, CosmicAccent.copy(0.5f))
-                },
+                border   = androidx.compose.foundation.BorderStroke(1.dp, CosmicAccent.copy(0.5f)),
                 shape    = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Add, null, Modifier.size(18.dp), tint = CosmicAccent)
@@ -450,7 +449,7 @@ private fun ToolCard(
 
             AnimatedVisibility(visible = expanded) {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HorizontalDivider(color = DividerColor)
+                    Divider(color = DividerColor)
                     Spacer(Modifier.height(4.dp))
                     WizardField(tool.name, { tool.name = it }, "Tool Name *", "e.g. web_search")
                     WizardField(tool.description, { tool.description = it }, "Tool Description *", "What does this tool do?")
@@ -751,7 +750,7 @@ private fun WizardStepIndicator(currentStep: Int, totalSteps: Int, titles: List<
             }
 
             if (i < totalSteps - 1) {
-                HorizontalDivider(
+                Divider(
                     modifier = Modifier.weight(1f),
                     color    = if (i < currentStep) CosmicAccent.copy(0.5f) else DividerColor
                 )
@@ -789,6 +788,7 @@ private fun WizardField(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CategorySelector(selected: String, onSelect: (String) -> Unit) {
     androidx.compose.foundation.lazy.LazyRow(

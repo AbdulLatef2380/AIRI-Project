@@ -27,6 +27,8 @@ import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.theme.AiriTheme
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 /**
  * DeveloperCenterScreen — AIRI internal tooling dashboard.

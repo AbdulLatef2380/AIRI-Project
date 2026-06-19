@@ -28,6 +28,8 @@ import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.PrivacyLevel
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.ui.theme.CosmicAccent
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ExecutionModePanel — User control layer for the Hybrid Execution system

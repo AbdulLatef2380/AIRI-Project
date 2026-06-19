@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SurfaceFloating
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

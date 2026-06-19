@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.BuildConfig
 import com.airi.assistant.ui.theme.*
 import kotlinx.coroutines.delay
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 data class ReleaseNote(
     val version:     String,

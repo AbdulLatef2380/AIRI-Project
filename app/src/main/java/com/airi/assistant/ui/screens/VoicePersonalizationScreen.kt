@@ -34,6 +34,8 @@ import com.airi.assistant.ui.theme.*
 import com.airi.assistant.voice.VoicePreferencesStore
 import kotlinx.coroutines.launch
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

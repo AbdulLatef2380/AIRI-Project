@@ -18,6 +18,8 @@ import com.airi.assistant.BuildConfig
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SurfaceRaised
 import com.airi.assistant.ui.theme.AiriTheme
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

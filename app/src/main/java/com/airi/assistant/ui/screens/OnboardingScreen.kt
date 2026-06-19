@@ -44,6 +44,8 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.accompanist.permissions.rememberPermissionState
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 /**
  * OnboardingScreen — production 5-page first-run flow.

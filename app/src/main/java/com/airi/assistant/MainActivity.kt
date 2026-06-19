@@ -31,6 +31,7 @@ import com.airi.assistant.oauth.OAuthStateRegistry
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.ui.theme.AIRITheme
 import com.airi.assistant.voice.HotwordService
+import com.airi.assistant.R
 
 class MainActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: Context) {

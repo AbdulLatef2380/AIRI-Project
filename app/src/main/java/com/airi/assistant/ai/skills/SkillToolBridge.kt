@@ -18,9 +18,10 @@ import kotlinx.coroutines.withTimeout
  *  2. Agent loop tool call: ToolDispatcher → SkillToolBridge.invoke — for explicit tool_call JSON
  */
 class SkillToolBridge(
-    private val context:   Context,
-    private val registry:  SkillRegistry,
-    private val skillCtx:  () -> SkillContext = { SkillContext() }
+    private val context:      Context,
+    private val registry:     SkillRegistry,
+    private val modelBridge:  SkillModelBridge? = null,
+    private val skillCtx:     () -> SkillContext = { SkillContext() }
 ) {
     companion object {
         private const val TAG    = "SkillToolBridge"
@@ -87,7 +88,7 @@ class SkillToolBridge(
         val params: Map<String, Any> = buildMap {
             put("input", args["input"] ?: args["query"] ?: args.values.firstOrNull() ?: "")
             putAll(args)
-            put("context", skillCtx())
+            put("context", skillCtx().copy(modelBridge = modelBridge))
         }
 
         return try {

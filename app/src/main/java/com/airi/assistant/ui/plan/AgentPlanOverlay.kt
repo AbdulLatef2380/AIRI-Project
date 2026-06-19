@@ -25,6 +25,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.viewmodel.ExecutionStage
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 @Composable
 fun AgentPlanOverlay(

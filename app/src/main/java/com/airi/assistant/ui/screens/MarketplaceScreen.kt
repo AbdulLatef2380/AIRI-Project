@@ -2,6 +2,7 @@
 package com.airi.assistant.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -18,8 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.LocalTextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import com.airi.assistant.R
@@ -582,7 +583,7 @@ private fun PublishTab(
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Icon(
-                    Icons.Outlined.AutoAwesome,
+                    Icons.Filled.AutoAwesome,
                     contentDescription = null,
                     tint = CosmicAccent,
                     modifier = Modifier.size(28.dp)

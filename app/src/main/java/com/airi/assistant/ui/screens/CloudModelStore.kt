@@ -31,6 +31,8 @@ import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.ui.viewmodel.ModelUiState
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 /**
  * Cloud & Hybrid Model Store section for [ModelSettingsScreen].

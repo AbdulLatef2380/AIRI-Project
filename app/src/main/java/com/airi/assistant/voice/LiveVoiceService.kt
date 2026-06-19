@@ -23,6 +23,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.airi.assistant.R
 
 /**
  * LiveVoiceService — foreground service owning the AIRI full-duplex voice session.

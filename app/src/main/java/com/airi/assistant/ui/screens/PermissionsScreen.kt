@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.airi.assistant.ui.theme.*
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 data class PermissionInfo(
     val permission:   String,

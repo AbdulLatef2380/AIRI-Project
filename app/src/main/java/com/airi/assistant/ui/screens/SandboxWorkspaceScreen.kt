@@ -34,6 +34,8 @@ import com.airi.assistant.ui.theme.AiriTheme
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 
 /**
  * SandboxWorkspaceScreen — live sandbox session viewer and execution console.

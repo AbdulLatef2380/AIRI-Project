@@ -77,7 +77,7 @@ fun CustomizationSettingsScreen(
             SettingsSurface {
                 SettingsCategoryHeader(
                     icon  = Icons.Outlined.Palette,
-                    title = "المظهر"
+                    title = stringResource(R.string.appearance)
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(

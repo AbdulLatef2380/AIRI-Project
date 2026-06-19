@@ -7,8 +7,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.airi.assistant.R
 import com.airi.assistant.ui.theme.CosmicAccent
 
 @Composable
@@ -25,7 +27,7 @@ fun ScreenHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedButton(onClick = onBack) {
-                Text("رجوع")
+                Text(stringResource(R.string.back))
             }
             Row(content = trailing)
         }

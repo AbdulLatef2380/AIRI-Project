@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,6 +34,7 @@ import com.airi.assistant.domain.customskill.CustomSkill
 import com.airi.assistant.domain.customskill.CustomSkillRepository
 import com.airi.assistant.domain.customskill.SkillConfig
 import com.airi.assistant.domain.customskill.SkillType
+import com.airi.assistant.R
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.CosmicBlack
 import com.airi.assistant.ui.theme.SemanticError
@@ -81,7 +83,7 @@ fun SkillManagerScreen(
                 withContext(Dispatchers.Main) { reload(); importSource = null }
             }.onFailure { e ->
                 withContext(Dispatchers.Main) {
-                    errorMessage = "فشل استيراد المهارة: ${e.message}"
+                    errorMessage = context.getString(R.string.skill_import_failed, e.message ?: "")
                 }
             }
         }
@@ -101,10 +103,10 @@ fun SkillManagerScreen(
                 },
                 title = {
                     Column {
-                        Text("المهارات", color = AiriTheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(stringResource(R.string.skill_title), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         if (skills.isNotEmpty()) {
                             Text(
-                                "${skills.size} مهارة",
+                                stringResource(R.string.skill_count, skills.size),
                                 color = AiriTheme.onBackground.copy(0.45f), fontSize = 11.sp
                             )
                         }
@@ -119,18 +121,18 @@ fun SkillManagerScreen(
                             expanded         = showAddMenu,
                             onDismissRequest = { showAddMenu = false }
                         ) {
-                            AddOption(Icons.Outlined.Edit, "إنشاء مهارة جديدة") {
+                            AddOption(Icons.Outlined.Edit, stringResource(R.string.skill_menu_create)) {
                                 showAddMenu = false; onCreate()
                             }
-                            AddOption(Icons.Outlined.FolderOpen, "استيراد من التخزين") {
+                            AddOption(Icons.Outlined.FolderOpen, stringResource(R.string.skill_menu_import_storage)) {
                                 showAddMenu = false
                                 importSource = ImportSource.STORAGE
                                 filePicker.launch("application/json")
                             }
-                            AddOption(Icons.Outlined.Code, "استيراد من GitHub") {
+                            AddOption(Icons.Outlined.Code, stringResource(R.string.skill_menu_import_github)) {
                                 showAddMenu = false; importSource = ImportSource.GITHUB
                             }
-                            AddOption(Icons.Outlined.AutoAwesome, "إنشاء مع AIRI") {
+                            AddOption(Icons.Outlined.AutoAwesome, stringResource(R.string.skill_menu_create_with_airi)) {
                                 showAddMenu = false; importSource = ImportSource.AI
                             }
                         }
@@ -180,7 +182,7 @@ fun SkillManagerScreen(
                             }.onFailure { e ->
                                 withContext(Dispatchers.Main) {
                                     isImporting = false
-                                    errorMessage = "فشل استيراد GitHub: ${e.message}"
+                                    errorMessage = context.getString(R.string.skill_import_github_failed, e.message ?: "")
                                     importSource = null
                                 }
                             }
@@ -230,13 +232,13 @@ fun SkillManagerScreen(
                             modifier = Modifier.size(48.dp)
                         )
                         Text(
-                            "لا توجد مهارات مخصصة بعد",
+                            stringResource(R.string.skill_no_skills_title),
                             color = AiriTheme.onBackground,
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp
                         )
                         Text(
-                            "أنشئ مهارات API أو استوردها، ويمكن لـ AIRI استخدامها كأدوات.",
+                            stringResource(R.string.skill_no_skills_desc),
                             color = AiriTheme.onBackground.copy(0.55f),
                             fontSize = 14.sp
                         )
@@ -247,7 +249,7 @@ fun SkillManagerScreen(
                                 contentColor   = Color.White
                             )
                         ) {
-                            Text("إنشاء مهارة", fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.skill_create_button), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -296,11 +298,11 @@ private fun GitHubImportDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor   = Color(0xFF111525),
-        title = { Text("استيراد من GitHub", color = AiriTheme.onBackground, fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.skill_menu_import_github), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "الصق رابط الملف الخام (raw) لملف JSON الخاص بالمهارة من GitHub.",
+                    stringResource(R.string.skill_github_import_desc),
                     color = AiriTheme.onBackground.copy(0.6f), fontSize = 13.sp
                 )
                 OutlinedTextField(
@@ -332,11 +334,11 @@ private fun GitHubImportDialog(
                 onClick  = { if (rawUrl.isNotBlank()) onImport(rawUrl.trim()) },
                 enabled  = rawUrl.isNotBlank() && !isImporting
             ) {
-                Text("استيراد", color = CosmicAccent, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.import_action), color = CosmicAccent, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("إلغاء", color = AiriTheme.onBackground.copy(0.55f)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(0.55f)) }
         }
     )
 }
@@ -354,17 +356,17 @@ private fun AiSkillCreateDialog(
         onDismissRequest = onDismiss,
         containerColor   = Color(0xFF111525),
         title = {
-            Text("إنشاء مهارة مع AIRI", color = AiriTheme.onBackground, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.skill_menu_create_with_airi), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold)
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "أدخل تفاصيل المهارة وسيقوم AIRI بإعداد الهيكل الكامل لها.",
+                    stringResource(R.string.skill_create_airi_desc),
                     color = AiriTheme.onBackground.copy(0.6f), fontSize = 13.sp
                 )
-                SkillTextField("اسم المهارة", name) { name = it }
-                SkillTextField("وصف المهارة", description) { description = it }
-                SkillTextField("عنوان API (URL)", endpoint, keyboard = KeyboardType.Uri) { endpoint = it }
+                SkillTextField(stringResource(R.string.skill_name_label), name) { name = it }
+                SkillTextField(stringResource(R.string.skill_description_label), description) { description = it }
+                SkillTextField(stringResource(R.string.skill_endpoint_label), endpoint, keyboard = KeyboardType.Uri) { endpoint = it }
             }
         },
         confirmButton = {
@@ -375,11 +377,11 @@ private fun AiSkillCreateDialog(
                 },
                 enabled = name.isNotBlank() && endpoint.isNotBlank()
             ) {
-                Text("إنشاء", color = CosmicAccent, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.create), color = CosmicAccent, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("إلغاء", color = AiriTheme.onBackground.copy(0.55f)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(0.55f)) }
         }
     )
 }

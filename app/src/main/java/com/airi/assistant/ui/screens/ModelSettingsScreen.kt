@@ -1438,7 +1438,7 @@ fun CatalogCard(
                         }
                     }
                     Text(
-                        if (unsupportedGemma) "غير مدعوم على هذا الجهاز" else entry.description,
+                        if (unsupportedGemma) stringResource(R.string.model_not_supported_device) else entry.description,
                         color = if (unsupportedGemma) Color(0xFFFF3B30) else Color.White.copy(alpha = 0.64f),
                         fontSize = 12.sp,
                         lineHeight = 16.sp,
@@ -1486,7 +1486,7 @@ fun CatalogCard(
                     DetailRow("last update", "Catalog verified")
                     DetailRow("architecture", entry.type.label)
                     if (unsupportedGemma) {
-                        Text("غير مدعوم على هذا الجهاز", color = Color(0xFFFF3B30), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.model_not_supported_device), color = Color(0xFFFF3B30), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

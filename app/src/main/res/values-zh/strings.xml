@@ -225,4 +225,601 @@
     <string name="marketplace_terms">我同意 AIRI 市场服务条款</string>
     <string name="marketplace_submit_review">提交审核</string>
     <string name="marketplace_installs_count">%1$s 次安装</string>
+
+    <!-- Settings group headers -->
+    <string name="settings_group_ai_models">AI 与模型</string>
+    <string name="settings_group_voice_audio">语音与音频</string>
+    <string name="settings_group_personalization">个性化</string>
+    <string name="settings_group_system_permissions">系统与权限</string>
+
+    <!-- Integrations -->
+    <string name="integrations_title">集成</string>
+    <string name="integrations_section_title">已连接工具</string>
+    <string name="integrations_section_description">使用你自己的凭据连接外部服务。所有令牌安全存储在此设备上。</string>
+    <string name="integration_github_name">GitHub</string>
+    <string name="integration_github_description">连接代码库、议题和编码上下文。</string>
+    <string name="integration_telegram_name">Telegram</string>
+    <string name="integration_telegram_description">链接 Telegram 机器人以实现消息工作流。</string>
+    <string name="integration_google_name">Google</string>
+    <string name="integration_google_description">访问 Gmail、Drive 和日历（只读）。</string>
+    <string name="integration_connect">连接</string>
+    <string name="integration_disconnect">断开连接</string>
+    <string name="integration_status_connected">已连接</string>
+    <string name="integration_status_offline">离线</string>
+    <string name="integration_connected_as">已连接为</string>
+    <string name="integration_last_updated">最后更新 %1$s</string>
+    <string name="integration_dialog_steps_title">按以下步骤获取令牌：</string>
+    <string name="integration_dialog_validating">正在验证令牌…</string>
+    <string name="integration_github_dialog_title">连接 GitHub</string>
+    <string name="integration_telegram_dialog_title">连接 Telegram</string>
+    <string name="integration_github_token_label">个人访问令牌</string>
+    <string name="integration_telegram_token_label">机器人令牌</string>
+    <string name="integration_error_paste_github">请粘贴你的 GitHub 令牌</string>
+    <string name="integration_error_paste_telegram">请粘贴你的 Telegram 机器人令牌</string>
+
+    <!-- Profile -->
+    <string name="display_name">显示名称</string>
+    <string name="username">用户名</string>
+    <string name="email_read_only">电子邮件（只读）</string>
+    <string name="profile_saved">个人资料已保存</string>
+    <string name="edit_profile">编辑个人资料</string>
+    <string name="sign_in">登录</string>
+    <string name="create_account">创建账户</string>
+    <string name="continue_with_google">使用 Google 继续</string>
+    <string name="continue_with_github">使用 GitHub 继续</string>
+
+    <!-- Bug report -->
+    <string name="report_a_problem">报告问题</string>
+    <string name="report_a_problem_sublabel">通过电子邮件发送反馈或错误报告</string>
+    <string name="report_email_subject">AIRI 错误报告 — v1.0.0-alpha</string>
+    <string name="report_email_body">请描述问题：\n\n\n\n--- 设备信息 ---\n</string>
+
+    <!-- Paywall / subscription -->
+    <string name="upgrade_to_premium">升级到 Premium</string>
+    <string name="paywall_limit_message">你已达到限制。升级以继续。</string>
+    <string name="usage_limit_reached">你已达到限制。升级以继续。</string>
+    <string name="subscription">订阅</string>
+    <string name="plan_premium">Premium</string>
+    <string name="plan_free_tier">免费版</string>
+    <string name="plan_premium_description">无限访问所有功能</string>
+    <string name="plan_free_description">每天 30 条消息 / 10 个智能体 / 5 项技能</string>
+    <string name="plan_badge_active">✓ 活跃</string>
+    <string name="plan_badge_free">免费</string>
+    <string name="today_usage">今日用量</string>
+    <string name="usage_messages">消息</string>
+    <string name="usage_agent_runs">智能体运行</string>
+    <string name="usage_skill_uses">技能使用</string>
+    <string name="upgrade_premium_price">升级到 Premium — ¥35.99/月</string>
+
+    <!-- Default assistant -->
+    <string name="default_assistant">默认助手</string>
+    <string name="default_assistant_description">将 AIRI 设为设备默认助手，长按 Home 键即可启动。</string>
+    <string name="airi_is_default">AIRI 是你的默认助手</string>
+    <string name="airi_not_default">AIRI 不是此设备的默认助手。</string>
+    <string name="set_as_default_assistant">设为默认助手</string>
+    <string name="open_assistant_settings">打开助手设置</string>
+
+    <!-- Observability -->
+    <string name="observability">可观测性</string>
+    <string name="observability_description">所有智能体、技能、认证和策略执行的实时事件日志。</string>
+    <string name="execution_history">执行历史</string>
+    <string name="execution_history_description">查看实时事件、策略检查和智能体跟踪</string>
+
+    <!-- Agent -->
+    <string name="agent_logs">智能体日志</string>
+    <string name="agent_logs_description">查看执行历史和跟踪记录</string>
+    <string name="agent_control">智能体控制</string>
+    <string name="agent_control_description">管理技能、工具和调试模式</string>
+    <string name="last_run">最后运行</string>
+    <string name="agent_tasks">任务</string>
+
+    <!-- Model settings dialog -->
+    <string name="model_name_label">模型名称</string>
+    <string name="bos_token">BOS 令牌</string>
+    <string name="eos_token">EOS 令牌</string>
+    <string name="add_generation_prompt">添加生成提示</string>
+    <string name="template_editor">模板编辑器</string>
+    <string name="leave_blank_for_default">留空使用默认值</string>
+    <string name="stop_words">停用词</string>
+    <string name="add_stop_word">添加停用词</string>
+    <string name="settings_saved">设置已保存！</string>
+
+    <!-- Add model -->
+    <string name="add_model">添加模型</string>
+    <string name="add_local_model">添加本地模型</string>
+    <string name="import_gguf_from_storage">从设备存储导入 .gguf 文件</string>
+    <string name="add_remote_model">添加远程模型</string>
+    <string name="add_openai_compatible_server">连接兼容 OpenAI 的服务器</string>
+    <string name="add_model_fab">添加模型</string>
+    <string name="model_settings_icon">模型设置</string>
+
+    <!-- Microphone -->
+    <string name="mic_blocked_settings">麦克风已被屏蔽 — 在"设置 → 应用权限"中启用</string>
+
+    <!-- Generation parameters -->
+    <string name="repeat_penalty">重复惩罚</string>
+    <string name="min_p">最小概率 P</string>
+    <string name="presence_penalty">存在惩罚</string>
+    <string name="frequency_penalty">频率惩罚</string>
+    <string name="penalty_last_n">重复窗口</string>
+    <string name="min_p_hint">token 选择的最小概率阈值</string>
+    <string name="presence_penalty_hint">对响应中已出现的 token 进行惩罚</string>
+    <string name="frequency_penalty_hint">根据 token 出现频率进行惩罚</string>
+    <string name="penalty_last_n_hint">扫描重复的最近 token 数（0=关闭，64=默认）</string>
+
+    <!-- Share / drawer -->
+    <string name="share">分享</string>
+    <string name="custom_skills">自定义技能</string>
+    <string name="invite_friends">邀请好友</string>
+
+    <!-- Theme -->
+    <string name="theme">主题</string>
+    <string name="theme_dark">深色</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_system">跟随系统</string>
+
+    <!-- Export -->
+    <string name="export_success">聊天已导出到 Downloads/AIRI/</string>
+    <string name="export_failed">导出失败 — 请检查存储权限</string>
+
+    <!-- Performance screen -->
+    <string name="performance">性能</string>
+    <string name="performance_device_info">性能与设备信息</string>
+    <string name="performance_device_info_sublabel">RAM、CPU、token 速度、性能模式</string>
+    <string name="performance_device">性能与设备</string>
+    <string name="performance_mode">性能模式</string>
+    <string name="stat_device_info">设备信息</string>
+    <string name="stat_device">设备</string>
+    <string name="stat_android">Android</string>
+    <string name="stat_cpu_abi">CPU 架构</string>
+    <string name="stat_cpu_cores">CPU 核心数</string>
+    <string name="stat_memory">内存</string>
+    <string name="stat_total_ram">总 RAM</string>
+    <string name="stat_available_ram">可用</string>
+    <string name="stat_used_ram">已用 RAM</string>
+    <string name="stat_low_memory">内存不足</string>
+    <string name="stat_low_memory_yes">是 ⚠</string>
+    <string name="stat_low_memory_no">否 ✓</string>
+    <string name="stat_storage">存储</string>
+    <string name="stat_total_storage">总存储</string>
+    <string name="stat_free_storage">可用存储</string>
+    <string name="stat_inference">推理统计</string>
+    <string name="stat_last_load_time">上次加载时间</string>
+    <string name="stat_tokens_per_sec">Token / 秒</string>
+    <string name="stat_last_latency">上次延迟</string>
+    <string name="stat_breakdown">延迟分解</string>
+    <string name="stat_breakdown_tokenize">分词</string>
+    <string name="stat_breakdown_prefill">预填充</string>
+    <string name="stat_breakdown_first_token">首个 token</string>
+    <string name="stat_breakdown_decode">解码循环</string>
+    <string name="stat_breakdown_decoded">已解码 token</string>
+    <string name="stat_breakdown_kv">KV 缓存</string>
+    <string name="stat_breakdown_kv_value">%1$d / %2$d (%3$d%%)</string>
+
+    <!-- Model Performance -->
+    <string name="model_perf_title">模型性能</string>
+    <string name="model_perf_open">比较量化方案</string>
+    <string name="model_perf_empty">暂无基准测试 — 先向本地模型发送一条消息。</string>
+    <string name="model_perf_summary_header">各量化方案平均值</string>
+    <string name="model_perf_runs_header">最近运行（共 %1$d 次）</string>
+    <string name="model_perf_col_quant">量化</string>
+    <string name="model_perf_col_runs">次数</string>
+    <string name="model_perf_col_tps">t/s</string>
+    <string name="model_perf_col_ftl">首个 tok</string>
+    <string name="model_perf_col_mem">内存</string>
+    <string name="model_perf_col_class">级别</string>
+    <string name="model_perf_run_line">%1$s t/s • 首 %2$d ms • 总 %3$d ms • %4$d tok • %5$d MB • ctx=%6$d • th=%7$d</string>
+
+    <!-- Speculative decoding -->
+    <string name="spec_title">推测解码</string>
+    <string name="spec_subtitle">使用小型草稿模型预测 token，再由主模型验证。输出不变。启用时强制贪婪采样。</string>
+    <string name="spec_enable">启用推测解码</string>
+    <string name="spec_status_off">关闭 — 使用标准逐 token 生成路径。</string>
+    <string name="spec_status_no_draft">已开启，但未选择草稿模型。点按"自动选择"。</string>
+    <string name="spec_status_loaded">草稿已加载：%1$s（%2$d MB）</string>
+    <string name="spec_status_load_failed">草稿加载失败：%1$s</string>
+    <string name="spec_status_no_candidate">没有其他模型可用作草稿。请先添加更小的模型。</string>
+    <string name="spec_auto_pick">自动选择草稿</string>
+    <string name="spec_unload">卸载草稿</string>
+    <string name="spec_reset_stats">重置统计</string>
+    <string name="spec_acceptance">接受率：%1$d%%（%2$d / %3$d 草稿，共 %4$d 次运行）</string>
+    <string name="spec_acceptance_empty">接受率：—（尚无推测运行）</string>
+    <string name="spec_draft_n_label">每步草稿 token 数：%1$d</string>
+    <string name="perf_mode_label_fast">⚡ 快速</string>
+    <string name="perf_mode_label_balanced">⚖ 均衡</string>
+    <string name="perf_mode_label_quality">🎯 高质量</string>
+    <string name="perf_footer_note">性能模式影响：上下文窗口、最大 token 数和截断策略。下一条消息起生效。</string>
+
+    <!-- Expand / collapse -->
+    <string name="expand">展开</string>
+    <string name="collapse">收起</string>
+
+    <!-- File / image -->
+    <string name="file_selected_name">已选文件：%1$s</string>
+    <string name="image_selected_vision_soon">此版本未启用图片附件功能</string>
+    <string name="image_attached_no_vision">视觉模型未加载 — 将发送文本标记</string>
+    <string name="image_attached_vision_ready">视觉模型就绪 — 将分析图片</string>
+    <string name="remove_image_cd">移除附加图片</string>
+    <string name="pick_mmproj">视觉投影仪（mmproj）</string>
+    <string name="vision_ready_badge">视觉：就绪</string>
+    <string name="photo_attached">照片已附加</string>
+
+    <!-- Remote model form -->
+    <string name="server_url">服务器地址</string>
+    <string name="api_key_optional">鉴权密钥（可选）</string>
+    <string name="test_connection">测试连接</string>
+    <string name="remote_model_warning">使用远程模型会将消息发送到设备之外。请确保你信任该服务器。</string>
+    <string name="enter_server_url_first">请先输入服务器地址</string>
+    <string name="connection_success">连接成功</string>
+    <string name="connection_failed">连接失败</string>
+    <string name="testing_connection">正在测试…</string>
+
+    <!-- Voice & Wake Word -->
+    <string name="voice_and_wakeword">语音与唤醒词</string>
+    <string name="voice_settings_title">语音与唤醒词</string>
+    <string name="voice_settings_subtitle">管理离线语音识别模型和"Hey AIRI"唤醒词。</string>
+    <string name="no_voice_model_installed">未安装语音模型。打开"语音与唤醒词"下载一个。</string>
+    <string name="voice_model_load_failed">无法加载所选语音模型。</string>
+    <string name="vosk_section_title">语音转文字模型（Vosk）</string>
+    <string name="vosk_section_subtitle">模型 100%% 在设备上运行。下载一次，永久使用——无需联网。</string>
+    <string name="vosk_installed">已安装</string>
+    <string name="vosk_active">活跃</string>
+    <string name="vosk_set_active">设为活跃</string>
+    <string name="vosk_download">下载</string>
+    <string name="vosk_downloading">正在下载…</string>
+    <string name="vosk_delete">删除</string>
+    <string name="vosk_no_models">尚未安装模型。请在下方选择一个。</string>
+    <string name="vosk_size_mb">约 %1$d MB</string>
+    <string name="vosk_download_failed">下载失败：%1$s</string>
+    <string name="porcupine_section_title">唤醒词（Porcupine）</string>
+    <string name="porcupine_status_ready">唤醒词就绪（"Hey AIRI"）。</string>
+    <string name="porcupine_status_missing_key">Picovoice AccessKey 缺失。请在下方粘贴或在构建时设置 PICOVOICE_ACCESS_KEY。</string>
+    <string name="porcupine_status_missing_ppn">未捆绑"hey_airi.ppn"文件。请将其放入 res/raw/ 或 assets/voice/ 并重新构建。</string>
+    <string name="porcupine_status_both_missing">唤醒词已禁用 — AccessKey 和 hey_airi.ppn 均缺失。</string>
+    <string name="porcupine_access_key_label">Picovoice AccessKey</string>
+    <string name="porcupine_access_key_save">保存</string>
+    <string name="porcupine_access_key_clear">清除</string>
+    <string name="porcupine_source_runtime">来源：粘贴</string>
+    <string name="porcupine_source_build">来源：构建配置</string>
+    <string name="porcupine_help_link">在 console.picovoice.ai 获取免费 AccessKey</string>
+
+    <!-- Suggestions / nav -->
+    <string name="suggestion_what_can_you_do">你能帮我做什么？</string>
+    <string name="suggestion_explain_ai">设备端 AI 是如何工作的？</string>
+    <string name="suggestion_write_poem">给我写一首短诗</string>
+    <string name="suggestion_brainstorm">帮我头脑风暴</string>
+    <string name="nav_chat">聊天</string>
+    <string name="nav_new">新建</string>
+    <string name="nav_schedule">日程</string>
+    <string name="nav_settings">设置</string>
+    <string name="nav_skills">技能</string>
+
+    <!-- Common actions -->
+    <string name="dismiss">关闭</string>
+    <string name="copy">复制</string>
+    <string name="edit">编辑</string>
+    <string name="select_text">选择文本</string>
+    <string name="confirm">确认</string>
+    <string name="clear">清除</string>
+    <string name="reset">重置</string>
+    <string name="fix">修复</string>
+    <string name="create">创建</string>
+    <string name="deactivate">停用</string>
+    <string name="test">测试</string>
+    <string name="running">运行中</string>
+    <string name="running_ellipsis">运行中…</string>
+    <string name="install">安装</string>
+    <string name="skip">跳过</string>
+    <string name="get_started">开始使用</string>
+    <string name="save_key">保存密钥</string>
+    <string name="send_test">发送测试</string>
+    <string name="add_and_use">添加并使用</string>
+    <string name="open_chat">打开聊天</string>
+    <string name="new_session">新建会话</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_close">关闭</string>
+    <string name="cd_history">历史</string>
+    <string name="cd_options">选项</string>
+    <string name="cd_refresh">刷新</string>
+    <string name="cd_clear_memory">清除记忆</string>
+    <string name="cd_add_task">添加任务</string>
+    <string name="cd_add_skill">添加技能</string>
+    <string name="cd_debug">调试</string>
+    <string name="cd_new_session">新建会话</string>
+    <string name="cd_close_session">关闭会话</string>
+    <string name="cd_run">运行</string>
+    <string name="cd_remove_header">删除请求头</string>
+    <string name="cd_cancel_download">取消下载</string>
+    <string name="cd_remove">移除</string>
+    <string name="cd_add">添加</string>
+    <string name="cd_reset_stats">重置今日统计</string>
+    <string name="cd_airi_logo">AIRI</string>
+    <string name="cd_delete_skill">删除</string>
+
+    <!-- Chat screen -->
+    <string name="chat_more_models">更多模型</string>
+    <string name="chat_system_integrity_failed">系统完整性故障</string>
+    <string name="chat_context_copy">复制</string>
+    <string name="chat_context_edit">编辑</string>
+    <string name="chat_context_select_text">选择文本</string>
+    <string name="chat_context_share">分享</string>
+
+    <!-- Onboarding / Welcome -->
+    <string name="onboarding_tagline">默认私密，强大设计。</string>
+
+    <!-- Login -->
+    <string name="email">电子邮件</string>
+    <string name="password">密码</string>
+
+    <!-- Voice Personalization -->
+    <string name="voice_personalization_title">语音个性化</string>
+    <string name="pitch_low">低</string>
+    <string name="pitch_high">高</string>
+    <string name="speed_slow">慢</string>
+    <string name="speed_fast">快</string>
+    <string name="preview_voice">预览语音</string>
+    <string name="save_preferences">保存偏好设置</string>
+
+    <!-- Permissions -->
+    <string name="open_app_settings">打开应用设置</string>
+    <string name="permission_special_label">特殊</string>
+    <string name="why_airi_needs_this">为什么 AIRI 需要这个</string>
+
+    <!-- Updates -->
+    <string name="check_for_updates">检查更新</string>
+    <string name="update_available_title">AIRI %1$s 已发布</string>
+    <string name="update_from_play_store">点击安装从 Play Store 更新</string>
+    <string name="whats_new">新功能</string>
+    <string name="bug_fixes">错误修复</string>
+
+    <!-- Credits & Usage -->
+    <string name="total_today">今日总计</string>
+    <string name="remaining">剩余</string>
+
+    <!-- Zapier / IFTTT -->
+    <string name="automation">自动化</string>
+    <string name="authentication">认证</string>
+    <string name="connect_with_zapier">连接 Zapier</string>
+    <string name="zapier_triggers_section">AIRI → Zapier 触发器</string>
+    <string name="test_webhook">测试 Webhook</string>
+    <string name="zapier_hook_url_label">Zapier REST Hook 地址</string>
+    <string name="webhook_payload_label">数据（可选 JSON 或文本）</string>
+    <string name="webhook_key_section">Webhook 密钥</string>
+    <string name="ifttt_maker_key_label">IFTTT Maker 密钥</string>
+    <string name="test_applet_trigger">测试 Applet 触发器</string>
+    <string name="event_name_label">事件名称</string>
+    <string name="event_name_hint">例如：airi_alert</string>
+    <string name="value_1_optional_label">值 1（可选）</string>
+    <string name="trigger_applet">触发 Applet</string>
+    <string name="how_airi_uses_ifttt">AIRI 如何使用 IFTTT</string>
+
+    <!-- Payment / Stripe -->
+    <string name="purchase">购买</string>
+    <string name="billing_monthly">月付</string>
+    <string name="billing_annual">年付</string>
+    <string name="billing_save_20">省 20%%</string>
+    <string name="subscribe_now">立即订阅</string>
+    <string name="premium_title">✨ AIRI Premium</string>
+    <string name="premium_description">解锁 AIRI 全部功能：10× 更多积分、全部连接器、市场访问和开发者 API。</string>
+    <string name="premium_active_message">你已开通 AIRI Premium！🎉</string>
+    <string name="premium_active_subtitle">每日 2,000 积分，所有功能已解锁。</string>
+    <string name="stripe_footer">通过 Stripe 安全处理付款。AIRI 从不存储卡片信息。</string>
+
+    <!-- AI Library -->
+    <string name="ai_library_routes_auto">AIRI 自动路由</string>
+    <string name="brave_search_api">Brave Search API</string>
+    <string name="brave_search_desc">免费：2,000 次搜索/月 · brave.com/search/api</string>
+    <string name="brave_key_hint">在 brave.com/search/api 获取免费密钥（每月 2,000 次免费搜索）</string>
+    <string name="brave_key_placeholder">BSA...</string>
+    <string name="active_ai_label">活跃 AI</string>
+    <string name="auto_badge">自动</string>
+    <string name="api_key_field_label">API 密钥</string>
+
+    <!-- Cloud Model Store -->
+    <string name="cloud_hybrid_title">云端与混合模型</string>
+    <string name="cloud_hybrid_subtitle">免费层 · 外部 API · 本地服务器</string>
+    <string name="custom_endpoint_title">自定义 / 高级端点</string>
+    <string name="custom_endpoint_subtitle">llama-server · LM Studio · 任意 OpenAI 兼容 API</string>
+    <string name="active_model_badge">已激活</string>
+    <string name="get_free_key">获取免费密钥</string>
+    <string name="access_key_label">访问密钥</string>
+    <string name="save_and_activate">保存并激活</string>
+    <string name="model_name_server_placeholder">例如：我的 Llama 服务器</string>
+
+    <!-- Agent Tasks -->
+    <string name="new_task_title">新建任务</string>
+    <string name="task_name_hint">任务名称或描述</string>
+    <string name="delay_minutes_label">延迟（分钟）</string>
+    <string name="schedule_button">定时</string>
+    <string name="exact_alarms_title">不允许精确闹钟</string>
+    <string name="exact_alarms_body">定时任务可能延迟触发。点击授予权限。</string>
+
+    <!-- Agent Logs / Trace -->
+    <string name="traces_recorded">已记录 %1$d 条跟踪</string>
+    <string name="no_agent_traces">暂无智能体跟踪记录</string>
+    <string name="trace_detail_title">跟踪详情</string>
+    <string name="user_input_label">用户输入</string>
+    <string name="execution_steps_label">执行步骤</string>
+    <string name="final_result_label">最终结果</string>
+    <string name="input_badge">输入</string>
+
+    <!-- Observability -->
+    <string name="no_events_recorded">暂无记录事件</string>
+    <string name="no_graph_yet">暂无图表</string>
+    <string name="no_trace_spans">暂无跟踪区间</string>
+
+    <!-- About -->
+    <string name="about_airi_title">关于 AIRI</string>
+    <string name="copyright_notice">© 2025 AIRI. 保留所有权利。</string>
+
+    <!-- Referral -->
+    <string name="grow_with_airi">与 AIRI 共同成长</string>
+    <string name="your_referral_code">你的推荐码</string>
+    <string name="bonus_available">可用奖励消息：%1$d</string>
+    <string name="have_referral_code">有推荐码？</string>
+    <string name="redeem_welcome_bonus">兑换欢迎奖励</string>
+
+    <!-- Debug Panel -->
+    <string name="debug_panel_title">调试面板</string>
+    <string name="no_results">无结果</string>
+    <string name="rerun_diagnostics">重新诊断</string>
+
+    <!-- Exec Diagnostics -->
+    <string name="reset_token_stats">重置 Token 统计</string>
+    <string name="reset_today_stats">重置今日统计</string>
+
+    <!-- Developer Center -->
+    <string name="no_connector_health">无连接器健康数据</string>
+    <string name="diagnostics_section">诊断</string>
+    <string name="running_status">运行中…</string>
+    <string name="no_results_placeholder">无结果。</string>
+
+    <!-- Skill Manager -->
+    <string name="create_skill">创建技能</string>
+    <string name="import_from_github_title">从 GitHub 导入</string>
+    <string name="create_skill_with_airi">与 AIRI 创建技能</string>
+
+    <!-- Skill Builder -->
+    <string name="testing_status">测试中...</string>
+    <string name="test_skill">测试技能</string>
+    <string name="saving_status">保存中...</string>
+    <string name="save_skill">保存技能</string>
+    <string name="response_label">响应</string>
+    <string name="error_label">错误</string>
+    <string name="available_template_vars">可用模板变量</string>
+    <string name="key_label">键</string>
+    <string name="value_label">值</string>
+    <string name="add_header">添加请求头</string>
+
+    <!-- Community Skills -->
+    <string name="no_community_skills">暂无社区技能</string>
+    <string name="import_from_explore_tab">从导入标签页导入技能。</string>
+    <string name="sandbox_button">沙盒</string>
+    <string name="trust_button">信任</string>
+    <string name="import_community_skill_title">导入社区技能</string>
+    <string name="import_skill_json_desc">从 URL 导入 skill.json 或直接粘贴。</string>
+    <string name="skill_url_label">技能 URL（仅 HTTPS）</string>
+    <string name="import_from_url">从 URL 导入</string>
+    <string name="paste_skill_json_label">粘贴 skill.json</string>
+    <string name="import_json_button">导入 JSON</string>
+    <string name="security_scan_active">安全扫描已激活</string>
+    <string name="security_scan_body">所有导入在存储前都会扫描危险模式。</string>
+    <string name="select_skill_trust_prompt">选择一项技能查看其信任分数</string>
+    <string name="tap_trust_hint">点击"我的技能"中任意技能的"信任"按钮。</string>
+    <string name="trust_signals_label">信任信号</string>
+    <string name="score_suffix">/ 100</string>
+
+    <!-- Memory -->
+    <string name="stored_interactions">%1$d 条存储的交互</string>
+    <string name="no_memory_yet">暂无记忆</string>
+    <string name="start_conversation_memory">开始对话以建立记忆</string>
+    <string name="episodic_memory_label">情景记忆</string>
+    <string name="clear_memory_body">这将永久删除所有存储的交互记录。AI 上下文将被重置。此操作无法撤销。</string>
+    <string name="clear_memory_confirm">清除记忆</string>
+
+    <!-- Workspace -->
+    <string name="new_workspace_title">新建工作区</string>
+    <string name="workspace_name_label">工作区名称</string>
+    <string name="no_workspaces">无工作区</string>
+    <string name="create_workspace_desc">创建工作区以组织 AI 生成的内容</string>
+    <string name="no_artifacts_yet">暂无内容</string>
+    <string name="ask_airi_generate_content">让 AIRI 生成代码、文件或内容</string>
+
+    <!-- Terminal -->
+    <string name="terminal_running">运行中</string>
+    <string name="terminal_running_ellipsis">运行中…</string>
+    <string name="terminal_command_hint">命令…</string>
+
+    <!-- Sandbox -->
+    <string name="no_executions_yet">暂无执行记录 — 在下方运行命令</string>
+    <string name="no_sandbox_sessions">无活跃沙盒会话</string>
+    <string name="create_session_desc">创建会话以开始运行隔离任务</string>
+    <string name="shell_command_hint">shell 命令…</string>
+
+    <!-- Privacy & Customization -->
+    <string name="privacy_data_title">隐私与数据</string>
+    <string name="customization_title">自定义</string>
+
+    <!-- Billing History -->
+    <string name="filter_all">全部</string>
+    <string name="no_billing_records">无账单记录</string>
+
+    <!-- Execution Mode Panel -->
+    <string name="cloud_tokens_today">今日云端 Token</string>
+
+    <!-- AI Models Settings -->
+    <string name="ai_models_settings_title">AI 与模型</string>
+
+    <!-- Model Settings -->
+    <string name="downloading_model">正在下载…</string>
+    <string name="model_not_supported_device">此设备不支持</string>
+
+    <!-- Voice Settings sections -->
+    <string name="voice_system_section">语音系统</string>
+    <string name="installed_models_section">已安装模型</string>
+    <string name="vosk_active_badge">活跃</string>
+    <string name="vosk_activate_button">激活</string>
+
+    <!-- History screen -->
+    <string name="history_title">历史</string>
+    <string name="history_no_sessions">没有之前的对话</string>
+    <string name="confirm_delete_title">确认删除</string>
+    <string name="confirm_delete_body">确定要永久删除这个对话吗？此操作无法撤销。</string>
+    <string name="history_session_default">对话</string>
+    <string name="new_conversation">新对话</string>
+
+    <!-- Chat screen -->
+    <string name="chat_select_model_title">选择模型</string>
+    <string name="chat_local_privacy">本地 — 完全私密</string>
+    <string name="chat_cloud_label">云端</string>
+    <string name="chat_how_can_help">我能帮您做什么？</string>
+    <string name="chat_assign_task_hint">分配任务或随便提问</string>
+    <string name="attach_image">图片</string>
+    <string name="attach_camera">相机</string>
+    <string name="attach_files">添加文件</string>
+    <string name="attach_spreadsheet">电子表格</string>
+    <string name="attach_tasks">定时任务</string>
+    <string name="attach_conversation_mode">对话模式</string>
+    <string name="attach_edit_image">编辑图片</string>
+
+    <!-- Agent Tasks screen -->
+    <string name="agent_task_tab_scheduled">已计划 (%1$d)</string>
+    <string name="agent_task_tab_completed">已完成 (%1$d)</string>
+    <string name="agent_task_no_scheduled">暂无计划任务\n点击 + 添加任务</string>
+    <string name="agent_task_no_completed">暂无已完成任务</string>
+    <string name="agent_task_name_required">请输入任务名称</string>
+    <string name="agent_task_schedule_failed">任务调度失败：%1$s</string>
+    <string name="agent_task_type_once">一次性</string>
+    <string name="agent_task_type_periodic">每 %1$d 分钟重复</string>
+    <string name="agent_task_delay_note">最小值：1 分钟。WorkManager 对周期性任务强制最少 15 分钟。</string>
+
+    <!-- Skill Manager screen -->
+    <string name="skill_import_failed">导入技能失败：%1$s</string>
+    <string name="skill_import_github_failed">从 GitHub 导入失败：%1$s</string>
+    <string name="skill_count">%1$d 个技能</string>
+    <string name="skill_menu_create">创建新技能</string>
+    <string name="skill_menu_import_storage">从存储导入</string>
+    <string name="skill_menu_import_github">从 GitHub 导入</string>
+    <string name="skill_menu_create_with_airi">与 AIRI 创建</string>
+    <string name="skill_no_skills_title">暂无自定义技能</string>
+    <string name="skill_no_skills_desc">创建或导入 AIRI 可用作工具的 API 技能。</string>
+    <string name="skill_github_import_desc">粘贴来自 GitHub 的技能 JSON 文件的原始链接。</string>
+    <string name="skill_name_label">技能名称</string>
+    <string name="skill_description_label">技能描述</string>
+    <string name="skill_endpoint_label">API 地址</string>
+    <string name="skill_create_airi_desc">输入技能详情，AIRI 将为您设置完整结构。</string>
+
+    <!-- Chat confirm action dialog -->
+    <string name="chat_confirm_action_title">确认操作</string>
+    <string name="chat_airi_about_to_execute">AIRI 即将执行：</string>
+    <string name="chat_action_device_warning">此操作将直接影响您的设备。</string>
+    <string name="chat_on_device_label">在设备上</string>
+
+    <!-- Voice Settings screen -->
+    <string name="vosk_no_model_card_title">无语音模型</string>
+    <string name="vosk_download_small_desc">下载小型英语模型（约 40 MB）即可立即启用语音功能，完全离线运行。</string>
+    <string name="vosk_download_small_btn">下载小型模型（英语，约 40 MB）</string>
+    <string name="vosk_downloading_progress">正在下载… %1$d%%</string>
+    <string name="vosk_install_success">✓ 语音模型已安装</string>
 </resources>

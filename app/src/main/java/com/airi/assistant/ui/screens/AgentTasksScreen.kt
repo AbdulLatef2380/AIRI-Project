@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.agent.scheduler.ScheduledJob
 import com.airi.assistant.agent.scheduler.ScheduledJobOrchestrator
 import com.airi.assistant.agent.scheduler.ScheduleType
+import com.airi.assistant.R
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicBlack
@@ -95,7 +97,7 @@ fun AgentTasksScreen(
                 },
                 title = {
                     Text(
-                        text = "المهام",
+                        text = stringResource(R.string.agent_tasks),
                         color = AiriTheme.onBackground,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -143,9 +145,9 @@ fun AgentTasksScreen(
                     .background(AiriTheme.surface),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                TaskTab(label = "مجدول (${pending.size})", isSelected = selectedTab == 0,
+                TaskTab(label = stringResource(R.string.agent_task_tab_scheduled, pending.size), isSelected = selectedTab == 0,
                     modifier = Modifier.weight(1f)) { selectedTab = 0 }
-                TaskTab(label = "مكتمل (${completed.size})", isSelected = selectedTab == 1,
+                TaskTab(label = stringResource(R.string.agent_task_tab_completed, completed.size), isSelected = selectedTab == 1,
                     modifier = Modifier.weight(1f)) { selectedTab = 1 }
             }
 
@@ -156,8 +158,8 @@ fun AgentTasksScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Outlined.Schedule, null, tint = AiriTheme.onBackground.copy(0.25f), modifier = Modifier.size(52.dp))
                         Text(
-                            if (selectedTab == 0) "لا توجد مهام مجدولة\nاضغط + لإضافة مهمة"
-                            else "لا توجد مهام مكتملة",
+                            if (selectedTab == 0) stringResource(R.string.agent_task_no_scheduled)
+                            else stringResource(R.string.agent_task_no_completed),
                             color = AiriTheme.onBackground.copy(0.35f),
                             fontSize = 15.sp,
                             textAlign = TextAlign.Center
@@ -192,9 +194,9 @@ fun AgentTasksScreen(
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("Exact alarms not permitted", fontSize = 12.sp,
+                                        Text(stringResource(R.string.exact_alarms_title), fontSize = 12.sp,
                                             color = Color(0xFFFFD60A), fontWeight = FontWeight.SemiBold)
-                                        Text("Scheduled tasks may fire late. Tap to grant permission.",
+                                        Text(stringResource(R.string.exact_alarms_body),
                                             fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                                     }
                                     TextButton(onClick = {
@@ -203,7 +205,7 @@ fun AgentTasksScreen(
                                         } else null
                                         intent?.let { context.startActivity(it) }
                                         canScheduleExact.value = (context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager).canScheduleExactAlarms()
-                                    }) { Text("Fix", color = Color(0xFF0A84FF), fontSize = 12.sp) }
+                                    }) { Text(stringResource(R.string.fix), color = Color(0xFF0A84FF), fontSize = 12.sp) }
                                 }
                             }
                         }
@@ -228,7 +230,7 @@ fun AgentTasksScreen(
             onDismiss = { showAddDialog = false },
             onAdd     = { label, delayMinutes ->
                 if (label.isBlank()) {
-                    errorMessage = "أدخل اسم المهمة"
+                    errorMessage = context.getString(R.string.agent_task_name_required)
                     return@AddTaskDialog
                 }
                 runCatching {
@@ -243,7 +245,7 @@ fun AgentTasksScreen(
                     reload()
                     showAddDialog = false
                 }.onFailure {
-                    errorMessage = "فشل جدولة المهمة: ${it.message}"
+                    errorMessage = context.getString(R.string.agent_task_schedule_failed, it.message ?: "")
                 }
             }
         )
@@ -276,9 +278,10 @@ private fun TaskTab(label: String, isSelected: Boolean, modifier: Modifier = Mod
 private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
     val triggerDate = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
         .format(Date(job.triggerAtMs))
+    val context = androidx.compose.ui.platform.LocalContext.current
     val typeLabel = when (job.type) {
-        ScheduleType.ONE_TIME -> "مرة واحدة"
-        ScheduleType.PERIODIC -> "متكرر كل ${(job.intervalMs ?: 0) / 60_000} دقيقة"
+        ScheduleType.ONE_TIME -> stringResource(R.string.agent_task_type_once)
+        ScheduleType.PERIODIC -> stringResource(R.string.agent_task_type_periodic, (job.intervalMs ?: 0) / 60_000)
     }
     val isPast = job.triggerAtMs <= System.currentTimeMillis() && job.type == ScheduleType.ONE_TIME
 
@@ -351,7 +354,7 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
         textContentColor  = Color.White,
         shape = RoundedCornerShape(20.dp),
         title = {
-            Text("مهمة جديدة", fontWeight = FontWeight.Bold,
+            Text(stringResource(R.string.new_task_title), fontWeight = FontWeight.Bold,
                 modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
         },
         text = {
@@ -359,7 +362,7 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
                 OutlinedTextField(
                     value = taskName,
                     onValueChange = { taskName = it },
-                    placeholder = { Text("اسم المهمة أو وصفها", color = AiriTheme.onBackground.copy(0.35f)) },
+                    placeholder = { Text(stringResource(R.string.task_name_hint), color = AiriTheme.onBackground.copy(0.35f)) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
@@ -372,7 +375,7 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
                 OutlinedTextField(
                     value = delayInput,
                     onValueChange = { if (it.all { c -> c.isDigit() }) delayInput = it },
-                    label = { Text("التأخير (بالدقائق)", fontSize = 12.sp, color = AiriTheme.onBackground.copy(0.55f)) },
+                    label = { Text(stringResource(R.string.delay_minutes_label), fontSize = 12.sp, color = AiriTheme.onBackground.copy(0.55f)) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
@@ -384,7 +387,7 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
                     textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.End)
                 )
                 Text(
-                    "الحد الأدنى: 1 دقيقة. WorkManager يطبق حداً أدنى 15 دقيقة للمهام المتكررة.",
+                    stringResource(R.string.agent_task_delay_note),
                     color = AiriTheme.onBackground.copy(0.3f), fontSize = 11.sp, lineHeight = 15.sp
                 )
             }
@@ -398,10 +401,10 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
                 colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = AiriTheme.onBackground),
                 shape  = RoundedCornerShape(12.dp),
                 enabled = taskName.isNotBlank()
-            ) { Text("جدولة") }
+            ) { Text(stringResource(R.string.schedule_button)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("إلغاء", color = AiriTheme.onBackground.copy(0.6f)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(0.6f)) }
         }
     )
 }

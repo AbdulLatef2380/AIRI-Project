@@ -462,4 +462,350 @@
     <string name="porcupine_source_build">المصدر: إعداد البناء</string>
     <string name="porcupine_help_link">احصل على مفتاح مجاني من console.picovoice.ai</string>
     <string name="speech_recognition_unavailable">التعرف على الكلام غير متاح على هذا الجهاز</string>
+
+    <!-- Missing AR keys: suggestions, nav, agent_tasks, vision -->
+    <string name="suggestion_what_can_you_do">بماذا يمكنك مساعدتي؟</string>
+    <string name="suggestion_explain_ai">كيف يعمل الذكاء الاصطناعي المحلي؟</string>
+    <string name="suggestion_write_poem">اكتب لي قصيدة قصيرة</string>
+    <string name="suggestion_brainstorm">ساعدني في توليد أفكار</string>
+    <string name="nav_chat">دردشة</string>
+    <string name="nav_new">جديد</string>
+    <string name="nav_schedule">مجدول</string>
+    <string name="nav_settings">إعدادات</string>
+    <string name="nav_skills">مهارات</string>
+    <string name="agent_tasks">المهام</string>
+    <string name="image_attached_vision_ready">نموذج الرؤية جاهز — سيتم تحليل الصورة</string>
+    <string name="vision_ready_badge">الرؤية: جاهزة</string>
+    <string name="pick_mmproj">مسقط الرؤية (mmproj)</string>
+    <string name="penalty_last_n">نافذة التكرار</string>
+    <string name="penalty_last_n_hint">الرموز الأخيرة التي يتم فحصها للتكرار (0 = إيقاف، 64 = افتراضي)</string>
+
+    <!-- Common actions -->
+    <string name="dismiss">رفض</string>
+    <string name="copy">نسخ</string>
+    <string name="edit">تعديل</string>
+    <string name="select_text">تحديد نص</string>
+    <string name="confirm">تأكيد</string>
+    <string name="clear">مسح</string>
+    <string name="reset">إعادة ضبط</string>
+    <string name="fix">إصلاح</string>
+    <string name="create">إنشاء</string>
+    <string name="deactivate">إلغاء التفعيل</string>
+    <string name="test">اختبار</string>
+    <string name="running">جارٍ التشغيل</string>
+    <string name="running_ellipsis">جارٍ التشغيل…</string>
+    <string name="install">تثبيت</string>
+    <string name="skip">تخطي</string>
+    <string name="get_started">ابدأ الآن</string>
+    <string name="save_key">حفظ المفتاح</string>
+    <string name="send_test">إرسال اختبار</string>
+    <string name="add_and_use">إضافة واستخدام</string>
+    <string name="open_chat">فتح المحادثة</string>
+    <string name="new_session">جلسة جديدة</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_close">إغلاق</string>
+    <string name="cd_history">السجل</string>
+    <string name="cd_options">خيارات</string>
+    <string name="cd_refresh">تحديث</string>
+    <string name="cd_clear_memory">مسح الذاكرة</string>
+    <string name="cd_add_task">إضافة مهمة</string>
+    <string name="cd_add_skill">إضافة مهارة</string>
+    <string name="cd_debug">تصحيح</string>
+    <string name="cd_new_session">جلسة جديدة</string>
+    <string name="cd_close_session">إغلاق الجلسة</string>
+    <string name="cd_run">تشغيل</string>
+    <string name="cd_remove_header">إزالة الترويسة</string>
+    <string name="cd_cancel_download">إلغاء التنزيل</string>
+    <string name="cd_remove">إزالة</string>
+    <string name="cd_add">إضافة</string>
+    <string name="cd_reset_stats">إعادة ضبط إحصائيات اليوم</string>
+    <string name="cd_airi_logo">AIRI</string>
+    <string name="cd_delete_skill">حذف</string>
+
+    <!-- Chat screen -->
+    <string name="chat_more_models">المزيد من النماذج</string>
+    <string name="chat_system_integrity_failed">فشل سلامة النظام</string>
+    <string name="chat_context_copy">نسخ</string>
+    <string name="chat_context_edit">تعديل</string>
+    <string name="chat_context_select_text">تحديد نص</string>
+    <string name="chat_context_share">مشاركة</string>
+
+    <!-- Onboarding / Welcome -->
+    <string name="onboarding_tagline">خصوصية افتراضية. قوة بالتصميم.</string>
+
+    <!-- Login -->
+    <string name="email">البريد الإلكتروني</string>
+    <string name="password">كلمة المرور</string>
+
+    <!-- Voice Personalization -->
+    <string name="voice_personalization_title">تخصيص الصوت</string>
+    <string name="pitch_low">منخفض</string>
+    <string name="pitch_high">مرتفع</string>
+    <string name="speed_slow">بطيء</string>
+    <string name="speed_fast">سريع</string>
+    <string name="preview_voice">معاينة الصوت</string>
+    <string name="save_preferences">حفظ التفضيلات</string>
+
+    <!-- Permissions -->
+    <string name="open_app_settings">فتح إعدادات التطبيق</string>
+    <string name="permission_special_label">خاص</string>
+    <string name="why_airi_needs_this">لماذا يحتاج AIRI هذا</string>
+
+    <!-- Updates -->
+    <string name="check_for_updates">التحقق من التحديثات</string>
+    <string name="update_available_title">AIRI %1$s متاح الآن</string>
+    <string name="update_from_play_store">اضغط «تثبيت» للتحديث من Play Store</string>
+    <string name="whats_new">ما الجديد</string>
+    <string name="bug_fixes">إصلاح الأخطاء</string>
+
+    <!-- Credits & Usage -->
+    <string name="total_today">إجمالي اليوم</string>
+    <string name="remaining">متبقي</string>
+
+    <!-- Zapier / IFTTT -->
+    <string name="automation">الأتمتة</string>
+    <string name="authentication">المصادقة</string>
+    <string name="connect_with_zapier">ربط مع Zapier</string>
+    <string name="zapier_triggers_section">AIRI → مشغلات Zapier</string>
+    <string name="test_webhook">اختبار Webhook</string>
+    <string name="zapier_hook_url_label">رابط Zapier REST Hook</string>
+    <string name="webhook_payload_label">البيانات (JSON أو نص، اختياري)</string>
+    <string name="webhook_key_section">مفتاح Webhook</string>
+    <string name="ifttt_maker_key_label">مفتاح IFTTT Maker</string>
+    <string name="test_applet_trigger">اختبار مشغل Applet</string>
+    <string name="event_name_label">اسم الحدث</string>
+    <string name="event_name_hint">مثال: airi_alert</string>
+    <string name="value_1_optional_label">القيمة 1 (اختياري)</string>
+    <string name="trigger_applet">تشغيل Applet</string>
+    <string name="how_airi_uses_ifttt">كيف يستخدم AIRI خدمة IFTTT</string>
+
+    <!-- Payment / Stripe -->
+    <string name="purchase">شراء</string>
+    <string name="billing_monthly">شهري</string>
+    <string name="billing_annual">سنوي</string>
+    <string name="billing_save_20">وفّر 20%%</string>
+    <string name="subscribe_now">اشترك الآن</string>
+    <string name="premium_title">✨ AIRI Premium</string>
+    <string name="premium_description">افتح الإمكانات الكاملة لـ AIRI مع 10× المزيد من الرصيد وجميع الموصلات والوصول إلى السوق وواجهات المطورين.</string>
+    <string name="premium_active_message">أنت على AIRI Premium! 🎉</string>
+    <string name="premium_active_subtitle">2,000 رصيد يومي، جميع الميزات مفتوحة.</string>
+    <string name="stripe_footer">المدفوعات مؤمّنة عبر Stripe. لا يحتفظ AIRI ببيانات بطاقتك.</string>
+
+    <!-- AI Library -->
+    <string name="ai_library_routes_auto">AIRI يوجّه تلقائيًا</string>
+    <string name="brave_search_api">Brave Search API</string>
+    <string name="brave_search_desc">مجاني: 2,000 بحث/شهر · brave.com/search/api</string>
+    <string name="brave_key_hint">احصل على مفتاح مجاني من brave.com/search/api (2,000 بحث/شهر مجانًا)</string>
+    <string name="brave_key_placeholder">BSA...</string>
+    <string name="active_ai_label">الذكاء الاصطناعي النشط</string>
+    <string name="auto_badge">تلقائي</string>
+    <string name="api_key_field_label">مفتاح API</string>
+
+    <!-- Cloud Model Store -->
+    <string name="cloud_hybrid_title">النماذج السحابية والهجينة</string>
+    <string name="cloud_hybrid_subtitle">طبقات مجانية · واجهات برمجية خارجية · خوادم محلية</string>
+    <string name="custom_endpoint_title">نقطة نهاية مخصصة / متقدمة</string>
+    <string name="custom_endpoint_subtitle">llama-server · LM Studio · أي API متوافق مع OpenAI</string>
+    <string name="active_model_badge">نشط</string>
+    <string name="get_free_key">الحصول على مفتاح مجاني</string>
+    <string name="access_key_label">مفتاح الوصول</string>
+    <string name="save_and_activate">حفظ وتفعيل</string>
+    <string name="model_name_server_placeholder">مثال: خادم Llama</string>
+
+    <!-- Agent Tasks -->
+    <string name="new_task_title">مهمة جديدة</string>
+    <string name="task_name_hint">اسم المهمة أو وصفها</string>
+    <string name="delay_minutes_label">التأخير (بالدقائق)</string>
+    <string name="schedule_button">جدولة</string>
+    <string name="exact_alarms_title">التنبيهات الدقيقة غير مسموح بها</string>
+    <string name="exact_alarms_body">قد تنطلق المهام المجدولة متأخرة. اضغط لمنح الإذن.</string>
+
+    <!-- Agent Logs / Trace -->
+    <string name="traces_recorded">%1$d تتبع مسجّل</string>
+    <string name="no_agent_traces">لا توجد تتبعات للوكيل بعد</string>
+    <string name="trace_detail_title">تفاصيل التتبع</string>
+    <string name="user_input_label">مدخل المستخدم</string>
+    <string name="execution_steps_label">خطوات التنفيذ</string>
+    <string name="final_result_label">النتيجة النهائية</string>
+    <string name="input_badge">مدخل</string>
+
+    <!-- Observability -->
+    <string name="no_events_recorded">لا توجد أحداث مسجّلة بعد</string>
+    <string name="no_graph_yet">لا يوجد رسم بياني بعد</string>
+    <string name="no_trace_spans">لا توجد فترات تتبع بعد</string>
+
+    <!-- About -->
+    <string name="about_airi_title">حول AIRI</string>
+    <string name="copyright_notice">© 2025 AIRI. جميع الحقوق محفوظة.</string>
+
+    <!-- Referral -->
+    <string name="grow_with_airi">انمُ مع AIRI</string>
+    <string name="your_referral_code">رمز الإحالة الخاص بك</string>
+    <string name="bonus_available">الرسائل الإضافية المتاحة: %1$d</string>
+    <string name="have_referral_code">هل لديك رمز إحالة؟</string>
+    <string name="redeem_welcome_bonus">استبدل مكافأة الترحيب</string>
+
+    <!-- Debug Panel -->
+    <string name="debug_panel_title">لوحة التصحيح</string>
+    <string name="no_results">لا توجد نتائج</string>
+    <string name="rerun_diagnostics">إعادة التشخيص</string>
+
+    <!-- Exec Diagnostics -->
+    <string name="reset_token_stats">إعادة ضبط إحصائيات الرموز</string>
+    <string name="reset_today_stats">إعادة ضبط إحصائيات اليوم</string>
+
+    <!-- Developer Center -->
+    <string name="no_connector_health">لا توجد بيانات صحة الموصل</string>
+    <string name="diagnostics_section">التشخيصات</string>
+    <string name="running_status">جارٍ التشغيل…</string>
+    <string name="no_results_placeholder">لا توجد نتائج.</string>
+
+    <!-- Skill Manager -->
+    <string name="create_skill">إنشاء مهارة</string>
+    <string name="import_from_github_title">استيراد من GitHub</string>
+    <string name="create_skill_with_airi">إنشاء مهارة مع AIRI</string>
+
+    <!-- Skill Builder -->
+    <string name="testing_status">جارٍ الاختبار...</string>
+    <string name="test_skill">اختبار المهارة</string>
+    <string name="saving_status">جارٍ الحفظ...</string>
+    <string name="save_skill">حفظ المهارة</string>
+    <string name="response_label">الاستجابة</string>
+    <string name="error_label">خطأ</string>
+    <string name="available_template_vars">متغيرات القالب المتاحة</string>
+    <string name="key_label">المفتاح</string>
+    <string name="value_label">القيمة</string>
+    <string name="add_header">إضافة ترويسة</string>
+
+    <!-- Community Skills -->
+    <string name="no_community_skills">لا توجد مهارات مجتمعية بعد</string>
+    <string name="import_from_explore_tab">استورد المهارات من تبويب الاستيراد.</string>
+    <string name="sandbox_button">بيئة التجريب</string>
+    <string name="trust_button">الثقة</string>
+    <string name="import_community_skill_title">استيراد مهارة مجتمعية</string>
+    <string name="import_skill_json_desc">استورد skill.json من رابط أو الصقه مباشرةً.</string>
+    <string name="skill_url_label">رابط المهارة (HTTPS فقط)</string>
+    <string name="import_from_url">استيراد من رابط</string>
+    <string name="paste_skill_json_label">لصق skill.json</string>
+    <string name="import_json_button">استيراد JSON</string>
+    <string name="security_scan_active">الفحص الأمني نشط</string>
+    <string name="security_scan_body">يتم فحص جميع الاستيرادات بحثًا عن الأنماط الخطرة قبل تخزينها.</string>
+    <string name="select_skill_trust_prompt">اختر مهارة لعرض درجة ثقتها</string>
+    <string name="tap_trust_hint">اضغط زر «الثقة» على أي مهارة في قائمة مهاراتي.</string>
+    <string name="trust_signals_label">إشارات الثقة</string>
+    <string name="score_suffix">/ 100</string>
+
+    <!-- Memory -->
+    <string name="stored_interactions">%1$d تفاعل مخزّن</string>
+    <string name="no_memory_yet">لا توجد ذاكرة بعد</string>
+    <string name="start_conversation_memory">ابدأ محادثة لبناء الذاكرة</string>
+    <string name="episodic_memory_label">الذاكرة التسلسلية</string>
+    <string name="clear_memory_body">سيؤدي هذا إلى حذف جميع التفاعلات المخزّنة نهائيًا. سيتم إعادة ضبط سياق الذكاء الاصطناعي. لا يمكن التراجع عن هذا الإجراء.</string>
+    <string name="clear_memory_confirm">مسح الذاكرة</string>
+
+    <!-- Workspace -->
+    <string name="new_workspace_title">مساحة عمل جديدة</string>
+    <string name="workspace_name_label">اسم مساحة العمل</string>
+    <string name="no_workspaces">لا توجد مساحات عمل</string>
+    <string name="create_workspace_desc">أنشئ مساحة عمل لتنظيم مخرجات الذكاء الاصطناعي</string>
+    <string name="no_artifacts_yet">لا توجد مخرجات بعد</string>
+    <string name="ask_airi_generate_content">اطلب من AIRI إنشاء كود أو ملفات أو محتوى</string>
+
+    <!-- Terminal -->
+    <string name="terminal_running">جارٍ التشغيل</string>
+    <string name="terminal_running_ellipsis">جارٍ التشغيل…</string>
+    <string name="terminal_command_hint">أمر...</string>
+
+    <!-- Sandbox -->
+    <string name="no_executions_yet">لا توجد تنفيذات بعد — شغّل أمرًا أدناه</string>
+    <string name="no_sandbox_sessions">لا توجد جلسات تجريب نشطة</string>
+    <string name="create_session_desc">أنشئ جلسة لبدء تشغيل المهام المعزولة</string>
+    <string name="shell_command_hint">أمر shell...</string>
+
+    <!-- Privacy & Customization -->
+    <string name="privacy_data_title">الخصوصية والبيانات</string>
+    <string name="customization_title">التخصيص</string>
+
+    <!-- Billing History -->
+    <string name="filter_all">الكل</string>
+    <string name="no_billing_records">لا توجد سجلات فوترة</string>
+
+    <!-- Execution Mode Panel -->
+    <string name="cloud_tokens_today">رموز السحابة اليوم</string>
+
+    <!-- AI Models Settings -->
+    <string name="ai_models_settings_title">الذكاء الاصطناعي والنماذج</string>
+
+    <!-- Model Settings -->
+    <string name="downloading_model">جارٍ التنزيل…</string>
+    <string name="model_not_supported_device">غير مدعوم على هذا الجهاز</string>
+
+    <!-- Voice Settings sections -->
+    <string name="voice_system_section">نظام الصوت</string>
+    <string name="installed_models_section">النماذج المثبتة</string>
+    <string name="vosk_active_badge">نشط</string>
+    <string name="vosk_activate_button">تفعيل</string>
+
+    <!-- History screen -->
+    <string name="history_title">السجل</string>
+    <string name="history_no_sessions">لا توجد محادثات سابقة</string>
+    <string name="confirm_delete_title">تأكيد الحذف</string>
+    <string name="confirm_delete_body">هل أنت متأكد؟ سيتم حذف المحادثة نهائيًا ولا يمكن التراجع.</string>
+    <string name="history_session_default">محادثة</string>
+    <string name="new_conversation">محادثة جديدة</string>
+
+    <!-- Chat screen -->
+    <string name="chat_select_model_title">اختر النموذج</string>
+    <string name="chat_local_privacy">محلي — خصوصية تامة</string>
+    <string name="chat_cloud_label">سحابي</string>
+    <string name="chat_how_can_help">كيف يمكنني مساعدتك؟</string>
+    <string name="chat_assign_task_hint">قم بتعيين مهمة أو اسأل أي شيء</string>
+    <string name="attach_image">صورة</string>
+    <string name="attach_camera">الكاميرا</string>
+    <string name="attach_files">إضافة ملفات</string>
+    <string name="attach_spreadsheet">جدول بيانات</string>
+    <string name="attach_tasks">مهام مجدولة</string>
+    <string name="attach_conversation_mode">وضع المحادثة</string>
+    <string name="attach_edit_image">تحرير صورة</string>
+
+    <!-- Agent Tasks screen -->
+    <string name="agent_task_tab_scheduled">مجدول (%1$d)</string>
+    <string name="agent_task_tab_completed">مكتمل (%1$d)</string>
+    <string name="agent_task_no_scheduled">لا توجد مهام مجدولة\nاضغط + لإضافة مهمة</string>
+    <string name="agent_task_no_completed">لا توجد مهام مكتملة</string>
+    <string name="agent_task_name_required">أدخل اسم المهمة</string>
+    <string name="agent_task_schedule_failed">فشل جدولة المهمة: %1$s</string>
+    <string name="agent_task_type_once">مرة واحدة</string>
+    <string name="agent_task_type_periodic">متكرر كل %1$d دقيقة</string>
+    <string name="agent_task_delay_note">الحد الأدنى: 1 دقيقة. WorkManager يطبق حداً أدنى 15 دقيقة للمهام المتكررة.</string>
+
+    <!-- Skill Manager screen -->
+    <string name="skill_import_failed">فشل استيراد المهارة: %1$s</string>
+    <string name="skill_import_github_failed">فشل استيراد GitHub: %1$s</string>
+    <string name="skill_count">%1$d مهارة</string>
+    <string name="skill_menu_create">إنشاء مهارة جديدة</string>
+    <string name="skill_menu_import_storage">استيراد من التخزين</string>
+    <string name="skill_menu_import_github">استيراد من GitHub</string>
+    <string name="skill_menu_create_with_airi">إنشاء مع AIRI</string>
+    <string name="skill_no_skills_title">لا توجد مهارات مخصصة بعد</string>
+    <string name="skill_no_skills_desc">أنشئ مهارات API أو استوردها، ويمكن لـ AIRI استخدامها كأدوات.</string>
+    <string name="skill_github_import_desc">الصق رابط الملف الخام (raw) لملف JSON الخاص بالمهارة من GitHub.</string>
+    <string name="skill_name_label">اسم المهارة</string>
+    <string name="skill_description_label">وصف المهارة</string>
+    <string name="skill_endpoint_label">عنوان API (URL)</string>
+    <string name="skill_create_airi_desc">أدخل تفاصيل المهارة وسيقوم AIRI بإعداد الهيكل الكامل لها.</string>
+
+    <!-- Chat confirm action dialog -->
+    <string name="chat_confirm_action_title">تأكيد الإجراء</string>
+    <string name="chat_airi_about_to_execute">AIRI على وشك تنفيذ:</string>
+    <string name="chat_action_device_warning">سيؤثر هذا الإجراء على جهازك مباشرةً.</string>
+    <string name="chat_on_device_label">على الجهاز</string>
+
+    <!-- Voice Settings screen -->
+    <string name="vosk_no_model_card_title">لا يوجد نموذج صوتي</string>
+    <string name="vosk_download_small_desc">قم بتنزيل نموذج الإنجليزية الصغير (~40 ميغابايت) لتفعيل الصوت فوراً. يعمل بالكامل بدون إنترنت.</string>
+    <string name="vosk_download_small_btn">تنزيل النموذج الصغير (إنجليزي، ~40 ميغابايت)</string>
+    <string name="vosk_downloading_progress">جارٍ التنزيل… %1$d%%</string>
+    <string name="vosk_install_success">✓ تم تثبيت النموذج الصوتي</string>
 </resources>

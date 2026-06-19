@@ -225,4 +225,601 @@
     <string name="marketplace_terms">Acepto los Términos de Servicio del Mercado AIRI</string>
     <string name="marketplace_submit_review">Enviar para revisión</string>
     <string name="marketplace_installs_count">%1$s instalaciones</string>
+
+    <!-- Settings group headers -->
+    <string name="settings_group_ai_models">IA y modelos</string>
+    <string name="settings_group_voice_audio">Voz y audio</string>
+    <string name="settings_group_personalization">Personalización</string>
+    <string name="settings_group_system_permissions">Sistema y permisos</string>
+
+    <!-- Integrations -->
+    <string name="integrations_title">Integraciones</string>
+    <string name="integrations_section_title">Herramientas conectadas</string>
+    <string name="integrations_section_description">Conecta servicios externos con tus propias credenciales. Todos los tokens se almacenan de forma segura en este dispositivo.</string>
+    <string name="integration_github_name">GitHub</string>
+    <string name="integration_github_description">Conecta repositorios, incidencias y contexto de código.</string>
+    <string name="integration_telegram_name">Telegram</string>
+    <string name="integration_telegram_description">Vincula un bot de Telegram para flujos de mensajería.</string>
+    <string name="integration_google_name">Google</string>
+    <string name="integration_google_description">Accede a Gmail, Drive y Calendar (solo lectura).</string>
+    <string name="integration_connect">Conectar</string>
+    <string name="integration_disconnect">Desconectar</string>
+    <string name="integration_status_connected">Conectado</string>
+    <string name="integration_status_offline">Sin conexión</string>
+    <string name="integration_connected_as">Conectado como</string>
+    <string name="integration_last_updated">Última actualización %1$s</string>
+    <string name="integration_dialog_steps_title">Sigue estos pasos para obtener tu token:</string>
+    <string name="integration_dialog_validating">Validando token…</string>
+    <string name="integration_github_dialog_title">Conectar GitHub</string>
+    <string name="integration_telegram_dialog_title">Conectar Telegram</string>
+    <string name="integration_github_token_label">Token de acceso personal</string>
+    <string name="integration_telegram_token_label">Token del bot</string>
+    <string name="integration_error_paste_github">Por favor pega tu token de GitHub</string>
+    <string name="integration_error_paste_telegram">Por favor pega tu token de bot de Telegram</string>
+
+    <!-- Profile -->
+    <string name="display_name">Nombre para mostrar</string>
+    <string name="username">Nombre de usuario</string>
+    <string name="email_read_only">Correo electrónico (solo lectura)</string>
+    <string name="profile_saved">Perfil guardado</string>
+    <string name="edit_profile">Editar perfil</string>
+    <string name="sign_in">Iniciar sesión</string>
+    <string name="create_account">Crear cuenta</string>
+    <string name="continue_with_google">Continuar con Google</string>
+    <string name="continue_with_github">Continuar con GitHub</string>
+
+    <!-- Bug report -->
+    <string name="report_a_problem">Reportar un problema</string>
+    <string name="report_a_problem_sublabel">Envía comentarios o un informe de error por correo</string>
+    <string name="report_email_subject">Informe de error AIRI — v1.0.0-alpha</string>
+    <string name="report_email_body">Por favor describe el problema:\n\n\n\n--- Info del dispositivo ---\n</string>
+
+    <!-- Paywall / subscription -->
+    <string name="upgrade_to_premium">Actualizar a Premium</string>
+    <string name="paywall_limit_message">Has alcanzado tu límite. Actualiza para continuar.</string>
+    <string name="usage_limit_reached">Has alcanzado tu límite. Actualiza para continuar.</string>
+    <string name="subscription">Suscripción</string>
+    <string name="plan_premium">Premium</string>
+    <string name="plan_free_tier">Plan gratuito</string>
+    <string name="plan_premium_description">Acceso ilimitado a todas las funciones</string>
+    <string name="plan_free_description">30 mensajes / 10 agentes / 5 habilidades por día</string>
+    <string name="plan_badge_active">✓ Activo</string>
+    <string name="plan_badge_free">Gratis</string>
+    <string name="today_usage">Uso de hoy</string>
+    <string name="usage_messages">Mensajes</string>
+    <string name="usage_agent_runs">Ejecuciones de agente</string>
+    <string name="usage_skill_uses">Usos de habilidades</string>
+    <string name="upgrade_premium_price">Actualizar a Premium — 4,99 €/mes</string>
+
+    <!-- Default assistant -->
+    <string name="default_assistant">Asistente predeterminado</string>
+    <string name="default_assistant_description">Establece AIRI como asistente predeterminado para que se active al mantener pulsado el botón de inicio.</string>
+    <string name="airi_is_default">AIRI es tu asistente predeterminado</string>
+    <string name="airi_not_default">AIRI no es el asistente predeterminado en este dispositivo.</string>
+    <string name="set_as_default_assistant">Establecer como asistente predeterminado</string>
+    <string name="open_assistant_settings">Abrir ajustes del asistente</string>
+
+    <!-- Observability -->
+    <string name="observability">Observabilidad</string>
+    <string name="observability_description">Registro de eventos en tiempo real para todas las ejecuciones de agentes, habilidades, autenticación y políticas.</string>
+    <string name="execution_history">Historial de ejecución</string>
+    <string name="execution_history_description">Ver eventos en vivo, comprobaciones de políticas y trazas de agentes</string>
+
+    <!-- Agent -->
+    <string name="agent_logs">Registros del agente</string>
+    <string name="agent_logs_description">Ver historial de ejecución y trazas</string>
+    <string name="agent_control">Control del agente</string>
+    <string name="agent_control_description">Gestionar habilidades, herramientas y modo de depuración</string>
+    <string name="last_run">Última ejecución</string>
+    <string name="agent_tasks">Tareas</string>
+
+    <!-- Model settings dialog -->
+    <string name="model_name_label">Nombre del modelo</string>
+    <string name="bos_token">Token BOS</string>
+    <string name="eos_token">Token EOS</string>
+    <string name="add_generation_prompt">Añadir prompt de generación</string>
+    <string name="template_editor">Editor de plantillas</string>
+    <string name="leave_blank_for_default">Déjalo en blanco para el valor predeterminado</string>
+    <string name="stop_words">Palabras de parada</string>
+    <string name="add_stop_word">Añadir palabra de parada</string>
+    <string name="settings_saved">¡Ajustes guardados!</string>
+
+    <!-- Add model -->
+    <string name="add_model">Añadir modelo</string>
+    <string name="add_local_model">Añadir modelo local</string>
+    <string name="import_gguf_from_storage">Importar un archivo .gguf del almacenamiento del dispositivo</string>
+    <string name="add_remote_model">Añadir modelo remoto</string>
+    <string name="add_openai_compatible_server">Conectar un servidor compatible con OpenAI</string>
+    <string name="add_model_fab">Añadir modelo</string>
+    <string name="model_settings_icon">Ajustes del modelo</string>
+
+    <!-- Microphone -->
+    <string name="mic_blocked_settings">Micrófono bloqueado — actívalo en Ajustes → Permisos de la app</string>
+
+    <!-- Generation parameters -->
+    <string name="repeat_penalty">Penalización por repetición</string>
+    <string name="min_p">P mínima</string>
+    <string name="presence_penalty">Penalización de presencia</string>
+    <string name="frequency_penalty">Penalización de frecuencia</string>
+    <string name="penalty_last_n">Ventana de repetición</string>
+    <string name="min_p_hint">Umbral mínimo de probabilidad para la selección de tokens</string>
+    <string name="presence_penalty_hint">Penaliza los tokens ya presentes en la respuesta</string>
+    <string name="frequency_penalty_hint">Penaliza los tokens según la frecuencia con la que aparecen</string>
+    <string name="penalty_last_n_hint">Tokens recientes escaneados para repetición (0=desactivado, 64=predeterminado)</string>
+
+    <!-- Share / drawer -->
+    <string name="share">Compartir</string>
+    <string name="custom_skills">Habilidades personalizadas</string>
+    <string name="invite_friends">Invitar amigos</string>
+
+    <!-- Theme -->
+    <string name="theme">Tema</string>
+    <string name="theme_dark">Oscuro</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_system">Sistema</string>
+
+    <!-- Export -->
+    <string name="export_success">Chat exportado a Downloads/AIRI/</string>
+    <string name="export_failed">Error al exportar — comprueba los permisos de almacenamiento</string>
+
+    <!-- Performance screen -->
+    <string name="performance">Rendimiento</string>
+    <string name="performance_device_info">Rendimiento e información del dispositivo</string>
+    <string name="performance_device_info_sublabel">RAM, CPU, velocidad de tokens, modo de rendimiento</string>
+    <string name="performance_device">Rendimiento y dispositivo</string>
+    <string name="performance_mode">Modo de rendimiento</string>
+    <string name="stat_device_info">Información del dispositivo</string>
+    <string name="stat_device">Dispositivo</string>
+    <string name="stat_android">Android</string>
+    <string name="stat_cpu_abi">ABI de CPU</string>
+    <string name="stat_cpu_cores">Núcleos de CPU</string>
+    <string name="stat_memory">Memoria</string>
+    <string name="stat_total_ram">RAM total</string>
+    <string name="stat_available_ram">Disponible</string>
+    <string name="stat_used_ram">RAM usada</string>
+    <string name="stat_low_memory">Memoria baja</string>
+    <string name="stat_low_memory_yes">Sí ⚠</string>
+    <string name="stat_low_memory_no">No ✓</string>
+    <string name="stat_storage">Almacenamiento</string>
+    <string name="stat_total_storage">Almacenamiento total</string>
+    <string name="stat_free_storage">Almacenamiento libre</string>
+    <string name="stat_inference">Estadísticas de inferencia</string>
+    <string name="stat_last_load_time">Último tiempo de carga</string>
+    <string name="stat_tokens_per_sec">Tokens / seg</string>
+    <string name="stat_last_latency">Última latencia</string>
+    <string name="stat_breakdown">Desglose de latencia</string>
+    <string name="stat_breakdown_tokenize">Tokenizar</string>
+    <string name="stat_breakdown_prefill">Rellenado previo</string>
+    <string name="stat_breakdown_first_token">Primer token</string>
+    <string name="stat_breakdown_decode">Bucle de decodificación</string>
+    <string name="stat_breakdown_decoded">Tokens decodificados</string>
+    <string name="stat_breakdown_kv">Caché KV</string>
+    <string name="stat_breakdown_kv_value">%1$d / %2$d (%3$d%%)</string>
+
+    <!-- Model Performance -->
+    <string name="model_perf_title">Rendimiento del modelo</string>
+    <string name="model_perf_open">Comparar cuantizaciones</string>
+    <string name="model_perf_empty">Aún no hay pruebas de rendimiento — envía primero un mensaje a tu modelo local.</string>
+    <string name="model_perf_summary_header">Promedio por cuantización</string>
+    <string name="model_perf_runs_header">Ejecuciones recientes (%1$d en total)</string>
+    <string name="model_perf_col_quant">Cuant.</string>
+    <string name="model_perf_col_runs">Runs</string>
+    <string name="model_perf_col_tps">t/s</string>
+    <string name="model_perf_col_ftl">Prim. tok</string>
+    <string name="model_perf_col_mem">Mem</string>
+    <string name="model_perf_col_class">Clase</string>
+    <string name="model_perf_run_line">%1$s t/s • prim %2$d ms • total %3$d ms • %4$d toks • %5$d MB • ctx=%6$d • th=%7$d</string>
+
+    <!-- Speculative decoding -->
+    <string name="spec_title">Decodificación especulativa</string>
+    <string name="spec_subtitle">Usa un modelo borrador pequeño para predecir tokens con anticipación. Se verifica con el modelo principal, por lo que la salida no cambia. Fuerza el muestreo codicioso cuando está activo.</string>
+    <string name="spec_enable">Activar decodificación especulativa</string>
+    <string name="spec_status_off">Desactivado — la generación usa la ruta estándar de un token a la vez.</string>
+    <string name="spec_status_no_draft">Activado, pero no hay modelo borrador seleccionado. Toca «Auto-seleccionar».</string>
+    <string name="spec_status_loaded">Borrador cargado: %1$s (%2$d MB)</string>
+    <string name="spec_status_load_failed">Falló la carga del borrador: %1$s</string>
+    <string name="spec_status_no_candidate">No hay otro modelo registrado para usar como borrador. Añade un modelo más pequeño primero.</string>
+    <string name="spec_auto_pick">Auto-seleccionar borrador</string>
+    <string name="spec_unload">Descargar borrador</string>
+    <string name="spec_reset_stats">Reiniciar estadísticas</string>
+    <string name="spec_acceptance">Tasa de aceptación: %1$d%% (%2$d / %3$d borradores en %4$d ejecuciones)</string>
+    <string name="spec_acceptance_empty">Tasa de aceptación: — (aún no hay ejecuciones especulativas)</string>
+    <string name="spec_draft_n_label">Tokens en borrador por paso: %1$d</string>
+    <string name="perf_mode_label_fast">⚡ Rápido</string>
+    <string name="perf_mode_label_balanced">⚖ Equilibrado</string>
+    <string name="perf_mode_label_quality">🎯 Calidad</string>
+    <string name="perf_footer_note">El modo de rendimiento afecta: ventana de contexto, tokens máximos y estrategia de truncado. Los cambios se aplican al siguiente mensaje.</string>
+
+    <!-- Expand / collapse -->
+    <string name="expand">Expandir</string>
+    <string name="collapse">Contraer</string>
+
+    <!-- File / image -->
+    <string name="file_selected_name">Archivo seleccionado: %1$s</string>
+    <string name="image_selected_vision_soon">Los adjuntos de imagen no están habilitados en esta versión</string>
+    <string name="image_attached_no_vision">Modelo de visión no cargado — se enviará un marcador de texto</string>
+    <string name="image_attached_vision_ready">Modelo de visión listo — se analizará la imagen</string>
+    <string name="remove_image_cd">Eliminar imagen adjunta</string>
+    <string name="pick_mmproj">Proyector de visión (mmproj)</string>
+    <string name="vision_ready_badge">Visión: lista</string>
+    <string name="photo_attached">Foto adjunta</string>
+
+    <!-- Remote model form -->
+    <string name="server_url">URL del servidor</string>
+    <string name="api_key_optional">Clave de autenticación (opcional)</string>
+    <string name="test_connection">Probar conexión</string>
+    <string name="remote_model_warning">Usar un modelo remoto enviará tus mensajes fuera del dispositivo. Asegúrate de confiar en el servidor.</string>
+    <string name="enter_server_url_first">Introduce primero una URL de servidor</string>
+    <string name="connection_success">Conexión exitosa</string>
+    <string name="connection_failed">Conexión fallida</string>
+    <string name="testing_connection">Probando…</string>
+
+    <!-- Voice & Wake Word -->
+    <string name="voice_and_wakeword">Voz y palabra de activación</string>
+    <string name="voice_settings_title">Voz y palabra de activación</string>
+    <string name="voice_settings_subtitle">Gestiona modelos de reconocimiento de voz sin conexión y la palabra de activación "Hey AIRI".</string>
+    <string name="no_voice_model_installed">No hay modelo de voz instalado. Abre «Voz y palabra de activación» para descargar uno.</string>
+    <string name="voice_model_load_failed">No se pudo cargar el modelo de voz seleccionado.</string>
+    <string name="vosk_section_title">Modelos de voz a texto (Vosk)</string>
+    <string name="vosk_section_subtitle">Los modelos funcionan 100%% en el dispositivo. Descarga una vez y úsalos siempre — sin necesidad de internet.</string>
+    <string name="vosk_installed">Instalado</string>
+    <string name="vosk_active">Activo</string>
+    <string name="vosk_set_active">Activar</string>
+    <string name="vosk_download">Descargar</string>
+    <string name="vosk_downloading">Descargando…</string>
+    <string name="vosk_delete">Eliminar</string>
+    <string name="vosk_no_models">Aún no hay modelos instalados. Elige uno abajo.</string>
+    <string name="vosk_size_mb">~%1$d MB</string>
+    <string name="vosk_download_failed">Descarga fallida: %1$s</string>
+    <string name="porcupine_section_title">Palabra de activación (Porcupine)</string>
+    <string name="porcupine_status_ready">Palabra de activación lista ("Hey AIRI").</string>
+    <string name="porcupine_status_missing_key">Falta Picovoice AccessKey. Pégala abajo o establece PICOVOICE_ACCESS_KEY al compilar.</string>
+    <string name="porcupine_status_missing_ppn">No hay archivo "hey_airi.ppn" incluido. Colócalo en res/raw/ o assets/voice/ y recompila.</string>
+    <string name="porcupine_status_both_missing">Palabra de activación desactivada — faltan AccessKey y hey_airi.ppn.</string>
+    <string name="porcupine_access_key_label">Picovoice AccessKey</string>
+    <string name="porcupine_access_key_save">Guardar</string>
+    <string name="porcupine_access_key_clear">Borrar</string>
+    <string name="porcupine_source_runtime">Origen: pegar</string>
+    <string name="porcupine_source_build">Origen: configuración de compilación</string>
+    <string name="porcupine_help_link">Obtén una AccessKey gratis en console.picovoice.ai</string>
+
+    <!-- Suggestions / nav -->
+    <string name="suggestion_what_can_you_do">¿En qué puedes ayudarme?</string>
+    <string name="suggestion_explain_ai">¿Cómo funciona la IA en el dispositivo?</string>
+    <string name="suggestion_write_poem">Escríbeme un poema corto</string>
+    <string name="suggestion_brainstorm">Ayúdame a generar ideas</string>
+    <string name="nav_chat">Chat</string>
+    <string name="nav_new">Nuevo</string>
+    <string name="nav_schedule">Programado</string>
+    <string name="nav_settings">Ajustes</string>
+    <string name="nav_skills">Habilidades</string>
+
+    <!-- Common actions -->
+    <string name="dismiss">Descartar</string>
+    <string name="copy">Copiar</string>
+    <string name="edit">Editar</string>
+    <string name="select_text">Seleccionar texto</string>
+    <string name="confirm">Confirmar</string>
+    <string name="clear">Borrar</string>
+    <string name="reset">Restablecer</string>
+    <string name="fix">Corregir</string>
+    <string name="create">Crear</string>
+    <string name="deactivate">Desactivar</string>
+    <string name="test">Probar</string>
+    <string name="running">En ejecución</string>
+    <string name="running_ellipsis">En ejecución…</string>
+    <string name="install">Instalar</string>
+    <string name="skip">Omitir</string>
+    <string name="get_started">Comenzar</string>
+    <string name="save_key">Guardar clave</string>
+    <string name="send_test">Enviar prueba</string>
+    <string name="add_and_use">Añadir y usar</string>
+    <string name="open_chat">Abrir chat</string>
+    <string name="new_session">Nueva sesión</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_close">Cerrar</string>
+    <string name="cd_history">Historial</string>
+    <string name="cd_options">Opciones</string>
+    <string name="cd_refresh">Actualizar</string>
+    <string name="cd_clear_memory">Borrar memoria</string>
+    <string name="cd_add_task">Añadir tarea</string>
+    <string name="cd_add_skill">Añadir habilidad</string>
+    <string name="cd_debug">Depurar</string>
+    <string name="cd_new_session">Nueva sesión</string>
+    <string name="cd_close_session">Cerrar sesión</string>
+    <string name="cd_run">Ejecutar</string>
+    <string name="cd_remove_header">Eliminar encabezado</string>
+    <string name="cd_cancel_download">Cancelar descarga</string>
+    <string name="cd_remove">Eliminar</string>
+    <string name="cd_add">Añadir</string>
+    <string name="cd_reset_stats">Restablecer estadísticas de hoy</string>
+    <string name="cd_airi_logo">AIRI</string>
+    <string name="cd_delete_skill">Eliminar</string>
+
+    <!-- Chat screen -->
+    <string name="chat_more_models">Más modelos</string>
+    <string name="chat_system_integrity_failed">Error de integridad del sistema</string>
+    <string name="chat_context_copy">Copiar</string>
+    <string name="chat_context_edit">Editar</string>
+    <string name="chat_context_select_text">Seleccionar texto</string>
+    <string name="chat_context_share">Compartir</string>
+
+    <!-- Onboarding / Welcome -->
+    <string name="onboarding_tagline">Privado por defecto. Potente por diseño.</string>
+
+    <!-- Login -->
+    <string name="email">Correo electrónico</string>
+    <string name="password">Contraseña</string>
+
+    <!-- Voice Personalization -->
+    <string name="voice_personalization_title">Personalización de voz</string>
+    <string name="pitch_low">Bajo</string>
+    <string name="pitch_high">Alto</string>
+    <string name="speed_slow">Lento</string>
+    <string name="speed_fast">Rápido</string>
+    <string name="preview_voice">Vista previa de voz</string>
+    <string name="save_preferences">Guardar preferencias</string>
+
+    <!-- Permissions -->
+    <string name="open_app_settings">Abrir ajustes de la app</string>
+    <string name="permission_special_label">Especial</string>
+    <string name="why_airi_needs_this">Por qué AIRI necesita esto</string>
+
+    <!-- Updates -->
+    <string name="check_for_updates">Buscar actualizaciones</string>
+    <string name="update_available_title">AIRI %1$s está disponible</string>
+    <string name="update_from_play_store">Toca Instalar para actualizar desde Play Store</string>
+    <string name="whats_new">Novedades</string>
+    <string name="bug_fixes">Corrección de errores</string>
+
+    <!-- Credits & Usage -->
+    <string name="total_today">Total hoy</string>
+    <string name="remaining">restantes</string>
+
+    <!-- Zapier / IFTTT -->
+    <string name="automation">Automatización</string>
+    <string name="authentication">Autenticación</string>
+    <string name="connect_with_zapier">Conectar con Zapier</string>
+    <string name="zapier_triggers_section">AIRI → Disparadores de Zapier</string>
+    <string name="test_webhook">Probar Webhook</string>
+    <string name="zapier_hook_url_label">URL de Zapier REST Hook</string>
+    <string name="webhook_payload_label">Datos (JSON opcional o texto)</string>
+    <string name="webhook_key_section">Clave de Webhook</string>
+    <string name="ifttt_maker_key_label">Clave IFTTT Maker</string>
+    <string name="test_applet_trigger">Probar disparador de Applet</string>
+    <string name="event_name_label">Nombre del evento</string>
+    <string name="event_name_hint">p.ej. airi_alert</string>
+    <string name="value_1_optional_label">Valor 1 (opcional)</string>
+    <string name="trigger_applet">Disparar Applet</string>
+    <string name="how_airi_uses_ifttt">Cómo usa AIRI IFTTT</string>
+
+    <!-- Payment / Stripe -->
+    <string name="purchase">Comprar</string>
+    <string name="billing_monthly">Mensual</string>
+    <string name="billing_annual">Anual</string>
+    <string name="billing_save_20">Ahorra 20%%</string>
+    <string name="subscribe_now">Suscribirse ahora</string>
+    <string name="premium_title">✨ AIRI Premium</string>
+    <string name="premium_description">Desbloquea todo el potencial de AIRI con 10× más créditos, todos los conectores, acceso al mercado y APIs de desarrollador.</string>
+    <string name="premium_active_message">¡Estás en AIRI Premium! 🎉</string>
+    <string name="premium_active_subtitle">2.000 créditos diarios, todas las funciones desbloqueadas.</string>
+    <string name="stripe_footer">Pagos procesados de forma segura por Stripe. AIRI nunca almacena datos de tarjetas.</string>
+
+    <!-- AI Library -->
+    <string name="ai_library_routes_auto">AIRI enruta automáticamente</string>
+    <string name="brave_search_api">Brave Search API</string>
+    <string name="brave_search_desc">Gratis: 2.000 búsquedas/mes · brave.com/search/api</string>
+    <string name="brave_key_hint">Obtén una clave gratis en brave.com/search/api (2.000 búsquedas/mes gratis)</string>
+    <string name="brave_key_placeholder">BSA...</string>
+    <string name="active_ai_label">IA activa</string>
+    <string name="auto_badge">AUTO</string>
+    <string name="api_key_field_label">Clave de API</string>
+
+    <!-- Cloud Model Store -->
+    <string name="cloud_hybrid_title">Modelos en la nube e híbridos</string>
+    <string name="cloud_hybrid_subtitle">Niveles gratuitos · APIs externas · Servidores locales</string>
+    <string name="custom_endpoint_title">Punto final personalizado / avanzado</string>
+    <string name="custom_endpoint_subtitle">llama-server · LM Studio · Cualquier API compatible con OpenAI</string>
+    <string name="active_model_badge">ACTIVO</string>
+    <string name="get_free_key">Obtener clave gratis</string>
+    <string name="access_key_label">Clave de acceso</string>
+    <string name="save_and_activate">Guardar y activar</string>
+    <string name="model_name_server_placeholder">p.ej. Mi servidor Llama</string>
+
+    <!-- Agent Tasks -->
+    <string name="new_task_title">Nueva tarea</string>
+    <string name="task_name_hint">Nombre o descripción de la tarea</string>
+    <string name="delay_minutes_label">Retraso (minutos)</string>
+    <string name="schedule_button">Programar</string>
+    <string name="exact_alarms_title">Alarmas exactas no permitidas</string>
+    <string name="exact_alarms_body">Las tareas programadas pueden activarse tarde. Toca para conceder el permiso.</string>
+
+    <!-- Agent Logs / Trace -->
+    <string name="traces_recorded">%1$d trazas registradas</string>
+    <string name="no_agent_traces">Aún no hay trazas del agente</string>
+    <string name="trace_detail_title">Detalle de traza</string>
+    <string name="user_input_label">Entrada del usuario</string>
+    <string name="execution_steps_label">Pasos de ejecución</string>
+    <string name="final_result_label">Resultado final</string>
+    <string name="input_badge">ENTRADA</string>
+
+    <!-- Observability -->
+    <string name="no_events_recorded">Aún no hay eventos registrados</string>
+    <string name="no_graph_yet">Aún no hay gráfico</string>
+    <string name="no_trace_spans">Aún no hay tramos de traza</string>
+
+    <!-- About -->
+    <string name="about_airi_title">Acerca de AIRI</string>
+    <string name="copyright_notice">© 2025 AIRI. Todos los derechos reservados.</string>
+
+    <!-- Referral -->
+    <string name="grow_with_airi">Crece con AIRI</string>
+    <string name="your_referral_code">Tu código de referido</string>
+    <string name="bonus_available">Mensajes bonus disponibles: %1$d</string>
+    <string name="have_referral_code">¿Tienes un código de referido?</string>
+    <string name="redeem_welcome_bonus">Canjear bono de bienvenida</string>
+
+    <!-- Debug Panel -->
+    <string name="debug_panel_title">Panel de depuración</string>
+    <string name="no_results">Sin resultados</string>
+    <string name="rerun_diagnostics">Volver a ejecutar diagnósticos</string>
+
+    <!-- Exec Diagnostics -->
+    <string name="reset_token_stats">Restablecer estadísticas de tokens</string>
+    <string name="reset_today_stats">Restablecer estadísticas de hoy</string>
+
+    <!-- Developer Center -->
+    <string name="no_connector_health">Sin datos de salud del conector</string>
+    <string name="diagnostics_section">Diagnósticos</string>
+    <string name="running_status">En ejecución…</string>
+    <string name="no_results_placeholder">Sin resultados.</string>
+
+    <!-- Skill Manager -->
+    <string name="create_skill">Crear habilidad</string>
+    <string name="import_from_github_title">Importar desde GitHub</string>
+    <string name="create_skill_with_airi">Crear una habilidad con AIRI</string>
+
+    <!-- Skill Builder -->
+    <string name="testing_status">Probando...</string>
+    <string name="test_skill">Probar habilidad</string>
+    <string name="saving_status">Guardando...</string>
+    <string name="save_skill">Guardar habilidad</string>
+    <string name="response_label">Respuesta</string>
+    <string name="error_label">Error</string>
+    <string name="available_template_vars">Variables de plantilla disponibles</string>
+    <string name="key_label">Clave</string>
+    <string name="value_label">Valor</string>
+    <string name="add_header">Añadir encabezado</string>
+
+    <!-- Community Skills -->
+    <string name="no_community_skills">Aún no hay habilidades de la comunidad</string>
+    <string name="import_from_explore_tab">Importa habilidades desde la pestaña Importar.</string>
+    <string name="sandbox_button">Entorno de pruebas</string>
+    <string name="trust_button">Confianza</string>
+    <string name="import_community_skill_title">Importar habilidad de la comunidad</string>
+    <string name="import_skill_json_desc">Importa skill.json desde una URL o pégalo directamente.</string>
+    <string name="skill_url_label">URL de habilidad (solo HTTPS)</string>
+    <string name="import_from_url">Importar desde URL</string>
+    <string name="paste_skill_json_label">Pegar skill.json</string>
+    <string name="import_json_button">Importar JSON</string>
+    <string name="security_scan_active">Análisis de seguridad activo</string>
+    <string name="security_scan_body">Todas las importaciones se analizan en busca de patrones peligrosos antes de almacenarse.</string>
+    <string name="select_skill_trust_prompt">Selecciona una habilidad para ver su puntuación de confianza</string>
+    <string name="tap_trust_hint">Toca el botón Confianza en cualquier habilidad de Mis habilidades.</string>
+    <string name="trust_signals_label">Señales de confianza</string>
+    <string name="score_suffix">/ 100</string>
+
+    <!-- Memory -->
+    <string name="stored_interactions">%1$d interacciones almacenadas</string>
+    <string name="no_memory_yet">Aún no hay memoria</string>
+    <string name="start_conversation_memory">Inicia una conversación para construir memoria</string>
+    <string name="episodic_memory_label">Memoria episódica</string>
+    <string name="clear_memory_body">Esto eliminará permanentemente todas las interacciones almacenadas. El contexto de IA se restablecerá. Esta acción no se puede deshacer.</string>
+    <string name="clear_memory_confirm">Borrar memoria</string>
+
+    <!-- Workspace -->
+    <string name="new_workspace_title">Nuevo espacio de trabajo</string>
+    <string name="workspace_name_label">Nombre del espacio de trabajo</string>
+    <string name="no_workspaces">Sin espacios de trabajo</string>
+    <string name="create_workspace_desc">Crea un espacio de trabajo para organizar los artefactos generados por IA</string>
+    <string name="no_artifacts_yet">Aún no hay artefactos</string>
+    <string name="ask_airi_generate_content">Pide a AIRI que genere código, archivos o contenido</string>
+
+    <!-- Terminal -->
+    <string name="terminal_running">En ejecución</string>
+    <string name="terminal_running_ellipsis">En ejecución…</string>
+    <string name="terminal_command_hint">comando…</string>
+
+    <!-- Sandbox -->
+    <string name="no_executions_yet">Aún sin ejecuciones — ejecuta un comando abajo</string>
+    <string name="no_sandbox_sessions">No hay sesiones de entorno de pruebas activas</string>
+    <string name="create_session_desc">Crea una sesión para empezar a ejecutar tareas aisladas</string>
+    <string name="shell_command_hint">comando de shell…</string>
+
+    <!-- Privacy & Customization -->
+    <string name="privacy_data_title">Privacidad y datos</string>
+    <string name="customization_title">Personalización</string>
+
+    <!-- Billing History -->
+    <string name="filter_all">Todos</string>
+    <string name="no_billing_records">Sin registros de facturación</string>
+
+    <!-- Execution Mode Panel -->
+    <string name="cloud_tokens_today">Tokens en la nube hoy</string>
+
+    <!-- AI Models Settings -->
+    <string name="ai_models_settings_title">IA y modelos</string>
+
+    <!-- Model Settings -->
+    <string name="downloading_model">Descargando…</string>
+    <string name="model_not_supported_device">No compatible con este dispositivo</string>
+
+    <!-- Voice Settings sections -->
+    <string name="voice_system_section">Sistema de voz</string>
+    <string name="installed_models_section">Modelos instalados</string>
+    <string name="vosk_active_badge">Activo</string>
+    <string name="vosk_activate_button">Activar</string>
+
+    <!-- History screen -->
+    <string name="history_title">Historial</string>
+    <string name="history_no_sessions">Sin conversaciones anteriores</string>
+    <string name="confirm_delete_title">Confirmar eliminación</string>
+    <string name="confirm_delete_body">¿Estás seguro? Esta conversación se eliminará permanentemente y no se puede deshacer.</string>
+    <string name="history_session_default">Conversación</string>
+    <string name="new_conversation">Nueva conversación</string>
+
+    <!-- Chat screen -->
+    <string name="chat_select_model_title">Seleccionar modelo</string>
+    <string name="chat_local_privacy">Local — privacidad total</string>
+    <string name="chat_cloud_label">Nube</string>
+    <string name="chat_how_can_help">¿Cómo puedo ayudarte?</string>
+    <string name="chat_assign_task_hint">Asigna una tarea o pregunta lo que quieras</string>
+    <string name="attach_image">Imagen</string>
+    <string name="attach_camera">Cámara</string>
+    <string name="attach_files">Añadir archivos</string>
+    <string name="attach_spreadsheet">Hoja de cálculo</string>
+    <string name="attach_tasks">Tareas programadas</string>
+    <string name="attach_conversation_mode">Modo de conversación</string>
+    <string name="attach_edit_image">Editar imagen</string>
+
+    <!-- Agent Tasks screen -->
+    <string name="agent_task_tab_scheduled">Programado (%1$d)</string>
+    <string name="agent_task_tab_completed">Completado (%1$d)</string>
+    <string name="agent_task_no_scheduled">No hay tareas programadas\nPulsa + para añadir una tarea</string>
+    <string name="agent_task_no_completed">No hay tareas completadas</string>
+    <string name="agent_task_name_required">Introduce un nombre de tarea</string>
+    <string name="agent_task_schedule_failed">Error al programar la tarea: %1$s</string>
+    <string name="agent_task_type_once">Una vez</string>
+    <string name="agent_task_type_periodic">Repetido cada %1$d minutos</string>
+    <string name="agent_task_delay_note">Mínimo: 1 minuto. WorkManager aplica un mínimo de 15 minutos para tareas periódicas.</string>
+
+    <!-- Skill Manager screen -->
+    <string name="skill_import_failed">Error al importar habilidad: %1$s</string>
+    <string name="skill_import_github_failed">Error al importar desde GitHub: %1$s</string>
+    <string name="skill_count">%1$d habilidad</string>
+    <string name="skill_menu_create">Crear nueva habilidad</string>
+    <string name="skill_menu_import_storage">Importar desde almacenamiento</string>
+    <string name="skill_menu_import_github">Importar desde GitHub</string>
+    <string name="skill_menu_create_with_airi">Crear con AIRI</string>
+    <string name="skill_no_skills_title">Aún no hay habilidades personalizadas</string>
+    <string name="skill_no_skills_desc">Crea o importa habilidades de API que AIRI puede usar como herramientas.</string>
+    <string name="skill_github_import_desc">Pega el enlace raw al archivo JSON de la habilidad desde GitHub.</string>
+    <string name="skill_name_label">Nombre de la habilidad</string>
+    <string name="skill_description_label">Descripción de la habilidad</string>
+    <string name="skill_endpoint_label">URL de la API</string>
+    <string name="skill_create_airi_desc">Introduce los detalles de la habilidad y AIRI configurará la estructura completa por ti.</string>
+
+    <!-- Chat confirm action dialog -->
+    <string name="chat_confirm_action_title">Confirmar acción</string>
+    <string name="chat_airi_about_to_execute">AIRI está a punto de ejecutar:</string>
+    <string name="chat_action_device_warning">Esta acción afectará directamente a tu dispositivo.</string>
+    <string name="chat_on_device_label">En el dispositivo</string>
+
+    <!-- Voice Settings screen -->
+    <string name="vosk_no_model_card_title">Sin modelo de voz</string>
+    <string name="vosk_download_small_desc">Descarga el modelo pequeño en inglés (~40 MB) para activar la voz al instante. Funciona completamente sin conexión.</string>
+    <string name="vosk_download_small_btn">Descargar modelo pequeño (inglés, ~40 MB)</string>
+    <string name="vosk_downloading_progress">Descargando… %1$d%%</string>
+    <string name="vosk_install_success">✓ Modelo de voz instalado</string>
 </resources>

@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -172,11 +173,11 @@ fun VoiceSettingsScreen(
                         ) {
                             Icon(Icons.Outlined.MicOff, null, tint = CosmicAccent,
                                 modifier = Modifier.size(20.dp))
-                            Text("لا يوجد نموذج صوتي", color = AiriTheme.onBackground,
+                            Text(stringResource(R.string.vosk_no_model_card_title), color = AiriTheme.onBackground,
                                 fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                         }
                         Text(
-                            "قم بتنزيل نموذج الإنجليزية الصغير (~40 ميغابايت) لتفعيل الصوت فوراً. يعمل بالكامل بدون إنترنت.",
+                            stringResource(R.string.vosk_download_small_desc),
                             color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 18.sp
                         )
                         downloadError?.let {
@@ -208,7 +209,7 @@ fun VoiceSettingsScreen(
                                         downloadProgress = null
                                         when (result) {
                                             is VoskModelManager.DownloadResult.Ok ->
-                                                snackbar.showSnackbar("✓ تم تثبيت النموذج الصوتي")
+                                                snackbar.showSnackbar(context.getString(R.string.vosk_install_success))
                                             is VoskModelManager.DownloadResult.Failed ->
                                                 downloadError = "فشل التنزيل: ${result.reason}"
                                         }
@@ -220,7 +221,7 @@ fun VoiceSettingsScreen(
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("تنزيل النموذج الصغير (إنجليزي، ~40 ميغابايت)",
+                                Text(stringResource(R.string.vosk_download_small_btn),
                                     fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
                         }

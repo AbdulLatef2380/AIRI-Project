@@ -487,4 +487,333 @@
     <string name="marketplace_terms">I agree to the AIRI Marketplace Terms of Service</string>
     <string name="marketplace_submit_review">Submit for Review</string>
     <string name="marketplace_installs_count">%1$s installs</string>
+
+    <!-- Common actions -->
+    <string name="dismiss">Dismiss</string>
+    <string name="copy">Copy</string>
+    <string name="edit">Edit</string>
+    <string name="select_text">Select Text</string>
+    <string name="confirm">Confirm</string>
+    <string name="clear">Clear</string>
+    <string name="reset">Reset</string>
+    <string name="fix">Fix</string>
+    <string name="create">Create</string>
+    <string name="deactivate">Deactivate</string>
+    <string name="test">Test</string>
+    <string name="running">Running</string>
+    <string name="running_ellipsis">Running…</string>
+    <string name="install">Install</string>
+    <string name="skip">Skip</string>
+    <string name="get_started">Get Started</string>
+    <string name="save_key">Save Key</string>
+    <string name="send_test">Send Test</string>
+    <string name="add_and_use">Add &amp; Use</string>
+    <string name="open_chat">Open Chat</string>
+    <string name="new_session">New Session</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_close">Close</string>
+    <string name="cd_history">History</string>
+    <string name="cd_options">Options</string>
+    <string name="cd_refresh">Refresh</string>
+    <string name="cd_clear_memory">Clear memory</string>
+    <string name="cd_add_task">Add task</string>
+    <string name="cd_add_skill">Add skill</string>
+    <string name="cd_debug">Debug</string>
+    <string name="cd_new_session">New session</string>
+    <string name="cd_close_session">Close session</string>
+    <string name="cd_run">Run</string>
+    <string name="cd_remove_header">Remove header</string>
+    <string name="cd_cancel_download">Cancel download</string>
+    <string name="cd_remove">Remove</string>
+    <string name="cd_add">Add</string>
+    <string name="cd_reset_stats">Reset today\'s token stats</string>
+    <string name="cd_airi_logo">AIRI</string>
+    <string name="cd_delete_skill">Delete</string>
+
+    <!-- Chat screen -->
+    <string name="chat_more_models">More Models</string>
+    <string name="chat_system_integrity_failed">System Integrity Failed</string>
+    <string name="chat_context_copy">Copy</string>
+    <string name="chat_context_edit">Edit</string>
+    <string name="chat_context_select_text">Select Text</string>
+    <string name="chat_context_share">Share</string>
+
+    <!-- Onboarding / Welcome -->
+    <string name="onboarding_tagline">Private by default. Powerful by design.</string>
+
+    <!-- Login -->
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+
+    <!-- Voice Personalization -->
+    <string name="voice_personalization_title">Voice Personalization</string>
+    <string name="pitch_low">Low</string>
+    <string name="pitch_high">High</string>
+    <string name="speed_slow">Slow</string>
+    <string name="speed_fast">Fast</string>
+    <string name="preview_voice">Preview Voice</string>
+    <string name="save_preferences">Save Preferences</string>
+
+    <!-- Permissions -->
+    <string name="open_app_settings">Open App Settings</string>
+    <string name="permission_special_label">Special</string>
+    <string name="why_airi_needs_this">Why AIRI needs this</string>
+
+    <!-- Updates -->
+    <string name="check_for_updates">Check for Updates</string>
+    <string name="update_available_title">AIRI %1$s is available</string>
+    <string name="update_from_play_store">Tap Install to update from the Play Store</string>
+    <string name="whats_new">What\'s new</string>
+    <string name="bug_fixes">Bug fixes</string>
+
+    <!-- Credits & Usage -->
+    <string name="total_today">Total today</string>
+    <string name="remaining">remaining</string>
+
+    <!-- Zapier / IFTTT -->
+    <string name="automation">Automation</string>
+    <string name="authentication">Authentication</string>
+    <string name="connect_with_zapier">Connect with Zapier</string>
+    <string name="zapier_triggers_section">AIRI → Zapier Triggers</string>
+    <string name="test_webhook">Test Webhook</string>
+    <string name="zapier_hook_url_label">Zapier REST Hook URL</string>
+    <string name="webhook_payload_label">Payload (optional JSON or text)</string>
+    <string name="webhook_key_section">Webhook Key</string>
+    <string name="ifttt_maker_key_label">IFTTT Maker Key</string>
+    <string name="test_applet_trigger">Test Applet Trigger</string>
+    <string name="event_name_label">Event Name</string>
+    <string name="event_name_hint">e.g. airi_alert</string>
+    <string name="value_1_optional_label">Value 1 (optional)</string>
+    <string name="trigger_applet">Trigger Applet</string>
+    <string name="how_airi_uses_ifttt">How AIRI Uses IFTTT</string>
+
+    <!-- Payment / Stripe -->
+    <string name="purchase">Purchase</string>
+    <string name="billing_monthly">Monthly</string>
+    <string name="billing_annual">Annual</string>
+    <string name="billing_save_20">Save 20%%</string>
+    <string name="subscribe_now">Subscribe Now</string>
+    <string name="premium_title">✨ AIRI Premium</string>
+    <string name="premium_description">Unlock the full power of AIRI with 10× more credits, all connectors, marketplace access, and developer APIs.</string>
+    <string name="premium_active_message">You\'re on AIRI Premium! 🎉</string>
+    <string name="premium_active_subtitle">2,000 daily credits, all features unlocked.</string>
+    <string name="stripe_footer">Payments processed securely by Stripe. AIRI never stores card details.</string>
+
+    <!-- AI Library -->
+    <string name="ai_library_routes_auto">AIRI routes automatically</string>
+    <string name="brave_search_api">Brave Search API</string>
+    <string name="brave_search_desc">Free: 2,000 searches/month · brave.com/search/api</string>
+    <string name="brave_key_hint">Get a free key at brave.com/search/api (2,000 searches/month free)</string>
+    <string name="brave_key_placeholder">BSA...</string>
+    <string name="active_ai_label">Active AI</string>
+    <string name="auto_badge">AUTO</string>
+    <string name="api_key_field_label">API Key</string>
+
+    <!-- Cloud Model Store -->
+    <string name="cloud_hybrid_title">Cloud &amp; Hybrid Models</string>
+    <string name="cloud_hybrid_subtitle">Free tiers · External APIs · Local servers</string>
+    <string name="custom_endpoint_title">Custom / Advanced Endpoint</string>
+    <string name="custom_endpoint_subtitle">llama-server · LM Studio · Any OpenAI-compatible API</string>
+    <string name="active_model_badge">ACTIVE</string>
+    <string name="get_free_key">Get Free Key</string>
+    <string name="access_key_label">Access Key</string>
+    <string name="save_and_activate">Save &amp; Activate</string>
+    <string name="model_name_server_placeholder">e.g. My Llama Server</string>
+
+    <!-- Agent Tasks -->
+    <string name="new_task_title">New Task</string>
+    <string name="task_name_hint">Task name or description</string>
+    <string name="delay_minutes_label">Delay (minutes)</string>
+    <string name="schedule_button">Schedule</string>
+    <string name="exact_alarms_title">Exact alarms not permitted</string>
+    <string name="exact_alarms_body">Scheduled tasks may fire late. Tap to grant permission.</string>
+
+    <!-- Agent Logs / Trace -->
+    <string name="traces_recorded">%1$d traces recorded</string>
+    <string name="no_agent_traces">No agent traces yet</string>
+    <string name="trace_detail_title">Trace Detail</string>
+    <string name="user_input_label">User Input</string>
+    <string name="execution_steps_label">Execution Steps</string>
+    <string name="final_result_label">Final Result</string>
+    <string name="input_badge">INPUT</string>
+
+    <!-- Observability -->
+    <string name="no_events_recorded">No events recorded yet</string>
+    <string name="no_graph_yet">No graph yet</string>
+    <string name="no_trace_spans">No trace spans yet</string>
+
+    <!-- About -->
+    <string name="about_airi_title">About AIRI</string>
+    <string name="copyright_notice">© 2025 AIRI. All rights reserved.</string>
+
+    <!-- Referral -->
+    <string name="grow_with_airi">Grow with AIRI</string>
+    <string name="your_referral_code">Your referral code</string>
+    <string name="bonus_available">Bonus messages available: %1$d</string>
+    <string name="have_referral_code">Have a referral code?</string>
+    <string name="redeem_welcome_bonus">Redeem welcome bonus</string>
+
+    <!-- Debug Panel -->
+    <string name="debug_panel_title">Debug Panel</string>
+    <string name="no_results">No results</string>
+    <string name="rerun_diagnostics">Re-run Diagnostics</string>
+
+    <!-- Exec Diagnostics -->
+    <string name="reset_token_stats">Reset Token Stats</string>
+    <string name="reset_today_stats">Reset Today\'s Stats</string>
+
+    <!-- Developer Center -->
+    <string name="no_connector_health">No connector health data</string>
+    <string name="diagnostics_section">Diagnostics</string>
+    <string name="running_status">Running…</string>
+    <string name="no_results_placeholder">No results.</string>
+
+    <!-- Skill Manager -->
+    <string name="create_skill">Create Skill</string>
+    <string name="import_from_github_title">Import from GitHub</string>
+    <string name="create_skill_with_airi">Create a skill with AIRI</string>
+
+    <!-- Skill Builder -->
+    <string name="testing_status">Testing...</string>
+    <string name="test_skill">Test Skill</string>
+    <string name="saving_status">Saving...</string>
+    <string name="save_skill">Save Skill</string>
+    <string name="response_label">Response</string>
+    <string name="error_label">Error</string>
+    <string name="available_template_vars">Available template variables</string>
+    <string name="key_label">Key</string>
+    <string name="value_label">Value</string>
+    <string name="add_header">Add header</string>
+
+    <!-- Community Skills -->
+    <string name="no_community_skills">No community skills yet</string>
+    <string name="import_from_explore_tab">Import skills from the Import tab.</string>
+    <string name="sandbox_button">Sandbox</string>
+    <string name="trust_button">Trust</string>
+    <string name="import_community_skill_title">Import Community Skill</string>
+    <string name="import_skill_json_desc">Import skill.json from a URL or paste it directly.</string>
+    <string name="skill_url_label">Skill URL (HTTPS only)</string>
+    <string name="import_from_url">Import from URL</string>
+    <string name="paste_skill_json_label">Paste skill.json</string>
+    <string name="import_json_button">Import JSON</string>
+    <string name="security_scan_active">Security Scan Active</string>
+    <string name="security_scan_body">All imports are scanned for dangerous patterns before being stored.</string>
+    <string name="select_skill_trust_prompt">Select a skill to view its trust score</string>
+    <string name="tap_trust_hint">Tap the Trust button on any skill in My Skills.</string>
+    <string name="trust_signals_label">Trust Signals</string>
+    <string name="score_suffix">/ 100</string>
+
+    <!-- Memory -->
+    <string name="stored_interactions">%1$d stored interactions</string>
+    <string name="no_memory_yet">No memory yet</string>
+    <string name="start_conversation_memory">Start a conversation to build memory</string>
+    <string name="episodic_memory_label">Episodic Memory</string>
+    <string name="clear_memory_body">This will permanently delete all stored interactions. The AI context will be reset. This action cannot be undone.</string>
+    <string name="clear_memory_confirm">Clear Memory</string>
+
+    <!-- Workspace -->
+    <string name="new_workspace_title">New Workspace</string>
+    <string name="workspace_name_label">Workspace name</string>
+    <string name="no_workspaces">No Workspaces</string>
+    <string name="create_workspace_desc">Create a workspace to organise AI-generated artifacts</string>
+    <string name="no_artifacts_yet">No artifacts yet</string>
+    <string name="ask_airi_generate_content">Ask AIRI to generate code, files, or content</string>
+
+    <!-- Terminal -->
+    <string name="terminal_running">Running</string>
+    <string name="terminal_running_ellipsis">Running…</string>
+    <string name="terminal_command_hint">command…</string>
+
+    <!-- Sandbox -->
+    <string name="no_executions_yet">No executions yet — run a command below</string>
+    <string name="no_sandbox_sessions">No active sandbox sessions</string>
+    <string name="create_session_desc">Create a session to start running isolated tasks</string>
+    <string name="shell_command_hint">shell command…</string>
+
+    <!-- Privacy &amp; Customization -->
+    <string name="privacy_data_title">Privacy &amp; Data</string>
+    <string name="customization_title">Customization</string>
+
+    <!-- Billing History -->
+    <string name="filter_all">All</string>
+    <string name="no_billing_records">No billing records</string>
+
+    <!-- Execution Mode Panel -->
+    <string name="cloud_tokens_today">Cloud tokens today</string>
+
+    <!-- AI Models Settings -->
+    <string name="ai_models_settings_title">AI &amp; Models</string>
+
+    <!-- Model Settings -->
+    <string name="downloading_model">Downloading…</string>
+    <string name="model_not_supported_device">Not supported on this device</string>
+
+    <!-- Voice Settings sections -->
+    <string name="voice_system_section">Voice System</string>
+    <string name="installed_models_section">Installed Models</string>
+    <string name="vosk_active_badge">Active</string>
+    <string name="vosk_activate_button">Activate</string>
+
+    <!-- History screen -->
+    <string name="history_title">History</string>
+    <string name="history_no_sessions">No previous conversations</string>
+    <string name="confirm_delete_title">Confirm Deletion</string>
+    <string name="confirm_delete_body">Are you sure? This conversation will be permanently deleted and cannot be undone.</string>
+    <string name="history_session_default">Conversation</string>
+    <string name="new_conversation">New conversation</string>
+
+    <!-- Chat screen -->
+    <string name="chat_select_model_title">Select model</string>
+    <string name="chat_local_privacy">Local — full privacy</string>
+    <string name="chat_cloud_label">Cloud</string>
+    <string name="chat_how_can_help">How can I help you?</string>
+    <string name="chat_assign_task_hint">Assign a task or ask anything</string>
+    <string name="attach_image">Image</string>
+    <string name="attach_camera">Camera</string>
+    <string name="attach_files">Add files</string>
+    <string name="attach_spreadsheet">Spreadsheet</string>
+    <string name="attach_tasks">Scheduled tasks</string>
+    <string name="attach_conversation_mode">Conversation mode</string>
+    <string name="attach_edit_image">Edit image</string>
+
+    <!-- Agent Tasks screen -->
+    <string name="agent_task_tab_scheduled">Scheduled (%1$d)</string>
+    <string name="agent_task_tab_completed">Completed (%1$d)</string>
+    <string name="agent_task_no_scheduled">No scheduled tasks\nPress + to add a task</string>
+    <string name="agent_task_no_completed">No completed tasks</string>
+    <string name="agent_task_name_required">Enter a task name</string>
+    <string name="agent_task_schedule_failed">Failed to schedule task: %1$s</string>
+    <string name="agent_task_type_once">One time</string>
+    <string name="agent_task_type_periodic">Repeated every %1$d minutes</string>
+    <string name="agent_task_delay_note">Minimum: 1 minute. WorkManager applies a 15-minute minimum for periodic tasks.</string>
+
+    <!-- Skill Manager screen -->
+    <string name="skill_import_failed">Failed to import skill: %1$s</string>
+    <string name="skill_import_github_failed">Failed to import from GitHub: %1$s</string>
+    <string name="skill_count">%1$d skill</string>
+    <string name="skill_menu_create">Create new skill</string>
+    <string name="skill_menu_import_storage">Import from storage</string>
+    <string name="skill_menu_import_github">Import from GitHub</string>
+    <string name="skill_menu_create_with_airi">Create with AIRI</string>
+    <string name="skill_no_skills_title">No custom skills yet</string>
+    <string name="skill_no_skills_desc">Create or import API skills that AIRI can use as tools.</string>
+    <string name="skill_github_import_desc">Paste the raw link to the skill JSON file from GitHub.</string>
+    <string name="skill_name_label">Skill name</string>
+    <string name="skill_description_label">Skill description</string>
+    <string name="skill_endpoint_label">API URL</string>
+    <string name="skill_create_airi_desc">Enter skill details and AIRI will set up the full structure for you.</string>
+
+    <!-- Chat confirm action dialog -->
+    <string name="chat_confirm_action_title">Confirm Action</string>
+    <string name="chat_airi_about_to_execute">AIRI is about to execute:</string>
+    <string name="chat_action_device_warning">This action will directly affect your device.</string>
+    <string name="chat_on_device_label">On device</string>
+
+    <!-- Voice Settings screen -->
+    <string name="vosk_no_model_card_title">No voice model</string>
+    <string name="vosk_download_small_desc">Download the small English model (~40 MB) to activate voice instantly. Works completely offline.</string>
+    <string name="vosk_download_small_btn">Download small model (English, ~40 MB)</string>
+    <string name="vosk_downloading_progress">Downloading… %1$d%%</string>
+    <string name="vosk_install_success">✓ Voice model installed</string>
 </resources>

@@ -33,6 +33,8 @@ import com.airi.assistant.ui.theme.CosmicBlack
 import com.airi.assistant.ui.theme.DividerColor
 import com.airi.assistant.ui.theme.SurfaceCard
 import com.airi.assistant.ui.theme.SurfaceRaised
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import java.text.SimpleDateFormat
@@ -61,7 +63,7 @@ fun HistoryScreen(
                 },
                 title = {
                     Text(
-                        text = "السجل",
+                        text = stringResource(R.string.history_title),
                         color = AiriTheme.onBackground,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -104,7 +106,7 @@ fun HistoryScreen(
                     Icon(Icons.Outlined.Add, contentDescription = null, tint = AiriTheme.onBackground, modifier = Modifier.size(18.dp))
                 }
                 Text(
-                    text = "محادثة جديدة",
+                    text = stringResource(R.string.new_conversation),
                     color = CosmicAccent,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold
@@ -136,7 +138,7 @@ fun HistoryScreen(
                         }
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            "لا توجد محادثات سابقة",
+                            stringResource(R.string.history_no_sessions),
                             color = AiriTheme.onSurfaceVariant.copy(alpha = 0.38f),
                             fontSize = 15.sp
                         )
@@ -171,7 +173,7 @@ fun HistoryScreen(
             shape = RoundedCornerShape(20.dp),
             title = {
                 Text(
-                    "تأكيد الحذف",
+                    stringResource(R.string.confirm_delete_title),
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
                     modifier = Modifier.fillMaxWidth(),
@@ -180,7 +182,7 @@ fun HistoryScreen(
             },
             text = {
                 Text(
-                    "هل أنت متأكد؟ سيتم حذف 1 محادثة نهائيًا ولا يمكن التراجع.",
+                    stringResource(R.string.confirm_delete_body),
                     textAlign = TextAlign.End,
                     fontSize = 14.sp
                 )
@@ -198,7 +200,7 @@ fun HistoryScreen(
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth(0.5f)
                 ) {
-                    Text("حذف", fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.delete), fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
@@ -208,7 +210,7 @@ fun HistoryScreen(
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                     modifier = Modifier.fillMaxWidth(0.45f)
                 ) {
-                    Text("إلغاء", color = AiriTheme.onBackground.copy(alpha = 0.75f))
+                    Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(alpha = 0.75f))
                 }
             }
         )
@@ -278,7 +280,7 @@ private fun HistorySessionItem(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = session.title.ifBlank { "محادثة" },
+                    text = session.title.ifBlank { stringResource(R.string.history_session_default) },
                     color = AiriTheme.onBackground,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,

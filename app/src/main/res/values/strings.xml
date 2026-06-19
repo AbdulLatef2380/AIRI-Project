@@ -803,6 +803,8 @@
     <string name="skill_description_label">Skill description</string>
     <string name="skill_endpoint_label">API URL</string>
     <string name="skill_create_airi_desc">Enter skill details and AIRI will set up the full structure for you.</string>
+    <string name="skill_title">Skills</string>
+    <string name="skill_create_button">Create Skill</string>
 
     <!-- Chat confirm action dialog -->
     <string name="chat_confirm_action_title">Confirm Action</string>

@@ -795,6 +795,8 @@
     <string name="skill_description_label">وصف المهارة</string>
     <string name="skill_endpoint_label">عنوان API (URL)</string>
     <string name="skill_create_airi_desc">أدخل تفاصيل المهارة وسيقوم AIRI بإعداد الهيكل الكامل لها.</string>
+    <string name="skill_title">المهارات</string>
+    <string name="skill_create_button">إنشاء مهارة</string>
 
     <!-- Chat confirm action dialog -->
     <string name="chat_confirm_action_title">تأكيد الإجراء</string>

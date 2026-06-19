@@ -809,6 +809,8 @@
     <string name="skill_description_label">技能描述</string>
     <string name="skill_endpoint_label">API 地址</string>
     <string name="skill_create_airi_desc">输入技能详情，AIRI 将为您设置完整结构。</string>
+    <string name="skill_title">技能</string>
+    <string name="skill_create_button">创建技能</string>
 
     <!-- Chat confirm action dialog -->
     <string name="chat_confirm_action_title">确认操作</string>

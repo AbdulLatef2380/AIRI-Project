@@ -809,6 +809,8 @@
     <string name="skill_description_label">Descripción de la habilidad</string>
     <string name="skill_endpoint_label">URL de la API</string>
     <string name="skill_create_airi_desc">Introduce los detalles de la habilidad y AIRI configurará la estructura completa por ti.</string>
+    <string name="skill_title">Habilidades</string>
+    <string name="skill_create_button">Crear habilidad</string>
 
     <!-- Chat confirm action dialog -->
     <string name="chat_confirm_action_title">Confirmar acción</string>

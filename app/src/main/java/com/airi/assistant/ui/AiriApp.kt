@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -195,6 +196,7 @@ fun AiriApp() {
                     .fillMaxSize()
                     .background(CosmicBlack)
                     .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding)
             ) {
                 NavHost(navController = navController, startDestination = startDest) {
 

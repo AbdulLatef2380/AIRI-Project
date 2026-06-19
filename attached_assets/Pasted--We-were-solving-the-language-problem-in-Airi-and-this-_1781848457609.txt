@@ -1,0 +1,461 @@
+ We were solving the language problem in Airi, and this is what Replit has achieved.
+
+Now I'll scan all UI screen files for hardcoded strings in parallel batches:
+
+Here is the complete localization audit report:
+
+AIRI Localization Audit Report
+Section 1 — String Resource Gap (Phase C: Missing Keys per Locale)
+Locale	Keys in values/ (EN)	Keys Present	Missing
+Arabic (values-ar)	449	434	15
+Chinese (values-zh)	449	223	226
+Spanish (values-es)	449	223	226
+Total untranslated string slots: 467 (15 + 226 + 226)
+
+Keys missing from values-ar/strings.xml (15)
+agent_tasks, image_attached_vision_ready, nav_chat, nav_new,
+nav_schedule, nav_settings, nav_skills, penalty_last_n,
+penalty_last_n_hint, pick_mmproj, suggestion_brainstorm,
+suggestion_explain_ai, suggestion_what_can_you_do,
+suggestion_write_poem, vision_ready_badge
+Keys missing from values-zh/strings.xml and values-es/strings.xml (226 each — identical list)
+These 226 keys exist in values/strings.xml but are absent from both Chinese and Spanish. The full list spans:
+
+All stat_* keys (26): device info, RAM, storage, inference breakdown
+All spec_* keys (12): speculative decoding UI
+All model_perf_* keys (10): performance table columns/rows
+All vosk_* keys (12): voice model download/management
+All porcupine_* keys (10): wake word engine
+All integration_* / integrations_* keys (20): GitHub, Telegram, Google integrations
+All perf_* and performance_* keys (9)
+All plan_* and usage_* keys (11): subscription/paywall
+All voice_*, nav_*, suggestion_*, and settings_group_* keys
+Standalone keys: add_model, add_local_model, add_remote_model, add_stop_word, agent_control, agent_logs, airi_is_default, airi_not_default, api_key_optional, bos_token, collapse, connection_failed, connection_success, continue_with_github, continue_with_google, create_account, custom_skills, default_assistant, display_name, edit_profile, email_read_only, enter_server_url_first, eos_token, execution_history, expand, export_failed, export_success, file_selected_name, frequency_penalty, image_attached_no_vision, image_selected_vision_soon, import_gguf_from_storage, invite_friends, last_run, leave_blank_for_default, mic_blocked_settings, min_p, model_name_label, model_settings_icon, no_voice_model_installed, observability, open_assistant_settings, paywall_limit_message, photo_attached, photo_captured, profile_saved, remote_model_warning, remove_image_cd, repeat_penalty, report_a_problem, report_email_body, report_email_subject, server_url, set_as_default_assistant, settings_saved, share, sign_in, stop_words, subscription, take_photo, template_editor, test_connection, testing_connection, theme, theme_dark, theme_light, theme_system, today_usage, upgrade_premium_price, upgrade_to_premium, username
+Section 2 — Hardcoded User-Visible Strings in Kotlin/Compose Files
+Total files affected: 35
+
+app/…/ui/screens/ChatScreen.kt
+Line	Hardcoded Text	Type
+716	"System Integrity Failed"	Dialog title
+718	"Dismiss"	Button
+806	"OK"	Button
+910	"تأكيد" (Arabic only)	Dialog confirm button
+919	"إلغاء" (Arabic only)	Dialog cancel button
+1055	contentDescription = "History"	Icon CD
+1206	"المزيد من النماذج" (Arabic only)	Link text
+1285	contentDescription = "Close"	Icon CD
+1623	"نسخ" (Arabic only)	Context menu item
+1632	"تعديل" (Arabic only)	Context menu item
+1637	"تحديد نص" (Arabic only)	Context menu item
+1642	"مشاركة" (Arabic only)	Context menu item
+1648	"حذف" (Arabic only)	Context menu item
+app/…/ui/screens/OnboardingScreen.kt
+Line	Hardcoded Text	Type
+148	"Skip"	Button
+425	"Private by default. Powerful by design."	Body text
+app/…/ui/screens/WelcomeScreen.kt
+Line	Hardcoded Text	Type
+59	"Get Started"	Button
+app/…/ui/screens/LoginScreen.kt
+Line	Hardcoded Text	Type
+235	label = { Text("Email") }	TextField label
+251	label = { Text("Password") }	TextField label
+app/…/ui/screens/VoiceSettingsScreen.kt
+Line	Hardcoded Text	Type
+96	"Voice Settings"	TopBar title
+175	"لا يوجد نموذج صوتي" (Arabic only)	Empty state
+223	"تنزيل النموذج الصغير (إنجليزي، ~40 ميغابايت)" (Arabic only)	Button
+292	"Voice System"	Section header
+349	"Wake Word (Porcupine)"	Section header
+378	label = { Text("Porcupine access key") }	TextField label
+407	"Save key"	Button
+413	"Clear"	Button
+437	"Installed Models"	Section header
+480	"Active"	Badge
+492	"Activate"	Button
+498	contentDescription = "Delete model"	Icon CD
+app/…/ui/screens/VoicePersonalizationScreen.kt
+Line	Hardcoded Text	Type
+104	"Voice Personalization"	TopBar title
+108	contentDescription = "Back"	Icon CD
+113	"Save"	Button
+198	"Low"	Slider label
+203	"High"	Slider label
+216–218	"0.5×", "1.0×", "2.0×"	Scale labels
+231	"Slow"	Slider label
+236	"Fast"	Slider label
+249–251	"0.5×", "1.0×", "2.0×"	Speed scale labels
+319	"Preview Voice"	Button
+328	"Save Preferences"	Button
+app/…/ui/screens/PermissionsScreen.kt
+Line	Hardcoded Text	Type
+198	"Permissions"	TopBar title
+283	"Open App Settings"	Button
+389	"Special"	Badge
+411	"Why AIRI needs this"	Expandable label
+app/…/ui/screens/UpdateScreen.kt
+Line	Hardcoded Text	Type
+122	"Updates"	TopBar title
+260	"Check for Updates"	Button
+281	"AIRI $newVersion is available"	Dynamic body text
+283	"Tap Install to update from the Play Store"	Body text
+292	"Install"	Button
+353	"What's new"	Section header
+371	"Bug fixes"	Section header
+app/…/ui/screens/CreditsScreen.kt
+Line	Hardcoded Text	Type
+57	"Credits & Usage"	TopBar title
+141	"Total today"	Label
+225	"remaining"	Label
+app/…/ui/screens/ZapierIftttScreen.kt
+Line	Hardcoded Text	Type
+65	title = { Text("Automation") }	TopBar title
+147	"Authentication"	Section header
+169	"Connect with Zapier"	Button
+177	"Disconnect"	Button
+195	"AIRI → Zapier Triggers"	Section header
+229	"Test Webhook"	Section header
+233	label = { Text("Zapier REST Hook URL") }	TextField label
+242	label = { Text("Payload (optional JSON or text)") }	TextField label
+269	"Send Test"	Button
+315	"Webhook Key"	Section header
+323	label = { Text("IFTTT Maker Key") }	TextField label
+349	"Save Key"	Button
+362	"Test Applet Trigger"	Section header
+366	label = { Text("Event Name") }	TextField label
+367	placeholder = { Text("e.g. airi_alert") }	TextField placeholder
+375	label = { Text("Value 1 (optional)") }	TextField label
+406	"Trigger Applet"	Button
+422	"How AIRI Uses IFTTT"	Section header
+app/…/ui/screens/StripePaymentScreen.kt
+Line	Hardcoded Text	Type
+58	title = { Text("Purchase") }	TopBar title
+157	"Buy ${pack.displayName} — ${pack.priceString}"	Button (dynamic)
+198	"Monthly"	Tab label
+206	"Annual"	Tab label
+209	Badge { Text("Save 20%") }	Badge
+249	"Subscribe Now"	Button
+304	"✨ AIRI Premium"	Section header
+305	"Unlock the full power of AIRI…"	Body text
+321	"You're on AIRI Premium! 🎉"	Status text
+322	"2,000 daily credits, all features unlocked."	Body text
+362	"Payments processed securely by Stripe…"	Footer text
+app/…/ui/screens/PaywallScreen.kt
+Line	Hardcoded Text	Type
+115	"Upgrade to Premium"	Title
+app/…/ui/screens/ModelLibraryScreen.kt
+Line	Hardcoded Text	Type
+98	"AI Library"	TopBar title
+99	"AIRI routes automatically"	Subtitle
+307	"Brave Search API"	Section header
+315	"Free: 2,000 searches/month · brave.com/search/api"	Description
+336	title = { Text("${provider.displayName} API Key") }	Dialog title (dynamic)
+339	"Get a free key at brave.com/search/api…"	Dialog body
+344	placeholder = { Text("BSA...") }	TextField placeholder
+352	"Save"	Dialog button
+355	"Cancel"	Dialog button
+392	"Active AI"	Label
+437	"Smart Routing"	Section header
+593	"Deactivate"	Button
+694	"AUTO"	Badge
+760	"Connect ${config.displayLabel}"	Dialog title (dynamic)
+773	label = { Text("API Key") }	TextField label
+806	"Connect"	Button
+810	"Cancel"	Button
+app/…/ui/screens/ModelSettingsScreen.kt
+Line	Hardcoded Text	Type
+1026	"Downloading…"	Status label
+1057	contentDescription = "Cancel download"	Icon CD
+1061	"Cancel"	Button
+1489	"غير مدعوم على هذا الجهاز" (Arabic only)	Warning label
+2207	contentDescription = "Remove"	Icon CD
+2230	contentDescription = "Add"	Icon CD
+app/…/ui/screens/AIModelsSettingsScreen.kt
+Line	Hardcoded Text	Type
+46	"AI & Models"	TopBar title
+app/…/ui/screens/CloudModelStore.kt
+Line	Hardcoded Text	Type
+90	"Cloud & Hybrid Models"	Title
+92	"Free tiers · External APIs · Local servers"	Subtitle
+170	"Custom / Advanced Endpoint"	Section label
+172	"llama-server · LM Studio · Any OpenAI-compatible API"	Description
+364	"ACTIVE"	Badge
+399	"Deactivate"	Button
+442	"Get Free Key"	Button
+486	"Connect ${config.displayLabel}"	Dialog title (dynamic)
+498	label = { Text("Access Key") }	TextField label
+551	"Save & Activate"	Button
+556	"Cancel"	Button
+585	label = { Text("Model Name") }	TextField label
+586	placeholder = { Text("e.g. My Llama Server") }	TextField placeholder
+596	label = { Text("Server URL") }	TextField label
+607	label = { Text("API Key (optional)") }	TextField label
+642	"Test"	Button
+660	"Add & Use"	Button
+app/…/ui/screens/AgentTasksScreen.kt
+Line	Hardcoded Text	Type
+93	contentDescription = "Add task"	Icon CD
+195	"Exact alarms not permitted"	Warning text
+197	"Scheduled tasks may fire late. Tap to grant permission."	Warning body
+206	"Fix"	Button
+354	"مهمة جديدة" (Arabic only)	Dialog title
+362	placeholder = { Text("اسم المهمة أو وصفها") } (Arabic only)	TextField placeholder
+375	label = { Text("التأخير (بالدقائق)") } (Arabic only)	TextField label
+401	"جدولة" (Arabic only)	Button
+404	"إلغاء" (Arabic only)	Button
+app/…/ui/screens/AgentLogsScreen.kt
+Line	Hardcoded Text	Type
+51	contentDescription = "Back"	Icon CD
+56	"Agent Logs"	TopBar title
+57	"${traces.size} traces recorded"	Subtitle (dynamic)
+63	"Clear"	Button
+85	"No agent traces yet"	Empty state
+app/…/ui/screens/AgentTraceDetailScreen.kt
+Line	Hardcoded Text	Type
+59	contentDescription = "Back"	Icon CD
+64	"Trace Detail"	TopBar title
+85	"User Input"	Section label
+141	"Execution Steps"	Section label
+157	"Final Result"	Section label
+234	"INPUT"	Badge
+app/…/ui/screens/ObservabilityScreen.kt
+Line	Hardcoded Text	Type
+54	contentDescription = "Back"	Icon CD
+58	"Observability"	TopBar title
+130	"No events recorded yet"	Empty state
+391	"No graph yet"	Empty state
+496	"No trace spans yet"	Empty state
+app/…/ui/screens/AboutScreen.kt
+Line	Hardcoded Text	Type
+28	title = { Text("About AIRI") }	TopBar title
+48	"AIRI"	Brand label
+65	"© 2025 AIRI. All rights reserved."	Footer
+app/…/ui/screens/AppInfoScreen.kt
+Line	Hardcoded Text	Type
+47	contentDescription = "Back"	Icon CD
+51	"About AIRI"	TopBar title
+app/…/ui/screens/ReferralScreen.kt
+Line	Hardcoded Text	Type
+56	contentDescription = "Back"	Icon CD
+59	title = { Text("Invite friends") }	TopBar title
+73	"Grow with AIRI"	Heading
+92	"Your referral code"	Label
+94	"Bonus messages available: $bonus"	Dynamic label
+119	label = { Text("Have a referral code?") }	TextField label
+138	"Redeem welcome bonus"	Button
+app/…/ui/screens/HistoryScreen.kt
+Line	Hardcoded Text	Type
+59	contentDescription = "Close"	Icon CD
+201	"حذف" (Arabic only)	Dialog confirm button
+211	"إلغاء" (Arabic only)	Dialog cancel button
+250	contentDescription = "Options"	Icon CD
+app/…/ui/screens/DebugPanelScreen.kt
+Line	Hardcoded Text	Type
+65	"Debug Panel"	Title
+116	"No results"	Empty state
+159	"Re-run Diagnostics"	Button
+app/…/ui/screens/ExecDiagnosticsScreen.kt
+Line	Hardcoded Text	Type
+102	"Reset Token Stats" (section)	Section header
+120	"Reset"	Dialog button
+125	"Cancel"	Dialog button
+141	contentDescription = "Back"	Icon CD
+165	contentDescription = "Reset today's token stats"	Icon CD
+603	"Reset Today's Stats"	Button
+app/…/ui/screens/DeveloperCenterScreen.kt
+Line	Hardcoded Text	Type
+49	title = { Text("Developer Center") }	TopBar title
+153	"No connector health data"	Empty state
+229	"Diagnostics"	Section label
+230	"Running…"	Status label
+246	"No results."	Empty state
+app/…/ui/screens/SkillManagerScreen.kt
+Line	Hardcoded Text	Type
+99	contentDescription = "Back"	Icon CD
+104	"المهارات" (Arabic only)	TopBar title
+116	contentDescription = "Add skill"	Icon CD
+250	"إنشاء مهارة" (Arabic only)	Button
+299	title = { Text("استيراد من GitHub") } (Arabic only)	Dialog title
+335	"استيراد" (Arabic only)	Button
+339	"إلغاء" (Arabic only)	Button
+357	"إنشاء مهارة مع AIRI" (Arabic only)	Dialog title
+378	"إنشاء" (Arabic only)	Button
+382	"إلغاء" (Arabic only)	Button
+503	contentDescription = "Delete"	Icon CD
+app/…/ui/screens/SkillBuilderScreen.kt
+Line	Hardcoded Text	Type
+262	contentDescription = "Back"	Icon CD
+281	"Save"	Button
+457	"Testing..."	Button state
+461	"Test Skill"	Button
+475	"Saving..."	Button state
+479	"Save Skill"	Button
+554	"Response"	Section label
+574	"Error"	Section label
+598	"Dismiss"	Button
+654	"Available template variables"	Section label
+805	label = { Text("Key") }	TextField label
+813	label = { Text("Value") }	TextField label
+823	contentDescription = "Remove header"	Icon CD
+830	"Add header"	Button
+app/…/ui/screens/CommunitySkillsScreen.kt
+Line	Hardcoded Text	Type
+60	title = { Text("Community Skills") }	TopBar title
+116	"No community skills yet"	Empty state
+117	"Import skills from the Import tab."	Empty state subtitle
+182	"Sandbox"	Button
+190	"Trust"	Button
+233	"Import Community Skill"	Sheet title
+234	"Import skill.json from a URL or paste it directly."	Description
+256	label = { Text("Skill URL (HTTPS only)") }	TextField label
+283	"Import from URL"	Button
+291	label = { Text("Paste skill.json") }	TextField label
+316	"Import JSON"	Button
+343	"Security Scan Active"	Info banner
+344	"All imports are scanned for dangerous patterns…"	Info body
+360	"Select a skill to view its trust score"	Empty state
+361	"Tap the Trust button on any skill in My Skills."	Empty state subtitle
+391	"/ 100"	Score suffix
+399	"Trust Signals"	Section header
+app/…/ui/screens/MemoryScreen.kt
+Line	Hardcoded Text	Type
+57	"Memory"	TopBar title
+58	"$memoryCount stored interactions"	Subtitle (dynamic)
+63	contentDescription = "Clear memory"	Icon CD
+77	"No memory yet"	Empty state
+79	"Start a conversation to build memory"	Empty state subtitle
+99	"Episodic Memory"	Section label
+126	title = { Text("Clear All Memory") }	Dialog title
+127	text = { Text("This will permanently delete all stored interactions…") }	Dialog body
+135	"Clear Memory"	Dialog button
+138	"Cancel"	Dialog button
+app/…/ui/screens/WorkspaceScreen.kt
+Line	Hardcoded Text	Type
+66	"Workspace"	TopBar title
+142	title = { Text("New Workspace") }	Dialog title
+147	label = { Text("Workspace name") }	TextField label
+165	"Create"	Dialog button
+168	"Cancel"	Dialog button
+226	"No Workspaces"	Empty state
+227	"Create a workspace to organise AI-generated artifacts"	Empty state subtitle
+231	"New Workspace"	Button
+242	"No artifacts yet"	Empty state
+243	"Ask AIRI to generate code, files, or content"	Empty state subtitle
+246	"Open Chat"	Button
+app/…/ui/screens/TerminalScreen.kt
+Line	Hardcoded Text	Type
+52	"Terminal"	TopBar title
+56	"Running"	Status badge
+99	"Running…"	Status label
+120	placeholder = { Text("command…") }	TextField placeholder
+app/…/ui/screens/SandboxWorkspaceScreen.kt
+Line	Hardcoded Text	Type
+73	"Sandbox"	TopBar title
+83	contentDescription = "Back"	Icon CD
+90	contentDescription = "New session"	Icon CD
+132	"No executions yet — run a command below"	Empty state
+182	"No active sandbox sessions"	Empty state
+183	"Create a session to start running isolated tasks"	Empty state subtitle
+191	"New Session"	Button
+222	contentDescription = "Close session"	Icon CD
+280	placeholder = { Text("shell command…") }	TextField placeholder
+302	contentDescription = "Run"	Icon CD
+app/…/ui/screens/PrivacyDataSettingsScreen.kt
+Line	Hardcoded Text	Type
+80	contentDescription = "Back"	Icon CD
+84	"Privacy & Data"	TopBar title
+app/…/ui/screens/CustomizationSettingsScreen.kt
+Line	Hardcoded Text	Type
+58	contentDescription = "Back"	Icon CD
+62	"Customization"	TopBar title
+app/…/ui/screens/BillingHistoryScreen.kt
+Line	Hardcoded Text	Type
+54	title = { Text("Billing History") }	TopBar title
+94	label = { Text("All") }	Tab label
+114	"No billing records"	Empty state
+app/…/ui/screens/ScreenHeader.kt
+Line	Hardcoded Text	Type
+28	Text("رجوع") (Arabic only)	Back button label
+app/…/ui/screens/ExecutionModePanel.kt
+Line	Hardcoded Text	Type
+401	"Cloud tokens today"	Label
+Section 3 — Summary Counts
+Category	Count
+Kotlin files with hardcoded Text("…")	35 files
+Hardcoded Text() string instances	~230 instances
+Hardcoded contentDescription = "…" instances	44 instances
+Hardcoded placeholder/label TextField instances	28 instances
+Arabic-only hardcoded strings (break EN/ZH/ES)	37 instances across 8 files
+Total untranslated string slots (missing keys × locales)	467
+EN keys missing from AR	15
+EN keys missing from ZH	226
+EN keys missing from ES	226
+Section 4 — Worst Offenders by Severity
+Priority	File	Issue
+🔴 Critical	ChatScreen.kt	7 Arabic-only context menu strings — break all non-AR locales
+🔴 Critical	SkillManagerScreen.kt	8 Arabic-only strings — entire Skills screen untranslated
+🔴 Critical	AgentTasksScreen.kt	5 Arabic-only dialog strings — task creation dialog broken
+🔴 Critical	HistoryScreen.kt	2 Arabic-only dialog buttons (حذف/إلغاء)
+🔴 Critical	ScreenHeader.kt	"رجوع" (Arabic Back) — affects every screen using this shared component
+🔴 Critical	ModelSettingsScreen.kt	"غير مدعوم" — Arabic-only unsupported warning
+🟠 High	VoiceSettingsScreen.kt	2 Arabic-only strings + 8 EN-hardcoded labels
+🟠 High	ZapierIftttScreen.kt	14 hardcoded EN strings across entire screen
+🟠 High	CommunitySkillsScreen.kt	17 hardcoded EN strings
+🟠 High	CloudModelStore.kt	16 hardcoded EN strings
+🟠 High	StripePaymentScreen.kt	11 hardcoded EN strings including paywall copy
+🟡 Medium	ZH + ES locales	226 keys each completely missing — these locales are partially non-functional
+Next, I can fix all critical Arabic-only hardcoded strings (the 37 instances that actively break English, Chinese, and Spanish users) as Phase B's highest-priority remaining work. Would you like me to do that?
+
+Then he started working and stopped here.
+ This is a large systematic task. Let me create a plan and execute all three phases efficiently.
+
+Let me read the remaining locale files and all critical Kotlin files in parallel batches.
+
+I now have a complete picture of all missing strings. I'll execute Phase 2 systematically in parallel batches — locale files first, then all Kotlin files.
+
+Now I'll execute Phase 2 systematically. I'll write all locale file additions and fix all Kotlin files in parallel batches.
+
+Phase 2 — Step 1: Add all new string keys to EN strings.xml
+
+Now adding all missing keys + new keys to AR, ZH, and ES locale files in parallel:
+
+All 4 locale files are now complete. Now I'll fix all Kotlin files with hardcoded strings. Let me read them all in parallel batches.
+
+Now I need to read several more critical Kotlin files to plan their fixes. Let me batch them:
+
+I now have a complete picture of all hardcoded strings. Let me add the remaining locale keys needed, then fix all Kotlin files in parallel:
+
+Now I need to add the remaining missing string keys, then fix all Kotlin files. Let me do both in parallel batches:
+
+Now adding all remaining string keys to all 4 locale files in parallel, then fixing all Kotlin files:
+
+All locale files are complete. Now fixing all Kotlin files in parallel batches:
+
+Now fixing all Kotlin files in parallel batches:
+
+Now fixing all remaining Kotlin files in parallel:
+
+Good — CustomizationSettingsScreen and ModelSettingsScreen already have stringResource/R imports. Let me now fix all Kotlin files in parallel:
+
+All files are confirmed to have the necessary imports. Now fixing ModelSettingsScreen second hardcoded string and all remaining files in parallel:
+
+Let me read the needed areas to fix VoiceSettingsScreen and then fix all remaining files in parallel:
+
+VoiceSettingsScreen has LocalContext.current and R but needs stringResource import. Let me now fix all remaining Kotlin files in parallel:
+
+Imports are all added. Now fixing all hardcoded Arabic strings in all screens in one large parallel batch:
+
+Now fixing AgentTasksScreen, SkillManagerScreen, VoiceSettingsScreen, and reading ChatScreen's key areas — all in parallel:
+
+Continuing — now fixing the RealTaskItem typeLabel and AddTaskDialog in AgentTasksScreen, plus all SkillManagerScreen and VoiceSettingsScreen strings in parallel:
+
+Now fixing VoiceSettingsScreen and reading ChatScreen key areas in parallel:
+
+Now reading the remaining ChatScreen areas I need to fix, all in parallel:
+
+I have all the context I need. Let me add the final missing keys to locale files and do all ChatScreen fixes in parallel:
+
+You've reached your monthly free quota limit. It will reset on July 18, 2026.
+
+You're out of credits.
+It seems he stopped because he used up the free plan. Now, continue from where he started without any disruption or sabotage. You can review what he started to ensure the next step is correct and that what he did was successful, then proceed. 

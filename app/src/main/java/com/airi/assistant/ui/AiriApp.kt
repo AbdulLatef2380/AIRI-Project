@@ -61,6 +61,7 @@ import com.airi.assistant.ui.screens.ProfileScreen
 import com.airi.assistant.ui.screens.ReferralScreen
 import com.airi.assistant.ui.screens.SettingsScreen
 import com.airi.assistant.ui.screens.SkillBuilderScreen
+import com.airi.assistant.ui.screens.SkillCreationWizardScreen
 import com.airi.assistant.ui.screens.SkillManagerScreen
 import com.airi.assistant.ui.screens.TemplatesScreen
 import com.airi.assistant.ui.screens.AppInfoScreen
@@ -124,6 +125,7 @@ object AiriRoute {
     const val BILLING_HISTORY        = "screen_billing_history"
     const val MARKETPLACE            = "screen_marketplace"
     const val COMMUNITY_SKILLS       = "screen_community_skills"
+    const val SKILL_CREATION_WIZARD  = "screen_skill_creation_wizard"
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 }
@@ -362,8 +364,9 @@ fun AiriApp() {
 
                     composable(AiriRoute.MARKETPLACE) {
                         com.airi.assistant.ui.screens.MarketplaceScreen(
-                            repository = com.airi.assistant.core.ServiceLocator.marketplaceRepository,
-                            onBack     = { navController.popBackStack() }
+                            repository         = com.airi.assistant.core.ServiceLocator.marketplaceRepository,
+                            onBack             = { navController.popBackStack() },
+                            onNavigateToWizard = { navController.navigate(AiriRoute.SKILL_CREATION_WIZARD) }
                         )
                     }
 
@@ -540,6 +543,10 @@ fun AiriApp() {
                                 }
                             }
                         )
+                    }
+
+                    composable(AiriRoute.SKILL_CREATION_WIZARD) {
+                        SkillCreationWizardScreen(onBack = { navController.popBackStack() })
                     }
 
                     composable(AiriRoute.DEBUG_PANEL) {

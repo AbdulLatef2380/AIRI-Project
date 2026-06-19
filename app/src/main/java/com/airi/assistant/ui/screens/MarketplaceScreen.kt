@@ -46,8 +46,9 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MarketplaceScreen(
-    repository: MarketplaceRepository,
-    onBack:     () -> Unit = {}
+    repository:          MarketplaceRepository,
+    onBack:              () -> Unit = {},
+    onNavigateToWizard:  () -> Unit = {}
 ) {
     val context   = LocalContext.current
     val scope     = rememberCoroutineScope()
@@ -148,6 +149,7 @@ fun MarketplaceScreen(
                     }
                 )
                 3 -> PublishTab(
+                    onNavigateToWizard = onNavigateToWizard,
                     onPublish = { submission ->
                         scope.launch {
                             val r = repository.publish(submission)
@@ -546,7 +548,10 @@ private fun GitHubImportTab(
 // ── Publish Tab ───────────────────────────────────────────────────────────────
 
 @Composable
-private fun PublishTab(onPublish: (SkillPublisher.SkillSubmission) -> Unit) {
+private fun PublishTab(
+    onNavigateToWizard: () -> Unit,
+    onPublish: (SkillPublisher.SkillSubmission) -> Unit
+) {
     var manifestJson   by remember { mutableStateOf(SkillPublisher.TEMPLATE_JSON) }
     var publisherName  by remember { mutableStateOf("") }
     var repositoryUrl  by remember { mutableStateOf("") }
@@ -563,6 +568,47 @@ private fun PublishTab(onPublish: (SkillPublisher.SkillSubmission) -> Unit) {
         item {
             Text(stringResource(R.string.marketplace_publish_title), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = AiriTheme.onBackground)
             Text(stringResource(R.string.marketplace_publish_subtitle), fontSize = 14.sp, color = AiriTheme.onSurfaceVariant)
+        }
+
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CosmicAccent.copy(alpha = 0.10f))
+                    .border(1.dp, CosmicAccent.copy(alpha = 0.30f), RoundedCornerShape(14.dp))
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.AutoAwesome,
+                    contentDescription = null,
+                    tint = CosmicAccent,
+                    modifier = Modifier.size(28.dp)
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Create with Wizard",
+                        fontWeight = FontWeight.Bold,
+                        color = CosmicAccent,
+                        fontSize = 15.sp
+                    )
+                    Text(
+                        "Build a skill.json manifest step-by-step instead of editing raw JSON.",
+                        fontSize = 12.sp,
+                        color = AiriTheme.onSurfaceVariant
+                    )
+                }
+                Button(
+                    onClick = onNavigateToWizard,
+                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text("Open", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                }
+            }
         }
 
         item {

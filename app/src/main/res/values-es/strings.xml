@@ -822,4 +822,9 @@
     <string name="vosk_download_small_btn">Descargar modelo pequeño (inglés, ~40 MB)</string>
     <string name="vosk_downloading_progress">Descargando… %1$d%%</string>
     <string name="vosk_install_success">✓ Modelo de voz instalado</string>
+
+    <string name="take_photo">Tomar foto</string>
+    <string name="photo_captured">Foto capturada</string>
+    <string name="voice_engine_not_installed">Motor de voz no instalado</string>
+    <string name="voice_recognition_ready">Reconocimiento de voz listo</string>
 </resources>

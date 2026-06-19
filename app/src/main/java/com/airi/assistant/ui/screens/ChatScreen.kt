@@ -907,7 +907,7 @@ fun ChatScreen(
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("تأكيد", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.confirm), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -916,7 +916,7 @@ fun ChatScreen(
                     border  = BorderStroke(1.dp, Color.White.copy(0.3f)),
                     shape   = RoundedCornerShape(12.dp)
                 ) {
-                    Text("إلغاء", color = AiriTheme.onBackground.copy(0.8f))
+                    Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(0.8f))
                 }
             }
         )
@@ -1203,7 +1203,7 @@ private fun AiriModelPickerSheet(
 
             Spacer(Modifier.height(8.dp))
             TextButton(onClick = onNavigateToModels, modifier = Modifier.fillMaxWidth()) {
-                Text("المزيد من النماذج", color = CosmicAccent, fontSize = 14.sp)
+                Text(stringResource(R.string.chat_more_models), color = CosmicAccent, fontSize = 14.sp)
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -1620,7 +1620,7 @@ fun UserBubble(
                     modifier         = Modifier.background(Color(0xFF1A1F35))
                 ) {
                     DropdownMenuItem(
-                        text         = { Text("نسخ", color = AiriTheme.onBackground, fontSize = 14.sp) },
+                        text         = { Text(stringResource(R.string.copy), color = AiriTheme.onBackground, fontSize = 14.sp) },
                         leadingIcon  = { Icon(Icons.Outlined.ContentCopy, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
                         onClick      = {
                             showContextMenu = false
@@ -1629,23 +1629,23 @@ fun UserBubble(
                         }
                     )
                     DropdownMenuItem(
-                        text         = { Text("تعديل", color = AiriTheme.onBackground, fontSize = 14.sp) },
+                        text         = { Text(stringResource(R.string.edit), color = AiriTheme.onBackground, fontSize = 14.sp) },
                         leadingIcon  = { Icon(Icons.Outlined.Edit, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
                         onClick      = { showContextMenu = false; onEdit() }
                     )
                     DropdownMenuItem(
-                        text         = { Text("تحديد نص", color = AiriTheme.onBackground, fontSize = 14.sp) },
+                        text         = { Text(stringResource(R.string.select_text), color = AiriTheme.onBackground, fontSize = 14.sp) },
                         leadingIcon  = { Icon(Icons.Outlined.TextFields, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
                         onClick      = { showContextMenu = false /* text selection handled by system */ }
                     )
                     DropdownMenuItem(
-                        text         = { Text("مشاركة", color = AiriTheme.onBackground, fontSize = 14.sp) },
+                        text         = { Text(stringResource(R.string.share), color = AiriTheme.onBackground, fontSize = 14.sp) },
                         leadingIcon  = { Icon(Icons.Outlined.Share, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
                         onClick      = { showContextMenu = false; shareAiResponse(context, displayText) }
                     )
                     Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
                     DropdownMenuItem(
-                        text         = { Text("حذف", color = SemanticError, fontSize = 14.sp) },
+                        text         = { Text(stringResource(R.string.delete), color = SemanticError, fontSize = 14.sp) },
                         leadingIcon  = { Icon(Icons.Outlined.Delete, null, tint = SemanticError.copy(0.7f), modifier = Modifier.size(16.dp)) },
                         onClick      = { showContextMenu = false; onDelete() }
                     )

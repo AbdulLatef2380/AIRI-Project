@@ -822,4 +822,9 @@
     <string name="vosk_download_small_btn">下载小型模型（英语，约 40 MB）</string>
     <string name="vosk_downloading_progress">正在下载… %1$d%%</string>
     <string name="vosk_install_success">✓ 语音模型已安装</string>
+
+    <string name="take_photo">拍照</string>
+    <string name="photo_captured">照片已拍摄</string>
+    <string name="voice_engine_not_installed">语音引擎未安装</string>
+    <string name="voice_recognition_ready">语音识别已就绪</string>
 </resources>

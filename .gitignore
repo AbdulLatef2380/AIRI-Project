@@ -1,3 +1,62 @@
-.cxx/
+# ── Build outputs ────────────────────────────────────────────────────────────
 build/
+app/build/
 .gradle/
+.cxx/
+externalNativeBuild/
+captures/
+out/
+
+# ── Generated APKs / bundles ─────────────────────────────────────────────────
+*.apk
+*.aab
+*.ap_
+app-release*.apk
+app-debug*.apk
+
+# ── Keystores / signing configs ───────────────────────────────────────────────
+*.keystore
+*.jks
+release-keystore.properties
+signing.properties
+
+# ── Local configuration (never commit) ────────────────────────────────────────
+local.properties
+local.defaults.properties
+
+# ── Android SDK / NDK (Replit/CI downloads — not source) ─────────────────────
+android-sdk/
+ndk/
+ndk-bundle/
+/home/runner/android-sdk/
+sdk/
+sdk.dir
+cmake/
+
+# ── IDE ──────────────────────────────────────────────────────────────────────
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# ── macOS / system ────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.orig
+
+# ── Logs / temp ───────────────────────────────────────────────────────────────
+*.log
+/tmp/
+*.tmp
+*.bak
+*.swp
+
+# ── NDK compilation artifacts ─────────────────────────────────────────────────
+*.so
+obj/
+
+# ── Profiling ─────────────────────────────────────────────────────────────────
+*.hprof

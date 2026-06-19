@@ -128,4 +128,83 @@ class SkillMemoryBridge(
             }
         }
     }
+
+    // ── FULL_ACCESS-only operations ────────────────────────────────────────────
+    // These methods require SkillMemoryAccess.FULL_ACCESS and provide capabilities
+    // not available to READ_WRITE skills — distinguishing the two permission levels.
+
+    /**
+     * Export all recent session memories as a structured text dump.
+     *
+     * Intended for skills that need to analyse or archive the full session context
+     * (e.g. a MemoryAnalyzer or SessionSummariser skill).
+     *
+     * Only available to skills with [SkillMemoryAccess.FULL_ACCESS].
+     * READ_WRITE skills may only read a limited window via [getRecentMessages].
+     *
+     * @param limit Maximum number of entries to export (default 200).
+     * @return Newline-delimited "role: content" entries, or empty string if denied.
+     */
+    suspend fun exportMemories(limit: Int = 200): String {
+        if (access != SkillMemoryAccess.FULL_ACCESS) {
+            Log.w(TAG, "[$skillId] EXPORT denied — requires FULL_ACCESS, got $access")
+            return ""
+        }
+        return try {
+            val messages = manager.getRecentMessages(limit)
+            if (messages.isEmpty()) return ""
+            buildString {
+                append("[Memory export for session $sessionId — ${messages.size} entries]\n")
+                messages.forEach { msg ->
+                    append("${msg.role}: ${msg.content.take(500)}\n")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "[$skillId] exportMemories failed: ${e.message}")
+            ""
+        }
+    }
+
+    /**
+     * Return the approximate total count of messages in this session's memory.
+     *
+     * Only available to skills with [SkillMemoryAccess.FULL_ACCESS].
+     * Returns -1 if denied or on error.
+     */
+    suspend fun getMemoryCount(): Int {
+        if (access != SkillMemoryAccess.FULL_ACCESS) {
+            Log.w(TAG, "[$skillId] COUNT denied — requires FULL_ACCESS, got $access")
+            return -1
+        }
+        return try {
+            manager.getRecentMessages(Int.MAX_VALUE).size
+        } catch (e: Exception) {
+            Log.e(TAG, "[$skillId] getMemoryCount failed: ${e.message}")
+            -1
+        }
+    }
+
+    /**
+     * Record a structured fact with explicit metadata tagging.
+     *
+     * Unlike [record] (available to READ_WRITE skills), this method tags the
+     * entry with a structured prefix that enables future filtered retrieval.
+     *
+     * Only available to skills with [SkillMemoryAccess.FULL_ACCESS].
+     *
+     * @param factType  A short category label (e.g. "preference", "fact", "reminder").
+     * @param content   The content to persist.
+     */
+    fun recordTaggedFact(factType: String, content: String) {
+        if (access != SkillMemoryAccess.FULL_ACCESS) {
+            Log.w(TAG, "[$skillId] TAGGED_WRITE denied — requires FULL_ACCESS, got $access")
+            return
+        }
+        try {
+            val tagged = "[FACT:$factType][$skillId] $content"
+            manager.recordImportantMemory("skill", tagged)
+        } catch (e: Exception) {
+            Log.e(TAG, "[$skillId] recordTaggedFact failed: ${e.message}")
+        }
+    }
 }

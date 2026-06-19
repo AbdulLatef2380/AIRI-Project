@@ -1,6 +1,7 @@
 package com.airi.assistant.domain.customskill
 
 import android.content.Context
+import com.airi.assistant.ai.skills.SkillAuditLogger
 import com.airi.assistant.ai.skills.SkillResult
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.core.ServiceLocator
@@ -65,6 +66,15 @@ class CustomSkillExecutor(private val context: Context) {
             return@withContext SkillResult(false, "", AppErrorHandler.toUserMessage(error), skill.name)
         }
 
+        // ── Guard: per-skill rate limit (Phase G) ─────────────────────────────
+        // Max 60 calls per skill per rolling minute. In-memory; resets on process restart.
+        if (!checkRateLimit(skill.id)) {
+            val msg = "Rate limit exceeded for '${skill.name}' — max $RATE_LIMIT_MAX_CALLS requests/min. Please wait a moment."
+            AnalyticsService.skillFailed(skill.name, "rate_limited")
+            LoggingService.warn(TAG, "Rate limit triggered for skill '${skill.name}' (id=${skill.id})")
+            return@withContext SkillResult(false, SkillExecutionOutput.failure(msg).toJsonString(), msg, skill.name)
+        }
+
         // ── Build request ─────────────────────────────────────────────────────
         val method = skill.config.method.trim().uppercase(Locale.US).ifBlank { "POST" }
 
@@ -97,7 +107,8 @@ class CustomSkillExecutor(private val context: Context) {
         LoggingService.debug(TAG, "Request body (sanitized): ${body.take(500)}")
 
         // ── Semaphore: max 3 concurrent executions ────────────────────────────
-        return@withContext executionSemaphore.withPermit {
+        val startMs = System.currentTimeMillis()
+        val result = executionSemaphore.withPermit {
             try {
                 withTimeout(EXECUTION_TIMEOUT_MS) {
                     executeWithRetry(skill, method, requestBody, sanitizedUrl)
@@ -110,6 +121,18 @@ class CustomSkillExecutor(private val context: Context) {
                 SkillResult(false, SkillExecutionOutput.failure(msg).toJsonString(), msg, skill.name)
             }
         }
+        // Phase G: persist execution event to rolling audit log
+        SkillAuditLogger.log(
+            context = context,
+            event   = SkillAuditLogger.AuditEvent(
+                skillId    = skill.id,
+                toolName   = skill.name,
+                success    = result.success,
+                durationMs = System.currentTimeMillis() - startMs,
+                errorMsg   = result.error
+            )
+        )
+        return@withContext result
     }
 
     private suspend fun executeWithRetry(
@@ -251,5 +274,30 @@ class CustomSkillExecutor(private val context: Context) {
         private const val MAX_RESPONSE_CHARS = 1_048_576
 
         val executionSemaphore = Semaphore(3)
+
+        // ── Rate limiting (Phase G) ────────────────────────────────────────────
+        // LongArray[0] = window start (epoch ms), LongArray[1] = call count in window
+        private const val RATE_LIMIT_WINDOW_MS = 60_000L
+        private const val RATE_LIMIT_MAX_CALLS = 60L
+        private val rateLimitWindows = java.util.concurrent.ConcurrentHashMap<String, LongArray>()
+
+        /**
+         * Returns true if the skill is within its allowed call rate.
+         * False = rate exceeded → caller must short-circuit.
+         */
+        fun checkRateLimit(skillId: String): Boolean {
+            val now    = System.currentTimeMillis()
+            val window = rateLimitWindows.computeIfAbsent(skillId) { longArrayOf(now, 0L) }
+            synchronized(window) {
+                if (now - window[0] > RATE_LIMIT_WINDOW_MS) {
+                    // New window — reset
+                    window[0] = now
+                    window[1] = 1L
+                    return true
+                }
+                window[1]++
+                return window[1] <= RATE_LIMIT_MAX_CALLS
+            }
+        }
     }
 }

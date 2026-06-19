@@ -5,3 +5,4 @@
 - [Localization Patterns](localization-patterns.md) — Mixed-language bug root cause, string resource approach for coroutine snackbar messages, tab label pattern.
 - [Skill System Architecture](skill-system-architecture.md) — Complete skill engine: files created, API surfaces, SkillToolBridge→ToolDispatcher→ChatViewModel wiring, official skill library.
 - [Skill System Security Audit](skill-system-security-audit.md) — 4 confirmed gaps fixed; execution flow truth, modelAccess enforcement pattern, dead-code map.
+- [Phase 3 Post-Audit Execution](phase3-post-audit-execution.md) — All Phase A–K gaps implemented: custom skills now executable in agent loop (critical fix), manifest extension, verifier, rate limiting, audit log, FULL_ACCESS differentiation, Updates tab. BUILD GREEN.

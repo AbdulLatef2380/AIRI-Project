@@ -2,6 +2,7 @@ package com.airi.assistant.marketplace
 
 import android.content.Context
 import android.util.Log
+import com.airi.assistant.ai.skills.SkillManifest
 import com.airi.assistant.ai.skills.SkillRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -179,7 +180,18 @@ class MarketplaceRepository(
                 return@withContext MarketplaceResult.Error("Invalid skill manifest: ${validation.errors.joinToString("; ")}")
             }
 
-            // 3. Record install
+            // 3. Register with SkillRegistry so the agent loop can invoke this skill (Phase A+B)
+            runCatching {
+                val manifestObj = JSONObject(defJson)
+                val manifest    = SkillManifest.fromJson(manifestObj)
+                val endpoint    = manifestObj.optString("endpoint").ifBlank { skill.skillJsonUrl }
+                skillRegistry.registerDynamicFromManifest(manifest, endpoint)
+                Log.d(TAG, "Skill '${skill.name}' registered in SkillRegistry for agent-loop routing")
+            }.onFailure { e ->
+                Log.w(TAG, "registerDynamicFromManifest failed (install still recorded): ${e.message}")
+            }
+
+            // 4. Record install
             val installList = loadInstalledSkills().toMutableList()
             val updatedSkill = skill.copy(
                 isInstalled      = true,

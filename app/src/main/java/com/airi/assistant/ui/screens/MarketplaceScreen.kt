@@ -65,11 +65,14 @@ fun MarketplaceScreen(
 
     val snackState = remember { SnackbarHostState() }
 
+    val pendingUpdates = remember(installed) { installed.filter { it.hasUpdate } }
+
     val tabExplore   = stringResource(R.string.marketplace_tab_explore)
     val tabInstalled = stringResource(R.string.marketplace_tab_installed, installed.size)
+    val tabUpdates   = if (pendingUpdates.isNotEmpty()) "Updates (${pendingUpdates.size})" else "Updates"
     val tabPublish   = stringResource(R.string.marketplace_tab_publish)
     val tabImport    = stringResource(R.string.marketplace_tab_import)
-    val tabLabels    = listOf(tabExplore, tabInstalled, tabImport, tabPublish)
+    val tabLabels    = listOf(tabExplore, tabInstalled, tabUpdates, tabImport, tabPublish)
 
     LaunchedEffect(Unit) { repository.fetchFeatured() }
 
@@ -141,7 +144,16 @@ fun MarketplaceScreen(
                         }
                     }
                 )
-                2 -> GitHubImportTab(
+                2 -> UpdatesTab(
+                    updates  = pendingUpdates,
+                    onUpdate = { skill ->
+                        scope.launch {
+                            repository.update(skill)
+                            snackMessage = context.getString(R.string.marketplace_updated, skill.name, skill.version)
+                        }
+                    }
+                )
+                3 -> GitHubImportTab(
                     onImported = { skillName ->
                         snackMessage = context.getString(R.string.marketplace_import_success, skillName)
                     },
@@ -149,7 +161,7 @@ fun MarketplaceScreen(
                         snackMessage = context.getString(R.string.skill_import_github_failed, msg)
                     }
                 )
-                3 -> PublishTab(
+                4 -> PublishTab(
                     onNavigateToWizard = onNavigateToWizard,
                     onPublish = { submission ->
                         scope.launch {
@@ -407,6 +419,75 @@ private fun InstalledTab(
                             Icon(Icons.Default.Delete, "Uninstall", tint = SemanticError)
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+// ── Updates Tab (Phase J) ──────────────────────────────────────────────────────
+
+@Composable
+private fun UpdatesTab(
+    updates:  List<MarketplaceSkill>,
+    onUpdate: (MarketplaceSkill) -> Unit
+) {
+    if (updates.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.CheckCircle, null, Modifier.size(56.dp), tint = SemanticSuccess)
+                Text("All skills are up to date", color = AiriTheme.onBackground, fontWeight = FontWeight.Medium)
+                Text("No updates available right now.", fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
+            }
+        }
+        return
+    }
+
+    LazyColumn(
+        contentPadding      = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier            = Modifier.fillMaxSize()
+    ) {
+        item {
+            Text(
+                "${updates.size} update${if (updates.size != 1) "s" else ""} available",
+                fontWeight = FontWeight.SemiBold,
+                fontSize   = 14.sp,
+                color      = SemanticWarn
+            )
+        }
+        items(updates, key = { it.id }) { skill ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
+                shape  = RoundedCornerShape(14.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier.size(44.dp).background(SemanticWarn.copy(0.12f), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) { Text(skill.category.emoji, fontSize = 22.sp) }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(skill.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = AiriTheme.onBackground)
+                            if (skill.isVerified) Icon(Icons.Default.Verified, "Verified", Modifier.size(14.dp), tint = CosmicAccent)
+                        }
+                        Text(
+                            "v${skill.installedVersion ?: "?"} → v${skill.version}",
+                            fontSize = 12.sp,
+                            color    = SemanticWarn
+                        )
+                        Text(skill.publisher.displayName, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick         = { onUpdate(skill) },
+                        contentPadding  = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        colors          = ButtonDefaults.buttonColors(containerColor = SemanticWarn)
+                    ) { Text(stringResource(R.string.marketplace_update), fontSize = 12.sp, color = Color.White) }
                 }
             }
         }

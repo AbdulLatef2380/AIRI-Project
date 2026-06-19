@@ -2,6 +2,20 @@ package com.airi.assistant.ai.skills
 
 import android.content.Context
 
+/**
+ * DEAD CODE — retained for backward compatibility only.
+ *
+ * [SkillExecutor.tryHandle] has zero callers in the production execution path.
+ * Skills are routed exclusively through:
+ *   ChatViewModel → AgentLoop → ToolDispatcher → SkillToolBridge → SkillRegistry → skill.execute()
+ *
+ * Do NOT add new callers. Use [SkillRegistry.getAvailableSkills] + [SkillToolBridge] instead.
+ */
+@Deprecated(
+    message = "Dead code. Use SkillRegistry + SkillToolBridge for all skill routing. " +
+              "See SkillToolBridge.invoke() for the production execution path.",
+    level   = DeprecationLevel.WARNING
+)
 class SkillExecutor(private val context: Context) {
 
     private val registry = SkillRegistry(context)

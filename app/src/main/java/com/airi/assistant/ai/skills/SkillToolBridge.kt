@@ -85,10 +85,16 @@ class SkillToolBridge(
 
         Log.i(TAG, "Invoking skill '${skill.skillId}' via tool '$toolName' args=${args.keys}")
 
+        // Phase I enforcement: only pass the model bridge to skills that declared model access
+        val effectiveBridge = if (skill.modelAccess != SkillModelAccess.NONE) modelBridge else null
+        if (modelBridge != null && skill.modelAccess == SkillModelAccess.NONE) {
+            Log.d(TAG, "Model bridge suppressed for '${skill.skillId}' — declared modelAccess=NONE")
+        }
+
         val params: Map<String, Any> = buildMap {
             put("input", args["input"] ?: args["query"] ?: args.values.firstOrNull() ?: "")
             putAll(args)
-            put("context", skillCtx().copy(modelBridge = modelBridge))
+            put("context", skillCtx().copy(modelBridge = effectiveBridge))
         }
 
         return try {

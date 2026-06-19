@@ -17,12 +17,20 @@ import com.airi.assistant.ai.skills.impl.TranslatorSkill
 import com.airi.assistant.ai.skills.impl.WebSearchSkill
 import com.airi.assistant.ai.skills.impl.WebsiteReaderSkill
 import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.domain.customskill.CustomSkill
+import com.airi.assistant.domain.customskill.CustomSkillExecutor
 import com.airi.assistant.domain.customskill.CustomSkillRepository
+import com.airi.assistant.domain.customskill.SkillConfig
+import com.airi.assistant.domain.customskill.SkillType
+import java.util.UUID
 
 class SkillRegistry(private val context: Context) {
 
     private val secureStorage = SecureStorage(context)
     private val customSkillRepository = CustomSkillRepository(context)
+
+    /** Shared executor instance for custom-skill adapters returned from [getAvailableSkills]. */
+    private val customSkillExecutor by lazy { CustomSkillExecutor(context) }
 
     private val disabledSkillsPrefs by lazy {
         context.getSharedPreferences("airi_skill_toggles", Context.MODE_PRIVATE)
@@ -235,6 +243,17 @@ class SkillRegistry(private val context: Context) {
             if (isSkillEnabled("calendar_events")) skills.add(CalendarEventsSkill(context))
         }
 
+        // ── Custom / marketplace-installed skills (Phase B fix) ───────────────
+        // Without this block, installed marketplace skills were listed in the system
+        // prompt via buildSkillDescriptionBlock() but could never be invoked by the
+        // agent loop, because getAvailableSkills() is the sole routing source for
+        // SkillToolBridge.invoke() and ToolDispatcher.
+        customSkillRepository.getAllSkills()
+            .filter { isSkillEnabled(it.id) }
+            .forEach { customSkill ->
+                skills.add(CustomSkillAiriSkillAdapter(customSkill, customSkillExecutor))
+            }
+
         return skills
     }
 
@@ -288,6 +307,14 @@ class SkillRegistry(private val context: Context) {
                 "Pass allowDowngrade=true to force."
             )
         }
+        // Phase E: circular dependency detection
+        val circular = detectCircularDependencies(info.name)
+        if (circular.isNotEmpty()) {
+            return InstallResult.DependencyFailure(
+                listOf("Circular dependency detected: ${circular.joinToString(" → ")}")
+            )
+        }
+
         val depResult = validateDependencies(info.dependencies)
         if (!depResult.satisfied) {
             return InstallResult.DependencyFailure(depResult.missing)
@@ -320,6 +347,76 @@ class SkillRegistry(private val context: Context) {
 
     /** Result of [validateDependencies]. */
     data class DependencyValidation(val satisfied: Boolean, val missing: List<String>)
+
+    // ── Circular dependency detection (Phase E) ────────────────────────────────
+
+    /**
+     * Detect circular dependencies starting from [skillId].
+     *
+     * Returns the dependency chain that forms the cycle (e.g. ["A", "B", "C", "A"]),
+     * or an empty list if no cycle exists.
+     */
+    fun detectCircularDependencies(skillId: String): List<String> =
+        detectCircularDeps(skillId, emptyList())
+
+    private fun detectCircularDeps(skillId: String, chain: List<String>): List<String> {
+        if (skillId in chain) return chain + skillId        // cycle found
+        val info = getAllSkillInfos().firstOrNull { it.name == skillId } ?: return emptyList()
+        for (dep in info.dependencies) {
+            val result = detectCircularDeps(dep, chain + skillId)
+            if (result.isNotEmpty()) return result
+        }
+        return emptyList()
+    }
+
+    // ── Dynamic skill registration (Phase A+B) ────────────────────────────────
+
+    /**
+     * Convert a [SkillManifest] into a [CustomSkill] and persist it via
+     * [CustomSkillRepository] so that [getAvailableSkills] auto-discovers it
+     * on the next call — making the skill immediately usable in the agent loop.
+     *
+     * Called by [com.airi.assistant.marketplace.MarketplaceRepository.install] and
+     * [com.airi.assistant.marketplace.GitHubSkillImporter] after successful import.
+     *
+     * @param manifest   The parsed manifest describing the skill.
+     * @param endpoint   The HTTPS endpoint where the skill's API is hosted.
+     *                   Falls back to [SkillManifest.homepage] or [SkillManifest.repositoryUrl].
+     * @return           true on success, false if persistence or validation fails.
+     */
+    fun registerDynamicFromManifest(manifest: SkillManifest, endpoint: String = ""): Boolean {
+        return runCatching {
+            val resolvedEndpoint = when {
+                endpoint.startsWith("https://")                    -> endpoint
+                !manifest.homepage.isNullOrBlank()                 -> manifest.homepage!!
+                !manifest.repositoryUrl.isNullOrBlank()            -> manifest.repositoryUrl!!
+                else -> "https://placeholder.airi.app/skill/${manifest.id}"
+            }
+            val customSkill = CustomSkill(
+                id          = manifest.id.ifBlank { UUID.randomUUID().toString() },
+                name        = manifest.name,
+                description = manifest.description,
+                type        = SkillType.API,
+                config      = SkillConfig(
+                    endpoint     = resolvedEndpoint,
+                    method       = "POST",
+                    bodyTemplate = """{"input": "{{input}}"}"""
+                ),
+                createdAt   = System.currentTimeMillis()
+            )
+            customSkillRepository.saveSkill(customSkill)
+            setSkillEnabled(manifest.id, true)
+            setInstalledVersion(manifest.id, manifest.version)
+            android.util.Log.i(
+                "SkillRegistry",
+                "AIRI_PROOF SKILL_MANIFEST_REGISTERED id=${manifest.id} v=${manifest.version} endpoint=$resolvedEndpoint"
+            )
+            true
+        }.getOrElse { e ->
+            android.util.Log.e("SkillRegistry", "registerDynamicFromManifest failed for '${manifest.id}': ${e.message}")
+            false
+        }
+    }
 
     /** Result of [installSkillWithVersion]. */
     sealed class InstallResult {

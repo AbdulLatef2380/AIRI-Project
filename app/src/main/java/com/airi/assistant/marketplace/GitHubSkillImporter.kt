@@ -2,6 +2,7 @@ package com.airi.assistant.marketplace
 
 import android.util.Log
 import com.airi.assistant.ai.skills.SkillManifest
+import com.airi.assistant.ai.skills.SkillPackageVerifier
 import com.airi.assistant.domain.customskill.CustomSkill
 import com.airi.assistant.domain.customskill.SkillConfig
 import com.airi.assistant.domain.customskill.SkillType
@@ -108,14 +109,26 @@ object GitHubSkillImporter {
             return@withContext ImportResult(false, errors = listOf("Failed to parse manifest: ${e.message}"))
         }
 
+        // Phase D: package integrity + version compatibility verification
+        val verifyResult = SkillPackageVerifier.verify(jsonString, manifest)
+        if (!verifyResult.passed) {
+            Log.w(TAG, "SkillPackageVerifier rejected '${manifest.id}': ${verifyResult.errors}")
+            return@withContext ImportResult(
+                success  = false,
+                errors   = verifyResult.errors,
+                warnings = validation.warnings + verifyResult.warnings
+            )
+        }
+        val mergedWarnings = validation.warnings + verifyResult.warnings
+
         val skill = manifestToCustomSkill(manifest, rawUrl)
-        Log.i(TAG, "Skill imported successfully: ${manifest.id} v${manifest.version}")
+        Log.i(TAG, "Skill imported successfully: ${manifest.id} v${manifest.version} (verifier passed, ${mergedWarnings.size} warnings)")
 
         ImportResult(
             success  = true,
             skill    = skill,
             manifest = manifest,
-            warnings = validation.warnings
+            warnings = mergedWarnings
         )
     }
 

@@ -870,7 +870,7 @@ fun ChatScreen(
             },
             title = {
                 Text(
-                    "تأكيد الإجراء",
+                    stringResource(R.string.chat_confirm_action_title),
                     color      = AiriTheme.onBackground,
                     fontWeight = FontWeight.Bold,
                     fontSize   = 18.sp
@@ -879,7 +879,7 @@ fun ChatScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "AIRI على وشك تنفيذ:",
+                        stringResource(R.string.chat_airi_about_to_execute),
                         color    = AiriTheme.onBackground.copy(0.7f),
                         fontSize = 14.sp
                     )
@@ -902,7 +902,7 @@ fun ChatScreen(
                         lineHeight = 18.sp
                     )
                     Text(
-                        "سيؤثر هذا الإجراء على جهازك مباشرةً.",
+                        stringResource(R.string.chat_action_device_warning),
                         color    = Color(0xFFFF6B6B).copy(0.8f),
                         fontSize = 12.sp
                     )
@@ -1040,7 +1040,7 @@ private fun AiriChatTopBar(
                             modelState.isModelReady   -> modelState.selectedModelName
                             modelState.isCloudReady   -> modelState.cloudModelName.ifBlank { "Airi Cloud" }
                             modelState.isModelLoading -> stringResource(R.string.loading_model)
-                            else                      -> "Airi Cloud"
+                            else                      -> stringResource(R.string.no_model_active)
                         },
                         color = AiriTheme.onBackground,
                         fontSize = 14.sp,
@@ -1150,7 +1150,7 @@ private fun AiriModelPickerSheet(
                 .padding(horizontal = 20.dp, vertical = 8.dp)
         ) {
             Text(
-                text = "اختر النموذج",
+                text = stringResource(R.string.chat_select_model_title),
                 color = AiriTheme.onBackground, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.End,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
@@ -1159,7 +1159,7 @@ private fun AiriModelPickerSheet(
             // ── Local models ──────────────────────────────────────────────
             if (localModels.isNotEmpty()) {
                 Text(
-                    "على الجهاز",
+                    stringResource(R.string.chat_on_device_label),
                     color = AiriTheme.onBackground.copy(0.45f), fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -1170,7 +1170,7 @@ private fun AiriModelPickerSheet(
                         modelState.selectedModelId == model.id
                     ModelPickerRow(
                         name      = model.name,
-                        subtitle  = "محلي — خصوصية تامة",
+                        subtitle  = stringResource(R.string.chat_local_privacy),
                         icon      = Icons.Outlined.Memory,
                         isSelected = isSelected,
                         onClick   = {
@@ -1187,7 +1187,7 @@ private fun AiriModelPickerSheet(
 
             // ── Cloud models (free built-in providers) ────────────────────
             Text(
-                "سحابي",
+                stringResource(R.string.chat_cloud_label),
                 color = AiriTheme.onBackground.copy(0.45f), fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -1296,7 +1296,7 @@ private fun AiriHistoryPanel(
                     Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_close), tint = AiriTheme.onBackground.copy(alpha = 0.7f))
                 }
                 Text(
-                    "السجل",
+                    stringResource(R.string.history_title),
                     color = AiriTheme.onBackground,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
@@ -1328,7 +1328,7 @@ private fun AiriHistoryPanel(
                     Icon(Icons.Default.Add, contentDescription = null, tint = AiriTheme.onBackground, modifier = Modifier.size(16.dp))
                 }
                 Text(
-                    "محادثة جديدة",
+                    stringResource(R.string.new_conversation),
                     color = CosmicAccent,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold
@@ -1349,7 +1349,7 @@ private fun AiriHistoryPanel(
                         )
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            "لا توجد محادثات سابقة",
+                            stringResource(R.string.history_no_sessions),
                             color = AiriTheme.outline,
                             fontSize = 14.sp
                         )
@@ -1379,7 +1379,7 @@ private fun AiriHistoryPanel(
                             )
                             Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                                 Text(
-                                    session.title.ifBlank { "محادثة" },
+                                    session.title.ifBlank { stringResource(R.string.session_untitled) },
                                     color = AiriTheme.onBackground,
                                     fontSize = 14.sp,
                                     maxLines = 1,
@@ -1501,7 +1501,7 @@ fun ChatMessageList(
                 }
                 Spacer(Modifier.height(20.dp))
                 Text(
-                    text = "كيف يمكنني مساعدتك؟",
+                    text = stringResource(R.string.chat_how_can_help),
                     color = AiriTheme.onBackground.copy(alpha = 0.88f),
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 20.sp,
@@ -1959,6 +1959,7 @@ private fun AiriThinkingPulse(modifier: Modifier = Modifier, dotSize: Dp = 7.dp,
 // Layout: [send/livechat circle] [+] [mic] [waveform] [connector badges] [text field] [expand ^]
 // ─────────────────────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiriChatInputBar(
     modelState: ModelUiState,
@@ -1985,6 +1986,7 @@ fun AiriChatInputBar(
     onUserStartedTyping: () -> Unit = {}
 ) {
     var showAttachPopup by remember { mutableStateOf(false) }
+    val attachSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var text by rememberSaveable { mutableStateOf("") }
     var isExpanded by remember { mutableStateOf(false) }
     val isInferenceReady = modelState.isModelReady || modelState.isCloudReady
@@ -2048,10 +2050,10 @@ fun AiriChatInputBar(
                 else -> CosmicAccent
             }
             val label = when {
-                isVadInterrupting                          -> "Interrupting…"
-                voiceState == VoiceSessionState.LISTENING  -> "Listening…"
-                voiceState == VoiceSessionState.PROCESSING -> "Processing…"
-                voiceState == VoiceSessionState.SPEAKING   -> "Speaking…"
+                isVadInterrupting                          -> stringResource(R.string.voice_interrupting)
+                voiceState == VoiceSessionState.LISTENING  -> stringResource(R.string.voice_listening)
+                voiceState == VoiceSessionState.PROCESSING -> stringResource(R.string.voice_processing)
+                voiceState == VoiceSessionState.SPEAKING   -> stringResource(R.string.voice_speaking)
                 else -> ""
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
@@ -2105,7 +2107,7 @@ fun AiriChatInputBar(
                                     text = when {
                                         isGenerating              -> stringResource(R.string.generating)
                                         modelState.isModelLoading -> stringResource(R.string.model_is_loading)
-                                        else                      -> "قم بتعيين مهمة أو اسأل أي شيء"
+                                        else                      -> stringResource(R.string.chat_assign_task_hint)
                                     },
                                     color = AiriTheme.onBackground.copy(0.35f),
                                     fontSize = 15.sp,
@@ -2228,65 +2230,105 @@ fun AiriChatInputBar(
             }
         }
 
-        // ── Attach popup bubble ────────────────────────────────────────────
-        if (showAttachPopup) {
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            val gapPx   = with(density) { 12.dp.roundToPx() }
-            val provider = remember {
-                object : androidx.compose.ui.window.PopupPositionProvider {
-                    override fun calculatePosition(
-                        anchorBounds: androidx.compose.ui.unit.IntRect,
-                        windowSize: androidx.compose.ui.unit.IntSize,
-                        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                        popupContentSize: androidx.compose.ui.unit.IntSize
-                    ): androidx.compose.ui.unit.IntOffset {
-                        val x = (anchorBounds.left).coerceAtLeast(8)
-                        val y = (anchorBounds.top - popupContentSize.height - gapPx).coerceAtLeast(8)
-                        return androidx.compose.ui.unit.IntOffset(x, y)
-                    }
+    }
+
+    // ── Attach bottom sheet (Material 3) ───────────────────────────────────
+    if (showAttachPopup) {
+        ModalBottomSheet(
+            onDismissRequest = { showAttachPopup = false },
+            sheetState = attachSheetState,
+            containerColor = Color(0xFF1A1F35),
+            contentColor = AiriTheme.onBackground,
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+            dragHandle = {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 32.dp, height = 4.dp)
+                            .clip(CircleShape)
+                            .background(AiriTheme.onBackground.copy(0.25f))
+                    )
                 }
             }
-            androidx.compose.ui.window.Popup(
-                popupPositionProvider = provider,
-                onDismissRequest = { showAttachPopup = false },
-                properties = androidx.compose.ui.window.PopupProperties(focusable = true)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color(0xFF1A1F35),
-                    shadowElevation = 12.dp,
-                    modifier = Modifier.border(1.dp, CosmicAccent.copy(0.25f), RoundedCornerShape(20.dp))
+                // ── Section A header ──────────────────────────────────────
+                Text(
+                    text = stringResource(R.string.attach_section_media),
+                    color = AiriTheme.onBackground.copy(0.45f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+                // ── Section A — 3 equal cards ─────────────────────────────
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        // Top row: image, camera, file
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            AttachBubble(Icons.Outlined.Image,     "صورة")         { showAttachPopup = false; onPickImage() }
-                            AttachBubble(Icons.Outlined.CameraAlt, "الكاميرا")     { showAttachPopup = false; onTakePhoto() }
-                            AttachBubble(Icons.Outlined.AttachFile,"إضافة ملفات") { showAttachPopup = false; onPickFile() }
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        // Bottom row: spreadsheet, task, voice chat, edit photo
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            AttachBubble(Icons.Outlined.Storage,   "جدول بيانات") {
-                                showAttachPopup = false
-                                // Route to a sandbox code-workspace session for spreadsheet work
-                                text = text + if (text.isBlank()) "Create a spreadsheet" else "\nCreate a spreadsheet"
-                            }
-                            AttachBubble(Icons.Outlined.History, "مهام مجدولة") {
-                                showAttachPopup = false
-                                onNavigate(AiriRoute.AGENT_TASKS)
-                            }
-                            AttachBubble(Icons.Outlined.Mic, "وضع المحادثة") {
-                                showAttachPopup = false
-                                onVoiceChatClick()
-                            }
-                            AttachBubble(Icons.Outlined.Edit, "تحرير صورة") {
-                                showAttachPopup = false
-                                text = text + if (text.isBlank()) "Edit this image:" else "\nEdit this image:"
-                                onPickImage()
-                            }
-                        }
-                    }
+                    AttachCard(
+                        icon = Icons.Outlined.Image,
+                        label = stringResource(R.string.attach_image),
+                        modifier = Modifier.weight(1f)
+                    ) { showAttachPopup = false; onPickImage() }
+                    AttachCard(
+                        icon = Icons.Outlined.CameraAlt,
+                        label = stringResource(R.string.attach_camera),
+                        modifier = Modifier.weight(1f)
+                    ) { showAttachPopup = false; onTakePhoto() }
+                    AttachCard(
+                        icon = Icons.Outlined.AttachFile,
+                        label = stringResource(R.string.attach_files),
+                        modifier = Modifier.weight(1f)
+                    ) { showAttachPopup = false; onPickFile() }
+                }
+                Spacer(Modifier.height(12.dp))
+                // ── Section B header ──────────────────────────────────────
+                Text(
+                    text = stringResource(R.string.attach_section_actions),
+                    color = AiriTheme.onBackground.copy(0.45f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+                // ── Section B — vertical list ─────────────────────────────
+                AttachListRow(
+                    icon = Icons.Outlined.Storage,
+                    label = stringResource(R.string.attach_spreadsheet)
+                ) {
+                    showAttachPopup = false
+                    text = text + if (text.isBlank()) "Create a spreadsheet" else "\nCreate a spreadsheet"
+                }
+                AttachListRow(
+                    icon = Icons.Outlined.History,
+                    label = stringResource(R.string.attach_scheduled_tasks)
+                ) {
+                    showAttachPopup = false
+                    onNavigate(AiriRoute.AGENT_TASKS)
+                }
+                AttachListRow(
+                    icon = Icons.Outlined.Mic,
+                    label = stringResource(R.string.attach_conversation_mode)
+                ) {
+                    showAttachPopup = false
+                    onVoiceChatClick()
+                }
+                AttachListRow(
+                    icon = Icons.Outlined.Edit,
+                    label = stringResource(R.string.attach_edit_image)
+                ) {
+                    showAttachPopup = false
+                    text = text + if (text.isBlank()) "Edit this image:" else "\nEdit this image:"
+                    onPickImage()
                 }
             }
         }
@@ -2294,25 +2336,64 @@ fun AiriChatInputBar(
 }
 
 @Composable
-private fun AttachBubble(
+private fun AttachCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(CosmicAccent.copy(0.12f))
+            .border(1.dp, CosmicAccent.copy(0.35f), RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(icon, contentDescription = label, tint = CosmicAccent, modifier = Modifier.size(26.dp))
+        Text(
+            text = label,
+            color = AiriTheme.onBackground.copy(0.85f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun AttachListRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     onClick: () -> Unit
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(68.dp)) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 20.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         Box(
             modifier = Modifier
-                .size(52.dp).shadow(6.dp, RoundedCornerShape(14.dp), ambientColor = CosmicAccent, spotColor = CosmicAccent)
-                .clip(RoundedCornerShape(14.dp))
-                .background(CosmicAccent.copy(0.15f))
-                .border(1.dp, CosmicAccent.copy(0.40f), RoundedCornerShape(14.dp))
-                .clickable { onClick() },
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(CosmicAccent.copy(0.12f))
+                .border(1.dp, CosmicAccent.copy(0.28f), RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = label, tint = CosmicAccent, modifier = Modifier.size(24.dp))
+            Icon(icon, contentDescription = label, tint = CosmicAccent, modifier = Modifier.size(20.dp))
         }
-        Spacer(Modifier.height(4.dp))
-        Text(label, color = AiriTheme.onBackground.copy(0.7f), fontSize = 10.sp, maxLines = 1, textAlign = TextAlign.Center)
+        Text(
+            text = label,
+            color = AiriTheme.onBackground.copy(0.85f),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Normal
+        )
     }
 }
 

@@ -1096,4 +1096,24 @@
     <string name="skill_manifest_valid">Manifest is valid</string>
     <string name="skill_manifest_invalid">Manifest has errors</string>
     <string name="skill_manifest_warnings">Warnings: %1$d</string>
+
+    <!-- Untitled session fallback (Phase 3) -->
+    <string name="session_untitled">Conversation</string>
+
+    <!-- Voice state banner labels (Phase 3) -->
+    <string name="voice_listening">Listening…</string>
+    <string name="voice_processing">Processing…</string>
+    <string name="voice_speaking">Speaking…</string>
+    <string name="voice_interrupting">Interrupting…</string>
+
+    <!-- Attachment bottom sheet (Phase 2) -->
+    <string name="attach_section_media">Media &amp; Files</string>
+    <string name="attach_section_actions">Actions</string>
+    <string name="attach_image">Image</string>
+    <string name="attach_camera">Camera</string>
+    <string name="attach_files">Add Files</string>
+    <string name="attach_spreadsheet">Spreadsheet</string>
+    <string name="attach_scheduled_tasks">Scheduled Tasks</string>
+    <string name="attach_conversation_mode">Conversation Mode</string>
+    <string name="attach_edit_image">Edit Image</string>
 </resources>

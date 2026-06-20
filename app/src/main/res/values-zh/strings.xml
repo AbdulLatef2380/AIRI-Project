@@ -1002,4 +1002,24 @@
     <string name="login_email_label">电子邮件</string>
     <string name="login_password_label">密码</string>
     <string name="testing_label">测试中…</string>
+
+    <!-- 无标题会话后备文本（第三阶段） -->
+    <string name="session_untitled">对话</string>
+
+    <!-- 语音状态标签（第三阶段） -->
+    <string name="voice_listening">正在聆听…</string>
+    <string name="voice_processing">正在处理…</string>
+    <string name="voice_speaking">正在说话…</string>
+    <string name="voice_interrupting">正在打断…</string>
+
+    <!-- 附件底部菜单（第二阶段） -->
+    <string name="attach_section_media">媒体与文件</string>
+    <string name="attach_section_actions">操作</string>
+    <string name="attach_image">图片</string>
+    <string name="attach_camera">相机</string>
+    <string name="attach_files">添加文件</string>
+    <string name="attach_spreadsheet">电子表格</string>
+    <string name="attach_scheduled_tasks">定时任务</string>
+    <string name="attach_conversation_mode">对话模式</string>
+    <string name="attach_edit_image">编辑图片</string>
 </resources>

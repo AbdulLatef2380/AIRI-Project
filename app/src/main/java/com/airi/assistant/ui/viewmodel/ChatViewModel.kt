@@ -383,6 +383,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         appContext    = appContext
     )
 
+    // ── Plan Mode — step-by-step planning instruction injected into system prompt ──
+    private val _isPlanModeActive = MutableStateFlow(false)
+    val isPlanModeActive: StateFlow<Boolean> = _isPlanModeActive.asStateFlow()
+
+    fun togglePlanMode() {
+        _isPlanModeActive.value = !_isPlanModeActive.value
+        Log.i("AIRI_PROOF", "PLAN_MODE_TOGGLED active=${_isPlanModeActive.value}")
+    }
+
+    // ── Skill tool count — number of skill_* tools the agent can call ─────────
+    // Computed once at VM creation; stable for the ViewModel's lifetime.
+    // SkillToolBridge.asToolSchemas() reads from SkillRegistry (SharedPreferences)
+    // so we wrap in runCatching to be safe.
+    private val _activeSkillCount = MutableStateFlow(
+        runCatching { skillToolBridge.asToolSchemas().size }.getOrDefault(0)
+    )
+    val activeSkillCount: StateFlow<Int> = _activeSkillCount.asStateFlow()
+
     // ── UI State ──────────────────────────────────────────────────────────────
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -1354,19 +1372,37 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (ragContext.isNotBlank()) {
                 android.util.Log.i("AIRI_PROOF", "RAG_INJECTED chars=${ragContext.length} session=${_currentSessionId.value.take(8)}")
             }
-            val systemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType, ragContext)
+            val baseSystemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType, ragContext)
+            // Inject Plan Mode instruction when active — tells the LLM to write its
+            // full step-by-step plan before executing any tool or answering.
+            val systemPrompt = if (_isPlanModeActive.value) {
+                baseSystemPrompt + "\n\n[PLAN MODE ACTIVE] Before executing any tool or writing your final answer, " +
+                "output a numbered step-by-step plan describing every action you will take, which tool " +
+                "you will call at each step, and what result you expect. Then execute the plan sequentially."
+            } else baseSystemPrompt
+
+            // Merge skill schemas into the tool list so the LLM sees every skill_* tool
+            // that SkillToolBridge can route, in addition to the 14 builtin tools.
+            // SkillToolBridge already handles these in ToolDispatcher — they just weren't
+            // being advertised to the LLM in the system prompt (the gap that caused
+            // skill_code_assistant, skill_research_agent, etc. to never be invoked).
+            val activeTools = runCatching {
+                com.airi.assistant.agent.loop.tool.BuiltinTools.ALL + skillToolBridge.asToolSchemas()
+            }.getOrDefault(com.airi.assistant.agent.loop.tool.BuiltinTools.ALL)
+            Log.i("AIRI_PROOF", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${activeTools.size - com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} total=${activeTools.size}")
+
             var tokenCount = 0
             var firstTokenReceived = false
             val requestStart = System.currentTimeMillis()
             var needsResummarize = false
             val olderToFold: List<com.airi.assistant.memory.entity.ChatMessage> = emptyList()
-            Log.i("AIRI_PROOF", "AGENT_LOOP_START input='${trimmedInput.take(60)}' queryType=${queryType.name}")
+            Log.i("AIRI_PROOF", "AGENT_LOOP_START input='${trimmedInput.take(60)}' queryType=${queryType.name} planMode=${_isPlanModeActive.value}")
 
             try {
                 val loopResult = agentLoop.run(
                     input        = trimmedInput,
                     systemPrompt = systemPrompt,
-                    tools        = com.airi.assistant.agent.loop.tool.BuiltinTools.ALL,
+                    tools        = activeTools,
                     onToken      = { tok ->
                         tokenCount += tok.length / 4 + 1
                         if (!firstTokenReceived) {

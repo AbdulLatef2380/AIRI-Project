@@ -175,7 +175,8 @@ fun ChatScreen(
     var showMenu            by remember { mutableStateOf(false) }
     var showGenSettings     by remember { mutableStateOf(false) }
     var showModelPicker     by remember { mutableStateOf(false) }
-    var isPlanModeActive    by remember { mutableStateOf(false) }
+    val isPlanModeActive    by viewModel.isPlanModeActive.collectAsState()
+    val activeSkillCount    by viewModel.activeSkillCount.collectAsState()
     var voiceInput          by remember { mutableStateOf("") }
     var voiceChatInput      by remember { mutableStateOf("") }
     var voiceState          by remember { mutableStateOf(VoiceSessionState.IDLE) }
@@ -655,9 +656,11 @@ fun ChatScreen(
                     },
                     // ── Quick action chip wiring ──────────────────────────────
                     isPlanModeActive  = isPlanModeActive,
-                    onPlanModeToggle  = { isPlanModeActive = !isPlanModeActive },
+                    onPlanModeToggle  = { viewModel.togglePlanMode() },
                     onOpenToolPicker  = { onNavigate(AiriRoute.CONNECTORS) },
                     onOpenSkillPicker = { onNavigate(AiriRoute.SKILL_MANAGER) },
+                    activeToolCount   = com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size,
+                    activeSkillCount  = activeSkillCount,
                     onWebClick        = { viewModel.prefillInput("/web ") },
                     onCodeClick       = { viewModel.prefillInput("/code ") },
                     onCalcClick       = { viewModel.prefillInput("/calc ") }

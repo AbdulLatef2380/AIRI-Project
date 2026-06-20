@@ -175,6 +175,7 @@ fun ChatScreen(
     var showMenu            by remember { mutableStateOf(false) }
     var showGenSettings     by remember { mutableStateOf(false) }
     var showModelPicker     by remember { mutableStateOf(false) }
+    var isPlanModeActive    by remember { mutableStateOf(false) }
     var voiceInput          by remember { mutableStateOf("") }
     var voiceChatInput      by remember { mutableStateOf("") }
     var voiceState          by remember { mutableStateOf(VoiceSessionState.IDLE) }
@@ -540,7 +541,8 @@ fun ChatScreen(
                 onLongPressTitle  = { onNavigate(AiriRoute.DEBUG_SCREEN) },
                 onExportChat      = { showMenu = false; exportChatLauncher.launch(ChatExporter.buildFileName()) },
                 onNewChat         = { viewModel.clearMessages() },
-                onMuteToggle      = {}
+                onMuteToggle      = {},
+                onPointsClick     = { onNavigate(AiriRoute.CREDITS) }
             )
         },
         bottomBar = {
@@ -650,7 +652,15 @@ fun ChatScreen(
                             isVadInterrupting.value = false; voiceState = VoiceSessionState.IDLE
                         }
                         if (liveChatActiveRef.value) liveChatActiveRef.value = false
-                    }
+                    },
+                    // ── Quick action chip wiring ──────────────────────────────
+                    isPlanModeActive  = isPlanModeActive,
+                    onPlanModeToggle  = { isPlanModeActive = !isPlanModeActive },
+                    onOpenToolPicker  = { onNavigate(AiriRoute.CONNECTORS) },
+                    onOpenSkillPicker = { onNavigate(AiriRoute.SKILL_MANAGER) },
+                    onWebClick        = { viewModel.prefillInput("/web ") },
+                    onCodeClick       = { viewModel.prefillInput("/code ") },
+                    onCalcClick       = { viewModel.prefillInput("/calc ") }
                 )
             }
         }
@@ -956,7 +966,8 @@ private fun AiriChatTopBar(
     onLongPressTitle: () -> Unit = {},
     onExportChat: () -> Unit,
     onNewChat: () -> Unit,
-    onMuteToggle: () -> Unit
+    onMuteToggle: () -> Unit,
+    onPointsClick: () -> Unit = {}
 ) {
     // Token count formatted for compact display (e.g. 1.2k, 45k)
     val tokenDisplay = when {
@@ -974,13 +985,13 @@ private fun AiriChatTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(start = 8.dp)
             ) {
-                // Token count badge — shows real cumulative tokens used today
+                // Token count badge — tapping opens Credits/Usage screen
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
                         .background(CosmicAccent.copy(alpha = 0.18f))
                         .border(1.dp, CosmicAccent.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
-                        .clickable { onToggleDropdown() }
+                        .clickable { onPointsClick() }
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {

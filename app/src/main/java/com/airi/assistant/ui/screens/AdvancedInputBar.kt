@@ -70,7 +70,10 @@ fun AdvancedChatInputBar(
     isPlanModeActive:       Boolean                 = false,
     onPlanModeToggle:       () -> Unit              = {},
     activeToolCount:        Int                     = 0,
-    activeSkillCount:       Int                     = 0
+    activeSkillCount:       Int                     = 0,
+    onWebClick:             () -> Unit              = {},
+    onCodeClick:            () -> Unit              = {},
+    onCalcClick:            () -> Unit              = {}
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         // ── Action toolbar ────────────────────────────────────────────────────
@@ -81,7 +84,10 @@ fun AdvancedChatInputBar(
             onOpenSkillPicker = onOpenSkillPicker,
             activeToolCount   = activeToolCount,
             activeSkillCount  = activeSkillCount,
-            isGenerating      = isGenerating
+            isGenerating      = isGenerating,
+            onWebClick        = onWebClick,
+            onCodeClick       = onCodeClick,
+            onCalcClick       = onCalcClick
         )
 
         // ── Original input bar (unchanged) ────────────────────────────────────
@@ -123,7 +129,10 @@ private fun InputActionToolbar(
     onOpenSkillPicker: () -> Unit,
     activeToolCount:   Int,
     activeSkillCount:  Int,
-    isGenerating:      Boolean
+    isGenerating:      Boolean,
+    onWebClick:        () -> Unit,
+    onCodeClick:       () -> Unit,
+    onCalcClick:       () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -154,10 +163,10 @@ private fun InputActionToolbar(
             onClick    = onOpenSkillPicker
         )
 
-        // Quick dynamic tools
-        QuickToolChip(label = "Web",  emoji = "🌐")
-        QuickToolChip(label = "Code", emoji = "💻")
-        QuickToolChip(label = "Calc", emoji = "🧮")
+        // Quick dynamic tools — each wired to its own callback
+        QuickToolChip(label = "Web",  emoji = "🌐", onClick = onWebClick)
+        QuickToolChip(label = "Code", emoji = "💻", onClick = onCodeClick)
+        QuickToolChip(label = "Calc", emoji = "🧮", onClick = onCalcClick)
     }
 }
 
@@ -239,13 +248,14 @@ private fun ActionChip(
 }
 
 @Composable
-private fun QuickToolChip(label: String, emoji: String) {
+private fun QuickToolChip(label: String, emoji: String, onClick: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .height(30.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(Color.White.copy(0.03f))
             .border(1.dp, DividerColor, RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
             .padding(horizontal = 10.dp),
         verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)

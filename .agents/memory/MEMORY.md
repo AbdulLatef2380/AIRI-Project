@@ -8,3 +8,4 @@
 - [Phase 3 Post-Audit Execution](phase3-post-audit-execution.md) — All Phase A–K gaps implemented: custom skills now executable in agent loop (critical fix), manifest extension, verifier, rate limiting, audit log, FULL_ACCESS differentiation, Updates tab. BUILD GREEN.
 - [Capability Wiring Audit](capability-wiring-audit.md) — Full audit results: what was wired vs disconnected; three gaps fixed; skill schema injection is the critical pattern.
 - [SkillRegistry getAllSkillInfos Filter Rule](skillregistry-allskillinfos-filter.md) — getAllSkillInfos() appends custom skills with author="builtin"; always filter by author=="AIRI Official" for the official-only section.
+- [Skill Execution Audit](skill-execution-audit.md) — Verified end-to-end path; complete AIRI_PROOF tag inventory; two bugs fixed (configValues Brave key, SkillToolBridge instrumentation).

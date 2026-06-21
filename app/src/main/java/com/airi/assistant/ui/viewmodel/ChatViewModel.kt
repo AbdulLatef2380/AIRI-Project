@@ -366,10 +366,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // Phase 7: inject live memory + session into SkillContext so every skill
         // execution has access to MemoryManager (MemoryManagerSkill) and the
         // modelBridge is enforced per-skill by SkillToolBridge.invoke() itself.
+        // Phase 8: also inject configValues (Brave API key) so WebSearchSkill and
+        // ResearchAgentSkill can use Brave Search without a separate key lookup.
         skillCtx    = {
             com.airi.assistant.ai.skills.SkillContext(
                 memoryManager = runCatching { ServiceLocator.memoryManager }.getOrNull(),
-                sessionId     = _currentSessionId.value
+                sessionId     = _currentSessionId.value,
+                configValues  = buildMap {
+                    runCatching {
+                        val braveKey = ServiceLocator.secureApiKeyStore.getKey(
+                            com.airi.assistant.execution.CloudProvider.BRAVE
+                        )
+                        if (!braveKey.isNullOrBlank()) put("brave_api_key", braveKey)
+                    }
+                }
             )
         }
     )

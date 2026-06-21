@@ -3,6 +3,7 @@ package com.airi.assistant.ai.skills
 import android.content.Context
 import android.util.Log
 import com.airi.assistant.agent.loop.tool.ToolSchema
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 
 /**
@@ -16,6 +17,17 @@ import kotlinx.coroutines.withTimeout
  * This bridges the two execution paths:
  *  1. Direct skill routing: [SkillExecutor.tryHandle] — for conversation-level matching
  *  2. Agent loop tool call: ToolDispatcher → SkillToolBridge.invoke — for explicit tool_call JSON
+ *
+ * ── Execution Instrumentation ──────────────────────────────────────────────────
+ * Every skill invocation emits AIRI_PROOF log entries so execution can be verified
+ * from logcat without needing to attach a debugger:
+ *
+ *   AIRI_PROOF SKILL_INVOKE  — tool called, skill matched, context state logged
+ *   AIRI_PROOF SKILL_SUCCESS — execution returned success, result size logged
+ *   AIRI_PROOF SKILL_ERROR   — skill returned success=false, error logged
+ *   AIRI_PROOF SKILL_TIMEOUT — 30s execution budget exceeded
+ *   AIRI_PROOF SKILL_EXCEPTION — unexpected exception during execute()
+ *   AIRI_PROOF SKILL_NO_MATCH — no registered skill found for tool name
  */
 class SkillToolBridge(
     private val context:      Context,
@@ -24,8 +36,8 @@ class SkillToolBridge(
     private val skillCtx:     () -> SkillContext = { SkillContext() }
 ) {
     companion object {
-        private const val TAG    = "SkillToolBridge"
-        private const val PREFIX = "skill_"
+        private const val TAG        = "SkillToolBridge"
+        private const val PREFIX     = "skill_"
         private const val TIMEOUT_MS = 30_000L
     }
 
@@ -36,8 +48,9 @@ class SkillToolBridge(
      * the [AgentLoop] injects into the system prompt.
      */
     fun asToolSchemas(): List<ToolSchema> {
+        val skills = registry.getAvailableSkills()
         val schemas = mutableListOf<ToolSchema>()
-        registry.getAvailableSkills().forEach { skill ->
+        skills.forEach { skill ->
             if (skill.toolDefinitions.isEmpty()) {
                 schemas.add(skillToSchema(skill))
             } else {
@@ -46,6 +59,7 @@ class SkillToolBridge(
                 }
             }
         }
+        Log.d(TAG, "AIRI_PROOF SKILL_SCHEMAS_BUILT count=${schemas.size} names=${schemas.map { it.name }.joinToString()}")
         return schemas
     }
 
@@ -78,34 +92,77 @@ class SkillToolBridge(
      * @return          The tool result string for the agent loop.
      */
     suspend fun invoke(toolName: String, args: Map<String, String>): String {
+        val invokeStart  = System.currentTimeMillis()
         val strippedName = toolName.removePrefix(PREFIX)
 
         val skill = findSkillForTool(strippedName)
-            ?: return "No skill found for tool: $toolName. Available skill tools: ${asToolSchemas().map { it.name }.joinToString()}"
-
-        Log.i(TAG, "Invoking skill '${skill.skillId}' via tool '$toolName' args=${args.keys}")
+        if (skill == null) {
+            val available = asToolSchemas().map { it.name }.joinToString()
+            Log.w(TAG, "AIRI_PROOF SKILL_NO_MATCH toolName=$toolName stripped=$strippedName available=[$available]")
+            return "No skill found for tool: $toolName. Available skill tools: $available"
+        }
 
         // Phase I enforcement: only pass the model bridge to skills that declared model access
         val effectiveBridge = if (skill.modelAccess != SkillModelAccess.NONE) modelBridge else null
         if (modelBridge != null && skill.modelAccess == SkillModelAccess.NONE) {
-            Log.d(TAG, "Model bridge suppressed for '${skill.skillId}' — declared modelAccess=NONE")
+            Log.d(TAG, "AIRI_PROOF SKILL_BRIDGE_SUPPRESSED skillId=${skill.skillId} — modelAccess=NONE")
         }
+
+        val skillCtxInstance = skillCtx().copy(modelBridge = effectiveBridge)
+
+        Log.i(TAG, "AIRI_PROOF SKILL_INVOKE " +
+            "tool=$toolName " +
+            "skillId=${skill.skillId} " +
+            "argKeys=${args.keys.joinToString()} " +
+            "modelAccess=${skill.modelAccess} " +
+            "modelBridgeActive=${effectiveBridge != null} " +
+            "memoryActive=${skillCtxInstance.memoryManager != null} " +
+            "sessionId=${skillCtxInstance.sessionId.take(12).ifBlank { "NONE" }}")
 
         val params: Map<String, Any> = buildMap {
             put("input", args["input"] ?: args["query"] ?: args.values.firstOrNull() ?: "")
             putAll(args)
-            put("context", skillCtx().copy(modelBridge = effectiveBridge))
+            put("context", skillCtxInstance)
         }
 
         return try {
-            val result = withTimeout(TIMEOUT_MS) { skill.execute(params) }
+            val result   = withTimeout(TIMEOUT_MS) { skill.execute(params) }
+            val elapsedMs = System.currentTimeMillis() - invokeStart
+
             if (result.success) {
+                Log.i(TAG, "AIRI_PROOF SKILL_SUCCESS " +
+                    "tool=$toolName " +
+                    "skillId=${skill.skillId} " +
+                    "ms=$elapsedMs " +
+                    "resultLen=${result.data.length} " +
+                    "toolOutputs=${result.toolOutputs.size} " +
+                    "metadata=${result.metadata.entries.take(3).joinToString { "${it.key}=${it.value.take(30)}" }}")
                 result.data
             } else {
+                Log.w(TAG, "AIRI_PROOF SKILL_ERROR " +
+                    "tool=$toolName " +
+                    "skillId=${skill.skillId} " +
+                    "ms=$elapsedMs " +
+                    "error=${result.error?.take(100)}")
                 "Skill '${skill.name}' error: ${result.error ?: "Unknown error"}"
             }
+
+        } catch (e: TimeoutCancellationException) {
+            val elapsedMs = System.currentTimeMillis() - invokeStart
+            Log.e(TAG, "AIRI_PROOF SKILL_TIMEOUT " +
+                "tool=$toolName " +
+                "skillId=${skill.skillId} " +
+                "limitMs=$TIMEOUT_MS " +
+                "elapsedMs=$elapsedMs")
+            "Skill '${skill.name}' timed out after ${TIMEOUT_MS / 1000}s. Try a simpler request."
+
         } catch (e: Exception) {
-            Log.e(TAG, "Skill invocation failed for '$toolName': ${e.message}")
+            val elapsedMs = System.currentTimeMillis() - invokeStart
+            Log.e(TAG, "AIRI_PROOF SKILL_EXCEPTION " +
+                "tool=$toolName " +
+                "skillId=${skill.skillId} " +
+                "ms=$elapsedMs " +
+                "error=${e.javaClass.simpleName}:${e.message?.take(120)}")
             "Skill '${skill.name}' failed: ${e.message ?: "Unexpected error"}"
         }
     }
@@ -120,10 +177,12 @@ class SkillToolBridge(
     private fun findSkillForTool(strippedName: String): AiriSkill? {
         val skills = registry.getAvailableSkills()
 
+        // 1. Direct skillId or name match (e.g. "web_search" → WebSearchSkill.skillId)
         skills.firstOrNull { skill ->
             skill.skillId == strippedName || skill.name == strippedName
         }?.let { return it }
 
+        // 2. Tool definition name match (e.g. "code_assist" → CodeAssistantSkill.toolDefinitions[0])
         skills.firstOrNull { skill ->
             skill.toolDefinitions.any { it.name == strippedName }
         }?.let { return it }

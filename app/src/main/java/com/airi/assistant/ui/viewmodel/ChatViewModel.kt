@@ -362,7 +362,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val skillToolBridge          = SkillToolBridge(
         registry    = SkillRegistry(appContext),
         context     = appContext,
-        modelBridge = SkillModelBridge.create(hybridOrchestrator, appContext)
+        modelBridge = SkillModelBridge.create(hybridOrchestrator, appContext),
+        // Phase 7: inject live memory + session into SkillContext so every skill
+        // execution has access to MemoryManager (MemoryManagerSkill) and the
+        // modelBridge is enforced per-skill by SkillToolBridge.invoke() itself.
+        skillCtx    = {
+            com.airi.assistant.ai.skills.SkillContext(
+                memoryManager = runCatching { ServiceLocator.memoryManager }.getOrNull(),
+                sessionId     = _currentSessionId.value
+            )
+        }
     )
     private val toolDispatcher           = com.airi.assistant.agent.loop.tool.ToolDispatcher(
         memoryManager     = runCatching { ServiceLocator.memoryManager }.getOrNull(),

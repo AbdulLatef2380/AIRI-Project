@@ -7,3 +7,4 @@
 - [Skill System Security Audit](skill-system-security-audit.md) — 4 confirmed gaps fixed; execution flow truth, modelAccess enforcement pattern, dead-code map.
 - [Phase 3 Post-Audit Execution](phase3-post-audit-execution.md) — All Phase A–K gaps implemented: custom skills now executable in agent loop (critical fix), manifest extension, verifier, rate limiting, audit log, FULL_ACCESS differentiation, Updates tab. BUILD GREEN.
 - [Capability Wiring Audit](capability-wiring-audit.md) — Full audit results: what was wired vs disconnected; three gaps fixed; skill schema injection is the critical pattern.
+- [SkillRegistry getAllSkillInfos Filter Rule](skillregistry-allskillinfos-filter.md) — getAllSkillInfos() appends custom skills with author="builtin"; always filter by author=="AIRI Official" for the official-only section.

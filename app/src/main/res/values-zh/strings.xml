@@ -1015,10 +1015,5 @@
     <!-- 附件底部菜单（第二阶段） -->
     <string name="attach_section_media">媒体与文件</string>
     <string name="attach_section_actions">操作</string>
-    <string name="attach_camera">相机</string>
-    <string name="attach_files">添加文件</string>
-    <string name="attach_spreadsheet">电子表格</string>
     <string name="attach_scheduled_tasks">定时任务</string>
-    <string name="attach_conversation_mode">对话模式</string>
-    <string name="attach_edit_image">编辑图片</string>
 </resources>

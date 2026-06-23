@@ -5,6 +5,10 @@ import android.util.Log
 import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.security.SecureApiKeyStore
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Factory that constructs the correct [CloudProviderAdapter] for a given
@@ -58,7 +62,17 @@ object CloudAdapterFactory {
         logPresence(provider, keyStore, context)
 
         return when (provider) {
-            CloudProvider.GEMINI     -> GeminiAdapter(keyStore)
+            CloudProvider.GEMINI     -> {
+                // Patch 3A: pass the active catalog model so gemini_flash_lite uses
+                // "gemini-2.0-flash-lite" rather than GeminiAdapter's hardcoded default
+                // "gemini-2.0-flash". RemoteModel.name holds config.defaultModel after
+                // Fix C. Falls back to the adapter's hardcoded default when no registry
+                // entry is active (e.g. when isAvailable is evaluated before activation,
+                // or when the user has not selected a built-in Gemini catalog entry).
+                val geminiModel = RemoteModelRegistry.getActive()?.name ?: "gemini-2.0-flash"
+                Log.d(TAG, "GEMINI: model=$geminiModel")
+                GeminiAdapter(keyStore, geminiModel)
+            }
             CloudProvider.OPENAI     -> OpenAIAdapter(keyStore, CloudProvider.OPENAI)
             CloudProvider.ANTHROPIC  -> AnthropicAdapter(keyStore)
             CloudProvider.OPENROUTER -> {
@@ -102,11 +116,24 @@ object CloudAdapterFactory {
             return object : OpenAIAdapter(keyStore, CloudProvider.CUSTOM, remote.serverUrl, remote.name) {
                 override val isAvailable: Boolean get() = true
 
+                // Patch 3B: runtime model discovery for LOCAL_SERVER providers.
+                // effectiveModel starts as remote.name (= config.defaultModel after Fix C,
+                // e.g. "llama3.2" for Ollama, "local-model" for LM Studio ≤0.2.x). On
+                // every keyless request we query GET /v1/models to get the actual loaded
+                // model ID. This overrides stale catalog placeholders automatically and
+                // silently resolves the LM Studio "local-model" issue (RC-6).
+                // The property is instance-scoped; adapters are recreated per-request
+                // (factory KDoc), so discovery re-runs per request. The GET /v1/models
+                // call to localhost typically completes in < 10 ms.
+                private var effectiveModel: String = remote.name
+                override val model: String get() = effectiveModel
+
                 override suspend fun streamGenerate(
                     request: com.airi.assistant.execution.ExecutionRequest,
                     onToken: suspend (String) -> Unit,
                     onUsage: suspend (Int, Int) -> Unit
                 ): CloudProviderAdapter.AdapterResult {
+                    // ── Key handling (Fix B) ──────────────────────────────────────────
                     when {
                         remote.apiKey.isNotBlank() -> {
                             // Fix B / legacy migration: always write the active remote's key so
@@ -135,6 +162,22 @@ object CloudAdapterFactory {
                             Log.d(TAG, "CUSTOM: reusing existing SecureApiKeyStore entry")
                         }
                     }
+                    // ── Patch 3B: model discovery for LOCAL_SERVER providers ───────────
+                    // When the server has no API key it is a LOCAL_SERVER (Ollama, LM
+                    // Studio). Discover the first currently-loaded model via GET /v1/models
+                    // and use it in the request, overriding the catalog placeholder.
+                    // Falls back to remote.name (catalog defaultModel) on failure.
+                    if (remote.apiKey.isBlank()) {
+                        val discovered = discoverFirstModel(remote.serverUrl)
+                        if (discovered != null) {
+                            if (discovered != effectiveModel) {
+                                Log.i(TAG, "CUSTOM: model discovery → '$discovered' (was '$effectiveModel')")
+                            }
+                            effectiveModel = discovered
+                        } else {
+                            Log.d(TAG, "CUSTOM: model discovery unavailable — using fallback '$effectiveModel'")
+                        }
+                    }
                     return super.streamGenerate(request, onToken, onUsage)
                 }
             }
@@ -145,6 +188,55 @@ object CloudAdapterFactory {
             override val isAvailable: Boolean get() = false
         }
     }
+
+    /**
+     * Patch 3B: Query the OpenAI-compatible `/v1/models` endpoint to discover
+     * the first model currently loaded on a local server.
+     *
+     * Used by [buildCustomAdapter] for LOCAL_SERVER providers (Ollama, LM Studio)
+     * whose loaded model ID is not known at catalog definition time. Returns the
+     * first `id` field found in the `data` array of the standard response:
+     * ```json
+     * {"object":"list","data":[{"id":"llama-3.2-3b-instruct","object":"model"},…]}
+     * ```
+     * Returns `null` if the endpoint is unreachable, times out, or contains no
+     * model entries. The caller falls back to the catalog's `defaultModel` on null.
+     *
+     * Connect and read are each bounded to 3 s; the call runs on [Dispatchers.IO].
+     */
+    private suspend fun discoverFirstModel(baseUrl: String): String? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val conn = (URL("$baseUrl/models").openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 3_000
+                    readTimeout    = 3_000
+                    requestMethod  = "GET"
+                    setRequestProperty("Accept", "application/json")
+                }
+                val code = conn.responseCode
+                if (code !in 200..299) { conn.disconnect(); return@runCatching null }
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                conn.disconnect()
+                // Minimal hand-rolled JSON parser: find the first "id" value inside
+                // the "data" array. Searches past "data" to skip the top-level
+                // "object":"list" key which also contains an "id"-like structure.
+                val dataIdx = body.indexOf("\"data\"")
+                val from    = if (dataIdx >= 0) dataIdx else 0
+                val idIdx   = body.indexOf("\"id\"", from)
+                if (idIdx < 0) return@runCatching null
+                val colon = body.indexOf(":", idIdx)
+                if (colon < 0) return@runCatching null
+                val after = body.substring(colon + 1).trimStart()
+                if (!after.startsWith("\"")) return@runCatching null
+                var i = 1
+                val sb = StringBuilder()
+                while (i < after.length && after[i] != '"') {
+                    if (after[i] == '\\') i++
+                    if (i < after.length) sb.append(after[i++])
+                }
+                sb.toString().takeIf { it.isNotBlank() }
+            }.getOrNull()
+        }
 
     private fun logPresence(provider: CloudProvider, keyStore: SecureApiKeyStore, context: Context) {
         val has = when (provider) {

@@ -1733,6 +1733,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (bridged != null) {
                 RemoteModelRegistry.add(bridged)
                 RemoteModelRegistry.setActive(bridged.id)
+                // O-3 / M-2: Restore preferredProvider on cold start so CloudBackend
+                // evaluates the correct adapter after the RemoteModelRegistry is
+                // re-populated. Without this write the default OPENAI value is used
+                // for the session's lifetime even though a provider was previously set.
+                execModePrefs.preferredProvider = builtinConfig.provider
                 _modelState.update {
                     it.copy(
                         isCloudReady        = true,
@@ -1740,7 +1745,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         activeCloudProvider = builtinConfig.provider
                     )
                 }
-                Log.i("AIRI_CLOUD", "Cloud ready via builtin bridge: ${builtinConfig.displayLabel}")
+                Log.i("AIRI_CLOUD", "Cloud ready via builtin bridge: ${builtinConfig.displayLabel} provider=${builtinConfig.provider.name}")
                 return
             }
         }
@@ -1789,8 +1794,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * 2. Bridges it into [RemoteModelRegistry] so [sendMessage] routing
      *    picks it up via [RemoteModelRegistry.getActive()] — no new code
      *    path needed in the send pipeline.
-     * 3. Switches execution mode to HYBRID if it was LOCAL_ONLY.
-     * 4. Calls [refreshCloudReadiness] so the UI unlocks immediately.
+     * 3. Writes [execModePrefs.preferredProvider] to [config.provider] so
+     *    [CloudBackend] creates the correct [CloudProviderAdapter] for this
+     *    provider rather than defaulting to OPENAI.
+     * 4. Switches execution mode to HYBRID if it was LOCAL_ONLY.
+     * 5. Calls [refreshCloudReadiness] AFTER all preference writes complete
+     *    so the UI reads the final settled state.
      */
     fun activateBuiltinProvider(
         config: com.airi.assistant.execution.cloud.EmbeddedProviderConfig.ProviderConfig
@@ -1801,16 +1810,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (remote != null) {
             RemoteModelRegistry.add(remote)
             RemoteModelRegistry.setActive(remote.id)
+            // M-2: Write preferredProvider BEFORE refreshCloudReadiness() so
+            // CloudBackend.isAvailable evaluates the correct adapter, not OPENAI.
+            execModePrefs.preferredProvider = config.provider
             // Ensure internet/cloud routing is enabled
             execModePrefs.internetPermissionGranted = true
             if (execModePrefs.executionMode == ExecutionMode.LOCAL_ONLY) {
                 execModePrefs.executionMode = ExecutionMode.HYBRID
                 _executionMode.value = ExecutionMode.HYBRID
             }
-            Log.i("AIRI_CLOUD", "activateBuiltinProvider: bridged ${config.id} → RemoteModel ${remote.id}")
+            Log.i("AIRI_CLOUD", "activateBuiltinProvider: bridged ${config.id} → RemoteModel ${remote.id} provider=${config.provider.name}")
         } else {
             Log.w("AIRI_CLOUD", "activateBuiltinProvider: ${config.id} has no key yet — needs API key entry")
         }
+        // O-3: refreshCloudReadiness executes after all prefs writes above.
         refreshCloudReadiness()
     }
 
@@ -1827,15 +1840,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         activateBuiltinProvider(config)
     }
 
-    /** Activate a user-configured remote model and refresh readiness. */
+    /**
+     * Activate a user-configured remote model and refresh readiness.
+     *
+     * Writes [execModePrefs.preferredProvider] = CUSTOM so [CloudBackend]
+     * routes to [CloudAdapterFactory.buildCustomAdapter] which reads
+     * [RemoteModelRegistry.getActive()] for the endpoint and key.
+     * [refreshCloudReadiness] is called AFTER all preference writes (O-3).
+     */
     fun activateRemoteModel(model: RemoteModel) {
         RemoteModelRegistry.add(model)
         RemoteModelRegistry.setActive(model.id)
+        // M-1: Write preferredProvider = CUSTOM so CloudBackend evaluates the
+        // correct adapter (buildCustomAdapter → RemoteModelRegistry) instead of
+        // defaulting to OPENAI which has no key and reports isAvailable = false.
+        execModePrefs.preferredProvider = CloudProvider.CUSTOM
         execModePrefs.internetPermissionGranted = true
         if (execModePrefs.executionMode == ExecutionMode.LOCAL_ONLY) {
             execModePrefs.executionMode = ExecutionMode.HYBRID
             _executionMode.value = ExecutionMode.HYBRID
         }
+        // O-3: refreshCloudReadiness executes after all prefs writes above.
         refreshCloudReadiness()
     }
 

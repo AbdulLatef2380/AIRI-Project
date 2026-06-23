@@ -1780,8 +1780,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         return RemoteModel(
             id        = "builtin_${config.id}",
-            name      = config.displayLabel,
-            serverUrl = config.baseUrl,  // normalizeUrl() handles any /v1 suffix
+            // Fix C: use the API model identifier (e.g. "llama-3.3-70b-versatile") rather than
+            // the display label (e.g. "Groq · Llama-3.3 70B"). The OpenAIAdapter puts RemoteModel.name
+            // directly into the JSON "model" field of every request body. Sending the display label
+            // caused every built-in provider to receive a model-not-found error from the upstream API.
+            name      = config.defaultModel,
+            serverUrl = config.baseUrl,
             apiKey    = apiKey,
             isActive  = true
         )
@@ -1813,6 +1817,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // M-2: Write preferredProvider BEFORE refreshCloudReadiness() so
             // CloudBackend.isAvailable evaluates the correct adapter, not OPENAI.
             execModePrefs.preferredProvider = config.provider
+            // Fix A: Bridge the provider key into SecureApiKeyStore so native
+            // adapter isAvailable checks (GeminiAdapter, OpenRouterAdapter) can
+            // find the key. EmbeddedProviderConfig stores keys in plaintext
+            // airi_builtin_cloud SharedPreferences; adapters read from
+            // SecureApiKeyStore (EncryptedSharedPreferences) — the two stores
+            // are completely separate. remote.apiKey holds the validated key
+            // from EmbeddedProviderConfig.getKey(); it is blank only for
+            // LOCAL_SERVER providers which need no credential.
+            if (remote.apiKey.isNotBlank()) {
+                val keyStore = com.airi.assistant.execution.security.SecureApiKeyStore(appContext)
+                when (config.provider) {
+                    CloudProvider.GEMINI ->
+                        keyStore.saveKey(CloudProvider.GEMINI,     remote.apiKey)
+                    CloudProvider.OPENROUTER ->
+                        keyStore.saveKey(CloudProvider.OPENROUTER, remote.apiKey)
+                    CloudProvider.CUSTOM ->
+                        keyStore.saveKey(CloudProvider.CUSTOM,     remote.apiKey)
+                    else -> { /* OPENAI, ANTHROPIC, KIMI, BRAVE manage keys via their own UI flows */ }
+                }
+                Log.i("AIRI_CLOUD", "activateBuiltinProvider: bridged ${config.provider.name} key to SecureApiKeyStore")
+            }
             // Ensure internet/cloud routing is enabled
             execModePrefs.internetPermissionGranted = true
             if (execModePrefs.executionMode == ExecutionMode.LOCAL_ONLY) {

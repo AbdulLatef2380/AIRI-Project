@@ -83,9 +83,18 @@ object EmbeddedProviderConfig {
     val catalog: List<ProviderConfig> = listOf(
 
         // ── FREE: Groq (fastest, extremely generous free tier) ─────────────
+        // Fix D: provider corrected from OPENROUTER to CUSTOM.
+        // Groq exposes an OpenAI-compatible API at api.groq.com — it is NOT
+        // routed through OpenRouter. Setting provider=OPENROUTER caused
+        // CloudAdapterFactory to create OpenRouterAdapter (wrong endpoint:
+        // openrouter.ai, wrong model namespace: OpenRouter IDs, wrong key slot:
+        // OPENROUTER instead of CUSTOM). With CUSTOM, buildCustomAdapter() is
+        // called, which reads RemoteModelRegistry.getActive() for the correct
+        // Groq endpoint and key, and Fix C ensures defaultModel ("llama-3.3-70b-versatile")
+        // is used as the wire model identifier.
         ProviderConfig(
             id           = "groq_llama3",
-            provider     = CloudProvider.OPENROUTER,
+            provider     = CloudProvider.CUSTOM,
             displayLabel = "Groq · Llama-3.3 70B",
             description  = "World's fastest inference. 6 000 free tokens/min. Free account required.",
             tier         = ProviderTier.FREE_SIGNUP,
@@ -99,9 +108,10 @@ object EmbeddedProviderConfig {
         ),
 
         // ── FREE: Groq Gemma (lighter, also free) ─────────────────────────
+        // Fix D: same provider correction as groq_llama3 above.
         ProviderConfig(
             id           = "groq_gemma2",
-            provider     = CloudProvider.OPENROUTER,
+            provider     = CloudProvider.CUSTOM,
             displayLabel = "Groq · Gemma-2 9B",
             description  = "Google Gemma-2 on Groq hardware. Lightning fast, free.",
             tier         = ProviderTier.FREE_SIGNUP,

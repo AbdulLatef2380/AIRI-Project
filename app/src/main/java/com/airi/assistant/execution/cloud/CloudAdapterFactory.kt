@@ -32,6 +32,16 @@ object CloudAdapterFactory {
     private const val TAG = "AIRI_CloudAdapterFactory"
 
     /**
+     * Sentinel stored in SecureApiKeyStore.CUSTOM for LOCAL_SERVER providers
+     * (Ollama, LM Studio) that require no API key. OpenAIAdapter's null-key
+     * guard passes because this value is non-blank. The Authorization header
+     * sent is "Bearer no-auth-local-server". Ollama, LM Studio, and standard
+     * OpenAI-compatible local servers ignore the Authorization header when
+     * running without auth enabled.
+     */
+    private const val NO_AUTH_SENTINEL = "no-auth-local-server"
+
+    /**
      * Create the best adapter for [provider].
      *
      * For [CloudProvider.OPENROUTER], the optional [request] parameter
@@ -88,23 +98,42 @@ object CloudAdapterFactory {
     private fun buildCustomAdapter(keyStore: SecureApiKeyStore, context: Context): CloudProviderAdapter {
         val remote = RemoteModelRegistry.getActive()
         if (remote != null) {
-            // Legacy path — key from RemoteModelRegistry
             Log.i(TAG, "CUSTOM: using RemoteModel '${remote.name}' at ${remote.serverUrl.take(40)}")
             return object : OpenAIAdapter(keyStore, CloudProvider.CUSTOM, remote.serverUrl, remote.name) {
                 override val isAvailable: Boolean get() = true
-                // Override streamGenerate to inject the legacy API key directly
-                // since SecureApiKeyStore may not have a CUSTOM key yet.
+
                 override suspend fun streamGenerate(
-                    request:  com.airi.assistant.execution.ExecutionRequest,
-                    onToken:  suspend (String) -> Unit,
-                    onUsage:  suspend (Int, Int) -> Unit
+                    request: com.airi.assistant.execution.ExecutionRequest,
+                    onToken: suspend (String) -> Unit,
+                    onUsage: suspend (Int, Int) -> Unit
                 ): CloudProviderAdapter.AdapterResult {
-                    // Temporarily write the legacy key to the secure store so
-                    // the parent adapter can read it — this migrates old keys
-                    // to encrypted storage transparently.
-                    if (!keyStore.hasKey(CloudProvider.CUSTOM) && remote.apiKey.isNotBlank()) {
-                        keyStore.saveKey(CloudProvider.CUSTOM, remote.apiKey)
-                        Log.i(TAG, "CUSTOM: migrated legacy API key to SecureApiKeyStore")
+                    when {
+                        remote.apiKey.isNotBlank() -> {
+                            // Fix B / legacy migration: always write the active remote's key so
+                            // it overwrites any previously-stored sentinel or stale key. Ensures
+                            // that switching between providers (e.g. Groq → custom server) always
+                            // uses the correct credential without requiring an app restart.
+                            keyStore.saveKey(CloudProvider.CUSTOM, remote.apiKey)
+                            Log.i(TAG, "CUSTOM: key written/updated in SecureApiKeyStore")
+                        }
+                        !keyStore.hasKey(CloudProvider.CUSTOM) -> {
+                            // Fix B: LOCAL_SERVER providers (Ollama, LM Studio) and any
+                            // keyless custom server have a blank apiKey by design. OpenAIAdapter
+                            // requires a non-null key from SecureApiKeyStore or it returns an
+                            // UNAUTHORIZED failure before opening any socket. We write a sentinel
+                            // value so the null-guard passes. Local servers universally ignore the
+                            // Authorization header, so "Bearer $NO_AUTH_SENTINEL" is harmless.
+                            // The sentinel is overwritten immediately if a real key is provided later.
+                            keyStore.saveKey(CloudProvider.CUSTOM, NO_AUTH_SENTINEL)
+                            Log.i(TAG, "CUSTOM: LOCAL_SERVER or keyless — sentinel written for null-guard bypass")
+                        }
+                        else -> {
+                            // SecureApiKeyStore already holds a key (either a real key from a
+                            // previous activateRemoteModel call, or the sentinel from a prior
+                            // local-server session). Reuse it — local servers ignore real keys
+                            // in the Authorization header, so this path is always safe.
+                            Log.d(TAG, "CUSTOM: reusing existing SecureApiKeyStore entry")
+                        }
                     }
                     return super.streamGenerate(request, onToken, onUsage)
                 }

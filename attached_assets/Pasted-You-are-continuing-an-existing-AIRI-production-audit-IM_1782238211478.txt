@@ -1,0 +1,210 @@
+You are continuing an existing AIRI production audit.
+
+IMPORTANT:
+Do NOT restart analysis from the beginning.
+Do NOT repeat previous audits.
+Do NOT implement any new patch.
+Do NOT modify any file.
+
+Current verified state
+
+Patch 1 — COMPLETE VERIFIED
+
+M-1:
+activateRemoteModel() writes:
+
+execModePrefs.preferredProvider = CloudProvider.CUSTOM
+
+M-2:
+activateBuiltinProvider() writes:
+
+execModePrefs.preferredProvider = config.provider
+
+O-3:
+refreshCloudReadiness() executes only after all preference writes complete.
+
+Verified in source.
+
+---
+
+Patch 2 — COMPLETE VERIFIED
+
+Fix A:
+EmbeddedProviderConfig API keys are bridged into SecureApiKeyStore.
+
+Fix B:
+LOCAL_SERVER providers use NO_AUTH_SENTINEL.
+
+Fix C:
+builtinProviderToRemoteModel() uses config.defaultModel instead of displayLabel.
+
+Fix D:
+Groq providers were corrected from OPENROUTER to CUSTOM.
+
+Verified in source.
+
+---
+
+Patch 3 — COMPLETE VERIFIED
+
+Patch 3A:
+Gemini model routing fixed.
+
+Gemini Flash Lite now resolves:
+
+gemini-2.0-flash-lite
+
+instead of incorrectly falling back to:
+
+gemini-2.0-flash
+
+Verified.
+
+Patch 3B:
+LM Studio / Ollama model discovery implemented via:
+
+GET /v1/models
+
+Verified.
+
+Patch 3C:
+Provider consistency audit completed.
+
+All provider paths internally consistent.
+
+Verified.
+
+Patch 3D:
+Hidden failure audit completed.
+
+No confirmed runtime blockers found.
+
+Verified.
+
+---
+
+Additional audits already completed
+
+ExecModePreferences audit:
+
+- preferredProvider default = OPENAI
+- internetPermissionGranted default = false
+- activation paths correctly overwrite both values
+- verified
+
+RemoteModelRegistry audit:
+
+- init() called from AIRIApplication.onCreate()
+- occurs before ChatViewModel construction
+- occurs before CloudBackend usage
+- verified safe
+
+---
+
+Current known findings
+
+LOW:
+activeCloudProvider UI badge may display CUSTOM for restored builtin providers.
+
+Impact:
+UI only.
+No routing impact.
+
+MEDIUM:
+LOCAL_SERVER adapters report isAvailable=true before actual connectivity test.
+
+Impact:
+Possible several-second delay before fallback if LM Studio/Ollama is offline.
+
+No silent data loss.
+
+LOW:
+ExecModePreferences documentation claims commit()
+while implementation uses apply().
+
+Documentation discrepancy only.
+
+---
+
+Static routing chain already verified
+
+ChatViewModel
+→ AgentLoop
+→ HybridOrchestrator
+→ RuntimeRouter
+→ RoutingPolicy
+→ CloudBackend
+→ CloudAdapterFactory
+→ Provider Adapter
+→ HTTP request
+
+Verified.
+
+All provider execution traces already audited:
+
+- Gemini Flash
+- Gemini Flash Lite
+- OpenRouter
+- Groq Llama
+- Groq Gemma
+- LM Studio
+- Ollama
+
+Verified.
+
+==================================================
+NEW TASK
+
+Perform a FINAL PRODUCTION AUDIT ONLY.
+
+READ-ONLY.
+
+NO CODE MODIFICATIONS.
+
+NO PATCHES.
+
+NO REFACTORING.
+
+NO IMPLEMENTATION.
+
+Your objective:
+
+Search the entire project for any remaining risks that could cause:
+
+1. Crash
+2. ANR
+3. Deadlock
+4. Infinite loop
+5. Memory leak
+6. Cloud routing failure
+7. Provider selection failure
+8. Token streaming failure
+9. State corruption
+10. Retry loop explosion
+11. Startup failure
+12. Lifecycle race condition
+
+Classify findings strictly as:
+
+CRITICAL
+HIGH
+MEDIUM
+LOW
+
+For every finding provide:
+
+- exact file
+- exact function
+- proof from source
+- execution path
+- user-visible impact
+
+If no CRITICAL or HIGH findings exist:
+
+explicitly state:
+
+"PROJECT IS READY FOR REAL DEVICE TESTING"
+
+Do not suggest additional patches unless a CRITICAL or HIGH issue is proven from source.
+
+This is a final production-readiness review, not another implementation phase.

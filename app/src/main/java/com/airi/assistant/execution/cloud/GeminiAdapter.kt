@@ -171,7 +171,7 @@ class GeminiAdapter(
         if (req.systemPrompt.isNotBlank()) {
             append("\"systemInstruction\":{\"parts\":[{\"text\":")
             append(jsonString(req.systemPrompt))
-            append("]},")
+            append("}]},")
         }
 
         // Contents — single user turn

@@ -1,0 +1,161 @@
+AIRI — Patch A + Patch B Implementation Task
+
+Context:
+
+A full source-level forensic audit has already been completed.
+
+Do NOT perform another broad architectural audit.
+
+Do NOT redesign the routing system.
+
+Do NOT modify unrelated files.
+
+Current objective is ONLY to implement the two confirmed production blockers and then perform a focused verification audit.
+
+==================================================
+CONFIRMED ROOT CAUSE #1
+GeminiAdapter malformed JSON
+
+File:
+
+app/src/main/java/com/airi/assistant/execution/cloud/GeminiAdapter.kt
+
+Function:
+
+buildRequestBody()
+
+Current code:
+
+if (req.systemPrompt.isNotBlank()) {
+append(""systemInstruction":{"parts":[{"text":")
+append(jsonString(req.systemPrompt))
+append("]},")
+}
+
+Audit proved this generates invalid JSON.
+
+The part object opened by:
+
+{"text":
+
+is not properly closed before the parts array closes.
+
+Observed runtime symptom:
+
+HTTP 400
+Invalid JSON payload received
+
+Task:
+
+Implement the minimal safe fix.
+
+Generated JSON must become structurally valid.
+
+Do NOT refactor the entire builder.
+
+Do NOT rewrite unrelated request fields.
+
+Do NOT change request semantics.
+
+==================================================
+CONFIRMED ROOT CAUSE #2
+OpenRouter stale model identifier
+
+Files:
+
+app/src/main/java/com/airi/assistant/execution/cloud/OpenRouterAdapter.kt
+
+app/src/main/java/com/airi/assistant/execution/cloud/EmbeddedProviderConfig.kt
+
+Current hardcoded model:
+
+google/gemini-2.0-flash-001
+
+Observed runtime symptom:
+
+HTTP 404
+
+No endpoints found for
+google/gemini-2.0-flash-001
+
+Task:
+
+1. Verify the currently supported OpenRouter Gemini model.
+
+2. Replace the stale identifier with a valid currently supported model.
+
+3. Update ALL references consistently.
+
+4. Eliminate duplicate source-of-truth problems if practical without broad refactoring.
+
+5. Do NOT modify routing logic yet.
+
+==================================================
+DO NOT IMPLEMENT YET
+
+Do NOT touch:
+
+- AgentLoop query classification propagation
+- OpenRouter intelligent routing logic
+- RuntimeRouter
+- RoutingPolicy
+- HybridOrchestrator
+- CloudBackend
+- RemoteModelRegistry
+- ExecModePreferences
+- UI provider selection logic
+- activeCloudProvider display bug
+- LM Studio discovery
+- Ollama discovery
+- Groq integration
+
+Those belong to later patches.
+
+==================================================
+POST-IMPLEMENTATION VERIFICATION
+
+After implementation perform a targeted verification audit and prove:
+
+A. Gemini
+
+1. Show the exact generated JSON structure.
+
+2. Confirm all braces and arrays are balanced.
+
+3. Confirm systemInstruction is valid.
+
+4. Confirm no trailing commas were introduced.
+
+B. OpenRouter
+
+1. Show every location where the old model ID existed.
+
+2. Show every location updated.
+
+3. Confirm the selected default model now resolves to a currently supported OpenRouter model.
+
+4. Confirm OpenRouterAdapter will no longer generate:
+
+HTTP 404
+No endpoints found
+
+for the previous stale identifier.
+
+==================================================
+OUTPUT FORMAT
+
+1. Code diff
+
+2. Files modified
+
+3. Verification report
+
+4. Risk assessment
+
+5. Any remaining known blockers
+
+No speculative analysis.
+
+No additional architecture work.
+
+Implement Patch A and Patch B only.

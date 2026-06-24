@@ -163,7 +163,7 @@ object EmbeddedProviderConfig {
             displayLabel = "OpenRouter · Gemini Flash",
             description  = "Route to Gemini 2.0 Flash via OpenRouter. Free with account.",
             tier         = ProviderTier.FREE_SIGNUP,
-            defaultModel = "google/gemini-2.0-flash-001",
+            defaultModel = "google/gemini-2.0-flash-exp:free",
             baseUrl      = "https://openrouter.ai/api/v1",
             signupUrl    = "https://openrouter.ai/keys",
             keyPrefsKey  = KEY_OR_KEY,

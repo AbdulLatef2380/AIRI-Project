@@ -22,11 +22,11 @@ import java.net.HttpURLConnection
  *
  *   CODING         → deepseek/deepseek-coder   (best code quality)
  *   REASONING      → deepseek/deepseek-r1:free  (chain-of-thought)
- *   LONG CONTEXT   → google/gemini-2.0-flash-001 (1M ctx window)
- *   VISION         → google/gemini-2.0-flash-001 (multimodal)
+ *   LONG CONTEXT   → google/gemini-2.0-flash-exp:free (1M ctx window)
+ *   VISION         → google/gemini-2.0-flash-exp:free (multimodal)
  *   ARABIC/GENERAL → qwen/qwen-2.5-72b-instruct  (strong multilingual)
  *   FAST/SIMPLE    → meta-llama/llama-3.3-8b-instruct:free (fastest free)
- *   DEFAULT        → google/gemini-2.0-flash-001
+ *   DEFAULT        → google/gemini-2.0-flash-exp:free
  *
  * ## API key
  * Uses the OPENROUTER slot in [SecureApiKeyStore].
@@ -52,16 +52,16 @@ class OpenRouterAdapter(
         private const val BASE_URL    = "https://openrouter.ai/api/v1"
         private const val APP_REFERER = "https://airi.app"
         private const val APP_TITLE   = "AIRI"
-        const val DEFAULT_MODEL       = "google/gemini-2.0-flash-001"
+        const val DEFAULT_MODEL       = "google/gemini-2.0-flash-exp:free"
 
         // ── Free / low-cost model catalog on OpenRouter ──────────────────────
         const val MODEL_CODING        = "deepseek/deepseek-coder"
         const val MODEL_REASONING     = "deepseek/deepseek-r1:free"
-        const val MODEL_LONG_CONTEXT  = "google/gemini-2.0-flash-001"
-        const val MODEL_VISION        = "google/gemini-2.0-flash-001"
+        const val MODEL_LONG_CONTEXT  = "google/gemini-2.0-flash-exp:free"
+        const val MODEL_VISION        = "google/gemini-2.0-flash-exp:free"
         const val MODEL_MULTILINGUAL  = "qwen/qwen-2.5-72b-instruct:free"
         const val MODEL_FAST          = "meta-llama/llama-3.3-8b-instruct:free"
-        const val MODEL_QUALITY       = "google/gemini-2.0-flash-001"
+        const val MODEL_QUALITY       = "google/gemini-2.0-flash-exp:free"
 
         /**
          * Select the best OpenRouter model for an [ExecutionRequest].

@@ -1422,6 +1422,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     input        = trimmedInput,
                     systemPrompt = systemPrompt,
                     tools        = activeTools,
+                    queryType    = queryType,
                     onToken      = { tok ->
                         tokenCount += tok.length / 4 + 1
                         if (!firstTokenReceived) {
@@ -1710,17 +1711,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _modelState.update { it.copy(isCloudReady = false, cloudModelName = "", activeCloudProvider = null) }
             return
         }
-        // Path 1: RemoteModelRegistry already has an active entry
+        // Path 1: RemoteModelRegistry already has an active entry.
+        // activeCloudProvider is resolved from execModePrefs.preferredProvider (the
+        // actual routing provider) rather than being hardcoded to CUSTOM, so the UI
+        // correctly shows GEMINI / OPENROUTER / CUSTOM based on which adapter will run.
         val activeRemote = RemoteModelRegistry.getActive()
         if (activeRemote != null) {
+            val resolvedProvider = execModePrefs.preferredProvider
             _modelState.update {
                 it.copy(
                     isCloudReady        = true,
                     cloudModelName      = activeRemote.name,
-                    activeCloudProvider = CloudProvider.CUSTOM
+                    activeCloudProvider = resolvedProvider
                 )
             }
-            Log.i("AIRI_CLOUD", "Cloud ready via RemoteModel: ${activeRemote.name} → ${activeRemote.serverUrl.take(40)}")
+            Log.i("AIRI_CLOUD", "Cloud ready via RemoteModel: ${activeRemote.name} → ${activeRemote.serverUrl.take(40)} provider=${resolvedProvider.name}")
             return
         }
         // Path 2: Built-in provider pref set but no RemoteModel bridged yet

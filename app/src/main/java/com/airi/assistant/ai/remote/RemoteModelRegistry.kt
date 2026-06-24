@@ -13,6 +13,28 @@ object RemoteModelRegistry {
 
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        migrateStaleModelNames()
+    }
+
+    /**
+     * One-time idempotent migration: replace the stale OpenRouter model ID
+     * google/gemini-2.0-flash-001 with the current supported ID
+     * google/gemini-2.0-flash-exp:free in every persisted [RemoteModel] entry.
+     *
+     * Runs synchronously inside [init] before any caller can read the registry.
+     * Safe to call on subsequent launches — exits immediately if no stale entries exist.
+     */
+    private fun migrateStaleModelNames() {
+        val stale       = "google/gemini-2.0-flash-001"
+        val replacement = "google/gemini-2.0-flash-exp:free"
+        val list = getAll()
+        val affected = list.filter { it.name == stale }
+        if (affected.isEmpty()) return
+        val migrated = list.map { m -> if (m.name == stale) m.copy(name = replacement) else m }
+        prefs.edit().putString(KEY_MODELS, serializeList(migrated)).apply()
+        android.util.Log.i("AIRI_Registry",
+            "migrateStaleModelNames: replaced $stale → $replacement in ${affected.size} entry(s): " +
+            affected.joinToString { it.id })
     }
 
     fun getAll(): List<RemoteModel> {

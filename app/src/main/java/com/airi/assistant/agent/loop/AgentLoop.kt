@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.airi.assistant.agent.loop.tool.ToolDispatcher
 import com.airi.assistant.agent.loop.tool.ToolSchema
+import com.airi.assistant.ai.QueryType
 import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.ExecOrigin
@@ -64,6 +65,9 @@ Do not mix tool_call JSON with prose in the same message.
      * @param input          Raw user message.
      * @param systemPrompt   Base system prompt (persona, memory, etc.) — tool schemas appended.
      * @param tools          Tools available for this session. If empty, runs single-turn LLM.
+     * @param queryType      Classified intent from [QueryClassifier], forwarded into every
+     *                       [ExecutionRequest] so [OpenRouterAdapter.selectModel] can apply
+     *                       task-based model routing (ANALYTICAL → DeepSeek R1, etc.).
      * @param onToken        Called with each streaming token (for live UI updates).
      * @param onStepComplete Called after each completed step (tool execution or partial answer).
      *                       Return a non-null String to REPLACE the tool result that the LLM sees.
@@ -74,6 +78,7 @@ Do not mix tool_call JSON with prose in the same message.
         input:          String,
         systemPrompt:   String,
         tools:          List<ToolSchema>,
+        queryType:      QueryType              = QueryType.UNKNOWN,
         onToken:        suspend (String) -> Unit,
         onStepComplete: suspend (StepEvent) -> String? = { null }
     ): LoopResult {
@@ -84,7 +89,7 @@ Do not mix tool_call JSON with prose in the same message.
 
         // If no tools provided, single-pass inference
         if (tools.isEmpty()) {
-            val response = callLLM(input, systemPrompt, history, tools, onToken)
+            val response = callLLM(input, systemPrompt, history, tools, queryType, onToken)
             return LoopResult(response, 1, emptyList())
         }
 
@@ -116,6 +121,7 @@ Do not mix tool_call JSON with prose in the same message.
                     systemPrompt = fullSystemPrompt,
                     history      = history,
                     tools        = tools,
+                    queryType    = queryType,
                     onToken      = { tok ->
                         tokenBuffer.append(tok)
                         onToken(tok)
@@ -146,6 +152,7 @@ Do not mix tool_call JSON with prose in the same message.
                             systemPrompt = fullSystemPrompt,
                             history      = retryHistory,
                             tools        = tools,
+                            queryType    = queryType,
                             onToken      = {}   // don't stream retry to UI
                         )
                     } catch (e: Exception) {
@@ -208,7 +215,7 @@ Do not mix tool_call JSON with prose in the same message.
             // Exhausted step budget — ask LLM to summarise what it has
             Log.w(TAG, "AgentLoop exhausted $MAX_STEPS steps — asking LLM to summarise")
             history.add(ConversationTurn.User("You have reached your step limit. Summarise what you have done and what the final answer is."))
-            val summary = callLLM("", fullSystemPrompt, history, emptyList(), onToken)
+            val summary = callLLM("", fullSystemPrompt, history, emptyList(), queryType, onToken)
             ExecutionStatusBus.onGraphCompleted(true)
             return LoopResult(summary, stepsUsed, toolsInvoked)
 
@@ -227,6 +234,7 @@ Do not mix tool_call JSON with prose in the same message.
         systemPrompt: String,
         history:      List<ConversationTurn>,
         tools:        List<ToolSchema>,
+        queryType:    QueryType = QueryType.UNKNOWN,
         onToken:      suspend (String) -> Unit
     ): String {
         // Build the full prompt from history
@@ -245,6 +253,11 @@ Do not mix tool_call JSON with prose in the same message.
             }
         }
 
+        // Estimate token count from character count (chars / 4 is the standard approximation).
+        // Used by OpenRouterAdapter.selectModel() for long-context routing (Rule 2: >4 000 tokens
+        // routes to the 1 M-context model instead of the default).
+        val estimatedTokens = fullPrompt.length / 4
+
         val buf = StringBuilder()
         var error: String? = null
 
@@ -254,12 +267,15 @@ Do not mix tool_call JSON with prose in the same message.
 
         orchestrator.executeStream(
             request    = ExecutionRequest(
-                prompt           = fullPrompt,
-                systemPrompt     = systemPrompt,
-                maxTokens        = 1024,   // B-03: was 512 — too low for complex tool JSON + reasoning
-                temperature      = 0.3f,   // low temp for structured decisions
-                requiresStreaming = true,
-                sessionTag       = "agent_loop"
+                prompt                = fullPrompt,
+                systemPrompt          = systemPrompt,
+                maxTokens             = 1024,   // B-03: was 512 — too low for complex tool JSON + reasoning
+                temperature           = 0.3f,   // low temp for structured decisions
+                queryType             = queryType,
+                requiresStreaming      = true,
+                requiresLongContext   = estimatedTokens > 8_192,
+                estimatedPromptTokens = estimatedTokens,
+                sessionTag            = "agent_loop"
             ),
             context    = appContext,
             onToken    = { tok ->

@@ -55,12 +55,16 @@ class OpenRouterAdapter(
         const val DEFAULT_MODEL       = "google/gemini-2.0-flash-exp:free"
 
         // ── Free / low-cost model catalog on OpenRouter ──────────────────────
-        const val MODEL_CODING        = "deepseek/deepseek-coder"
+        // NOTE: model IDs must include :free for zero-cost OpenRouter routing.
+        // Verify IDs at https://openrouter.ai/models before updating.
+        const val MODEL_CODING        = "deepseek/deepseek-coder-v2:free"
         const val MODEL_REASONING     = "deepseek/deepseek-r1:free"
         const val MODEL_LONG_CONTEXT  = "google/gemini-2.0-flash-exp:free"
         const val MODEL_VISION        = "google/gemini-2.0-flash-exp:free"
         const val MODEL_MULTILINGUAL  = "qwen/qwen-2.5-72b-instruct:free"
-        const val MODEL_FAST          = "meta-llama/llama-3.3-8b-instruct:free"
+        // llama-3.3-8b-instruct:free was removed from OpenRouter (HTTP 404).
+        // Using llama-3.1-8b-instruct:free which is a confirmed current free endpoint.
+        const val MODEL_FAST          = "meta-llama/llama-3.1-8b-instruct:free"
         const val MODEL_QUALITY       = "google/gemini-2.0-flash-exp:free"
 
         /**
@@ -127,9 +131,9 @@ class OpenRouterAdapter(
          * and execution diagnostics.
          */
         fun modelLabel(modelId: String): String = when (modelId) {
-            MODEL_CODING       -> "DeepSeek Coder"
+            MODEL_CODING       -> "DeepSeek Coder V2"
             MODEL_REASONING    -> "DeepSeek R1"
-            MODEL_FAST         -> "Llama 3.3 8B"
+            MODEL_FAST         -> "Llama 3.1 8B"
             MODEL_MULTILINGUAL -> "Qwen 2.5 72B"
             DEFAULT_MODEL      -> "Gemini 2.0 Flash"
             else               -> modelId.substringAfterLast("/")

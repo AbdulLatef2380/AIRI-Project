@@ -63,14 +63,19 @@ object CloudAdapterFactory {
 
         return when (provider) {
             CloudProvider.GEMINI     -> {
-                // Patch 3A: pass the active catalog model so gemini_flash_lite uses
-                // "gemini-2.0-flash-lite" rather than GeminiAdapter's hardcoded default
-                // "gemini-2.0-flash". RemoteModel.name holds config.defaultModel after
-                // Fix C. Falls back to the adapter's hardcoded default when no registry
-                // entry is active (e.g. when isAvailable is evaluated before activation,
-                // or when the user has not selected a built-in Gemini catalog entry).
-                val geminiModel = RemoteModelRegistry.getActive()?.name ?: "gemini-2.0-flash"
-                Log.d(TAG, "GEMINI: model=$geminiModel")
+                // BUG-FIX: RemoteModelRegistry is a shared cross-provider registry.
+                // Using RemoteModelRegistry.getActive()?.name here caused cross-provider
+                // contamination: if the user had Groq ("llama-3.3-70b-versatile") active
+                // before switching to Gemini, GeminiAdapter received "llama-3.3-70b-versatile"
+                // as its model — causing Gemini API 404 manifesting as spurious timeouts.
+                //
+                // Resolution: read model name from EmbeddedProviderConfig which is scoped
+                // to the provider type, not from the shared RemoteModelRegistry.
+                val geminiModel = EmbeddedProviderConfig.getActiveProvider(context)
+                    ?.takeIf { it.provider == CloudProvider.GEMINI }
+                    ?.defaultModel
+                    ?: "gemini-2.0-flash"
+                Log.d(TAG, "GEMINI: model=$geminiModel (from EmbeddedProviderConfig)")
                 GeminiAdapter(keyStore, geminiModel)
             }
             CloudProvider.OPENAI     -> OpenAIAdapter(keyStore, CloudProvider.OPENAI)

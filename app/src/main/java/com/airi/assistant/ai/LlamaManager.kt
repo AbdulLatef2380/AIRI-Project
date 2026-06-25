@@ -2,6 +2,8 @@ package com.airi.assistant.ai
 
 import android.content.Context
 import android.util.Log
+import com.airi.assistant.ai.context.ContextBudget
+import com.airi.assistant.ai.session.SessionHandle
 import com.airi.assistant.memory.entity.ChatMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -141,16 +143,21 @@ class LlamaManager(private val context: Context) {
         // QUALITY mode (nCtx=2048) uses ~1432 history tokens instead of 750,
         // and FAST mode (nCtx=1024) uses a tighter ~408 tokens.
         //
-        // Budget formula: nCtx - NON_HISTORY_OVERHEAD, where overhead = 616 tokens:
-        //   system block  ~200  (persona + memory injection)
-        //   template tags  ~80  (chat-ml roles + separators)
-        //   user fragment  ~80  (current message estimate)
-        //   generation reserve ~256 (maxTokens headroom)
+        // SPRINT 1 MIGRATION: These constants are now LEGACY.
+        // Before Sprint 1, maxHistoryTokens was computed manually as:
+        //   (mode.nCtx - NON_HISTORY_OVERHEAD).coerceAtLeast(MIN_HISTORY_TOKENS)
         //
-        // The floor of 256 prevents pathological over-trimming on tiny models.
-        // The ceil of Int.MAX_VALUE is not needed — nCtx is always a sane value.
-        private const val NON_HISTORY_OVERHEAD = 616
-        private const val MIN_HISTORY_TOKENS   = 256
+        // After Sprint 1, maxHistoryTokens is a computed property backed by:
+        //   contextBudget.historyTokens  (which itself reads from LlamaNative.getNCtx())
+        //
+        // ContextBudget replicates the same formula with better structure:
+        //   systemOverhead=200, templateOverhead=80, userFragmentReserve=80,
+        //   generationReserve=256  → nonHistoryOverhead=616 (identical to NON_HISTORY_OVERHEAD)
+        //   historyTokens = (nCtx - 616 - ragTokens - summaryTokens).coerceAtLeast(256)
+        //
+        // Kept for reference and backward compatibility if any external code references them.
+        private const val NON_HISTORY_OVERHEAD = 616  // legacy; see ContextBudget.nonHistoryOverhead
+        private const val MIN_HISTORY_TOKENS   = 256  // legacy; see ContextBudget.historyTokens
     }
 
     /**
@@ -177,10 +184,38 @@ class LlamaManager(private val context: Context) {
     @Volatile var lastMetrics: LastInferenceMetrics = LastInferenceMetrics.EMPTY
         private set
 
-    // B-02: dynamic history budget — updated by applyRuntimeMode() when the user changes
-    // performance mode. Defaults to BALANCED budget (1536 - 616 = 920, coerced to floor).
-    @Volatile private var maxHistoryTokens: Int =
-        (PerformanceMode.BALANCED.nCtx - NON_HISTORY_OVERHEAD).coerceAtLeast(MIN_HISTORY_TOKENS)
+    /**
+     * SPRINT 1: Live context budget derived from LlamaNative.getNCtx().
+     * Updated after every model load and every runtime mode change via
+     * ContextBudget.fromNative(). This is the single source of truth for
+     * context capacity in LlamaManager.
+     *
+     * Exposed (read-only via private set) so LocalLlamaBackend can build a
+     * live CapabilityProfile.forLocalModel(contextBudget) that reflects the
+     * actual nCtx rather than the former hardcoded 4096.
+     */
+    @Volatile var contextBudget: ContextBudget = ContextBudget.UNLOADED
+        private set
+
+    /**
+     * SPRINT 3: Explicit handle for the current native inference session.
+     * Minted on every LlamaNative.beginSession() call in reconcileSession().
+     * Carries sessionId (from nativeGetSessionId()) and the contextBudget
+     * active at session open time. Enables session-validity checks and is
+     * the foundation for future per-agent session routing.
+     */
+    @Volatile var currentSession: SessionHandle = SessionHandle.NONE
+        private set
+
+    /**
+     * SPRINT 1: Token budget for conversation history turns.
+     * Before Sprint 1 this was a @Volatile var recomputed manually as:
+     *   (mode.nCtx - NON_HISTORY_OVERHEAD).coerceAtLeast(MIN_HISTORY_TOKENS)
+     * It is now a computed property backed by contextBudget.historyTokens so
+     * it automatically tracks whatever nCtx LlamaNative.getNCtx() reports —
+     * including runtime mode changes and models with non-standard nCtx values.
+     */
+    private val maxHistoryTokens: Int get() = contextBudget.historyTokens
 
     /** Snapshot the native counters into [lastMetrics] (call after a gen). */
     private fun refreshMetrics() {
@@ -230,10 +265,16 @@ class LlamaManager(private val context: Context) {
             lifecycleLock.withLock {
                 try {
                     LlamaNative.setRuntimeMode(mode.nCtx, mode.nThreads)
-                    // B-02: update dynamic history budget to match new nCtx
-                    maxHistoryTokens = (mode.nCtx - NON_HISTORY_OVERHEAD).coerceAtLeast(MIN_HISTORY_TOKENS)
+                    // SPRINT 1: Read the LIVE nCtx from the native runtime AFTER setRuntimeMode.
+                    // llama.cpp may round the requested nCtx internally (e.g. to a power of 2
+                    // or a block-size multiple). contextBudget.historyTokens replaces the former
+                    // manual derivation (mode.nCtx - NON_HISTORY_OVERHEAD).coerceAtLeast(MIN).
+                    contextBudget = ContextBudget.fromNative()
                     invalidateSession()
-                    Log.i(TAG, "RUNTIME_MODE_APPLIED mode=${mode.name} n_ctx=${mode.nCtx} threads=${mode.nThreads} maxHistoryTokens=$maxHistoryTokens")
+                    Log.i(TAG,
+                        "RUNTIME_MODE_APPLIED mode=${mode.name} n_ctx=${contextBudget.nCtx} " +
+                        "threads=${mode.nThreads} maxHistoryTokens=$maxHistoryTokens " +
+                        "budget=${contextBudget.toLogString()}")
                 } catch (e: Throwable) {
                     Log.e(TAG, "applyRuntimeMode failed: ${e.message}", e)
                 }
@@ -405,7 +446,13 @@ class LlamaManager(private val context: Context) {
                     }
                 )
                 isLoaded = true
-                Log.i(TAG, "LOAD SUCCESS path=${modelFile.absolutePath}")
+                // SPRINT 1: Capture live nCtx immediately after model load.
+                // This is the first point where getNCtx() returns a valid value
+                // reflecting the actual loaded model's context window.
+                contextBudget = ContextBudget.fromNative()
+                Log.i(TAG,
+                    "LOAD SUCCESS path=${modelFile.absolutePath} " +
+                    "budget=${contextBudget.toLogString()}")
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", true, "path=${modelFile.absolutePath}")
                 // P1-D: Model swap destroys the previous KV cache and resets the context.
                 // Emit CONTEXT_RESET so the observer in ChatViewModel surfaces the banner.
@@ -434,7 +481,11 @@ class LlamaManager(private val context: Context) {
                     }
                 isLoaded = (result == "LOAD_SUCCESS" || result == "Success")
                 if (isLoaded) {
-                    Log.i(TAG, "LOAD SUCCESS path=${modelFile.absolutePath}")
+                    // SPRINT 1: Also capture live nCtx on the legacy load path.
+                    contextBudget = ContextBudget.fromNative()
+                    Log.i(TAG,
+                        "LOAD SUCCESS path=${modelFile.absolutePath} " +
+                        "budget=${contextBudget.toLogString()}")
                     com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", true, "path=${modelFile.absolutePath}")
                     // P1-D: Also emit on the legacy load path.
                     runCatching {
@@ -614,6 +665,18 @@ class LlamaManager(private val context: Context) {
 
         if (needsReset) {
             LlamaNative.beginSession()
+            // SPRINT 3: Mint a new SessionHandle capturing the native session counter
+            // and the current ContextBudget. This makes session ownership explicit
+            // and is the foundation for future per-agent context routing:
+            //   - sessionId tracks which native context is live
+            //   - contextBudget records the capacity budget at session open time
+            //   - Future: route JNI calls by sessionId to different native contexts
+            currentSession = SessionHandle(
+                sessionId     = runCatching { LlamaNative.nativeGetSessionId() }.getOrDefault(-1L),
+                contextBudget = contextBudget,
+                modelPath     = modelPath
+            )
+            Log.i("AIRI_PROOF", "SESSION_HANDLE_MINTED ${currentSession.toLogString()}")
             primedHistory.clear()
 
             // Prime system prompt as a non-logits append (Mistral's is empty by design).

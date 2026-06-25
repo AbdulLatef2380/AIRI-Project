@@ -9,3 +9,4 @@
 - [Capability Wiring Audit](capability-wiring-audit.md) — Full audit results: what was wired vs disconnected; three gaps fixed; skill schema injection is the critical pattern.
 - [SkillRegistry getAllSkillInfos Filter Rule](skillregistry-allskillinfos-filter.md) — getAllSkillInfos() appends custom skills with author="builtin"; always filter by author=="AIRI Official" for the official-only section.
 - [Skill Execution Audit](skill-execution-audit.md) — Verified end-to-end path; complete AIRI_PROOF tag inventory; two bugs fixed (configValues Brave key, SkillToolBridge instrumentation).
+- [Context Budget Architecture](context-budget-architecture.md) — Sprints 1-3: ContextBudget/PromptBudgetLedger/SessionHandle; 9 hardcoded constants eliminated; backward-compat rules.

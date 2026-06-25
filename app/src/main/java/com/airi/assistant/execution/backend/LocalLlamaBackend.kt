@@ -5,6 +5,7 @@ import com.airi.assistant.ai.LlamaManager
 import com.airi.assistant.ai.ModelCapabilities
 import com.airi.assistant.ai.ModelManager
 import com.airi.assistant.execution.CapabilityProfile
+import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.ExecutionResult
@@ -45,13 +46,29 @@ class LocalLlamaBackend(
     override val displayName: String     = "Local (llama.cpp)"
     override val origin:      ExecOrigin = ExecOrigin.LOCAL
 
+    /**
+     * SPRINT 1: Capability profile derived from the live ContextBudget.
+     *
+     * Before Sprint 1 this returned CapabilityProfile.LOCAL_CPU.copy(supportsVision=...)
+     * which hardcoded maxContextTokens=4096 and supportsLongContext=false regardless of
+     * the actual loaded model. Now it calls CapabilityProfile.forLocalModel() with the
+     * live budget from LlamaManager so:
+     *   - maxContextTokens = actual nCtx from getNCtx() (e.g. 8192, 32768)
+     *   - supportsLongContext = true for 8K+ models → router won't wrongly
+     *     send long-context requests to cloud when a capable local model is loaded.
+     */
     override val capabilities: CapabilityProfile
         get() {
-            val model      = ModelManager.getCurrent()
-            val hasVision  = model?.let {
+            val model     = ModelManager.getCurrent()
+            val hasVision = model?.let {
                 runCatching { ModelCapabilities.detect(it).vision }.getOrDefault(false)
             } ?: false
-            return CapabilityProfile.LOCAL_CPU.copy(supportsVision = hasVision)
+            val budget = llamaManager.contextBudget
+            return if (budget.nCtx > ContextBudget.UNLOADED.nCtx || model != null) {
+                CapabilityProfile.forLocalModel(budget, hasVision)
+            } else {
+                CapabilityProfile.LOCAL_CPU.copy(supportsVision = hasVision)
+            }
         }
 
     override val isAvailable: Boolean

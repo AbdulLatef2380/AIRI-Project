@@ -3,6 +3,7 @@ package com.airi.assistant.ai.prompt
 import android.util.Log
 import com.airi.assistant.ai.PerformanceMode
 import com.airi.assistant.ai.QueryType
+import com.airi.assistant.ai.context.ContextBudget
 
 /**
  * DynamicPromptEngine — assembles the final system prompt before every model
@@ -55,9 +56,12 @@ object DynamicPromptEngine {
     private const val CHARS_PER_TOKEN = 4
 
     /**
-     * Default max tokens reserved for the injected RAG memory block.
-     * The remaining budget is taken from the model's context window at
-     * generation time and passed in via [maxRagTokens].
+     * SPRINT 1 migration note: DEFAULT_MAX_RAG_TOKENS was the sole RAG cap before Sprint 1.
+     * It is now the fallback when no live ContextBudget is available (e.g. before model load).
+     * After model load, the effective RAG budget scales with contextBudget.ragTokens:
+     *   nCtx=1536  → ragTokens=92   (was: 512)
+     *   nCtx=4096  → ragTokens=270  (was: 512)
+     *   nCtx=32768 → ragTokens=1024 (was: 512, now clamped at 1024)
      */
     private const val DEFAULT_MAX_RAG_TOKENS = 512
 
@@ -65,6 +69,12 @@ object DynamicPromptEngine {
 
     /**
      * Build the final, fully-assembled system prompt for one LLM generation.
+     *
+     * SPRINT 1: Accepts an optional [contextBudget] derived from LlamaNative.getNCtx()
+     * via LlamaManager.contextBudget. When provided, RAG and summary token/char caps
+     * scale with the loaded model's actual nCtx rather than the former hardcoded
+     * DEFAULT_MAX_RAG_TOKENS=512. Explicit [maxRagTokens] overrides the budget when
+     * the caller needs a specific cap (e.g. buildFast() uses 128 tokens).
      *
      * @param agentModePrompt  The agent-mode persona base string.
      * @param responseStyle    User-selected response style ("concise"/"detailed"/other).
@@ -79,38 +89,55 @@ object DynamicPromptEngine {
      *                         Empty → omitted.
      * @param toolBlock        Tool description block from ToolRegistry.
      *                         Empty → omitted.
-     * @param maxRagTokens     Hard token cap for the RAG block.
-     *                         Default [DEFAULT_MAX_RAG_TOKENS].
+     * @param maxRagTokens     Explicit token cap for the RAG block. When -1 (default),
+     *                         the cap is derived from [contextBudget.ragTokens] if a
+     *                         live budget is available, or [DEFAULT_MAX_RAG_TOKENS] otherwise.
      * @param extraContext     Any additional context the caller wants injected
      *                         (screen content, accessibility context, etc.).
+     * @param contextBudget    Live budget from LlamaManager.contextBudget.
+     *                         Defaults to [ContextBudget.UNLOADED] for backward compat.
      */
     fun build(
         agentModePrompt: String,
-        responseStyle:   String        = "balanced",
-        customPrompt:    String        = "",
+        responseStyle:   String          = "balanced",
+        customPrompt:    String          = "",
         performanceMode: PerformanceMode = PerformanceMode.BALANCED,
-        queryType:       QueryType     = QueryType.UNKNOWN,
-        ragContextBlock: String        = "",
-        memorySummary:   String        = "",
-        skillBlock:      String        = "",
-        toolBlock:       String        = "",
-        maxRagTokens:    Int           = DEFAULT_MAX_RAG_TOKENS,
-        extraContext:    String        = ""
+        queryType:       QueryType       = QueryType.UNKNOWN,
+        ragContextBlock: String          = "",
+        memorySummary:   String          = "",
+        skillBlock:      String          = "",
+        toolBlock:       String          = "",
+        maxRagTokens:    Int             = -1,
+        extraContext:    String          = "",
+        contextBudget:   ContextBudget   = ContextBudget.UNLOADED
     ): String {
+        // SPRINT 1: Derive effective token caps from the live ContextBudget when available.
+        // Explicit maxRagTokens overrides the budget (e.g. buildFast passes 128).
+        val effectiveRagTokens: Int = when {
+            maxRagTokens >= 0 -> maxRagTokens
+            contextBudget.nCtx > ContextBudget.UNLOADED.nCtx -> contextBudget.ragTokens
+            else -> DEFAULT_MAX_RAG_TOKENS
+        }
+        val effectiveSummaryChars: Int = when {
+            contextBudget.nCtx > ContextBudget.UNLOADED.nCtx -> contextBudget.summaryChars
+            else -> DEFAULT_MAX_RAG_TOKENS * CHARS_PER_TOKEN  // ~2048 chars
+        }
         val sb = StringBuilder()
 
         // ── 1. Agent persona ────────────────────────────────────────────────────
         sb.append(agentModePrompt.trim())
 
         // ── 2. Memory compression summary (older turns) ─────────────────────────
+        // SPRINT 1: char cap scales with contextBudget.summaryChars (was hardcoded 1_600).
         if (memorySummary.isNotBlank()) {
             sb.append("\n\n--- Conversation summary (older context) ---\n")
-            sb.append(memorySummary.trim().take(1_600))
+            sb.append(memorySummary.trim().take(effectiveSummaryChars))
             sb.append("\n--- End of summary ---")
         }
 
         // ── 3. RAG context block (semantic memory retrieval) ────────────────────
-        val trimmedRag = trimToTokenBudget(ragContextBlock.trim(), maxRagTokens)
+        // SPRINT 1: effectiveRagTokens derived from ContextBudget (was DEFAULT_MAX_RAG_TOKENS=512).
+        val trimmedRag = trimToTokenBudget(ragContextBlock.trim(), effectiveRagTokens)
         if (trimmedRag.isNotBlank()) {
             sb.append("\n\n")
             sb.append(trimmedRag)
@@ -169,15 +196,16 @@ object DynamicPromptEngine {
 
         val result = sb.toString()
 
-        val ragTokens   = estimateTokens(trimmedRag)
+        val ragToks     = estimateTokens(trimmedRag)
         val summaryToks = estimateTokens(memorySummary)
         val skillToks   = if (performanceMode != PerformanceMode.FAST) estimateTokens(skillBlock) else 0
         val toolToks    = if (performanceMode != PerformanceMode.FAST) estimateTokens(toolBlock) else 0
         val totalToks   = estimateTokens(result)
 
         Log.i(TAG,
-            "AIRI_PROOF PROMPT_BUILT totalTokens=$totalToks ragTokens=$ragTokens " +
+            "AIRI_PROOF PROMPT_BUILT totalTokens=$totalToks ragTokens=$ragToks " +
             "summaryTokens=$summaryToks skillTokens=$skillToks toolTokens=$toolToks " +
+            "effectiveRagBudget=$effectiveRagTokens nCtx=${contextBudget.nCtx} " +
             "mode=${performanceMode.name} query=${queryType.name} " +
             "hasRag=${trimmedRag.isNotBlank()} hasSummary=${memorySummary.isNotBlank()}"
         )
@@ -190,15 +218,17 @@ object DynamicPromptEngine {
      */
     fun buildFast(
         agentModePrompt: String,
-        ragContextBlock: String = "",
-        customPrompt:    String = ""
+        ragContextBlock: String         = "",
+        customPrompt:    String         = "",
+        contextBudget:   ContextBudget  = ContextBudget.UNLOADED
     ): String = build(
         agentModePrompt = agentModePrompt,
         performanceMode = PerformanceMode.FAST,
         queryType       = QueryType.SIMPLE,
         ragContextBlock = ragContextBlock,
         customPrompt    = customPrompt,
-        maxRagTokens    = 128
+        maxRagTokens    = 128,           // explicit override — fast path always caps at 128 tokens
+        contextBudget   = contextBudget
     )
 
     // ── Context ranking ───────────────────────────────────────────────────────

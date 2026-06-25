@@ -3,6 +3,7 @@ package com.airi.assistant.domain.prompt
 import android.content.Context
 import com.airi.assistant.ai.PerformanceMode
 import com.airi.assistant.ai.QueryType
+import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.ai.tools.ToolRegistry
 
@@ -53,6 +54,14 @@ STRICT RESPONSE RULES — follow every rule exactly:
      * pre-retrieved semantic memory block from [RagRetriever.buildContextBlock]
      * and the compressed conversation summary from [ConversationSummarizer].
      *
+     * SPRINT 1 upgrade: accepts an optional [contextBudget] derived from
+     * LlamaNative.getNCtx() via LlamaManager.contextBudget. When provided,
+     * RAG and summary char caps scale with nCtx instead of using the former
+     * hardcoded constants (MAX_RAG_CHARS=2400, MAX_SUMMARY_CHARS=1600):
+     *   nCtx=1536  → ragChars=368,  summaryChars=184
+     *   nCtx=4096  → ragChars=1080, summaryChars=540
+     *   nCtx=32768 → ragChars=4096, summaryChars=1600  (clamped)
+     *
      * ── INJECTION ORDER ──────────────────────────────────────────────────────
      *   1. Agent mode persona ([modePrompt])
      *   2. Conversation summary (older turns, if provided)
@@ -64,10 +73,12 @@ STRICT RESPONSE RULES — follow every rule exactly:
      *   8. Skill descriptions (omitted in FAST mode)
      *
      * @param ragContextBlock   Formatted RAG block from [RagRetriever.buildContextBlock].
-     *                          Empty string → slot is skipped. Hard-trimmed to
-     *                          [MAX_RAG_CHARS] to prevent context overflow.
+     *                          Empty string → slot is skipped. Trimmed to
+     *                          [contextBudget.ragChars] (or [MAX_RAG_CHARS] if no budget).
      * @param memorySummary     Compressed summary of older turns from
      *                          [ConversationSummarizer]. Empty → omitted.
+     * @param contextBudget     Live budget from LlamaManager.contextBudget.
+     *                          Defaults to [ContextBudget.UNLOADED] for backward compat.
      */
     fun buildSystemPromptWithContext(
         modePrompt:      String,
@@ -76,20 +87,28 @@ STRICT RESPONSE RULES — follow every rule exactly:
         performanceMode: PerformanceMode = PerformanceMode.BALANCED,
         queryType:       QueryType       = QueryType.UNKNOWN,
         ragContextBlock: String          = "",
-        memorySummary:   String          = ""
+        memorySummary:   String          = "",
+        contextBudget:   ContextBudget   = ContextBudget.UNLOADED
     ): String = buildString {
         // ── 1. Agent persona ───────────────────────────────────────────────────
         append(modePrompt)
 
         // ── 2. Conversation summary (compressed older turns) ────────────────────
+        // SPRINT 1: char cap derived from live ContextBudget when available,
+        // falls back to static MAX_SUMMARY_CHARS for backward compatibility.
+        val summaryCharCap = if (contextBudget.nCtx > ContextBudget.UNLOADED.nCtx)
+            contextBudget.summaryChars else MAX_SUMMARY_CHARS
         if (memorySummary.isNotBlank()) {
             append("\n\n--- Conversation summary (prior context) ---\n")
-            append(memorySummary.trim().take(MAX_SUMMARY_CHARS))
+            append(memorySummary.trim().take(summaryCharCap))
             append("\n--- End of summary ---")
         }
 
         // ── 3. RAG semantic memory block ────────────────────────────────────────
-        val trimmedRag = ragContextBlock.trim().take(MAX_RAG_CHARS)
+        // SPRINT 1: char cap derived from live ContextBudget when available.
+        val ragCharCap = if (contextBudget.nCtx > ContextBudget.UNLOADED.nCtx)
+            contextBudget.ragChars else MAX_RAG_CHARS
+        val trimmedRag = ragContextBlock.trim().take(ragCharCap)
         if (trimmedRag.isNotBlank()) {
             append("\n\n")
             append(trimmedRag)
@@ -156,8 +175,15 @@ STRICT RESPONSE RULES — follow every rule exactly:
     )
 
     private companion object {
-        // Hard char caps for injected context blocks.
-        // 2400 chars ≈ 600 tokens — safe for a 4096-token context model.
+        // Static char caps — SPRINT 1 migration note:
+        // These are now fallback values only, used when no live ContextBudget
+        // is available (e.g. before model load). After model load, the caller
+        // should pass contextBudget from LlamaManager.contextBudget so caps
+        // scale automatically with nCtx (4K, 8K, 32K+ models).
+        //
+        // Historical values documented for the migration report:
+        //   MAX_RAG_CHARS     = 2400  (~600 tok) — was hardcoded for 4K models
+        //   MAX_SUMMARY_CHARS = 1600  (~400 tok) — was hardcoded for 4K models
         const val MAX_RAG_CHARS     = 2_400
         const val MAX_SUMMARY_CHARS = 1_600
     }

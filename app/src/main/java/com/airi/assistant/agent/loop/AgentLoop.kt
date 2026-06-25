@@ -5,6 +5,7 @@ import android.util.Log
 import com.airi.assistant.agent.loop.tool.ToolDispatcher
 import com.airi.assistant.agent.loop.tool.ToolSchema
 import com.airi.assistant.ai.QueryType
+import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.ExecOrigin
@@ -29,11 +30,21 @@ import kotlin.coroutines.coroutineContext
  *
  * The LLM is the planner. No regex. No pre-planned 20-step lists.
  * Every action is decided after observing the result of the previous one.
+ *
+ * SPRINT 1: [contextBudgetProvider] replaces the hardcoded 8_192 token threshold
+ * for long-context routing. The threshold now scales with the loaded model:
+ *   1536-token model  → routes cloud when prompt > 768  tokens
+ *   8192-token model  → routes cloud when prompt > 4096 tokens
+ *   32K-token model   → routes cloud when prompt > 16K  tokens
+ *
+ * Default is [ContextBudget.UNLOADED] (1536-token budget) so existing callers
+ * that don't pass a provider behave conservatively rather than breaking.
  */
 class AgentLoop(
-    private val orchestrator: HybridOrchestrator,
-    private val dispatcher:   ToolDispatcher,
-    private val appContext:   Context
+    private val orchestrator:          HybridOrchestrator,
+    private val dispatcher:            ToolDispatcher,
+    private val appContext:            Context,
+    private val contextBudgetProvider: () -> ContextBudget = { ContextBudget.UNLOADED }
 ) {
     companion object {
         private const val TAG         = "AIRI_AgentLoop"
@@ -253,10 +264,12 @@ Do not mix tool_call JSON with prose in the same message.
             }
         }
 
-        // Estimate token count from character count (chars / 4 is the standard approximation).
-        // Used by OpenRouterAdapter.selectModel() for long-context routing (Rule 2: >4 000 tokens
-        // routes to the 1 M-context model instead of the default).
+        // SPRINT 1: Estimate token count and derive the long-context threshold from
+        // the live ContextBudget (LlamaNative.getNCtx() → ContextBudget.longContextThreshold)
+        // rather than the former hardcoded constant of 8_192.
+        // For a 1536-token model: threshold = 768; for 32K: threshold = 16384.
         val estimatedTokens = fullPrompt.length / 4
+        val longContextThreshold = contextBudgetProvider().longContextThreshold
 
         val buf = StringBuilder()
         var error: String? = null
@@ -273,7 +286,7 @@ Do not mix tool_call JSON with prose in the same message.
                 temperature           = 0.3f,   // low temp for structured decisions
                 queryType             = queryType,
                 requiresStreaming      = true,
-                requiresLongContext   = estimatedTokens > 8_192,
+                requiresLongContext   = estimatedTokens > longContextThreshold,
                 estimatedPromptTokens = estimatedTokens,
                 sessionTag            = "agent_loop"
             ),

@@ -1,5 +1,7 @@
 package com.airi.assistant.execution
 
+import com.airi.assistant.ai.context.ContextBudget
+
 /**
  * Declares what a runtime backend can do.
  *
@@ -56,18 +58,55 @@ data class CapabilityProfile(
     }
 
     companion object {
-        /** Typical local llama.cpp profile. Vision is conditional on projector. */
+        /**
+         * Conservative static local profile used before a model is loaded.
+         * SPRINT 1 migration note: maxContextTokens was hardcoded to 4096 here.
+         * After model load, callers should use [forLocalModel] instead, which
+         * derives all values from [ContextBudget] and reflects the actual
+         * runtime nCtx from LlamaNative.getNCtx().
+         */
         val LOCAL_CPU = CapabilityProfile(
             supportsStreaming            = true,
             supportsToolCalling          = true,
             supportsVision               = false,  // set true after mmproj load
-            supportsLongContext          = false,
+            supportsLongContext          = false,   // will be true for 8K+ models via forLocalModel
             supportsFastReasoning        = false,
             supportsOffline              = true,
             supportsAccessibilityActions = true,
             supportsVoiceRealtime        = false,
             supportsStructuredOutput     = true,
-            maxContextTokens             = 4096,
+            maxContextTokens             = 1536,   // conservative; replaced by forLocalModel after load
+            estimatedFirstTokenMs        = 4000
+        )
+
+        /**
+         * SPRINT 1: Build a live CapabilityProfile for the local backend
+         * from the active [ContextBudget].
+         *
+         * This is the authoritative capability declaration after a model is
+         * loaded. It replaces the hardcoded LOCAL_CPU constant for routing
+         * decisions so that:
+         *   - maxContextTokens reflects the actual nCtx from getNCtx()
+         *   - supportsLongContext is true for 8K+ models
+         *   - Vision is preserved from the caller (still model-dependent)
+         *
+         * @param budget    Active ContextBudget from LlamaManager.contextBudget.
+         * @param hasVision True when an mmproj projector is loaded.
+         */
+        fun forLocalModel(
+            budget:    ContextBudget,
+            hasVision: Boolean = false
+        ): CapabilityProfile = CapabilityProfile(
+            supportsStreaming            = true,
+            supportsToolCalling          = true,
+            supportsVision               = hasVision,
+            supportsLongContext          = budget.supportsLongContext,
+            supportsFastReasoning        = false,
+            supportsOffline              = true,
+            supportsAccessibilityActions = true,
+            supportsVoiceRealtime        = false,
+            supportsStructuredOutput     = true,
+            maxContextTokens             = budget.nCtx,
             estimatedFirstTokenMs        = 4000
         )
 

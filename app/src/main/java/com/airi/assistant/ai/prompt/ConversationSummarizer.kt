@@ -3,6 +3,7 @@ package com.airi.assistant.ai.prompt
 import android.content.Context
 import android.util.Log
 import com.airi.assistant.ai.LlamaManager
+import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.memory.entity.ChatMessage
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -31,16 +32,24 @@ object ConversationSummarizer {
      * Returns the summary text, or null if summarization didn't produce useful
      * output. Suspends until the model returns.
      *
-     * @param olderTurns the messages BEFORE the recent sliding window
-     * @param previousSummary the summary already on file (if any) — included
-     *                        so the model can extend rather than restart
+     * @param ctx             Android context (for MemoryStore writes).
+     * @param sessionId       Current session identifier.
+     * @param llamaManager    The local inference engine.
+     * @param olderTurns      Messages BEFORE the recent sliding window.
+     * @param previousSummary The summary already on file (may be blank).
+     * @param contextBudget   Live budget from [LlamaManager.contextBudget].
+     *                        Defaults to [ContextBudget.UNLOADED] for backward compat.
+     *                        The stored summary is trimmed to [ContextBudget.summaryChars]
+     *                        so it can never exceed the budget reserved for it in
+     *                        [PromptBudgetLedger.Contributor.SUMMARY].
      */
     suspend fun summarize(
         ctx: Context,
         sessionId: String,
         llamaManager: LlamaManager,
         olderTurns: List<ChatMessage>,
-        previousSummary: String
+        previousSummary: String,
+        contextBudget: ContextBudget = ContextBudget.UNLOADED
     ): String? {
         if (olderTurns.isEmpty()) return null
         val transcript = buildTranscript(olderTurns)
@@ -86,7 +95,11 @@ object ConversationSummarizer {
             Log.w("AIRI_PROMPT_COMPRESS", "SUMMARIZE returned blank")
             return null
         }
-        val cleaned = result.trim().take(2_400) // hard char cap
+        // SPRINT 2 / Phase A3: Use contextBudget.summaryChars so the stored
+        // summary is always within the budget reserved for it in the ledger.
+        // contextBudget.summaryChars is always at least 256 chars (64 tok * 4).
+        // Falls back to ContextBudget.UNLOADED.summaryChars when no model is loaded.
+        val cleaned = result.trim().take(contextBudget.summaryChars)
 
         MemoryStore.setSummary(ctx, sessionId, cleaned)
         MemoryStore.setSummaryCoverage(ctx, sessionId, olderTurns.size)

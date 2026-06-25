@@ -87,8 +87,13 @@ class OpenRouterAdapter(
             // Rule 1: vision
             if (request.requiresVision) return MODEL_VISION
 
-            // Rule 2: long context
-            if (request.requiresLongContext || request.estimatedPromptTokens > 4000) {
+            // Rule 2: long context.
+            // Phase A1: rely solely on request.requiresLongContext, which is set by
+            // AgentLoop using contextBudget.longContextThreshold (= nCtx / 2).
+            // The former hardcoded "> 4000" threshold is removed — it was a fixed
+            // constant that ignored the loaded model's actual nCtx and could route to
+            // the cloud unnecessarily on 8K+ models where 4000 tokens is a small prompt.
+            if (request.requiresLongContext) {
                 return MODEL_LONG_CONTEXT
             }
 

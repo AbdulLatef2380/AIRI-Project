@@ -1,9 +1,11 @@
 package com.airi.assistant.domain.prompt
 
 import android.content.Context
+import android.util.Log
 import com.airi.assistant.ai.PerformanceMode
 import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.context.ContextBudget
+import com.airi.assistant.ai.prompt.budget.PromptBudgetLedger
 import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.ai.tools.ToolRegistry
 
@@ -62,6 +64,11 @@ STRICT RESPONSE RULES — follow every rule exactly:
      *   nCtx=4096  → ragChars=1080, summaryChars=540
      *   nCtx=32768 → ragChars=4096, summaryChars=1600  (clamped)
      *
+     * SPRINT 2 upgrade: wires [PromptBudgetLedger] so every slot is formally
+     * accounted for. Skill/tool descriptions are skipped when [hasAgentTools]
+     * is true — the AgentLoop will inject its own structured tool schemas,
+     * so the narrative skill block would be a duplicate.
+     *
      * ── INJECTION ORDER ──────────────────────────────────────────────────────
      *   1. Agent mode persona ([modePrompt])
      *   2. Conversation summary (older turns, if provided)
@@ -69,8 +76,7 @@ STRICT RESPONSE RULES — follow every rule exactly:
      *   4. Response-style / performance hints
      *   5. Quality rules (always)
      *   6. User custom prompt override
-     *   7. Tool descriptions (omitted in FAST mode)
-     *   8. Skill descriptions (omitted in FAST mode)
+     *   7. Tool + Skill descriptions (omitted in FAST mode or when [hasAgentTools])
      *
      * @param ragContextBlock   Formatted RAG block from [RagRetriever.buildContextBlock].
      *                          Empty string → slot is skipped. Trimmed to
@@ -79,6 +85,9 @@ STRICT RESPONSE RULES — follow every rule exactly:
      *                          [ConversationSummarizer]. Empty → omitted.
      * @param contextBudget     Live budget from LlamaManager.contextBudget.
      *                          Defaults to [ContextBudget.UNLOADED] for backward compat.
+     * @param hasAgentTools     When true the AgentLoop is supplying its own structured
+     *                          tool schema block — skip the narrative skill injection to
+     *                          prevent the LLM receiving duplicate skill descriptions.
      */
     fun buildSystemPromptWithContext(
         modePrompt:      String,
@@ -88,69 +97,116 @@ STRICT RESPONSE RULES — follow every rule exactly:
         queryType:       QueryType       = QueryType.UNKNOWN,
         ragContextBlock: String          = "",
         memorySummary:   String          = "",
-        contextBudget:   ContextBudget   = ContextBudget.UNLOADED
-    ): String = buildString {
-        // ── 1. Agent persona ───────────────────────────────────────────────────
-        append(modePrompt)
+        contextBudget:   ContextBudget   = ContextBudget.UNLOADED,
+        hasAgentTools:   Boolean         = false
+    ): String {
+        // SPRINT 2: Mint a fresh PromptBudgetLedger for this prompt build.
+        // forBudget() pre-allocates SYSTEM, GENERATION, SUMMARY, and RAG slots.
+        // Every content contributor must claim from this ledger before appending.
+        val ledger = PromptBudgetLedger.forBudget(contextBudget)
 
-        // ── 2. Conversation summary (compressed older turns) ────────────────────
-        // SPRINT 1: char cap derived from live ContextBudget when available,
-        // falls back to static MAX_SUMMARY_CHARS for backward compatibility.
-        val summaryCharCap = if (contextBudget.nCtx > ContextBudget.UNLOADED.nCtx)
-            contextBudget.summaryChars else MAX_SUMMARY_CHARS
-        if (memorySummary.isNotBlank()) {
-            append("\n\n--- Conversation summary (prior context) ---\n")
-            append(memorySummary.trim().take(summaryCharCap))
-            append("\n--- End of summary ---")
-        }
+        return buildString {
+            // ── 1. Agent persona ───────────────────────────────────────────────────
+            append(modePrompt)
 
-        // ── 3. RAG semantic memory block ────────────────────────────────────────
-        // SPRINT 1: char cap derived from live ContextBudget when available.
-        val ragCharCap = if (contextBudget.nCtx > ContextBudget.UNLOADED.nCtx)
-            contextBudget.ragChars else MAX_RAG_CHARS
-        val trimmedRag = ragContextBlock.trim().take(ragCharCap)
-        if (trimmedRag.isNotBlank()) {
-            append("\n\n")
-            append(trimmedRag)
-        }
+            // ── 2. Conversation summary (compressed older turns) ──────────────────
+            // SPRINT 1: char cap derived from live ContextBudget when available,
+            // falls back to static MAX_SUMMARY_CHARS for backward compatibility.
+            // SPRINT 2: ledger already pre-reserved summaryTokens in forBudget().
+            val summaryCharCap = if (contextBudget.nCtx > ContextBudget.UNLOADED.nCtx)
+                contextBudget.summaryChars else MAX_SUMMARY_CHARS
+            if (memorySummary.isNotBlank()) {
+                append("\n\n--- Conversation summary (prior context) ---\n")
+                append(memorySummary.trim().take(summaryCharCap))
+                append("\n--- End of summary ---")
+            }
 
-        // ── 4. Response-style hint ──────────────────────────────────────────────
-        when (responseStyle) {
-            "concise"  -> append("\nKeep responses brief and to the point. Avoid unnecessary elaboration.")
-            "detailed" -> append("\nProvide detailed, comprehensive responses with examples and explanations where helpful.")
-            else       -> append("\nBalance detail and brevity.")
-        }
+            // ── 3. RAG semantic memory block ──────────────────────────────────────
+            // SPRINT 1: char cap derived from live ContextBudget when available.
+            // SPRINT 2: ledger already pre-reserved ragTokens in forBudget().
+            val ragCharCap = if (contextBudget.nCtx > ContextBudget.UNLOADED.nCtx)
+                contextBudget.ragChars else MAX_RAG_CHARS
+            val trimmedRag = ragContextBlock.trim().take(ragCharCap)
+            if (trimmedRag.isNotBlank()) {
+                append("\n\n")
+                append(trimmedRag)
+            }
 
-        // ── 5. Performance-mode hint ────────────────────────────────────────────
-        when (performanceMode) {
-            PerformanceMode.FAST    -> append("\nRespond very concisely. 2–3 sentences max unless strictly required.")
-            PerformanceMode.QUALITY -> append("\nProvide thorough, well-structured answers with reasoning.")
-            else                    -> Unit
-        }
+            // ── 4. Response-style hint ────────────────────────────────────────────
+            when (responseStyle) {
+                "concise"  -> append("\nKeep responses brief and to the point. Avoid unnecessary elaboration.")
+                "detailed" -> append("\nProvide detailed, comprehensive responses with examples and explanations where helpful.")
+                else       -> append("\nBalance detail and brevity.")
+            }
 
-        // ── 6. Query-type specific guidance ─────────────────────────────────────
-        when (queryType) {
-            QueryType.SIMPLE     -> append("\nSIMPLE query: answer in 1-2 sentences ONLY. Do not expand.")
-            QueryType.ANALYTICAL -> append("\nANALYTICAL query: structure your answer with clear reasoning. Stop when the point is made.")
-            QueryType.ACTION     -> append("\nACTION query: deliver exactly what was requested. No commentary before or after.")
-            QueryType.CREATIVE   -> append("\nCREATIVE query: be imaginative. Dive straight into the creative content.")
-            QueryType.UNKNOWN    -> Unit
-        }
+            // ── 5. Performance-mode hint ──────────────────────────────────────────
+            when (performanceMode) {
+                PerformanceMode.FAST    -> append("\nRespond very concisely. 2–3 sentences max unless strictly required.")
+                PerformanceMode.QUALITY -> append("\nProvide thorough, well-structured answers with reasoning.")
+                else                    -> Unit
+            }
 
-        // ── 7. Quality rules (always injected) ──────────────────────────────────
-        append(QUALITY_RULES)
+            // ── 6. Query-type specific guidance ───────────────────────────────────
+            when (queryType) {
+                QueryType.SIMPLE     -> append("\nSIMPLE query: answer in 1-2 sentences ONLY. Do not expand.")
+                QueryType.ANALYTICAL -> append("\nANALYTICAL query: structure your answer with clear reasoning. Stop when the point is made.")
+                QueryType.ACTION     -> append("\nACTION query: deliver exactly what was requested. No commentary before or after.")
+                QueryType.CREATIVE   -> append("\nCREATIVE query: be imaginative. Dive straight into the creative content.")
+                QueryType.UNKNOWN    -> Unit
+            }
 
-        if (customPrompt.isNotBlank()) {
-            append("\n")
-            append(customPrompt)
-        }
+            // ── 7. Quality rules (always injected) ────────────────────────────────
+            append(QUALITY_RULES)
 
-        // ── 8. Tool + Skill blocks (omitted in FAST mode for latency) ────────────
-        if (performanceMode != PerformanceMode.FAST) {
-            val toolBlock = toolRegistry.buildToolDescriptionBlock()
-            if (toolBlock.isNotBlank()) append(toolBlock)
-            val skillBlock = skillRegistry.buildSkillDescriptionBlock()
-            if (skillBlock.isNotBlank()) append(skillBlock)
+            if (customPrompt.isNotBlank()) {
+                append("\n")
+                append(customPrompt)
+            }
+
+            // ── 8. Tool + Skill descriptions ──────────────────────────────────────
+            // SPRINT 2 — Skill-duplication fix:
+            //   When hasAgentTools=true the AgentLoop will append its own structured
+            //   JSON tool schema block to this prompt. Injecting the narrative skill
+            //   block here as well would give the LLM two overlapping descriptions of
+            //   the same capabilities, increasing token usage and confusing the model.
+            //   Skip slot 8 entirely in that case — AgentLoop's block is authoritative.
+            //
+            //   When hasAgentTools=false (standard chat, not in an agent loop) the
+            //   skill narrative block is injected as before so the LLM still knows
+            //   which skills are available for invocation.
+            //
+            //   In FAST mode we skip both to minimise latency regardless.
+            if (performanceMode != PerformanceMode.FAST && !hasAgentTools) {
+                val toolBlock = toolRegistry.buildToolDescriptionBlock()
+                if (toolBlock.isNotBlank()) append(toolBlock)
+
+                // SPRINT 2: Claim SKILLS budget before building the skill block.
+                // Estimate token cost (4 chars ≈ 1 token) and let the ledger grant
+                // up to the remaining context. If remaining budget is 0, skip entirely.
+                val rawSkillBlock = skillRegistry.buildSkillDescriptionBlock()
+                if (rawSkillBlock.isNotBlank()) {
+                    val estimated = PromptBudgetLedger.estimateTokens(rawSkillBlock)
+                    val granted   = ledger.claim(PromptBudgetLedger.Contributor.SKILLS, estimated)
+                    if (granted > 0) {
+                        val trimmed = ledger.trimToGranted(rawSkillBlock, granted)
+                        append(trimmed)
+                        Log.i(TAG,
+                            "AIRI_PROOF SKILL_BLOCK_INJECTED estimated=${estimated}tok " +
+                            "granted=${granted}tok chars=${trimmed.length} nCtx=${contextBudget.nCtx}")
+                    } else {
+                        Log.w(TAG,
+                            "AIRI_PROOF SKILL_BLOCK_OMITTED reason=budget_exhausted " +
+                            "nCtx=${contextBudget.nCtx} remaining=${ledger.remaining}")
+                    }
+                }
+            } else if (hasAgentTools) {
+                Log.d(TAG,
+                    "AIRI_PROOF SKILL_BLOCK_SKIPPED reason=has_agent_tools " +
+                    "nCtx=${contextBudget.nCtx}")
+            }
+
+            // SPRINT 2: Log final budget allocation for this prompt build.
+            Log.i(TAG, "AIRI_PROOF PROMPT_BUDGET_REPORT\n${ledger.report()}")
         }
     }
 
@@ -175,6 +231,8 @@ STRICT RESPONSE RULES — follow every rule exactly:
     )
 
     private companion object {
+        private const val TAG = "AIRI_PromptService"
+
         // Static char caps — SPRINT 1 migration note:
         // These are now fallback values only, used when no live ContextBudget
         // is available (e.g. before model load). After model load, the caller

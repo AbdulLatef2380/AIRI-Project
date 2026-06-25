@@ -208,14 +208,54 @@ class LlamaManager(private val context: Context) {
         private set
 
     /**
+     * SPRINT 2 / Phase A4: Estimated token count of the system prompt most
+     * recently built by PromptService for the active turn.
+     *
+     * When positive, [maxHistoryTokens] reduces the history window to prevent
+     * overflow caused by skill/tool block expansion beyond the base
+     * [ContributorBudgetPolicy.SYSTEM_OVERHEAD_TOKENS] reserve (200 tokens).
+     *
+     * Set by ChatViewModel immediately after [buildEffectiveSystemPrompt] or
+     * [buildGenerationSystemPrompt] returns, before calling
+     * [AgentLoop.run] or [generateStream].  Reset to 0 between turns so stale
+     * estimates never bleed across sessions.
+     *
+     * Thread-safety: @Volatile because ChatViewModel writes on the coroutine
+     * dispatcher and trimHistoryByTokens reads on the llamaDispatcher.
+     */
+    @Volatile
+    var systemPromptTokenEstimate: Int = 0
+
+    /**
      * SPRINT 1: Token budget for conversation history turns.
+     *
      * Before Sprint 1 this was a @Volatile var recomputed manually as:
      *   (mode.nCtx - NON_HISTORY_OVERHEAD).coerceAtLeast(MIN_HISTORY_TOKENS)
      * It is now a computed property backed by contextBudget.historyTokens so
      * it automatically tracks whatever nCtx LlamaNative.getNCtx() reports —
      * including runtime mode changes and models with non-standard nCtx values.
+     *
+     * SPRINT 2 / Phase A4: When [systemPromptTokenEstimate] is positive the
+     * base is reduced by the amount the system prompt EXCEEDS the fixed
+     * systemOverhead estimate.  This coordinates the ledger-based PromptService
+     * allocation with LlamaManager's independent history trimmer, closing the
+     * overflow gap that existed when skills/tools expanded the system prompt
+     * beyond the reserved systemOverhead budget.
+     *
+     * Example (4K model, skills inject 200 extra tokens):
+     *   contextBudget.historyTokens   = 2436 tok  (computed from nCtx)
+     *   systemPromptTokenEstimate      = 400 tok   (persona + skills + RAG-trimmed)
+     *   systemOverhead                 = 200 tok   (reserve already subtracted)
+     *   excessSystem                   = 200 tok   (400 - 200)
+     *   maxHistoryTokens               = 2436 - 200 = 2236 tok  ← overflow prevented
      */
-    private val maxHistoryTokens: Int get() = contextBudget.historyTokens
+    private val maxHistoryTokens: Int get() {
+        val base = contextBudget.historyTokens
+        val estimate = systemPromptTokenEstimate
+        if (estimate <= 0) return base
+        val excessSystem = (estimate - contextBudget.systemOverhead).coerceAtLeast(0)
+        return (base - excessSystem).coerceAtLeast(MIN_HISTORY_TOKENS)
+    }
 
     /** Snapshot the native counters into [lastMetrics] (call after a gen). */
     private fun refreshMetrics() {

@@ -397,9 +397,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         skillToolBridge = skillToolBridge
     )
     val agentLoop                        = com.airi.assistant.agent.loop.AgentLoop(
-        orchestrator = hybridOrchestrator,
-        dispatcher   = toolDispatcher,
-        appContext    = appContext
+        orchestrator          = hybridOrchestrator,
+        dispatcher            = toolDispatcher,
+        appContext            = appContext,
+        // SPRINT 1: wire live ContextBudget so AgentLoop derives its long-context
+        // routing threshold from LlamaNative.getNCtx() instead of a hardcoded 8192.
+        contextBudgetProvider = { llamaManager.contextBudget }
     )
 
     // ── Plan Mode — step-by-step planning instruction injected into system prompt ──
@@ -1391,7 +1394,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (ragContext.isNotBlank()) {
                 android.util.Log.i("AIRI_PROOF", "RAG_INJECTED chars=${ragContext.length} session=${_currentSessionId.value.take(8)}")
             }
-            val baseSystemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType, ragContext)
+            // SPRINT 2: hasAgentTools=true so PromptService skips its narrative skill block.
+            // AgentLoop appends its own structured JSON tool schemas (activeTools below),
+            // which are the single authoritative description of available capabilities.
+            val baseSystemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType, ragContext, hasAgentTools = true)
+            // SPRINT 2 / Phase A4: Notify LlamaManager of the actual system prompt token
+            // count so trimHistoryByTokens() can compensate for skill/tool expansion
+            // beyond the base systemOverhead reserve.  Without this, skills injected by
+            // PromptService and the tool block injected by AgentLoop could silently push
+            // total context (system + history) past nCtx on small-context models.
+            llamaManager.systemPromptTokenEstimate =
+                com.airi.assistant.ai.prompt.budget.PromptBudgetLedger.estimateTokens(baseSystemPrompt)
             // Inject Plan Mode instruction when active — tells the LLM to write its
             // full step-by-step plan before executing any tool or answering.
             val systemPrompt = if (_isPlanModeActive.value) {
@@ -1548,7 +1561,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 sessionId       = sessionId,
                                 llamaManager    = llamaManager,
                                 olderTurns      = olderToFold,
-                                previousSummary = ""
+                                previousSummary = "",
+                                // SPRINT 2 / Phase A3: pass live budget so the stored
+                                // summary is trimmed to contextBudget.summaryChars, not
+                                // the former hardcoded 2400-char cap.
+                                contextBudget   = llamaManager.contextBudget
                             )
                         }
                     }
@@ -1564,7 +1581,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         perfMode:      PerformanceMode = _performanceMode.value,
         queryType:     QueryType       = QueryType.UNKNOWN,
         ragContext:    String          = "",
-        memorySummary: String          = ""
+        memorySummary: String          = "",
+        // SPRINT 2: when true, AgentLoop will append its own structured tool schemas
+        // so PromptService must NOT inject the narrative skill block (duplication fix).
+        hasAgentTools: Boolean         = false
     ): String = promptService.buildSystemPromptWithContext(
         modePrompt      = _agentMode.value.prompt,
         responseStyle   = _responseStyle.value,
@@ -1572,7 +1592,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         performanceMode = perfMode,
         queryType       = queryType,
         ragContextBlock = ragContext,
-        memorySummary   = memorySummary
+        memorySummary   = memorySummary,
+        // SPRINT 1: pass live ContextBudget so RAG/summary char caps scale with nCtx.
+        contextBudget   = llamaManager.contextBudget,
+        hasAgentTools   = hasAgentTools
     )
 
     private fun buildGenerationSystemPrompt(
@@ -1580,11 +1603,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         perfMode:      PerformanceMode,
         queryType:     QueryType = QueryType.UNKNOWN,
         ragContext:    String    = "",
-        memorySummary: String   = ""
+        memorySummary: String   = "",
+        hasAgentTools: Boolean  = false
     ): String {
         // queryType no longer gates execution; it's logged for telemetry only.
         // Always build the full effective system prompt with RAG context injected.
-        return buildEffectiveSystemPrompt(perfMode, queryType, ragContext, memorySummary)
+        return buildEffectiveSystemPrompt(perfMode, queryType, ragContext, memorySummary, hasAgentTools)
     }
 
 

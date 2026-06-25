@@ -1,6 +1,7 @@
 package com.airi.assistant.ai.context
 
 import android.util.Log
+import com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
 
 /**
  * ContextBudget — single source of truth for context capacity.
@@ -43,19 +44,21 @@ data class ContextBudget(
     val nCtx: Int
 ) {
 
-    // ── Fixed overhead allocations ────────────────────────────────────────────
+    // ── Fixed overhead allocations (sourced from ContributorBudgetPolicy) ─────
+    // Phase B: no magic numbers here — ALL allocation constants live in
+    // ContributorBudgetPolicy so changing the policy propagates automatically.
+
     /** Tokens reserved for persona / system instruction base. */
-    val systemOverhead: Int = 200
+    val systemOverhead: Int = ContributorBudgetPolicy.SYSTEM_OVERHEAD_TOKENS
     /** Tokens for chat-template markers (im_start, im_end, role tags, etc.). */
-    val templateOverhead: Int = 80
+    val templateOverhead: Int = ContributorBudgetPolicy.TEMPLATE_OVERHEAD_TOKENS
     /** Tokens for the in-flight user message fragment. */
-    val userFragmentReserve: Int = 80
+    val userFragmentReserve: Int = ContributorBudgetPolicy.USER_FRAGMENT_RESERVE_TOKENS
     /** Tokens reserved for model output (generation headroom). */
-    val generationReserve: Int = 256
+    val generationReserve: Int = ContributorBudgetPolicy.GENERATION_RESERVE_TOKENS
 
     /** Total fixed overhead that is never available for content. */
-    val nonHistoryOverhead: Int =
-        systemOverhead + templateOverhead + userFragmentReserve + generationReserve
+    val nonHistoryOverhead: Int = ContributorBudgetPolicy.TOTAL_FIXED_OVERHEAD
 
     // ── Content budget (scales with nCtx) ────────────────────────────────────
     /** Total tokens available for dynamic content (history + RAG + summary). */
@@ -63,17 +66,15 @@ data class ContextBudget(
 
     /**
      * Token budget for the RAG semantic memory block.
-     * 20% of available content, clamped to [64, 1024].
-     * Prevents RAG from monopolising a small context window while allowing
-     * generous injection for 8K+ models.
+     * Fraction and clamp are defined in [ContributorBudgetPolicy.RAG_FRACTION].
      */
-    val ragTokens: Int = (availableForContent * 0.20).toInt().coerceIn(64, 1024)
+    val ragTokens: Int = ContributorBudgetPolicy.ragTokens(availableForContent)
 
     /**
      * Token budget for the conversation summary (compressed older turns).
-     * 10% of available content, clamped to [64, 400].
+     * Fraction and clamp are defined in [ContributorBudgetPolicy.SUMMARY_FRACTION].
      */
-    val summaryTokens: Int = (availableForContent * 0.10).toInt().coerceIn(64, 400)
+    val summaryTokens: Int = ContributorBudgetPolicy.summaryTokens(availableForContent)
 
     /**
      * Token budget for conversation history turns (the core chat window).

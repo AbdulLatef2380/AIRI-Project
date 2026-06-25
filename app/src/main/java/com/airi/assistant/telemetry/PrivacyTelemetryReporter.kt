@@ -77,7 +77,7 @@ class PrivacyTelemetryReporter(
             is AgentTelemetryEvent.ToolCalled     -> "tool_called"         to mapOf("tool" to sanitize(event.toolName), "ok" to event.succeeded.toString())
             is AgentTelemetryEvent.MemoryWritten  -> "memory_written"      to mapOf("layer" to sanitize(event.layer), "count" to event.entryCount.toString())
             is AgentTelemetryEvent.WatchdogAlert  -> "watchdog_alert"      to mapOf("age_ms" to bucket(event.ageMs))
-            is AgentTelemetryEvent.SessionBound   -> "session_bound"       to mapOf("tier" to event.deviceTier, "mode" to event.executionMode)
+            is AgentTelemetryEvent.SessionBound   -> "session_bound"       to mapOf("tier" to event.deviceTier, "mode" to event.executionMode, "nctx_bucket" to nCtxBucket(event.nCtx))
             else -> return
         }
         LoggingService.debug(TAG, "TELEMETRY $name params=$params")
@@ -107,5 +107,16 @@ class PrivacyTelemetryReporter(
         count <= 100    -> "1-100"
         count <= 500    -> "101-500"
         else            -> "501+"
+    }
+
+    /** SPRINT 1: Bucket nCtx so no exact model fingerprint escapes telemetry. */
+    private fun nCtxBucket(nCtx: Int): String = when {
+        nCtx <= 0       -> "unloaded"
+        nCtx <= 1024    -> "<=1K"
+        nCtx <= 2048    -> "<=2K"
+        nCtx <= 4096    -> "<=4K"
+        nCtx <= 8192    -> "<=8K"
+        nCtx <= 32768   -> "<=32K"
+        else            -> ">32K"
     }
 }

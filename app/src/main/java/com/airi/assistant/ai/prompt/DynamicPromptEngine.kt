@@ -4,6 +4,7 @@ import android.util.Log
 import com.airi.assistant.ai.PerformanceMode
 import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.context.ContextBudget
+import com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
 
 /**
  * DynamicPromptEngine — assembles the final system prompt before every model
@@ -144,9 +145,10 @@ object DynamicPromptEngine {
         }
 
         // ── 4. Extra context (screen / accessibility / caller-injected) ──────────
+        // Phase B: cap sourced from ContributorBudgetPolicy.EXTRA_CONTEXT_MAX_CHARS.
         if (extraContext.isNotBlank()) {
             sb.append("\n\n--- Current context ---\n")
-            sb.append(extraContext.trim().take(800))
+            sb.append(extraContext.trim().take(ContributorBudgetPolicy.EXTRA_CONTEXT_MAX_CHARS))
         }
 
         // ── 5. Response style hint ───────────────────────────────────────────────

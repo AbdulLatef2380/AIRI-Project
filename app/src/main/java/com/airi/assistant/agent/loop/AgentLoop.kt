@@ -356,15 +356,37 @@ Do not mix tool_call JSON with prose in the same message.
 
     // ── Tool schema → system prompt block ─────────────────────────────────────
 
-    private fun buildToolBlock(tools: List<ToolSchema>): String = buildString {
-        appendLine("AVAILABLE TOOLS:")
-        for (tool in tools) {
-            appendLine("• ${tool.name}: ${tool.description}")
-            if (tool.parameters.isNotEmpty()) {
-                appendLine("  Parameters: ${tool.parameters.entries.joinToString(", ") { "${it.key} (${it.value.type}${if (it.value.required) ", required" else ""})" }}")
+    /**
+     * Format tool schemas into a system-prompt block, budget-trimmed.
+     *
+     * SPRINT 2 / Phase B: The char cap is now computed by
+     * [ContributorBudgetPolicy.toolCharsCap] — the hardcoded 25% fraction
+     * and 512-char floor live exclusively in the policy object, not here.
+     */
+    private fun buildToolBlock(tools: List<ToolSchema>): String {
+        val raw = buildString {
+            appendLine("AVAILABLE TOOLS:")
+            for (tool in tools) {
+                appendLine("• ${tool.name}: ${tool.description}")
+                if (tool.parameters.isNotEmpty()) {
+                    appendLine("  Parameters: ${tool.parameters.entries.joinToString(", ") {
+                        "${it.key} (${it.value.type}${if (it.value.required) ", required" else ""})"
+                    }}")
+                }
             }
+            appendLine()
         }
-        appendLine()
+        val budget = contextBudgetProvider()
+        val maxChars = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
+            .toolCharsCap(budget.availableForContent)
+        return if (raw.length <= maxChars) {
+            raw
+        } else {
+            Log.w(TAG,
+                "AIRI_PROOF TOOL_BLOCK_TRIMMED raw=${raw.length}chars max=${maxChars}chars " +
+                "nCtx=${budget.nCtx} tools=${tools.size}")
+            raw.take(maxChars) + "\n[...tools trimmed by ContextBudget]"
+        }
     }
 
     // ── Conversation model ─────────────────────────────────────────────────────

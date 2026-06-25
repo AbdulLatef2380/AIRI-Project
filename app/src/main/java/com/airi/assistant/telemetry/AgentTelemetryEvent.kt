@@ -83,8 +83,10 @@ sealed class AgentTelemetryEvent {
     // ── Session ────────────────────────────────────────────────────────────
 
     data class SessionBound(
-        val deviceTier:  String,
+        val deviceTier:    String,
         val executionMode: String,
+        /** SPRINT 1: live nCtx from LlamaNative.getNCtx() at session open time. */
+        val nCtx:          Int  = 0,
         override val timestampMs: Long = System.currentTimeMillis()
     ) : AgentTelemetryEvent()
 

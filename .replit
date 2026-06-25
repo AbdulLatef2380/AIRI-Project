@@ -23,11 +23,12 @@ name = "Start application"
 author = "agent"
 
 [workflows.workflow.metadata]
-outputType = "console"
+outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "chmod +x gradlew && ./gradlew compileDebugKotlin --no-daemon 2>&1"
+args = "npm run dev"
+waitForPort = 5000
 
 [[ports]]
 localPort = 5000

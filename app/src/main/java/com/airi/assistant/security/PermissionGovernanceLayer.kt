@@ -86,9 +86,20 @@ class PermissionGovernanceLayer(
         }
 
         // Check ExecutionFirewall (existing system) — uses allows(agentId, toolName)
+        // SECURITY: fail-closed — any exception from the firewall DENIES the action.
+        // An exception here means the firewall is in an unexpected state; granting
+        // access in that condition would silently bypass the entire security model.
         val firewallPass = runCatching {
             firewall.allows(agentId, actionType)
-        }.getOrElse { true }   // default allow if firewall throws
+        }.getOrElse { ex ->
+            Log.e(TAG, "AIRI_PROOF FIREWALL_EXCEPTION agent=$agentId action=$actionType — defaulting to DENY. cause=${ex::class.simpleName}: ${ex.message}")
+            AgentActivityBus.emit(
+                "🚨 Firewall exception — action DENIED [$agentId]: $actionDesc",
+                ActivityCategory.SYSTEM,
+                ActivitySeverity.ERROR
+            )
+            false   // fail-closed: exceptions deny, never grant
+        }
 
         if (!firewallPass) {
             AgentActivityBus.emit(

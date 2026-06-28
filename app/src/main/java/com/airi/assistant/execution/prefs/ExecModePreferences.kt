@@ -2,6 +2,9 @@ package com.airi.assistant.execution.prefs
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.PrivacyLevel
@@ -9,28 +12,80 @@ import com.airi.assistant.execution.PrivacyLevel
 /**
  * Persistent user preferences for the Hybrid Execution layer.
  *
- * Stored in a dedicated [SharedPreferences] file so they're isolated from
- * other app preferences and can be cleared independently. All reads are
- * synchronous (in-memory after the first load) — never perform IO on a
- * background thread from this class.
+ * ── Phase 2 Step 2: Security hardening ────────────────────────────────────────
+ * Previous behavior: preferences were stored in plain-text SharedPreferences
+ * at `airi_exec_prefs`. On a rooted device that file is readable and writable
+ * by any process, allowing an attacker to silently change:
+ *   • LOCAL_ONLY  → CLOUD_ONLY  (forces cloud exfiltration)
+ *   • MAXIMUM     → PERFORMANCE (disables privacy gating)
+ *   • internet_permission_granted=false → true (enables unauthorized network)
+ *
+ * New behavior:
+ *   • Primary store: [EncryptedSharedPreferences] (AES256-SIV key encryption,
+ *     AES256-GCM value encryption) backed by the Android Keystore master key.
+ *   • If encryption cannot be initialised (broken keystore, locked device at
+ *     first boot), falls back to an in-memory store — no plaintext disk writes.
+ *   • [isEncrypted] reflects the live state so UI / Settings can warn the user.
+ *   • Encrypted file name: `airi_exec_prefs_secure` (distinct from the
+ *     now-abandoned `airi_exec_prefs` plaintext file).
+ *
+ * Migration note: on first launch after this upgrade, existing users will
+ * receive safe defaults (internetPermissionGranted=false blocks cloud). The
+ * abandoned plaintext file is left on disk but never read again.
+ *
+ * ── Original contract (preserved in full) ─────────────────────────────────────
+ * Constructor signature, all property names, all defaults, and all derived
+ * computations are identical to the pre-migration version. No caller changes
+ * are required.
+ *
+ * All reads are synchronous (in-memory after first load) — never perform I/O
+ * on a background thread from this class.
  *
  * Defaults are chosen conservatively:
- *  - [ExecutionMode.HYBRID] — the most capable mode
- *  - [PrivacyLevel.BALANCED] — sanitized cloud prompts, nothing raw uploaded
- *  - [CloudProvider.OPENAI] — most widely configured in existing RemoteModelRegistry
+ *  - [ExecutionMode.HYBRID]   — the most capable mode
+ *  - [PrivacyLevel.BALANCED]  — sanitized cloud prompts, nothing raw uploaded
+ *  - [CloudProvider.OPENAI]   — most widely configured in RemoteModelRegistry
  *  - internet permission = false — user must explicitly enable cloud
- *  - offline fallback = true — always fall back to local when cloud fails
+ *  - offline fallback = true  — always fall back to local when cloud fails
  *  - max cloud tokens per day = 50 000 (soft limit, UI-visible)
- *
- * All setters apply the preference to SharedPreferences synchronously via
- * `commit()` so the value is durable before the setter returns. This is
- * intentional: execution mode changes are safety-critical (LOCAL_ONLY must
- * never silently revert).
  */
 class ExecModePreferences(context: Context) {
 
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
+    /**
+     * True when the underlying store is EncryptedSharedPreferences.
+     * False when the keystore-backed implementation failed to initialise and
+     * we are running on the in-memory fallback (no disk persistence).
+     */
+    val isEncrypted: Boolean
+
+    private val prefs: SharedPreferences
+
+    init {
+        var encrypted = false
+        prefs = try {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+            val real = EncryptedSharedPreferences.create(
+                context,
+                PREFS_FILE,
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+            encrypted = true
+            real
+        } catch (e: Exception) {
+            Log.e(
+                TAG,
+                "AIRI_PROOF EXEC_PREFS_ENCRYPT_FAILED — EncryptedSharedPreferences init failed; " +
+                    "falling back to IN-MEMORY only (no plaintext disk writes). " +
+                    "Cause: ${e.message}"
+            )
+            ExecModeInMemoryPreferences()
+        }
+        isEncrypted = encrypted
+    }
 
     // ── Execution mode ────────────────────────────────────────────────────────
 
@@ -154,14 +209,100 @@ class ExecModePreferences(context: Context) {
         }
 
     private companion object {
-        const val PREFS_FILE           = "airi_exec_prefs"
-        const val KEY_EXEC_MODE        = "exec_mode"
-        const val KEY_PRIVACY_LEVEL    = "privacy_level"
-        const val KEY_PROVIDER         = "preferred_provider"
-        const val KEY_INTERNET_PERM    = "internet_permission_granted"
-        const val KEY_OFFLINE_FALLBACK = "offline_fallback_enabled"
-        const val KEY_MAX_CLOUD_TOKENS = "max_daily_cloud_tokens"
-        const val KEY_CLOUD_USAGE_DAY  = "cloud_usage_day"
+        const val TAG                    = "AIRI_ExecModePrefs"
+        const val PREFS_FILE             = "airi_exec_prefs_secure"
+        const val KEY_EXEC_MODE          = "exec_mode"
+        const val KEY_PRIVACY_LEVEL      = "privacy_level"
+        const val KEY_PROVIDER           = "preferred_provider"
+        const val KEY_INTERNET_PERM      = "internet_permission_granted"
+        const val KEY_OFFLINE_FALLBACK   = "offline_fallback_enabled"
+        const val KEY_MAX_CLOUD_TOKENS   = "max_daily_cloud_tokens"
+        const val KEY_CLOUD_USAGE_DAY    = "cloud_usage_day"
         const val KEY_CLOUD_TOKENS_TODAY = "cloud_tokens_today"
+    }
+}
+
+/**
+ * Process-lifetime, in-memory SharedPreferences fallback for ExecModePreferences.
+ *
+ * Used when [EncryptedSharedPreferences] cannot be initialised (broken keystore,
+ * locked device at first boot, or corrupted master key). Discards all values
+ * when the process dies — this is intentional: an out-of-session reset to safe
+ * defaults is preferable to plaintext disk writes.
+ *
+ * In this fallback state, [ExecModePreferences.internetPermissionGranted]
+ * returns false (the default), so cloud access is blocked even without
+ * encryption — the system remains in the most restrictive safe state.
+ *
+ * Thread safety: backed by [java.util.concurrent.ConcurrentHashMap]; commit()
+ * and apply() both apply mutations atomically and return immediately.
+ */
+private class ExecModeInMemoryPreferences : SharedPreferences {
+
+    private val map: MutableMap<String, Any?> = java.util.concurrent.ConcurrentHashMap()
+    private val listeners = mutableSetOf<SharedPreferences.OnSharedPreferenceChangeListener>()
+
+    override fun getAll(): MutableMap<String, *> = HashMap(map)
+
+    override fun getString(key: String?, defValue: String?): String? =
+        (map[key] as? String) ?: defValue
+
+    @Suppress("UNCHECKED_CAST")
+    override fun getStringSet(key: String?, defValues: MutableSet<String>?): MutableSet<String>? =
+        (map[key] as? Set<String>)?.toMutableSet() ?: defValues
+
+    override fun getInt(key: String?, defValue: Int): Int =
+        (map[key] as? Int) ?: defValue
+
+    override fun getLong(key: String?, defValue: Long): Long =
+        (map[key] as? Long) ?: defValue
+
+    override fun getFloat(key: String?, defValue: Float): Float =
+        (map[key] as? Float) ?: defValue
+
+    override fun getBoolean(key: String?, defValue: Boolean): Boolean =
+        (map[key] as? Boolean) ?: defValue
+
+    override fun contains(key: String?): Boolean = map.containsKey(key)
+
+    override fun edit(): SharedPreferences.Editor = MemEditor()
+
+    override fun registerOnSharedPreferenceChangeListener(
+        l: SharedPreferences.OnSharedPreferenceChangeListener
+    ) { listeners.add(l) }
+
+    override fun unregisterOnSharedPreferenceChangeListener(
+        l: SharedPreferences.OnSharedPreferenceChangeListener
+    ) { listeners.remove(l) }
+
+    private inner class MemEditor : SharedPreferences.Editor {
+        private val pending  = mutableMapOf<String, Any?>()
+        private val removals = mutableSetOf<String>()
+        private var clearAll = false
+
+        override fun putString(key: String, value: String?): SharedPreferences.Editor =
+            apply { pending[key] = value }
+        override fun putStringSet(key: String, values: MutableSet<String>?): SharedPreferences.Editor =
+            apply { pending[key] = values }
+        override fun putInt(key: String, value: Int): SharedPreferences.Editor =
+            apply { pending[key] = value }
+        override fun putLong(key: String, value: Long): SharedPreferences.Editor =
+            apply { pending[key] = value }
+        override fun putFloat(key: String, value: Float): SharedPreferences.Editor =
+            apply { pending[key] = value }
+        override fun putBoolean(key: String, value: Boolean): SharedPreferences.Editor =
+            apply { pending[key] = value }
+        override fun remove(key: String): SharedPreferences.Editor =
+            apply { removals.add(key); pending.remove(key) }
+        override fun clear(): SharedPreferences.Editor =
+            apply { clearAll = true }
+        override fun commit(): Boolean { apply(); return true }
+        override fun apply() {
+            if (clearAll) map.clear()
+            for (k in removals) map.remove(k)
+            for ((k, v) in pending) {
+                if (v == null) map.remove(k) else map[k] = v
+            }
+        }
     }
 }

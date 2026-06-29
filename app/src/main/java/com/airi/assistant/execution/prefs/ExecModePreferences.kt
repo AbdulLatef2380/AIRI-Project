@@ -29,9 +29,12 @@ import com.airi.assistant.execution.PrivacyLevel
  *   • Encrypted file name: `airi_exec_prefs_secure` (distinct from the
  *     now-abandoned `airi_exec_prefs` plaintext file).
  *
- * Migration note: on first launch after this upgrade, existing users will
- * receive safe defaults (internetPermissionGranted=false blocks cloud). The
- * abandoned plaintext file is left on disk but never read again.
+ * One-time migration: on first launch after this upgrade, any data in the
+ * legacy `airi_exec_prefs` plaintext file is copied key-by-key to the new
+ * encrypted store. Every key is verified after the write before the legacy
+ * file is cleared and deleted. If encryption is unavailable (in-memory
+ * fallback), migration is skipped entirely. The migration is idempotent —
+ * if the legacy file is absent or already empty, it is a no-op.
  *
  * ── Original contract (preserved in full) ─────────────────────────────────────
  * Constructor signature, all property names, all defaults, and all derived
@@ -85,6 +88,10 @@ class ExecModePreferences(context: Context) {
             ExecModeInMemoryPreferences()
         }
         isEncrypted = encrypted
+
+        if (isEncrypted) {
+            migrateFromLegacyPrefsIfNeeded(context)
+        }
     }
 
     // ── Execution mode ────────────────────────────────────────────────────────
@@ -208,9 +215,135 @@ class ExecModePreferences(context: Context) {
             return executionMode
         }
 
+    // ── One-time migration from legacy plaintext store ────────────────────────
+
+    /**
+     * Migrates preferences from the legacy plaintext `airi_exec_prefs` file
+     * to the current [EncryptedSharedPreferences] store.
+     *
+     * Contract:
+     *  1. Opens the legacy file; if it has no keys, returns immediately (no-op).
+     *  2. Writes every legacy entry to [prefs] using [SharedPreferences.Editor.commit]
+     *     for a synchronous, success-signalling write.
+     *  3. Verifies each key by reading it back from [prefs] and comparing to
+     *     the original value.
+     *  4. If **all** keys verified: clears and deletes the legacy file so no
+     *     plaintext copy remains on disk.
+     *  5. If any key fails verification: logs an error and preserves the legacy
+     *     file so the migration can be re-attempted on the next launch.
+     *
+     * Never throws — any unexpected error is caught, logged with an
+     * `AIRI_PROOF` tag, and treated as a migration failure.
+     *
+     * Only called when [isEncrypted] is true (i.e., [prefs] is backed by
+     * [EncryptedSharedPreferences], not the in-memory fallback).
+     */
+    private fun migrateFromLegacyPrefsIfNeeded(context: Context) {
+        try {
+            val legacy = context.getSharedPreferences(LEGACY_PREFS_FILE, Context.MODE_PRIVATE)
+            val legacyAll = legacy.all
+
+            if (legacyAll.isEmpty()) {
+                return
+            }
+
+            Log.i(
+                TAG,
+                "AIRI_PROOF EXEC_PREFS_MIGRATION_START — " +
+                    "found ${legacyAll.size} key(s) in legacy plaintext store; " +
+                    "migrating to encrypted store"
+            )
+
+            // ── Stage 1: Write all legacy values into the encrypted store ─────
+            val editor = prefs.edit()
+            var stagedCount = 0
+
+            for ((key, value) in legacyAll) {
+                when (value) {
+                    is String  -> { editor.putString(key, value); stagedCount++ }
+                    is Boolean -> { editor.putBoolean(key, value); stagedCount++ }
+                    is Int     -> { editor.putInt(key, value);     stagedCount++ }
+                    is Long    -> { editor.putLong(key, value);    stagedCount++ }
+                    is Float   -> { editor.putFloat(key, value);   stagedCount++ }
+                    else -> Log.w(
+                        TAG,
+                        "EXEC_PREFS_MIGRATION: skipping key=\"$key\" — " +
+                            "unsupported type ${value?.javaClass?.simpleName}"
+                    )
+                }
+            }
+
+            val committed = editor.commit()
+
+            if (!committed) {
+                Log.e(
+                    TAG,
+                    "AIRI_PROOF EXEC_PREFS_MIGRATION_FAILED — commit() returned false; " +
+                        "legacy plaintext file preserved for next-launch retry"
+                )
+                return
+            }
+
+            // ── Stage 2: Verify every staged key is readable from encrypted store
+            var verifiedCount = 0
+
+            for ((key, value) in legacyAll) {
+                val ok = when (value) {
+                    is String  -> prefs.contains(key) && prefs.getString(key, null) == value
+                    is Boolean -> prefs.contains(key) && prefs.getBoolean(key, !value) == value
+                    is Int     -> prefs.contains(key) && prefs.getInt(key, value.inv()) == value
+                    is Long    -> prefs.contains(key) && prefs.getLong(key, value.inv()) == value
+                    is Float   -> prefs.contains(key) && prefs.getFloat(key, -value - 1f) == value
+                    else       -> true  // type was skipped in write phase; not our concern
+                }
+                if (ok) {
+                    verifiedCount++
+                } else {
+                    Log.e(
+                        TAG,
+                        "AIRI_PROOF EXEC_PREFS_MIGRATION_VERIFY_FAIL — " +
+                            "key=\"$key\" did not round-trip correctly"
+                    )
+                }
+            }
+
+            // ── Stage 3: Clear and delete the legacy file only on full success ─
+            if (verifiedCount == stagedCount) {
+                Log.i(
+                    TAG,
+                    "AIRI_PROOF EXEC_PREFS_MIGRATION_VERIFIED — " +
+                        "$verifiedCount/$stagedCount key(s) verified; " +
+                        "clearing legacy plaintext file"
+                )
+                legacy.edit().clear().commit()
+                @Suppress("DEPRECATION")  // deleteSharedPreferences requires API 24+; minSdk=26
+                context.deleteSharedPreferences(LEGACY_PREFS_FILE)
+                Log.i(
+                    TAG,
+                    "AIRI_PROOF EXEC_PREFS_MIGRATION_COMPLETE — " +
+                        "legacy plaintext file deleted; migration finished"
+                )
+            } else {
+                Log.e(
+                    TAG,
+                    "AIRI_PROOF EXEC_PREFS_MIGRATION_PARTIAL — " +
+                        "$verifiedCount/$stagedCount key(s) verified; " +
+                        "legacy plaintext file preserved for next-launch retry"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(
+                TAG,
+                "AIRI_PROOF EXEC_PREFS_MIGRATION_ERROR — unexpected failure; " +
+                    "legacy plaintext file preserved. Cause: ${e.message}"
+            )
+        }
+    }
+
     private companion object {
         const val TAG                    = "AIRI_ExecModePrefs"
         const val PREFS_FILE             = "airi_exec_prefs_secure"
+        const val LEGACY_PREFS_FILE      = "airi_exec_prefs"
         const val KEY_EXEC_MODE          = "exec_mode"
         const val KEY_PRIVACY_LEVEL      = "privacy_level"
         const val KEY_PROVIDER           = "preferred_provider"

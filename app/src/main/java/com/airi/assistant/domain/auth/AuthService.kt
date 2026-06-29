@@ -6,6 +6,8 @@ import com.airi.assistant.domain.error.AppError
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
+import com.airi.assistant.memory.entity.AuditLogEntity
+import com.airi.assistant.memory.repository.AuditRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
@@ -25,10 +27,18 @@ import com.google.firebase.auth.OAuthProvider
  * scattered across UI screens.
  *
  * ── Audit ─────────────────────────────────────────────────────────────────────
- * Every authentication event emits an [AppEvent] to [EventBus] and logs an
- * AIRI_PROOF line so the audit trail captures every session boundary.
+ * Every authentication event emits an [AppEvent] to [EventBus], logs an
+ * AIRI_PROOF line to logcat, AND writes to [AuditRepository] so the persistent
+ * audit trail (Room DB) captures every session boundary.
+ *
+ * ── Phase 2, Task 10: AuditRepository Integration ─────────────────────────────
+ * [auditRepository] is injected from [com.airi.assistant.core.ServiceLocator].
+ * The default is null so AuthService remains constructable without a DB context
+ * (e.g., in unit tests). When null, only the logcat AIRI_PROOF line is written.
  */
-class AuthService {
+class AuthService(
+    private val auditRepository: AuditRepository? = null
+) {
 
     private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance()
 
@@ -40,6 +50,7 @@ class AuthService {
                 if (task.isSuccessful) {
                     val uid = firebaseAuth.currentUser?.uid ?: "unknown"
                     Log.i(TAG, "AIRI_PROOF AUTH_SIGN_IN provider=email uid=$uid")
+                    auditRepository?.info("AUTH", "AUTH_SIGN_IN provider=email uid=$uid")
                     EventBus.emitSync(AppEvent.UserSignedIn(uid, "email"))
                     onResult(null)
                 } else {
@@ -49,6 +60,8 @@ class AuthService {
                     )
                     AppErrorHandler.log(error)
                     EventBus.emitSync(AppEvent.AuthFailed(error.message))
+                    Log.w(TAG, "AIRI_PROOF AUTH_SIGN_IN_FAILED provider=email reason=${error.message}")
+                    auditRepository?.warn("AUTH", "AUTH_SIGN_IN_FAILED provider=email reason=${error.message}")
                     onResult(AppErrorHandler.toUserMessage(error))
                 }
             }
@@ -60,6 +73,7 @@ class AuthService {
                 if (task.isSuccessful) {
                     val uid = firebaseAuth.currentUser?.uid ?: "unknown"
                     Log.i(TAG, "AIRI_PROOF AUTH_CREATE_ACCOUNT provider=email uid=$uid")
+                    auditRepository?.info("AUTH", "AUTH_CREATE_ACCOUNT provider=email uid=$uid")
                     EventBus.emitSync(AppEvent.UserSignedIn(uid, "email_create"))
                     onResult(null)
                 } else {
@@ -69,6 +83,8 @@ class AuthService {
                     )
                     AppErrorHandler.log(error)
                     EventBus.emitSync(AppEvent.AuthFailed(error.message))
+                    Log.w(TAG, "AIRI_PROOF AUTH_CREATE_ACCOUNT_FAILED provider=email reason=${error.message}")
+                    auditRepository?.warn("AUTH", "AUTH_CREATE_ACCOUNT_FAILED provider=email reason=${error.message}")
                     onResult(AppErrorHandler.toUserMessage(error))
                 }
             }
@@ -92,11 +108,13 @@ class AuthService {
                 if (task.isSuccessful) {
                     val uid = firebaseAuth.currentUser?.uid ?: "unknown"
                     Log.i(TAG, "AIRI_PROOF AUTH_SIGN_IN provider=google uid=$uid")
+                    auditRepository?.info("AUTH", "AUTH_SIGN_IN provider=google uid=$uid")
                     EventBus.emitSync(AppEvent.UserSignedIn(uid, "google"))
                     onResult(null)
                 } else {
                     val msg = task.exception?.localizedMessage ?: "Google sign-in failed"
                     Log.w(TAG, "AIRI_PROOF AUTH_SIGN_IN_FAILED provider=google reason=$msg")
+                    auditRepository?.warn("AUTH", "AUTH_SIGN_IN_FAILED provider=google reason=$msg")
                     EventBus.emitSync(AppEvent.AuthFailed(msg))
                     onResult(msg)
                 }
@@ -123,6 +141,7 @@ class AuthService {
             .addOnSuccessListener {
                 val uid = firebaseAuth.currentUser?.uid ?: "unknown"
                 Log.i(TAG, "AIRI_PROOF AUTH_SIGN_IN provider=github uid=$uid")
+                auditRepository?.info("AUTH", "AUTH_SIGN_IN provider=github uid=$uid")
                 EventBus.emitSync(AppEvent.UserSignedIn(uid, "github"))
                 onSuccess()
             }
@@ -135,6 +154,7 @@ class AuthService {
                     else -> "GitHub sign-in failed: ${e.localizedMessage}"
                 }
                 Log.w(TAG, "AIRI_PROOF AUTH_SIGN_IN_FAILED provider=github reason=${e.message}")
+                auditRepository?.warn("AUTH", "AUTH_SIGN_IN_FAILED provider=github reason=${e.message}")
                 EventBus.emitSync(AppEvent.AuthFailed(msg))
                 onFailure(msg)
             }
@@ -145,6 +165,7 @@ class AuthService {
     fun signOut() {
         val uid = firebaseAuth.currentUser?.uid ?: "unknown"
         Log.i(TAG, "AIRI_PROOF AUTH_SIGN_OUT uid=$uid")
+        auditRepository?.info("AUTH", "AUTH_SIGN_OUT uid=$uid")
         EventBus.emitSync(AppEvent.UserSignedOut())
         firebaseAuth.signOut()
     }
@@ -176,12 +197,14 @@ class AuthService {
         val user = firebaseAuth.currentUser
         if (user == null) {
             Log.w(TAG, "AIRI_PROOF AUTH_DELETE_ACCOUNT_FAIL reason=no_current_user")
+            auditRepository?.warn("AUTH", "AUTH_DELETE_ACCOUNT_FAIL reason=no_current_user")
             onComplete(false, "No signed-in account to delete.")
             return
         }
 
         val uid = user.uid
         Log.i(TAG, "AIRI_PROOF AUTH_DELETE_ACCOUNT_INITIATED uid=$uid")
+        auditRepository?.log("AUTH", "AUTH_DELETE_ACCOUNT_INITIATED uid=$uid", AuditLogEntity.Level.WARN)
 
         // Force a token refresh to validate session freshness before deletion.
         user.getIdToken(/* forceRefresh = */ true)
@@ -191,6 +214,9 @@ class AuthService {
                         "AIRI_PROOF AUTH_DELETE_ACCOUNT_TOKEN_REFRESH_FAILED uid=$uid " +
                         "reason=${tokenTask.exception?.message}"
                     )
+                    auditRepository?.warn("AUTH",
+                        "AUTH_DELETE_ACCOUNT_TOKEN_REFRESH_FAILED uid=$uid " +
+                        "reason=${tokenTask.exception?.message}")
                     // Proceed anyway — Firebase's delete() performs its own validation.
                 }
 
@@ -198,6 +224,9 @@ class AuthService {
                     .addOnCompleteListener { deleteTask ->
                         if (deleteTask.isSuccessful) {
                             Log.i(TAG, "AIRI_PROOF AUTH_DELETE_ACCOUNT_SUCCESS uid=$uid")
+                            auditRepository?.log("AUTH",
+                                "AUTH_DELETE_ACCOUNT_SUCCESS uid=$uid",
+                                AuditLogEntity.Level.WARN)
                             EventBus.emitSync(AppEvent.UserSignedOut())
                             // Clear local session state after server-side deletion.
                             runCatching { firebaseAuth.signOut() }
@@ -208,6 +237,8 @@ class AuthService {
                             Log.e(TAG,
                                 "AIRI_PROOF AUTH_DELETE_ACCOUNT_FAILED uid=$uid reason=$msg"
                             )
+                            auditRepository?.error("AUTH",
+                                "AUTH_DELETE_ACCOUNT_FAILED uid=$uid reason=$msg")
                             onComplete(false, msg)
                         }
                     }

@@ -324,7 +324,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // ── Hybrid Execution layer ────────────────────────────────────────────────
     // ExecModePreferences is the source of truth for execution mode, privacy
     // level, and internet permission. All preference mutations go through it.
-    private val execModePrefs  = ExecModePreferences(appContext)
+    // Task 12: obtain from ServiceLocator so all consumers share one instance
+    // via PreferenceCoordinator, eliminating split-brain when preferences change.
+    private val execModePrefs  = com.airi.assistant.core.ServiceLocator.execModePrefs
     val tokenAccountant     = TokenAccountant(appContext)
     private val localBackend   = LocalLlamaBackend(llamaManager)
     private val cloudBackend   = CloudBackend(execModePrefs, appContext, tokenAccountant)

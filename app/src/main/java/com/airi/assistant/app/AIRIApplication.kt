@@ -83,11 +83,22 @@ class AIRIApplication : Application() {
             AnalyticsService.init(this, ServiceLocator.telemetryConsentStore)
             LoggingService.info(TAG, "✓ AnalyticsService initialized")
 
+            // Task 14: Gate install-open analytics behind GDPR consent.
+            // AnalyticsService.init() already wires the consentStore internally, but
+            // installOpen() fires an event unconditionally on the first launch —
+            // which would transmit data before the user has seen the consent screen.
+            // Guard it here: only fire if the user has already consented (returning
+            // user), or defer until OnboardingScreen grants consent (new user).
             val launchPrefs = getSharedPreferences("airi_launch_funnel", Context.MODE_PRIVATE)
             if (!launchPrefs.getBoolean("install_open_logged", false)) {
-                AnalyticsService.installOpen()
-                AnalyticsService.funnelStep("install_to_open")
-                launchPrefs.edit().putBoolean("install_open_logged", true).apply()
+                if (ServiceLocator.telemetryConsentStore.current.analyticsEnabled) {
+                    AnalyticsService.installOpen()
+                    AnalyticsService.funnelStep("install_to_open")
+                    launchPrefs.edit().putBoolean("install_open_logged", true).apply()
+                }
+                // If consent is not yet granted (fresh install), OnboardingScreen is
+                // responsible for calling AnalyticsService.installOpen() after consent
+                // is confirmed, then setting "install_open_logged" to true.
             }
 
             OnboardingManager.init(this)

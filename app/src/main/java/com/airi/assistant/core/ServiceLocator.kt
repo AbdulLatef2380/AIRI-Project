@@ -85,7 +85,8 @@ object ServiceLocator {
     }
 
     val authService: AuthService by lazy {
-        AuthService()
+        // Task 10: pass auditRepository so all auth events reach the persistent audit log.
+        AuthService(auditRepository = auditRepository)
     }
 
     val permissionService: PermissionService by lazy {
@@ -358,6 +359,17 @@ object ServiceLocator {
         )
     }
 
+    /**
+     * Task 12: Single-source accessor for [ExecModePreferences].
+     *
+     * All consumers that previously constructed [ExecModePreferences] directly
+     * (ChatViewModel, CommandRouter, UnifiedCognitiveLoop, etc.) should obtain
+     * the instance from here. This guarantees a single in-memory object backs
+     * all reads and writes, eliminating split-brain when preferences change.
+     */
+    val execModePrefs: com.airi.assistant.execution.prefs.ExecModePreferences
+        get() = preferenceCoordinator.rawExecPrefs
+
     // ── Thermal Profiler + System Health Coordinator (Phase 2 Task 9) ─────────
 
     val thermalProfiler: com.airi.assistant.runtime.thermal.ThermalProfiler by lazy {
@@ -369,10 +381,21 @@ object ServiceLocator {
             context         = requireContext(),
             thermalProfiler = thermalProfiler,
             onThrottleChange = { action ->
-                // Log the throttle action to the persistent audit log.
+                // Task 11: Close the feedback loop — update ThermalSignal so
+                // PromptBudgetLedger.forBudget() can apply the correct budget fraction.
+                val (factor, emergency) = when (action) {
+                    is com.airi.assistant.runtime.health.SystemHealthCoordinator.ThrottleAction.FullPerformance ->
+                        1.0f to false
+                    is com.airi.assistant.runtime.health.SystemHealthCoordinator.ThrottleAction.ReduceLoad ->
+                        action.contextReductionFactor to false
+                    is com.airi.assistant.runtime.health.SystemHealthCoordinator.ThrottleAction.EmergencyStop ->
+                        0.0f to true
+                }
+                com.airi.assistant.runtime.health.ThermalSignal.update(factor, emergency)
+                // Persist the throttle event to the audit log.
                 auditRepository.info(
                     "SYSTEM_HEALTH",
-                    "Throttle action: ${action::class.simpleName}"
+                    "Throttle action: ${action::class.simpleName} contextFactor=$factor emergency=$emergency"
                 )
             }
         ).also { it.start() }

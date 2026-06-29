@@ -47,6 +47,17 @@ class PreferenceCoordinator(
     private val execPrefs:      ExecModePreferences,
 ) {
 
+    /**
+     * Task 12: Expose the backing [ExecModePreferences] instance so
+     * [com.airi.assistant.core.ServiceLocator] can surface it as
+     * [ServiceLocator.execModePrefs] without breaking encapsulation inside
+     * this coordinator. Consumers should prefer the typed properties on
+     * [PreferenceCoordinator] itself; only use [rawExecPrefs] when the full
+     * [ExecModePreferences] object is required (e.g. for passing to
+     * [HybridOrchestrator] or [RuntimeRouter]).
+     */
+    val rawExecPrefs: ExecModePreferences get() = execPrefs
+
     // ── Execution preferences ─────────────────────────────────────────────────
 
     var executionMode: ExecutionMode

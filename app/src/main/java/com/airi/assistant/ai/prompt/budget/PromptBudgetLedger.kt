@@ -2,6 +2,7 @@ package com.airi.assistant.ai.prompt.budget
 
 import android.util.Log
 import com.airi.assistant.ai.context.ContextBudget
+import com.airi.assistant.runtime.health.ThermalSignal
 
 /**
  * PromptBudgetLedger — shared token allocator for all prompt contributors.
@@ -83,6 +84,11 @@ class PromptBudgetLedger private constructor(val budget: ContextBudget) {
      * Lower ordinal = higher priority = allocated first.
      */
     enum class Contributor(val displayName: String) {
+        // Task 11: THERMAL_RESERVE is pre-allocated first (highest priority) and
+        // represents tokens withheld from all contributors due to thermal throttling.
+        // Under NONE throttle: reserve = 0. REDUCE: reserve = 50% of nCtx.
+        // EMERGENCY: reserve = 100% of nCtx (no tokens left for anything).
+        THERMAL_RESERVE("Thermal Reserve"),
         SYSTEM("System/Persona"),
         GENERATION("Generation Reserve"),
         SUMMARY("Conversation Summary"),
@@ -173,6 +179,22 @@ class PromptBudgetLedger private constructor(val budget: ContextBudget) {
          */
         fun forBudget(budget: ContextBudget): PromptBudgetLedger {
             val ledger = PromptBudgetLedger(budget)
+
+            // Task 11: Apply thermal throttle FIRST so all subsequent claims are
+            // already constrained. ThermalSignal.contextBudgetFactor is:
+            //   1.0 → full context (NONE throttle)
+            //   0.5 → 50% context (REDUCE throttle)
+            //   0.0 → no context (EMERGENCY — abort should already prevent reaching here)
+            val thermalFactor = ThermalSignal.contextBudgetFactor
+            if (thermalFactor < 1.0f) {
+                val thermalReserve = (budget.nCtx * (1.0f - thermalFactor)).toInt()
+                ledger.claim(Contributor.THERMAL_RESERVE, thermalReserve)
+                Log.w(TAG,
+                    "AIRI_PROOF BUDGET_THERMAL_RESERVE nCtx=${budget.nCtx} " +
+                    "thermalFactor=$thermalFactor reserve=$thermalReserve " +
+                    "remainingAfterReserve=${ledger.remaining}")
+            }
+
             val fixedSystem = budget.systemOverhead + budget.templateOverhead + budget.userFragmentReserve
             ledger.claim(Contributor.SYSTEM, fixedSystem)
             ledger.claim(Contributor.GENERATION, budget.generationReserve)
@@ -180,6 +202,7 @@ class PromptBudgetLedger private constructor(val budget: ContextBudget) {
             ledger.claim(Contributor.RAG, budget.ragTokens)
             Log.i(TAG,
                 "AIRI_PROOF BUDGET_INIT nCtx=${budget.nCtx} " +
+                "thermalFactor=$thermalFactor " +
                 "system=$fixedSystem gen=${budget.generationReserve} " +
                 "summary=${budget.summaryTokens} rag=${budget.ragTokens} " +
                 "remaining=${ledger.remaining}")

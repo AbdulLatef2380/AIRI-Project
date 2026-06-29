@@ -25,6 +25,15 @@ All four legacy integration classes are `@Deprecated(DeprecationLevel.WARNING)`:
 
 **Why:** Callers still exist on the fallback path; hard-deleting now would break the build.
 
+## Bugs Fixed During Verification Pass
+
+| Severity | Task | Root Cause | Fix |
+|---|---|---|---|
+| Critical | T30 | `isEmergencyThrottle` / `contextBudgetFraction` don't exist — actual names are `isEmergency` / `contextBudgetFactor` on SystemHealthCoordinator | Property names corrected in DeveloperCenterScreen.kt |
+| Critical | T31 | Placeholder `sha256/AAAA…` pins applied unconditionally — would throw SSLPeerUnverifiedException on every LLM API call | `PINNING_ENABLED = false` master switch added; pinner made lazy |
+| Medium | T26 | Compose state (`entries =`) written inside `withContext(IO)` — unsafe threading | Moved assignment to LaunchedEffect main-thread continuation |
+| Low | T33 | `val lines` in `restoreHistory()` shadowed class-level `val lines: StateFlow` | Renamed to `val historyEntries` |
+
 ## Engineering Report
 
-Written to `docs/engineering_report_phase2_tasks19_35.md`.
+Written to `docs/verification_report_phase2_tasks19_35.md`.

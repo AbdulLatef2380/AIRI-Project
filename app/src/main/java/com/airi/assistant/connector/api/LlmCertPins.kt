@@ -28,9 +28,27 @@ import java.util.concurrent.TimeUnit
  */
 object LlmCertPins {
 
+    /**
+     * Master switch for certificate pinning.
+     *
+     * ⚠️  MUST remain FALSE until ALL `sha256/…` constants below are replaced with
+     * real SPKI hashes verified against live connections (see instructions in the
+     * class-level KDoc). Activating pinning with placeholder hashes will throw
+     * [javax.net.ssl.SSLPeerUnverifiedException] on every request to the pinned
+     * hosts, making ALL LLM API traffic fail.
+     *
+     * Procedure to enable:
+     *   1. Run `openssl s_client -connect <host>:443 </dev/null | …` for each host.
+     *   2. Replace the placeholder constants with the real hashes.
+     *   3. Set PINNING_ENABLED = true.
+     *   4. Test on a real device before shipping.
+     */
+    const val PINNING_ENABLED = false
+
     // ── OpenAI (api.openai.com) ───────────────────────────────────────────────
     // Primary:  DigiCert SHA-2 Secure Server CA intermediate
     // Backup:   DigiCert Global Root CA
+    // Replace these before enabling PINNING_ENABLED:
     private const val OPENAI_PIN_PRIMARY = "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
     private const val OPENAI_PIN_BACKUP  = "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
 
@@ -46,30 +64,36 @@ object LlmCertPins {
     private const val GEMINI_PIN_PRIMARY = "sha256/EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE="
     private const val GEMINI_PIN_BACKUP  = "sha256/FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF="
 
-    /** Pinner covering all three LLM API domains. */
-    val pinner: CertificatePinner = CertificatePinner.Builder()
-        .add("api.openai.com",                       OPENAI_PIN_PRIMARY,   OPENAI_PIN_BACKUP)
-        .add("api.anthropic.com",                    ANTHROPIC_PIN_PRIMARY, ANTHROPIC_PIN_BACKUP)
-        .add("generativelanguage.googleapis.com",    GEMINI_PIN_PRIMARY,   GEMINI_PIN_BACKUP)
-        .build()
+    /**
+     * Pinner covering all three LLM API domains.
+     * Only referenced when [PINNING_ENABLED] is true.
+     */
+    private val pinner: CertificatePinner by lazy {
+        CertificatePinner.Builder()
+            .add("api.openai.com",                    OPENAI_PIN_PRIMARY,    OPENAI_PIN_BACKUP)
+            .add("api.anthropic.com",                 ANTHROPIC_PIN_PRIMARY, ANTHROPIC_PIN_BACKUP)
+            .add("generativelanguage.googleapis.com", GEMINI_PIN_PRIMARY,    GEMINI_PIN_BACKUP)
+            .build()
+    }
 
     /**
-     * Build an [OkHttpClient] with:
-     *  - certificate pinning for all LLM hosts
-     *  - 30 s connect / 90 s read+write timeouts
+     * Build an [OkHttpClient] with optional certificate pinning and the given timeouts.
      *
-     * Callers may customize via [OkHttpClient.newBuilder] on the returned instance.
+     * Pinning is applied only when [PINNING_ENABLED] is true. While [PINNING_ENABLED]
+     * is false the returned client uses the system trust store (normal TLS verification).
      *
-     * NOTE: pins are currently placeholder values. Replace each `sha256/…` constant
-     * above with the real SPKI hash before deploying to production. Incorrect pins
-     * will block **all** requests to the pinned host with a [javax.net.ssl.SSLPeerUnverifiedException].
+     * Callers may customize further via the [customize] block (e.g. to override timeouts).
      */
-    fun pinnedClient(customize: OkHttpClient.Builder.() -> Unit = {}): OkHttpClient =
-        OkHttpClient.Builder()
-            .certificatePinner(pinner)
+    fun pinnedClient(customize: OkHttpClient.Builder.() -> Unit = {}): OkHttpClient {
+        val builder = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(90, TimeUnit.SECONDS)
             .writeTimeout(90, TimeUnit.SECONDS)
-            .apply(customize)
-            .build()
+
+        if (PINNING_ENABLED) {
+            builder.certificatePinner(pinner)
+        }
+
+        return builder.apply(customize).build()
+    }
 }

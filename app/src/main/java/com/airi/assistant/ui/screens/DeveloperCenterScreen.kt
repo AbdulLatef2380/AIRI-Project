@@ -334,8 +334,8 @@ private fun HealthTab() {
         // ── Thermal / SystemHealthCoordinator (T30) ───────────────────────────
         val throttleLevel by ServiceLocator.systemHealthCoordinator.throttleLevel
             .collectAsStateWithLifecycle()
-        val isEmergency = ServiceLocator.systemHealthCoordinator.isEmergencyThrottle
-        val budgetFraction = ServiceLocator.systemHealthCoordinator.contextBudgetFraction
+        val isEmergency = ServiceLocator.systemHealthCoordinator.isEmergency
+        val budgetFraction = ServiceLocator.systemHealthCoordinator.contextBudgetFactor
         DevCard(title = "Thermal Throttle") {
             DevRow("Throttle level", throttleLevel.name)
             DevRow("Context budget",  "${(budgetFraction * 100).toInt()}%")
@@ -368,11 +368,11 @@ private fun AuditLogTab() {
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching {
-                entries = ServiceLocator.auditRepository.getRecent(limit = 100)
-            }
+        // IO fetch — do NOT write Compose state inside withContext(IO); assign on caller.
+        val fetched = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { ServiceLocator.auditRepository.getRecent(limit = 100) }.getOrNull()
         }
+        if (fetched != null) entries = fetched   // main thread — safe Compose state write
         loading = false
     }
 

@@ -83,8 +83,8 @@ class TerminalRuntime(
 
     private fun restoreHistory() {
         val stored = historyPrefs?.getString(PREF_HISTORY, null) ?: return
-        val lines = stored.split("\n").filter { it.isNotBlank() }
-        lines.reversed().forEach { commandHistory.addFirst(it) }
+        val historyEntries = stored.split("\n").filter { it.isNotBlank() }
+        historyEntries.reversed().forEach { commandHistory.addFirst(it) }
         Log.d(TAG, "Restored ${commandHistory.size} history entries")
     }
 

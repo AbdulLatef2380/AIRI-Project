@@ -36,13 +36,24 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.airi.assistant.analytics.AnalyticsService
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.auth.OAuthProvider
+import com.airi.assistant.domain.auth.AuthService
 import androidx.compose.ui.res.stringResource
 
+/**
+ * LoginScreen — Phase 2 Task 3: AuthService enforcement.
+ *
+ * All Firebase calls are now routed through [AuthService] injected via the
+ * [authService] parameter. No direct [FirebaseAuth.getInstance()] calls remain
+ * in this composable, eliminating vendor lock-in risk at the UI layer.
+ *
+ * The Google ID-token exchange and GitHub OAuth launch are still initiated from
+ * the UI (they require Activity context and an Android launcher) but the actual
+ * Firebase credential exchange is delegated to [AuthService.signInWithGoogleCredential]
+ * and [AuthService.signInWithGitHub] respectively.
+ */
 @Composable
 fun LoginScreen(
+    authService: AuthService,
     onSignIn: (String, String, (String?) -> Unit) -> Unit,
     onCreateAccount: (String, String, (String?) -> Unit) -> Unit,
     onGoogleLoginSuccess: () -> Unit
@@ -57,8 +68,6 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var isSignUp by remember { mutableStateOf(false) }
     var showEmailForm by remember { mutableStateOf(false) }
-
-    val auth = remember { FirebaseAuth.getInstance() }
 
     // ── Google Sign-In ────────────────────────────────────────────────────────
     val googleSignInClient = remember {
@@ -80,17 +89,16 @@ fun LoginScreen(
             val idToken = account?.idToken
             if (idToken != null) {
                 isLoading = true
-                val credential = GoogleAuthProvider.getCredential(idToken, null)
-                auth.signInWithCredential(credential)
-                    .addOnCompleteListener { authTask ->
-                        isLoading = false
-                        if (authTask.isSuccessful) {
-                            AnalyticsService.login("google")
-                            onGoogleLoginSuccess()
-                        } else {
-                            errorMessage = authTask.exception?.localizedMessage ?: "Google sign-in failed"
-                        }
+                // Delegate credential exchange to AuthService — no FirebaseAuth in UI.
+                authService.signInWithGoogleCredential(idToken) { error ->
+                    isLoading = false
+                    if (error == null) {
+                        AnalyticsService.login("google")
+                        onGoogleLoginSuccess()
+                    } else {
+                        errorMessage = error
                     }
+                }
             } else {
                 errorMessage = "Google sign-in failed: no ID token"
             }
@@ -104,21 +112,19 @@ fun LoginScreen(
         if (activity == null) { errorMessage = "Cannot open sign-in from this context"; return }
         isLoading = true
         errorMessage = null
-        val provider = OAuthProvider.newBuilder("github.com")
-        auth.startActivityForSignInWithProvider(activity, provider.build())
-            .addOnSuccessListener {
+        // Delegate GitHub OAuth to AuthService — no OAuthProvider in UI.
+        authService.signInWithGitHub(
+            activity  = activity,
+            onSuccess = {
                 isLoading = false
                 AnalyticsService.login("github")
                 onGoogleLoginSuccess()
-            }
-            .addOnFailureListener { e ->
+            },
+            onFailure = { msg ->
                 isLoading = false
-                errorMessage = when {
-                    e.message?.contains("cancelled", ignoreCase = true) == true -> "GitHub sign-in cancelled"
-                    e.message?.contains("network", ignoreCase = true) == true -> "Network error. Check your connection."
-                    else -> "GitHub sign-in failed: ${e.localizedMessage}"
-                }
+                errorMessage = msg
             }
+        )
     }
 
     // ── Input validation ──────────────────────────────────────────────────────

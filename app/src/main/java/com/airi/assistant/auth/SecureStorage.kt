@@ -171,6 +171,32 @@ class SecureStorage(context: Context) {
 
     fun getInstallUuid(): String? = prefs.getString(KEY_INSTALL_UUID, null)
 
+    // ─── Generic integration token store (Task 8: Notion + future integrations) ─
+
+    /**
+     * Store a Personal Access Token (PAT) for the given integration ID.
+     * Stored under the key "integration_token_{id}" in AES256-GCM encrypted prefs.
+     *
+     * @param integrationId  e.g. "notion", "linear", "zapier"
+     * @param token          The PAT / integration secret. Blank value removes the entry.
+     */
+    fun saveIntegrationToken(integrationId: String, token: String) =
+        prefs.edit().safePutString(integrationTokenKey(integrationId), token).apply()
+
+    /**
+     * Retrieve the stored token for the given integration, or null if not set.
+     */
+    fun getIntegrationToken(integrationId: String): String? =
+        prefs.getString(integrationTokenKey(integrationId), null)
+
+    /**
+     * Clear the stored token for the given integration (disconnect).
+     */
+    fun clearIntegrationToken(integrationId: String) =
+        prefs.edit().remove(integrationTokenKey(integrationId)).apply()
+
+    private fun integrationTokenKey(id: String): String = "integration_token_${id.lowercase()}"
+
     // ─── Generic disconnect ────────────────────────────────────────────────────
 
     fun disconnect(id: String) {
@@ -197,6 +223,7 @@ class SecureStorage(context: Context) {
                 .apply()
 
             "openai", "anthropic", "gemini" -> clearLlmKey(id)
+            else -> clearIntegrationToken(id)   // covers "notion" and future integrations
         }
     }
 

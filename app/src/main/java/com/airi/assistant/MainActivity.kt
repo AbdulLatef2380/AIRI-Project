@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.airi.assistant.ui.AiriApp
+import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.oauth.OAuthStateRegistry
 import com.airi.assistant.system.LanguageManager
@@ -76,6 +77,13 @@ class MainActivity : ComponentActivity() {
                 notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+
+        // Phase 2, Task 9: Start SystemHealthCoordinator so thermal + battery signals are
+        // wired to the execution budget before the first inference request is made.
+        // Lazy init handles the ThermalProfiler.start() call internally; accessing the
+        // property here triggers the lazy chain: thermalProfiler → systemHealthCoordinator.
+        runCatching { ServiceLocator.systemHealthCoordinator }
+            .onFailure { Log.w(TAG, "SystemHealthCoordinator startup failed: ${it.message}") }
 
         // Cold-start OAuth callback — handles CustomTab redirects that launch the app fresh
         intent?.let { dispatchOAuthCallback(it) }

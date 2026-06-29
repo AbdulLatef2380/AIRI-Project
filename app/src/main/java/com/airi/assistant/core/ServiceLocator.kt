@@ -204,10 +204,11 @@ object ServiceLocator {
         )
         ConnectorRegistry().also { reg ->
             ConnectorBootstrap.installDefaults(
-                appContext   = requireContext(),
-                registry     = reg,
-                authManager  = connectorAuthManager,   // P1-7: for GitHubConnector
-                llmProviders = llmProviders,
+                appContext    = requireContext(),
+                registry      = reg,
+                authManager   = connectorAuthManager,   // P1-7: for GitHubConnector
+                llmProviders  = llmProviders,
+                secureStorage = secureStorage,          // Task 8: for NotionMcpConnector
             )
             // GitHubConnector is now registered inside ConnectorBootstrap.installDefaults.
             // No duplicate registration needed here.
@@ -338,6 +339,43 @@ object ServiceLocator {
 
     val memoryManager: MemoryManager by lazy {
         MemoryManager(requireContext())
+    }
+
+    // ── Persistent Audit Log (Phase 2 Task 5) ─────────────────────────────────
+
+    val auditRepository: com.airi.assistant.memory.repository.AuditRepository by lazy {
+        com.airi.assistant.memory.repository.AuditRepository(
+            com.airi.assistant.memory.AiriDatabase.getDatabase(requireContext())
+        )
+    }
+
+    // ── Unified Preference Coordinator (Phase 2 Task 6) ───────────────────────
+
+    val preferenceCoordinator: com.airi.assistant.settings.PreferenceCoordinator by lazy {
+        com.airi.assistant.settings.PreferenceCoordinator(
+            context   = requireContext(),
+            execPrefs = com.airi.assistant.execution.prefs.ExecModePreferences(requireContext())
+        )
+    }
+
+    // ── Thermal Profiler + System Health Coordinator (Phase 2 Task 9) ─────────
+
+    val thermalProfiler: com.airi.assistant.runtime.thermal.ThermalProfiler by lazy {
+        com.airi.assistant.runtime.thermal.ThermalProfiler(requireContext()).also { it.start() }
+    }
+
+    val systemHealthCoordinator: com.airi.assistant.runtime.health.SystemHealthCoordinator by lazy {
+        com.airi.assistant.runtime.health.SystemHealthCoordinator(
+            context         = requireContext(),
+            thermalProfiler = thermalProfiler,
+            onThrottleChange = { action ->
+                // Log the throttle action to the persistent audit log.
+                auditRepository.info(
+                    "SYSTEM_HEALTH",
+                    "Throttle action: ${action::class.simpleName}"
+                )
+            }
+        ).also { it.start() }
     }
 
     // ── Accessibility Execution Engine ────────────────────────────────────────

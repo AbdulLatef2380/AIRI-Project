@@ -67,6 +67,7 @@ import com.airi.assistant.ui.screens.TemplatesScreen
 import com.airi.assistant.ui.screens.AppInfoScreen
 import com.airi.assistant.ui.screens.CreditsScreen
 import com.airi.assistant.ui.screens.PermissionsScreen
+import com.airi.assistant.ui.screens.ArtifactPreviewScreen
 import com.airi.assistant.ui.screens.UpdateScreen
 import com.airi.assistant.ui.screens.VoicePersonalizationScreen
 import com.airi.assistant.ui.plan.AgentPlanViewModel
@@ -126,6 +127,22 @@ object AiriRoute {
     const val MARKETPLACE            = "screen_marketplace"
     const val COMMUNITY_SKILLS       = "screen_community_skills"
     const val SKILL_CREATION_WIZARD  = "screen_skill_creation_wizard"
+
+    // ── Phase 2, Task 7: Artifact preview route ───────────────────────────────
+    const val ARTIFACT_PREVIEW       = "screen_artifact_preview"
+
+    /**
+     * Build the artifact preview route with encoded type and content.
+     * Content is truncated to [MAX_ROUTE_CONTENT_BYTES] to avoid NavController limits.
+     */
+    fun artifactPreview(type: String, content: String): String {
+        val encoded = java.net.URLEncoder.encode(
+            content.take(MAX_ROUTE_CONTENT_BYTES), "UTF-8"
+        )
+        return "$ARTIFACT_PREVIEW/$type/$encoded"
+    }
+
+    private const val MAX_ROUTE_CONTENT_BYTES = 8_192
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 }
@@ -224,6 +241,7 @@ fun AiriApp() {
 
                     composable(AiriRoute.LOGIN) {
                         LoginScreen(
+                            authService = authService,
                             onSignIn = { email, password, onResult ->
                                 authService.signIn(email, password) { error ->
                                     if (error == null) {
@@ -593,6 +611,26 @@ fun AiriApp() {
                     composable(AiriRoute.DEVELOPER_CENTER) {
                         com.airi.assistant.ui.screens.DeveloperCenterScreen(
                             onBack = { navController.popBackStack() }
+                        )
+                    }
+
+                    // ── Phase 2, Task 7: Isolated artifact preview (sandboxed WebView) ──────────
+                    composable(
+                        route     = "${AiriRoute.ARTIFACT_PREVIEW}/{type}/{content}",
+                        arguments = listOf(
+                            androidx.navigation.navArgument("type")    { type = NavType.StringType },
+                            androidx.navigation.navArgument("content") { type = NavType.StringType }
+                        )
+                    ) { backStack ->
+                        val type    = backStack.arguments?.getString("type")    ?: "CODE"
+                        val encoded = backStack.arguments?.getString("content") ?: ""
+                        val content = runCatching {
+                            java.net.URLDecoder.decode(encoded, "UTF-8")
+                        }.getOrDefault(encoded)
+                        ArtifactPreviewScreen(
+                            artifactType    = type,
+                            artifactContent = content,
+                            onBack          = { navController.popBackStack() }
                         )
                     }
                 }

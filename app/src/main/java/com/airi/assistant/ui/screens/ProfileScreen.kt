@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
-import com.google.firebase.auth.FirebaseAuth
+import com.airi.assistant.core.ServiceLocator
 import com.google.firebase.auth.userProfileChangeRequest
 
 private const val PREFS_PROFILE = "airi_profile"
@@ -37,7 +37,9 @@ private const val KEY_USERNAME = "username"
 fun ProfileScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PREFS_PROFILE, Context.MODE_PRIVATE) }
-    val firebaseUser = remember { FirebaseAuth.getInstance().currentUser }
+    // Task 3: Route through AuthService — no direct FirebaseAuth.getInstance() in UI.
+    val authService  = remember { ServiceLocator.authService }
+    val firebaseUser = authService.currentUser()
     val email = firebaseUser?.email ?: ""
     val initial = email.firstOrNull()?.uppercaseChar()?.toString() ?: "A"
     val snackbarHost = remember { SnackbarHostState() }

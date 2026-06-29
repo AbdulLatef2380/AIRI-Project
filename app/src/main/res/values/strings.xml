@@ -89,6 +89,7 @@
     <string name="delete_account">Delete Account</string>
     <string name="delete_account_sublabel">Permanently remove your Firebase account</string>
     <string name="delete_account_message">This will permanently delete your Firebase account and sign you out. Your local model files and memory will NOT be deleted.</string>
+    <string name="delete_account_error_generic">Account deletion failed. If your session has expired, sign out and sign back in, then try again.</string>
     <string name="app_info">App Info</string>
     <string name="name">Name</string>
     <string name="version">Version</string>

@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
-import com.google.firebase.auth.FirebaseAuth
+import com.airi.assistant.core.ServiceLocator
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
@@ -41,7 +41,8 @@ fun ReferralScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHost = remember { SnackbarHostState() }
-    val userId = remember { FirebaseAuth.getInstance().currentUser?.uid }
+    // Task 3: Route through AuthService — no direct FirebaseAuth.getInstance() in UI.
+    val userId = remember { ServiceLocator.authService.currentUser()?.uid }
     var bonus by remember { mutableStateOf(ReferralManager.getBonusMessages()) }
     var codeInput by remember { mutableStateOf("") }
     val code = remember(userId) { ReferralManager.getOrCreateCode(userId) }

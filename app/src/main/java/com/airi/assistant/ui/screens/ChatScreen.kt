@@ -84,7 +84,7 @@ import com.airi.assistant.ui.viewmodel.ChatViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.airi.assistant.ui.viewmodel.ModelUiState
-import com.google.firebase.auth.FirebaseAuth
+import com.airi.assistant.core.ServiceLocator
 import kotlinx.coroutines.launch
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -2429,7 +2429,8 @@ fun AiriDrawer(
     onNewChat: () -> Unit,
     onLogout: () -> Unit
 ) {
-    val user    = remember { FirebaseAuth.getInstance().currentUser }
+    // Task 3: Route through AuthService — no direct FirebaseAuth.getInstance() in UI.
+    val user    = remember { ServiceLocator.authService.currentUser() }
     val email   = user?.email ?: "guest@airi.ai"
     val initial = email.firstOrNull()?.uppercaseChar()?.toString() ?: "A"
 

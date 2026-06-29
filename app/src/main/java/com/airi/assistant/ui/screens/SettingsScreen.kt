@@ -53,7 +53,7 @@ import com.airi.assistant.ui.theme.SurfaceRaised
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.util.ChatImporter
-import com.google.firebase.auth.FirebaseAuth
+import com.airi.assistant.core.ServiceLocator
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,8 +64,9 @@ fun SettingsScreen(
     onNavigate: (String) -> Unit,
     onLogout:   () -> Unit
 ) {
-    val user      = remember { FirebaseAuth.getInstance().currentUser }
-    val email     = user?.email ?: "guest"
+    // Task 3: Route through AuthService instead of direct FirebaseAuth.getInstance() call.
+    val authService = remember { ServiceLocator.authService }
+    val email     = authService.currentUser()?.email ?: "guest"
     val isPremium = remember { viewModel.isPremium() }
     val scope     = rememberCoroutineScope()
     val snackbar  = remember { SnackbarHostState() }

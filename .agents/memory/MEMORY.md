@@ -10,3 +10,4 @@
 - [SkillRegistry getAllSkillInfos Filter Rule](skillregistry-allskillinfos-filter.md) — getAllSkillInfos() appends custom skills with author="builtin"; always filter by author=="AIRI Official" for the official-only section.
 - [Skill Execution Audit](skill-execution-audit.md) — Verified end-to-end path; complete AIRI_PROOF tag inventory; two bugs fixed (configValues Brave key, SkillToolBridge instrumentation).
 - [Context Budget Architecture](context-budget-architecture.md) — Sprints 1-3: ContextBudget/PromptBudgetLedger/SessionHandle; 9 hardcoded constants eliminated; backward-compat rules.
+- [Phase 2 Tasks 3–9 Architecture](phase2-tasks3-9-architecture.md) — AuthService UI enforcement, GDPR deletion, AuditLog Room v4, PreferenceCoordinator, ArtifactPreview WebView, NotionMcpConnector, SystemHealthCoordinator.

@@ -8,13 +8,14 @@ import com.airi.assistant.connector.app.TelegramConnector
 import com.airi.assistant.connector.app.ZapierConnector
 import com.airi.assistant.connector.legacy.IntegrationConnectorAdapter
 import com.airi.assistant.connector.local.AndroidIntentConnector
+import com.airi.assistant.integration.NotionIntegration
 import com.airi.assistant.connector.local.ClipboardConnector
 import com.airi.assistant.connector.local.ContactsConnector
 import com.airi.assistant.connector.local.DeviceAppsConnector
 import com.airi.assistant.connector.local.VoiceConnector
 import com.airi.assistant.connector.mcp.InMemoryMcpConnector
+import com.airi.assistant.connector.mcp.NotionMcpConnector
 import com.airi.assistant.connector.system.SystemInfoConnector
-import com.airi.assistant.integration.NotionIntegration
 import com.airi.assistant.voice.VoskVoiceBackend
 
 /**
@@ -33,6 +34,8 @@ object ConnectorBootstrap {
         // B-08: VoskVoiceBackend wires real Vosk STT to the connector bus.
         // Falls back gracefully when no model is installed (warmUp returns false).
         voiceBackend: VoiceConnector.VoiceBackend? = VoskVoiceBackend(appContext),
+        // Task 8: SecureStorage instance for Notion PAT retrieval. Supplied by ServiceLocator.
+        secureStorage: com.airi.assistant.auth.SecureStorage? = null,
     ) {
         // ── API / LLM tab ────────────────────────────────────────────
         registry.register(RemoteLlmConnector(providers = llmProviders))
@@ -74,8 +77,16 @@ object ConnectorBootstrap {
             ))
         }
 
-        // Notion remains on legacy adapter (P3 — no API implementation yet)
-        val notionPrefs = appContext.getSharedPreferences("airi_integrations", Context.MODE_PRIVATE)
-        registry.register(IntegrationConnectorAdapter(NotionIntegration(notionPrefs)))
+        // Task 8: Notion replaced with fully-functional NotionMcpConnector.
+        // If SecureStorage is available, wire the real Notion MCP connector which
+        // talks to the Notion REST API using a stored PAT. Fall back to the legacy
+        // stub adapter only when SecureStorage cannot be initialised (rare: broken
+        // Android Keystore on the device).
+        if (secureStorage != null) {
+            registry.register(NotionMcpConnector(secureStorage))
+        } else {
+            val notionPrefs = appContext.getSharedPreferences("airi_integrations", Context.MODE_PRIVATE)
+            registry.register(IntegrationConnectorAdapter(NotionIntegration(notionPrefs)))
+        }
     }
 }

@@ -23,7 +23,7 @@ import com.airi.assistant.R
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.util.ChatExporter
-import com.google.firebase.auth.FirebaseAuth
+import com.airi.assistant.core.ServiceLocator
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,7 +38,8 @@ fun PrivacyDataSettingsScreen(
     val messages     by viewModel.messages.collectAsState()
     val scope        = rememberCoroutineScope()
     val snackbarHost = remember { SnackbarHostState() }
-    val user         = remember { FirebaseAuth.getInstance().currentUser }
+    // Task 3: Route through AuthService — no direct FirebaseAuth in UI.
+    val authService  = remember { ServiceLocator.authService }
 
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -152,7 +153,22 @@ fun PrivacyDataSettingsScreen(
                 Button(
                     onClick = {
                         showDeleteDialog = false
-                        user?.delete()?.addOnCompleteListener { onLogout() }
+                        // Task 4: Delegate deletion to AuthService (server-side token revocation
+                        // + Firebase delete + local signOut). Surface failures to the user so
+                        // they know if re-authentication is required.
+                        authService.deleteAccount { success, errorMsg ->
+                            if (success || !authService.isSignedIn()) {
+                                onLogout()
+                            } else {
+                                scope.launch {
+                                    snackbarHost.showSnackbar(
+                                        message     = errorMsg ?: context.getString(R.string.delete_account_error_generic),
+                                        actionLabel = context.getString(R.string.ok),
+                                        duration    = SnackbarDuration.Long
+                                    )
+                                }
+                            }
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCC2222))
                 ) { Text(stringResource(R.string.delete_account)) }

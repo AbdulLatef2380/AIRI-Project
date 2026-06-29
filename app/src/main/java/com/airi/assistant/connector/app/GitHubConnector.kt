@@ -59,12 +59,73 @@ class GitHubConnector(private val authManager: ConnectorAuthManager) : Connector
         } catch (e: Exception) { ConnectorOutput.Failure("api_error", e.message ?: "Error", retryable = true) }
     }
 
-    private fun listRepos(token: String): String { val arr = apiGetArr("/user/repos?sort=updated&per_page=20", token); return buildString { appendLine("Repos (${arr.length()}):"); for (i in 0 until arr.length()) { val r = arr.getJSONObject(i); appendLine("• ${r.getString("full_name")} [${r.optString("language","?")}]") } } }
+    private fun listRepos(token: String): String {
+        val all = apiGetAllPages("/user/repos?sort=updated&per_page=100", token, maxPages = 5)
+        return buildString {
+            appendLine("Repos (${all.length()}):")
+            for (i in 0 until all.length()) {
+                val r = all.getJSONObject(i)
+                appendLine("• ${r.getString("full_name")} [${r.optString("language","?")}]")
+            }
+        }
+    }
     private fun listIssues(token: String, repo: String): String { val arr = apiGetArr("/repos/$repo/issues?state=open&per_page=20", token); return buildString { appendLine("Open issues in $repo (${arr.length()}):"); for (i in 0 until arr.length()) { val x = arr.getJSONObject(i); appendLine("#${x.getInt("number")}: ${x.getString("title")}") } } }
     private fun createIssue(token: String, repo: String, title: String, body: String): String { val r = apiPost("/repos/$repo/issues", token, JSONObject().apply { put("title",title);put("body",body) }.toString()); return "Issue #${r.optInt("number")} created: ${r.optString("html_url")}" }
     private fun searchCode(token: String, query: String, repo: String?): String { val q = if (repo != null) "$query repo:$repo" else query; val j = apiGet("/search/code?q=${java.net.URLEncoder.encode(q,"UTF-8")}&per_page=10", token); val items = j.optJSONArray("items") ?: JSONArray(); return buildString { appendLine("Code hits (${items.length()}):"); for (i in 0 until items.length()) { val x = items.getJSONObject(i); appendLine("• ${x.getString("path")} in ${x.getJSONObject("repository").getString("full_name")}") } } }
     private fun getFile(token: String, repo: String, path: String): String { val j = apiGet("/repos/$repo/contents/$path", token); val enc = j.optString("content","").replace("\n",""); return String(android.util.Base64.decode(enc, android.util.Base64.DEFAULT), Charsets.UTF_8) }
     private fun listPRs(token: String, repo: String): String { val arr = apiGetArr("/repos/$repo/pulls?state=open&per_page=20", token); return buildString { appendLine("Open PRs in $repo (${arr.length()}):"); for (i in 0 until arr.length()) { val p = arr.getJSONObject(i); appendLine("#${p.getInt("number")}: ${p.getString("title")}") } } }
+
+    /**
+     * Fetch all pages of a paginated GitHub list endpoint by following
+     * Link header `rel="next"` references. Stops after [maxPages] pages
+     * to protect against infinite redirect chains.
+     *
+     * Returns the accumulated JSONArray containing entries from all pages.
+     */
+    private fun apiGetAllPages(
+        path: String,
+        token: String,
+        maxPages: Int = 5
+    ): JSONArray {
+        val result = JSONArray()
+        var nextUrl: String? = "$BASE$path"
+        var pages = 0
+
+        while (nextUrl != null && pages < maxPages) {
+            val conn = (URL(nextUrl).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 10_000
+                readTimeout = 15_000
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("Accept", "application/vnd.github.v3+json")
+            }
+            try {
+                val body = conn.inputStream.bufferedReader().readText()
+                val page = JSONArray(body)
+                for (i in 0 until page.length()) result.put(page.getJSONObject(i))
+
+                nextUrl = parseLinkNext(conn.getHeaderField("Link"))
+                pages++
+            } finally {
+                conn.disconnect()
+            }
+        }
+        Log.d(TAG, "apiGetAllPages fetched ${result.length()} items across $pages page(s) from $path")
+        return result
+    }
+
+    /** Parse GitHub Link header and return the URL for rel="next", or null. */
+    private fun parseLinkNext(linkHeader: String?): String? {
+        if (linkHeader.isNullOrBlank()) return null
+        for (part in linkHeader.split(",")) {
+            val trimmed = part.trim()
+            if (trimmed.contains("rel=\"next\"")) {
+                val match = Regex("<([^>]+)>").find(trimmed)
+                return match?.groupValues?.getOrNull(1)
+            }
+        }
+        return null
+    }
 
     private fun apiGet(path: String, token: String): JSONObject { val c = open("$BASE$path", token); val b = c.inputStream.bufferedReader().readText(); c.disconnect(); return JSONObject(b) }
     private fun apiGetArr(path: String, token: String): JSONArray { val c = open("$BASE$path", token); val b = c.inputStream.bufferedReader().readText(); c.disconnect(); return JSONArray(b) }

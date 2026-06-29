@@ -1,6 +1,7 @@
 package com.airi.assistant.memory.repository
 
 import com.airi.assistant.memory.AiriDatabase
+import com.airi.assistant.memory.dao.ArtifactDao
 import com.airi.assistant.memory.dao.AuditLogDao
 import com.airi.assistant.memory.dao.BehaviorStatsDao
 import com.airi.assistant.memory.dao.ContextCacheDao
@@ -43,6 +44,8 @@ class StorageRepository(val db: AiriDatabase) {
     val cache:         ContextCacheDao  get() = db.contextCacheDao()
     val usageStats:    UsageStatsDao    get() = db.usageStatsDao()
     val behaviorStats: BehaviorStatsDao get() = db.behaviorStatsDao()
+    /** T28: Expose ArtifactDao through the storage facade. */
+    val artifacts:     ArtifactDao      get() = db.artifactDao()
 
     // ── Messages ──────────────────────────────────────────────────────────────
 

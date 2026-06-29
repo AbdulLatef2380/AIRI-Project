@@ -104,6 +104,45 @@ fun SettingsScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // ── T27: SecureStorage keystore warning banner ─────────────────
+            val isStorageEncrypted = remember {
+                runCatching { ServiceLocator.secureStorage.isEncrypted }.getOrDefault(true)
+            }
+            if (!isStorageEncrypted) {
+                Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                    color = Color(0xFF3A2800),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Outlined.Warning,
+                            contentDescription = null,
+                            tint = Color(0xFFFFB340),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column {
+                            Text(
+                                "Secure storage unavailable",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFFFB340)
+                            )
+                            Text(
+                                "Android Keystore failed to initialize. Connector tokens and API keys cannot be persisted and will be lost when the app closes. Restart the device to restore encrypted storage.",
+                                fontSize = 11.sp,
+                                color = Color(0xFFFFB340).copy(0.75f),
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+                }
+            }
+
             // ── Group 1: Core features ─────────────────────────────────────
             SettingsGroup {
                 SettingsNavItem(

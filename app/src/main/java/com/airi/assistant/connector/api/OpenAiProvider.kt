@@ -100,10 +100,18 @@ class OpenAiProvider(
         // context handles individual token stalls via kotlinx.coroutines.withTimeout.
         // Here we lower the body read timeout to 45 s (reasonable for most responses)
         // so a completely stalled server is detected in under a minute rather than 2.
-        fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(45, TimeUnit.SECONDS)   // B-16: was 120 s — too long for stall detection
-            .writeTimeout(20, TimeUnit.SECONDS)
-            .build()
+        /**
+         * T31 — Builds a pinned OkHttpClient via [LlmCertPins].
+         * AnthropicProvider and GeminiProvider both call this factory so pinning
+         * is automatically applied to all three LLM API endpoints.
+         *
+         * NOTE: [LlmCertPins] pins are placeholder values until verified against
+         * live connections before production release.
+         */
+        fun defaultHttpClient(): OkHttpClient = LlmCertPins.pinnedClient {
+            connectTimeout(20, TimeUnit.SECONDS)
+            readTimeout(45, TimeUnit.SECONDS)   // B-16: was 120 s — too long for stall detection
+            writeTimeout(20, TimeUnit.SECONDS)
+        }
     }
 }

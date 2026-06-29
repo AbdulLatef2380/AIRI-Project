@@ -44,7 +44,7 @@ import com.airi.assistant.R
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeveloperCenterScreen(onBack: () -> Unit) {
-    val tabs = listOf("Runtime", "Connectors", "Memory", "Diagnostics", "Health")
+    val tabs = listOf("Runtime", "Connectors", "Memory", "Diagnostics", "Health", "Audit")
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
@@ -79,6 +79,7 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
                 2 -> MemoryTab()
                 3 -> DiagnosticsTab()
                 4 -> HealthTab()
+                5 -> AuditLogTab()
             }
         }
     }
@@ -330,6 +331,25 @@ private fun HealthTab() {
             }
         }
 
+        // ── Thermal / SystemHealthCoordinator (T30) ───────────────────────────
+        val throttleLevel by ServiceLocator.systemHealthCoordinator.throttleLevel
+            .collectAsStateWithLifecycle()
+        val isEmergency = ServiceLocator.systemHealthCoordinator.isEmergencyThrottle
+        val budgetFraction = ServiceLocator.systemHealthCoordinator.contextBudgetFraction
+        DevCard(title = "Thermal Throttle") {
+            DevRow("Throttle level", throttleLevel.name)
+            DevRow("Context budget",  "${(budgetFraction * 100).toInt()}%")
+            DevRow("Emergency stop",  if (isEmergency) "⚠ YES" else "✓ No")
+            if (isEmergency) {
+                Text(
+                    "⚠ Emergency throttle active — model execution paused",
+                    fontSize = 11.sp,
+                    color    = SemanticError,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
+
         // ── Last check timestamp ──────────────────────────────────────────────
         Text(
             "Last check: ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date(health.timestampMs))}",
@@ -338,6 +358,79 @@ private fun HealthTab() {
             fontFamily = FontFamily.Monospace,
             modifier = Modifier.align(Alignment.CenterHorizontally)
         )
+    }
+}
+
+// ── Tab 6: Audit Log (T26) ─────────────────────────────────────────────────────
+@Composable
+private fun AuditLogTab() {
+    var entries by remember { mutableStateOf<List<com.airi.assistant.memory.entity.AuditLogEntity>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                entries = ServiceLocator.auditRepository.getRecent(limit = 100)
+            }
+        }
+        loading = false
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        contentPadding = PaddingValues(vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        if (loading) {
+            item {
+                Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = CosmicAccent, modifier = Modifier.size(24.dp))
+                }
+            }
+        } else if (entries.isEmpty()) {
+            item {
+                Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
+                    Text("No audit events yet", color = AiriTheme.onSurfaceVariant.copy(0.35f), fontSize = 13.sp)
+                }
+            }
+        } else {
+            items(entries, key = { it.id }) { entry ->
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = AiriTheme.surfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                entry.tag.take(24),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = CosmicAccent,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text(
+                                java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
+                                    .format(java.util.Date(entry.timestampMs)),
+                                fontSize = 9.sp,
+                                color = AiriTheme.outline.copy(0.4f),
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        Text(
+                            "[${entry.level}] ${entry.message.take(120)}",
+                            fontSize = 10.sp,
+                            color = AiriTheme.onSurfaceVariant,
+                            lineHeight = 13.sp
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

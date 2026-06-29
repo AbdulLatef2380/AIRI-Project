@@ -232,7 +232,11 @@ object ServiceLocator {
 
     // ── Phase P3: Workspace / Canvas runtime ─────────────────────────────────
     val artifactManager: com.airi.assistant.workspace.ArtifactManager by lazy {
-        com.airi.assistant.workspace.ArtifactManager(requireContext())
+        com.airi.assistant.workspace.ArtifactManager(
+            context     = requireContext(),
+            artifactDao = com.airi.assistant.memory.AiriDatabase
+                .getDatabase(requireContext()).artifactDao()
+        )
     }
 
     val workspaceRuntime: com.airi.assistant.workspace.WorkspaceRuntime by lazy {
@@ -267,7 +271,8 @@ object ServiceLocator {
     val terminalRuntime: com.airi.assistant.terminal.TerminalRuntime by lazy {
         com.airi.assistant.terminal.TerminalRuntime(
             sandboxManager = sandboxManager,
-            governance     = permissionGovernanceLayer
+            governance     = permissionGovernanceLayer,
+            context        = requireContext()
         )
     }
 

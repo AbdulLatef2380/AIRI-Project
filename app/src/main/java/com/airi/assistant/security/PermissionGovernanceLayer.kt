@@ -7,6 +7,7 @@ import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.ArrayDeque
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -35,6 +36,26 @@ class PermissionGovernanceLayer(
         val reason:       String,
         val requiresUserApproval: Boolean = false
     )
+
+    // ── Rate limiting (T21) ───────────────────────────────────────────────────
+    // Token-bucket: max RATE_LIMIT_MAX evaluations per agent per RATE_WINDOW_MS.
+    // Prevents runaway agent loops from bypassing governance via volume.
+    private val RATE_WINDOW_MS = 60_000L
+    private val RATE_LIMIT_MAX = 60
+    private val rateLimitWindows = ConcurrentHashMap<String, ArrayDeque<Long>>()
+
+    private fun checkRateLimit(agentId: String): Boolean {
+        val now = System.currentTimeMillis()
+        val window = rateLimitWindows.getOrPut(agentId) { ArrayDeque() }
+        synchronized(window) {
+            while (window.isNotEmpty() && (now - window.peek()) > RATE_WINDOW_MS) {
+                window.poll()
+            }
+            if (window.size >= RATE_LIMIT_MAX) return false
+            window.offer(now)
+            return true
+        }
+    }
 
     // Pending approvals waiting for user confirmation
     private val _pendingApprovals = MutableStateFlow<List<PendingApproval>>(emptyList())
@@ -67,6 +88,22 @@ class PermissionGovernanceLayer(
         agentId:    String = "unknown",
         payload:    String = ""
     ): GovernanceDecision {
+        // Rate-limit check: deny if the agent has exceeded RATE_LIMIT_MAX
+        // governance evaluations within the past RATE_WINDOW_MS.
+        if (!checkRateLimit(agentId)) {
+            Log.w(TAG, "AIRI_PROOF GOVERNANCE_RATE_LIMITED agent=$agentId action=$actionType")
+            AgentActivityBus.emit(
+                "⏱ Rate limit exceeded [$agentId]: $actionDesc — pausing autonomous actions",
+                ActivityCategory.SYSTEM,
+                ActivitySeverity.WARN
+            )
+            return GovernanceDecision(
+                allowed   = false,
+                riskLevel = RiskLevel.HIGH,
+                reason    = "Rate limit: agent '$agentId' exceeded $RATE_LIMIT_MAX evaluations per minute"
+            )
+        }
+
         val risk = assessRisk(actionType, payload)
 
         // Block unconditionally dangerous actions

@@ -2,12 +2,17 @@ package com.airi.assistant.workspace
 
 import android.content.Context
 import android.util.Log
+import com.airi.assistant.memory.dao.ArtifactDao
+import com.airi.assistant.memory.entity.ArtifactEntity
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.AgentActivityBus
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
@@ -25,7 +30,16 @@ import java.util.concurrent.ConcurrentHashMap
  *  - [AgentActivityBus] for user-visible creation events
  *  - [WorkspacePersistenceManager] for session persistence
  */
-class ArtifactManager(private val context: Context) {
+/**
+ * T22: Accepts an optional [ArtifactDao] so every create/update/delete is
+ * also persisted to Room — surviving process death. Call [loadPersistedArtifacts]
+ * once from a coroutine on startup to restore previously-saved artifacts.
+ */
+class ArtifactManager(
+    private val context: Context,
+    private val artifactDao: ArtifactDao? = null
+) {
+    private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val TAG = "ArtifactManager"
 
@@ -94,6 +108,7 @@ class ArtifactManager(private val context: Context) {
         )
         artifacts[id] = artifact
         publishAll()
+        artifactDao?.insert(artifact.toEntity())
         AgentActivityBus.emit(
             "${type.emoji} Artifact created: $name (${file.length() / 1024}KB)",
             ActivityCategory.SANDBOX
@@ -114,6 +129,7 @@ class ArtifactManager(private val context: Context) {
         )
         artifacts[id] = updated
         publishAll()
+        artifactDao?.update(updated.toEntity())
         updated
     }
 
@@ -135,15 +151,68 @@ class ArtifactManager(private val context: Context) {
         val artifact = artifacts.remove(id) ?: return
         File(artifact.filePath).delete()
         publishAll()
+        ioScope.launch { artifactDao?.deleteById(id) }
     }
 
     fun deleteSession(sessionId: String) {
         val keys = artifacts.values.filter { it.sessionId == sessionId }.map { it.id }
         keys.forEach { deleteArtifact(it) }
         File(context.filesDir, "workspace/artifacts/$sessionId").deleteRecursively()
+        ioScope.launch { artifactDao?.deleteForSession(sessionId) }
+    }
+
+    /**
+     * T22: Restore previously-persisted artifacts from Room on startup.
+     * Call once from a coroutine after the ViewModel or Application initializes.
+     * Entities whose backing files no longer exist are silently skipped.
+     */
+    suspend fun loadPersistedArtifacts() = withContext(Dispatchers.IO) {
+        val dao = artifactDao ?: return@withContext
+        runCatching {
+            dao.getAll().forEach { entity ->
+                if (File(entity.filePath).exists()) {
+                    val artifact = entity.toArtifact()
+                    artifacts[artifact.id] = artifact
+                }
+            }
+            publishAll()
+            Log.i(TAG, "Restored ${artifacts.size} artifact(s) from Room")
+        }.onFailure { e -> Log.w(TAG, "loadPersistedArtifacts failed: ${e.message}") }
     }
 
     private fun publishAll() {
         _allArtifacts.value = artifacts.values.sortedByDescending { it.updatedAtMs }
     }
+
+    // ── Entity mapping helpers ─────────────────────────────────────────────────
+
+    private fun Artifact.toEntity() = ArtifactEntity(
+        id             = id,
+        sessionId      = sessionId,
+        name           = name,
+        typeName       = type.name,
+        filePath       = filePath,
+        sizeBytes      = sizeBytes,
+        createdAtMs    = createdAtMs,
+        updatedAtMs    = updatedAtMs,
+        version        = version,
+        description    = description,
+        agentId        = agentId,
+        previewSnippet = previewSnippet
+    )
+
+    private fun ArtifactEntity.toArtifact() = Artifact(
+        id             = id,
+        sessionId      = sessionId,
+        name           = name,
+        type           = runCatching { ArtifactType.valueOf(typeName) }.getOrDefault(ArtifactType.UNKNOWN),
+        filePath       = filePath,
+        sizeBytes      = sizeBytes,
+        createdAtMs    = createdAtMs,
+        updatedAtMs    = updatedAtMs,
+        version        = version,
+        description    = description,
+        agentId        = agentId,
+        previewSnippet = previewSnippet
+    )
 }

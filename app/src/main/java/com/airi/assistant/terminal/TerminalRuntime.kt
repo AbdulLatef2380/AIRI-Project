@@ -32,7 +32,9 @@ import java.util.UUID
  */
 class TerminalRuntime(
     private val sandboxManager: SandboxManager,
-    private val governance:     PermissionGovernanceLayer
+    private val governance:     PermissionGovernanceLayer,
+    /** T33: Optional context for persisting command history across process restarts. */
+    private val context: android.content.Context? = null
 ) {
     private val TAG = "TerminalRuntime"
 
@@ -68,6 +70,30 @@ class TerminalRuntime(
     private val commandHistory = ArrayDeque<String>()
     private var historyIndex   = -1
 
+    // T33: Persist history across process restarts via SharedPreferences.
+    private val historyPrefs by lazy {
+        context?.getSharedPreferences("airi_terminal_history", android.content.Context.MODE_PRIVATE)
+    }
+    private val PREF_HISTORY = "cmd_history"
+    private val MAX_PERSISTED_HISTORY = 50
+
+    init {
+        restoreHistory()
+    }
+
+    private fun restoreHistory() {
+        val stored = historyPrefs?.getString(PREF_HISTORY, null) ?: return
+        val lines = stored.split("\n").filter { it.isNotBlank() }
+        lines.reversed().forEach { commandHistory.addFirst(it) }
+        Log.d(TAG, "Restored ${commandHistory.size} history entries")
+    }
+
+    private fun persistHistory() {
+        historyPrefs?.edit()
+            ?.putString(PREF_HISTORY, commandHistory.take(MAX_PERSISTED_HISTORY).joinToString("\n"))
+            ?.apply()
+    }
+
     // ── Session management ────────────────────────────────────────────────────
     private var activeSession: TerminalSession? = null
 
@@ -92,6 +118,7 @@ class TerminalRuntime(
         appendLine(TerminalLine(text = "$ $command", isInput = true))
         commandHistory.addFirst(command)
         historyIndex = -1
+        persistHistory()
 
         // Built-in commands
         when (command.lowercase()) {

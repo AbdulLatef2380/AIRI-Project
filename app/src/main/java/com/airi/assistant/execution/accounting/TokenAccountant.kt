@@ -16,10 +16,16 @@ import kotlinx.coroutines.sync.withLock
  * Tracks prompt tokens and completion tokens separately, per provider,
  * per calendar day. Resets automatically at midnight UTC.
  *
- * ## Data source
+ * ## Data source (Cloud)
  * Counts come from the `usage` field returned in cloud API responses
  * (the final SSE chunk for streaming endpoints). These are exact values
  * reported by the provider — not estimates.
+ *
+ * ## Data source (Local)
+ * Token counts for on-device llama.cpp inference are estimated from the
+ * generated text length (chars ÷ [LOCAL_CHARS_PER_TOKEN]). The actual
+ * native nativeTokenCount from LlamaManager is passed via [recordLocal].
+ * Cost is always 0 for local inference.
  *
  * ## Persistence
  * Backed by a plain [SharedPreferences] file. Not encrypted (usage stats
@@ -30,7 +36,7 @@ import kotlinx.coroutines.sync.withLock
  * from multiple coroutines accumulate correctly.
  *
  * ## Observable
- * The live stats are exposed as a [StateFlow] for UI consumption.
+ * The live stats are exposed as [StateFlow]s for UI consumption.
  */
 class TokenAccountant(context: Context) {
 
@@ -41,6 +47,9 @@ class TokenAccountant(context: Context) {
 
     private val _stats = MutableStateFlow(loadAll())
     val stats: StateFlow<Map<CloudProvider, ProviderStats>> = _stats.asStateFlow()
+
+    private val _localStats = MutableStateFlow(loadLocalStats())
+    val localStats: StateFlow<LocalStats> = _localStats.asStateFlow()
 
     // ── Per-provider stats ────────────────────────────────────────────────────
 
@@ -75,7 +84,19 @@ class TokenAccountant(context: Context) {
         }
     }
 
-    // ── Mutations ─────────────────────────────────────────────────────────────
+    // ── Local (on-device) stats ───────────────────────────────────────────────
+
+    data class LocalStats(
+        val tokensGenerated: Long = 0L,
+        val requestCount:    Int  = 0,
+        val totalLatencyMs:  Long = 0L
+    ) {
+        val avgLatencyMs: Long get() = if (requestCount > 0) totalLatencyMs / requestCount else 0L
+        val avgTps:       Float get() = if (totalLatencyMs > 0) tokensGenerated * 1000f / totalLatencyMs else 0f
+        val estimatedCostUsd: Double get() = 0.0   // on-device inference has no API cost
+    }
+
+    // ── Mutations: Cloud ──────────────────────────────────────────────────────
 
     /**
      * Record a completed cloud generation turn.
@@ -113,7 +134,40 @@ class TokenAccountant(context: Context) {
         _stats.value = loadAll()
     }
 
-    /** Reset all providers' stats for the current day. */
+    // ── Mutations: Local (on-device llama.cpp) ────────────────────────────────
+
+    /**
+     * Record a completed local inference turn.
+     *
+     * @param tokensGenerated Native token count from [LlamaManager.generateStream]
+     *                        (nativeTokenCount at generation end). If 0 or unknown,
+     *                        pass the output character count and the system will
+     *                        apply [LOCAL_CHARS_PER_TOKEN] estimation.
+     * @param latencyMs       Wall-clock duration from first token request to
+     *                        [onComplete] callback.
+     * @param isExactCount    True when [tokensGenerated] is the native nativeTokenCount;
+     *                        false when it's a character-length estimate.
+     */
+    suspend fun recordLocal(
+        tokensGenerated: Int,
+        latencyMs:       Long,
+        isExactCount:    Boolean = false
+    ) = mutex.withLock {
+        val actualTokens = if (isExactCount) tokensGenerated.toLong()
+                           else (tokensGenerated / LOCAL_CHARS_PER_TOKEN).toLong().coerceAtLeast(1L)
+        val current = loadLocalStats()
+        val updated = current.copy(
+            tokensGenerated = current.tokensGenerated + actualTokens,
+            requestCount    = current.requestCount    + 1,
+            totalLatencyMs  = current.totalLatencyMs  + latencyMs
+        )
+        persistLocal(updated)
+        _localStats.value = updated
+        Log.d(TAG, "LOCAL +${actualTokens}tok latency=${latencyMs}ms" +
+            " (${if (isExactCount) "exact" else "estimated"})")
+    }
+
+    /** Reset all providers' stats for the current day (cloud + local). */
     suspend fun resetToday() = mutex.withLock {
         val dayKey = todayKey()
         val editor = prefs.edit()
@@ -125,17 +179,24 @@ class TokenAccountant(context: Context) {
                   .remove("${base}_failures")
                   .remove("${base}_latency")
         }
+        val localBase = "local_$dayKey"
+        editor.remove("${localBase}_tokens")
+              .remove("${localBase}_requests")
+              .remove("${localBase}_latency")
         editor.apply()
-        _stats.value = loadAll()
+        _stats.value      = loadAll()
+        _localStats.value = LocalStats()
     }
 
     // ── Read ──────────────────────────────────────────────────────────────────
 
-    /** Today's stats for a single provider. Synchronous — no Mutex needed for reads. */
     fun todayStats(provider: CloudProvider): ProviderStats = currentDayStats(provider)
 
-    /** Total tokens across ALL providers today. */
-    fun totalTokensToday(): Long = _stats.value.values.sumOf { it.totalTokens }
+    fun totalTokensToday(): Long =
+        _stats.value.values.sumOf { it.totalTokens } + _localStats.value.tokensGenerated
+
+    fun totalCloudTokensToday(): Long = _stats.value.values.sumOf { it.totalTokens }
+    fun totalLocalTokensToday(): Long = _localStats.value.tokensGenerated
 
     // ── Internals ─────────────────────────────────────────────────────────────
 
@@ -166,7 +227,24 @@ class TokenAccountant(context: Context) {
     private fun loadAll(): Map<CloudProvider, ProviderStats> =
         CloudProvider.entries.associateWith { currentDayStats(it) }
 
-    /** UTC day key as "YYYY-MM-DD" string. Rolls over at midnight UTC. */
+    private fun loadLocalStats(): LocalStats {
+        val base = "local_${todayKey()}"
+        return LocalStats(
+            tokensGenerated = prefs.getLong("${base}_tokens",   0L),
+            requestCount    = prefs.getInt ("${base}_requests", 0),
+            totalLatencyMs  = prefs.getLong("${base}_latency",  0L)
+        )
+    }
+
+    private fun persistLocal(stats: LocalStats) {
+        val base = "local_${todayKey()}"
+        prefs.edit()
+            .putLong("${base}_tokens",   stats.tokensGenerated)
+            .putInt ("${base}_requests", stats.requestCount)
+            .putLong("${base}_latency",  stats.totalLatencyMs)
+            .apply()
+    }
+
     private fun todayKey(): String {
         val cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
         return "%04d-%02d-%02d".format(
@@ -177,7 +255,13 @@ class TokenAccountant(context: Context) {
     }
 
     companion object {
-        private const val TAG       = "AIRI_TokenAccountant"
-        private const val PREFS_FILE = "airi_token_accounting"
+        private const val TAG               = "AIRI_TokenAccountant"
+        private const val PREFS_FILE        = "airi_token_accounting"
+        /**
+         * Chars-per-token ratio used when the native token count is unavailable.
+         * English text ≈ 4 chars/token; Arabic/CJK ≈ 1.5 chars/token.
+         * 3.5 is a conservative cross-language midpoint.
+         */
+        const val LOCAL_CHARS_PER_TOKEN = 3.5f
     }
 }

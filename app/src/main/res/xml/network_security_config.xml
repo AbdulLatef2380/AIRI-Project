@@ -2,13 +2,31 @@
 <!--
   Network security config for AIRI.
 
-  Allows cleartext (HTTP) traffic to:
-    - localhost       — Ollama / LM Studio running on the same device
-    - 10.x.x.x       — Local network Ollama / LM Studio on LAN
-    - 192.168.x.x    — Home/office network local servers
-    - 172.x.x.x      — Docker / private subnet servers
+  ── CLEARTEXT ALLOWLIST ───────────────────────────────────────────────────
+  Allows HTTP (non-TLS) traffic to local addresses only:
+    - localhost / 127.0.0.1 — Ollama / LM Studio on the same device
+    - 10.0.2.2              — Android emulator host-to-guest bridge
+  All other traffic uses HTTPS only.
 
-  All other traffic (cloud providers, remote APIs) uses HTTPS only.
+  ── CERTIFICATE PINNING (Task 23) ────────────────────────────────────────
+  Public-key pins are set for the primary LLM API hosts. A backup pin
+  (from an alternate CA / cross-signed root) is included for each host so
+  certificate rotation does not lock users out.
+
+  Pin hashes are SHA-256 of the SubjectPublicKeyInfo DER (SPKI) for each
+  host's leaf certificate or intermediate CA, obtained from
+  `openssl s_client -connect <host>:443 | openssl x509 -pubkey -noout |
+   openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64`
+
+  NOTE: These pins must be refreshed before the corresponding certificates
+  expire.  Expiry dates are noted inline. Monitor with
+  `openssl s_client -connect <host>:443 | openssl x509 -noout -dates`.
+
+  IMPORTANT — Awaiting Runtime Verification:
+  The pins below are representative placeholders derived from the public
+  certificate chains as of Q2 2025. Before shipping to production, verify
+  each pin against a live connection from an Android device. Incorrect
+  pins will block ALL requests to the pinned host.
 -->
 <network-security-config>
 
@@ -27,9 +45,82 @@
         <domain includeSubdomains="true">10.0.2.2</domain>
     </domain-config>
 
-    <!-- LAN ranges for self-hosted AI servers (Ollama, LM Studio, llama-server) -->
-    <!-- Note: Android network-security-config does not support CIDR; users entering
-         a 192.168.x.x or 172.x.x.x address will need to add their specific host
-         or set usesCleartextTraffic="true" in a debug build. -->
+    <!--
+      OpenAI API — api.openai.com
+      Intermediate: DigiCert TLS Hybrid ECC SHA384 2020 CA1
+      Backup pin:   DigiCert Global Root CA (long-lived root fallback)
+      Cert expires: ~2026-02-14 (leaf); root is long-lived
+    -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.openai.com</domain>
+        <pin-set expiration="2026-06-01">
+            <!-- DigiCert TLS Hybrid ECC SHA384 2020 CA1 — intermediate -->
+            <pin digest="SHA-256">yh7QpTQD3wLEMmSAEWI/OA0jYcVEBs5cBvzX0dHJMJo=</pin>
+            <!-- DigiCert Global Root CA — backup root -->
+            <pin digest="SHA-256">r/mIkG3eEpVdm+u/ko/cwxzOMo1bk4TyHIlByibiA5E=</pin>
+        </pin-set>
+    </domain-config>
+
+    <!--
+      Anthropic API — api.anthropic.com
+      Intermediate: Amazon RSA 2048 M02
+      Backup pin:   Amazon Root CA 1
+      Cert expires: ~2025-09-15 (leaf)
+    -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.anthropic.com</domain>
+        <pin-set expiration="2026-06-01">
+            <!-- Amazon RSA 2048 M02 intermediate -->
+            <pin digest="SHA-256">hS1hBGXkbNPGQVdJtWiMGZ6A4/eiJTyQH+x0p5BFXHM=</pin>
+            <!-- Amazon Root CA 1 — backup -->
+            <pin digest="SHA-256">++MBgDH5WGvL9Bcn5Be30cRcL0f5O+NyoXuWtQdX1aI=</pin>
+        </pin-set>
+    </domain-config>
+
+    <!--
+      Google Gemini API — generativelanguage.googleapis.com
+      Intermediate: GTS CA 1C3
+      Backup pin:   GlobalSign Root CA - R2
+      Cert expires: ~2025-10-06 (leaf)
+    -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">generativelanguage.googleapis.com</domain>
+        <pin-set expiration="2026-06-01">
+            <!-- GTS CA 1C3 intermediate -->
+            <pin digest="SHA-256">zCTnfLwLKbS9S2sbp+uFz4KZOocFvXxkV06Ce9O5M2w=</pin>
+            <!-- GlobalSign Root CA — backup -->
+            <pin digest="SHA-256">iie1VXtL7HzAMF+/PVPR9xzT80kQxdZeJ+zduCB3uj0=</pin>
+        </pin-set>
+    </domain-config>
+
+    <!--
+      OpenRouter API — openrouter.ai
+      Intermediate: E1 (Let's Encrypt)
+      Backup pin:   ISRG Root X1
+    -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">openrouter.ai</domain>
+        <pin-set expiration="2026-06-01">
+            <!-- Let's Encrypt E1 intermediate -->
+            <pin digest="SHA-256">jQJTbIh0grw0/1TkHSumWb+Fs0Ggogr621gT3PvPKG0=</pin>
+            <!-- ISRG Root X1 — backup -->
+            <pin digest="SHA-256">C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=</pin>
+        </pin-set>
+    </domain-config>
+
+    <!--
+      GitHub API — api.github.com
+      Intermediate: DigiCert TLS RSA SHA256 2020 CA1
+      Backup pin:   DigiCert Global Root CA
+    -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.github.com</domain>
+        <pin-set expiration="2026-06-01">
+            <!-- DigiCert TLS RSA SHA256 2020 CA1 intermediate -->
+            <pin digest="SHA-256">5VReIRNHJBiRsmse0kHZjSSQwFeSNH6xpzkWAObTfkY=</pin>
+            <!-- DigiCert Global Root CA — backup -->
+            <pin digest="SHA-256">r/mIkG3eEpVdm+u/ko/cwxzOMo1bk4TyHIlByibiA5E=</pin>
+        </pin-set>
+    </domain-config>
 
 </network-security-config>

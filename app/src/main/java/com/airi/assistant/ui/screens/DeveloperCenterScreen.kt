@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.crash.RuntimeHealthMonitor
 import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.theme.AiriTheme
@@ -34,15 +35,16 @@ import com.airi.assistant.R
  * DeveloperCenterScreen — AIRI internal tooling dashboard.
  *
  * Tabs:
- *  1. Runtime — orchestration/agent activity, execution bus state
- *  2. Connectors — health states for all registered connectors
- *  3. Memory — token usage, cache size, embedding count
+ *  1. Runtime     — orchestration/agent activity, execution bus state
+ *  2. Connectors  — health states for all registered connectors
+ *  3. Memory      — token usage, cache size, embedding count
  *  4. Diagnostics — latest diagnostic report from AiriDiagnosticEngine
+ *  5. Health      — RuntimeHealthMonitor live report (Task 24)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeveloperCenterScreen(onBack: () -> Unit) {
-    val tabs = listOf("Runtime", "Connectors", "Memory", "Diagnostics")
+    val tabs = listOf("Runtime", "Connectors", "Memory", "Diagnostics", "Health")
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
@@ -56,7 +58,6 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
         containerColor = AiriTheme.background
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // Tab bar
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor   = Color.Transparent,
@@ -77,6 +78,7 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
                 1 -> ConnectorsTab()
                 2 -> MemoryTab()
                 3 -> DiagnosticsTab()
+                4 -> HealthTab()
             }
         }
     }
@@ -87,13 +89,11 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
 private fun RuntimeTab() {
     val events by AgentActivityBus.recentEvents.collectAsStateWithLifecycle()
     val busState by com.airi.assistant.core.ExecutionStatusBus.status.collectAsStateWithLifecycle()
-    // Use real registered agents from SubAgentRegistry, not the deleted AgentCapabilityGraph
     val registeredAgents = remember { com.airi.assistant.agent.subagent.SubAgentRegistry.getAll() }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-        // Execution bus state
         DevCard(title = "Execution Bus") {
             DevRow("Stage",  busState.executionStage.name)
             DevRow("Action", busState.currentAction.take(60).ifBlank { "—" })
@@ -101,7 +101,6 @@ private fun RuntimeTab() {
             DevRow("Retries",busState.retryCount.toString())
         }
 
-        // Active agents — real list from SubAgentRegistry
         DevCard(title = "Registered Agents (${registeredAgents.size})") {
             registeredAgents.forEach { agent ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
@@ -113,7 +112,6 @@ private fun RuntimeTab() {
             }
         }
 
-        // Recent activity (last 10)
         DevCard(title = "Recent Activity") {
             events.take(10).forEach { event ->
                 Row(modifier = Modifier.padding(vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -161,15 +159,13 @@ private fun ConnectorsTab() {
 // ── Tab 3: Memory ──────────────────────────────────────────────────────────────
 @Composable
 private fun MemoryTab() {
-    // JVM heap stats
     val runtime  = Runtime.getRuntime()
     val usedMb   = (runtime.totalMemory() - runtime.freeMemory()) / 1_048_576L
     val maxMb    = runtime.maxMemory() / 1_048_576L
     val usedPct  = (usedMb.toFloat() / maxMb * 100).toInt()
 
-    // B-15: Room / AI memory stats — loaded asynchronously
-    var memoryCount   by remember { mutableStateOf<Int?>(null) }
-    var sessionCount  by remember { mutableStateOf<Int?>(null) }
+    var memoryCount    by remember { mutableStateOf<Int?>(null) }
+    var sessionCount   by remember { mutableStateOf<Int?>(null) }
     var embeddingReady by remember { mutableStateOf<Boolean?>(null) }
 
     LaunchedEffect(Unit) {
@@ -183,11 +179,9 @@ private fun MemoryTab() {
         }
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // ── AI Memory (Room) ──────────────────────────────────────────────
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
         DevCard(title = "AI Memory (Room Database)") {
             DevRow("Messages stored", memoryCount?.toString() ?: "loading…")
             DevRow("Sessions",        sessionCount?.toString() ?: "loading…")
@@ -198,7 +192,6 @@ private fun MemoryTab() {
             })
         }
 
-        // ── JVM Heap ─────────────────────────────────────────────────────
         DevCard(title = "JVM Heap") {
             DevRow("Used",   "$usedMb MB ($usedPct%)")
             DevRow("Max",    "$maxMb MB")
@@ -214,7 +207,6 @@ private fun MemoryTab() {
 }
 
 // ── Tab 4: Diagnostics ─────────────────────────────────────────────────────────
-// B-14 FIX: Was a static placeholder. Now runs DiagnosticsRunner on first composition.
 @Composable
 private fun DiagnosticsTab() {
     var report  by remember { mutableStateOf<com.airi.assistant.domain.diagnostics.DiagnosticsRunner.DiagnosticsReport?>(null) }
@@ -246,6 +238,106 @@ private fun DiagnosticsTab() {
                 }
             }
         } ?: if (!running) Text(stringResource(R.string.developer_no_results), fontSize = 12.sp, color = AiriTheme.onSurfaceVariant) else Unit
+    }
+}
+
+// ── Tab 5: Health (Task 24) ────────────────────────────────────────────────────
+@Composable
+private fun HealthTab() {
+    val health by ServiceLocator.runtimeHealthMonitor.health.collectAsStateWithLifecycle()
+
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // ── Overall status indicator ──────────────────────────────────────────
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = if (health.isHealthy) Color(0xFF1A251A) else Color(0xFF251A1A),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(modifier = Modifier.size(12.dp).clip(CircleShape)
+                    .background(if (health.isHealthy) SemanticSuccess else SemanticError))
+                Text(
+                    if (health.isHealthy) "Runtime Healthy" else "Runtime Degraded",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (health.isHealthy) SemanticSuccess else SemanticError
+                )
+            }
+        }
+
+        // ── Memory & disk ─────────────────────────────────────────────────────
+        DevCard(title = "Resources") {
+            DevRow("Heap available",
+                if (health.heapAvailableMb >= 0) "${health.heapAvailableMb} MB" else "—")
+            DevRow("Disk free",
+                if (health.diskFreeMb >= 0) "${health.diskFreeMb} MB" else "—")
+            DevRow("Network", if (health.networkConnected) "✓ Online" else "✗ Offline")
+            if (health.lowMemoryWarning) {
+                Text("⚠ Low heap memory", fontSize = 11.sp, color = SemanticError,
+                    modifier = Modifier.padding(top = 4.dp))
+            }
+            if (health.lowDiskWarning) {
+                Text("⚠ Low disk space", fontSize = 11.sp, color = SemanticError,
+                    modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+
+        // ── Session ───────────────────────────────────────────────────────────
+        DevCard(title = "Session") {
+            val ageMin = health.sessionAgeMs / 60_000L
+            DevRow("Session age", "${ageMin} min")
+            if (health.sessionAgeWarning) {
+                Text("⚠ Long session — consider restarting", fontSize = 11.sp,
+                    color = Color(0xFFFFB340), modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+
+        // ── Coroutines ────────────────────────────────────────────────────────
+        DevCard(title = "Coroutines") {
+            DevRow("Live coroutines", health.liveCoroutineCount.toString())
+            if (health.orphanCoroutineWarning) {
+                Text("⚠ Potential orphans: ${health.orphanKeys.take(3).joinToString()}",
+                    fontSize = 11.sp, color = SemanticError, modifier = Modifier.padding(top = 2.dp))
+            } else {
+                Text("✓ No orphan coroutines detected", fontSize = 11.sp, color = SemanticSuccess,
+                    modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+
+        // ── Agents ────────────────────────────────────────────────────────────
+        DevCard(title = "Agent Tasks") {
+            DevRow("Stuck agents", health.stuckAgentCount.toString())
+            if (health.stuckAgentCount > 0) {
+                Text("⚠ Stuck: ${health.stuckAgentIds.take(3).joinToString()}",
+                    fontSize = 11.sp, color = SemanticError, modifier = Modifier.padding(top = 2.dp))
+            } else {
+                Text("✓ All agents responding", fontSize = 11.sp, color = SemanticSuccess,
+                    modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+
+        // ── Event bus ─────────────────────────────────────────────────────────
+        DevCard(title = "Event Bus") {
+            if (health.eventBusSaturated) {
+                Text("⚠ Event bus saturated — drain rate lagging behind emit rate",
+                    fontSize = 11.sp, color = SemanticError)
+            } else {
+                Text("✓ Event bus flowing normally", fontSize = 11.sp, color = SemanticSuccess)
+            }
+        }
+
+        // ── Last check timestamp ──────────────────────────────────────────────
+        Text(
+            "Last check: ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date(health.timestampMs))}",
+            fontSize = 10.sp,
+            color = AiriTheme.onSurfaceVariant.copy(alpha = 0.35f),
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
     }
 }
 

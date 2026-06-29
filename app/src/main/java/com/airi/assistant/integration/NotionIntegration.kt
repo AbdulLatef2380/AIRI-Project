@@ -2,6 +2,22 @@ package com.airi.assistant.integration
 
 import android.content.SharedPreferences
 
+/**
+ * @deprecated Legacy integration using plaintext SharedPreferences.
+ *   Replaced by [com.airi.assistant.connector.mcp.NotionMcpConnector] which
+ *   stores the PAT via [com.airi.assistant.auth.SecureStorage] backed by
+ *   Android Keystore and talks to the Notion REST API. Wiring is in
+ *   [com.airi.assistant.connector.ConnectorBootstrap.installDefaults].
+ *   Do not add new callers. This class will be deleted in Phase 3.
+ */
+@Deprecated(
+    message = "Use NotionMcpConnector via ConnectorBootstrap. This class uses plaintext SharedPreferences.",
+    replaceWith = ReplaceWith(
+        "NotionMcpConnector(secureStorage)",
+        "com.airi.assistant.connector.mcp.NotionMcpConnector"
+    ),
+    level = DeprecationLevel.WARNING
+)
 class NotionIntegration(private val preferences: SharedPreferences) : Integration {
     override val id = "notion"
     override val name = "Notion"

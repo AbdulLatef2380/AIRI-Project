@@ -31,6 +31,15 @@ import kotlinx.coroutines.withContext
  * New behavior: [tokenAccountant.recordSuccess] is now invoked from the same
  * suspending coroutine that owns the streaming call. No `runBlocking`, no
  * thread-pinning, identical observable behavior to callers.
+ *
+ * ── Task 21: Multi-cloud provider failover ────────────────────────────────────
+ * When the preferred provider exhausts all [MAX_RETRIES] attempts, [generateStream]
+ * automatically falls through to alternate available cloud providers in priority
+ * order ([FAILOVER_PRIORITY]) before returning a terminal error. Each fallover is
+ * logged to [RuntimeEventLog] so the diagnostics timeline shows the full failure
+ * chain. The caller ([HybridOrchestrator]) already handles LOCAL fallback after
+ * cloud backend failure — multi-cloud failover happens WITHIN the cloud backend,
+ * transparent to the orchestrator.
  */
 class CloudBackend(
     private val prefs: ExecModePreferences,
@@ -62,62 +71,88 @@ class CloudBackend(
             NetworkGuard.Decision.Allow -> {}
         }
 
-        val provider = prefs.preferredProvider
-        val adapter = CloudAdapterFactory.create(provider, context, request)
-        if (!adapter.isAvailable) {
-            onError("${provider.displayName}: no API key configured"); return
+        // ── Build provider priority list for this request ─────────────────────
+        // Primary provider first, then available fallback providers in priority order.
+        val primary = prefs.preferredProvider
+        val providerQueue = buildList {
+            add(primary)
+            FAILOVER_PRIORITY.filter { it != primary }.forEach { fallback ->
+                val adapter = CloudAdapterFactory.create(fallback, context)
+                if (adapter.isAvailable) add(fallback)
+            }
         }
 
-        RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.INFO,
-            "Streaming via ${provider.displayName} (${adapter.providerId})")
+        var lastError = "Unknown cloud error"
 
-        // Keep token counts captured per attempt; closure mutated by adapter.
-        var promptTok = 0
-        var compTok = 0
-
-        val result = RetryPolicy.withRetry(maxAttempts = MAX_RETRIES) { attempt ->
-            if (attempt > 0) {
+        for ((attemptIdx, provider) in providerQueue.withIndex()) {
+            val isFallback = attemptIdx > 0
+            if (isFallback) {
                 RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.WARN,
-                    "Retry attempt $attempt/${MAX_RETRIES - 1} for ${provider.displayName}")
+                    "CLOUD_FAILOVER ${providerQueue[attemptIdx - 1].displayName} → ${provider.displayName}")
+                Log.w(TAG, "AIRI_PROOF CLOUD_FAILOVER from=${providerQueue[attemptIdx-1].name} to=${provider.name}")
             }
-            promptTok = 0
-            compTok = 0
-            adapter.streamGenerate(
-                request = request,
-                onToken = { token -> onToken(token) },
-                onUsage = { p, c -> promptTok = p; compTok = c }
-            )
+
+            val adapter = CloudAdapterFactory.create(provider, context, request)
+            if (!adapter.isAvailable) {
+                Log.d(TAG, "Skipping ${provider.name} — no key configured")
+                continue
+            }
+
+            RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.INFO,
+                "Streaming via ${provider.displayName} (attempt ${attemptIdx + 1}/${providerQueue.size})")
+
+            var promptTok = 0
+            var compTok = 0
+
+            val result = RetryPolicy.withRetry(maxAttempts = MAX_RETRIES) { attempt ->
+                if (attempt > 0) {
+                    RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.WARN,
+                        "Retry attempt $attempt/${MAX_RETRIES - 1} for ${provider.displayName}")
+                }
+                promptTok = 0
+                compTok = 0
+                adapter.streamGenerate(
+                    request = request,
+                    onToken = { token -> onToken(token) },
+                    onUsage = { p, c -> promptTok = p; compTok = c }
+                )
+            }
+
+            when (result) {
+                is CloudProviderAdapter.AdapterResult.Success -> {
+                    val totalTokens = promptTok + compTok
+                    if (totalTokens > 0) {
+                        prefs.recordCloudTokens(totalTokens)
+                        runCatching {
+                            tokenAccountant?.recordSuccess(
+                                provider         = provider,
+                                promptTokens     = promptTok,
+                                completionTokens = compTok,
+                                latencyMs        = result.latencyMs
+                            )
+                        }.onFailure { e ->
+                            Log.w(TAG, "tokenAccountant.recordSuccess failed: ${e.message}")
+                        }
+                    }
+                    RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.INFO,
+                        "${provider.displayName} OK: ${result.latencyMs}ms tokens=${promptTok}p+${compTok}c")
+                    onComplete(result.fullText, result.latencyMs)
+                    return   // Success — do NOT continue to next provider
+                }
+                is CloudProviderAdapter.AdapterResult.Failure -> {
+                    lastError = buildUserErrorMessage(result.errorType, result.error, provider)
+                    RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.ERROR,
+                        "${provider.displayName} failed [${result.errorType}]: ${result.error.take(80)}")
+                    Log.w(TAG, "CloudBackend failure on ${provider.name}: type=${result.errorType} http=${result.httpCode} ${result.error}")
+                    // Continue to next provider in failover chain
+                }
+            }
         }
 
-        when (result) {
-            is CloudProviderAdapter.AdapterResult.Success -> {
-                val totalTokens = promptTok + compTok
-                if (totalTokens > 0) {
-                    prefs.recordCloudTokens(totalTokens)
-                    // Suspending call — same coroutine, no runBlocking.
-                    runCatching {
-                        tokenAccountant?.recordSuccess(
-                            provider = provider,
-                            promptTokens = promptTok,
-                            completionTokens = compTok,
-                            latencyMs = result.latencyMs
-                        )
-                    }.onFailure { e ->
-                        Log.w(TAG, "tokenAccountant.recordSuccess failed: ${e.message}")
-                    }
-                }
-                RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.INFO,
-                    "${provider.displayName} OK: ${result.latencyMs}ms tokens=${promptTok}p+${compTok}c")
-                onComplete(result.fullText, result.latencyMs)
-            }
-            is CloudProviderAdapter.AdapterResult.Failure -> {
-                val errMsg = buildUserErrorMessage(result.errorType, result.error, provider)
-                RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.ERROR,
-                    "${provider.displayName} failed [${result.errorType}]: ${result.error.take(80)}")
-                Log.w(TAG, "CloudBackend failure: type=${result.errorType} http=${result.httpCode} ${result.error}")
-                onError(errMsg)
-            }
-        }
+        // All providers in the failover chain failed.
+        RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.ERROR,
+            "All ${providerQueue.size} cloud provider(s) failed. Last: ${lastError.take(80)}")
+        onError(lastError)
     }
 
     override suspend fun generate(request: ExecutionRequest): ExecutionResult =
@@ -177,7 +212,23 @@ class CloudBackend(
         }
 
     companion object {
-        private const val TAG = "AIRI_CloudBackend"
+        private const val TAG         = "AIRI_CloudBackend"
         private const val MAX_RETRIES = 3
+
+        /**
+         * Priority order for automatic cloud provider failover.
+         * When the preferred provider exhausts retries, the backend tries
+         * each provider in this list (skipping unavailable ones and the primary).
+         *
+         * Ordered by: reliability > latency > cost.
+         */
+        private val FAILOVER_PRIORITY = listOf(
+            CloudProvider.OPENAI,
+            CloudProvider.ANTHROPIC,
+            CloudProvider.GEMINI,
+            CloudProvider.OPENROUTER,
+            CloudProvider.KIMI,
+            CloudProvider.CUSTOM
+        )
     }
 }

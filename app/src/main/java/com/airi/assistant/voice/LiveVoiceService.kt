@@ -7,6 +7,9 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
@@ -45,63 +48,42 @@ import com.airi.assistant.R
  *     - Calls [requestListen], [requestStop], [speakChunk]
  *     - Routes STT results to HybridOrchestrator
  *
- * This design survives:
- *   - Screen rotation (service is not recreated, StateFlows retain values)
- *   - Temporary backgrounding (foreground service continues audio)
- *   - Configuration changes (Activity rebinds on recreate)
- *
  * ─────────────────────────────────────────────────────────────────────────
- * AUDIO HARDWARE POLICY
+ * AUDIO FOCUS POLICY (Task 18)
  * ─────────────────────────────────────────────────────────────────────────
  *
- *   VoiceManager enforces all audio-source exclusivity rules.
- *   LiveVoiceService drives VoiceManager via its VoiceListener callbacks,
- *   translating them into LiveVoiceSession state transitions.
- *   The service NEVER holds AudioRecord or AudioTrack directly.
+ *   [requestListen] acquires AUDIOFOCUS_GAIN_TRANSIENT before starting STT.
+ *   If the system denies focus ([AudioManager.AUDIOFOCUS_REQUEST_FAILED]),
+ *   the listen request is silently dropped and logged — another app (phone
+ *   call, media player) has exclusive audio access.
  *
- * ─────────────────────────────────────────────────────────────────────────
- * REALTIME CLOUD PROVIDER SWAPPING
- * ─────────────────────────────────────────────────────────────────────────
+ *   [requestStop] and [onDestroy] always call [abandonAudioFocus] so focus
+ *   is returned promptly to the interrupted app.
  *
- *   Set [realtimeProvider] to a [RealtimeVoiceProvider] implementation to
- *   route audio through Gemini Live or OpenAI Realtime instead of local
- *   Vosk+TTS. Set to [LocalVoicePipeline] (or null) to revert to on-device.
+ *   Focus-change listener:
+ *     LOSS / LOSS_TRANSIENT  → stop voice (media player taking over)
+ *     GAIN                   → re-arm STT (we regained focus)
  */
 class LiveVoiceService : Service() {
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Binder — gives bound clients direct access to session + voice control
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Binder ────────────────────────────────────────────────────────────────
 
     inner class LocalBinder : Binder() {
-        /** The lifecycle-independent session state holder. Observe its StateFlows. */
         val session: LiveVoiceSession
             get() = this@LiveVoiceService.session
 
-        /** Raw VoiceManager — use only for operations not covered by this service API. */
         val voiceManager: VoiceManager
             get() = this@LiveVoiceService.voiceManager
 
-        /** Start listening for user speech. No-op if already listening. */
         fun requestListen()   = this@LiveVoiceService.requestListen()
-
-        /** Stop all audio activity and return to IDLE. */
         fun requestStop()     = this@LiveVoiceService.requestStop()
 
-        /**
-         * Append a TTS chunk from the LLM token stream.
-         * Call with flush=true on the final chunk of a turn.
-         */
         fun speakChunk(text: String, flush: Boolean = false) =
             this@LiveVoiceService.speakChunk(text, flush)
 
-        /** Begin a streaming TTS session (call before first speakChunk). */
         fun beginSpeaking()   = this@LiveVoiceService.beginSpeaking()
-
-        /** Interrupt any ongoing TTS immediately. */
         fun interruptSpeaking() = this@LiveVoiceService.interruptSpeaking()
 
-        /** Swap to a cloud realtime provider (null = local Vosk+TTS). */
         fun setRealtimeProvider(provider: RealtimeVoiceProvider?) {
             this@LiveVoiceService.realtimeProvider = provider ?: LocalVoicePipeline
         }
@@ -109,9 +91,7 @@ class LiveVoiceService : Service() {
 
     private val binder = LocalBinder()
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Core components
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Core components ───────────────────────────────────────────────────────
 
     val session = LiveVoiceSession()
 
@@ -119,38 +99,67 @@ class LiveVoiceService : Service() {
 
     private lateinit var voiceManager: VoiceManager
 
-    /**
-     * Voice-to-agent bridge. Routes each STT final result through SubAgentRegistry
-     * → ProductionAgentOrchestrator → TTS. Initialised in [onCreate] after voiceManager.
-     */
     private lateinit var voiceAgentRouter: VoiceAgentRouter
 
-    // Barge-in + incremental TTS — wired in onCreate after voiceManager init
     private val interruptController = VoiceInterruptController(serviceScope)
     private val incrementalTts by lazy { IncrementalTtsEngine(applicationContext) }
 
-    /**
-     * Active realtime provider. [LocalVoicePipeline] = on-device Vosk+TTS.
-     * Swap to GeminiLiveProvider / OpenAIRealtimeProvider for cloud audio.
-     */
     @Volatile var realtimeProvider: RealtimeVoiceProvider = LocalVoicePipeline
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Timing probes
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Audio focus (Task 18) ─────────────────────────────────────────────────
+
+    private lateinit var audioManager: AudioManager
+
+    /**
+     * AudioFocusRequest built once in [onCreate] and reused for all
+     * [requestListen] / [abandonAudioFocus] cycles.
+     * Null on pre-API-26 devices (handled by the deprecated API below).
+     */
+    private var audioFocusRequest: AudioFocusRequest? = null
+
+    private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                Log.i(TAG, "AIRI_PROOF AUDIO_FOCUS_LOST — stopping voice")
+                requestStop()
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                Log.i(TAG, "AIRI_PROOF AUDIO_FOCUS_GAINED — re-arming STT")
+                requestListen()
+            }
+        }
+    }
+
+    // ── Timing probes ─────────────────────────────────────────────────────────
 
     @Volatile private var sttStartEpochMs:     Long = 0L
     @Volatile private var thinkingStartEpochMs: Long = 0L
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Service lifecycle
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Service lifecycle ─────────────────────────────────────────────────────
 
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "LiveVoiceService onCreate")
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification(VoicePipelineState.IDLE))
+
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+        // Build AudioFocusRequest once (API 26+). Pre-26 uses deprecated path.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setAcceptsDelayedFocusGain(false)
+                .setOnAudioFocusChangeListener(audioFocusListener)
+                .build()
+        }
+
         voiceManager = VoiceManager(applicationContext, buildVoiceListener())
         voiceAgentRouter = VoiceAgentRouter(
             appContext   = applicationContext,
@@ -159,7 +168,6 @@ class LiveVoiceService : Service() {
         )
         Log.i(TAG, "AIRI_PROOF VOICE_AGENT_ROUTER_INIT")
 
-        // Wire VoiceInterruptController → VoiceManager callbacks
         interruptController.onStopTts          = { voiceManager.stopSpeaking() }
         interruptController.onCancelGeneration = { serviceScope.launch { voiceManager.stopAll() } }
         interruptController.onRearmStt         = {
@@ -178,7 +186,6 @@ class LiveVoiceService : Service() {
             }
             updateNotification(state)
         }
-        // Init incremental TTS
         incrementalTts.init()
     }
 
@@ -194,20 +201,33 @@ class LiveVoiceService : Service() {
 
     override fun onDestroy() {
         Log.i(TAG, "LiveVoiceService onDestroy")
+        abandonAudioFocus()
         session.endSession()
         voiceManager.destroy()
         serviceScope.cancel()
         super.onDestroy()
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Public voice control API
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Public voice control API ──────────────────────────────────────────────
 
+    /**
+     * Request audio focus and start STT listening.
+     *
+     * If the system denies audio focus ([AudioManager.AUDIOFOCUS_REQUEST_FAILED]),
+     * the request is dropped and logged. Another app (phone call, media player)
+     * currently holds exclusive audio access.
+     */
     fun requestListen() {
         val current = session.state.value
         Log.d(TAG, "requestListen current=$current")
         if (current == VoicePipelineState.IDLE || current == VoicePipelineState.INTERRUPTED) {
+            val focusGranted = requestAudioFocus()
+            if (!focusGranted) {
+                Log.w(TAG, "AIRI_PROOF AUDIOFOCUS_REQUEST_FAILED — not starting STT")
+                AgentActivityBus.emit("Audio focus denied — another app is using audio",
+                    com.airi.assistant.ui.activity.ActivityCategory.VOICE)
+                return
+            }
             session.onListenStart()
             updateNotification(VoicePipelineState.LISTENING)
             sttStartEpochMs = System.currentTimeMillis()
@@ -217,21 +237,17 @@ class LiveVoiceService : Service() {
 
     fun requestStop() {
         Log.d(TAG, "requestStop")
+        abandonAudioFocus()
         voiceManager.stopAll()
         session.endSession()
         updateNotification(VoicePipelineState.IDLE)
     }
 
-    /** Signal that the LLM has started generating — prepare TTS stream. */
     fun beginSpeaking() {
         thinkingStartEpochMs = System.currentTimeMillis()
         voiceManager.ttsStreamReset()
     }
 
-    /**
-     * Append a TTS chunk from the LLM token stream.
-     * Call with flush=true on the LAST chunk of the turn.
-     */
     fun speakChunk(text: String, flush: Boolean = false) {
         if (flush) {
             voiceManager.ttsStreamAppend(text)
@@ -241,14 +257,43 @@ class LiveVoiceService : Service() {
         }
     }
 
-    /** Immediately stop TTS and discard any queued chunks. */
     fun interruptSpeaking() {
         voiceManager.stopSpeaking()
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // VoiceListener — bridges VoiceManager callbacks → LiveVoiceSession state
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Audio focus helpers ───────────────────────────────────────────────────
+
+    /**
+     * Request transient audio focus from the system.
+     * Returns true if granted, false if denied.
+     */
+    @Suppress("DEPRECATION")
+    private fun requestAudioFocus(): Boolean {
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val req = audioFocusRequest ?: return true  // defensive: proceed if not built
+            audioManager.requestAudioFocus(req)
+        } else {
+            audioManager.requestAudioFocus(
+                audioFocusListener,
+                AudioManager.STREAM_VOICE_CALL,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+            )
+        }
+        return result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    @Suppress("DEPRECATION")
+    private fun abandonAudioFocus() {
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+            } else {
+                audioManager.abandonAudioFocus(audioFocusListener)
+            }
+        }.onFailure { e -> Log.w(TAG, "abandonAudioFocus failed: ${e.message}") }
+    }
+
+    // ── VoiceListener ─────────────────────────────────────────────────────────
 
     private fun buildVoiceListener(): VoiceManager.VoiceListener =
         object : VoiceManager.VoiceListener {
@@ -276,10 +321,6 @@ class LiveVoiceService : Service() {
                 updateNotification(VoicePipelineState.THINKING)
                 Log.d(TAG, "AIRI_PROOF STT_RESULT sttLatency=${sttMs}ms text='${text.take(60)}'")
 
-                // ── Voice → Agent routing ──────────────────────────────────────
-                // Route through sub-agent system first.
-                // Handled  → agent spoke result via TTS; update pipeline state.
-                // Fallback → no agent matched; emit to voiceTranscriptBus for LLM.
                 serviceScope.launch {
                     when (val r = voiceAgentRouter.route(text, session.currentSessionId)) {
                         is VoiceAgentRouter.VoiceRouteResult.Handled -> {
@@ -287,11 +328,9 @@ class LiveVoiceService : Service() {
                             session.recordTtsFirstByteLatency(ttfb)
                             session.onResponseStreaming(ttfb)
                             updateNotification(VoicePipelineState.STREAMING_RESPONSE)
-                            Log.i(TAG, "AIRI_PROOF VOICE_AGENT_SPOKE " +
-                                    "agent=${r.agentId} ttfb=${ttfb}ms")
+                            Log.i(TAG, "AIRI_PROOF VOICE_AGENT_SPOKE agent=${r.agentId} ttfb=${ttfb}ms")
                         }
                         VoiceAgentRouter.VoiceRouteResult.Fallback -> {
-                            // No agent matched — hand off to ChatViewModel/LLM path
                             Log.d(TAG, "AIRI_PROOF VOICE_LLM_DISPATCH text='${text.take(60)}'")
                             session.emitPendingTranscript(text)
                             ServiceLocator.voiceTranscriptBus.emit(text)
@@ -312,13 +351,11 @@ class LiveVoiceService : Service() {
                 session.onTurnComplete()
                 updateNotification(VoicePipelineState.IDLE)
                 Log.d(TAG, "AIRI_PROOF TTS_DONE — auto-rearming STT")
-                // Auto-rearm listening after AIRI finishes speaking
                 requestListen()
             }
 
             override fun onVadInterrupted() {
                 val interruptStart = System.currentTimeMillis()
-                // Route through VoiceInterruptController for barge-in coordination
                 interruptController.onVadSpeechDetected()
                 AgentActivityBus.emit("Barge-in via VAD", com.airi.assistant.ui.activity.ActivityCategory.VOICE)
                 serviceScope.launch {
@@ -350,9 +387,7 @@ class LiveVoiceService : Service() {
             }
         }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Notification management
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Notification management ───────────────────────────────────────────────
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -379,9 +414,7 @@ class LiveVoiceService : Service() {
             VoicePipelineState.RECOVERING         -> "Reconnecting…" to "Voice session recovering"
         }
 
-        val stopIntent = Intent(this, LiveVoiceService::class.java).apply {
-            action = ACTION_STOP
-        }
+        val stopIntent = Intent(this, LiveVoiceService::class.java).apply { action = ACTION_STOP }
         val stopPi = PendingIntent.getService(
             this, 0, stopIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -402,13 +435,11 @@ class LiveVoiceService : Service() {
         nm.notify(NOTIFICATION_ID, buildNotification(state))
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Companion
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Companion ─────────────────────────────────────────────────────────────
 
     companion object {
-        private const val TAG           = "LiveVoiceService"
-        private const val CHANNEL_ID    = "airi_voice_channel"
+        private const val TAG             = "LiveVoiceService"
+        private const val CHANNEL_ID      = "airi_voice_channel"
         private const val NOTIFICATION_ID = 1001
 
         const val ACTION_START_LISTEN = "com.airi.assistant.action.VOICE_START"

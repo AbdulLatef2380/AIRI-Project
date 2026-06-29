@@ -9,6 +9,7 @@ import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.ExecutionResult
+import com.airi.assistant.execution.accounting.TokenAccountant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 
@@ -19,6 +20,13 @@ import kotlinx.coroutines.channels.Channel
  * so [RuntimeRouter] and [HybridOrchestrator] can treat local inference
  * identically to cloud inference — both as interchangeable capability-declared
  * backends.
+ *
+ * ## Token Accounting (Task 20)
+ * When [tokenAccountant] is provided, each successful generation is recorded via
+ * [TokenAccountant.recordLocal]. The character length of the full generated text
+ * is used as the token count input (estimation mode); the actual native
+ * nativeTokenCount is not surfaced through the [RuntimeBackend] interface.
+ * Recording uses [TokenAccountant.LOCAL_CHARS_PER_TOKEN] for the conversion.
  *
  * ## Capability profile
  * Built lazily from the currently loaded model's detected capabilities.
@@ -39,7 +47,8 @@ import kotlinx.coroutines.channels.Channel
  * callbacks fire. Used by tool pipelines and tests only.
  */
 class LocalLlamaBackend(
-    private val llamaManager: LlamaManager
+    private val llamaManager:    LlamaManager,
+    private val tokenAccountant: TokenAccountant? = null
 ) : RuntimeBackend {
 
     override val id:          String     = "local_llama"
@@ -131,7 +140,22 @@ class LocalLlamaBackend(
         for (event in events) {
             when (event) {
                 is LlamaEvent.Token    -> onToken(event.value)
-                is LlamaEvent.Complete -> onComplete(event.text, event.latency)
+                is LlamaEvent.Complete -> {
+                    // Task 20: Record local token usage. Use char-length estimation
+                    // since nativeTokenCount is not surfaced through this interface.
+                    tokenAccountant?.let { accountant ->
+                        runCatching {
+                            accountant.recordLocal(
+                                tokensGenerated = event.text.length,
+                                latencyMs       = event.latency,
+                                isExactCount    = false
+                            )
+                        }.onFailure { e ->
+                            Log.w(TAG, "tokenAccountant.recordLocal failed: ${e.message}")
+                        }
+                    }
+                    onComplete(event.text, event.latency)
+                }
                 is LlamaEvent.Error    -> onError(event.message)
             }
         }
@@ -168,10 +192,21 @@ class LocalLlamaBackend(
             timeoutMs      = 90_000L,
             onToken        = { token -> fullText.append(token) },
             onComplete     = { _ ->
+                val latencyMs = System.currentTimeMillis() - startMs
+                // Task 20: Record local tokens in batch generate path.
+                tokenAccountant?.let { accountant ->
+                    runCatching {
+                        accountant.recordLocal(
+                            tokensGenerated = fullText.length,
+                            latencyMs       = latencyMs,
+                            isExactCount    = false
+                        )
+                    }
+                }
                 deferred.complete(ExecutionResult.Success(
                     fullText   = fullText.toString(),
                     origin     = ExecOrigin.LOCAL,
-                    latencyMs  = System.currentTimeMillis() - startMs,
+                    latencyMs  = latencyMs,
                     tokenCount = fullText.count { it == ' ' } + 1,
                     provider   = "llama.cpp"
                 ))

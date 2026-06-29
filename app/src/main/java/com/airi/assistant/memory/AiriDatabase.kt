@@ -1,12 +1,14 @@
 package com.airi.assistant.memory
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.airi.assistant.memory.dao.ArtifactDao
 import com.airi.assistant.memory.dao.AuditLogDao
 import com.airi.assistant.memory.dao.BehaviorStatsDao
 import com.airi.assistant.memory.dao.ContextCacheDao
@@ -14,6 +16,7 @@ import com.airi.assistant.memory.dao.EmbeddingDao
 import com.airi.assistant.memory.dao.MemoryDao
 import com.airi.assistant.memory.dao.SessionDao
 import com.airi.assistant.memory.dao.UsageStatsDao
+import com.airi.assistant.memory.entity.ArtifactEntity
 import com.airi.assistant.memory.entity.AuditLogEntity
 import com.airi.assistant.memory.entity.BehaviorStatsEntity
 import com.airi.assistant.memory.entity.ChatMessage
@@ -22,6 +25,7 @@ import com.airi.assistant.memory.entity.ContextCacheEntity
 import com.airi.assistant.memory.entity.MessageEmbedding
 import com.airi.assistant.memory.entity.UsageStatEntity
 import com.airi.assistant.memory.entity.UserPreference
+import java.io.File
 
 /**
  * AiriDatabase — Room database for all persistent AIRI state.
@@ -30,6 +34,25 @@ import com.airi.assistant.memory.entity.UserPreference
  *   v1 → v2: Added sessionId/isMemory columns to episodic_memory; created chat_sessions table.
  *   v2 → v3: Added message_embedding table for semantic memory (RAG).
  *   v3 → v4: Added audit_log table for persistent AIRI_PROOF event storage (Phase 2 Task 5).
+ *   v4 → v5: Added workspace_artifact table for ArtifactManager persistence (Phase 2 Task 26).
+ *
+ * ── Task 27: Database backup ──────────────────────────────────────────────────
+ * [exportBackup] copies the live database file to a destination [File] using
+ * Room's WAL checkpoint mechanism to ensure a consistent snapshot.
+ *
+ * ── Task 28: SQLCipher at-rest encryption ─────────────────────────────────────
+ * ⚠️  AWAITING RUNTIME VERIFICATION — Enabling SQLCipher requires:
+ *   1. Add to app/build.gradle:
+ *        implementation("net.zetetic:android-database-sqlcipher:4.5.4")
+ *        implementation("androidx.sqlite:sqlite-ktx:2.4.0")
+ *   2. Generate a 32-byte passphrase via Android Keystore (see [buildEncryptedDatabase]).
+ *   3. Set [ENCRYPTION_ENABLED] = true.
+ *   4. Test on a real device — SQLCipher migration is destructive if the existing
+ *      DB is unencrypted and there is no migration path provided.
+ *
+ * Do NOT enable [ENCRYPTION_ENABLED] in production builds until a device test
+ * confirms the upgrade path (plain → encrypted) behaves correctly on your
+ * target API levels and device families.
  */
 @Database(
     entities = [
@@ -40,22 +63,32 @@ import com.airi.assistant.memory.entity.UserPreference
         ContextCacheEntity::class,
         UsageStatEntity::class,
         MessageEmbedding::class,
-        AuditLogEntity::class
+        AuditLogEntity::class,
+        ArtifactEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(AuditLogTypeConverters::class)
 abstract class AiriDatabase : RoomDatabase() {
-    abstract fun memoryDao(): MemoryDao
-    abstract fun sessionDao(): SessionDao
+    abstract fun memoryDao():       MemoryDao
+    abstract fun sessionDao():      SessionDao
     abstract fun behaviorStatsDao(): BehaviorStatsDao
     abstract fun contextCacheDao(): ContextCacheDao
-    abstract fun usageStatsDao(): UsageStatsDao
-    abstract fun embeddingDao(): EmbeddingDao
-    abstract fun auditLogDao(): AuditLogDao
+    abstract fun usageStatsDao():   UsageStatsDao
+    abstract fun embeddingDao():    EmbeddingDao
+    abstract fun auditLogDao():     AuditLogDao
+    abstract fun artifactDao():     ArtifactDao
 
     companion object {
+        private const val TAG = "AiriDatabase"
+
+        /**
+         * Set to true to enable SQLCipher at-rest encryption.
+         * ⚠️  Awaiting Runtime Verification — see class-level KDoc before enabling.
+         */
+        private const val ENCRYPTION_ENABLED = false
+
         @Volatile
         private var INSTANCE: AiriDatabase? = null
 
@@ -69,12 +102,6 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
-        // v3 — adds the message_embedding table for semantic memory. The
-        // foreign key onto episodic_memory uses ON DELETE CASCADE so
-        // pruning a chat row also removes its vector (no orphan rows).
-        // Two indices are created up-front: one unique on messageId
-        // (one vector per message) and one on sessionId (the search
-        // hot path filters by session).
         private val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -97,10 +124,6 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
-        // v4 — Phase 2 Task 5: adds audit_log table for persistent AIRI_PROOF event storage.
-        // Indexed on timestampMs (time-range queries) and tag (module-specific queries).
-        // Level is stored as TEXT (enum name) so it remains readable without schema knowledge.
-        // No foreign keys — audit records are independent of all other tables.
         private val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -119,15 +142,142 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
+        // ── v4 → v5: workspace_artifact table (Task 26) ──────────────────────
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS workspace_artifact (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        sessionId TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        typeName TEXT NOT NULL,
+                        filePath TEXT NOT NULL,
+                        sizeBytes INTEGER NOT NULL,
+                        createdAtMs INTEGER NOT NULL,
+                        updatedAtMs INTEGER NOT NULL,
+                        version INTEGER NOT NULL,
+                        description TEXT NOT NULL,
+                        agentId TEXT NOT NULL,
+                        previewSnippet TEXT
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_workspace_artifact_sessionId ON workspace_artifact(sessionId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_workspace_artifact_createdAtMs ON workspace_artifact(createdAtMs)")
+            }
+        }
+
         fun getDatabase(context: Context): AiriDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    AiriDatabase::class.java,
-                    "airi_memory_db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
+                val instance = buildDatabase(context)
                 INSTANCE = instance
                 instance
+            }
+        }
+
+        private fun buildDatabase(context: Context): AiriDatabase {
+            val builder = Room.databaseBuilder(
+                context.applicationContext,
+                AiriDatabase::class.java,
+                "airi_memory_db"
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+
+            if (ENCRYPTION_ENABLED) {
+                builder.openHelperFactory(buildSqlCipherFactory(context))
+            }
+
+            return builder.build()
+        }
+
+        /**
+         * Build a SQLCipher [SupportSQLiteOpenHelper.Factory] using a passphrase
+         * derived from the Android Keystore.
+         *
+         * ⚠️  AWAITING RUNTIME VERIFICATION — DO NOT enable in production without device test.
+         *
+         * This method references `net.zetetic.database.sqlcipher.SupportFactory` which
+         * requires the SQLCipher dependency in build.gradle:
+         *   implementation("net.zetetic:android-database-sqlcipher:4.5.4")
+         *   implementation("androidx.sqlite:sqlite-ktx:2.4.0")
+         *
+         * The passphrase is a 32-byte random key stored in EncryptedSharedPreferences
+         * (itself backed by Android Keystore AES-256-GCM). On first run the key is
+         * generated; on subsequent runs it is loaded and reused.
+         */
+        private fun buildSqlCipherFactory(context: Context): androidx.sqlite.db.SupportSQLiteOpenHelper.Factory {
+            // ── Passphrase derivation ─────────────────────────────────────────
+            // Load or generate the 32-byte DB key from EncryptedSharedPreferences.
+            val KEY_PREFS  = "airi_db_key_prefs"
+            val KEY_ALIAS  = "airi_db_passphrase"
+            val prefs = try {
+                androidx.security.crypto.EncryptedSharedPreferences.create(
+                    KEY_PREFS,
+                    KEY_ALIAS,
+                    context,
+                    androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "SQLCipher: cannot open EncryptedSharedPreferences: ${e.message}")
+                throw IllegalStateException("SQLCipher passphrase storage unavailable", e)
+            }
+
+            val existing = prefs.getString(KEY_ALIAS, null)
+            val passphrase: ByteArray = if (existing != null) {
+                android.util.Base64.decode(existing, android.util.Base64.NO_WRAP)
+            } else {
+                val key = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+                prefs.edit()
+                    .putString(KEY_ALIAS, android.util.Base64.encodeToString(key, android.util.Base64.NO_WRAP))
+                    .apply()
+                Log.i(TAG, "AIRI_PROOF DB_KEY_GENERATED new SQLCipher passphrase stored")
+                key
+            }
+
+            // ── Build SupportFactory ──────────────────────────────────────────
+            // Requires: implementation("net.zetetic:android-database-sqlcipher:4.5.4")
+            return net.zetetic.database.sqlcipher.SupportFactory(passphrase)
+        }
+
+        // ── Task 27: Database backup ──────────────────────────────────────────
+
+        /**
+         * Export a consistent snapshot of the database to [destFile].
+         *
+         * Uses SQLite's WAL checkpoint to flush the write-ahead log before copying,
+         * ensuring the destination file is self-consistent and not mid-transaction.
+         *
+         * Call from a background thread / coroutine. The database MUST already be
+         * open ([INSTANCE] must be non-null) before calling this method.
+         *
+         * @param context  Application context (for locating the DB file).
+         * @param destFile Destination file. Parent directory must exist and be writable.
+         * @return         true on success, false if the backup failed.
+         */
+        fun exportBackup(context: Context, destFile: File): Boolean {
+            val db = INSTANCE ?: run {
+                Log.w(TAG, "exportBackup: database not open")
+                return false
+            }
+            return try {
+                // Checkpoint WAL to ensure the main db file is up-to-date.
+                db.openHelper.writableDatabase.execSQL("PRAGMA wal_checkpoint(TRUNCATE)")
+
+                val dbFile = context.getDatabasePath("airi_memory_db")
+                if (!dbFile.exists()) {
+                    Log.w(TAG, "exportBackup: source file not found at ${dbFile.absolutePath}")
+                    return false
+                }
+
+                destFile.parentFile?.mkdirs()
+                dbFile.copyTo(destFile, overwrite = true)
+
+                Log.i(TAG, "AIRI_PROOF DB_BACKUP_OK dest=${destFile.absolutePath} size=${destFile.length()}")
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "AIRI_PROOF DB_BACKUP_FAILED: ${e.message}", e)
+                false
             }
         }
     }

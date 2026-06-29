@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -83,41 +84,71 @@ class GithubService(private val secureStorage: SecureStorage) {
         }
     }
 
+    /**
+     * Fetch up to [limit] repositories, using Link-header pagination to bypass
+     * the GitHub API's 30-item-per-page ceiling.
+     *
+     * For [limit] ≤ 30 a single request is issued (fast path).
+     * For [limit] > 30 the function follows `rel="next"` Link headers until
+     * [limit] items have been collected or the last page is reached.
+     *
+     * The GitHub API caps `per_page` at 100 per request. We use the minimum of
+     * [limit] and 100 as the page size to minimise round-trips.
+     */
     suspend fun getRepos(limit: Int = 10): ToolResult = withContext(Dispatchers.IO) {
         val token = secureStorage.getGithubToken()
             ?: return@withContext ToolResult(false, "", "GitHub token not found. Please reconnect.")
+
+        val clampedLimit = limit.coerceIn(1, 300)
+        val pageSize     = minOf(clampedLimit, 100)
+
         try {
-            val url = "https://api.github.com/user/repos?sort=updated&per_page=${limit.coerceIn(1, 30)}"
-            val response = get(url, token)
-            when (response.code) {
-                200 -> {
-                    val array = JSONArray(response.body?.string() ?: "[]")
-                    if (array.length() == 0) {
-                        return@withContext ToolResult(true, "No repositories found.")
-                    }
-                    val sb = StringBuilder("Your GitHub repositories (${array.length()}):\n")
-                    for (i in 0 until array.length()) {
-                        val repo = array.getJSONObject(i)
-                        val repoName = repo.optString("full_name")
-                        val desc = repo.optString("description", "").let {
-                            if (it.isNotBlank()) " — $it" else ""
+            val collected = mutableListOf<JSONObject>()
+            var nextUrl: String? =
+                "https://api.github.com/user/repos?sort=updated&per_page=$pageSize"
+
+            while (nextUrl != null && collected.size < clampedLimit) {
+                val response = get(nextUrl, token)
+                when (response.code) {
+                    200 -> {
+                        val body     = response.body?.string() ?: "[]"
+                        val linkHdr  = response.header("Link")
+                        val array    = JSONArray(body)
+                        for (i in 0 until array.length()) {
+                            if (collected.size >= clampedLimit) break
+                            collected.add(array.getJSONObject(i))
                         }
-                        val stars = repo.optInt("stargazers_count", 0)
-                        val lang = repo.optString("language", "")
-                        val private = if (repo.optBoolean("private")) " 🔒" else ""
-                        sb.append("• $repoName$private$desc")
-                        if (lang.isNotBlank()) sb.append(" [$lang]")
-                        if (stars > 0) sb.append(" ⭐$stars")
-                        sb.append("\n")
+                        nextUrl = parseLinkNext(linkHdr)
                     }
-                    ToolResult(true, sb.toString().trimEnd())
+                    401 -> {
+                        secureStorage.saveGithubConnected(false)
+                        return@withContext ToolResult(
+                            false, "", "GitHub token expired. Please reconnect in Integrations."
+                        )
+                    }
+                    else -> return@withContext ToolResult(
+                        false, "", "GitHub API error: ${response.code}"
+                    )
                 }
-                401 -> {
-                    secureStorage.saveGithubConnected(false)
-                    ToolResult(false, "", "GitHub token expired. Please reconnect in Integrations.")
-                }
-                else -> ToolResult(false, "", "GitHub API error: ${response.code}")
             }
+
+            if (collected.isEmpty()) return@withContext ToolResult(true, "No repositories found.")
+
+            val sb = StringBuilder("Your GitHub repositories (${collected.size}):\n")
+            for (repo in collected) {
+                val repoName = repo.optString("full_name")
+                val desc     = repo.optString("description", "").let {
+                    if (it.isNotBlank()) " — $it" else ""
+                }
+                val stars   = repo.optInt("stargazers_count", 0)
+                val lang    = repo.optString("language", "")
+                val private = if (repo.optBoolean("private")) " 🔒" else ""
+                sb.append("• $repoName$private$desc")
+                if (lang.isNotBlank()) sb.append(" [$lang]")
+                if (stars > 0) sb.append(" ⭐$stars")
+                sb.append("\n")
+            }
+            ToolResult(true, sb.toString().trimEnd())
         } catch (e: Exception) {
             ToolResult(false, "", "Request failed: ${e.message}")
         }
@@ -127,7 +158,7 @@ class GithubService(private val secureStorage: SecureStorage) {
 
     // ─── Internal ─────────────────────────────────────────────────────────────
 
-    private fun get(url: String, token: String) = client.newCall(
+    private fun get(url: String, token: String): Response = client.newCall(
         Request.Builder()
             .url(url)
             .header("Authorization", "Bearer $token")
@@ -135,4 +166,25 @@ class GithubService(private val secureStorage: SecureStorage) {
             .header("X-GitHub-Api-Version", "2022-11-28")
             .build()
     ).execute()
+
+    /**
+     * Parse the `rel="next"` URL from a GitHub `Link` response header.
+     *
+     * Example header value:
+     *   <https://api.github.com/user/repos?page=2>; rel="next",
+     *   <https://api.github.com/user/repos?page=5>; rel="last"
+     *
+     * Returns null when there is no next page.
+     */
+    private fun parseLinkNext(linkHeader: String?): String? {
+        if (linkHeader.isNullOrBlank()) return null
+        return linkHeader.split(",")
+            .map { it.trim() }
+            .firstOrNull { it.contains("""rel="next"""") }
+            ?.let { segment ->
+                val start = segment.indexOf('<') + 1
+                val end   = segment.indexOf('>')
+                if (start > 0 && end > start) segment.substring(start, end) else null
+            }
+    }
 }

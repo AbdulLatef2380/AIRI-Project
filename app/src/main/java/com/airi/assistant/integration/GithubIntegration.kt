@@ -2,6 +2,22 @@ package com.airi.assistant.integration
 
 import android.content.SharedPreferences
 
+/**
+ * @deprecated Legacy integration using plaintext SharedPreferences.
+ *   Replaced by [com.airi.assistant.connector.app.GitHubConnector] which
+ *   uses [com.airi.assistant.connector.ConnectorAuthManager] backed by
+ *   EncryptedSharedPreferences. Wiring is in
+ *   [com.airi.assistant.connector.ConnectorBootstrap.installDefaults].
+ *   Do not add new callers. This class will be deleted in Phase 3.
+ */
+@Deprecated(
+    message = "Use GitHubConnector via ConnectorBootstrap. This class uses plaintext SharedPreferences.",
+    replaceWith = ReplaceWith(
+        "GitHubConnector(authManager)",
+        "com.airi.assistant.connector.app.GitHubConnector"
+    ),
+    level = DeprecationLevel.WARNING
+)
 class GithubIntegration(private val preferences: SharedPreferences) : Integration {
     override val id = "github"
     override val name = "GitHub"

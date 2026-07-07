@@ -452,7 +452,11 @@ fun AiriApp() {
                     }
 
                     composable(AiriRoute.SETTINGS_ABOUT) {
-                        AboutScreen(onBack = { navController.popBackStack() })
+                        AboutScreen(
+                            onBack     = { navController.popBackStack() },
+                            // AP-25: wire "Technical Details" → APP_INFO route
+                            onNavigate = { route -> navController.navigate(route) }
+                        )
                     }
 
                     composable(AiriRoute.MEMORY) {
@@ -600,7 +604,9 @@ fun AiriApp() {
                             onBack       = { navController.popBackStack() },
                             onOpenChat   = {
                                 navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }
-                            }
+                            },
+                            // AP-03: Wire artifact preview navigation
+                            onNavigate   = { route -> navController.navigate(route) }
                         )
                     }
                     composable(AiriRoute.TERMINAL) {

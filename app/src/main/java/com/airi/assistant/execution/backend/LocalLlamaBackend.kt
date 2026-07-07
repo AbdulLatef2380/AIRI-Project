@@ -193,16 +193,6 @@ class LocalLlamaBackend(
             onToken        = { token -> fullText.append(token) },
             onComplete     = { _ ->
                 val latencyMs = System.currentTimeMillis() - startMs
-                // Task 20: Record local tokens in batch generate path.
-                tokenAccountant?.let { accountant ->
-                    runCatching {
-                        accountant.recordLocal(
-                            tokensGenerated = fullText.length,
-                            latencyMs       = latencyMs,
-                            isExactCount    = false
-                        )
-                    }
-                }
                 deferred.complete(ExecutionResult.Success(
                     fullText   = fullText.toString(),
                     origin     = ExecOrigin.LOCAL,
@@ -221,7 +211,25 @@ class LocalLlamaBackend(
             onStallWarning = {}
         )
 
-        return deferred.await()
+        // Await the result in suspend context — this is the correct place to call
+        // suspend functions. tokenAccountant.recordLocal is a suspend fun (uses Mutex)
+        // and cannot be called inside the non-suspend onComplete lambda above.
+        // Task 20: Record local tokens in batch generate path.
+        val result = deferred.await()
+        if (result is ExecutionResult.Success) {
+            tokenAccountant?.let { accountant ->
+                runCatching {
+                    accountant.recordLocal(
+                        tokensGenerated = result.fullText.length,
+                        latencyMs       = result.latencyMs,
+                        isExactCount    = false
+                    )
+                }.onFailure { e ->
+                    Log.w(TAG, "tokenAccountant.recordLocal failed: ${e.message}")
+                }
+            }
+        }
+        return result
     }
 
     companion object {

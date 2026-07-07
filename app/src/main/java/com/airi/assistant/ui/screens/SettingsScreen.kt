@@ -214,6 +214,17 @@ fun SettingsScreen(
                     onClick  = { onNavigate(AiriRoute.MODEL_LIBRARY) }
                 )
                 SettingsDivider()
+                // AP-07: AI Execution Settings — was unreachable; now connected to registered route.
+                // Exposes ExecutionMode (LOCAL/CLOUD/HYBRID), PrivacyLevel, InternetPermission,
+                // OfflineFallback, and PreferredProvider to the user.
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Psychology,
+                    iconTint = Color(0xFF00BCD4),
+                    label    = "AI Execution Settings",
+                    trailing = "Mode, privacy, provider",
+                    onClick  = { onNavigate(AiriRoute.SETTINGS_AI_MODELS) }
+                )
+                SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Mic,
                     iconTint = Color(0xFF4CAF50),
@@ -347,6 +358,17 @@ fun SettingsScreen(
                     iconTint = Color(0xFF80CBC4),
                     label    = stringResource(R.string.settings_debug_panel),
                     onClick  = { onNavigate(AiriRoute.DEBUG_PANEL) }
+                )
+            }
+
+            // AP-25: About AIRI — was unreachable; SETTINGS_ABOUT route now has a caller.
+            SettingsGroup {
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Info,
+                    iconTint = Color(0xFF90CAF9),
+                    label    = "About AIRI",
+                    onClick  = { onNavigate(AiriRoute.SETTINGS_ABOUT) }
                 )
             }
 

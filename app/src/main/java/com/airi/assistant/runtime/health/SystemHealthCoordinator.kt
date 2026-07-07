@@ -10,8 +10,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 /**
@@ -99,8 +97,13 @@ class SystemHealthCoordinator(
         Log.i(TAG, "AIRI_PROOF SYSTEM_HEALTH_COORDINATOR_STARTED")
 
         observerJob = scope.launch {
+            // distinctUntilChanged() is intentionally absent here.
+            // StateFlow already guarantees that collectors only receive emissions
+            // when the value actually changes — it is distinct by contract.
+            // Since kotlinx-coroutines ≥1.7.0, applying distinctUntilChanged() to
+            // a StateFlow is a compile error ("Operator Fusion" rule). The behaviour
+            // is identical without it.
             thermalProfiler.throttleLevel
-                .distinctUntilChanged()
                 .collect { level ->
                     val action = levelToAction(level)
                     Log.i(TAG,

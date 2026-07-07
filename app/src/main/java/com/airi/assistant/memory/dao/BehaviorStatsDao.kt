@@ -11,4 +11,8 @@ interface BehaviorStatsDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entity: BehaviorStatsEntity)
+
+    /** Full table wipe used by the GDPR deletion flow via StorageRepository.deleteAllData(). */
+    @Query("DELETE FROM behavior_stats")
+    suspend fun deleteAll()
 }

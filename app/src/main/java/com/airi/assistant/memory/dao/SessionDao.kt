@@ -57,6 +57,22 @@ interface SessionDao {
     """)
     suspend fun getAllSessions(): List<ChatSessionSummary>
 
+    /**
+     * All sessions as plain entities, ordered newest-first.
+     *
+     * The existing [getAllSessions] returns [ChatSessionSummary] (a projection with
+     * computed lastMessage/messageCount columns) for UI list screens. This method
+     * returns the raw [ChatSession] entity and is used by [StorageRepository.getAllSessions]
+     * whose public API contract declares List<ChatSession>. Both methods are kept so
+     * callers of either DAO path continue to compile.
+     */
+    @Query("SELECT * FROM chat_sessions ORDER BY updatedAt DESC")
+    suspend fun getAllSessionEntities(): List<ChatSession>
+
+    /** Full table wipe used by the GDPR deletion flow via StorageRepository.deleteAllData(). */
+    @Query("DELETE FROM chat_sessions")
+    suspend fun deleteAll()
+
     @Transaction
     suspend fun deleteSessionAndMessages(sessionId: String) {
         deleteMessagesForSession(sessionId)

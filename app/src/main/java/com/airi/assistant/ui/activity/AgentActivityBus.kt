@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.activity
 
+import com.airi.assistant.runtime.profiler.FlowPressureMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -34,6 +35,11 @@ object AgentActivityBus {
     val recentEvents: StateFlow<List<ActivityEvent>> = _recent.asStateFlow()
 
     init {
+        // AP-13: Register with FlowPressureMonitor for replay-cache backpressure auditing.
+        // Slow collectors on AgentActivityBus events are now logged to AuditRepository
+        // and surfaced in the DeveloperCenter Profiler tab (AP-12).
+        FlowPressureMonitor.auditSharedFlow("AgentActivityBus", _events)
+
         _events.onEach { ev ->
             snapshotList.add(0, ev)
             if (snapshotList.size > MAX_SNAPSHOT) snapshotList.subList(MAX_SNAPSHOT, snapshotList.size).clear()

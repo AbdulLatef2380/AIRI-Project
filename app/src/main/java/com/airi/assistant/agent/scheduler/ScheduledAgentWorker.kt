@@ -10,6 +10,7 @@ import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
 import com.airi.assistant.domain.logging.LoggingService
+import com.airi.assistant.memory.AiriDatabase
 import kotlinx.coroutines.flow.collect
 
 /**
@@ -60,6 +61,39 @@ class ScheduledAgentWorker(
         val label   = inputData.getString(KEY_LABEL)    ?: agentId
 
         LoggingService.info(TAG, "AIRI_PROOF SCHEDULED_JOB_STARTED id=$jobId agent=$agentId label=$label")
+
+        // AP-11: System maintenance payloads are handled directly — they don't route
+        // through the agent/orchestrator stack because they are infrastructure tasks,
+        // not user-facing agent actions.
+        if (agentId == "system") {
+            val maintenanceResult = runCatching {
+                when (payload) {
+                    "sandbox_reaper" -> {
+                        ServiceLocator.workspaceRegistry.pruneStale()
+                        "Sandbox reaper: pruned stale workspaces"
+                    }
+                    "audit_log_pruner" -> {
+                        val cutoff = System.currentTimeMillis() - 30L * 24 * 3600 * 1000
+                        ServiceLocator.auditRepository.pruneOlderThan(cutoff)
+                        "Audit log pruner: removed entries older than 30 days"
+                    }
+                    "context_cache_pruner" -> {
+                        val now = System.currentTimeMillis()
+                        AiriDatabase.getDatabase(applicationContext).contextCacheDao().cleanupOld(now)
+                        "Context cache pruner: removed expired entries"
+                    }
+                    else -> null  // unknown system payload — fall through to agent routing
+                }
+            }
+            val handled = maintenanceResult.getOrNull()
+            if (handled != null) {
+                LoggingService.info(TAG, "AIRI_PROOF SCHEDULED_JOB_DONE id=$jobId output=$handled")
+                return Result.success()
+            }
+            maintenanceResult.exceptionOrNull()?.let { err ->
+                LoggingService.warn(TAG, "AIRI_PROOF SCHEDULED_MAINTENANCE_FAILED id=$jobId payload=$payload error=${err.message}")
+            }
+        }
 
         // Build a background SubAgentContext — no UI session, generous timeout
         val ctx = SubAgentContext(

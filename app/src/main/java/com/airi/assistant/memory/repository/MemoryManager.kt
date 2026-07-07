@@ -1,6 +1,7 @@
 package com.airi.assistant.memory.repository
 
 import android.content.Context
+import com.airi.assistant.ai.prompt.MemoryExtractor
 import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.memory.dao.ChatSessionSummary
 import com.airi.assistant.memory.embedding.EmbeddingService
@@ -13,7 +14,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-class MemoryManager(context: Context) {
+// AP-18: applicationScope injected from ServiceLocator so summarization tasks survive
+// screen rotation without relying on a ViewModel lifecycle.
+class MemoryManager(context: Context, private val applicationScope: CoroutineScope? = null) {
     private val db = AiriDatabase.getDatabase(context)
     private val dao = db.memoryDao()
     private val sessionDao = db.sessionDao()
@@ -81,6 +84,33 @@ class MemoryManager(context: Context) {
                 "MEMORY_PRUNE_CHECKPOINT session=$sessionId rows=$count cap=$MAX_MESSAGES_PER_SESSION"
             )
         }
+
+        // AP-22: Auto-extract facts from user messages.
+        // MemoryExtractor is heuristic (regex-based, not LLM) — safe to run inline.
+        // Facts are stored as long-term isMemory=true rows that survive session pruning.
+        // Only runs on "user" role messages (assistant messages don't contain user facts).
+        if (role == "user" && message.content.isNotBlank()) {
+            val scope = applicationScope ?: this.scope
+            scope.launch {
+                runCatching {
+                    val facts = MemoryExtractor.extract(message.content)
+                    if (facts.isNotEmpty()) {
+                        android.util.Log.i("AIRI_PROOF", "MEMORY_FACTS_EXTRACTED count=${facts.size} session=$sessionId")
+                        facts.forEach { fact ->
+                            dao.insertMessage(
+                                ChatMessage(
+                                    sessionId    = sessionId,
+                                    role         = "system",
+                                    content      = "[memory] $fact",
+                                    isMemory     = true
+                                )
+                            )
+                        }
+                    }
+                }.onFailure { android.util.Log.w("AIRI_MEMORY", "AP-22 fact extraction failed: ${it.message}") }
+            }
+        }
+
         return message
     }
 

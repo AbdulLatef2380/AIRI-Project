@@ -24,6 +24,9 @@ import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.auth.identity.BiometricGatekeeper
+import com.airi.assistant.domain.auth.DataDeletionCoordinator
+import androidx.fragment.app.FragmentActivity
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,8 +41,12 @@ fun PrivacyDataSettingsScreen(
     val messages     by viewModel.messages.collectAsState()
     val scope        = rememberCoroutineScope()
     val snackbarHost = remember { SnackbarHostState() }
-    // Task 3: Route through AuthService — no direct FirebaseAuth in UI.
-    val authService  = remember { ServiceLocator.authService }
+    // Route deletion through DataDeletionCoordinator — never call AuthService
+    // directly from UI. The coordinator orchestrates all 8 deletion steps
+    // (WorkManager, Firebase, Room, disk, credentials, preferences, cache,
+    // sign-out) and surfaces structured results so the UI can respond correctly
+    // to each outcome without embedding any deletion business logic here.
+    val coordinator = remember { ServiceLocator.dataDeletionCoordinator }
 
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -153,16 +160,46 @@ fun PrivacyDataSettingsScreen(
                 Button(
                     onClick = {
                         showDeleteDialog = false
-                        // Task 4: Delegate deletion to AuthService (server-side token revocation
-                        // + Firebase delete + local signOut). Surface failures to the user so
-                        // they know if re-authentication is required.
-                        authService.deleteAccount { success, errorMsg ->
-                            if (success || !authService.isSignedIn()) {
-                                onLogout()
-                            } else {
-                                scope.launch {
+                        scope.launch {
+                            // ── AP-05: Biometric gate ──────────────────────────────
+                            // Account deletion is irreversible (8-step wipe). Require
+                            // biometric confirmation before proceeding.
+                            val activity = context as? FragmentActivity
+                            if (activity != null) {
+                                val availability = BiometricGatekeeper.checkAvailability(activity)
+                                if (availability == BiometricGatekeeper.Availability.NOT_ENROLLED) {
+                                    snackbarHost.showSnackbar("Add a screen lock or fingerprint in device Settings to confirm account deletion.")
+                                    return@launch
+                                }
+                                val confirmed = BiometricGatekeeper.authenticate(
+                                    activity = activity,
+                                    title    = "Confirm Account Deletion",
+                                    subtitle = "This action is irreversible and cannot be undone."
+                                )
+                                if (!confirmed) return@launch
+                            }
+                            // ── Delegate to DataDeletionCoordinator ─────────────
+                            // Orchestrates all 8 steps (WorkManager stop, Firebase
+                            // deletion, Room wipe, filesystem wipe, credential wipe,
+                            // preference reset, cache wipe, local sign-out).
+                            when (val result = coordinator.deleteAccount()) {
+                                is DataDeletionCoordinator.DeletionResult.Success -> {
+                                    onLogout()
+                                }
+                                is DataDeletionCoordinator.DeletionResult.PartialSuccess -> {
+                                    // Account is deleted server-side — navigate away.
+                                    // Partial local failure is non-blocking for the user.
+                                    onLogout()
+                                }
+                                is DataDeletionCoordinator.DeletionResult.FirebaseAuthFailed -> {
+                                    val msg = if (result.requiresReauth)
+                                        context.getString(R.string.delete_account_reauth_required)
+                                    else
+                                        result.message.ifBlank {
+                                            context.getString(R.string.delete_account_error_generic)
+                                        }
                                     snackbarHost.showSnackbar(
-                                        message     = errorMsg ?: context.getString(R.string.delete_account_error_generic),
+                                        message     = msg,
                                         actionLabel = context.getString(R.string.ok),
                                         duration    = SnackbarDuration.Long
                                     )

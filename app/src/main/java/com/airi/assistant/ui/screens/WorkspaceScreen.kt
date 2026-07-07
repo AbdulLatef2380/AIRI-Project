@@ -27,6 +27,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.workspace.ArtifactManager
 import com.airi.assistant.workspace.WorkspaceRuntime
+import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.theme.AiriTheme
 import kotlinx.coroutines.launch
@@ -44,7 +45,7 @@ import com.airi.assistant.R
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WorkspaceScreen(onBack: () -> Unit, onOpenChat: () -> Unit = {}) {
+fun WorkspaceScreen(onBack: () -> Unit, onOpenChat: () -> Unit = {}, onNavigate: (String) -> Unit = {}) {
     val workspaceRuntime = ServiceLocator.workspaceRuntime
     val artifactManager  = ServiceLocator.artifactManager
     val scope            = rememberCoroutineScope()
@@ -129,7 +130,11 @@ fun WorkspaceScreen(onBack: () -> Unit, onOpenChat: () -> Unit = {}) {
                                 artifact   = artifact,
                                 isSelected = selectedArtifactId == artifact.id,
                                 onClick    = { selectedArtifactId = if (selectedArtifactId == artifact.id) null else artifact.id },
-                                onDelete   = { artifactManager.deleteArtifact(artifact.id) }
+                                onDelete   = { artifactManager.deleteArtifact(artifact.id) },
+                                // AP-03: Navigate to ArtifactPreviewScreen on long-press preview tap.
+                                onPreview  = { selected ->
+                                    onNavigate(AiriRoute.artifactPreview(selected.type.name.lowercase(), selected.content))
+                                }
                             )
                         }
                     }
@@ -180,7 +185,9 @@ private fun ArtifactCard(
     artifact:   ArtifactManager.Artifact,
     isSelected: Boolean,
     onClick:    () -> Unit,
-    onDelete:   () -> Unit
+    onDelete:   () -> Unit,
+    // AP-03: navigate to ArtifactPreviewScreen when the user taps "Preview"
+    onPreview:  (ArtifactManager.Artifact) -> Unit = {}
 ) {
     Surface(
         shape    = RoundedCornerShape(14.dp),
@@ -215,6 +222,18 @@ private fun ArtifactCard(
                     modifier   = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
                         .background(Color(0xFF060910)).padding(10.dp)
                 )
+                // AP-03: "Preview" button → ArtifactPreviewScreen (sandboxed WebView/Markdown/Code)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(
+                        onClick = { onPreview(artifact) },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Outlined.OpenInNew, null,
+                            modifier = Modifier.size(13.dp), tint = CosmicAccent)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Preview", fontSize = 11.sp, color = CosmicAccent)
+                    }
+                }
             }
         }
     }

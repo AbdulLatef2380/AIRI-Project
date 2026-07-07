@@ -68,4 +68,8 @@ interface AuditLogDao {
 
     @Query("SELECT COUNT(*) FROM audit_log")
     suspend fun count(): Long
+
+    /** Full table wipe used by the GDPR deletion flow via StorageRepository.deleteAllData(). */
+    @Query("DELETE FROM audit_log")
+    suspend fun deleteAll()
 }

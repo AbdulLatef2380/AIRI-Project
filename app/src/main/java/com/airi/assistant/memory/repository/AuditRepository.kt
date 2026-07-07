@@ -120,6 +120,16 @@ class AuditRepository(private val db: AiriDatabase) {
             .onFailure { Log.e(TAG, "AuditRepository prune failed: ${it.message}") }
     }
 
+    /**
+     * AP-11: Explicit cutoff pruner called by [ScheduledJobOrchestrator] audit_log_pruner job.
+     * Deletes all rows older than [cutoffMs] (epoch millis). Does not use MAX_RETENTION_DAYS
+     * so the orchestrator can configure any retention window independently.
+     */
+    suspend fun pruneOlderThan(cutoffMs: Long) {
+        runCatching { dao.pruneOlderThan(cutoffMs) }
+            .onFailure { Log.e(TAG, "AuditRepository.pruneOlderThan failed: ${it.message}") }
+    }
+
     private companion object {
         const val TAG              = "AIRI_AuditRepository"
         const val PRUNE_AFTER_WRITES = 500

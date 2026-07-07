@@ -34,7 +34,11 @@ import java.util.concurrent.atomic.AtomicLong
 object RuntimeProfiler {
 
     private const val TAG = "RuntimeProfiler"
-    private const val REPORT_INTERVAL_MS = 30_000L
+    private const val REPORT_INTERVAL_MS    = 30_000L  // full log interval
+    private const val UI_REFRESH_INTERVAL_MS = 5_000L   // AP-12: fast refresh for DeveloperCenter Profiler tab
+
+    /** Alias matching the name the Activation Plan spec references. */
+    val reportFlow: StateFlow<ProfileReport> get() = report
     private const val SLOW_THRESHOLD_MS  = 500L       // warn if single sample > this
     private const val JNI_WARN_MS        = 50L        // JNI calls should be sub-50ms
 
@@ -110,6 +114,14 @@ object RuntimeProfiler {
     // ── Public API ──────────────────────────────────────────────────────────
 
     fun start() {
+        // AP-12: Fast 5s refresh for the DeveloperCenter Profiler tab
+        scope.launch {
+            while (isActive) {
+                delay(UI_REFRESH_INTERVAL_MS)
+                _report.value = buildReport()
+            }
+        }
+        // Full 30s log interval (unchanged — avoids logcat spam)
         scope.launch {
             Log.i(TAG, "AIRI_PROOF PROFILER_STARTED")
             while (isActive) {
@@ -149,6 +161,17 @@ object RuntimeProfiler {
     fun recordFlowPressureWarning(flowName: String) {
         flowPressureWarns.incrementAndGet()
         Log.w(TAG, "AIRI_PROOF FLOW_PRESSURE flow=$flowName total=${flowPressureWarns.get()}")
+    }
+
+    /** AP-12: Build a fresh report without logging. Used by the 5s UI refresh loop. */
+    private fun buildReport(): ProfileReport {
+        val buckets = accumulators.map { (k, v) -> v.toBucket(k) }.sortedBy { it.key }
+        return ProfileReport(
+            buckets               = buckets,
+            droppedEventCount     = droppedEvents.get(),
+            flowPressureWarnings  = flowPressureWarns.get().toInt(),
+            slowCallCount         = accumulators.values.sumOf { it.slowCt.get() }
+        )
     }
 
     fun emitReport(): ProfileReport {

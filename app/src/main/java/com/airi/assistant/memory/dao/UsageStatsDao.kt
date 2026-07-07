@@ -14,4 +14,8 @@ interface UsageStatsDao {
 
     @Query("UPDATE usage_stats SET usageCount = usageCount + 1, lastUsedTimestamp = :time WHERE featureName = :name")
     suspend fun incrementUsage(name: String, time: Long)
+
+    /** Full table wipe used by the GDPR deletion flow via StorageRepository.deleteAllData(). */
+    @Query("DELETE FROM usage_stats")
+    suspend fun deleteAll()
 }

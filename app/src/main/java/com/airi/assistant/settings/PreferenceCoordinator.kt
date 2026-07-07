@@ -167,13 +167,23 @@ class PreferenceCoordinator(
             hotwordEnabled = false
         )
 
+        // AP-21: Clear downloaded model paths so ChatViewModel/LlamaManager revert
+        // to the default bundled model on next launch. This prevents a "reset to
+        // defaults" leaving orphan references to deleted or moved model files.
+        context.getSharedPreferences("airi_ui_state", android.content.Context.MODE_PRIVATE)
+            .edit()
+            .remove("llm_model_path")
+            .remove("embedding_model_path")
+            .remove("mmproj_model_path")
+            .apply()
+
         // ── Theme prefs ───────────────────────────────────────────────────────
         themePrefs.edit()
             .putString(KEY_DARK_MODE,    "SYSTEM")
             .putString(KEY_ACCENT_COLOR, "#6C63FF")
             .apply()
 
-        Log.i(TAG, "AIRI_PROOF PREFS_RESET_COMPLETE stores=exec,voice,theme")
+        Log.i(TAG, "AIRI_PROOF PREFS_RESET_COMPLETE stores=exec,voice,theme,model_paths")
     }
 
     private companion object {

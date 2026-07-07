@@ -56,4 +56,15 @@ class GoogleAuthService(
     }
 
     fun getLastSignedInEmail(): String? = GoogleSignIn.getLastSignedInAccount(context)?.email
+
+    /**
+     * AP-10: Returns the stored Google ID token for API bearer auth.
+     * Prefer the live account token when available; fall back to the cached
+     * SecureStorage token saved during [handleSignInSuccess].
+     */
+    fun getIdToken(): String? {
+        val liveToken = GoogleSignIn.getLastSignedInAccount(context)?.idToken
+        if (!liveToken.isNullOrBlank()) return liveToken
+        return secureStorage.getGoogleIdToken()
+    }
 }

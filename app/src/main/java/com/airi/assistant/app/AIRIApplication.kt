@@ -248,6 +248,11 @@ class AIRIApplication : Application() {
         // Evict stale graph workspaces — these hold in-memory file trees and
         // snapshot logs from completed or abandoned executeGraph() runs.
         com.airi.assistant.agent.workspace.WorkspaceRegistry.pruneStale()
+        // AP-17: Clear camera JPEG cache when app is backgrounded — prevents heavy camera
+        // users accumulating hundreds of MB in cacheDir/chat_attachments/.
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
+            runCatching { cacheDir.resolve("chat_attachments").deleteRecursively() }
+        }
         // Update health monitor so Diagnostics screen reflects the memory event
         runCatching { ServiceLocator.runtimeHealthMonitor }.getOrNull()
             ?.recordMemoryPressure(level)

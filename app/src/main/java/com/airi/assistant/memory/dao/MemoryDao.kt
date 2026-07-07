@@ -13,7 +13,7 @@ import com.airi.assistant.memory.entity.UserPreference
 @Dao
 interface MemoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMessage(message: ChatMessage)
+    suspend fun insertMessage(message: ChatMessage): Long
 
     /**
      * Returns the most recent N chat turns across ALL sessions, regardless of
@@ -62,9 +62,39 @@ interface MemoryDao {
     """)
     suspend fun pruneOldSessionMessages(sessionId: String, keepRecent: Int)
 
+    /**
+     * All messages for a session ordered chronologically. Alias that matches
+     * the name StorageRepository delegates through — SessionDao previously held
+     * this under the same name; ownership was consolidated here since MemoryDao
+     * is the canonical owner of the episodic_memory table.
+     */
+    @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0 ORDER BY timestamp ASC")
+    suspend fun getMessagesForSession(sessionId: String): List<ChatMessage>
+
+    /**
+     * Delete all non-memory rows for a session. Mirrors the method in SessionDao
+     * that was used as a cross-table helper; MemoryDao owns the table so the
+     * authoritative delete lives here.
+     */
+    @Query("DELETE FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0")
+    suspend fun deleteMessagesForSession(sessionId: String)
+
+    /**
+     * Total non-memory message count across all sessions.
+     * Alias matching the name StorageRepository exposes (getMessageCount).
+     * The underlying count query is identical to getMemoryCount — both are kept
+     * so existing callers of either name continue to compile.
+     */
+    @Query("SELECT COUNT(*) FROM episodic_memory")
+    suspend fun getMessageCount(): Int
+
     /** Wipe everything the Memory screen displays. */
     @Query("DELETE FROM episodic_memory")
     suspend fun clearSemanticMemories()
+
+    /** Full table wipe used by the GDPR deletion flow via StorageRepository.deleteAllData(). */
+    @Query("DELETE FROM episodic_memory")
+    suspend fun deleteAll()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun savePreference(preference: UserPreference)

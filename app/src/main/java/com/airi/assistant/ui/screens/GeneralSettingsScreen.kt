@@ -20,6 +20,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
+import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.rememberCoroutineScope
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.system.LanguageOption
 import com.airi.assistant.ui.theme.CosmicAccent
@@ -104,6 +110,67 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
             }
 
             DefaultAssistantSection(activity = activity)
+
+            // AP-21: Reset to Defaults section
+            // Uses PreferenceCoordinator.resetAllToDefaults() which now clears
+            // exec prefs, voice prefs, theme prefs, and all model paths.
+            var showResetConfirm by remember { mutableStateOf(false) }
+            val scope = rememberCoroutineScope()
+
+            SettingsSurface {
+                SettingsCategoryHeader(
+                    icon  = Icons.Outlined.RestartAlt,
+                    title = "Reset to Defaults"
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Resets all execution, voice, theme, and model preferences to factory defaults. " +
+                    "Conversation history is not deleted.",
+                    fontSize = 12.sp,
+                    color    = AiriTheme.onSurfaceVariant.copy(0.7f),
+                    lineHeight = 17.sp
+                )
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = { showResetConfirm = true },
+                    colors  = ButtonDefaults.buttonColors(
+                        containerColor = com.airi.assistant.ui.theme.SemanticWarn.copy(0.18f),
+                        contentColor   = com.airi.assistant.ui.theme.SemanticWarn
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Reset All Settings", fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            if (showResetConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showResetConfirm = false },
+                    containerColor   = Color(0xFF12162E),
+                    textContentColor = Color.White.copy(alpha = 0.75f),
+                    shape = RoundedCornerShape(20.dp),
+                    title = { Text("Reset All Settings?", fontWeight = FontWeight.Bold) },
+                    text  = { Text("Execution mode, voice settings, theme, and downloaded model paths will be cleared. This cannot be undone.") },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                showResetConfirm = false
+                                com.airi.assistant.core.ServiceLocator.preferenceCoordinator
+                                    .resetAllToDefaults()
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = com.airi.assistant.ui.theme.SemanticWarn,
+                                contentColor   = Color.Black
+                            )
+                        ) { Text("Reset") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showResetConfirm = false }) {
+                            Text("Cancel", color = AiriTheme.onSurfaceVariant)
+                        }
+                    }
+                )
+            }
 
             Spacer(Modifier.height(8.dp))
         }

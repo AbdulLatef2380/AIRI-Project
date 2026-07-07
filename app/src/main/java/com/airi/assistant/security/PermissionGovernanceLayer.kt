@@ -1,5 +1,6 @@
 package com.airi.assistant.security
 
+import android.util.Base64
 import android.util.Log
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.ActivitySeverity
@@ -23,8 +24,13 @@ import java.util.concurrent.ConcurrentHashMap
  * Builds on top of [ExecutionFirewall] and [ScopedPermissionRegistry].
  */
 class PermissionGovernanceLayer(
-    private val firewall:   ExecutionFirewall,
-    private val scopeReg:   ScopedPermissionRegistry
+    private val firewall:      ExecutionFirewall,
+    private val scopeReg:      ScopedPermissionRegistry,
+    // AP-20: WorldRiskProvider injected here — defaults to the rule-based impl so
+    // existing callers (ServiceLocator) don't need a breaking change until the full
+    // LLM-based risk estimator is available in a later Wave.
+    private val riskProvider:  com.airi.assistant.agent.decision.RiskProvider =
+        com.airi.assistant.world.WorldRiskProvider()
 ) {
     private val TAG = "PermissionGovernanceLayer"
 
@@ -161,24 +167,114 @@ class PermissionGovernanceLayer(
 
     // ── Risk scoring ──────────────────────────────────────────────────────────
 
-    private fun assessRisk(actionType: String, payload: String): RiskLevel = when {
-        actionType.startsWith("shell")        -> RiskLevel.HIGH
-        actionType.startsWith("file_delete")  -> RiskLevel.HIGH
-        actionType.startsWith("connector")    -> RiskLevel.MEDIUM
-        actionType.startsWith("file_write")   -> RiskLevel.MEDIUM
-        actionType.startsWith("network")      -> RiskLevel.MEDIUM
-        payload.contains("rm -rf")            -> RiskLevel.CRITICAL
-        payload.contains("sudo")              -> RiskLevel.CRITICAL
-        payload.contains("format")            -> RiskLevel.CRITICAL
-        else                                  -> RiskLevel.LOW
+    private fun assessRisk(actionType: String, payload: String): RiskLevel {
+        // AP-20: Incorporate WorldRiskProvider estimate.
+        // The rule-based check runs first (fast, deterministic); the world
+        // provider's score can escalate the final level but never lower it.
+        val ruleLevel: RiskLevel = when {
+            actionType.startsWith("shell")        -> RiskLevel.HIGH
+            actionType.startsWith("file_delete")  -> RiskLevel.HIGH
+            actionType.startsWith("connector")    -> RiskLevel.MEDIUM
+            actionType.startsWith("file_write")   -> RiskLevel.MEDIUM
+            actionType.startsWith("network")      -> RiskLevel.MEDIUM
+            payload.contains("rm -rf")            -> RiskLevel.CRITICAL
+            payload.contains("sudo")              -> RiskLevel.CRITICAL
+            payload.contains("format")            -> RiskLevel.CRITICAL
+            else                                  -> RiskLevel.LOW
+        }
+
+        // WorldRiskProvider uses action semantics; payload is not inspected here
+        // (encoding attacks are caught by decodeAndExpand/isDangerous before assessRisk).
+        val worldResult = runCatching { riskProvider.estimate(actionType) }.getOrNull()
+        val worldLevel: RiskLevel = when {
+            worldResult == null          -> RiskLevel.LOW
+            worldResult.isCritical       -> RiskLevel.CRITICAL
+            worldResult.riskScore > 0.6f -> RiskLevel.HIGH
+            worldResult.riskScore > 0.3f -> RiskLevel.MEDIUM
+            else                         -> RiskLevel.LOW
+        }
+
+        // Take the maximum (most restrictive) of the two assessments
+        return if (worldLevel.ordinal > ruleLevel.ordinal) worldLevel else ruleLevel
     }
 
+    /**
+     * AP-09: Expand encoding-obfuscated shell payloads before pattern matching.
+     *
+     * Decodes:
+     *  - `$(base64 -d <<< 'PAYLOAD')` — base64 subshell substitution
+     *  - `$(echo 'HEX' | xxd -r -p)` — hex subshell substitution
+     *  - `$'\x72\x6d'` — ANSI-C quoting (hex escape sequences)
+     *
+     * If decoding fails for any substitution, the original token is preserved
+     * (so the surface-form check still runs on the encoded form as a fallback).
+     */
+    private fun decodeAndExpand(command: String): String {
+        // Pass 1: base64 subshell — $(base64 -d <<< 'PAYLOAD')
+        val base64Pattern = Regex("""\$\(base64\s+-d\s+<<<\s+'([^']+)'\)""")
+        var expanded = base64Pattern.replace(command) { match ->
+            try {
+                Base64.decode(match.groupValues[1].trim(), Base64.DEFAULT).toString(Charsets.UTF_8)
+            } catch (_: Exception) { match.value }
+        }
+
+        // Pass 2: hex pipe — $(echo 'HEX' | xxd -r -p)
+        val hexPattern = Regex("""\$\(echo\s+'([0-9a-fA-F]+)'\s*\|\s*xxd\s+-r\s+-p\)""")
+        expanded = hexPattern.replace(expanded) { match ->
+            try {
+                match.groupValues[1].chunked(2)
+                    .map { it.toInt(16).toByte() }
+                    .toByteArray()
+                    .toString(Charsets.UTF_8)
+            } catch (_: Exception) { match.value }
+        }
+
+        // Pass 3: ANSI-C quoting — $'\x72\x6d' or $'\162\155'
+        val ansiHexPattern  = Regex("""\$'((?:\\x[0-9a-fA-F]{2})+)'""")
+        val ansiOctPattern  = Regex("""\$'((?:\\[0-7]{3})+)'""")
+        val hexEscape  = Regex("""\\x([0-9a-fA-F]{2})""")
+        val octEscape  = Regex("""\\([0-7]{3})""")
+        expanded = ansiHexPattern.replace(expanded) { match ->
+            try {
+                hexEscape.findAll(match.groupValues[1])
+                    .map { it.groupValues[1].toInt(16).toChar() }
+                    .joinToString("")
+            } catch (_: Exception) { match.value }
+        }
+        expanded = ansiOctPattern.replace(expanded) { match ->
+            try {
+                octEscape.findAll(match.groupValues[1])
+                    .map { it.groupValues[1].toInt(8).toChar() }
+                    .joinToString("")
+            } catch (_: Exception) { match.value }
+        }
+
+        return expanded
+    }
+
+    private val dangerousPatterns = listOf(
+        "rm -rf", "rm -f /", "sudo", "format", "mkfs", "dd if=",
+        ":(){:|:&};:", "chmod 777 /", "wget.*|.*sh", "curl.*|.*bash",
+        "> /dev/", "shred ", "wipefs", "/etc/passwd", "/etc/shadow",
+        "base64 -d", "xxd -r", "python -c", "perl -e", "ruby -e",
+        "exec(", "eval(", "os.system(", "__import__('os')"
+    )
+
     private fun isDangerous(actionType: String, payload: String): Boolean {
-        val dangerousPatterns = listOf(
-            "rm -rf", "sudo", "format", "mkfs", "dd if=", ":(){:|:&};:",
-            "chmod 777 /", "wget.*|.*sh", "curl.*|.*bash"
-        )
-        return dangerousPatterns.any { payload.contains(it, ignoreCase = true) }
+        // AP-09: Always check BOTH the raw payload AND the decoded form.
+        // Encoding bypass: $(base64 -d <<< 'cm0gLXJm') decodes to "rm -rf".
+        val decoded = decodeAndExpand(payload)
+        val payloadsToCheck = if (decoded != payload) listOf(payload, decoded) else listOf(payload)
+
+        return payloadsToCheck.any { p ->
+            dangerousPatterns.any { pattern ->
+                if (pattern.contains(".*")) {
+                    Regex(pattern, RegexOption.IGNORE_CASE).containsMatchIn(p)
+                } else {
+                    p.contains(pattern, ignoreCase = true)
+                }
+            }
+        }
     }
 
     // ── User approval flow ────────────────────────────────────────────────────

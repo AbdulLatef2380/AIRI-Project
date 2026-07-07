@@ -36,9 +36,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import com.airi.assistant.auth.identity.BiometricGatekeeper
 import com.airi.assistant.ui.theme.*
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 data class PermissionInfo(
     val permission:   String,
@@ -383,13 +387,51 @@ private fun PermissionRow(perm: PermissionInfo, isGranted: Boolean) {
             }
             Spacer(Modifier.width(8.dp))
             if (perm.isSpecial) {
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = SemanticWarn.copy(0.12f),
-                    modifier = Modifier.border(0.5.dp, SemanticWarn.copy(0.3f), RoundedCornerShape(6.dp))
-                ) {
-                    Text(stringResource(R.string.permissions_special_badge), fontSize = 10.sp, color = SemanticWarn,
-                        fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
+                // AP-05: For accessibility (full device control), show a biometric-gated
+                // "Enable" button instead of a static badge. Non-accessibility special
+                // permissions retain the old badge.
+                val ctx = LocalContext.current
+                val scope = rememberCoroutineScope()
+                if (perm.permission == "android.permission.BIND_ACCESSIBILITY_SERVICE") {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = CosmicAccent.copy(0.12f),
+                        modifier = Modifier
+                            .border(0.5.dp, CosmicAccent.copy(0.35f), RoundedCornerShape(6.dp))
+                            .clickable {
+                                scope.launch {
+                                    val activity = ctx as? FragmentActivity
+                                    if (activity != null) {
+                                        val avail = BiometricGatekeeper.checkAvailability(activity)
+                                        if (avail == BiometricGatekeeper.Availability.NOT_ENROLLED) {
+                                            // Cannot gate — proceed anyway (no enrolled biometric)
+                                            ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                                            return@launch
+                                        }
+                                        val passed = BiometricGatekeeper.authenticate(
+                                            activity = activity,
+                                            title    = "Enable Accessibility Service",
+                                            subtitle = "This grants AIRI control over your device UI."
+                                        )
+                                        if (passed) ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                                    } else {
+                                        ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                                    }
+                                }
+                            }
+                    ) {
+                        Text("Enable", fontSize = 10.sp, color = CosmicAccent,
+                            fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = SemanticWarn.copy(0.12f),
+                        modifier = Modifier.border(0.5.dp, SemanticWarn.copy(0.3f), RoundedCornerShape(6.dp))
+                    ) {
+                        Text(stringResource(R.string.permissions_special_badge), fontSize = 10.sp, color = SemanticWarn,
+                            fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
+                    }
                 }
             } else {
                 Icon(

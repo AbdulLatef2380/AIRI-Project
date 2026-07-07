@@ -16,7 +16,7 @@ import com.airi.assistant.ai.skills.impl.TelegramMessengerSkill
 import com.airi.assistant.ai.skills.impl.TranslatorSkill
 import com.airi.assistant.ai.skills.impl.WebSearchSkill
 import com.airi.assistant.ai.skills.impl.WebsiteReaderSkill
-import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.customskill.CustomSkill
 import com.airi.assistant.domain.customskill.CustomSkillExecutor
 import com.airi.assistant.domain.customskill.CustomSkillRepository
@@ -26,7 +26,8 @@ import java.util.UUID
 
 class SkillRegistry(private val context: Context) {
 
-    private val secureStorage = SecureStorage(context)
+    // AP-04: Use ServiceLocator singleton to prevent split-brain on Keystore failure.
+    private val secureStorage get() = ServiceLocator.secureStorage
     private val customSkillRepository = CustomSkillRepository(context)
 
     /** Shared executor instance for custom-skill adapters returned from [getAvailableSkills]. */

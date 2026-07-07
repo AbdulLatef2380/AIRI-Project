@@ -197,6 +197,29 @@ class SecureStorage(context: Context) {
 
     private fun integrationTokenKey(id: String): String = "integration_token_${id.lowercase()}"
 
+    // ─── GDPR full wipe ────────────────────────────────────────────────────────
+
+    /**
+     * Atomically clear ALL stored credentials and tokens.
+     *
+     * Called exclusively by [com.airi.assistant.domain.auth.DataDeletionCoordinator]
+     * during GDPR account deletion (Step 5 — CREDENTIAL_WIPE). Covers:
+     *   - GitHub / Telegram / Google OAuth tokens and connection flags
+     *   - LLM provider API keys (openai, anthropic, gemini, and future providers)
+     *   - Device fingerprint and install UUID
+     *   - All integration Personal Access Tokens (Notion, Linear, Zapier, etc.)
+     *
+     * Uses [SharedPreferences.Editor.clear] so the wipe is atomic with respect
+     * to the prefs file — partial writes cannot leave the store in an
+     * inconsistent state. If the backing store is [InMemorySharedPreferences]
+     * (keystore failure fallback), clear() is a no-op beyond process death,
+     * which is acceptable since in-memory data does not survive reinstall.
+     */
+    fun clearAll() {
+        prefs.edit().clear().apply()
+        Log.i("SecureStorage", "AIRI_PROOF GDPR_CREDENTIAL_WIPE_COMPLETE")
+    }
+
     // ─── Generic disconnect ────────────────────────────────────────────────────
 
     fun disconnect(id: String) {

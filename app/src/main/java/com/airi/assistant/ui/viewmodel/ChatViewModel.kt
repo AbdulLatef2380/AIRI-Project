@@ -81,8 +81,11 @@ import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.ResponseOptimizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -538,6 +541,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _contextResetWarning = MutableStateFlow<String?>(null)
     val contextResetWarning: StateFlow<String?> = _contextResetWarning.asStateFlow()
     fun acknowledgeContextReset() { _contextResetWarning.value = null }
+
+    // AP-18: Summarizing indicator — true while ConversationSummarizer runs async.
+    // Consumed by ChatScreen to show "Compressing history…" chip.
+    private val _isSummarizing = MutableStateFlow(false)
+    val isSummarizing: StateFlow<Boolean> = _isSummarizing.asStateFlow()
 
     // ── ModelController: owns model lifecycle (loadModel, registry, diagnostics) ──
     // Extracted from ChatViewModel in Phase 9 ViewModel decomposition.
@@ -1146,6 +1154,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun createNewSession() {
+        // AP-17: Clear camera JPEG cache on every new session to prevent unbounded growth.
+        // deleteRecursively() is safe when the directory doesn't exist (returns true).
+        runCatching { File(appContext.cacheDir, "chat_attachments").deleteRecursively() }
+            .onFailure { android.util.Log.w("AIRI", "AP-17 cache clear failed: ${it.message}") }
+
         viewModelScope.launch {
             val hadMessages = _messages.value.isNotEmpty()
             val session = memoryManager.createSession()
@@ -1557,6 +1570,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 refreshPowerLevel()
                 if (needsResummarize) {
                     viewModelScope.launch(Dispatchers.IO) {
+                        _isSummarizing.value = true
                         runCatching {
                             com.airi.assistant.ai.prompt.ConversationSummarizer.summarize(
                                 ctx             = appContext,
@@ -1564,12 +1578,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 llamaManager    = llamaManager,
                                 olderTurns      = olderToFold,
                                 previousSummary = "",
-                                // SPRINT 2 / Phase A3: pass live budget so the stored
-                                // summary is trimmed to contextBudget.summaryChars, not
-                                // the former hardcoded 2400-char cap.
                                 contextBudget   = llamaManager.contextBudget
                             )
                         }
+                        _isSummarizing.value = false
                     }
                 }
                 modelController.refreshDiagnosticsSnapshot()
@@ -1699,6 +1711,116 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * Switch the execution mode. Persists immediately to SharedPreferences.
      * Safe to call from any thread; the StateFlow update is dispatched to Main.
      */
+    /**
+     * AP-47: Returns whether developer debug mode is enabled.
+     *
+     * Reads the `agent_debug_mode` flag persisted by [AgentViewModel.setDebugMode]
+     * so that ChatScreen can gate DebugOverlay visibility in production builds
+     * without creating an AgentViewModel→ChatViewModel dependency.
+     */
+    fun isDebugModeEnabled(): Boolean =
+        appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
+            .getBoolean("agent_debug_mode", false)
+
+    // ── AP-C01: Dynamic input bar mode ────────────────────────────────────────
+
+    /** AP-C01: Drives adaptive height and visible buttons in the input bar. */
+    sealed class InputBarMode {
+        object Compact     : InputBarMode()   // idle, no text
+        object Standard    : InputBarMode()   // default typing
+        object Expanded    : InputBarMode()   // text > 3 lines
+        object AgentActive : InputBarMode()   // agent executing
+    }
+
+    // Input text lifted into ViewModel so InputBarMode can be derived reactively.
+    private val _inputText = MutableStateFlow("")
+    val inputText: StateFlow<String> = _inputText.asStateFlow()
+    fun onInputTextChange(text: String) { _inputText.value = text }
+
+    /**
+     * AP-C09: Writes [text] to a temp file in cacheDir/chat_attachments/ and returns
+     * a content Uri. The caller should then call stageAttachment() with the resulting Uri
+     * and clear the input field.
+     *
+     * @return the Uri on success, null on failure.
+     */
+    fun saveInputAsFile(text: String): android.net.Uri? {
+        return runCatching {
+            val dir = java.io.File(appContext.cacheDir, "chat_attachments").apply { mkdirs() }
+            val file = java.io.File(dir, "prompt_${System.currentTimeMillis()}.txt")
+            file.writeText(text)
+            androidx.core.content.FileProvider.getUriForFile(
+                appContext,
+                "${appContext.packageName}.provider",
+                file
+            )
+        }.onFailure { android.util.Log.e("AIRI", "AP-C09 saveInputAsFile failed: ${it.message}") }
+         .getOrNull()
+    }
+
+    val inputBarMode: StateFlow<InputBarMode> = kotlinx.coroutines.flow.combine(
+        agentState, _inputText, voiceModeActive
+    ) { state, text, voice ->
+        when {
+            state.isWorking          -> InputBarMode.AgentActive
+            text.lines().size > 3   -> InputBarMode.Expanded
+            text.isEmpty() && !voice -> InputBarMode.Compact
+            else                     -> InputBarMode.Standard
+        }
+    }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, InputBarMode.Standard)
+
+    // ── AP-05: Biometric gate for HYBRID (full-agent) mode ────────────────────
+
+    /**
+     * AP-05: Discriminated union for deferred biometric requests.
+     * ChatScreen collects [biometricRequest] and calls BiometricGatekeeper;
+     * on success it calls [onBiometricSuccess] to complete the gated action.
+     * This pattern keeps FragmentActivity out of the ViewModel.
+     */
+    sealed class BiometricRequest {
+        /** User requested HYBRID (fully-autonomous) execution mode. */
+        object HybridModeEnable : BiometricRequest()
+    }
+
+    private val _biometricRequest = MutableSharedFlow<BiometricRequest>(extraBufferCapacity = 1)
+    val biometricRequest: SharedFlow<BiometricRequest> = _biometricRequest.asSharedFlow()
+
+    /**
+     * AP-05: Gate entry point for mode switching.
+     * HYBRID mode requires biometric confirmation before activating;
+     * all other modes switch immediately.
+     */
+    fun requestSetExecutionMode(mode: ExecutionMode) {
+        if (mode == ExecutionMode.HYBRID) {
+            viewModelScope.launch { _biometricRequest.emit(BiometricRequest.HybridModeEnable) }
+        } else {
+            setExecutionModeInternal(mode)
+        }
+    }
+
+    /**
+     * AP-05: Called by ChatScreen after BiometricGatekeeper returns true.
+     * Completes the gated action unconditionally — the gate already passed.
+     */
+    fun onBiometricSuccess(request: BiometricRequest) {
+        when (request) {
+            is BiometricRequest.HybridModeEnable -> setExecutionModeInternal(ExecutionMode.HYBRID)
+        }
+    }
+
+    /** Internal — applies mode change. All external callers use [requestSetExecutionMode]. */
+    private fun setExecutionModeInternal(mode: ExecutionMode) {
+        execModePrefs.executionMode = mode
+        _executionMode.value = mode
+        RuntimeEventLog.post(
+            subsystem = "EXEC_MODE",
+            severity  = EventSeverity.INFO,
+            reason    = "User set execution mode → ${mode.name}"
+        )
+        refreshCloudReadiness()
+    }
+
+    /** Legacy entry point — kept for call sites that don't require biometric gating. */
     fun setExecutionMode(mode: ExecutionMode) {
         execModePrefs.executionMode = mode
         _executionMode.value = mode
@@ -2098,6 +2220,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      *
      * No hidden forks: the only branching is this one block.
      */
+    /**
+     * AP-C09: Stage a Uri-based attachment (e.g. from large-prompt file conversion).
+     * The attachment will be included in the next sendMessage() call.
+     */
+    fun stageAttachmentUri(uri: android.net.Uri) {
+        // pendingAttachments is managed locally in ChatScreen composable state.
+        // Signal via a SharedFlow that the ChatScreen should add to its pending list.
+        viewModelScope.launch {
+            _stagedAttachmentUri.emit(uri)
+        }
+    }
+
+    private val _stagedAttachmentUri = MutableSharedFlow<android.net.Uri>(extraBufferCapacity = 4)
+    val stagedAttachmentUri: SharedFlow<android.net.Uri> = _stagedAttachmentUri.asSharedFlow()
+
     fun sendMessageWithAttachments(
         input: String,
         attachments: List<com.airi.assistant.domain.ChatAttachment>

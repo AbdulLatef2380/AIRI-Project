@@ -1,11 +1,13 @@
 package com.airi.assistant.core
 
 import android.util.Log
+import com.airi.assistant.runtime.profiler.FlowPressureMonitor
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * ExecutionStatusBus — decoupled live execution status channel.
@@ -32,7 +34,13 @@ object ExecutionStatusBus {
     private const val TAG = "ExecutionStatusBus"
 
     private val _status = MutableStateFlow(AgentState())
+
+    // AP-13: Wrap status with FlowPressureMonitor to detect slow collectors.
+    // monitorFlow wraps the Flow at the read-side; _status remains a MutableStateFlow
+    // for internal writes. Backpressure events log to RuntimeProfiler (AP-12).
     val status: StateFlow<AgentState> = _status.asStateFlow()
+    // Wrapped version for collectors that want pressure detection:
+    val monitoredStatus = FlowPressureMonitor.monitorFlow("ExecutionStatusBus", _status)
 
     // ── Write API (called by UCL / orchestrators) ─────────────────────────────
 

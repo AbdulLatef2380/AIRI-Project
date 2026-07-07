@@ -3,9 +3,8 @@ package com.airi.assistant.voice
 import android.content.Context
 import android.util.Log
 import com.airi.assistant.BuildConfig
-import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.core.ServiceLocator
 import java.io.File
-import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Helpers used by [HotwordService] to locate the Porcupine .ppn keyword
@@ -42,19 +41,9 @@ object PorcupineEngine {
     private const val PPN_NAME   = "hey_airi"
     private const val ASSET_PATH = "voice/$PPN_NAME.ppn"
 
-    // P0-7: Cache a SecureStorage instance per ApplicationContext.
-    // SecureStorage(context) is safe to construct multiple times but
-    // allocates a MasterKey + EncryptedSharedPreferences on each call —
-    // cache it to avoid repeated crypto initialisation.
-    private val secureStorageRef = AtomicReference<SecureStorage?>(null)
-
-    private fun secureStorage(context: Context): SecureStorage {
-        val existing = secureStorageRef.get()
-        if (existing != null) return existing
-        val created = SecureStorage(context.applicationContext)
-        secureStorageRef.compareAndSet(null, created)
-        return secureStorageRef.get()!!
-    }
+    // AP-04: Use the ServiceLocator singleton — eliminates the per-instance
+    // SecureStorage(context) construction that caused split-brain on Keystore failure.
+    private val secureStorage get() = ServiceLocator.secureStorage
 
     data class Status(
         val accessKeyPresent: Boolean,
@@ -92,13 +81,12 @@ object PorcupineEngine {
         return resolveAccessKey(context).first
     }
 
-    /** P0-7: Saves key to EncryptedSharedPreferences via SecureStorage. */
+    /** P0-7 / AP-04: Saves key to EncryptedSharedPreferences via ServiceLocator.secureStorage. */
     fun setRuntimeAccessKey(context: Context, key: String?) {
-        val store = secureStorage(context)
         if (key.isNullOrBlank()) {
-            store.clearLlmKey(SECURE_KEY_NAME)        // correct method name: clearLlmKey
+            secureStorage.clearLlmKey(SECURE_KEY_NAME)
         } else {
-            store.saveLlmKey(SECURE_KEY_NAME, key.trim())
+            secureStorage.saveLlmKey(SECURE_KEY_NAME, key.trim())
         }
     }
 
@@ -115,15 +103,15 @@ object PorcupineEngine {
         val legacyKey = legacyPrefs.getString(LEGACY_KEY, null)?.trim().orEmpty()
         if (legacyKey.isNotEmpty()) {
             Log.i(TAG, "Migrating Picovoice key from plaintext prefs to EncryptedSharedPreferences")
-            secureStorage(context).saveLlmKey(SECURE_KEY_NAME, legacyKey)
+            secureStorage.saveLlmKey(SECURE_KEY_NAME, legacyKey)
             legacyPrefs.edit().remove(LEGACY_KEY).apply()
         }
     }
 
     /** Returns (key, "runtime"|"build") or ("", null) when nothing is set. */
     private fun resolveAccessKey(context: Context): Pair<String, String?> {
-        // 1. Runtime key from EncryptedSharedPreferences
-        val runtime = secureStorage(context).getLlmKey(SECURE_KEY_NAME).orEmpty().trim()
+        // 1. Runtime key from EncryptedSharedPreferences via singleton
+        val runtime = secureStorage.getLlmKey(SECURE_KEY_NAME).orEmpty().trim()
         if (runtime.isNotEmpty()) return runtime to "runtime"
         // 2. Build-time key from BuildConfig
         val build = BuildConfig.PICOVOICE_ACCESS_KEY.trim()

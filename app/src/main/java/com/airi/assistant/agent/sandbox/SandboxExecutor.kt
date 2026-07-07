@@ -133,6 +133,20 @@ class SandboxExecutor(private val session: SandboxSession) {
             }
         }
 
+        // AP-09: Argument scope restriction — prevent path traversal attacks.
+        // Find the first non-flag argument (doesn't start with '-') and check it
+        // against the per-binary restriction if one exists.
+        val restriction = BINARY_ARG_RESTRICTIONS[binary]
+        if (restriction != null) {
+            val firstPathArg = argv.drop(1).firstOrNull { !it.startsWith("-") }
+            if (firstPathArg != null && !restriction.containsMatchIn(firstPathArg)) {
+                Log.w(TAG, "AIRI_PROOF SANDBOX_ARG_VIOLATION binary=$binary arg=${firstPathArg.take(60)}")
+                return ExecutionResult.SecurityViolation(
+                    "Argument scope violation: '$binary $firstPathArg' — only relative paths permitted (AP-09)"
+                )
+            }
+        }
+
         return try {
             val pb = ProcessBuilder(argv)
                 .directory(session.workspaceDir)
@@ -229,6 +243,33 @@ class SandboxExecutor(private val session: SandboxSession) {
             '\n', '\r', '\u0000',
             '*', '?', '[', ']', '(', ')',
             '\\', '"', '\''
+        )
+
+        /**
+         * AP-09: Per-binary argument scope restrictions.
+         *
+         * Several allowlisted binaries accept path arguments that could be exploited
+         * to read sensitive files outside the sandbox even when shell injection is
+         * prevented. For example, `find /data -name "*.db"` passes binary-name
+         * validation (find is in BINARY_ALLOWLIST) but accesses sensitive paths.
+         *
+         * The restriction regex describes ALLOWED argument patterns. If the first
+         * non-flag argument fails to match, the command is rejected as a
+         * SecurityViolation before any subprocess is spawned.
+         *
+         * Rules:
+         *  - `find` / `ls` / `cat` / `grep` / `head` / `tail` / `wc`:
+         *    only relative paths (starting with ./) or plain filenames.
+         *    Absolute paths (/...) are rejected.
+         */
+        private val BINARY_ARG_RESTRICTIONS: Map<String, Regex> = mapOf(
+            "find" to Regex("""^\./.*|^\.${'$'}"""),
+            "ls"   to Regex("""^(\./.*|\.)?${'$'}"""),
+            "cat"  to Regex("""^\./[^/].*"""),
+            "grep" to Regex("""^[^/].*"""),
+            "head" to Regex("""^[^/].*"""),
+            "tail" to Regex("""^[^/].*"""),
+            "wc"   to Regex("""^[^/].*"""),
         )
 
         private const val SAFE_PATH = "/system/bin:/system/xbin"

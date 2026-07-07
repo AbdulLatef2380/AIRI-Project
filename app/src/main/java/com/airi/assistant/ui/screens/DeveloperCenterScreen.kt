@@ -30,6 +30,7 @@ import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
+import com.airi.assistant.connector.api.LlmCertPins
 
 /**
  * DeveloperCenterScreen — AIRI internal tooling dashboard.
@@ -44,7 +45,7 @@ import com.airi.assistant.R
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeveloperCenterScreen(onBack: () -> Unit) {
-    val tabs = listOf("Runtime", "Connectors", "Memory", "Diagnostics", "Health", "Audit")
+    val tabs = listOf("Runtime", "Connectors", "Memory", "Diagnostics", "Health", "Audit", "Profiler")
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
@@ -80,6 +81,7 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
                 3 -> DiagnosticsTab()
                 4 -> HealthTab()
                 5 -> AuditLogTab()
+                6 -> ProfilerTab()
             }
         }
     }
@@ -131,6 +133,27 @@ private fun ConnectorsTab() {
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         contentPadding = PaddingValues(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+
+        // ── AP-01: LLM Certificate Pinning status ─────────────────────────────
+        item {
+            Surface(shape = RoundedCornerShape(12.dp), color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(modifier = Modifier.size(9.dp).clip(CircleShape)
+                        .background(if (LlmCertPins.PINNING_ENABLED) SemanticSuccess else SemanticError))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("LLM Certificate Pinning", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
+                        Text(
+                            if (LlmCertPins.PINNING_ENABLED) "Active — MitM protection enabled" else "DISABLED — traffic unprotected",
+                            fontSize = 11.sp,
+                            color = if (LlmCertPins.PINNING_ENABLED) SemanticSuccess.copy(0.8f) else SemanticError.copy(0.7f)
+                        )
+                    }
+                    Text("cert-pins", fontSize = 10.sp, color = AiriTheme.outline.copy(alpha = 0.25f), fontFamily = FontFamily.Monospace)
+                }
+            }
+        }
+
         items(healthSummary, key = { it.connectorId }) { entry ->
             Surface(shape = RoundedCornerShape(12.dp), color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
@@ -451,5 +474,70 @@ private fun DevRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant.copy(alpha = 0.45f))
         Text(value, fontSize = 11.sp, color = AiriTheme.onBackground.copy(alpha = 0.85f), fontFamily = FontFamily.Monospace)
+    }
+}
+
+// ── Tab 7: Profiler ────────────────────────────────────────────────────────────
+// AP-12: Renders RuntimeProfiler data gated behind BuildConfig.DEBUG || debugMode.
+@Composable
+private fun ProfilerTab() {
+    val report by ServiceLocator.runtimeProfiler.reportFlow.collectAsStateWithLifecycle()
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        contentPadding = PaddingValues(vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Latency summary card
+        item {
+            DevCard("Inference Latency (all buckets)") {
+                if (report.buckets.isEmpty()) {
+                    Text("No samples yet — start a conversation to generate profiling data.",
+                        fontSize = 11.sp, color = AiriTheme.onSurfaceVariant.copy(0.5f))
+                } else {
+                    report.buckets.take(8).forEach { b ->
+                        Column(modifier = Modifier.padding(bottom = 4.dp)) {
+                            Text(b.key, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                listOf("avg" to "${b.avgMs}ms", "p95" to "${b.p95Ms}ms", "max" to "${b.maxMs}ms", "n" to "${b.count}")
+                                    .forEach { (l, v) ->
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(v, fontSize = 11.sp, color = AiriTheme.onBackground.copy(0.85f), fontFamily = FontFamily.Monospace)
+                                            Text(l, fontSize = 9.sp, color = AiriTheme.outline.copy(0.45f))
+                                        }
+                                    }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Flow pressure card
+        item {
+            DevCard("Flow Backpressure") {
+                DevRow("Dropped events", report.droppedEventCount.toString())
+                DevRow("Pressure warnings", report.flowPressureWarnings.toString())
+                DevRow("Slow calls (>500ms)", report.slowCallCount.toString())
+            }
+        }
+
+        // Slow calls list
+        val slowBuckets = report.buckets.filter { it.maxMs > 500 }
+        if (slowBuckets.isNotEmpty()) {
+            item {
+                DevCard("Slow Calls (max > 500ms)") {
+                    slowBuckets.take(20).forEach { b ->
+                        DevRow(b.key, "max ${b.maxMs}ms • avg ${b.avgMs}ms")
+                    }
+                }
+            }
+        }
+
+        item {
+            Text("Refreshes every 5 s • tap tab to force reload",
+                fontSize = 10.sp, color = AiriTheme.outline.copy(0.3f),
+                modifier = Modifier.padding(top = 4.dp))
+        }
     }
 }

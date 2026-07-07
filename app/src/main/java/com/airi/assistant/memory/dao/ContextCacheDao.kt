@@ -19,4 +19,8 @@ interface ContextCacheDao {
 
     @Query("DELETE FROM context_cache WHERE timestamp < :expireTime")
     suspend fun cleanupOld(expireTime: Long)
+
+    /** Full table wipe used by the GDPR deletion flow via StorageRepository.deleteAllData(). */
+    @Query("DELETE FROM context_cache")
+    suspend fun deleteAll()
 }

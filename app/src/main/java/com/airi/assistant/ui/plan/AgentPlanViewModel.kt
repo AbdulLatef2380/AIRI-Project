@@ -7,10 +7,13 @@ import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class AgentPlanViewModel(application: Application) : AndroidViewModel(application) {
@@ -19,6 +22,14 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
 
     val steps: StateFlow<List<PlanStepModel>> = tracker.steps
     val isVisible: StateFlow<Boolean>          = tracker.isVisible
+
+    /**
+     * AP-C04: Show ModalBottomSheet only for complex tasks (≥ 3 steps) or explicit plan mode.
+     * Simple 1–2 step executions show only AgentStatusChip.
+     */
+    val showPanel: StateFlow<Boolean> = steps
+        .map { s -> s.size >= 3 }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val _isPanelExpanded = MutableStateFlow(true)
     val isPanelExpanded: StateFlow<Boolean> = _isPanelExpanded.asStateFlow()
@@ -34,7 +45,10 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
         ExecutionStatusBus.status.onEach { state ->
             _currentStage.value = state.executionStage
             if (state.activeGoalDescription.isNotBlank()) _goalDescription.value = state.activeGoalDescription
-            if (state.executionStage == ExecutionStage.COMPLETED || state.executionStage == ExecutionStage.FAILED) {
+            // AP-C03: Auto-collapse panel when execution finishes (COMPLETED/FAILED/IDLE)
+            if (state.executionStage == ExecutionStage.COMPLETED ||
+                state.executionStage == ExecutionStage.FAILED ||
+                state.executionStage == ExecutionStage.IDLE) {
                 viewModelScope.launch {
                     delay(4_000)
                     val cur = ExecutionStatusBus.status.value.executionStage
@@ -49,4 +63,6 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
     fun toggleExpanded() { _isPanelExpanded.value = !_isPanelExpanded.value }
     fun setExpanded(expanded: Boolean) { _isPanelExpanded.value = expanded }
     fun dismissPanel() { tracker.clear() }
+    /** AP-C03: Called by ModalBottomSheet onDismissRequest. */
+    fun collapse() { tracker.clear() }
 }

@@ -5,7 +5,8 @@ import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.airi.assistant.R
-import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.connector.ConnectorAuthManager
+import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.integrations.github.GithubService
 import com.airi.assistant.integrations.google.GoogleAuthService
@@ -20,7 +21,10 @@ import java.security.SecureRandom
 class IntegrationsViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Private services (internal domain — ViewModels do not expose services) ─
-    private val secureStorage    = SecureStorage(application)
+    // AP-04: Use ServiceLocator singleton — eliminates split-brain on Keystore failure.
+    private val secureStorage    = ServiceLocator.secureStorage
+    // AP-08: ConnectorAuthManager — canonical credential store that connectors read from.
+    private val authManager: ConnectorAuthManager = ServiceLocator.connectorAuthManager
 
     /**
      * SECURITY: Per-session CSRF state token for OAuth flows.
@@ -164,6 +168,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             githubService.validateAndConnect(current.token)
                 .onSuccess {
+                    // AP-08: Write to ConnectorAuthManager namespace so GitHubConnector.connect()
+                    // can find the credential. GithubService writes to SecureStorage "github_token";
+                    // GitHubConnector reads ConnectorAuthManager.getCredential("github", "pat").
+                    // Bridging both namespaces here resolves the split-brain.
+                    authManager.storeCredential("github", "pat", current.token.trim())
                     _dialog.value = DialogState.None
                     refresh()
                 }
@@ -223,6 +232,14 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     init {
+        // AP-08: One-time migration — bridge any PAT already stored in the legacy
+        // SecureStorage "github_token" key into ConnectorAuthManager "github"/"pat".
+        // Runs every launch but is a no-op once ConnectorAuthManager already has the key.
+        val existingGithubPat = secureStorage.getGithubToken()
+        if (!existingGithubPat.isNullOrBlank() && authManager.getCredential("github", "pat").isNullOrBlank()) {
+            authManager.storeCredential("github", "pat", existingGithubPat)
+        }
+
         // Subscribe to OAuth deep-link callbacks from MainActivity
         viewModelScope.launch {
             com.airi.assistant.domain.event.EventBus.events.collect { event ->

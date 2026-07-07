@@ -10,7 +10,6 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.airi.assistant.ai.intent.ToolCall
 import com.airi.assistant.ai.tools.ToolExecutor
-import com.airi.assistant.auth.SecureStorage
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.logging.LoggingService
@@ -68,8 +67,9 @@ class AgentWorker(
             return Result.success()
         }
 
+        // AP-04: Use ServiceLocator singleton — prevents split-brain on Keystore failure.
         val prefs         = appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
-        val secureStorage = SecureStorage(appContext)
+        val secureStorage = ServiceLocator.secureStorage
         val toolExecutor  = ToolExecutor(appContext)
         val findings      = mutableListOf<String>()
 

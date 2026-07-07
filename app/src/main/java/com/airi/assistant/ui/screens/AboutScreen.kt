@@ -23,7 +23,7 @@ import com.airi.assistant.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -64,6 +64,17 @@ fun AboutScreen(onBack: () -> Unit) {
             AboutInfoCard("Privacy", "All local inference stays on-device. Cloud requests pass through a privacy sanitisation gate.")
             AboutInfoCard("Stack", "Kotlin · Jetpack Compose · Coroutines · StateFlow · Room · JNI/NDK · llama.cpp")
             Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(8.dp))
+            // AP-25: Technical Details link — was unreachable; now connected to APP_INFO route.
+            TextButton(
+                onClick = { onNavigate(com.airi.assistant.ui.AiriRoute.APP_INFO) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Outlined.Info, contentDescription = null,
+                    tint = CosmicAccent, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Technical Details", fontSize = 13.sp, color = CosmicAccent)
+            }
             Text(stringResource(R.string.copyright_notice), fontSize = 12.sp, color = AiriTheme.outline)
         }
     }

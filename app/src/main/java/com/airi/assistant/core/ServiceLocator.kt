@@ -48,16 +48,24 @@ import com.airi.assistant.agent.workspace.WorkspaceRegistry
 import com.airi.assistant.domain.policy.UnifiedPolicyGate
 import com.airi.assistant.domain.skill.SkillManagerBackend
 import com.airi.assistant.domain.skill.SkillService
+import com.airi.assistant.domain.auth.DataDeletionCoordinator
+import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.memory.rag.RagRetriever
 import com.airi.assistant.memory.repository.MemoryManager
+import com.airi.assistant.memory.repository.StorageRepository
 import com.airi.assistant.profile.HardwareProfiler
 import com.airi.assistant.profile.UserProfileRepository
 import com.airi.assistant.security.AgentSandbox
 import com.airi.assistant.security.ExecutionFirewall
 import com.airi.assistant.security.ScopedPermissionRegistry
+import com.airi.assistant.integrations.google.GoogleAuthService
+import com.airi.assistant.runtime.profiler.RuntimeProfiler
 import com.airi.assistant.sync.CloudSyncCoordinator
 import com.airi.assistant.telemetry.PrivacyTelemetryReporter
 import com.airi.assistant.telemetry.TelemetryConsentStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 
@@ -108,6 +116,12 @@ object ServiceLocator {
 
     val deviceBindingService: DeviceBindingService by lazy {
         DeviceBindingService(requireContext())
+    }
+
+    // AP-10: GoogleAuthService singleton — used by GoogleConnector (registered in ConnectorBootstrap)
+    // and IntegrationsViewModel for sign-in flow.
+    val googleAuthService: GoogleAuthService by lazy {
+        GoogleAuthService(requireContext(), secureStorage)
     }
 
     val sessionManager: SessionManager by lazy {
@@ -168,6 +182,13 @@ object ServiceLocator {
 
     val runtimeHealthMonitor: RuntimeHealthMonitor by lazy {
         RuntimeHealthMonitor(requireContext(), crashReporter, networkService)
+    }
+
+    // AP-12: RuntimeProfiler singleton — backend for DeveloperCenter Profiler tab.
+    // The object is initialized once; start() is idempotent (multiple calls only
+    // add duplicate coroutines which are guarded by isActive).
+    val runtimeProfiler: RuntimeProfiler by lazy {
+        RuntimeProfiler.apply { start() }
     }
 
     // ── Event / Observability ─────────────────────────────────────────────────
@@ -343,15 +364,60 @@ object ServiceLocator {
 
     // ── Memory Layer ──────────────────────────────────────────────────────────
 
+    // AP-18: Application-lifetime scope for MemoryManager (summarization, memory extraction).
+    // A ViewModel scope would cancel on screen rotation; an IO scope tied to MemoryManager
+    // itself worked but forfeited cancellation on app-level shutdown. SupervisorJob ensures
+    // a failed child coroutine never cancels the parent or sibling launches.
+    val applicationScope: CoroutineScope by lazy {
+        CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    }
+
     val memoryManager: MemoryManager by lazy {
-        MemoryManager(requireContext())
+        MemoryManager(requireContext(), applicationScope)
     }
 
     // ── Persistent Audit Log (Phase 2 Task 5) ─────────────────────────────────
 
     val auditRepository: com.airi.assistant.memory.repository.AuditRepository by lazy {
         com.airi.assistant.memory.repository.AuditRepository(
-            com.airi.assistant.memory.AiriDatabase.getDatabase(requireContext())
+            AiriDatabase.getDatabase(requireContext())
+        )
+    }
+
+    // ── Storage Repository — unified Room facade ───────────────────────────────
+
+    /**
+     * Single shared [StorageRepository] instance across the process.
+     * Exposes all 9 Room DAOs through a single facade and owns the
+     * GDPR [StorageRepository.deleteAllData] atomic wipe.
+     *
+     * Preferred over constructing [StorageRepository] ad hoc in consumers;
+     * a single instance ensures no DAO accessor races or duplicate DB handles.
+     */
+    val storageRepository: StorageRepository by lazy {
+        StorageRepository(AiriDatabase.getDatabase(requireContext()))
+    }
+
+    // ── GDPR Account Deletion Coordinator ────────────────────────────────────
+
+    /**
+     * [DataDeletionCoordinator] — orchestrates the full GDPR account-deletion
+     * workflow across all 8 deletion steps (WorkManager, Firebase, Room, disk,
+     * credentials, preferences, cache, sign-out).
+     *
+     * UI surfaces (PrivacyDataSettingsScreen) must route through this
+     * coordinator rather than calling AuthService.deleteAccount() directly.
+     * Direct calls skip 7 of the 8 deletion steps.
+     */
+    val dataDeletionCoordinator: DataDeletionCoordinator by lazy {
+        DataDeletionCoordinator(
+            context               = requireContext(),
+            authService           = authService,
+            storageRepository     = storageRepository,
+            artifactManager       = artifactManager,
+            preferenceCoordinator = preferenceCoordinator,
+            secureStorage         = secureStorage,
+            auditRepository       = auditRepository
         )
     }
 
@@ -415,7 +481,38 @@ object ServiceLocator {
     // ── Scheduled Job Orchestration ──────────────────────────────────────────
 
     val scheduledJobOrchestrator: ScheduledJobOrchestrator by lazy {
-        ScheduledJobOrchestrator(requireContext())
+        val orchestrator = ScheduledJobOrchestrator(requireContext())
+
+        // ── AP-11: Scheduled maintenance jobs ─────────────────────────────────
+        // Registered here (not in Application.onCreate) so they only start once
+        // ServiceLocator is fully initialized and all dependencies are available.
+
+        // Job 1: Sandbox reaper (every 30 min) — eliminates memory leak on high-RAM devices
+        // where onTrimMemory is never called.
+        orchestrator.schedulePeriodic(
+            agentId         = "system",
+            payload         = "sandbox_reaper",
+            label           = "Prune stale sandbox workspaces",
+            intervalMinutes = 30L
+        )
+
+        // Job 2: Audit log pruner (every 24h, 30-day retention window)
+        orchestrator.schedulePeriodic(
+            agentId         = "system",
+            payload         = "audit_log_pruner",
+            label           = "Prune audit log entries older than 30 days",
+            intervalMinutes = 24 * 60L
+        )
+
+        // Job 3: Context cache pruner (every 24h)
+        orchestrator.schedulePeriodic(
+            agentId         = "system",
+            payload         = "context_cache_pruner",
+            label           = "Prune expired context cache entries",
+            intervalMinutes = 24 * 60L
+        )
+
+        orchestrator
     }
 
     // ── Durable Task Manager ───────────────────────────────────────────────────

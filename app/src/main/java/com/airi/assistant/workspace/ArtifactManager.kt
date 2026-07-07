@@ -147,6 +147,38 @@ class ArtifactManager(
 
     // ── Delete ────────────────────────────────────────────────────────────────
 
+    /**
+     * Wipe ALL artifacts across every session — in-memory state and disk files.
+     *
+     * Called exclusively by [com.airi.assistant.domain.auth.DataDeletionCoordinator]
+     * during GDPR account deletion (Step 4 — FILESYSTEM_WIPE).
+     *
+     * ── Scope ──────────────────────────────────────────────────────────────────
+     * This method handles two of the three artifact data layers:
+     *   Layer 1 (in-memory) — [artifacts] ConcurrentHashMap is cleared and the
+     *     [allArtifacts] StateFlow is updated to an empty list.
+     *   Layer 2 (disk)      — the entire <filesDir>/workspace/artifacts/ directory
+     *     is deleted recursively, removing all session subdirectories and files.
+     *
+     * Layer 3 (Room) is intentionally excluded: the Room [workspace_artifact]
+     * table is wiped atomically in the same deletion workflow by
+     * [com.airi.assistant.memory.repository.StorageRepository.deleteAllData]
+     * (Step 3 — ROOM_DATA_WIPE). Duplicating the Room wipe here would mean the
+     * DAO call runs outside the cross-table transaction. The coordinator's step
+     * ordering guarantees the Room wipe completes before this method runs.
+     *
+     * ── Idempotency ────────────────────────────────────────────────────────────
+     * Safe to call on an already-empty manager: clearing an empty map and
+     * calling [File.deleteRecursively] on a nonexistent directory are both no-ops.
+     */
+    suspend fun deleteAll() = withContext(Dispatchers.IO) {
+        artifacts.clear()
+        publishAll()
+        val artifactsRoot = File(context.filesDir, "workspace/artifacts")
+        val deleted = artifactsRoot.deleteRecursively()
+        Log.i(TAG, "AIRI_PROOF GDPR_ARTIFACT_WIPE_COMPLETE deleted=$deleted path=${artifactsRoot.absolutePath}")
+    }
+
     fun deleteArtifact(id: String) {
         val artifact = artifacts.remove(id) ?: return
         File(artifact.filePath).delete()

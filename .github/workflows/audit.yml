@@ -1,0 +1,23 @@
+name: AIRI Deep Audit
+
+on:
+  push:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Run Lint
+        run: ./gradlew lint
+
+      - name: Run Detekt
+        run: ./gradlew detekt

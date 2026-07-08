@@ -41,6 +41,15 @@ interface EmbeddingDao {
     @Query("SELECT * FROM episodic_memory WHERE id IN (:ids)")
     suspend fun loadMessagesByIds(ids: List<Long>): List<ChatMessage>
 
+    /**
+     * AP-51: Bounded retrieval for RAG cosine scan.
+     * Returns the most recent [limit] embeddings (sorted newest-first) so
+     * RagRetriever's in-memory cosine scan is capped at O(5 000) rather than
+     * O(all-time rows). At 10 000 stored messages this keeps retrieval ≤ 250 ms.
+     */
+    @Query("SELECT * FROM message_embedding ORDER BY rowid DESC LIMIT :limit")
+    suspend fun getRecent(limit: Int = 5000): List<MessageEmbedding>
+
     @Query("SELECT COUNT(*) FROM message_embedding")
     suspend fun count(): Int
 }

@@ -190,9 +190,15 @@ class EmbeddingService(context: Context) {
         }
         if (query.isBlank() || k <= 0) return emptyList()
         val qVec = computeRaw(query) ?: return emptyList()
-        val rows = dao.getAllForSession(sessionId, qVec.size)
+        // AP-51: Use cross-session bounded scan (getRecent) so semantic search
+        // is not confined to the current session. Rows are filtered by vector
+        // dimension after retrieval — same approach as getAllForSession, which
+        // already did an in-memory scan. The 5000-row cap prevents unbounded
+        // DB reads on large installations.
+        val allRecent = dao.getRecent(limit = 5000)
+        val rows = allRecent.filter { it.dim == qVec.size }
         if (rows.isEmpty()) {
-            Log.i("AIRI_PROOF", "VECTOR_SEARCH_NO_INDEX session=$sessionId dim=${qVec.size}")
+            Log.i("AIRI_PROOF", "VECTOR_SEARCH_NO_INDEX session=$sessionId dim=${qVec.size} scanned=${allRecent.size}")
             return emptyList()
         }
 

@@ -83,9 +83,11 @@ object RetentionManager {
         val request = OneTimeWorkRequestBuilder<ReEngagementNotificationWorker>()
             .setInitialDelay(8, TimeUnit.HOURS)
             .build()
+        // B-01: Use KEEP so a second call within the same 8-hour window does not
+        // create a duplicate worker (was REPLACE, causing multiple notifications).
         WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
             "airi_reengagement_reminder",
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             request
         )
     }

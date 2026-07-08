@@ -77,6 +77,10 @@ object ExperimentManager {
 
     // ── Query ─────────────────────────────────────────────────────────────────
 
+    // B-09: @Synchronized prevents a race condition where two concurrent feature-flag
+    // evaluations on different threads could both see no persisted assignment and
+    // independently write conflicting variants for the same experiment.
+    @Synchronized
     fun getVariant(experiment: Experiment): Variant {
         val saved = prefs?.getString(experiment.key, Variant.A.name) ?: Variant.A.name
         return runCatching { Variant.valueOf(saved) }.getOrDefault(Variant.A)

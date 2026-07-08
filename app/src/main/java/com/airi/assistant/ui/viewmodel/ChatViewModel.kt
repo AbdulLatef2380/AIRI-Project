@@ -407,7 +407,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         appContext            = appContext,
         // SPRINT 1: wire live ContextBudget so AgentLoop derives its long-context
         // routing threshold from LlamaNative.getNCtx() instead of a hardcoded 8192.
-        contextBudgetProvider = { llamaManager.contextBudget }
+        contextBudgetProvider = { llamaManager.contextBudget },
+        // AP-SS: wire AgentSandbox so every tool dispatch is permission-checked
+        // and workspace-logged before execution.
+        agentSandbox          = com.airi.assistant.core.ServiceLocator.agentSandbox
     )
 
     // ── Plan Mode — step-by-step planning instruction injected into system prompt ──

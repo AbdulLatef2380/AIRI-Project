@@ -158,6 +158,13 @@ class LlamaManager(private val context: Context) {
         // Kept for reference and backward compatibility if any external code references them.
         private const val NON_HISTORY_OVERHEAD = 616  // legacy; see ContextBudget.nonHistoryOverhead
         private const val MIN_HISTORY_TOKENS   = 256  // legacy; see ContextBudget.historyTokens
+
+        // AP-28: Speculative decoding acceptance-rate guard.
+        // Every SPEC_RATE_CHECK_INTERVAL tokens we sample the acceptance rate.
+        // If it drops below SPEC_MIN_ACCEPTANCE_RATE, speculative decoding is
+        // disabled for the rest of the session to recover throughput.
+        private const val SPEC_RATE_CHECK_INTERVAL = 50
+        private const val SPEC_MIN_ACCEPTANCE_RATE  = 0.35f
     }
 
     /**
@@ -1212,6 +1219,21 @@ class LlamaManager(private val context: Context) {
                     tokenBuffer.append(token)
                     nativeTokenCount++
                     lastTokenAtMs.set(System.currentTimeMillis())
+
+                    // AP-28: Every 50 tokens, check speculative acceptance rate.
+                    // If < 35 % the draft model is hurting throughput — disable it
+                    // for the rest of this session so remaining tokens use the
+                    // single-token path without incurring draft overhead.
+                    if (useSpec && nativeTokenCount % SPEC_RATE_CHECK_INTERVAL == 0) {
+                        val rate = specMgr.stats().acceptanceRate
+                        if (rate < SPEC_MIN_ACCEPTANCE_RATE) {
+                            Log.w("AIRI_SPEC",
+                                "SPEC_DISABLED_LOW_RATE rate=%.2f threshold=%.2f at token=%d"
+                                    .format(rate, SPEC_MIN_ACCEPTANCE_RATE, nativeTokenCount))
+                            specMgr.setEnabled(false)
+                        }
+                    }
+
                     // Per-token trace — gated to AIRI_TOKEN tag and BuildConfig.DEBUG.
                     // adb shell setprop log.tag.AIRI_TOKEN VERBOSE
                     if (com.airi.assistant.BuildConfig.DEBUG) Log.v("AIRI_TOKEN", "n=$nativeTokenCount bytes=${token.length}")

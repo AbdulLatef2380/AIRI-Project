@@ -31,13 +31,23 @@ class OrchestratorCrashReporter(
 
     /**
      * Report a throwable from an agent execution.
+     *
+     * @param goalDescription Optional high-level user goal text. B-11: truncated to 20
+     *   characters before inclusion in the crash payload to prevent user PII (e.g.
+     *   "book a restaurant for Friday night near my office") from appearing in telemetry.
      */
     fun reportAgentCrash(
         agentId: String,
         throwable: Throwable,
         planId: String? = null,
-        nodeId: String? = null
+        nodeId: String? = null,
+        goalDescription: String? = null
     ) {
+        // B-11: Truncate goal text to GOAL_SNIPPET_CHARS before it appears anywhere
+        // in structured output. The original throwable.message may be long; we log
+        // the sanitized goal separately in the AIRI_PROOF line so operators can
+        // correlate crashes with user intent without capturing the full input.
+        val sanitizedGoal = goalDescription?.take(GOAL_SNIPPET_CHARS)
         val report = crashStore.record(
             component = "agent:$agentId",
             throwable = throwable,
@@ -51,7 +61,19 @@ class OrchestratorCrashReporter(
                 errorTag  = throwable.javaClass.simpleName
             )
         )
-        LoggingService.error(TAG, "AIRI_PROOF AGENT_CRASH agent=$agentId id=${report.id} error=${throwable.javaClass.simpleName}: ${throwable.message}")
+        // The sanitized goal snippet is included here in the structured log line.
+        // It is NOT stored verbatim in the crash report JSON — the report only
+        // contains the standard errorMessage from throwable (already truncated to
+        // 200 chars by CrashReportStore.record). This keeps PII out of disk/telemetry
+        // while giving operators a short context marker in log analysis.
+        LoggingService.error(TAG, "AIRI_PROOF AGENT_CRASH agent=$agentId id=${report.id} " +
+            "goal_snippet=${sanitizedGoal ?: "<none>"} " +
+            "error=${throwable.javaClass.simpleName}: ${throwable.message}")
+    }
+
+    companion object {
+        /** B-11: Maximum characters of goal text included in crash payload. */
+        private const val GOAL_SNIPPET_CHARS = 20
     }
 
     /**

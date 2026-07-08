@@ -2428,10 +2428,13 @@ private fun AddRemoteModelContent(
                 onClick = {
                     if (serverUrl.isBlank()) return@Button
                     val remoteModel = RemoteModel(
-                        id        = UUID.randomUUID().toString(),
-                        name      = modelName.ifBlank { "Remote Model" },
-                        serverUrl = serverUrl.trim(),
-                        apiKey    = apiKey.trim()
+                        id               = UUID.randomUUID().toString(),
+                        name             = modelName.ifBlank { "Remote Model" },
+                        serverUrl        = serverUrl.trim(),
+                        apiKey           = apiKey.trim(),
+                        // B-07: user-created endpoints must be flagged so
+                        // migrateStaleModelNames() never renames them.
+                        isCustomEndpoint = true
                     )
                     RemoteModelRegistry.add(remoteModel)
                     AnalyticsService.featureDiscovered("remote_model_added")

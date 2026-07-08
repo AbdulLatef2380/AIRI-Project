@@ -146,10 +146,42 @@ class SessionManager(
 
     private fun startRefreshLoop() {
         scope.launch {
+            // B-02: Two-phase loop — normal proactive refresh every 55 min, with a
+            // separate exponential-backoff retry loop on failure.
+            //
+            // Schedule:  normal → [wait 55m] → refresh
+            //   success: back to normal
+            //   failure: [wait 1m] → retry → [wait 2m] → retry → … → [wait 30m] → retry
+            //            (capped at 30m; each retry on the BACKOFF interval, not 55m)
+            //   once a retry succeeds → back to normal 55m cycle
             while (auth.currentUser != null) {
                 delay(REFRESH_INTERVAL_MS)
-                if (auth.currentUser != null) {
-                    refreshToken(forceRefresh = true)
+                if (auth.currentUser == null) break
+
+                val token = refreshToken(forceRefresh = true)
+                if (token != null) {
+                    // Success on the proactive refresh — continue normal cycle.
+                    continue
+                }
+
+                // ── Failure: enter exponential-backoff retry loop ──────────────
+                // IMPORTANT: we do NOT wait another 55m here — the retry interval
+                // starts from INITIAL_BACKOFF_MS and doubles up to MAX_BACKOFF_MS.
+                var backoffMs = INITIAL_BACKOFF_MS
+                while (auth.currentUser != null) {
+                    LoggingService.warn(TAG,
+                        "AIRI_PROOF TOKEN_REFRESH_BACKOFF delay=${backoffMs}ms")
+                    delay(backoffMs)
+                    backoffMs = minOf(backoffMs * 2, MAX_BACKOFF_MS)
+                    if (auth.currentUser == null) break
+
+                    val retryToken = refreshToken(forceRefresh = true)
+                    if (retryToken != null) {
+                        // Recovered — exit retry loop and resume normal 55m cycle.
+                        LoggingService.info(TAG,
+                            "AIRI_PROOF TOKEN_REFRESH_RECOVERED — resuming normal cycle")
+                        break
+                    }
                 }
             }
         }
@@ -157,5 +189,7 @@ class SessionManager(
 
     companion object {
         private const val REFRESH_INTERVAL_MS = 55 * 60 * 1000L
+        private const val INITIAL_BACKOFF_MS  =      60 * 1000L  // 1 min → 2 → 4 → … → 30
+        private const val MAX_BACKOFF_MS      =  30 * 60 * 1000L // 30 min cap
     }
 }

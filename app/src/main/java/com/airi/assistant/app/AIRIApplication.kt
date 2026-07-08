@@ -1,8 +1,11 @@
 package com.airi.assistant.app
 
 import android.app.Application
+import android.content.BroadcastReceiver
 import android.content.ComponentCallbacks2
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import com.airi.assistant.ui.activity.GlobalAgentEventDispatcher
 import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.analytics.AnalyticsService
@@ -213,6 +216,10 @@ class AIRIApplication : Application() {
                 PlayIntegrityVerifier.warmUp(applicationContext)
             }
 
+            // AP-36: Battery-low receiver — invalidates hardware profile cache
+            // and emits a LowMemoryPressure event when battery drops below ~20%.
+            registerBatteryReceiver()
+
             LoggingService.info(TAG, "━━━ AIRI Ready ━━━")
 
         } catch (e: Exception) {
@@ -256,5 +263,41 @@ class AIRIApplication : Application() {
         // Update health monitor so Diagnostics screen reflects the memory event
         runCatching { ServiceLocator.runtimeHealthMonitor }.getOrNull()
             ?.recordMemoryPressure(level)
+    }
+
+    // ── AP-36: Battery low receiver ───────────────────────────────────────────
+
+    /**
+     * Registered at startup to receive ACTION_BATTERY_LOW (system threshold,
+     * typically 15–20 %). On receipt:
+     *   1. Invalidates the cached HardwareProfile so the next [profile()] call
+     *      reads fresh battery/power-save state.
+     *   2. Emits a LowMemoryPressure event so the runtime router can down-tier
+     *      model selection and avoid heavy operations under power constraint.
+     */
+    private val batteryLowReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action != Intent.ACTION_BATTERY_LOW) return
+            LoggingService.warn(TAG, "AIRI_PROOF BATTERY_LOW_RECEIVED — invalidating hardware profile cache")
+            // Invalidate the hardware profiler cache so the next call reflects
+            // current battery/power-save state.
+            runCatching { ServiceLocator.hardwareProfiler }.getOrNull()
+                ?.invalidateCache()
+            com.airi.assistant.domain.event.EventBus.emitSync(
+                com.airi.assistant.domain.event.AppEvent.LowMemoryPressure(
+                    level    = ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW,
+                    severity = "BATTERY_LOW"
+                )
+            )
+        }
+    }
+
+    private fun registerBatteryReceiver() {
+        runCatching {
+            registerReceiver(batteryLowReceiver, IntentFilter(Intent.ACTION_BATTERY_LOW))
+            LoggingService.info(TAG, "✓ Battery-low receiver registered (AP-36)")
+        }.onFailure { e ->
+            LoggingService.warn(TAG, "Battery-low receiver registration failed: ${e.message}")
+        }
     }
 }

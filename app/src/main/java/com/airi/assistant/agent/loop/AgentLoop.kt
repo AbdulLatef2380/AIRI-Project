@@ -44,12 +44,27 @@ class AgentLoop(
     private val orchestrator:          HybridOrchestrator,
     private val dispatcher:            ToolDispatcher,
     private val appContext:            Context,
-    private val contextBudgetProvider: () -> ContextBudget = { ContextBudget.UNLOADED }
+    private val contextBudgetProvider: () -> ContextBudget = { ContextBudget.UNLOADED },
+    /**
+     * AP-SS: Optional sandbox wrapper. When non-null, every tool dispatch is
+     * routed through [agentSandbox.execute] so permission checks, workspace
+     * logging, and rollback-on-violation are applied to every tool call.
+     * Null keeps the legacy direct-dispatch path for callers that have not
+     * yet been updated (conservative default).
+     */
+    private val agentSandbox: com.airi.assistant.security.AgentSandbox? = null
 ) {
     companion object {
-        private const val TAG         = "AIRI_AgentLoop"
-        private const val MAX_STEPS   = 12
-        private const val TIMEOUT_MS  = 60_000L
+        private const val TAG              = "AIRI_AgentLoop"
+        private const val MAX_STEPS        = 12
+        private const val TIMEOUT_MS       = 60_000L
+        /**
+         * AP-SS: Stable principal registered in [ScopedPermissionRegistry] for the
+         * agent loop's tool-dispatch sandbox context. All tool calls on behalf of
+         * the user-facing loop share this identity — permissions are granted to
+         * "agent_loop" via [ServiceLocator.agentSandbox] setup, not per-tool.
+         */
+        const val SANDBOX_AGENT_ID = "agent_loop"
 
         // Sentinel that tells the LLM how to emit tool calls.
         // Kept as a string constant so it appears verbatim in every prompt.
@@ -195,10 +210,30 @@ Do not mix tool_call JSON with prose in the same message.
                 Log.i(TAG, "AIRI_PROOF TOOL_CALL step=$stepsUsed tool=$toolName args=${toolArgs.keys.joinToString()}")
                 ExecutionStatusBus.onWaveStarted(listOf("tool_$toolName"), listOf("Tool: $toolName"))
 
+                // AP-SS: route through AgentSandbox when available so every
+                // tool call is permission-checked and workspace-logged.
+                // NOTE: agentId must be a stable registered principal ("agent_loop"),
+                // NOT the tool name. Using the tool name caused permission checks to
+                // run against unknown principals, broadly denying legitimate calls.
                 val toolResult = try {
-                    dispatcher.execute(toolName, toolArgs, appContext)
+                    if (agentSandbox != null) {
+                        agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
+                            // Per-tool authorization: guard() throws
+                            // ScopedPermissionRegistry.PermissionDeniedException
+                            // (caught by the sandbox and re-thrown as
+                            // SandboxViolationException) if the firewall
+                            // has not allowed this tool for "agent_loop".
+                            ctx.guardTool(toolName)
+                            dispatcher.execute(toolName, toolArgs, appContext)
+                        }
+                    } else {
+                        dispatcher.execute(toolName, toolArgs, appContext)
+                    }
                 } catch (e: CancellationException) {
                     throw e
+                } catch (e: com.airi.assistant.security.AgentSandbox.SandboxViolationException) {
+                    Log.w(TAG, "AIRI_PROOF SANDBOX_VIOLATION tool=$toolName: ${e.message}")
+                    ToolDispatcher.ToolResult.Error("Permission denied for tool: $toolName")
                 } catch (e: Exception) {
                     Log.w(TAG, "Tool $toolName threw: ${e.message}")
                     ToolDispatcher.ToolResult.Error("Tool failed: ${e.message}")

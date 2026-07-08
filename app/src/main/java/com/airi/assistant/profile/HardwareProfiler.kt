@@ -2,7 +2,11 @@ package com.airi.assistant.profile
 
 import android.app.ActivityManager
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Build
+import android.os.PowerManager
 import android.util.Log
 import com.airi.assistant.domain.logging.LoggingService
 import kotlinx.coroutines.Dispatchers
@@ -42,7 +46,11 @@ class HardwareProfiler(private val context: Context) {
         val model:              String,
         val hasGpu:             Boolean,
         val maxRecommendedCtx:  Int,
-        val tier:               Tier
+        val tier:               Tier,
+        /** AP-36: Battery level 0–100, or -1 if unknown. */
+        val batteryPct:         Int = -1,
+        /** AP-36: True when the device is in battery saver / power-save mode. */
+        val isPowerSaveMode:    Boolean = false
     ) {
         enum class Tier { LOW, MID, HIGH, FLAGSHIP }
 
@@ -65,6 +73,10 @@ class HardwareProfiler(private val context: Context) {
             val maxCtx         = recommendedCtx(totalRamMb)
             val tier           = computeTier(totalRamMb, cpuCores)
 
+            // AP-36: Read battery level and power-save mode at profile time.
+            val batteryPct   = readBatteryPercent()
+            val isPowerSave  = readPowerSaveMode()
+
             HardwareProfile(
                 totalRamMb        = totalRamMb,
                 availableRamMb    = availableRamMb,
@@ -75,15 +87,22 @@ class HardwareProfiler(private val context: Context) {
                 model             = Build.MODEL,
                 hasGpu            = hasGpu,
                 maxRecommendedCtx = maxCtx,
-                tier              = tier
+                tier              = tier,
+                batteryPct        = batteryPct,
+                isPowerSaveMode   = isPowerSave
             ).also {
                 cachedProfile = it
-                LoggingService.info(TAG, "AIRI_PROOF HARDWARE_PROFILE tier=${it.tier} ramMb=${it.totalRamMb} cores=${it.cpuCoreCount}")
+                LoggingService.info(TAG,
+                    "AIRI_PROOF HARDWARE_PROFILE tier=${it.tier} ramMb=${it.totalRamMb} " +
+                    "cores=${it.cpuCoreCount} battery=${it.batteryPct}% powerSave=${it.isPowerSaveMode}")
             }
         }
     }
 
     fun cachedOrNull(): HardwareProfile? = cachedProfile
+
+    /** AP-36: Clears the cached profile so the next [profile] call reads fresh values. */
+    fun invalidateCache() { cachedProfile = null }
 
     private fun detectGpu(): Boolean {
         return runCatching {
@@ -105,4 +124,20 @@ class HardwareProfiler(private val context: Context) {
         ramMb >= 3_000  && cores >= 4  -> HardwareProfile.Tier.MID
         else                           -> HardwareProfile.Tier.LOW
     }
+
+    /** AP-36: Returns battery level 0–100, or -1 if the sticky broadcast is unavailable. */
+    private fun readBatteryPercent(): Int = runCatching {
+        val intent = context.registerReceiver(
+            null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        ) ?: return@runCatching -1
+        val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
+        if (level < 0 || scale <= 0) -1 else (level * 100 / scale)
+    }.getOrDefault(-1)
+
+    /** AP-36: Returns true when the device is in power-save mode (API 21+). */
+    private fun readPowerSaveMode(): Boolean = runCatching {
+        val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        pm?.isPowerSaveMode ?: false
+    }.getOrDefault(false)
 }

@@ -13,3 +13,4 @@
 - [Phase 2 Tasks 3–9 Architecture](phase2-tasks3-9-architecture.md) — AuthService UI enforcement, GDPR deletion, AuditLog Room v4, PreferenceCoordinator, ArtifactPreview WebView, NotionMcpConnector, SystemHealthCoordinator.
 - [Tasks 10–15 Architecture](tasks10-15-architecture.md) — AuditRepo→AuthService wiring, ThermalSignal feedback loop, PreferenceCoordinator consolidation, ReferralManager SecureStorage, consent-gated analytics, SEO meta/sitemap/robots.
 - [Phase 2 Tasks 19–35 Completion](phase2-tasks19-35.md) — All 17 tasks done; AuditLogEntity uses `tag` (not `subsystem`); AuditRepository method is `getRecent(limit)`; LlmCertPins pins are placeholders pending production verification.
+- [Wave 3-4 Activation Decisions](wave3-4-activation.md) — AP items implemented; AP-SS sandbox uses "agent_loop" principal not tool name; B-07 serialization fix; VoicePreferencesStore has snapshotFlow not currentSnapshot().

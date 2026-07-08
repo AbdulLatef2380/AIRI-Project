@@ -28,9 +28,12 @@ object RemoteModelRegistry {
         val stale       = "google/gemini-2.0-flash-001"
         val replacement = "google/gemini-2.0-flash-exp:free"
         val list = getAll()
-        val affected = list.filter { it.name == stale }
+        // B-07: Skip custom user-defined endpoints; only migrate first-party model names.
+        val affected = list.filter { it.name == stale && !it.isCustomEndpoint }
         if (affected.isEmpty()) return
-        val migrated = list.map { m -> if (m.name == stale) m.copy(name = replacement) else m }
+        val migrated = list.map { m ->
+            if (m.name == stale && !m.isCustomEndpoint) m.copy(name = replacement) else m
+        }
         prefs.edit().putString(KEY_MODELS, serializeList(migrated)).apply()
         android.util.Log.i("AIRI_Registry",
             "migrateStaleModelNames: replaced $stale → $replacement in ${affected.size} entry(s): " +
@@ -77,7 +80,11 @@ object RemoteModelRegistry {
             sb.append("\"name\":\"${m.name.replace("\"","\\\"")}\",")
             sb.append("\"serverUrl\":\"${m.serverUrl.replace("\"","\\\"")}\",")
             sb.append("\"apiKey\":\"${m.apiKey.replace("\"","\\\"")}\",")
-            sb.append("\"isActive\":${m.isActive}")
+            sb.append("\"isActive\":${m.isActive},")
+            // B-07: persist isCustomEndpoint so migration guards survive app restart.
+            // Without this, the field reloads as false (default), making every custom
+            // endpoint vulnerable to stale-name migration on the NEXT launch.
+            sb.append("\"isCustomEndpoint\":${m.isCustomEndpoint}")
             sb.append("}")
         }
         sb.append("]")
@@ -115,11 +122,13 @@ object RemoteModelRegistry {
             }
         }
         return RemoteModel(
-            id        = field("id"),
-            name      = field("name"),
-            serverUrl = field("serverUrl"),
-            apiKey    = field("apiKey"),
-            isActive  = field("isActive") == "true"
+            id               = field("id"),
+            name             = field("name"),
+            serverUrl        = field("serverUrl"),
+            apiKey           = field("apiKey"),
+            isActive         = field("isActive") == "true",
+            // B-07: default false for models persisted before this field was added.
+            isCustomEndpoint = field("isCustomEndpoint") == "true"
         )
     }
 

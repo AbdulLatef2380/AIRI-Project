@@ -646,10 +646,13 @@ private fun AddRemoteModelInlineContent(
             Button(
                 onClick = {
                     val remote = com.airi.assistant.ai.remote.RemoteModel(
-                        id        = java.util.UUID.randomUUID().toString(),
-                        name      = modelName.ifBlank { "Custom Server" },
-                        serverUrl = serverUrl.trimEnd('/'),
-                        apiKey    = apiKey
+                        id               = java.util.UUID.randomUUID().toString(),
+                        name             = modelName.ifBlank { "Custom Server" },
+                        serverUrl        = serverUrl.trimEnd('/'),
+                        apiKey           = apiKey,
+                        // B-07: user-created endpoints must be flagged so
+                        // migrateStaleModelNames() never renames them.
+                        isCustomEndpoint = true
                     )
                     com.airi.assistant.ai.remote.RemoteModelRegistry.add(remote)
                     viewModel.activateRemoteModel(remote)

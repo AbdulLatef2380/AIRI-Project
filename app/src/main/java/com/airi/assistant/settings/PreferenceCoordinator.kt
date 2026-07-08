@@ -127,6 +127,33 @@ class PreferenceCoordinator(
         get() = themePrefs.getString(KEY_ACCENT_COLOR, "#6C63FF") ?: "#6C63FF"
         set(value) { themePrefs.edit().putString(KEY_ACCENT_COLOR, value).apply() }
 
+    // AP-20: Explicit accessor methods for GeneralSettingsScreen / CloudSyncCoordinator
+    // so callers don't need to import the raw prefs key constants.
+
+    /** Returns the persisted dark-mode preference: "SYSTEM", "LIGHT", or "DARK". */
+    fun getThemeMode(): String = darkMode
+
+    /** Persists the dark-mode preference. [mode] should be "SYSTEM", "LIGHT", or "DARK". */
+    fun setThemeMode(mode: String) { darkMode = mode }
+
+    /** Returns the voice model identifier persisted in voice preferences, or empty string. */
+    fun getActiveVoiceModel(): String =
+        VoicePreferencesStore.snapshotFlow.value?.voiceName ?: ""
+
+    /** Persists the active voice model without changing other voice settings. */
+    fun setActiveVoiceModel(voiceName: String) {
+        val snap = VoicePreferencesStore.snapshotFlow.value
+        VoicePreferencesStore.save(
+            context        = context,
+            pitch          = snap?.pitch          ?: VoicePreferencesStore.PersonalityPreset.STANDARD.pitch,
+            rate           = snap?.rate           ?: VoicePreferencesStore.PersonalityPreset.STANDARD.rate,
+            voiceName      = voiceName,
+            preset         = snap?.preset         ?: VoicePreferencesStore.PersonalityPreset.STANDARD,
+            voiceEnabled   = snap?.voiceEnabled   ?: false,
+            hotwordEnabled = snap?.hotwordEnabled ?: false
+        )
+    }
+
     private val themePrefs by lazy {
         context.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE)
     }

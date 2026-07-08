@@ -64,6 +64,24 @@ class NotionMcpConnector(
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
+    // B-06: In-memory token cache with 5-minute TTL.
+    // Avoids hitting SecureStorage (EncryptedSharedPreferences, I/O bound)
+    // on every Notion API call — critical when multiple tools fire in the
+    // same agent turn. Token rotation takes effect within TOKEN_CACHE_TTL_MS.
+    @Volatile private var cachedToken: String? = null
+    @Volatile private var cachedTokenExpiresAt: Long = 0L
+
+    private fun getToken(): String? {
+        val now = System.currentTimeMillis()
+        if (cachedToken != null && now < cachedTokenExpiresAt) {
+            return cachedToken
+        }
+        val fresh = secureStorage.getNotionToken()
+        cachedToken = fresh
+        cachedTokenExpiresAt = now + TOKEN_CACHE_TTL_MS
+        return fresh
+    }
+
     // ── McpConnector abstract implementations ─────────────────────────────────
 
     /**
@@ -71,7 +89,7 @@ class NotionMcpConnector(
      * Returns true if the token is valid and the workspace is accessible.
      */
     override suspend fun handshake(): Boolean {
-        val token = secureStorage.getNotionToken()
+        val token = getToken()
         if (token.isNullOrBlank()) {
             Log.w(TAG, "AIRI_PROOF NOTION_HANDSHAKE_FAILED reason=no_token_stored")
             return false
@@ -115,7 +133,7 @@ class NotionMcpConnector(
         text:   String,
         params: Map<String, String>
     ): ConnectorOutput {
-        val token = secureStorage.getNotionToken()
+        val token = getToken()
             ?: return ConnectorOutput.Failure(
                 code    = "no_token",
                 message = "Notion API token not configured. Add your Integration Token in Settings → Connectors.",
@@ -357,6 +375,8 @@ class NotionMcpConnector(
         const val TAG                = "AIRI_NotionMcpConnector"
         const val BASE_URL           = "https://api.notion.com/v1"
         const val NOTION_API_VERSION = "2022-06-28"
+        /** B-06: Token cache TTL — 5 minutes in milliseconds. */
+        const val TOKEN_CACHE_TTL_MS = 5 * 60 * 1000L
         val JSON_MEDIA_TYPE          = "application/json; charset=utf-8".toMediaType()
 
         val NOTION_TOOLS = listOf(

@@ -3,6 +3,7 @@ package com.airi.assistant.memory
 import android.content.Context
 import android.util.Log
 import java.io.File
+import net.zetetic.database.sqlcipher.SQLiteDatabase as SqlCipherDatabase
 
 /**
  * AP-02: SQLCipher at-rest encryption migration helper.
@@ -79,11 +80,11 @@ object AiriDatabaseMigrationHelper {
             // ── Step 1: open plaintext DB with SQLCipher in "plain" mode ─────
             // net.zetetic.database.sqlcipher.SQLiteDatabase supports opening
             // unencrypted databases when the passphrase is empty byte array.
-            val sqliteDb = net.zetetic.database.sqlcipher.SQLiteDatabase.openDatabase(
+            val sqliteDb = SqlCipherDatabase.openDatabase(
                 dbFile.absolutePath,
                 ByteArray(0),   // empty passphrase = open as plaintext
-                null,
-                net.zetetic.database.sqlcipher.SQLiteDatabase.OPEN_READWRITE
+                null as SqlCipherDatabase.CursorFactory?,
+                SqlCipherDatabase.OPEN_READWRITE
             )
 
             sqliteDb.use { db ->

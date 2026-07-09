@@ -48,6 +48,7 @@ class ConnectorAuthManager(context: Context) {
     }
     fun storeCredential(connectorId: String, credKey: String, value: String) = prefs.edit().putString(key(connectorId, "cred_$credKey"), value).apply()
     fun getCredential(connectorId: String, credKey: String): String? = prefs.getString(key(connectorId, "cred_$credKey"), null)
+    fun clearCredential(connectorId: String, credKey: String) = prefs.edit().remove(key(connectorId, "cred_$credKey")).apply()
 
     private fun key(id: String, field: String) = "auth_${id}_$field"
     private fun refreshAuthStates() {

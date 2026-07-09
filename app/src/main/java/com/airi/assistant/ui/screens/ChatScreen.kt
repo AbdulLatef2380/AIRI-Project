@@ -591,7 +591,8 @@ fun ChatScreen(
                 onExportChat      = { showMenu = false; exportChatLauncher.launch(ChatExporter.buildFileName()) },
                 onNewChat         = { viewModel.clearMessages() },
                 onMuteToggle      = {},
-                onPointsClick     = { onNavigate(AiriRoute.CREDITS) }
+                onPointsClick     = { onNavigate(AiriRoute.CREDITS) },
+                onNavigate        = onNavigate
             )
         },
         bottomBar = {
@@ -1055,6 +1056,22 @@ fun ChatScreen(
             onDismiss = { viewModel.clearModelError() }
         )
     }
+
+    // AP-C03/C04: Agent Plan ModalBottomSheet — non-blocking; chat stays readable during execution.
+    // Only shown for complex tasks (≥3 steps) OR when plan mode is explicitly active.
+    if (isPanelVisible && (showPanel || isPlanModeActive)) {
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { agentPlanViewModel.collapse() },
+            sheetState       = planSheetState,
+            dragHandle       = { androidx.compose.material3.BottomSheetDefaults.DragHandle() },
+            containerColor   = androidx.compose.ui.graphics.Color(0xFF0D1117)
+        ) {
+            com.airi.assistant.ui.plan.AgentPlanContent(
+                viewModel = agentPlanViewModel,
+                modifier  = Modifier.fillMaxWidth().navigationBarsPadding()
+            )
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1083,7 +1100,8 @@ private fun AiriChatTopBar(
     onExportChat: () -> Unit,
     onNewChat: () -> Unit,
     onMuteToggle: () -> Unit,
-    onPointsClick: () -> Unit = {}
+    onPointsClick: () -> Unit = {},
+    onNavigate: (String) -> Unit = {}
 ) {
     // Token count formatted for compact display (e.g. 1.2k, 45k)
     val tokenDisplay = when {
@@ -1527,21 +1545,6 @@ private fun AiriHistoryPanel(
         }
     }
 
-    // AP-C03/C04: Agent Plan ModalBottomSheet — non-blocking; chat stays readable during execution.
-    // Only shown for complex tasks (≥3 steps) OR when plan mode is explicitly active.
-    if (isPanelVisible && (showPanel || isPlanModeActive)) {
-        androidx.compose.material3.ModalBottomSheet(
-            onDismissRequest = { agentPlanViewModel.collapse() },
-            sheetState       = planSheetState,
-            dragHandle       = { androidx.compose.material3.BottomSheetDefaults.DragHandle() },
-            containerColor   = androidx.compose.ui.graphics.Color(0xFF0D1117)
-        ) {
-            com.airi.assistant.ui.plan.AgentPlanContent(
-                viewModel = agentPlanViewModel,
-                modifier  = Modifier.fillMaxWidth().navigationBarsPadding()
-            )
-        }
-    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

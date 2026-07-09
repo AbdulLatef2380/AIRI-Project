@@ -165,6 +165,8 @@ private fun PlanStepRow(step: PlanStepModel) {
                     tint = SemanticSuccess, modifier = Modifier.size(14.dp))
                 PlanStepStatus.FAILED    -> Icon(Icons.Outlined.ErrorOutline, null,
                     tint = SemanticError, modifier = Modifier.size(14.dp))
+                PlanStepStatus.RETRYING  -> CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp), color = SemanticWarn, strokeWidth = 1.5.dp)
                 PlanStepStatus.CANCELLED   -> Icon(Icons.Outlined.PlayArrow, null,
                     tint = Color.White.copy(0.25f), modifier = Modifier.size(14.dp))
             }

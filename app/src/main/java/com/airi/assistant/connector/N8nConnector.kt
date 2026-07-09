@@ -39,7 +39,7 @@ class N8nConnector(
     override val id          = "n8n"
     override val name        = "N8n"
     override val description = "Trigger N8n workflow automation via webhook URL."
-    override val type        = ConnectorType.WEBHOOK
+    override val type        = ConnectorType.API
 
     private val _state = MutableStateFlow(ConnectorState(connected = false, statusLine = "No webhook URL configured"))
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()

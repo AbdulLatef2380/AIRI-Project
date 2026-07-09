@@ -26,6 +26,7 @@ import com.airi.assistant.memory.entity.MessageEmbedding
 import com.airi.assistant.memory.entity.UsageStatEntity
 import com.airi.assistant.memory.entity.UserPreference
 import java.io.File
+import net.zetetic.database.sqlcipher.SupportFactory
 
 /**
  * AiriDatabase — Room database for all persistent AIRI state.
@@ -257,7 +258,7 @@ abstract class AiriDatabase : RoomDatabase() {
         private fun buildSqlCipherFactory(context: Context): androidx.sqlite.db.SupportSQLiteOpenHelper.Factory {
             val passphrase = getSqlCipherKey(context).toByteArray(Charsets.UTF_8)
             // net.zetetic:android-database-sqlcipher:4.5.4 — added by AP-02 in build.gradle.kts
-            return net.zetetic.database.sqlcipher.SupportFactory(passphrase)
+            return SupportFactory(passphrase)
         }
 
         // ── Task 27: Database backup ──────────────────────────────────────────

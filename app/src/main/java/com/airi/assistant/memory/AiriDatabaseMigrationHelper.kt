@@ -3,7 +3,7 @@ package com.airi.assistant.memory
 import android.content.Context
 import android.util.Log
 import java.io.File
-import net.zetetic.database.sqlcipher.SQLiteDatabase as SqlCipherDatabase
+import net.sqlcipher.database.SQLiteDatabase as SqlCipherDatabase
 
 /**
  * AP-02: SQLCipher at-rest encryption migration helper.
@@ -82,20 +82,23 @@ object AiriDatabaseMigrationHelper {
             // unencrypted databases when the passphrase is empty byte array.
             val sqliteDb = SqlCipherDatabase.openDatabase(
                 dbFile.absolutePath,
-                ByteArray(0),   // empty passphrase = open as plaintext
-                null as SqlCipherDatabase.CursorFactory?,
+                "",             // empty passphrase = open as plaintext (old API takes String)
+                null,           // CursorFactory
                 SqlCipherDatabase.OPEN_READWRITE
             )
 
-            sqliteDb.use { db ->
+            // Avoid .use{} — old net.sqlcipher SQLiteClosable may not implement Closeable.
+            try {
                 // Escape single quotes in the key (paranoid safety)
                 val escapedKey = encKey.replace("'", "''")
                 val escapedPath = encFile.absolutePath.replace("'", "''")
 
                 // ── Step 2+3+4: ATTACH → export → DETACH ─────────────────────
-                db.rawExecSQL("ATTACH DATABASE '$escapedPath' AS enc KEY '$escapedKey'")
-                db.rawExecSQL("SELECT sqlcipher_export('enc')")
-                db.rawExecSQL("DETACH DATABASE enc")
+                sqliteDb.rawExecSQL("ATTACH DATABASE '$escapedPath' AS enc KEY '$escapedKey'")
+                sqliteDb.rawExecSQL("SELECT sqlcipher_export('enc')")
+                sqliteDb.rawExecSQL("DETACH DATABASE enc")
+            } finally {
+                sqliteDb.close()
             }
 
             // ── Step 5+6: atomic replace ──────────────────────────────────────

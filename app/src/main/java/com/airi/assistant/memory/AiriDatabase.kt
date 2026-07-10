@@ -26,7 +26,7 @@ import com.airi.assistant.memory.entity.MessageEmbedding
 import com.airi.assistant.memory.entity.UsageStatEntity
 import com.airi.assistant.memory.entity.UserPreference
 import java.io.File
-import net.zetetic.database.sqlcipher.SupportFactory
+import net.sqlcipher.database.SupportFactory
 
 /**
  * AiriDatabase — Room database for all persistent AIRI state.

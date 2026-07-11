@@ -9,7 +9,7 @@ import com.airi.assistant.runtime.memory.LeakInspectionRuntime
 import com.airi.assistant.runtime.profiler.RuntimeProfiler
 import com.airi.assistant.runtime.session.SessionIntegrityMonitor
 import com.airi.assistant.runtime.thermal.ThermalProfiler
-import com.airi.assistant.runtime.voice.VoiceRuntimeInspector
+
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -134,9 +134,8 @@ class ReleaseReadinessReport(private val context: Context) {
         }
 
         // ── Voice (15 pts) ─────────────────────────────────────────────────
-        val voiceHealth  = VoiceRuntimeInspector::class  // read via companion if singleton
-        val voiceHealthy = true // placeholder — wire when VoiceRuntimeInspector is singleton
-        // In production: val voiceHealthy = voiceInspector.health.value?.healthy != false
+        val voiceHealthy = com.airi.assistant.core.ServiceLocator.voiceRuntimeInspector
+            .health.value?.healthy != false
 
         // ── Thermal (10 pts) ───────────────────────────────────────────────
         // Wire ThermalProfiler singleton when available

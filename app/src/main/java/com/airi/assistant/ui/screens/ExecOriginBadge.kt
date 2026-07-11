@@ -26,8 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.ui.theme.CosmicAccent
-
-// ─────────────────────────────────────────────────────────────────────────────
 // ExecOriginBadge — Visible execution origin indicator for chat messages
 //
 // AIRI never hides execution origin. Every assistant response that was
@@ -40,8 +38,6 @@ import com.airi.assistant.ui.theme.CosmicAccent
 //
 // The badge is invisible (zero-height, zero-width) when origin == NONE,
 // so it adds no whitespace to user messages or untagged responses.
-// ─────────────────────────────────────────────────────────────────────────────
-
 private val LocalBadgeColor  = Color(0xFF43A047)  // green
 private val CloudBadgeColor  = Color(0xFF29B6F6)  // light blue
 private val HybridBadgeColor = Color(0xFFAB47BC)  // purple
@@ -146,11 +142,7 @@ fun ExecOriginAttributionLine(
         modifier = modifier
     )
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Internal
-// ─────────────────────────────────────────────────────────────────────────────
-
 private data class BadgeSpec(
     val icon:      androidx.compose.ui.graphics.vector.ImageVector,
     val label:     String,

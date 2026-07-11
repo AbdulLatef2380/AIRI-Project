@@ -170,6 +170,21 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <!--
+            FileProvider for sharing attachment files with other apps.
+            android:exported="false" — this provider is NOT directly accessible
+            by other apps; content:// URIs require explicit FLAG_GRANT_READ_URI_PERMISSION.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
     </application>
 
 </manifest>

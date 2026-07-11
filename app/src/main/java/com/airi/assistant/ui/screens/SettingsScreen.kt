@@ -104,7 +104,6 @@ fun SettingsScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ── T27: SecureStorage keystore warning banner ─────────────────
             val isStorageEncrypted = remember {
                 runCatching { ServiceLocator.secureStorage.isEncrypted }.getOrDefault(true)
             }
@@ -142,8 +141,6 @@ fun SettingsScreen(
                     }
                 }
             }
-
-            // ── Group 1: Core features ─────────────────────────────────────
             SettingsGroup {
                 SettingsNavItem(
                     icon     = Icons.Outlined.History,
@@ -187,8 +184,6 @@ fun SettingsScreen(
                     onClick  = { onNavigate(AiriRoute.INTEGRATIONS) }
                 )
             }
-
-            // ── Group 2: Appearance & API ─────────────────────────────────
             SettingsGroup {
                 SettingsNavItem(
                     icon     = Icons.Outlined.Language,
@@ -214,7 +209,7 @@ fun SettingsScreen(
                     onClick  = { onNavigate(AiriRoute.MODEL_LIBRARY) }
                 )
                 SettingsDivider()
-                // AP-07: AI Execution Settings — was unreachable; now connected to registered route.
+                // : AI Execution Settings — was unreachable; now connected to registered route.
                 // Exposes ExecutionMode (LOCAL/CLOUD/HYBRID), PrivacyLevel, InternetPermission,
                 // OfflineFallback, and PreferredProvider to the user.
                 SettingsNavItem(
@@ -232,8 +227,6 @@ fun SettingsScreen(
                     onClick  = { onNavigate(AiriRoute.VOICE_SETTINGS) }
                 )
             }
-
-            // ── Group 3: Account & System ─────────────────────────────────
             SettingsGroup {
                 SettingsNavItem(
                     icon     = Icons.Outlined.Token,
@@ -256,8 +249,6 @@ fun SettingsScreen(
                     onClick  = { onNavigate(AiriRoute.UPDATE_SCREEN) }
                 )
             }
-
-            // ── Group: Automation & Payments ──────────────────────────────
             SettingsGroup {
                 SettingsNavItem(
                     icon     = Icons.Outlined.AutoAwesome,
@@ -280,8 +271,6 @@ fun SettingsScreen(
                     onClick  = { onNavigate(AiriRoute.BILLING_HISTORY) }
                 )
             }
-
-            // ── Group: Skills Ecosystem ───────────────────────────────────
             SettingsGroup {
                 SettingsNavItem(
                     icon     = Icons.Outlined.Store,
@@ -297,8 +286,6 @@ fun SettingsScreen(
                     onClick  = { onNavigate(AiriRoute.COMMUNITY_SKILLS) }
                 )
             }
-
-            // ── Group 3: Developer & Runtime Tools ────────────────────────
             // These tools were previously unreachable from any UI path.
             // Now exposed here so developers and power users can access
             // the terminal, workspace, sandbox, diagnostics, and agent
@@ -359,9 +346,25 @@ fun SettingsScreen(
                     label    = stringResource(R.string.settings_debug_panel),
                     onClick  = { onNavigate(AiriRoute.DEBUG_PANEL) }
                 )
+                SettingsDivider()
+                // Secret Manager
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Key,
+                    iconTint = Color(0xFFFFD54F),
+                    label    = "Secret Manager",
+                    onClick  = { onNavigate(AiriRoute.SECRET_MANAGER) }
+                )
+                SettingsDivider()
+                // Security Scanner
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Security,
+                    iconTint = Color(0xFF80CBC4),
+                    label    = "Security Scanner",
+                    onClick  = { onNavigate(AiriRoute.SECURITY_SCANNER) }
+                )
             }
 
-            // AP-25: About AIRI — was unreachable; SETTINGS_ABOUT route now has a caller.
+            // : About AIRI — was unreachable; SETTINGS_ABOUT route now has a caller.
             SettingsGroup {
                 SettingsDivider()
                 SettingsNavItem(
@@ -376,11 +379,7 @@ fun SettingsScreen(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Reusable settings components
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
     Column(

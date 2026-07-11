@@ -62,7 +62,7 @@ fun AgentTasksScreen(
     val context = LocalContext.current
     val orchestrator = remember { ScheduledJobOrchestrator(context) }
 
-    // B-18: SCHEDULE_EXACT_ALARM — required on API 31+ for exact WorkManager timing.
+    // : SCHEDULE_EXACT_ALARM — required on API 31+ for exact WorkManager timing.
     val canScheduleExact = remember {
         mutableStateOf(
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
@@ -118,7 +118,6 @@ fun AgentTasksScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // ── Error banner ───────────────────────────────────────────────────
             errorMessage?.let { msg ->
                 Row(
                     modifier = Modifier
@@ -135,8 +134,6 @@ fun AgentTasksScreen(
                     }
                 }
             }
-
-            // ── Tab row ────────────────────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -174,7 +171,7 @@ fun AgentTasksScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)
                 ) {
-                    // B-18: Warn if SCHEDULE_EXACT_ALARM not granted (API 31+)
+                    // : Warn if SCHEDULE_EXACT_ALARM not granted (API 31+)
                     if (!canScheduleExact.value && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                         item {
                             Surface(
@@ -251,9 +248,6 @@ fun AgentTasksScreen(
         )
     }
 }
-
-// ── Composables ────────────────────────────────────────────────────────────────
-
 @Composable
 private fun TaskTab(label: String, isSelected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(

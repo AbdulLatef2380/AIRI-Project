@@ -214,7 +214,7 @@ fun SkillsSection(viewModel: ChatViewModel) {
 }
 
 @Composable
-// B-09 FIX: was a dead label — now navigates to ModelLibraryScreen where keys
+//  FIX: was a dead label — now navigates to ModelLibraryScreen where keys
 // are actually entered via SecureApiKeyStore. onNavigate defaults to no-op so
 // the AIModelsSettingsScreen zero-arg call still compiles; the call site in that
 // screen is also updated to pass onNavigate.

@@ -66,7 +66,7 @@ private val AIRITypography = Typography(
     labelSmall     = TextStyle(fontWeight = FontWeight.Medium,   fontSize = 10.sp, lineHeight = 14.sp, letterSpacing = 0.4.sp),
 )
 
-// ── AMOLED colour scheme — pure black for OLED power saving (B-28) ───────────
+// ── AMOLED colour scheme — pure black for OLED power saving () ───────────
 private val AmoledColorScheme = darkColorScheme(
     primary          = CosmicAccent,
     secondary        = CosmicAccentAlt,
@@ -94,7 +94,7 @@ private val AmoledColorScheme = darkColorScheme(
  * - [ThemeMode.DARK]   → always dark
  * - [ThemeMode.LIGHT]  → always light
  * - [ThemeMode.SYSTEM] → follows isSystemInDarkTheme()
- * - [ThemeMode.AMOLED] → pure black for OLED screens (B-28)
+ * - [ThemeMode.AMOLED] → pure black for OLED screens ()
  */
 @Composable
 fun AIRITheme(content: @Composable () -> Unit) {

@@ -118,7 +118,7 @@ object ServiceLocator {
         DeviceBindingService(requireContext())
     }
 
-    // AP-10: GoogleAuthService singleton — used by GoogleConnector (registered in ConnectorBootstrap)
+    // : GoogleAuthService singleton — used by GoogleConnector (registered in ConnectorBootstrap)
     // and IntegrationsViewModel for sign-in flow.
     val googleAuthService: GoogleAuthService by lazy {
         GoogleAuthService(requireContext(), secureStorage)
@@ -184,7 +184,7 @@ object ServiceLocator {
         RuntimeHealthMonitor(requireContext(), crashReporter, networkService)
     }
 
-    // AP-12: RuntimeProfiler singleton — backend for DeveloperCenter Profiler tab.
+    // : RuntimeProfiler singleton — backend for DeveloperCenter Profiler tab.
     // The object is initialized once; start() is idempotent (multiple calls only
     // add duplicate coroutines which are guarded by isActive).
     val runtimeProfiler: RuntimeProfiler by lazy {
@@ -318,6 +318,8 @@ object ServiceLocator {
         ProductionAgentOrchestrator().also { orch ->
             orch.observabilityHub = observabilityHub
             observabilityHub.attachOrchestrator(orch)
+            // Wire DurableTaskManager so orchestrator can checkpoint multi-step tasks
+            orch.durableTaskManager = durableTaskManager
         }
     }
 
@@ -364,7 +366,7 @@ object ServiceLocator {
 
     // ── Memory Layer ──────────────────────────────────────────────────────────
 
-    // AP-18: Application-lifetime scope for MemoryManager (summarization, memory extraction).
+    // : Application-lifetime scope for MemoryManager (summarization, memory extraction).
     // A ViewModel scope would cancel on screen rotation; an IO scope tied to MemoryManager
     // itself worked but forfeited cancellation on app-level shutdown. SupervisorJob ensures
     // a failed child coroutine never cancels the parent or sibling launches.
@@ -483,7 +485,7 @@ object ServiceLocator {
     val scheduledJobOrchestrator: ScheduledJobOrchestrator by lazy {
         val orchestrator = ScheduledJobOrchestrator(requireContext())
 
-        // ── AP-11: Scheduled maintenance jobs ─────────────────────────────────
+        // ── : Scheduled maintenance jobs ─────────────────────────────────
         // Registered here (not in Application.onCreate) so they only start once
         // ServiceLocator is fully initialized and all dependencies are available.
 
@@ -639,6 +641,45 @@ object ServiceLocator {
         scopedPermissionRegistry.installDefaults()
         observabilityHub.refreshRegistrySnapshot()
         runCatching { skillManagerBackend.reload() }
+    }
+
+    /** Task 11.1: AdaptiveIntelligenceEngine — records outcomes for RL-style adaptation. */
+    val adaptiveIntelligenceEngine: com.airi.assistant.agent.learning.AdaptiveIntelligenceEngine by lazy {
+        com.airi.assistant.agent.learning.AdaptiveIntelligenceEngine(requireContext())
+    }
+
+    /** Task 11.2: PlannerAdaptationEngine — injects learned hints into PlanGenerator. */
+    val plannerAdaptationEngine: com.airi.assistant.agent.adaptation.PlannerAdaptationEngine by lazy {
+        com.airi.assistant.agent.adaptation.PlannerAdaptationEngine(requireContext()).also { engine ->
+            // Wire adaptations into the shared PlanGenerator instance
+            engine.applyToGenerator(planGenerator)
+        }
+    }
+
+    /** Shared PlanGenerator instance — used by orchestrator and adaptation engine. */
+    val planGenerator: com.airi.assistant.agent.planning.PlanGenerator by lazy {
+        com.airi.assistant.agent.planning.PlanGenerator()
+    }
+
+    /** Task 11.3: StrategyEvolutionEngine — learns optimal execution strategies over time. */
+    val strategyEvolutionEngine: com.airi.assistant.agent.adaptation.StrategyEvolutionEngine by lazy {
+        com.airi.assistant.agent.adaptation.StrategyEvolutionEngine(
+            com.airi.assistant.agent.adaptation.PersistentLearningStore(requireContext())
+        )
+    }
+
+    /** Runtime voice health inspector — used by ReleaseReadinessReport and diagnostics. */
+    val voiceRuntimeInspector: com.airi.assistant.runtime.voice.VoiceRuntimeInspector by lazy {
+        com.airi.assistant.runtime.voice.VoiceRuntimeInspector(requireContext())
+    }
+
+    /** Task 3.2: VoiceAgentRouter — routes STT results to direct agent or LLM fallback. */
+    val voiceAgentRouter: com.airi.assistant.voice.VoiceAgentRouter by lazy {
+        com.airi.assistant.voice.VoiceAgentRouter(
+            appContext   = requireContext(),
+            orchestrator = productionOrchestrator,
+            voiceManager = com.airi.assistant.core.VoiceManager(requireContext())
+        )
     }
 
     /** Set by [initSubAgentSystem]; consumed by ChatViewModel to inject the real confirmation gate. */

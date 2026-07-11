@@ -23,8 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.core.debug.*
 import com.airi.assistant.ui.theme.CosmicAccent
-
-// ─────────────────────────────────────────────────────────────────────────────
 // RuntimeDiagnosticsPanel — production-grade runtime diagnostics UI
 //
 // All composables in this file accept IMMUTABLE state parameters already
@@ -34,18 +32,12 @@ import com.airi.assistant.ui.theme.CosmicAccent
 // Recomposition is driven solely by changes to the immutable snapshots
 // passed as parameters — zero jank during streaming because the diagnostics
 // state is only updated at generation lifecycle boundaries, not per-token.
-// ─────────────────────────────────────────────────────────────────────────────
-
 private val WarnColor    = Color(0xFFFFB74D)  // amber
 private val ErrorColor   = Color(0xFFEF5350)  // red
 private val OkColor      = CosmicAccent
 private val DimWhite     = Color.White.copy(alpha = 0.55f)
 private val SubtleWhite  = Color.White.copy(alpha = 0.35f)
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Public entry-points
-// ─────────────────────────────────────────────────────────────────────────────
-
 /**
  * Full runtime status panel — mode, thermal, memory, context, model, generation.
  *
@@ -60,8 +52,6 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
             title = "Runtime Status"
         )
         Spacer(Modifier.height(12.dp))
-
-        // ── Effective mode ───────────────────────────────────────────────────
         DiagRow(
             label = "Effective Mode",
             value = diagnostics.effectiveMode,
@@ -88,8 +78,6 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
         )
 
         DiagDivider()
-
-        // ── Thermal ──────────────────────────────────────────────────────────
         DiagRow(
             label = "Thermal Status",
             value = diagnostics.thermalLevel.name + if (diagnostics.thermalRaw > 0)
@@ -100,8 +88,6 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
                 ThermalLevel.SEVERE, ThermalLevel.CRITICAL -> ErrorColor
             }
         )
-
-        // ── Memory ───────────────────────────────────────────────────────────
         DiagRow(
             label = "Available RAM",
             value = "${diagnostics.availRamMb} MB" + if (diagnostics.isLowMemory) " ⚠ LOW" else "",
@@ -114,8 +100,6 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
         )
 
         DiagDivider()
-
-        // ── Context usage ────────────────────────────────────────────────────
         val kvPct = remember(diagnostics.kvUsed, diagnostics.kvMax) {
             if (diagnostics.kvMax > 0) (diagnostics.kvUsed * 100) / diagnostics.kvMax else 0
         }
@@ -132,14 +116,10 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
         )
 
         DiagDivider()
-
-        // ── Model ────────────────────────────────────────────────────────────
         DiagRow(label = "Active Model", value = diagnostics.modelName)
         DiagRow(label = "Quantization", value = diagnostics.modelQuant)
 
         DiagDivider()
-
-        // ── Generation ───────────────────────────────────────────────────────
         DiagRow(
             label = "Generation State",
             value = diagnostics.generationPhase.name,
@@ -158,8 +138,6 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
         )
 
         DiagDivider()
-
-        // ── Speculative / GPU ────────────────────────────────────────────────
         DiagRow(
             label = "Draft Model",
             value = if (diagnostics.draftModelActive) "ACTIVE" else "INACTIVE",
@@ -229,7 +207,7 @@ fun RuntimeWarningsPanel(warnings: List<String>) {
                 Spacer(Modifier.width(6.dp))
                 Text(
                     warning,
-                    color = Color.White.copy(alpha = 0.88f),
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 12.sp,
                     lineHeight = 16.sp
                 )
@@ -301,7 +279,7 @@ fun RuntimeEventTimeline(events: List<com.airi.assistant.core.debug.RuntimeEvent
                         EventRow(event)
                         if (idx < visible.lastIndex) {
                             Divider(
-                                color = Color.White.copy(alpha = 0.04f),
+                                color = MaterialTheme.colorScheme.outline,
                                 modifier = Modifier.padding(vertical = 2.dp)
                             )
                         }
@@ -406,11 +384,7 @@ fun AdvancedDiagnosticsSection(diagnostics: RuntimeDiagnosticsState) {
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Internal composables
-// ─────────────────────────────────────────────────────────────────────────────
-
 private const val MAX_VISIBLE_EVENTS = 30
 
 @Composable

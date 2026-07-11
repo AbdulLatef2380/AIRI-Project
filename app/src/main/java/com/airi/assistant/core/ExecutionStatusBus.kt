@@ -35,9 +35,9 @@ object ExecutionStatusBus {
 
     private val _status = MutableStateFlow(AgentState())
 
-    // AP-13: Wrap status with FlowPressureMonitor to detect slow collectors.
+    // : Wrap status with FlowPressureMonitor to detect slow collectors.
     // monitorFlow wraps the Flow at the read-side; _status remains a MutableStateFlow
-    // for internal writes. Backpressure events log to RuntimeProfiler (AP-12).
+    // for internal writes. Backpressure events log to RuntimeProfiler ().
     val status: StateFlow<AgentState> = _status.asStateFlow()
     // Wrapped version for collectors that want pressure detection:
     val monitoredStatus = FlowPressureMonitor.monitorFlow("ExecutionStatusBus", _status)

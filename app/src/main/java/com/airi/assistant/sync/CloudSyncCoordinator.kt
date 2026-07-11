@@ -359,3 +359,7 @@ class CloudSyncCoordinator(
         )
     }
 }
+
+// Extension: Task 4.4 — placeholder until full conversation sync schema is approved
+// These are called by CloudSyncWorker but default to no-op in current build.
+// Actual implementation requires Firestore security rules + privacy review.

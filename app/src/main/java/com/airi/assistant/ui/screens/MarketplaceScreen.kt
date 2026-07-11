@@ -176,9 +176,6 @@ fun MarketplaceScreen(
         }
     }
 }
-
-// ── Explore Tab ───────────────────────────────────────────────────────────────
-
 @Composable
 private fun ExploreTab(
     catalog:          List<MarketplaceSkill>,
@@ -198,7 +195,6 @@ private fun ExploreTab(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier            = Modifier.fillMaxSize()
     ) {
-        // ── Search bar ──────────────────────────────────────────────────
         item {
             OutlinedTextField(
                 value         = searchQuery,
@@ -221,8 +217,6 @@ private fun ExploreTab(
                 )
             )
         }
-
-        // ── Category chips ───────────────────────────────────────────────
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(MarketplaceSkill.Category.entries) { cat ->
@@ -238,8 +232,6 @@ private fun ExploreTab(
                 }
             }
         }
-
-        // ── Error / loading ──────────────────────────────────────────────
         lastError?.let {
             item {
                 Card(
@@ -268,7 +260,6 @@ private fun ExploreTab(
                 }
             }
         } else {
-            // ── Featured section ────────────────────────────────────────
             val featured = catalog.filter { it.isFeatured }
             if (featured.isNotEmpty() && selectedCategory == null && searchQuery.isBlank()) {
                 item { Text(stringResource(R.string.marketplace_featured), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground) }
@@ -371,9 +362,6 @@ private fun SkillListRow(skill: MarketplaceSkill, onInstall: (MarketplaceSkill) 
         }
     }
 }
-
-// ── Installed Tab ─────────────────────────────────────────────────────────────
-
 @Composable
 private fun InstalledTab(
     installed:  List<MarketplaceSkill>,
@@ -424,9 +412,6 @@ private fun InstalledTab(
         }
     }
 }
-
-// ── Updates Tab (Phase J) ──────────────────────────────────────────────────────
-
 @Composable
 private fun UpdatesTab(
     updates:  List<MarketplaceSkill>,
@@ -436,8 +421,8 @@ private fun UpdatesTab(
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Default.CheckCircle, null, Modifier.size(56.dp), tint = SemanticSuccess)
-                Text("All skills are up to date", color = AiriTheme.onBackground, fontWeight = FontWeight.Medium)
-                Text("No updates available right now.", fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
+                Text(stringResource(R.string.marketplace_up_to_date), color = AiriTheme.onBackground, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.marketplace_no_updates), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
             }
         }
         return
@@ -493,9 +478,6 @@ private fun UpdatesTab(
         }
     }
 }
-
-// ── GitHub Import Tab ─────────────────────────────────────────────────────────
-
 @Composable
 private fun GitHubImportTab(
     onImported: (String) -> Unit,
@@ -626,9 +608,6 @@ private fun GitHubImportTab(
         }
     }
 }
-
-// ── Publish Tab ───────────────────────────────────────────────────────────────
-
 @Composable
 private fun PublishTab(
     onNavigateToWizard: () -> Unit,
@@ -688,7 +667,7 @@ private fun PublishTab(
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    Text("Open", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text(stringResource(R.string.marketplace_open), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }
             }
         }

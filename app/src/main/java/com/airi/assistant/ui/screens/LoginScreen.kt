@@ -68,8 +68,6 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var isSignUp by remember { mutableStateOf(false) }
     var showEmailForm by remember { mutableStateOf(false) }
-
-    // ── Google Sign-In ────────────────────────────────────────────────────────
     val googleSignInClient = remember {
         runCatching {
             val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -106,8 +104,6 @@ fun LoginScreen(
             errorMessage = "Google sign-in cancelled"
         }
     }
-
-    // ── GitHub Sign-In ────────────────────────────────────────────────────────
     fun signInWithGitHub() {
         if (activity == null) { errorMessage = "Cannot open sign-in from this context"; return }
         isLoading = true
@@ -126,16 +122,12 @@ fun LoginScreen(
             }
         )
     }
-
-    // ── Input validation ──────────────────────────────────────────────────────
     fun validateInputs(): Boolean = when {
         email.isBlank()       -> { errorMessage = "Email is required"; false }
         !email.contains("@") -> { errorMessage = "Enter a valid email address"; false }
         password.length < 6  -> { errorMessage = "Password must be at least 6 characters"; false }
         else -> true
     }
-
-    // ── Colors ────────────────────────────────────────────────────────────────
     val bgColor     = Color(0xFF000000)
     val buttonBg    = Color(0xFF1A1A1A)
     val accentColor = Color(0xFF7C3AED)
@@ -154,7 +146,6 @@ fun LoginScreen(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // ── Logo ───────────────────────────────────────────────────────────
             Spacer(Modifier.height(60.dp))
             Image(
                 painter            = painterResource(id = R.drawable.ic_launcher_fg),
@@ -163,8 +154,6 @@ fun LoginScreen(
                     .size(100.dp)
                     .clip(RoundedCornerShape(24.dp))
             )
-
-            // ── Welcome Title ──────────────────────────────────────────────────
             Spacer(Modifier.height(32.dp))
             Text(
                 text       = "مرحباً بك في AIRI",
@@ -173,8 +162,6 @@ fun LoginScreen(
                 color      = AiriTheme.onBackground,
                 textAlign  = TextAlign.Center
             )
-
-            // ── GitHub Button ──────────────────────────────────────────────────
             Spacer(Modifier.height(40.dp))
             LoginButton(
                 onClick  = { signInWithGitHub() },
@@ -183,8 +170,6 @@ fun LoginScreen(
                 iconResId = R.drawable.ic_github,
                 text     = "Continue with GitHub"
             )
-
-            // ── Google Button ──────────────────────────────────────────────────
             Spacer(Modifier.height(12.dp))
             LoginButton(
                 onClick = {
@@ -200,8 +185,6 @@ fun LoginScreen(
                 iconResId = R.drawable.ic_google,
                 text      = "Continue with Google"
             )
-
-            // ── Divider ────────────────────────────────────────────────────────
             Spacer(Modifier.height(24.dp))
             Row(
                 modifier          = Modifier.fillMaxWidth(),
@@ -222,8 +205,6 @@ fun LoginScreen(
                 )
             }
             Spacer(Modifier.height(24.dp))
-
-            // ── Email Button ───────────────────────────────────────────────────
             LoginButton(
                 onClick   = { showEmailForm = !showEmailForm; errorMessage = null },
                 enabled   = !isLoading,
@@ -231,8 +212,6 @@ fun LoginScreen(
                 icon      = Icons.Outlined.Email,
                 text      = "Continue with Email"
             )
-
-            // ── Email Form ─────────────────────────────────────────────────────
             if (showEmailForm) {
                 Spacer(Modifier.height(24.dp))
 
@@ -346,8 +325,6 @@ fun LoginScreen(
                     )
                 }
             }
-
-            // ── Footer ─────────────────────────────────────────────────────────
             Spacer(Modifier.height(40.dp))
             Text(
                 text      = "By continuing, you agree to our Terms of Service and Privacy Policy",

@@ -218,7 +218,7 @@ object AIRIShadows {
     val errorGlow   = SemanticError.copy(alpha = 0.22f)
 }
 
-// ── B-11: Theme-aware surface helpers ─────────────────────────────────────────
+// ── : Theme-aware surface helpers ─────────────────────────────────────────
 // These @Composable properties read from MaterialTheme.colorScheme and
 // therefore respond to Dark / Light / AMOLED mode switches.
 // Screens that adopt these instead of hardcoded CosmicBlack/SurfaceCard will

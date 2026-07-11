@@ -72,8 +72,6 @@ fun CustomizationSettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-
-            // ── Theme mode ────────────────────────────────────────────────────
             SettingsSurface {
                 SettingsCategoryHeader(
                     icon  = Icons.Outlined.Palette,
@@ -91,7 +89,7 @@ fun CustomizationSettingsScreen(
                         ThemeMode.DARK   to "مظلم",
                         ThemeMode.LIGHT  to "فاتح",
                         ThemeMode.SYSTEM to "النظام",
-                        ThemeMode.AMOLED to "AMOLED"   // B-28: pure black for OLED
+                        ThemeMode.AMOLED to "AMOLED"   // : pure black for OLED
                     )
                     modes.forEach { (mode, label) ->
                         FilterChip(

@@ -37,6 +37,7 @@ import com.airi.assistant.voice.VoicePipelineState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.delay
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
 
@@ -44,7 +45,7 @@ import com.airi.assistant.R
 @Composable
 fun ObservabilityScreen(onBack: () -> Unit) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Events", "Live Hub", "Graph", "Traces")
+    val tabs = listOf("Events", "Live Hub", "Graph", "Traces", "Network")
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -87,13 +88,11 @@ fun ObservabilityScreen(onBack: () -> Unit) {
                 1 -> LiveHubTab()
                 2 -> GraphTab()
                 3 -> TracesTab()
+                4 -> NetworkTab()
             }
         }
     }
 }
-
-// ── Events tab ────────────────────────────────────────────────────────────────
-
 @Composable
 private fun EventsTab() {
     var entries by remember { mutableStateOf<List<ExecutionHistoryStore.HistoryEntry>>(emptyList()) }
@@ -199,9 +198,6 @@ private fun EventCard(entry: ExecutionHistoryStore.HistoryEntry) {
         }
     }
 }
-
-// ── Live Hub tab ──────────────────────────────────────────────────────────────
-
 @Composable
 private fun LiveHubTab() {
     val snapshot by ServiceLocator.observabilityHub.snapshot.collectAsState()
@@ -211,7 +207,6 @@ private fun LiveHubTab() {
         contentPadding      = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // ── Orchestrator / Voice ───────────────────────────────────────────────
         item {
             HubCard(title = "Orchestrator & Voice") {
                 MetricRow("Orchestrator", snapshot.orchestratorState.name)
@@ -233,8 +228,6 @@ private fun LiveHubTab() {
                 if (snapshot.sessionVoiceErrors > 0)   MetricRow("Voice errors",  "${snapshot.sessionVoiceErrors}", color = SemanticWarn)
             }
         }
-
-        // ── Session counters ──────────────────────────────────────────────────
         item {
             HubCard(title = "Session") {
                 Row(
@@ -247,8 +240,6 @@ private fun LiveHubTab() {
                 }
             }
         }
-
-        // ── Agent execution counts ────────────────────────────────────────────
         if (snapshot.agentExecutionCounts.isNotEmpty()) {
             item {
                 HubCard(title = "Agent Executions") {
@@ -262,8 +253,6 @@ private fun LiveHubTab() {
                 }
             }
         }
-
-        // ── Tool call breakdown ───────────────────────────────────────────────
         if (snapshot.toolCallCounts.isNotEmpty()) {
             item {
                 HubCard(title = "Tool Calls") {
@@ -276,8 +265,6 @@ private fun LiveHubTab() {
                 }
             }
         }
-
-        // ── Memory ────────────────────────────────────────────────────────────
         item {
             HubCard(title = "Memory") {
                 Row(
@@ -290,8 +277,6 @@ private fun LiveHubTab() {
                 }
             }
         }
-
-        // ── Durable tasks ─────────────────────────────────────────────────────
         item {
             HubCard(title = "Durable Tasks") {
                 Row(
@@ -304,8 +289,6 @@ private fun LiveHubTab() {
                 }
             }
         }
-
-        // ── Recent errors ─────────────────────────────────────────────────────
         if (snapshot.recentErrors.isNotEmpty()) {
             item {
                 HubCard(title = "Recent Errors") {
@@ -331,8 +314,6 @@ private fun LiveHubTab() {
                 }
             }
         }
-
-        // ── Registered agents ─────────────────────────────────────────────────
         if (snapshot.registeredAgents.isNotEmpty()) {
             item {
                 HubCard(title = "Registered Agents (${snapshot.registeredAgents.size})") {
@@ -374,9 +355,6 @@ private fun AgentMetricRow(agentId: String, executions: Int, errors: Int, lastLa
         }
     }
 }
-
-// ── Graph tab ─────────────────────────────────────────────────────────────────
-
 @Composable
 private fun GraphTab() {
     val snapshot by ServiceLocator.observabilityHub.snapshot.collectAsState()
@@ -469,9 +447,6 @@ private fun GraphNodeCard(node: com.airi.assistant.agent.planning.GoalNode) {
         }
     }
 }
-
-// ── Traces tab ────────────────────────────────────────────────────────────────
-
 @Composable
 private fun TracesTab() {
     val snapshot by ServiceLocator.observabilityHub.snapshot.collectAsState()
@@ -587,9 +562,6 @@ private fun TraceSpanCard(span: TraceSpan) {
         }
     }
 }
-
-// ── Shared composables ────────────────────────────────────────────────────────
-
 @Composable
 private fun HubCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     Surface(
@@ -627,6 +599,59 @@ private fun StatusCountChip(label: String, count: Int, color: Color, modifier: M
                 fontSize   = 14.sp,
                 fontFamily = FontFamily.Monospace
             )
+        }
+    }
+}
+@Composable
+private fun NetworkTab() {
+    var stats by remember { mutableStateOf<com.airi.assistant.execution.backend.CloudBackend.NetworkStats?>(null) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            stats = com.airi.assistant.execution.backend.CloudBackend.globalStats()
+            kotlinx.coroutines.delay(2_000)
+        }
+    }
+    val s = stats
+    androidx.compose.foundation.layout.Column(
+        modifier = androidx.compose.ui.Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            "Network Traffic",
+            fontSize = 13.sp,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            color = CosmicAccent
+        )
+        if (s == null) {
+            Text(stringResource(R.string.loading), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            NetworkStatRow("Total Requests", s.requestCount.toString())
+            NetworkStatRow("Errors", s.errorCount.toString())
+            NetworkStatRow("Avg Latency", "${s.avgLatencyMs} ms")
+            val errorRate = if (s.requestCount > 0) {
+                "%.1f%%".format(s.errorCount * 100.0 / s.requestCount)
+            } else "—"
+            NetworkStatRow("Error Rate", errorRate)
+        }
+    }
+}
+
+@Composable
+private fun NetworkStatRow(label: String, value: String) {
+    Surface(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface,
+        modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+    ) {
+        androidx.compose.foundation.layout.Row(
+            modifier = androidx.compose.ui.Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, fontSize = 13.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onBackground)
         }
     }
 }

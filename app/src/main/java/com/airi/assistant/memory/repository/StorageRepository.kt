@@ -188,6 +188,17 @@ class StorageRepository(val db: AiriDatabase) {
      * explicitly invoked alongside the disk wipe by whoever orchestrates the
      * full GDPR deletion.
      */
+    /** Task 1.7: Persist thumbs up/down feedback for a message row. */
+    suspend fun updateMessageFeedback(id: Long, feedback: Int) = withContext(Dispatchers.IO) {
+        db.memoryDao().updateMessageFeedback(id, feedback)
+    }
+
+    /** Task 1.7: Get N most recent messages across all sessions (for feedback matching). */
+    suspend fun getRecentMessages(limit: Int): List<com.airi.assistant.memory.entity.ChatMessage> =
+        withContext(Dispatchers.IO) {
+            db.memoryDao().getRecentMemories(limit)
+        }
+
     suspend fun deleteAllData() = withContext(Dispatchers.IO) {
         db.withTransaction {
             db.memoryDao().deleteAll()

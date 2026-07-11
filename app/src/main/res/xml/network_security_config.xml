@@ -53,7 +53,7 @@
     -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">api.openai.com</domain>
-        <pin-set expiration="2026-06-01">
+        <pin-set expiration="2027-06-01">
             <!-- DigiCert TLS Hybrid ECC SHA384 2020 CA1 — intermediate -->
             <pin digest="SHA-256">yh7QpTQD3wLEMmSAEWI/OA0jYcVEBs5cBvzX0dHJMJo=</pin>
             <!-- DigiCert Global Root CA — backup root -->
@@ -69,7 +69,7 @@
     -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">api.anthropic.com</domain>
-        <pin-set expiration="2026-06-01">
+        <pin-set expiration="2027-06-01">
             <!-- Amazon RSA 2048 M02 intermediate -->
             <pin digest="SHA-256">hS1hBGXkbNPGQVdJtWiMGZ6A4/eiJTyQH+x0p5BFXHM=</pin>
             <!-- Amazon Root CA 1 — backup -->
@@ -85,7 +85,7 @@
     -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">generativelanguage.googleapis.com</domain>
-        <pin-set expiration="2026-06-01">
+        <pin-set expiration="2027-06-01">
             <!-- GTS CA 1C3 intermediate -->
             <pin digest="SHA-256">zCTnfLwLKbS9S2sbp+uFz4KZOocFvXxkV06Ce9O5M2w=</pin>
             <!-- GlobalSign Root CA — backup -->
@@ -100,7 +100,7 @@
     -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">openrouter.ai</domain>
-        <pin-set expiration="2026-06-01">
+        <pin-set expiration="2027-06-01">
             <!-- Let's Encrypt E1 intermediate -->
             <pin digest="SHA-256">jQJTbIh0grw0/1TkHSumWb+Fs0Ggogr621gT3PvPKG0=</pin>
             <!-- ISRG Root X1 — backup -->
@@ -115,7 +115,7 @@
     -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">api.github.com</domain>
-        <pin-set expiration="2026-06-01">
+        <pin-set expiration="2027-06-01">
             <!-- DigiCert TLS RSA SHA256 2020 CA1 intermediate -->
             <pin digest="SHA-256">5VReIRNHJBiRsmse0kHZjSSQwFeSNH6xpzkWAObTfkY=</pin>
             <!-- DigiCert Global Root CA — backup -->

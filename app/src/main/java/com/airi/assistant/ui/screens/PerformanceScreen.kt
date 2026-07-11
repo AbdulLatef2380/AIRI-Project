@@ -55,8 +55,6 @@ fun PerformanceScreen(
     // ── Runtime Diagnostics state — collected once, driven by ViewModel StateFlows
     val diagnostics by viewModel.runtimeDiagnostics.collectAsState()
     val runtimeEvents by viewModel.runtimeEventLog.collectAsState()
-
-    // ── Execution Mode state ──────────────────────────────────────────────────
     val executionMode    by viewModel.executionMode.collectAsState()
     val execPrefs        = remember { viewModel.getExecModePrefs() }
     var privacyLevel     by remember { mutableStateOf(execPrefs.privacyLevel) }
@@ -110,15 +108,11 @@ fun PerformanceScreen(
                             AnalyticsService.featureDiscovered("performance_mode_${mode.name.lowercase()}")
                         }
                     )
-
-                    // ── Live Runtime Diagnostics ──────────────────────────────
                     // Backed by ViewModel-owned StateFlows — no polling here.
                     // Snapshots are emitted at lifecycle boundaries only
                     // (model load, generation start/end, supervisor override).
                     RuntimeStatusPanel(diagnostics = diagnostics)
                     RuntimeWarningsPanel(warnings = diagnostics.warnings)
-
-                    // ── Execution Mode Panel ──────────────────────────────────
                     ExecutionModePanel(
                         currentMode           = executionMode,
                         currentPrivacy        = privacyLevel,
@@ -195,8 +189,6 @@ fun PerformanceScreen(
 
                     // Speculative decoding controls (optional, opt-in).
                     SpecDecodingCard()
-
-                    // ── Collapsible diagnostics panels ────────────────────────
                     RuntimeEventTimeline(events = runtimeEvents)
                     AdvancedDiagnosticsSection(diagnostics = diagnostics)
 
@@ -365,8 +357,6 @@ private fun Long.toMemString(): String {
     if (this <= 0L) return "0 MB"
     return if (this >= 1024L) "%.1f GB".format(this / 1024.0) else "$this MB"
 }
-
-// ───────────────────────────────────────────────────────────────────────────────
 // Speculative decoding card
 //
 // Owns the user-facing toggle, draft picker, status line, and live acceptance
@@ -374,7 +364,6 @@ private fun Long.toMemString(): String {
 // composable holds NO direct native handles, so any failure path (vocab
 // mismatch, file missing, OOM) surfaces as a status string and never crashes
 // the UI.
-// ───────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun SpecDecodingCard() {
     val context = LocalContext.current

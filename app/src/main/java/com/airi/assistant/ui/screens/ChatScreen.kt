@@ -44,6 +44,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.material3.Divider
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -120,8 +122,9 @@ fun ChatScreen(
     val modelState    by viewModel.modelState.collectAsState()
     val agentMode     by viewModel.agentMode.collectAsState()
     val smartReplies  by viewModel.smartReplies.collectAsState()
-    val todayTokens   by viewModel.todayTokens.collectAsState()
-    // B-17: real-time network state — drives offline banner
+    val todayTokens            by viewModel.todayTokens.collectAsState()
+    val dailyCreditsRemaining  by viewModel.dailyCreditsRemaining.collectAsState()
+    // : real-time network state — drives offline banner
     val isOnline      by viewModel.isOnline.collectAsState()
     // LiveVoiceService — voice mode state
     val voiceModeActive    by viewModel.voiceModeActive.collectAsState()
@@ -131,13 +134,11 @@ fun ChatScreen(
     val upgradePrompt         by viewModel.upgradePrompt.collectAsState()
     val systemIntegrityFailed by viewModel.systemIntegrityFailed.collectAsState()
     val contextResetWarning   by viewModel.contextResetWarning.collectAsState()
-    val isSummarizing         by viewModel.isSummarizing.collectAsState()  // AP-18
+    val isSummarizing         by viewModel.isSummarizing.collectAsState()  // 
 
     // Chat is "active" when there are messages or the AI is responding
     val chatIsActive = messages.isNotEmpty() || streamingText.isNotEmpty() || agentState.isWorking
     LaunchedEffect(chatIsActive) { onChatActiveChanged(chatIsActive) }
-
-    // ── AP-05: Biometric gate for HYBRID (full-agent) mode ─────────────────
     // ChatScreen is the correct collection site because it has access to
     // FragmentActivity via LocalContext — ViewModels must never hold Activity refs.
     val activity = context as? FragmentActivity
@@ -184,7 +185,7 @@ fun ChatScreen(
 
     LaunchedEffect(contextResetWarning) {
         val warning = contextResetWarning ?: return@LaunchedEffect
-        // AP-C08: Context-reset is an implementation detail — removed from user-facing snackbar.
+        // : Context-reset is an implementation detail — removed from user-facing snackbar.
         // Log to AuditRepository for DeveloperCenter visibility. Debug builds retain a subtle chip.
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
@@ -222,7 +223,7 @@ fun ChatScreen(
     var voiceChatInput      by remember { mutableStateOf("") }
     var voiceState          by remember { mutableStateOf(VoiceSessionState.IDLE) }
 
-    // AP-C03/C04: AgentPlanViewModel for ModalBottomSheet control
+    // /C04: AgentPlanViewModel for ModalBottomSheet control
     val agentPlanViewModel: com.airi.assistant.ui.plan.AgentPlanViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel()
     val isPanelVisible by agentPlanViewModel.isVisible.collectAsState()
@@ -532,8 +533,6 @@ fun ChatScreen(
             snackbarHost.showSnackbar(if (success) context.getString(R.string.export_success) else context.getString(R.string.export_failed))
         }
     }
-
-    // ── Plus menu picker bridge ───────────────────────────────────────────────
     val plusPickerRequest by viewModel.pendingPlusPickerRequest.collectAsState()
     LaunchedEffect(plusPickerRequest) {
         when (plusPickerRequest) {
@@ -547,8 +546,6 @@ fun ChatScreen(
             null -> { /* no-op */ }
         }
     }
-
-    // ── Edit-message prefill bridge ───────────────────────────────────────────
     // When the user taps "Edit" in the user bubble contextual menu, prefillInput()
     // sets pendingPrefill which is observed here and forwarded to AiriChatInputBar
     // via a shared mutableState key (externalInputText).
@@ -575,11 +572,12 @@ fun ChatScreen(
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             AiriChatTopBar(
-                modelState        = modelState,
-                agentState        = agentState,
-                agentMode         = agentMode,
-                showMenu          = showMenu,
-                todayTokens       = todayTokens,
+                modelState             = modelState,
+                agentState             = agentState,
+                agentMode              = agentMode,
+                showMenu               = showMenu,
+                todayTokens            = todayTokens,
+                dailyCreditsRemaining  = dailyCreditsRemaining,
                 onHistoryOpen     = { showHistoryPanel = true },
                 onModelPickerOpen = { showModelPicker = true },
                 onToggleDropdown  = { showMenu = !showMenu },
@@ -597,28 +595,21 @@ fun ChatScreen(
         },
         bottomBar = {
             Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
-                // ── Activity Feed (Phase 3) ────────────────────────────────────
-                com.airi.assistant.ui.activity.ActivityFeedComposable(
-                    modifier        = Modifier.fillMaxWidth(),
-                    compactMaxItems = 3
-                )
-                // AP-C03: AgentPlanOverlay replaced with ModalBottomSheet (see below Box scope).
-                // A compact AgentStatusChip is shown here for 1–2 step executions.
+                // Activity feed only visible while agent is executing
                 AnimatedVisibility(
-                    visible = pendingAttachments.isNotEmpty(),
-                    enter = fadeIn() + expandVertically(),
-                    exit  = fadeOut() + shrinkVertically()
+                    visible = agentState.isWorking,
+                    enter   = fadeIn() + expandVertically(),
+                    exit    = fadeOut() + shrinkVertically()
                 ) {
-                    androidx.compose.foundation.lazy.LazyRow(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(pendingAttachments, key = { it.id }) { att ->
-                            AttachmentChip(attachment = att, onRemove = { removeAttachment(att.id) })
-                        }
-                    }
+                    com.airi.assistant.ui.activity.ActivityFeedComposable(
+                        modifier        = Modifier.fillMaxWidth(),
+                        compactMaxItems = 3
+                    )
                 }
-                // AP-18: "Compressing history…" chip shown while ConversationSummarizer runs.
+                // : AgentPlanOverlay replaced with ModalBottomSheet (see below Box scope).
+                // A compact AgentStatusChip is shown here for 1–2 step executions.
+                // Attachment chips are now rendered inside the input pill (AiriChatInputBar).
+                // : "Compressing history…" chip shown while ConversationSummarizer runs.
                 // Non-blocking: chat remains usable. Chip auto-dismisses when done.
                 AnimatedVisibility(
                     visible = isSummarizing,
@@ -709,7 +700,27 @@ fun ChatScreen(
                             stopInAppStt(); return@vc
                         }
                         // Toggle LiveVoiceService (full-duplex) when Vosk model is available
+                        // Check if cloud realtime provider is selected
+                        val voicePrefs = context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE)
+                        val cloudVoiceProvider = voicePrefs.getString("cloud_voice_provider", "LOCAL") ?: "LOCAL"
                         when {
+                            cloudVoiceProvider != "LOCAL" -> {
+                                // Cloud realtime voice path — route through LiveVoiceService with cloud provider
+                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                                    == PackageManager.PERMISSION_GRANTED) {
+                                    viewModel.toggleVoiceMode()
+                                    liveChatActiveRef.value = !voiceModeActive
+                                    if (!voiceModeActive) {
+                                        // Store selected cloud provider so LiveVoiceService picks it up
+                                        android.util.Log.i("AIRI_VOICE", "Cloud voice provider: $cloudVoiceProvider")
+                                        startInAppStt(autoSend = true)
+                                    } else {
+                                        stopInAppStt()
+                                    }
+                                } else {
+                                    voiceChatPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                }
+                            }
                             !VoskModelManager.isReady(context) -> onNavigate(AiriRoute.VOICE_SETTINGS)
                             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
                                 == PackageManager.PERMISSION_GRANTED -> {
@@ -730,7 +741,7 @@ fun ChatScreen(
                     onVoiceConsumed      = { voiceInput = ""; voiceState = VoiceSessionState.IDLE },
                     onOpenModels         = { onNavigate(AiriRoute.MODELS) },
                     onNavigate           = onNavigate,
-                    // AP-C09: stage converted file as attachment
+                    // : stage converted file as attachment
                     onStageFile          = { uri -> viewModel.stageAttachmentUri(uri) },
                     externalInputText    = externalInputText,
                     onExternalInputConsumed = { externalInputText = null },
@@ -741,7 +752,6 @@ fun ChatScreen(
                         }
                         if (liveChatActiveRef.value) liveChatActiveRef.value = false
                     },
-                    // ── Quick action chip wiring ──────────────────────────────
                     isPlanModeActive  = isPlanModeActive,
                     onPlanModeToggle  = { viewModel.togglePlanMode() },
                     onOpenToolPicker  = { onNavigate(AiriRoute.CONNECTORS) },
@@ -750,7 +760,10 @@ fun ChatScreen(
                     activeSkillCount  = activeSkillCount,
                     onWebClick        = { viewModel.prefillInput("/web ") },
                     onCodeClick       = { viewModel.prefillInput("/code ") },
-                    onCalcClick       = { viewModel.prefillInput("/calc ") }
+                    onCalcClick       = { viewModel.prefillInput("/calc ") },
+                    // Pass attachments so they render inside the pill
+                    attachments         = pendingAttachments,
+                    onRemoveAttachment  = { uid -> pendingAttachments = pendingAttachments.filterNot { it.id == uid || it.uid == uid } }
                 )
             }
         }
@@ -773,10 +786,11 @@ fun ChatScreen(
                 onSuggestionClick  = { suggestion -> viewModel.sendMessage(suggestion) },
                 onEditMessage      = { text -> viewModel.prefillInput(text) },
                 onDeleteMessage    = { uid  -> viewModel.deleteMessage(uid) },
+                onFeedback         = { uid, liked -> viewModel.submitFeedback(uid, liked) },
                 modifier = Modifier.fillMaxSize()
             )
 
-            // AP-C07: Thinking animation — shown between send and first streaming token.
+            // : Thinking animation — shown between send and first streaming token.
             // Replaces the frozen-UI gap that users see during local LLM inference (2–15 s).
             // Condition: agent is working BUT no streamed text yet (first token hasn't arrived).
             AnimatedVisibility(
@@ -797,8 +811,6 @@ fun ChatScreen(
                     )
                 }
             }
-
-            // ── Live Voice Overlay (Phase 7) ──────────────────────────────
             // Shown when the user is in live/duplex voice mode
             if (liveChatActiveRef.value || voiceState != VoiceSessionState.IDLE) {
                 com.airi.assistant.ui.components.VoiceLiveOverlay(
@@ -818,7 +830,7 @@ fun ChatScreen(
                         .fillMaxWidth()
                 )
             }
-            // AP-47: Gate DebugOverlay — only visible in debug builds OR when developer
+            // : Gate DebugOverlay — only visible in debug builds OR when developer
             // debug mode is explicitly enabled via AgentControlScreen toggle.
             // Production builds with debugMode = false show nothing here.
             val isDebugVisible = com.airi.assistant.BuildConfig.DEBUG ||
@@ -848,7 +860,7 @@ fun ChatScreen(
                 }
             }
 
-            // B-17: Offline mode banner — shown when device has no internet.
+            // : Offline mode banner — shown when device has no internet.
             // Informs user that cloud models are unavailable and local model is active.
             AnimatedVisibility(
                 visible  = !isOnline,
@@ -882,10 +894,10 @@ fun ChatScreen(
                 }
             }
 
-            // P1-D: Context Reset Warning Banner
-            // Shown as a temporary amber banner whenever the active context window
-            // is cleared (new session, session switch, or model swap). Users can
-            // dismiss it manually; it also auto-dismisses after the snackbar fires.
+            // Context Reset Warning Banner — only shown in debug/developer mode.
+            // In production builds this is an implementation detail logged to audit log only.
+            val showContextResetBanner = (com.airi.assistant.BuildConfig.DEBUG || viewModel.isDebugModeEnabled()) &&
+                contextResetWarning != null
             val topOffset = when {
                 systemIntegrityFailed && !isOnline -> 96.dp
                 systemIntegrityFailed              -> 48.dp
@@ -893,7 +905,7 @@ fun ChatScreen(
                 else                               -> 0.dp
             }
             AnimatedVisibility(
-                visible  = contextResetWarning != null,
+                visible  = showContextResetBanner,
                 enter    = slideInVertically { -it } + fadeIn(),
                 exit     = slideOutVertically { -it } + fadeOut(),
                 modifier = Modifier
@@ -930,7 +942,7 @@ fun ChatScreen(
                             )
                         }
                         TextButton(onClick = { viewModel.acknowledgeContextReset() }) {
-                            Text(stringResource(R.string.ok), color = Color.White, fontSize = 12.sp)
+                            Text(stringResource(R.string.ok), color = MaterialTheme.colorScheme.onPrimary, fontSize = 12.sp)
                         }
                     }
                 }
@@ -967,8 +979,6 @@ fun ChatScreen(
     if (showGenSettings) {
         GenerationSettingsDialog(viewModel = viewModel, onDismiss = { showGenSettings = false })
     }
-
-    // ── Phase 1: Real accessibility action confirmation dialog ─────────────────
     // Shown when AndroidAgent requests confirmation for a destructive action
     // (send message, post content, share, delete).
     // Suspends the agent until the user responds. Times out after 30 s → cancel.
@@ -1057,7 +1067,7 @@ fun ChatScreen(
         )
     }
 
-    // AP-C03/C04: Agent Plan ModalBottomSheet — non-blocking; chat stays readable during execution.
+    // /C04: Agent Plan ModalBottomSheet — non-blocking; chat stays readable during execution.
     // Only shown for complex tasks (≥3 steps) OR when plan mode is explicitly active.
     if (isPanelVisible && (showPanel || isPlanModeActive)) {
         androidx.compose.material3.ModalBottomSheet(
@@ -1073,14 +1083,10 @@ fun ChatScreen(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // NEW TOP BAR — matching reference design
 // Left: back arrow + token badge
 // Center: model selector pill (dropdown chevron + model name + cloud icon)
 // Right: mute icon + history clock icon
-// ─────────────────────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AiriChatTopBar(
@@ -1089,6 +1095,7 @@ private fun AiriChatTopBar(
     agentMode: AgentMode,
     showMenu: Boolean,
     todayTokens: Long = 0L,
+    dailyCreditsRemaining: Int = 200,
     onHistoryOpen: () -> Unit,
     onModelPickerOpen: () -> Unit,
     onToggleDropdown: () -> Unit,
@@ -1103,12 +1110,8 @@ private fun AiriChatTopBar(
     onPointsClick: () -> Unit = {},
     onNavigate: (String) -> Unit = {}
 ) {
-    // Token count formatted for compact display (e.g. 1.2k, 45k)
-    val tokenDisplay = when {
-        todayTokens >= 1_000_000 -> "%.1fM".format(todayTokens / 1_000_000.0)
-        todayTokens >= 1_000     -> "%.1fk".format(todayTokens / 1_000.0)
-        else                     -> todayTokens.toString()
-    }
+    // Show credits remaining (correct source) instead of raw token count
+    val tokenDisplay = dailyCreditsRemaining.toString()
 
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
@@ -1208,7 +1211,7 @@ private fun AiriChatTopBar(
                     DropdownMenu(
                         expanded  = true,
                         onDismissRequest = onDismissDropdown,
-                        modifier = Modifier.background(Color(0xFF1A1F3A))
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         DropdownMenuItem(
                             text  = { Text(stringResource(R.string.generation_settings), color = AiriTheme.onBackground) },
@@ -1233,9 +1236,9 @@ private fun AiriChatTopBar(
                             leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
                             onClick = onExportChat
                         )
-                        // AP-24: Templates entry — was unreachable; now wired to AiriRoute.TEMPLATES
+                        // : Templates entry — was unreachable; now wired to AiriRoute.TEMPLATES
                         DropdownMenuItem(
-                            text  = { Text("Templates", color = AiriTheme.onBackground) },
+                            text  = { Text(stringResource(R.string.chat_templates_title), color = AiriTheme.onBackground) },
                             leadingIcon = { Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = CosmicAccent) },
                             onClick = {
                                 onDismissDropdown()
@@ -1248,11 +1251,7 @@ private fun AiriChatTopBar(
         }
     )
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // MODEL PICKER BOTTOM SHEET
-// ─────────────────────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AiriModelPickerSheet(
@@ -1275,7 +1274,7 @@ private fun AiriModelPickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFF111525),
+        containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = {
             Box(modifier = Modifier.padding(vertical = 10.dp)) {
                 Box(
@@ -1298,8 +1297,6 @@ private fun AiriModelPickerSheet(
                 textAlign = TextAlign.End,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
             )
-
-            // ── Local models ──────────────────────────────────────────────
             if (localModels.isNotEmpty()) {
                 Text(
                     stringResource(R.string.chat_on_device_label),
@@ -1327,8 +1324,6 @@ private fun AiriModelPickerSheet(
                 }
                 Spacer(Modifier.height(12.dp))
             }
-
-            // ── Cloud models (free built-in providers) ────────────────────
             Text(
                 stringResource(R.string.chat_cloud_label),
                 color = AiriTheme.onBackground.copy(0.45f), fontSize = 11.sp,
@@ -1406,11 +1401,7 @@ private fun ModelPickerRow(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // HISTORY PANEL — slides from start side, shows chat sessions
-// ─────────────────────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AiriHistoryPanel(
@@ -1546,11 +1537,7 @@ private fun AiriHistoryPanel(
     }
 
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // MESSAGES
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 fun ChatMessageList(
     messages: List<ChatMessage>,
@@ -1563,6 +1550,8 @@ fun ChatMessageList(
     onSuggestionClick: (String) -> Unit = {},
     onEditMessage: (String) -> Unit = {},
     onDeleteMessage: (String) -> Unit = {},
+    /** Task 1.7: Feedback callback so AiBubble can call ViewModel.submitFeedback. */
+    onFeedback: (uid: String, liked: Boolean) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -1689,13 +1678,15 @@ fun ChatMessageList(
                         )
                     } else {
                         AiBubble(
-                            text       = msg.text,
-                            agentTag   = msg.agentTag,
-                            traceId    = msg.traceId,
-                            hideAvatar = hideAvatar,
-                            onShare    = onShareAiResponse,
-                            onSpeak    = onSpeak,
-                            execOrigin = msg.execOrigin
+                            text            = msg.text,
+                            agentTag        = msg.agentTag,
+                            traceId         = msg.traceId,
+                            hideAvatar      = hideAvatar,
+                            onShare         = onShareAiResponse,
+                            onSpeak         = onSpeak,
+                            execOrigin      = msg.execOrigin,
+                            onFeedback      = { liked -> onFeedback(msg.uid, liked) },
+                            initialFeedback = msg.feedback
                         )
                     }
                 }
@@ -1772,7 +1763,7 @@ fun UserBubble(
                 DropdownMenu(
                     expanded         = showContextMenu,
                     onDismissRequest = { showContextMenu = false },
-                    modifier         = Modifier.background(Color(0xFF1A1F35))
+                    modifier         = Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     DropdownMenuItem(
                         text         = { Text(stringResource(R.string.copy), color = AiriTheme.onBackground, fontSize = 14.sp) },
@@ -1818,7 +1809,11 @@ fun AiBubble(
     hideAvatar: Boolean = false,
     onShare: (String) -> Unit = {},
     onSpeak: (String) -> Unit = {},
-    execOrigin: com.airi.assistant.execution.ExecOrigin = com.airi.assistant.execution.ExecOrigin.NONE
+    execOrigin: com.airi.assistant.execution.ExecOrigin = com.airi.assistant.execution.ExecOrigin.NONE,
+    /** Task 1.7: Persisted feedback state (1=liked,-1=disliked,0=none). */
+    initialFeedback: Int = 0,
+    /** Task 1.7: Called when user submits feedback so ViewModel can persist it. */
+    onFeedback: (liked: Boolean) -> Unit = {}
 ) {
     val context   = LocalContext.current
     val haptic    = LocalHapticFeedback.current
@@ -1883,13 +1878,14 @@ fun AiBubble(
                     }, modifier = Modifier.size(30.dp)) {
                         Icon(Icons.Outlined.ContentCopy, contentDescription = null, tint = AiriTheme.outline, modifier = Modifier.size(14.dp))
                     }
-                    // Dislike / Like — local toggle with haptic; persisted to MemoryManager
-                    // when a feedback API is added in a future pass.
-                    var liked    by remember { mutableStateOf(false) }
-                    var disliked by remember { mutableStateOf(false) }
+                    // Persisted thumbs up/down — initialized from DB feedback column.
+                    var liked    by remember { mutableStateOf(initialFeedback == 1) }
+                    var disliked by remember { mutableStateOf(initialFeedback == -1) }
                     IconButton(onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        disliked = !disliked; if (disliked) liked = false
+                        val newDisliked = !disliked
+                        disliked = newDisliked; if (newDisliked) liked = false
+                        onFeedback(false)
                     }, modifier = Modifier.size(30.dp)) {
                         Icon(Icons.Outlined.ThumbDown, contentDescription = null,
                             tint = if (disliked) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.35f),
@@ -1897,7 +1893,9 @@ fun AiBubble(
                     }
                     IconButton(onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        liked = !liked; if (liked) disliked = false
+                        val newLiked = !liked
+                        liked = newLiked; if (newLiked) disliked = false
+                        onFeedback(true)
                     }, modifier = Modifier.size(30.dp)) {
                         Icon(Icons.Outlined.ThumbUp, contentDescription = null,
                             tint = if (liked) CosmicAccent else Color.White.copy(alpha = 0.35f),
@@ -2004,7 +2002,7 @@ fun AiStreamingBubble(text: String) {
                 )
                 if (!isThinkingStage) BlinkingCursor()
             }
-            if (isThinkingStage) { Spacer(Modifier.height(10.dp)); AiriThinkingPulse() }
+            // AiriThinkingPulse removed — ThinkingAnimation bubble is the single indicator
         }
     }
 }
@@ -2023,7 +2021,7 @@ private fun AttachmentChip(
     Row(
         modifier = Modifier.widthIn(min = 140.dp, max = 240.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF1A1A1A).copy(0.55f))
+            .background(MaterialTheme.colorScheme.surface.copy(0.55f))
             .border(1.dp, accent.copy(0.35f), RoundedCornerShape(12.dp))
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -2067,42 +2065,9 @@ private fun BlinkingCursor() {
     ) { on -> Text(if (on) "▍" else " ", color = CosmicAccent.copy(0.85f), fontSize = 15.sp, lineHeight = 23.sp) }
 }
 
-@Composable
-private fun AiriThinkingPulse(modifier: Modifier = Modifier, dotSize: Dp = 7.dp, color: Color = CosmicAccent) {
-    val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "airi_pulse")
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        for (i in 0..2) {
-            val alphaPct by infinite.animateFloat(
-                initialValue = 0.20f, targetValue = 1f,
-                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                    animation = androidx.compose.animation.core.tween(600),
-                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
-                    initialStartOffset = androidx.compose.animation.core.StartOffset(i * 160)
-                ), label = "p$i"
-            )
-            val scale by infinite.animateFloat(
-                initialValue = 0.70f, targetValue = 1f,
-                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                    animation = androidx.compose.animation.core.tween(600),
-                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
-                    initialStartOffset = androidx.compose.animation.core.StartOffset(i * 160)
-                ), label = "s$i"
-            )
-            Box(
-                modifier = Modifier
-                    .padding(end = if (i < 2) 6.dp else 0.dp)
-                    .graphicsLayer { scaleX = scale; scaleY = scale; alpha = alphaPct }
-                    .size(dotSize).clip(CircleShape).background(color)
-            )
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
+// AiriThinkingPulse removed (Task 2.4) — ThinkingAnimation bubble is the single indicator
 // NEW INPUT BAR — matches reference design
 // Layout: [send/livechat circle] [+] [mic] [waveform] [connector badges] [text field] [expand ^]
-// ─────────────────────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiriChatInputBar(
@@ -2124,12 +2089,17 @@ fun AiriChatInputBar(
     onVoiceConsumed: () -> Unit,
     onOpenModels: () -> Unit,
     onNavigate: (String) -> Unit = {},
-    // AP-C09: called when user converts large prompt to attached file
+    // : called when user converts large prompt to attached file
     onStageFile: (android.net.Uri) -> Unit = {},
     /** When non-null, pre-fills the text field (e.g. for Edit message). */
     externalInputText: String? = null,
     onExternalInputConsumed: () -> Unit = {},
-    onUserStartedTyping: () -> Unit = {}
+    onUserStartedTyping: () -> Unit = {},
+    /** Task 2.1: Called when focus changes so AdvancedChatInputBar can collapse toolbar. */
+    onFocusChanged: (Boolean) -> Unit = {},
+    /** Task 1.2: Attachments rendered inside the pill between text field and toolbar. */
+    attachments: List<ChatAttachment> = emptyList(),
+    onRemoveAttachment: (String) -> Unit = {}
 ) {
     var showAttachPopup by remember { mutableStateOf(false) }
     val attachSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -2139,7 +2109,7 @@ fun AiriChatInputBar(
     val canSend = text.isNotBlank() && isInferenceReady && !modelState.isModelLoading && !isGenerating
     val isTyping = text.isNotBlank()
 
-    // AP-C09: Large prompt detection (>2000 chars)
+    // : Large prompt detection (>2000 chars)
     val showConvertBanner = text.length > 2_000
 
     // Apply external pre-fill (e.g. from Edit bubble action)
@@ -2171,7 +2141,7 @@ fun AiriChatInputBar(
 
     Column(modifier = Modifier.fillMaxWidth()) {
 
-        // AP-C09: Large prompt convert-to-file banner
+        // : Large prompt convert-to-file banner
         AnimatedVisibility(
             visible = showConvertBanner,
             enter   = fadeIn() + expandVertically(),
@@ -2204,7 +2174,7 @@ fun AiriChatInputBar(
                             val file = java.io.File(dir, "prompt_${System.currentTimeMillis()}.txt")
                             file.writeText(text)
                             androidx.core.content.FileProvider.getUriForFile(
-                                ctx, "${ctx.packageName}.provider", file
+                                ctx, "${ctx.packageName}.fileprovider", file
                             )
                         }.getOrNull()
                         if (uri != null) {
@@ -2214,13 +2184,13 @@ fun AiriChatInputBar(
                     },
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                 ) {
-                    Text("Convert", fontSize = 11.sp, color = CosmicAccent, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.chat_convert), fontSize = 11.sp, color = CosmicAccent, fontWeight = FontWeight.SemiBold)
                 }
                 androidx.compose.material3.TextButton(
                     onClick = { /* user chooses to keep text as-is, banner dismisses when <2000 chars */ },
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                 ) {
-                    Text("Keep", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant.copy(0.6f))
+                    Text(stringResource(R.string.chat_keep), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant.copy(0.6f))
                 }
             }
         }
@@ -2274,18 +2244,30 @@ fun AiriChatInputBar(
                 Text(stringResource(R.string.no_model_tap_select), color = Color(0xFFFFCC00), fontSize = 12.sp)
             }
         }
-
-        // ── Main pill container ────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 10.dp, vertical = 8.dp)
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF131728).copy(alpha = 0.96f))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.96f))
                 .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(20.dp))
         ) {
-
-            // ── Multi-line text field ──────────────────────────────────────
+            if (attachments.isNotEmpty()) {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(attachments, key = { it.uid }) { attachment ->
+                        AttachmentChip(
+                            attachment = attachment,
+                            onRemove   = { onRemoveAttachment(attachment.uid) }
+                        )
+                    }
+                }
+                Divider(color = MaterialTheme.colorScheme.outline, thickness = 0.5.dp)
+            }
             Box(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
@@ -2296,7 +2278,13 @@ fun AiriChatInputBar(
                         text = newValue
                     },
                     enabled = isInferenceReady && !isGenerating,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp, max = if (isExpanded) 180.dp else 60.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 32.dp, max = if (isExpanded) 180.dp else 60.dp)
+                        .onFocusChanged { state ->
+                            // Propagate focus change upward so toolbar collapses
+                            onFocusChanged(state.isFocused)
+                        },
                     textStyle = androidx.compose.ui.text.TextStyle(
                         color = AiriTheme.onBackground, fontSize = 15.sp,
                         textAlign = TextAlign.End   // RTL default
@@ -2323,8 +2311,6 @@ fun AiriChatInputBar(
                     }
                 )
             }
-
-            // ── Bottom toolbar row ─────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -2407,7 +2393,7 @@ fun AiriChatInputBar(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xFF1E2438))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                             .border(1.dp, Color.White.copy(0.12f), RoundedCornerShape(20.dp))
                             .clickable { onNavigate(AiriRoute.CONNECTORS) }
                             .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -2434,13 +2420,11 @@ fun AiriChatInputBar(
         }
 
     }
-
-    // ── Attach bottom sheet (Material 3) ───────────────────────────────────
     if (showAttachPopup) {
         ModalBottomSheet(
             onDismissRequest = { showAttachPopup = false },
             sheetState = attachSheetState,
-            containerColor = Color(0xFF1A1F35),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
             contentColor = AiriTheme.onBackground,
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
             dragHandle = {
@@ -2463,7 +2447,6 @@ fun AiriChatInputBar(
                     .padding(bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                // ── Section A header ──────────────────────────────────────
                 Text(
                     text = stringResource(R.string.attach_section_media),
                     color = AiriTheme.onBackground.copy(0.45f),
@@ -2471,7 +2454,6 @@ fun AiriChatInputBar(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
-                // ── Section A — 3 equal cards ─────────────────────────────
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2495,7 +2477,6 @@ fun AiriChatInputBar(
                     ) { showAttachPopup = false; onPickFile() }
                 }
                 Spacer(Modifier.height(12.dp))
-                // ── Section B header ──────────────────────────────────────
                 Text(
                     text = stringResource(R.string.attach_section_actions),
                     color = AiriTheme.onBackground.copy(0.45f),
@@ -2503,7 +2484,6 @@ fun AiriChatInputBar(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
-                // ── Section B — vertical list ─────────────────────────────
                 AttachListRow(
                     icon = Icons.Outlined.Storage,
                     label = stringResource(R.string.attach_spreadsheet)
@@ -2604,7 +2584,7 @@ private fun AttachListRow(
 private fun ModelErrorDialog(error: String, errorType: String, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF12162E),
+        containerColor = MaterialTheme.colorScheme.surface,
         titleContentColor = Color.White, textContentColor = Color.White,
         shape = RoundedCornerShape(20.dp),
         title = { Text(stringResource(R.string.model_error), fontWeight = FontWeight.Bold) },
@@ -2676,7 +2656,7 @@ fun AiriDrawer(
                 modifier = Modifier.fillMaxWidth().height(32.dp).align(Alignment.BottomCenter).offset(y = (-112).dp)
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xFF0D1124))))
             )
-            Column(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color(0xFF0D1124))) {
+            Column(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
                 Divider(color = AiriTheme.onBackground.copy(0.08f))
                 DrawerNavItem(icon = Icons.Outlined.Settings, label = stringResource(R.string.settings), route = AiriRoute.SETTINGS, onNavigate = onNavigate)
                 DrawerActionItem(icon = Icons.Outlined.Logout, label = stringResource(R.string.sign_out), tint = Color(0xFFFF6B6B), onClick = onLogout)
@@ -2724,7 +2704,7 @@ private fun GenerationSettingsDialog(viewModel: ChatViewModel, onDismiss: () -> 
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF12162E), titleContentColor = Color.White, textContentColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface, titleContentColor = Color.White, textContentColor = Color.White,
         shape = RoundedCornerShape(20.dp),
         title = { Text(stringResource(R.string.generation_settings), fontWeight = FontWeight.Bold) },
         text = {

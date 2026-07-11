@@ -30,8 +30,6 @@ import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.ui.theme.CosmicAccent
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
-
-// ─────────────────────────────────────────────────────────────────────────────
 // ExecutionModePanel — User control layer for the Hybrid Execution system
 //
 // All state flows through the ViewModel (via callbacks). This composable is
@@ -39,8 +37,6 @@ import com.airi.assistant.R
 // No direct access to SharedPreferences, no coroutine launches inside.
 //
 // AIRI never hides execution origin — this panel makes every setting visible.
-// ─────────────────────────────────────────────────────────────────────────────
-
 private val CloudColor  = Color(0xFF29B6F6)  // light blue
 private val LocalColor  = Color(0xFF66BB6A)  // green
 private val HybridColor = Color(0xFFAB47BC)  // purple
@@ -89,8 +85,6 @@ fun ExecutionModePanel(
             title = "Execution Mode"
         )
         Spacer(Modifier.height(12.dp))
-
-        // ── Mode selector ─────────────────────────────────────────────────────
         ExecutionMode.values().forEach { mode ->
             ExecModeOption(
                 mode       = mode,
@@ -99,8 +93,6 @@ fun ExecutionModePanel(
             )
             if (mode != ExecutionMode.values().last()) Spacer(Modifier.height(6.dp))
         }
-
-        // ── Internet permission (shown when mode ≠ LOCAL_ONLY) ────────────────
         AnimatedVisibility(
             visible = currentMode != ExecutionMode.LOCAL_ONLY,
             enter   = expandVertically(),
@@ -140,8 +132,6 @@ fun ExecutionModePanel(
                 }
             }
         }
-
-        // ── Cloud controls (shown when internet is granted + mode ≠ LOCAL) ────
         AnimatedVisibility(
             visible = internetGranted && currentMode != ExecutionMode.LOCAL_ONLY,
             enter   = expandVertically(),
@@ -200,8 +190,6 @@ fun ExecutionModePanel(
                 }
             }
         }
-
-        // ── Privacy level ─────────────────────────────────────────────────────
         Spacer(Modifier.height(12.dp))
         Divider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
         Spacer(Modifier.height(12.dp))
@@ -240,11 +228,7 @@ fun ExecutionModePanel(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Internal composables
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun ExecModeOption(
     mode:       ExecutionMode,

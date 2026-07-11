@@ -12,7 +12,11 @@ data class ChatMessage(
     val content: String,
     val timestamp: Long = System.currentTimeMillis(),
     val emotionState: String? = null,
-    val isMemory: Boolean = false
+    val isMemory: Boolean = false,
+    /** Task 1.7: Persisted thumbs feedback. 1 = liked, -1 = disliked, 0 = none. */
+    val feedback: Int = 0,
+    /** Task 4.1: JSON-serialized attachment metadata for history display. */
+    val attachmentJson: String? = null
 ) {
     @Ignore
     val sender: String = role

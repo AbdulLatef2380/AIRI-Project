@@ -58,11 +58,11 @@ fun UpdateScreen(onBack: () -> Unit) {
                 date       = "June 2025",
                 isCurrent  = true,
                 highlights = listOf(
-                    "🧠" to "Phase 2: RAG memory injection into every prompt — AIRI now remembers across sessions",
+                    "•" to "Phase 2: RAG memory injection into every prompt — AIRI now remembers across sessions",
                     "☁️" to "Cloud memory sync: long-term memories backed up to Firestore, privacy-gated",
                     "📚" to "Media Library: unified repository for images, documents, and generated artifacts",
-                    "✨" to "Skill Registry v2: semver versioning, dependency validation, downgrade protection",
-                    "🎯" to "Dynamic Prompt Engine: 10-slot assembly with token budget enforcement",
+                    "•" to "Skill Registry v2: semver versioning, dependency validation, downgrade protection",
+                    "•" to "Dynamic Prompt Engine: 10-slot assembly with token budget enforcement",
                     "🎙️" to "Phase 3: Voice Personalization — pitch, rate, personality presets",
                     "🔒" to "Permissions Screen: full rationale view for all 13+ permissions",
                     "💳" to "Credits Screen: real-time credit metering and token accounting",
@@ -80,10 +80,10 @@ fun UpdateScreen(onBack: () -> Unit) {
                 version    = "0.9.0",
                 date       = "May 2025",
                 highlights = listOf(
-                    "🌐" to "ConnectorsScreen: full ViewModel wiring for third-party integrations",
+                    "•" to "ConnectorsScreen: full ViewModel wiring for third-party integrations",
                     "🎨" to "SkillManagerScreen: 3 import paths (Storage, GitHub, AI-generated)",
-                    "🔧" to "Model picker: correct selectModel public API",
-                    "📊" to "Token counter wired end-to-end ViewModel → ChatScreen → TopBar",
+                    "•" to "Model picker: correct selectModel public API",
+                    "•" to "Token counter wired end-to-end ViewModel → ChatScreen → TopBar",
                     "🌙" to "ThemePreferences.kt: system/dark/light dynamic theming"
                 ),
                 fixes = listOf(
@@ -99,7 +99,7 @@ fun UpdateScreen(onBack: () -> Unit) {
                     "♿" to "AiriAccessibilityService: full UI tree scanning and action execution",
                     "🗣️" to "Vosk STT integration with VoskModelManager and model download",
                     "🔊" to "IncrementalTtsEngine: streaming sentence-level synthesis",
-                    "🤖" to "PlanGenerator: JSON ActionPlan with multi-step execution",
+                    "•" to "PlanGenerator: JSON ActionPlan with multi-step execution",
                     "💾" to "Room database v3: episodic memory + semantic embeddings"
                 ),
                 fixes = listOf(
@@ -142,16 +142,12 @@ fun UpdateScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
-
-            // ── Current Version Status ───────────────────────────────────────
             item {
                 UpdateStatusCard(
                     checkState = checkState,
                     onCheckNow = { checkState = CheckState.Checking }
                 )
             }
-
-            // ── Update Banner (only shown when update available) ─────────────
             if (checkState == CheckState.UpdateAvailable) {
                 item {
                     UpdateBanner(
@@ -160,8 +156,6 @@ fun UpdateScreen(onBack: () -> Unit) {
                     )
                 }
             }
-
-            // ── Release Notes ────────────────────────────────────────────────
             item {
                 Text(
                     "Release Notes",

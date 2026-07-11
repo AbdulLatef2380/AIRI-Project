@@ -24,11 +24,11 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
     val isVisible: StateFlow<Boolean>          = tracker.isVisible
 
     /**
-     * AP-C04: Show ModalBottomSheet only for complex tasks (≥ 3 steps) or explicit plan mode.
-     * Simple 1–2 step executions show only AgentStatusChip.
+     * Task 1.10: Show ModalBottomSheet for ANY step ≥ 1, or when plan mode is explicitly active.
+     * Previously required ≥ 3 steps which caused panel to not appear for simple 1-2 step tasks.
      */
     val showPanel: StateFlow<Boolean> = steps
-        .map { s -> s.size >= 3 }
+        .map { s -> s.size >= 1 }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val _isPanelExpanded = MutableStateFlow(true)
@@ -45,7 +45,7 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
         ExecutionStatusBus.status.onEach { state ->
             _currentStage.value = state.executionStage
             if (state.activeGoalDescription.isNotBlank()) _goalDescription.value = state.activeGoalDescription
-            // AP-C03: Auto-collapse panel when execution finishes (COMPLETED/FAILED/IDLE)
+            // : Auto-collapse panel when execution finishes (COMPLETED/FAILED/IDLE)
             if (state.executionStage == ExecutionStage.COMPLETED ||
                 state.executionStage == ExecutionStage.FAILED ||
                 state.executionStage == ExecutionStage.IDLE) {
@@ -63,6 +63,6 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
     fun toggleExpanded() { _isPanelExpanded.value = !_isPanelExpanded.value }
     fun setExpanded(expanded: Boolean) { _isPanelExpanded.value = expanded }
     fun dismissPanel() { tracker.clear() }
-    /** AP-C03: Called by ModalBottomSheet onDismissRequest. */
+    /** : Called by ModalBottomSheet onDismissRequest. */
     fun collapse() { tracker.clear() }
 }

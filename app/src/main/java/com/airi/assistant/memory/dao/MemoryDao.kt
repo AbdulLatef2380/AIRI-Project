@@ -88,6 +88,14 @@ interface MemoryDao {
     @Query("SELECT COUNT(*) FROM episodic_memory")
     suspend fun getMessageCount(): Int
 
+    /** Task 1.7: Persist thumbs up/down feedback for a message (1=like, -1=dislike, 0=none). */
+    @Query("UPDATE episodic_memory SET feedback = :feedback WHERE id = :id")
+    suspend fun updateMessageFeedback(id: Long, feedback: Int)
+
+    /** Task 1.7: Retrieve feedback for a specific message. */
+    @Query("SELECT feedback FROM episodic_memory WHERE id = :id LIMIT 1")
+    suspend fun getMessageFeedback(id: Long): Int?
+
     /** Wipe everything the Memory screen displays. */
     @Query("DELETE FROM episodic_memory")
     suspend fun clearSemanticMemories()

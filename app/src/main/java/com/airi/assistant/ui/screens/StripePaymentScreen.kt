@@ -67,7 +67,6 @@ fun StripePaymentScreen(
         containerColor = AiriTheme.background
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            // ── Tabs ─────────────────────────────────────────────────────
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor   = AiriTheme.background,
@@ -81,8 +80,6 @@ fun StripePaymentScreen(
                     )
                 }
             }
-
-            // ── Payment state banner ──────────────────────────────────────
             AnimatedVisibility(visible = paymentState !is StripeManager.PaymentState.Idle && paymentState !is StripeManager.PaymentState.CheckoutReady) {
                 PaymentStateBanner(paymentState) { stripeManager.resetState() }
             }
@@ -191,7 +188,6 @@ private fun PremiumTab(
 
         if (!isPremium) {
             item {
-                // ── Plan toggle ──────────────────────────────────────────
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,

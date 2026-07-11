@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.airi.assistant.ui.theme.CosmicAccent
 
 /**
- * AP-C07: 3-dot staggered bounce animation shown between message send and first streaming token.
+ * : 3-dot staggered bounce animation shown between message send and first streaming token.
  * Replaces the frozen-UI gap (2–15 s for local LLM inference) with a clear "thinking" signal.
  */
 @Composable

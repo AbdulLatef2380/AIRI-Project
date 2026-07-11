@@ -82,18 +82,12 @@ fun CreditsScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
-
-            // ── Daily Credit Balance ─────────────────────────────────────────
             item {
                 CreditBalanceCard(snapshot = snapshot)
             }
-
-            // ── Usage Alerts ─────────────────────────────────────────────────
             item {
                 UsageAlertsCard(snapshot = snapshot)
             }
-
-            // ── Per-Action Breakdown ─────────────────────────────────────────
             item {
                 CreditsCard(title = "Today's Usage by Action", icon = Icons.Outlined.BarChart) {
                     if (snapshot.perActionDay.isEmpty()) {
@@ -117,8 +111,6 @@ fun CreditsScreen(onBack: () -> Unit) {
                     }
                 }
             }
-
-            // ── Token Accounting ─────────────────────────────────────────────
             item {
                 CreditsCard(title = "Token Usage Today", icon = Icons.Outlined.Token) {
                     val activeProviders = tokenStats.filter { it.value.totalTokens > 0 }
@@ -150,8 +142,6 @@ fun CreditsScreen(onBack: () -> Unit) {
                     }
                 }
             }
-
-            // ── Lifetime Stats ───────────────────────────────────────────────
             item {
                 CreditsCard(title = "Lifetime Statistics", icon = Icons.Outlined.Timeline) {
                     StatRow("Total credits consumed", snapshot.lifetimeTotal.toString())
@@ -259,17 +249,17 @@ private fun UsageAlertsCard(snapshot: MeterSnapshot) {
         )
         "critical" -> listOf(
             SemanticError.copy(0.07f), SemanticError.copy(0.20f),
-            "⚠️", "Almost out of credits",
+            "!", "Almost out of credits",
             "${snapshot.remaining} credits remain. Consider upgrading to Premium to avoid interruptions."
         )
         "warning" -> listOf(
             SemanticWarn.copy(0.07f), SemanticWarn.copy(0.20f),
-            "⚡", "75% of daily credits used",
+            "~", "75% of daily credits used",
             "${snapshot.remaining} credits remain today. Usage is on track."
         )
         else -> listOf(
             SemanticSuccess.copy(0.07f), SemanticSuccess.copy(0.20f),
-            "✅", "Credits healthy",
+            "✓", "Credits healthy",
             "${snapshot.remaining} of ${snapshot.budget} credits remain. You're well within your daily limit."
         )
     }
@@ -378,13 +368,13 @@ private fun StatRow(label: String, value: String) {
 
 private fun actionDisplayInfo(action: ActionType): Pair<String, String> = when (action) {
     ActionType.MESSAGE          -> "💬" to "Messages"
-    ActionType.AGENT_EXECUTION  -> "🤖" to "Agent execution"
-    ActionType.SKILL_USE        -> "✨" to "Skill use"
+    ActionType.AGENT_EXECUTION  -> "◈" to "Agent execution"
+    ActionType.SKILL_USE        -> "◈" to "Skill use"
     ActionType.IMAGE_GENERATION -> "🖼" to "Image generation"
     ActionType.DOCUMENT_PROCESS -> "📄" to "Document processing"
-    ActionType.BROWSER_FETCH    -> "🌐" to "Web fetch"
+    ActionType.BROWSER_FETCH    -> "⊕" to "Web fetch"
     ActionType.SCHEDULED_JOB    -> "⏰" to "Scheduled jobs"
-    ActionType.RAG_RETRIEVAL    -> "🧠" to "Memory retrieval"
+    ActionType.RAG_RETRIEVAL    -> "◉" to "Memory retrieval"
 }
 
 private fun formatTokens(n: Long): String = when {

@@ -62,7 +62,7 @@ class ScheduledAgentWorker(
 
         LoggingService.info(TAG, "AIRI_PROOF SCHEDULED_JOB_STARTED id=$jobId agent=$agentId label=$label")
 
-        // AP-11: System maintenance payloads are handled directly — they don't route
+        // : System maintenance payloads are handled directly — they don't route
         // through the agent/orchestrator stack because they are infrastructure tasks,
         // not user-facing agent actions.
         if (agentId == "system") {

@@ -91,8 +91,6 @@ fun IntegrationsScreen(onBack: () -> Unit) {
     val vm: IntegrationsViewModel = viewModel()
     val items by vm.items.collectAsState()
     val dialog by vm.dialog.collectAsState()
-
-    // ─── Google Sign-In launcher ───────────────────────────────────────────────
     val googleLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -179,8 +177,6 @@ fun IntegrationsScreen(onBack: () -> Unit) {
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
-
-    // ─── GitHub Dialog ─────────────────────────────────────────────────────────
     if (dialog is IntegrationsViewModel.DialogState.Github) {
         val state = dialog as IntegrationsViewModel.DialogState.Github
         TokenDialog(
@@ -207,8 +203,6 @@ fun IntegrationsScreen(onBack: () -> Unit) {
             onDismiss = { vm.closeDialog() }
         )
     }
-
-    // ─── Telegram Dialog ───────────────────────────────────────────────────────
     if (dialog is IntegrationsViewModel.DialogState.Telegram) {
         val state = dialog as IntegrationsViewModel.DialogState.Telegram
         TokenDialog(
@@ -232,9 +226,6 @@ fun IntegrationsScreen(onBack: () -> Unit) {
         )
     }
 }
-
-// ─── Integration Card ──────────────────────────────────────────────────────────
-
 @Composable
 private fun IntegrationCard(
     item: IntegrationsViewModel.IntegrationItem,
@@ -256,8 +247,6 @@ private fun IntegrationCard(
         tonalElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-
-            // ── Header ─────────────────────────────────────────────────────────
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val iconResId: Int? = when (item.id) {
                     "github"   -> com.airi.assistant.R.drawable.ic_integration_github
@@ -310,8 +299,6 @@ private fun IntegrationCard(
                 Spacer(Modifier.width(10.dp))
                 StatusBadge(connected)
             }
-
-            // ── Connected-as ───────────────────────────────────────────────────
             AnimatedVisibility(
                 visible = connected && item.connectedAs.isNotBlank(),
                 enter = fadeIn(),
@@ -361,8 +348,6 @@ private fun IntegrationCard(
                     }
                 }
             }
-
-            // ── Action button ──────────────────────────────────────────────────
             // Use a full-width button (instead of Arrangement.End) so the
             // "Connect" / "Disconnect" affordance is reliably tappable even on
             // small screens and in RTL layouts.
@@ -383,7 +368,7 @@ private fun IntegrationCard(
                     onClick  = onConnect,
                     modifier = Modifier.fillMaxWidth(),
                     colors   = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF6D28D9)
+                        containerColor = MaterialTheme.colorScheme.primary
                     ),
                     shape = RoundedCornerShape(14.dp)
                 ) {
@@ -393,9 +378,6 @@ private fun IntegrationCard(
         }
     }
 }
-
-// ─── Status Badge ──────────────────────────────────────────────────────────────
-
 @Composable
 private fun StatusBadge(connected: Boolean) {
     val bgColor = if (connected) Color(0xFF4ADE80).copy(alpha = 0.15f)
@@ -444,9 +426,6 @@ private fun StatusBadge(connected: Boolean) {
         )
     }
 }
-
-// ─── Token Input Dialog ────────────────────────────────────────────────────────
-
 @Composable
 private fun TokenDialog(
     title: String,
@@ -463,7 +442,7 @@ private fun TokenDialog(
 ) {
     AlertDialog(
         onDismissRequest = { if (!loading) onDismiss() },
-        containerColor = Color(0xFF1A1625),
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(20.dp),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -604,7 +583,7 @@ private fun TokenDialog(
                 onClick = onConfirm,
                 enabled = !loading && token.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF6D28D9),
+                    containerColor = MaterialTheme.colorScheme.primary,
                     disabledContainerColor = Color(0xFF6D28D9).copy(alpha = 0.35f)
                 )
             ) {
@@ -621,8 +600,5 @@ private fun TokenDialog(
         }
     )
 }
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-
 private fun formatTime(timestamp: Long): String =
     SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(timestamp))

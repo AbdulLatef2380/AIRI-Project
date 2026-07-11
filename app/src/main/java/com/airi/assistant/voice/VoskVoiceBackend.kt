@@ -11,7 +11,7 @@ import org.vosk.Recognizer
 /**
  * Implements [VoiceConnector.VoiceBackend] using the on-device Vosk STT engine.
  *
- * B-08 FIX: Previously VoiceConnector had `backend = null` — always disconnected.
+ *  FIX: Previously VoiceConnector had `backend = null` — always disconnected.
  * This class is the concrete VoiceBackend registered by ConnectorBootstrap.
  *
  * Audio format expected by [transcribe]: raw PCM-16 mono 16 kHz little-endian bytes.

@@ -133,7 +133,7 @@ fun MemoryScreen(
                         showConfirm = false
                         viewModel.clearMemory()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCC3333))
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) { Text(stringResource(R.string.memory_clear_button)) }
             },
             dismissButton = {

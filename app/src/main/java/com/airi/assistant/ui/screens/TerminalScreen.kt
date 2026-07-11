@@ -66,10 +66,10 @@ fun TerminalScreen(onBack: () -> Unit) {
                         Icon(Icons.Outlined.CleaningServices, null, tint = Color.White.copy(0.6f))
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF060910))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
-        containerColor = Color(0xFF060910)
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // Terminal output

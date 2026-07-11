@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Shared attachments from app's internal files directory -->
+    <files-path name="attachments" path="attachments/" />
+    <!-- Cache files (temporary shares) -->
+    <cache-path name="cache" path="." />
+    <!-- External cache for sharing via other apps -->
+    <external-cache-path name="external_cache" path="." />
+</paths>

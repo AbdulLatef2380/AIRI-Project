@@ -77,7 +77,6 @@ fun AgentTraceDetailScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // ── Input ─────────────────────────────────────────────────────
             item {
                 TraceDetailCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -90,8 +89,6 @@ fun AgentTraceDetailScreen(
                     Text(t.originalInput, color = AiriTheme.onBackground.copy(alpha = 0.9f), fontSize = 14.sp, lineHeight = 20.sp)
                 }
             }
-
-            // ── Summary banner ────────────────────────────────────────────
             item {
                 Row(
                     modifier = Modifier
@@ -132,8 +129,6 @@ fun AgentTraceDetailScreen(
                     )
                 }
             }
-
-            // ── Steps ─────────────────────────────────────────────────────
             if (t.steps.isNotEmpty()) {
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
@@ -147,8 +142,6 @@ fun AgentTraceDetailScreen(
                     AgentStepCard(index = idx, step = step)
                 }
             }
-
-            // ── Final Result ──────────────────────────────────────────────
             if (t.finalResult.isNotBlank()) {
                 item {
                     TraceDetailCard {

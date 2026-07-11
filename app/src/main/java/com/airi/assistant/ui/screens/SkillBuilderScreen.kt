@@ -51,9 +51,6 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
-
-// ─── Preset Templates ────────────────────────────────────────────────────────
-
 private data class SkillPreset(
     val label: String,
     val name: String,
@@ -104,9 +101,6 @@ private val SKILL_PRESETS = listOf(
         bodyTemplate = """{"query":"{{user_input}}","user_id":"{{user_id}}"}"""
     )
 )
-
-// ─── Screen ──────────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SkillBuilderScreen(
@@ -295,8 +289,6 @@ fun SkillBuilderScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-
-            // ── Circuit Breaker Warning ────────────────────────────────────────
             if (circuitHealth == SkillCircuitBreaker.SkillHealth.OPEN) {
                 SkillHealthBanner(
                     message = "This skill is temporarily disabled — it failed too many times. It will auto-recover after 60s.",
@@ -308,8 +300,6 @@ fun SkillBuilderScreen(
                     color = Color(0xFFFFA726)
                 )
             }
-
-            // ── Templates Section ─────────────────────────────────────────────
             SkillBuilderSection(
                 title = "Quick Templates",
                 collapsible = true,
@@ -326,8 +316,6 @@ fun SkillBuilderScreen(
                     PresetCard(preset = preset, onClick = { applyPreset(preset) })
                 }
             }
-
-            // ── Details Section ───────────────────────────────────────────────
             SkillBuilderSection("Details") {
                 SkillTextField(
                     value = name,
@@ -343,8 +331,6 @@ fun SkillBuilderScreen(
                     helperText = "Explain what this skill does. The AI uses this description to decide when to call it."
                 )
             }
-
-            // ── Type Section ──────────────────────────────────────────────────
             // SkillType.LOCAL is intentionally hidden from the chip row.
             // CustomSkillExecutor.execute() rejects LOCAL skills with the message
             // "Local custom skills are not executable yet." — exposing the chip
@@ -376,8 +362,6 @@ fun SkillBuilderScreen(
                         }
                 }
             }
-
-            // ── Request Section ───────────────────────────────────────────────
             SkillBuilderSection("Request") {
                 SkillTextField(
                     value = endpoint,
@@ -413,8 +397,6 @@ fun SkillBuilderScreen(
                     )
                 }
             }
-
-            // ── Headers Section ───────────────────────────────────────────────
             SkillBuilderSection("Headers") {
                 Text(
                     "Add HTTP headers such as Authorization or API keys. Sensitive values (API keys, tokens) are encrypted before storage.",
@@ -423,8 +405,6 @@ fun SkillBuilderScreen(
                 )
                 HeaderEditor(headers)
             }
-
-            // ── Body Template Section ─────────────────────────────────────────
             SkillBuilderSection("Body Template") {
                 Text(
                     "Write the JSON body to send with the request. Use template variables to inject dynamic values at runtime.",
@@ -439,8 +419,6 @@ fun SkillBuilderScreen(
                 )
                 TemplateVariablesHint()
             }
-
-            // ── Action Buttons ────────────────────────────────────────────────
             Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -487,9 +465,6 @@ fun SkillBuilderScreen(
         }
     }
 }
-
-// ─── Health Banner ────────────────────────────────────────────────────────────
-
 @Composable
 private fun SkillHealthBanner(message: String, color: Color) {
     Row(
@@ -506,9 +481,6 @@ private fun SkillHealthBanner(message: String, color: Color) {
         Text(message, color = color, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
-
-// ─── Test Result Dialog ───────────────────────────────────────────────────────
-
 private data class TestResult(
     val success: Boolean,
     val rawOutput: String,
@@ -524,12 +496,11 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF1A1A2E))
+                .background(MaterialTheme.colorScheme.surface)
                 .border(1.dp, statusColor.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // ── Status header ─────────────────────────────────────────────────
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -551,7 +522,6 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
             }
 
             if (result.success && result.rawOutput.isNotBlank()) {
-                // ── Formatted success result ──────────────────────────────────
                 val formatted = remember(result.rawOutput) { formatSkillOutput(result.rawOutput) }
                 Text(stringResource(R.string.skill_builder_response), color = AiriTheme.onBackground.copy(alpha = 0.45f), fontSize = 11.sp)
                 Box(
@@ -572,7 +542,6 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
             }
 
             if (!result.errorMessage.isNullOrBlank()) {
-                // ── Error display ─────────────────────────────────────────────
                 Text(stringResource(R.string.skill_builder_error), color = AiriTheme.onBackground.copy(alpha = 0.45f), fontSize = 11.sp)
                 Box(
                     modifier = Modifier
@@ -627,9 +596,6 @@ private fun formatSkillOutput(rawJson: String): String {
         sb.toString().take(1200)
     }.getOrElse { rawJson.take(1200) }
 }
-
-// ─── Template Variables Hint ─────────────────────────────────────────────────
-
 @Composable
 private fun TemplateVariablesHint() {
     val variables = listOf(
@@ -669,9 +635,6 @@ private fun TemplateVariablesHint() {
         }
     }
 }
-
-// ─── Preset Card ─────────────────────────────────────────────────────────────
-
 @Composable
 private fun PresetCard(preset: SkillPreset, onClick: () -> Unit) {
     Row(
@@ -749,9 +712,6 @@ private fun SkillBuilderSection(
         }
     }
 }
-
-// ─── Text Field ──────────────────────────────────────────────────────────────
-
 @Composable
 private fun SkillTextField(
     value: String,
@@ -789,9 +749,6 @@ private fun SkillTextField(
         }
     }
 }
-
-// ─── Header Editor ────────────────────────────────────────────────────────────
-
 @Composable
 private fun HeaderEditor(headers: SnapshotStateList<HeaderInput>) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

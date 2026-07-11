@@ -74,8 +74,6 @@ fun SkillManagerScreen(
         officialSkills = skillRegistry.getAllSkillInfos().filter { it.author == "AIRI Official" }
         customSkills   = repository.getAllSkills()
     }
-
-    // ── Storage picker (JSON skill file) ──────────────────────────────────────
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -166,7 +164,6 @@ fun SkillManagerScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // ── Error banner ───────────────────────────────────────────────────
             errorMessage?.let { msg ->
                 Row(
                     modifier = Modifier
@@ -183,8 +180,6 @@ fun SkillManagerScreen(
                     }
                 }
             }
-
-            // ── GitHub import dialog (Phase 6: uses GitHubSkillImporter) ──────
             if (importSource == ImportSource.GITHUB) {
                 GitHubImportDialog(
                     isImporting = isImporting,
@@ -217,8 +212,6 @@ fun SkillManagerScreen(
                     }
                 )
             }
-
-            // ── AI create dialog ───────────────────────────────────────────────
             if (importSource == ImportSource.AI) {
                 AiSkillCreateDialog(
                     onDismiss = { importSource = null },
@@ -241,8 +234,6 @@ fun SkillManagerScreen(
                     }
                 )
             }
-
-            // ── Skill list: Official + Custom sections ─────────────────────────
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -250,8 +241,6 @@ fun SkillManagerScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(vertical = 14.dp)
             ) {
-
-                // ── Official Skills ────────────────────────────────────────────
                 item(key = "official_header") {
                     Text(
                         "Official Skills",
@@ -271,8 +260,6 @@ fun SkillManagerScreen(
                         }
                     )
                 }
-
-                // ── Custom Skills ──────────────────────────────────────────────
                 item(key = "custom_header") {
                     Spacer(Modifier.height(6.dp))
                     Row(
@@ -328,9 +315,6 @@ fun SkillManagerScreen(
         }
     }
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 @Composable
 private fun AddOption(icon: ImageVector, label: String, onClick: () -> Unit) {
     DropdownMenuItem(
@@ -339,9 +323,6 @@ private fun AddOption(icon: ImageVector, label: String, onClick: () -> Unit) {
         onClick = onClick
     )
 }
-
-// ── Official Skill Card (Phase 4) ─────────────────────────────────────────────
-
 /**
  * Card for a first-party AIRI skill.
  *
@@ -359,7 +340,7 @@ private fun OfficialSkillCard(
     val entry = remember(info.name) { OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.name } }
     val displayName = entry?.manifest?.name
         ?: info.name.split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-    val emoji          = entry?.manifest?.iconEmoji ?: "🔧"
+    val emoji          = entry?.manifest?.iconEmoji ?: "⚙"
     val needsConnector = !info.isConnected
 
     Row(
@@ -393,7 +374,7 @@ private fun OfficialSkillCard(
                 if (needsConnector) {
                     Surface(
                         shape = RoundedCornerShape(999.dp),
-                        color = Color.White.copy(0.07f)
+                        color = MaterialTheme.colorScheme.outline
                     ) {
                         Text(
                             "Connector required",
@@ -448,9 +429,6 @@ private fun OfficialSkillCard(
         }
     }
 }
-
-// ── Custom Skill Card (unchanged from original) ───────────────────────────────
-
 @Composable
 private fun SkillCard(
     skill:    CustomSkill,
@@ -519,9 +497,6 @@ private fun SkillCard(
         }
     }
 }
-
-// ── GitHub Import Dialog ──────────────────────────────────────────────────────
-
 @Composable
 private fun GitHubImportDialog(
     isImporting: Boolean,
@@ -531,7 +506,7 @@ private fun GitHubImportDialog(
     var rawUrl by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor   = Color(0xFF111525),
+        containerColor   = MaterialTheme.colorScheme.surface,
         title = {
             Text(
                 stringResource(R.string.skill_menu_import_github),
@@ -586,9 +561,6 @@ private fun GitHubImportDialog(
         }
     )
 }
-
-// ── AI Create Dialog ──────────────────────────────────────────────────────────
-
 @Composable
 private fun AiSkillCreateDialog(
     onDismiss: () -> Unit,
@@ -600,7 +572,7 @@ private fun AiSkillCreateDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor   = Color(0xFF111525),
+        containerColor   = MaterialTheme.colorScheme.surface,
         title = {
             Text(
                 stringResource(R.string.skill_menu_create_with_airi),
@@ -638,9 +610,6 @@ private fun AiSkillCreateDialog(
         }
     )
 }
-
-// ── Shared TextField ──────────────────────────────────────────────────────────
-
 @Composable
 private fun SkillTextField(
     label:         String,
@@ -664,9 +633,6 @@ private fun SkillTextField(
         )
     )
 }
-
-// ── JSON skill file parser ────────────────────────────────────────────────────
-
 /**
  * Parse a JSON skill definition exported from SkillBuilderScreen or the
  * AIRI skill repository format:

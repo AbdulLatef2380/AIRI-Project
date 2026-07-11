@@ -42,8 +42,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
-
-// ─────────────────────────────────────────────────────────────────────────────
 // ExecDiagnosticsScreen — Hybrid Execution layer live diagnostics
 //
 // Three tabs, all driven by ViewModel-owned StateFlows. No polling, no timers.
@@ -59,8 +57,6 @@ import com.airi.assistant.R
 //  • Every tab has an explicit empty state — no blank screen.
 //  • All icons, colors, and typography follow the app's "Cosmic" design system.
 //  • Built to be readable in 5 years and maintainable in 20.
-// ─────────────────────────────────────────────────────────────────────────────
-
 private enum class DiagTab(val label: String) {
     LIVE("Live"), BUDGET("Budget"), HISTORY("History")
 }
@@ -78,7 +74,6 @@ fun ExecDiagnosticsScreen(
     viewModel: ChatViewModel,
     onBack:    () -> Unit
 ) {
-    // ── Single point of truth — both flows collected once at the top ──────────
     val execDiag   by viewModel.execDiagnostics.collectAsState()
     val tokenStats       by viewModel.tokenAccountant.stats.collectAsState()
     val tokenRateHistory by viewModel.tokenRateHistory.collectAsState()
@@ -93,8 +88,6 @@ fun ExecDiagnosticsScreen(
     LaunchedEffect(Unit) {
         runCatching { viewModel.onDiagnosticsScreenVisible() }
     }
-
-    // ── Reset confirmation dialog ─────────────────────────────────────────────
     if (showResetDialog) {
         AlertDialog(
             onDismissRequest = { showResetDialog = false },
@@ -177,7 +170,6 @@ fun ExecDiagnosticsScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // ── Tab row ───────────────────────────────────────────────────────
             ScrollableTabRow(
                 selectedTabIndex = selectedTab.ordinal,
                 containerColor   = Color.Black.copy(alpha = 0.50f),
@@ -199,8 +191,6 @@ fun ExecDiagnosticsScreen(
                     )
                 }
             }
-
-            // ── Tab content ───────────────────────────────────────────────────
             when (selectedTab) {
                 DiagTab.LIVE    -> LiveTab(
                     state            = execDiag,
@@ -219,11 +209,7 @@ fun ExecDiagnosticsScreen(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Tab 1: LIVE
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun LiveTab(
     state:            ExecutionDiagnosticsState,
@@ -238,8 +224,6 @@ private fun LiveTab(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-
-        // ── Active Execution ──────────────────────────────────────────────────
         SettingsSurface {
             ExSection(icon = Icons.Outlined.MonitorHeart, title = "Active Execution")
             Spacer(Modifier.height(12.dp))
@@ -269,8 +253,6 @@ private fun LiveTab(
                 valueColor = originColor(state.activeOrigin.name)
             )
         }
-
-        // ── Last Turn metrics — hidden when there has been no turn yet ─────────
         val hasTurnData = state.lastPromptTokens     > 0 ||
                           state.lastCompletionTokens > 0 ||
                           state.lastStreamDurationMs > 0L
@@ -290,8 +272,6 @@ private fun LiveTab(
                 }
             }
         }
-
-        // ── Local Throughput Sparkline ────────────────────────────────────────
         // Only cloud-independent (LOCAL origin) tok/s values are charted so
         // the line reflects actual on-device decode speed, not HTTP latency.
         // Hidden until the first local generation completes so the card never
@@ -357,8 +337,6 @@ private fun LiveTab(
                 }
             }
         }
-
-        // ── Context Window (KV-cache) occupancy ──────────────────────────────
         // Hidden when kvMax == 0 (no model loaded or diagnostics not yet pushed).
         // Bar color grades: green < 60 % → amber < 85 % → red ≥ 85 %.
         if (kvMax > 0) {
@@ -420,8 +398,6 @@ private fun LiveTab(
                 }
             }
         }
-
-        // ── Session Reliability counters ──────────────────────────────────────
         SettingsSurface {
             ExSection(icon = Icons.Outlined.Shield, title = "Session Reliability")
             Spacer(Modifier.height(12.dp))
@@ -435,8 +411,6 @@ private fun LiveTab(
             ExRow("Cancellations", state.cancellationCount.toString(),
                 if (state.cancellationCount > 0) ExWarn else ExOk)
         }
-
-        // ── Last Error — only rendered when there is an active error context ───
         val hasError = state.lastErrorType != null || state.lastErrorMessage.isNotBlank()
         if (hasError) {
             SettingsSurface {
@@ -457,8 +431,6 @@ private fun LiveTab(
                 }
             }
         }
-
-        // ── Last Fallback — only rendered when a fallback has occurred ─────────
         val hasFallback = state.lastFallbackFrom.isNotBlank() ||
                           state.lastFallbackTo.isNotBlank()
         if (hasFallback) {
@@ -490,11 +462,7 @@ private fun LiveTab(
         Spacer(Modifier.height(16.dp))
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Tab 2: BUDGET
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun BudgetTab(
     stats:       Map<CloudProvider, TokenAccountant.ProviderStats>,
@@ -521,8 +489,6 @@ private fun BudgetTab(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-
-        // ── Daily budget overview ─────────────────────────────────────────────
         SettingsSurface {
             ExSection(icon = Icons.Outlined.Timeline, title = "Daily Budget")
             Spacer(Modifier.height(12.dp))
@@ -571,8 +537,6 @@ private fun BudgetTab(
                 ExRow("Daily Cap", "Not configured", ExSubtle)
             }
         }
-
-        // ── Per-provider stats ────────────────────────────────────────────────
         displayed.forEach { (provider, provStats) ->
             ProviderStatsCard(provider = provider, stats = provStats)
         }
@@ -591,8 +555,6 @@ private fun BudgetTab(
                 )
             }
         }
-
-        // ── Reset action ──────────────────────────────────────────────────────
         OutlinedButton(
             onClick  = onShowReset,
             modifier = Modifier.fillMaxWidth(),
@@ -697,11 +659,7 @@ private fun ProviderStatsCard(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Tab 3: HISTORY
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun HistoryTab(history: List<ExecTransitionEvent>) {
     if (history.isEmpty()) {
@@ -834,11 +792,7 @@ private fun TransitionEventRow(event: ExecTransitionEvent) {
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Shared primitive composables
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun ExSection(
     icon:  ImageVector,
@@ -888,8 +842,6 @@ private fun ExDivider() {
         modifier = Modifier.padding(vertical = 4.dp)
     )
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // TpsSparkline — mini line chart for a list of tok/s values (newest on right)
 //
 // Design rules (matches Cosmic palette):
@@ -898,8 +850,6 @@ private fun ExDivider() {
 //  • Subtle horizontal grid lines at 25 / 50 / 75 % height for reference
 //  • Gracefully handles a single data point (draws only the dot)
 //  • Pure Canvas — no state, safe in any lazy list or scroll context
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun TpsSparkline(values: List<Float>, modifier: Modifier = Modifier) {
     if (values.isEmpty()) return
@@ -951,11 +901,7 @@ private fun TpsSparkline(values: List<Float>, modifier: Modifier = Modifier) {
         drawCircle(color = Color.Black.copy(alpha = 0.65f), radius = 2.dp.toPx(), center = Offset(lastX, lastY))
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Pure helpers — no Compose state, safe to call from remember blocks
-// ─────────────────────────────────────────────────────────────────────────────
-
 private fun backendColor(backend: String): Color = when {
     backend.contains("cloud", ignoreCase = true) -> CosmicAccent
     backend.contains("local", ignoreCase = true) -> Color(0xFF4CAF50)

@@ -37,7 +37,7 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         },
-        containerColor = Color(0xFF070C1A)
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Column(
             modifier = Modifier
@@ -66,7 +66,7 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
             AboutInfoCard("Stack", "Kotlin · Jetpack Compose · Coroutines · StateFlow · Room · JNI/NDK · llama.cpp")
             Spacer(Modifier.height(8.dp))
             Spacer(Modifier.height(8.dp))
-            // AP-25: Technical Details link — was unreachable; now connected to APP_INFO route.
+            // : Technical Details link — was unreachable; now connected to APP_INFO route.
             TextButton(
                 onClick = { onNavigate(com.airi.assistant.ui.AiriRoute.APP_INFO) },
                 modifier = Modifier.fillMaxWidth()
@@ -74,7 +74,7 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
                 Icon(Icons.Outlined.Info, contentDescription = null,
                     tint = CosmicAccent, modifier = Modifier.size(15.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Technical Details", fontSize = 13.sp, color = CosmicAccent)
+                Text(stringResource(R.string.about_technical_details), fontSize = 13.sp, color = CosmicAccent)
             }
             Text(stringResource(R.string.copyright_notice), fontSize = 12.sp, color = AiriTheme.outline)
         }

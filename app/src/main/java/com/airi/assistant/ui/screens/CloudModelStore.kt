@@ -69,8 +69,6 @@ fun CloudModelStoreSection(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
-
-        // ── Section header ────────────────────────────────────────────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -95,8 +93,6 @@ fun CloudModelStoreSection(
                     color = AiriTheme.onSurfaceVariant.copy(alpha = 0.45f), fontSize = 11.sp)
             }
         }
-
-        // ── Inference mode selector ───────────────────────────────────────────
         CloudInferenceModePicker(
             execPrefs  = execPrefs,
             onModeSet  = { mode ->
@@ -108,8 +104,6 @@ fun CloudModelStoreSection(
         )
 
         Spacer(Modifier.height(8.dp))
-
-        // ── Free providers catalog ────────────────────────────────────────────
         Text(
             "Free Providers",
             color = AiriTheme.onSurfaceVariant,
@@ -147,8 +141,6 @@ fun CloudModelStoreSection(
         }
 
         Spacer(Modifier.height(8.dp))
-
-        // ── Advanced: manual remote endpoint ─────────────────────────────────
         Surface(
             onClick = { showAdvanced = !showAdvanced },
             color   = Color.Transparent,
@@ -192,8 +184,6 @@ fun CloudModelStoreSection(
 
         Spacer(Modifier.height(16.dp))
     }
-
-    // ── API Key entry dialog ──────────────────────────────────────────────────
     showKeyDialog?.let { cfg ->
         ApiKeyEntryDialog(
             config      = cfg,
@@ -210,9 +200,6 @@ fun CloudModelStoreSection(
         )
     }
 }
-
-// ── Inference mode picker ─────────────────────────────────────────────────────
-
 @Composable
 private fun CloudInferenceModePicker(
     execPrefs: com.airi.assistant.execution.prefs.ExecModePreferences,
@@ -278,9 +265,6 @@ private fun CloudInferenceModePicker(
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
     )
 }
-
-// ── Provider card ─────────────────────────────────────────────────────────────
-
 @Composable
 private fun EmbeddedProviderCard(
     config:      EmbeddedProviderConfig.ProviderConfig,
@@ -460,9 +444,6 @@ private fun ProviderStatChip(text: String, color: Color) {
         Text(text, color = color.copy(alpha = 0.75f), fontSize = 9.sp)
     }
 }
-
-// ── API key entry dialog ──────────────────────────────────────────────────────
-
 @Composable
 private fun ApiKeyEntryDialog(
     config:      EmbeddedProviderConfig.ProviderConfig,
@@ -560,9 +541,6 @@ private fun ApiKeyEntryDialog(
         }
     )
 }
-
-// ── Inline advanced remote model entry ───────────────────────────────────────
-
 @Composable
 private fun AddRemoteModelInlineContent(
     viewModel:   ChatViewModel,
@@ -650,7 +628,7 @@ private fun AddRemoteModelInlineContent(
                         name             = modelName.ifBlank { "Custom Server" },
                         serverUrl        = serverUrl.trimEnd('/'),
                         apiKey           = apiKey,
-                        // B-07: user-created endpoints must be flagged so
+                        // : user-created endpoints must be flagged so
                         // migrateStaleModelNames() never renames them.
                         isCustomEndpoint = true
                     )

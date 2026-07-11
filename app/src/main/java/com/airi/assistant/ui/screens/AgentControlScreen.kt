@@ -28,7 +28,8 @@ import com.airi.assistant.R
 @Composable
 fun AgentControlScreen(
     viewModel: AgentViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigate: (String) -> Unit = {}
 ) {
     val skillInfos  = remember { viewModel.getSkillInfos().toMutableStateList() }
     val toolList    = remember { viewModel.getToolList() }
@@ -52,6 +53,16 @@ fun AgentControlScreen(
                         fontWeight = FontWeight.Bold,
                         color = AiriTheme.onBackground
                     )
+                },
+                actions = {
+                    // Planning Dashboard shortcut
+                    IconButton(onClick = { onNavigate(com.airi.assistant.ui.AiriRoute.PLANNING_DASHBOARD) }) {
+                        Icon(
+                            Icons.Outlined.Timeline,
+                            contentDescription = "Planning Dashboard",
+                            tint = com.airi.assistant.ui.theme.CosmicAccent
+                        )
+                    }
                 }
             )
         }
@@ -64,8 +75,6 @@ fun AgentControlScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-
-            // ── Skills Control ──────────────────────────────────────────────
             AgentControlCard {
                 AgentSectionHeader(icon = Icons.Outlined.AutoAwesome, title = "Skills")
                 Spacer(Modifier.height(4.dp))
@@ -140,8 +149,6 @@ fun AgentControlScreen(
                     }
                 }
             }
-
-            // ── Tools Visibility ────────────────────────────────────────────
             AgentControlCard {
                 AgentSectionHeader(icon = Icons.Outlined.Build, title = "Available Tools")
                 Spacer(Modifier.height(4.dp))
@@ -183,8 +190,6 @@ fun AgentControlScreen(
                     }
                 }
             }
-
-            // ── Debug Mode ──────────────────────────────────────────────────
             AgentControlCard {
                 AgentSectionHeader(icon = Icons.Outlined.BugReport, title = "Debug Mode")
                 Spacer(Modifier.height(4.dp))

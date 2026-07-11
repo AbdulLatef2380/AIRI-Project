@@ -100,9 +100,6 @@ fun CommunitySkillsScreen(
         }
     }
 }
-
-// ── My Skills Tab ─────────────────────────────────────────────────────────────
-
 @Composable
 private fun MySkillsTab(
     skills:        List<CommunitySkill>,
@@ -214,9 +211,6 @@ private fun CommunitySkillCard(
         }
     }
 }
-
-// ── Import Tab ────────────────────────────────────────────────────────────────
-
 @Composable
 private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Unit) {
     val scope = rememberCoroutineScope()
@@ -237,7 +231,6 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
         }
 
         item {
-            // ── Method tabs ──────────────────────────────────────────────
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("From URL", "Paste JSON").forEachIndexed { i, t ->
                     FilterChip(
@@ -331,8 +324,6 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                 }
             }
         }
-
-        // ── Security notice ──────────────────────────────────────────────
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
@@ -350,9 +341,6 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
         }
     }
 }
-
-// ── Trust Score Tab ───────────────────────────────────────────────────────────
-
 @Composable
 private fun TrustScoreTab(skill: CommunitySkill?, hub: CommunitySkillHub) {
     if (skill == null) {
@@ -374,7 +362,6 @@ private fun TrustScoreTab(skill: CommunitySkill?, hub: CommunitySkillHub) {
         modifier            = Modifier.fillMaxSize()
     ) {
         item {
-            // ── Score hero ───────────────────────────────────────────────
             Card(
                 colors = CardDefaults.cardColors(containerColor = tierColor(breakdown.tier).copy(0.1f)),
                 shape  = RoundedCornerShape(20.dp),
@@ -395,8 +382,6 @@ private fun TrustScoreTab(skill: CommunitySkill?, hub: CommunitySkillHub) {
                 }
             }
         }
-
-        // ── Signals ──────────────────────────────────────────────────────
         item {
             Text(stringResource(R.string.community_trust_signals), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
         }
@@ -404,8 +389,6 @@ private fun TrustScoreTab(skill: CommunitySkill?, hub: CommunitySkillHub) {
         items(breakdown.signals) { signal ->
             TrustSignalRow(signal)
         }
-
-        // ── Sandbox level ────────────────────────────────────────────────
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),

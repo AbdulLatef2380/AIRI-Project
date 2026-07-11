@@ -72,12 +72,12 @@ fun OnboardingScreen(
 
     val micPermissionState = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
 
-    // B-05: Notifications permission — required for agent task alerts on API 33+
+    // : Notifications permission — required for agent task alerts on API 33+
     val notificationsPermissionState = if (android.os.Build.VERSION.SDK_INT >= 33) {
         rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
     } else null
 
-    // B-06: Calendar permissions — required for CalendarTool and ProductivityAgent
+    // : Calendar permissions — required for CalendarTool and ProductivityAgent
     val calendarPermissionsState = rememberMultiplePermissionsState(
         listOf(
             Manifest.permission.READ_CALENDAR,
@@ -104,14 +104,14 @@ fun OnboardingScreen(
                 subtitle = "Speak naturally to AIRI. Microphone access powers hands-free voice commands and real-time voice conversations. You can skip this and use text only.",
                 permissionKey = "microphone"
             ),
-            // B-05: Notifications page — lets agent send task reminders and alerts
+            // : Notifications page — lets agent send task reminders and alerts
             OnboardingPage(
                 icon     = Icons.Outlined.Notifications,
                 title    = "Stay Informed",
                 subtitle = "Allow notifications so AIRI can alert you when background tasks complete, reminders fire, or your agent needs attention. You can manage this in Settings anytime.",
                 permissionKey = "notifications"
             ),
-            // B-06: Calendar page — lets AIRI read/create events via CalendarTool
+            // : Calendar page — lets AIRI read/create events via CalendarTool
             OnboardingPage(
                 icon     = Icons.Outlined.CalendarMonth,
                 title    = "Calendar Access",
@@ -259,9 +259,6 @@ fun OnboardingScreen(
         }
     }
 }
-
-// ── Permission cards ──────────────────────────────────────────────────────────
-
 @Composable
 private fun AccessibilityPermissionCard(context: android.content.Context) {
     val isEnabled = remember {
@@ -373,7 +370,7 @@ private fun PermissionCard(
     }
 }
 
-// B-05: Notifications permission card — POST_NOTIFICATIONS required on API 33+
+// : Notifications permission card — POST_NOTIFICATIONS required on API 33+
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 private fun NotificationsPermissionCard(
@@ -393,7 +390,7 @@ private fun NotificationsPermissionCard(
     )
 }
 
-// B-06: Calendar permission card — READ_CALENDAR + WRITE_CALENDAR for CalendarTool
+// : Calendar permission card — READ_CALENDAR + WRITE_CALENDAR for CalendarTool
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 private fun CalendarPermissionCard(

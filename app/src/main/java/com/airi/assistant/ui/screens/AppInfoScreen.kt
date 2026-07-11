@@ -63,7 +63,6 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ── App identity card ──────────────────────────────────────────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -111,8 +110,6 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                     }
                 }
             }
-
-            // ── Technical details ──────────────────────────────────────────────
             AboutCard(icon = Icons.Outlined.Info, title = "App Details") {
                 AboutRow("Package",   "com.airi.assistant")
                 AboutRow("Version",   "1.0")
@@ -123,8 +120,6 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                 AboutRow("Runtime",   "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
                 AboutRow("Device",    "${Build.MANUFACTURER} ${Build.MODEL}")
             }
-
-            // ── Privacy at a glance ────────────────────────────────────────────
             AboutCard(icon = Icons.Outlined.Shield, title = "Privacy") {
                 Text(
                     "AIRI is designed with privacy first. All AI inference runs locally on your " +
@@ -140,8 +135,6 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                     lineHeight = 20.sp
                 )
             }
-
-            // ── Terms of Use ───────────────────────────────────────────────────
             AboutCard(icon = Icons.Outlined.Gavel, title = "Terms of Use") {
                 TermsSection("1. Acceptance") {
                     "By using AIRI you agree to these terms. If you do not agree, please uninstall the app."
@@ -188,8 +181,6 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                     "Questions or concerns? Reach us at: xwenbrr@gmail.com"
                 }
             }
-
-            // ── Open-source acknowledgements ──────────────────────────────────
             AboutCard(icon = Icons.Outlined.Code, title = "Open-Source Acknowledgements") {
                 Text(
                     "AIRI is built on the shoulders of open-source giants:",
@@ -218,8 +209,6 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                     }
                 }
             }
-
-            // ── Report a problem ──────────────────────────────────────────────
             SettingsSurface {
                 SettingsCategoryHeader(icon = Icons.Outlined.BugReport, title = "Support")
                 Spacer(Modifier.height(8.dp))
@@ -255,11 +244,7 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Private helpers for AboutScreen
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun AboutCard(
     icon:    ImageVector,

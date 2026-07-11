@@ -35,9 +35,9 @@ object AgentActivityBus {
     val recentEvents: StateFlow<List<ActivityEvent>> = _recent.asStateFlow()
 
     init {
-        // AP-13: Register with FlowPressureMonitor for replay-cache backpressure auditing.
+        // : Register with FlowPressureMonitor for replay-cache backpressure auditing.
         // Slow collectors on AgentActivityBus events are now logged to AuditRepository
-        // and surfaced in the DeveloperCenter Profiler tab (AP-12).
+        // and surfaced in the DeveloperCenter Profiler tab ().
         FlowPressureMonitor.auditSharedFlow("AgentActivityBus", _events)
 
         _events.onEach { ev ->

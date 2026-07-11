@@ -56,8 +56,6 @@ fun PaywallScreen(
     val productDetails by billingManager.productDetails.collectAsState()
 
     var isRestoring by remember { mutableStateOf(false) }
-
-    // ── Growth intelligence ───────────────────────────────────────────────────
     val triggerReason      = PaywallTriggerEngine.lastTriggerReason
     val subscriptionManager = ServiceLocator.subscriptionManager
     val usagePercent       = remember { PaywallTriggerEngine.getUsagePercent(subscriptionManager) }
@@ -99,7 +97,7 @@ fun PaywallScreen(
         onDispose { billingManager.destroy() }
     }
 
-    val accentColor = Color(0xFF7C3AED)
+    val accentColor = MaterialTheme.colorScheme.primary
     val goldColor   = Color(0xFFFFB300)
 
     Scaffold(
@@ -124,7 +122,7 @@ fun PaywallScreen(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color(0xFF0A0A0A), Color(0xFF0F0520), Color(0xFF0A0A0A))
+                        colors = listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.background)
                     )
                 )
         ) {
@@ -137,8 +135,6 @@ fun PaywallScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-
-                // ── Hero Badge ─────────────────────────────────────────────────
                 Box(
                     modifier = Modifier
                         .size(80.dp)
@@ -158,8 +154,6 @@ fun PaywallScreen(
                         modifier = Modifier.size(40.dp)
                     )
                 }
-
-                // ── AI Power Meter — visible when free usage is high ──────────
                 if (usagePercent >= 40) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -207,8 +201,6 @@ fun PaywallScreen(
                         )
                     }
                 }
-
-                // ── Headline ───────────────────────────────────────────────────
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text       = "AIRI Premium",
@@ -228,8 +220,6 @@ fun PaywallScreen(
                         lineHeight = 20.sp
                     )
                 }
-
-                // ── Pricing Card ───────────────────────────────────────────────
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -281,8 +271,6 @@ fun PaywallScreen(
                         }
                     }
                 }
-
-                // ── Benefits List ──────────────────────────────────────────────
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -326,8 +314,6 @@ fun PaywallScreen(
                         description = "Fastest response times with optimized inference"
                     )
                 }
-
-                // ── CTA Button ─────────────────────────────────────────────────
                 Button(
                     onClick = {
                         AnalyticsService.upgradeClick()
@@ -366,8 +352,6 @@ fun PaywallScreen(
                         )
                     }
                 }
-
-                // ── Urgency strip (A/B variant B only) ────────────────────────
                 if (showUrgency) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
@@ -396,8 +380,6 @@ fun PaywallScreen(
                         }
                     }
                 }
-
-                // ── Restore Purchases ──────────────────────────────────────────
                 TextButton(
                     onClick = {
                         isRestoring = true
@@ -425,8 +407,6 @@ fun PaywallScreen(
                         fontSize = 13.sp
                     )
                 }
-
-                // ── Fine Print ─────────────────────────────────────────────────
                 Text(
                     text = "Subscription renews automatically at \$4.99/month. Cancel anytime in Google Play. " +
                            "Payment is charged to your Google account at confirmation of purchase.",
@@ -457,14 +437,14 @@ private fun BenefitRow(
             modifier = Modifier
                 .size(38.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFF7C3AED).copy(alpha = 0.15f))
-                .border(1.dp, Color(0xFF7C3AED).copy(alpha = 0.3f), RoundedCornerShape(10.dp)),
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(10.dp)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector     = icon,
                 contentDescription = null,
-                tint            = Color(0xFF7C3AED),
+                tint            = MaterialTheme.colorScheme.primary,
                 modifier        = Modifier.size(20.dp)
             )
         }

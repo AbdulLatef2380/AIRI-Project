@@ -84,7 +84,6 @@ fun HistoryScreen(
                 .padding(padding)
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
-            // ── New conversation button ────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -167,7 +166,7 @@ fun HistoryScreen(
     sessionToDelete?.let { session ->
         AlertDialog(
             onDismissRequest = { sessionToDelete = null },
-            containerColor = Color(0xFF131728),
+            containerColor = MaterialTheme.colorScheme.surface,
             titleContentColor = Color.White,
             textContentColor = Color.White.copy(alpha = 0.75f),
             shape = RoundedCornerShape(20.dp),
@@ -194,7 +193,7 @@ fun HistoryScreen(
                         sessionToDelete = null
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFF4444),
+                        containerColor = MaterialTheme.colorScheme.error,
                         contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(12.dp),

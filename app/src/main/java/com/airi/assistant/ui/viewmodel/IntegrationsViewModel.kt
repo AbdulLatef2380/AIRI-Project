@@ -21,9 +21,9 @@ import java.security.SecureRandom
 class IntegrationsViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Private services (internal domain — ViewModels do not expose services) ─
-    // AP-04: Use ServiceLocator singleton — eliminates split-brain on Keystore failure.
+    // : Use ServiceLocator singleton — eliminates split-brain on Keystore failure.
     private val secureStorage    = ServiceLocator.secureStorage
-    // AP-08: ConnectorAuthManager — canonical credential store that connectors read from.
+    // : ConnectorAuthManager — canonical credential store that connectors read from.
     private val authManager: ConnectorAuthManager = ServiceLocator.connectorAuthManager
 
     /**
@@ -168,7 +168,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             githubService.validateAndConnect(current.token)
                 .onSuccess {
-                    // AP-08: Write to ConnectorAuthManager namespace so GitHubConnector.connect()
+                    // : Write to ConnectorAuthManager namespace so GitHubConnector.connect()
                     // can find the credential. GithubService writes to SecureStorage "github_token";
                     // GitHubConnector reads ConnectorAuthManager.getCredential("github", "pat").
                     // Bridging both namespaces here resolves the split-brain.
@@ -232,7 +232,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     init {
-        // AP-08: One-time migration — bridge any PAT already stored in the legacy
+        // : One-time migration — bridge any PAT already stored in the legacy
         // SecureStorage "github_token" key into ConnectorAuthManager "github"/"pat".
         // Runs every launch but is a no-op once ConnectorAuthManager already has the key.
         val existingGithubPat = secureStorage.getGithubToken()

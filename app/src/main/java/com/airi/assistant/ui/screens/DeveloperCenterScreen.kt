@@ -86,8 +86,6 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
         }
     }
 }
-
-// ── Tab 1: Runtime ─────────────────────────────────────────────────────────────
 @Composable
 private fun RuntimeTab() {
     val events by AgentActivityBus.recentEvents.collectAsStateWithLifecycle()
@@ -125,16 +123,12 @@ private fun RuntimeTab() {
         }
     }
 }
-
-// ── Tab 2: Connectors ──────────────────────────────────────────────────────────
 @Composable
 private fun ConnectorsTab() {
     val healthSummary by ServiceLocator.connectorHealthMonitor.healthSummary.collectAsStateWithLifecycle()
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         contentPadding = PaddingValues(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-
-        // ── AP-01: LLM Certificate Pinning status ─────────────────────────────
         item {
             Surface(shape = RoundedCornerShape(12.dp), color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
@@ -142,7 +136,7 @@ private fun ConnectorsTab() {
                     Box(modifier = Modifier.size(9.dp).clip(CircleShape)
                         .background(if (LlmCertPins.PINNING_ENABLED) SemanticSuccess else SemanticError))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("LLM Certificate Pinning", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
+                        Text(stringResource(R.string.dev_cert_pinning), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
                         Text(
                             if (LlmCertPins.PINNING_ENABLED) "Active — MitM protection enabled" else "DISABLED — traffic unprotected",
                             fontSize = 11.sp,
@@ -179,8 +173,6 @@ private fun ConnectorsTab() {
         }
     }
 }
-
-// ── Tab 3: Memory ──────────────────────────────────────────────────────────────
 @Composable
 private fun MemoryTab() {
     val runtime  = Runtime.getRuntime()
@@ -229,8 +221,6 @@ private fun MemoryTab() {
         }
     }
 }
-
-// ── Tab 4: Diagnostics ─────────────────────────────────────────────────────────
 @Composable
 private fun DiagnosticsTab() {
     var report  by remember { mutableStateOf<com.airi.assistant.domain.diagnostics.DiagnosticsRunner.DiagnosticsReport?>(null) }
@@ -264,8 +254,6 @@ private fun DiagnosticsTab() {
         } ?: if (!running) Text(stringResource(R.string.developer_no_results), fontSize = 12.sp, color = AiriTheme.onSurfaceVariant) else Unit
     }
 }
-
-// ── Tab 5: Health (Task 24) ────────────────────────────────────────────────────
 @Composable
 private fun HealthTab() {
     val health by ServiceLocator.runtimeHealthMonitor.health.collectAsStateWithLifecycle()
@@ -274,7 +262,6 @@ private fun HealthTab() {
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // ── Overall status indicator ──────────────────────────────────────────
         Surface(
             shape = RoundedCornerShape(12.dp),
             color = if (health.isHealthy) Color(0xFF1A251A) else Color(0xFF251A1A),
@@ -292,8 +279,6 @@ private fun HealthTab() {
                 )
             }
         }
-
-        // ── Memory & disk ─────────────────────────────────────────────────────
         DevCard(title = "Resources") {
             DevRow("Heap available",
                 if (health.heapAvailableMb >= 0) "${health.heapAvailableMb} MB" else "—")
@@ -309,8 +294,6 @@ private fun HealthTab() {
                     modifier = Modifier.padding(top = 2.dp))
             }
         }
-
-        // ── Session ───────────────────────────────────────────────────────────
         DevCard(title = "Session") {
             val ageMin = health.sessionAgeMs / 60_000L
             DevRow("Session age", "${ageMin} min")
@@ -319,8 +302,6 @@ private fun HealthTab() {
                     color = Color(0xFFFFB340), modifier = Modifier.padding(top = 2.dp))
             }
         }
-
-        // ── Coroutines ────────────────────────────────────────────────────────
         DevCard(title = "Coroutines") {
             DevRow("Live coroutines", health.liveCoroutineCount.toString())
             if (health.orphanCoroutineWarning) {
@@ -331,8 +312,6 @@ private fun HealthTab() {
                     modifier = Modifier.padding(top = 2.dp))
             }
         }
-
-        // ── Agents ────────────────────────────────────────────────────────────
         DevCard(title = "Agent Tasks") {
             DevRow("Stuck agents", health.stuckAgentCount.toString())
             if (health.stuckAgentCount > 0) {
@@ -343,8 +322,6 @@ private fun HealthTab() {
                     modifier = Modifier.padding(top = 2.dp))
             }
         }
-
-        // ── Event bus ─────────────────────────────────────────────────────────
         DevCard(title = "Event Bus") {
             if (health.eventBusSaturated) {
                 Text("⚠ Event bus saturated — drain rate lagging behind emit rate",
@@ -353,8 +330,6 @@ private fun HealthTab() {
                 Text("✓ Event bus flowing normally", fontSize = 11.sp, color = SemanticSuccess)
             }
         }
-
-        // ── Thermal / SystemHealthCoordinator (T30) ───────────────────────────
         val throttleLevel by ServiceLocator.systemHealthCoordinator.throttleLevel
             .collectAsStateWithLifecycle()
         val isEmergency = ServiceLocator.systemHealthCoordinator.isEmergency
@@ -372,8 +347,6 @@ private fun HealthTab() {
                 )
             }
         }
-
-        // ── Last check timestamp ──────────────────────────────────────────────
         Text(
             "Last check: ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date(health.timestampMs))}",
             fontSize = 10.sp,
@@ -383,8 +356,6 @@ private fun HealthTab() {
         )
     }
 }
-
-// ── Tab 6: Audit Log (T26) ─────────────────────────────────────────────────────
 @Composable
 private fun AuditLogTab() {
     var entries by remember { mutableStateOf<List<com.airi.assistant.memory.entity.AuditLogEntity>>(emptyList()) }
@@ -413,7 +384,7 @@ private fun AuditLogTab() {
         } else if (entries.isEmpty()) {
             item {
                 Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
-                    Text("No audit events yet", color = AiriTheme.onSurfaceVariant.copy(0.35f), fontSize = 13.sp)
+                    Text(stringResource(R.string.dev_no_audit_events), color = AiriTheme.onSurfaceVariant.copy(0.35f), fontSize = 13.sp)
                 }
             }
         } else {
@@ -456,8 +427,6 @@ private fun AuditLogTab() {
         }
     }
 }
-
-// ── Reusable dev UI components ────────────────────────────────────────────────
 @Composable
 private fun DevCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     Surface(shape = RoundedCornerShape(12.dp), color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
@@ -476,9 +445,7 @@ private fun DevRow(label: String, value: String) {
         Text(value, fontSize = 11.sp, color = AiriTheme.onBackground.copy(alpha = 0.85f), fontFamily = FontFamily.Monospace)
     }
 }
-
-// ── Tab 7: Profiler ────────────────────────────────────────────────────────────
-// AP-12: Renders RuntimeProfiler data gated behind BuildConfig.DEBUG || debugMode.
+// : Renders RuntimeProfiler data gated behind BuildConfig.DEBUG || debugMode.
 @Composable
 private fun ProfilerTab() {
     val report by ServiceLocator.runtimeProfiler.reportFlow.collectAsStateWithLifecycle()
@@ -492,7 +459,7 @@ private fun ProfilerTab() {
         item {
             DevCard("Inference Latency (all buckets)") {
                 if (report.buckets.isEmpty()) {
-                    Text("No samples yet — start a conversation to generate profiling data.",
+                    Text(stringResource(R.string.dev_no_profiling_data),
                         fontSize = 11.sp, color = AiriTheme.onSurfaceVariant.copy(0.5f))
                 } else {
                     report.buckets.take(8).forEach { b ->
@@ -535,7 +502,7 @@ private fun ProfilerTab() {
         }
 
         item {
-            Text("Refreshes every 5 s • tap tab to force reload",
+            Text(stringResource(R.string.dev_refresh_hint),
                 fontSize = 10.sp, color = AiriTheme.outline.copy(0.3f),
                 modifier = Modifier.padding(top = 4.dp))
         }

@@ -62,9 +62,6 @@ import com.google.gson.Gson
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.launch
-
-// ─── Main Screen ──────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModelSettingsScreen(
@@ -126,7 +123,7 @@ fun ModelSettingsScreen(
         uri?.let { viewModel.importModel(it) }
     }
 
-    // B-23: Embedding model picker — user selects a GGUF embedding file
+    // : Embedding model picker — user selects a GGUF embedding file
     val embeddingPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { viewModel.loadEmbeddingFromUri(context, it) }
     }
@@ -243,8 +240,6 @@ fun ModelSettingsScreen(
                     }
                 }
             }
-
-            // ── "Ready to Use" accordion (downloaded models) ──────────────────
             item {
                 RefModelGroupAccordion(
                     title = "Ready to Use",
@@ -285,8 +280,6 @@ fun ModelSettingsScreen(
                     }
                 }
             }
-
-            // ── "Available to Download" accordion (catalog, not downloaded) ───
             item {
                 RefModelGroupAccordion(
                     title = "Available to Download",
@@ -339,7 +332,6 @@ fun ModelSettingsScreen(
                     }
                 )
             }
-            // ── Cloud & Hybrid Model Store (Phase 1 + Phase 5) ────────────────
             // Full cloud provider catalog: free Groq, Gemini, OpenRouter,
             // local Ollama/LM Studio, and advanced custom endpoint.
             // Activated providers update isCloudReady → unlocks chat input
@@ -354,7 +346,7 @@ fun ModelSettingsScreen(
                 )
             }
 
-            // B-23: Embedding model picker — enables semantic memory search.
+            // : Embedding model picker — enables semantic memory search.
             // Without an embedding model, memory_recall falls back to
             // chronological recall regardless of query content.
             item {
@@ -368,9 +360,6 @@ fun ModelSettingsScreen(
             }
         }
     }
-
-    // ── Dialogs ───────────────────────────────────────────────────────────────
-
     if (showGenerationSettings) {
         AdvancedGenerationSettingsDialog(
             viewModel = viewModel,
@@ -454,8 +443,6 @@ fun ModelSettingsScreen(
         )
     }
 }
-
-// ─── Reference: ModelAccordion ────────────────────────────────────────────────
 // Exact match to airi-custom ModelAccordion.tsx
 // height: 55dp, title 14sp, gap 8dp
 
@@ -530,8 +517,6 @@ fun RefModelGroupAccordion(
         }
     }
 }
-
-// ─── Reference: ModelCard — Downloaded ───────────────────────────────────────
 // Exact dp match to airi-custom ModelCard.tsx (isDownloaded = true)
 // card: borderRadius 24, margin 6, border 1
 // compactHeader: paddingH 18, paddingV 12
@@ -564,7 +549,7 @@ fun RefDownloadedModelCard(
                 shape = RoundedCornerShape(24.dp) // borderRadius: 24
             )
             .clip(RoundedCornerShape(24.dp))
-            .background(Color(0xFF0E1117))
+            .background(MaterialTheme.colorScheme.surface)
     ) {
         Column {
             // compactHeader: paddingH 18, paddingV 12
@@ -848,8 +833,6 @@ fun RefDownloadedModelCard(
         }
     }
 }
-
-// ─── Reference: ModelCard — Catalog (not downloaded) ─────────────────────────
 // Exact dp match to airi-custom ModelCard.tsx (isDownloaded = false)
 
 @Composable
@@ -874,7 +857,7 @@ fun RefCatalogModelCard(
                 shape = RoundedCornerShape(24.dp) // borderRadius: 24
             )
             .clip(RoundedCornerShape(24.dp))
-            .background(Color(0xFF0E1117))
+            .background(MaterialTheme.colorScheme.surface)
     ) {
         Column {
             // compactHeader: paddingH 18, paddingV 12
@@ -1142,9 +1125,6 @@ fun RefCatalogModelCard(
         }
     }
 }
-
-// ─── technicalDetailCard: bg surface, borderRadius 16, padding 12 ─────────────
-
 @Composable
 private fun RefDetailCard(
     label: String,
@@ -1176,17 +1156,11 @@ private fun RefDetailCard(
         }
     }
 }
-
-// ─── Color helper ─────────────────────────────────────────────────────────────
-
 private fun modelTypeColor(type: ModelType): Color = when (type) {
     ModelType.GEMMA -> Color(0xFFFF9500)
     ModelType.QWEN  -> Color(0xFF007AFF)
     else            -> Color(0xFF34C759)
 }
-
-// ─── Legacy composables kept for backward compatibility ───────────────────────
-
 @Composable
 private fun ModelStoreHero(totalRamMb: Int, storageBytes: Long) {
     Box(
@@ -2432,7 +2406,7 @@ private fun AddRemoteModelContent(
                         name             = modelName.ifBlank { "Remote Model" },
                         serverUrl        = serverUrl.trim(),
                         apiKey           = apiKey.trim(),
-                        // B-07: user-created endpoints must be flagged so
+                        // : user-created endpoints must be flagged so
                         // migrateStaleModelNames() never renames them.
                         isCustomEndpoint = true
                     )
@@ -2446,8 +2420,6 @@ private fun AddRemoteModelContent(
         }
     }
 }
-
-// ── B-23: EmbeddingModelSection ───────────────────────────────────────────────
 // Allows users to select an embedding GGUF file. Enables semantic memory search
 // in memory_recall tool. Without this, recall falls back to chronological order.
 @Composable

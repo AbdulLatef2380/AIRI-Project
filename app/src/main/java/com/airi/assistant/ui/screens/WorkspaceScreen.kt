@@ -45,7 +45,13 @@ import com.airi.assistant.R
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WorkspaceScreen(onBack: () -> Unit, onOpenChat: () -> Unit = {}, onNavigate: (String) -> Unit = {}) {
+fun WorkspaceScreen(
+    onBack: () -> Unit,
+    onOpenChat: () -> Unit = {},
+    onNavigate: (String) -> Unit = {},
+    /** Task 5.2/5.3: "prototype", "wireframe", or null for general workspace. */
+    sessionType: String? = null
+) {
     val workspaceRuntime = ServiceLocator.workspaceRuntime
     val artifactManager  = ServiceLocator.artifactManager
     val scope            = rememberCoroutineScope()
@@ -85,8 +91,6 @@ fun WorkspaceScreen(onBack: () -> Unit, onOpenChat: () -> Unit = {}, onNavigate:
         containerColor = AiriTheme.background
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-
-            // ── Session tabs ──────────────────────────────────────────────────
             if (sessions.isEmpty()) {
                 WorkspaceEmptyState { showNewWorkspace = true }
             } else {
@@ -115,8 +119,6 @@ fun WorkspaceScreen(onBack: () -> Unit, onOpenChat: () -> Unit = {}, onNavigate:
                 }
 
                 Divider(color = AiriTheme.outline, modifier = Modifier.padding(horizontal = 12.dp))
-
-                // ── Active session content ────────────────────────────────────
                 if (artifacts.isEmpty()) {
                     ArtifactEmptyState(onCreateFromChat = onOpenChat)
                 } else {
@@ -131,7 +133,7 @@ fun WorkspaceScreen(onBack: () -> Unit, onOpenChat: () -> Unit = {}, onNavigate:
                                 isSelected = selectedArtifactId == artifact.id,
                                 onClick    = { selectedArtifactId = if (selectedArtifactId == artifact.id) null else artifact.id },
                                 onDelete   = { artifactManager.deleteArtifact(artifact.id) },
-                                // AP-03: Navigate to ArtifactPreviewScreen on long-press preview tap.
+                                // : Navigate to ArtifactPreviewScreen on long-press preview tap.
                                 // Full artifact content is read from filePath on IO dispatcher to
                                 // avoid blocking the main thread; falls back to previewSnippet if the
                                 // file is absent or unreadable (e.g. artifact deleted externally).
@@ -154,8 +156,6 @@ fun WorkspaceScreen(onBack: () -> Unit, onOpenChat: () -> Unit = {}, onNavigate:
                 }
             }
         }
-
-        // ── New workspace dialog ──────────────────────────────────────────────
         if (showNewWorkspace) {
             AlertDialog(
                 onDismissRequest = { showNewWorkspace = false },
@@ -187,7 +187,7 @@ fun WorkspaceScreen(onBack: () -> Unit, onOpenChat: () -> Unit = {}, onNavigate:
                 dismissButton = {
                     TextButton(onClick = { showNewWorkspace = false }) { Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(0.5f)) }
                 },
-                containerColor = Color(0xFF141826)
+                containerColor = MaterialTheme.colorScheme.surface
             )
         }
     }
@@ -199,7 +199,7 @@ private fun ArtifactCard(
     isSelected: Boolean,
     onClick:    () -> Unit,
     onDelete:   () -> Unit,
-    // AP-03: navigate to ArtifactPreviewScreen when the user taps "Preview"
+    // : navigate to ArtifactPreviewScreen when the user taps "Preview"
     onPreview:  (ArtifactManager.Artifact) -> Unit = {}
 ) {
     Surface(
@@ -233,9 +233,9 @@ private fun ArtifactCard(
                     lineHeight = 16.sp,
                     maxLines   = 12,
                     modifier   = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF060910)).padding(10.dp)
+                        .background(MaterialTheme.colorScheme.surface).padding(10.dp)
                 )
-                // AP-03: "Preview" button → ArtifactPreviewScreen (sandboxed WebView/Markdown/Code)
+                // : "Preview" button → ArtifactPreviewScreen (sandboxed WebView/Markdown/Code)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(
                         onClick = { onPreview(artifact) },
@@ -244,7 +244,7 @@ private fun ArtifactCard(
                         Icon(Icons.Outlined.OpenInNew, null,
                             modifier = Modifier.size(13.dp), tint = CosmicAccent)
                         Spacer(Modifier.width(4.dp))
-                        Text("Preview", fontSize = 11.sp, color = CosmicAccent)
+                        Text(stringResource(R.string.workspace_preview), fontSize = 11.sp, color = CosmicAccent)
                     }
                 }
             }

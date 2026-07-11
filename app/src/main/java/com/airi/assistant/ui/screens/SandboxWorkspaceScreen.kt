@@ -98,7 +98,6 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
         containerColor = AiriTheme.background
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // ── Session tabs ──────────────────────────────────────────────
             if (activeSessions.isEmpty()) {
                 SandboxEmptyState(onCreate = {
                     scope.launch { sandboxManager.createSession("New Workspace") }
@@ -118,15 +117,13 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                 session?.let { sess ->
                     SandboxSessionHeader(session = sess)
                 }
-
-                // ── Execution log terminal ────────────────────────────────
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF060910))
+                        .background(MaterialTheme.colorScheme.background)
                         .border(0.5.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(12.dp))
                 ) {
                     if (logs.isEmpty()) {
@@ -146,8 +143,6 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                         }
                     }
                 }
-
-                // ── Command input ─────────────────────────────────────────
                 Spacer(Modifier.height(8.dp))
                 SandboxCommandBar(
                     value       = commandInput,

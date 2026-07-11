@@ -63,7 +63,6 @@ fun PermissionsScreen(onBack: () -> Unit) {
 
     val allPermissions = remember {
         listOf(
-            // ── Voice ──────────────────────────────────────────────────────────
             PermissionInfo(
                 permission  = Manifest.permission.RECORD_AUDIO,
                 label       = "Microphone",
@@ -74,8 +73,6 @@ fun PermissionsScreen(onBack: () -> Unit) {
                 group       = "Voice",
                 isDangerous = true
             ),
-
-            // ── Notifications ──────────────────────────────────────────────────
             PermissionInfo(
                 permission  = Manifest.permission.POST_NOTIFICATIONS,
                 label       = "Notifications",
@@ -86,8 +83,6 @@ fun PermissionsScreen(onBack: () -> Unit) {
                 group       = "Notifications",
                 isDangerous = true
             ),
-
-            // ── Camera ─────────────────────────────────────────────────────────
             PermissionInfo(
                 permission  = Manifest.permission.CAMERA,
                 label       = "Camera",
@@ -98,8 +93,6 @@ fun PermissionsScreen(onBack: () -> Unit) {
                 group       = "Camera",
                 isDangerous = true
             ),
-
-            // ── Calendar ───────────────────────────────────────────────────────
             PermissionInfo(
                 permission  = Manifest.permission.READ_CALENDAR,
                 label       = "Read Calendar",
@@ -120,8 +113,6 @@ fun PermissionsScreen(onBack: () -> Unit) {
                 group       = "Calendar",
                 isDangerous = true
             ),
-
-            // ── Contacts ───────────────────────────────────────────────────────
             PermissionInfo(
                 permission  = Manifest.permission.READ_CONTACTS,
                 label       = "Contacts",
@@ -132,8 +123,6 @@ fun PermissionsScreen(onBack: () -> Unit) {
                 group       = "Contacts",
                 isDangerous = true
             ),
-
-            // ── Storage ────────────────────────────────────────────────────────
             PermissionInfo(
                 permission  = Manifest.permission.READ_EXTERNAL_STORAGE,
                 label       = "Read Storage",
@@ -144,8 +133,6 @@ fun PermissionsScreen(onBack: () -> Unit) {
                 group       = "Storage",
                 isDangerous = true
             ),
-
-            // ── Alarms ─────────────────────────────────────────────────────────
             PermissionInfo(
                 permission  = Manifest.permission.SCHEDULE_EXACT_ALARM,
                 label       = "Exact Alarms",
@@ -221,8 +208,6 @@ fun PermissionsScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
-
-            // ── Summary Card ─────────────────────────────────────────────────
             item {
                 Surface(
                     shape = RoundedCornerShape(14.dp),
@@ -269,8 +254,6 @@ fun PermissionsScreen(onBack: () -> Unit) {
                     }
                 }
             }
-
-            // ── Open App Settings shortcut ───────────────────────────────────
             item {
                 OutlinedButton(
                     onClick = {
@@ -289,8 +272,6 @@ fun PermissionsScreen(onBack: () -> Unit) {
                     Text(stringResource(R.string.open_app_settings), color = CosmicAccent, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
             }
-
-            // ── Permission Groups ────────────────────────────────────────────
             groups.forEach { (groupName, perms) ->
                 item(key = "group_$groupName") {
                     Surface(
@@ -387,7 +368,7 @@ private fun PermissionRow(perm: PermissionInfo, isGranted: Boolean) {
             }
             Spacer(Modifier.width(8.dp))
             if (perm.isSpecial) {
-                // AP-05: For accessibility (full device control), show a biometric-gated
+                // : For accessibility (full device control), show a biometric-gated
                 // "Enable" button instead of a static badge. Non-accessibility special
                 // permissions retain the old badge.
                 val ctx = LocalContext.current

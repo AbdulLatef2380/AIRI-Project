@@ -288,6 +288,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val llamaManager      = LlamaManager(appContext)
     private val memoryManager     = MemoryManager(appContext)
 
+    // Tracks the deferred activity-feed clear so it can be cancelled if a new
+    // agent task starts before the 2-second delay expires (prevents clearing
+    // the feed mid-execution on rapid consecutive tasks).
+    private var clearHistoryJob: kotlinx.coroutines.Job? = null
+
     // ── RuntimeSupervisor — thermal / memory pressure watchdog ───────────────
     // Started when a model loads successfully; stopped in onCleared().
     // modeProvider returns the user's chosen PerformanceMode (thread-safe
@@ -410,7 +415,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // SPRINT 1: wire live ContextBudget so AgentLoop derives its long-context
         // routing threshold from LlamaNative.getNCtx() instead of a hardcoded 8192.
         contextBudgetProvider = { llamaManager.contextBudget },
-        // AP-SS: wire AgentSandbox so every tool dispatch is permission-checked
+        // : wire AgentSandbox so every tool dispatch is permission-checked
         // and workspace-logged before execution.
         agentSandbox          = com.airi.assistant.core.ServiceLocator.agentSandbox
     )
@@ -480,8 +485,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _todayTokens = MutableStateFlow(0L)
     val todayTokens: StateFlow<Long> = _todayTokens.asStateFlow()
 
+    /** Task 1.1: Daily credits remaining from CreditMeteringEngine (correct source for top-bar badge). */
+    private val _dailyCreditsRemaining = MutableStateFlow(200)
+    val dailyCreditsRemaining: StateFlow<Int> = _dailyCreditsRemaining.asStateFlow()
+
     private fun refreshTodayTokens() {
         _todayTokens.value = tokenAccountant.totalTokensToday()
+        // Also refresh credit remaining from the correct source
+        runCatching {
+            val snap = ServiceLocator.creditMeteringEngine.snapshot()
+            _dailyCreditsRemaining.value = snap.remaining
+        }
     }
 
     // ── Execution mode / origin state ─────────────────────────────────────────
@@ -547,7 +561,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val contextResetWarning: StateFlow<String?> = _contextResetWarning.asStateFlow()
     fun acknowledgeContextReset() { _contextResetWarning.value = null }
 
-    // AP-18: Summarizing indicator — true while ConversationSummarizer runs async.
+    // : Summarizing indicator — true while ConversationSummarizer runs async.
     // Consumed by ChatScreen to show "Compressing history…" chip.
     private val _isSummarizing = MutableStateFlow(false)
     val isSummarizing: StateFlow<Boolean> = _isSummarizing.asStateFlow()
@@ -557,14 +571,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // State ownership stays here (_modelState); ModelController mutates via .value.
     private val _modelState = MutableStateFlow(ModelUiState())   // placeholder until modelController init
 
-    // B-23: Tracks whether an embedding model is loaded (drives EmbeddingModelSection UI)
+    // : Tracks whether an embedding model is loaded (drives EmbeddingModelSection UI)
     private val _embeddingModelReady = MutableStateFlow(false)
     val embeddingModelReady: StateFlow<Boolean> = _embeddingModelReady.asStateFlow()
     private val _embeddingModelPath = MutableStateFlow<String?>(null)
     val embeddingModelPath: StateFlow<String?> = _embeddingModelPath.asStateFlow()
 
     /**
-     * B-23: Load an embedding GGUF from a URI selected via the file picker.
+     * : Load an embedding GGUF from a URI selected via the file picker.
      * Persists the path to SharedPreferences for auto-reload on next launch.
      */
     fun loadEmbeddingFromUri(context: Context, uri: Uri) {
@@ -581,7 +595,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _embeddingModelPath.value  = if (ok) dest.absolutePath else null
                 if (ok) {
                     preferences.edit().putString("embedding_model_path", dest.absolutePath).apply()
-                    Log.i("AIRI", "B-23: Embedding model loaded from URI → ${dest.absolutePath}")
+                    Log.i("AIRI", ": Embedding model loaded from URI → ${dest.absolutePath}")
                 }
             } catch (e: Throwable) {
                 Log.e("AIRI", "loadEmbeddingFromUri failed: ${e.message}", e)
@@ -623,7 +637,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun onDiagnosticsScreenVisible() = modelController.refreshDiagnosticsSnapshot()
     private fun syncDownloadedModelAvailability() = modelController.syncDownloadedModelAvailability()
 
-    // B-08 / LiveVoiceService: Real-time voice mode state
+    //  / LiveVoiceService: Real-time voice mode state
     // VoicePipelineState drives the ChatScreen voice FAB appearance
     private val _voicePipelineState = MutableStateFlow(
         com.airi.assistant.voice.VoicePipelineState.IDLE
@@ -668,7 +682,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _sessions = MutableStateFlow<List<ChatSessionSummary>>(emptyList())
     val sessions: StateFlow<List<ChatSessionSummary>> = _sessions.asStateFlow()
 
-    // B-17: Real-time network connectivity state — drives offline banner in ChatScreen.
+    // : Real-time network connectivity state — drives offline banner in ChatScreen.
     // ConnectivityMonitor.observe() auto-unregisters when viewModelScope is cancelled.
     private val _isOnline = MutableStateFlow(
         com.airi.assistant.execution.network.ConnectivityMonitor.isOnline(appContext)
@@ -905,7 +919,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         observeMemoryPressureBus()
         observeActivityBusForContextReset()
 
-        // B-17: Subscribe to real-time connectivity changes so ChatScreen can show
+        // : Subscribe to real-time connectivity changes so ChatScreen can show
         // an offline banner and routing auto-degrades to local when internet is lost.
         viewModelScope.launch {
             com.airi.assistant.execution.network.ConnectivityMonitor
@@ -1133,6 +1147,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        clearHistoryJob?.cancel()
         hybridOrchestrator.cancel()
         remoteExecutor.cancelCurrentRequest()
         runtimeSupervisor.stop()
@@ -1159,10 +1174,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun createNewSession() {
-        // AP-17: Clear camera JPEG cache on every new session to prevent unbounded growth.
+        // : Clear camera JPEG cache on every new session to prevent unbounded growth.
         // deleteRecursively() is safe when the directory doesn't exist (returns true).
         runCatching { File(appContext.cacheDir, "chat_attachments").deleteRecursively() }
-            .onFailure { android.util.Log.w("AIRI", "AP-17 cache clear failed: ${it.message}") }
+            .onFailure { android.util.Log.w("AIRI", " cache clear failed: ${it.message}") }
 
         viewModelScope.launch {
             val hadMessages = _messages.value.isNotEmpty()
@@ -1539,6 +1554,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             execOrigin = _lastExecOrigin.value
                         )
                     }
+                    // Record inference outcome for adaptive intelligence
+                    runCatching {
+                        val isCloud = _lastExecOrigin.value == ExecOrigin.CLOUD
+                        ServiceLocator.adaptiveIntelligenceEngine.recordInferenceOutcome(
+                            isCloud  = isCloud,
+                            success  = true,
+                            latencyMs = 0L  // approximate — latency tracked separately by TokenAccountant
+                        )
+                    }
                     _smartReplies.value = ResponseOptimizer.generateSuggestions(loopResult.finalAnswer)
                     subscriptionManager.recordConsecutiveSuccess()
                     val successes = subscriptionManager.getConsecutiveSuccesses()
@@ -1571,6 +1595,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _agentState.value = AgentState()
                 _generationPhase.value = GenerationPhase.IDLE
                 _isGenerating.value = false
+                // Clear activity feed history after execution completes.
+                // Cancel any pending clear from a previous run to avoid
+                // wiping the feed mid-execution on rapid consecutive tasks.
+                clearHistoryJob?.cancel()
+                clearHistoryJob = viewModelScope.launch {
+                    kotlinx.coroutines.delay(2000)
+                    AgentActivityBus.clearHistory()
+                }
                 refreshSessions()
                 refreshPowerLevel()
                 if (needsResummarize) {
@@ -1717,7 +1749,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * Safe to call from any thread; the StateFlow update is dispatched to Main.
      */
     /**
-     * AP-47: Returns whether developer debug mode is enabled.
+     * : Returns whether developer debug mode is enabled.
      *
      * Reads the `agent_debug_mode` flag persisted by [AgentViewModel.setDebugMode]
      * so that ChatScreen can gate DebugOverlay visibility in production builds
@@ -1727,9 +1759,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
             .getBoolean("agent_debug_mode", false)
 
-    // ── AP-C01: Dynamic input bar mode ────────────────────────────────────────
+    // ── : Dynamic input bar mode ────────────────────────────────────────
 
-    /** AP-C01: Drives adaptive height and visible buttons in the input bar. */
+    /** : Drives adaptive height and visible buttons in the input bar. */
     sealed class InputBarMode {
         object Compact     : InputBarMode()   // idle, no text
         object Standard    : InputBarMode()   // default typing
@@ -1743,7 +1775,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun onInputTextChange(text: String) { _inputText.value = text }
 
     /**
-     * AP-C09: Writes [text] to a temp file in cacheDir/chat_attachments/ and returns
+     * : Writes [text] to a temp file in cacheDir/chat_attachments/ and returns
      * a content Uri. The caller should then call stageAttachment() with the resulting Uri
      * and clear the input field.
      *
@@ -1756,10 +1788,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             file.writeText(text)
             androidx.core.content.FileProvider.getUriForFile(
                 appContext,
-                "${appContext.packageName}.provider",
+                "${appContext.packageName}.fileprovider",
                 file
             )
-        }.onFailure { android.util.Log.e("AIRI", "AP-C09 saveInputAsFile failed: ${it.message}") }
+        }.onFailure { android.util.Log.e("AIRI", " saveInputAsFile failed: ${it.message}") }
          .getOrNull()
     }
 
@@ -1774,10 +1806,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, InputBarMode.Standard)
 
-    // ── AP-05: Biometric gate for HYBRID (full-agent) mode ────────────────────
+    // ── : Biometric gate for HYBRID (full-agent) mode ────────────────────
 
     /**
-     * AP-05: Discriminated union for deferred biometric requests.
+     * : Discriminated union for deferred biometric requests.
      * ChatScreen collects [biometricRequest] and calls BiometricGatekeeper;
      * on success it calls [onBiometricSuccess] to complete the gated action.
      * This pattern keeps FragmentActivity out of the ViewModel.
@@ -1791,7 +1823,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val biometricRequest: SharedFlow<BiometricRequest> = _biometricRequest.asSharedFlow()
 
     /**
-     * AP-05: Gate entry point for mode switching.
+     * : Gate entry point for mode switching.
      * HYBRID mode requires biometric confirmation before activating;
      * all other modes switch immediately.
      */
@@ -1804,7 +1836,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * AP-05: Called by ChatScreen after BiometricGatekeeper returns true.
+     * : Called by ChatScreen after BiometricGatekeeper returns true.
      * Completes the gated action unconditionally — the gate already passed.
      */
     fun onBiometricSuccess(request: BiometricRequest) {
@@ -2226,7 +2258,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * No hidden forks: the only branching is this one block.
      */
     /**
-     * AP-C09: Stage a Uri-based attachment (e.g. from large-prompt file conversion).
+     * : Stage a Uri-based attachment (e.g. from large-prompt file conversion).
      * The attachment will be included in the next sendMessage() call.
      */
     fun stageAttachmentUri(uri: android.net.Uri) {
@@ -2250,13 +2282,43 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         if (_modelState.value.isModelLoading) return
 
+        // Persist attachment files to filesDir/attachments/ before sending
+        // Also register each visual attachment in MediaLibrary
+        val persistedAttachments = attachments.map { att ->
+            runCatching {
+                if (att.uri != null) {
+                    val attachDir = java.io.File(appContext.filesDir, "attachments").also { it.mkdirs() }
+                    val destFile  = java.io.File(attachDir, "${att.uid}_${att.fileName ?: "file"}")
+                    if (!destFile.exists()) {
+                        appContext.contentResolver.openInputStream(att.uri)?.use { input ->
+                            destFile.outputStream().use { out -> input.copyTo(out) }
+                        }
+                    }
+                    // Register in MediaLibrary so it appears in Workspace → Media tab
+                    if (att.isVisualImage && destFile.exists()) {
+                        viewModelScope.launch(Dispatchers.IO) {
+                            runCatching {
+                                ServiceLocator.mediaLibrary.importFile(
+                                    sourceFile  = destFile,
+                                    type        = com.airi.assistant.media.MediaType.IMAGE,
+                                    mimeType    = att.mimeType ?: "image/jpeg",
+                                    sessionId   = sessionId
+                                )
+                            }
+                        }
+                    }
+                    att.copy(persistedPath = destFile.absolutePath)
+                } else att
+            }.getOrDefault(att)
+        }
+
         val trimmed = input.trim()
         val visionReady = _modelState.value.capabilities.vision &&
             runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
 
         // Find the first visual image attachment, if any.
-        val primaryImage = attachments.firstOrNull { it.isVisualImage }
-        val extras       = attachments - listOfNotNull(primaryImage).toSet()
+        val primaryImage = persistedAttachments.firstOrNull { it.isVisualImage }
+        val extras       = persistedAttachments - listOfNotNull(primaryImage).toSet()
 
         Log.i(
             "AIRI_PROOF",
@@ -2502,6 +2564,37 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Delete a message by uid. No-op if uid not found. Updates in-memory state only. */
     fun deleteMessage(uid: String) {
         _messages.value = _messages.value.filter { it.uid != uid }
+    }
+
+    /**
+     * Task 1.7: Persist thumbs-up/down feedback for a message.
+     * Looks up the Room row by matching content+timestamp, then writes feedback column.
+     * @param messageUid  In-memory uid of the ChatMessage
+     * @param liked       true = thumbs up (+1), false = thumbs down (-1)
+     */
+    fun submitFeedback(messageUid: String, liked: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val msg = _messages.value.find { it.uid == messageUid } ?: return@launch
+            // Record response style preference for adaptive learning
+            runCatching {
+                ServiceLocator.adaptiveIntelligenceEngine.recordResponseStyle(
+                    wordCount = msg.text.split(" ").size,
+                    thumbsUp  = liked
+                )
+            }
+            runCatching {
+                val recentRows = ServiceLocator.storageRepository.getRecentMessages(50)
+                val matchedRow = recentRows.firstOrNull { row ->
+                    row.content == msg.text && !row.isMemory
+                }
+                if (matchedRow != null) {
+                    ServiceLocator.storageRepository.updateMessageFeedback(
+                        id       = matchedRow.id,
+                        feedback = if (liked) 1 else -1
+                    )
+                }
+            }
+        }
     }
 
     // ── Plus Menu orchestration (Phase 6) ─────────────────────────────────────

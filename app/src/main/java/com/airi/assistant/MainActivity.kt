@@ -28,7 +28,7 @@ import androidx.core.content.ContextCompat
 import com.airi.assistant.ui.AiriApp
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.growth.ReferralManager
-import com.airi.assistant.oauth.OAuthStateRegistry
+import com.airi.assistant.connector.oauth.OAuthStateRegistry
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.ui.theme.AIRITheme
 import com.airi.assistant.voice.HotwordService

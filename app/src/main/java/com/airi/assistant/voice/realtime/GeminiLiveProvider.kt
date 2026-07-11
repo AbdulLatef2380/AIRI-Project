@@ -64,7 +64,10 @@ class GeminiLiveProvider(
 
     // ── Interface properties ───────────────────────────────────────────────────
 
-    override val name: String = "Gemini Live ($modelId)"
+    /** API key stored at provider selection time; used by LiveVoiceService.restoreProviderPreference(). */
+    var storedApiKey: String = ""
+
+        override val name: String = "Gemini Live ($modelId)"
     override val endpointDescription: String =
         "wss://generativelanguage.googleapis.com/ws/...BidiGenerateContent"
     override val supportsBidirectionalStreaming: Boolean = true

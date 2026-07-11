@@ -69,4 +69,42 @@ object DefaultAssistantManager {
             Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
     }
+
+    /**
+     * Opens the MIUI/HyperOS autostart settings for this app.
+     *
+     * Xiaomi/Redmi devices running MIUI 12+ or HyperOS restrict background
+     * execution by default. The foreground services (LiveVoiceService,
+     * HotwordService, ModelDownloadService) require the app to be whitelisted
+     * in MIUI's autostart manager, otherwise they are killed on screen-off.
+     *
+     * Falls back gracefully if the intent is not available (non-Xiaomi devices).
+     */
+    fun openMiuiAutostartSettings(context: Context) {
+        if (Build.MANUFACTURER.lowercase() != "xiaomi") return
+        val intents = listOf(
+            // MIUI 12 / HyperOS
+            Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                setClassName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")
+            },
+            // MIUI 10/11
+            Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                putExtra("extra_pkgname", context.packageName)
+            },
+            // Generic battery optimization (works on most OEMs)
+            Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = android.net.Uri.parse("package:${context.packageName}")
+            }
+        )
+        for (intent in intents) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try { context.startActivity(intent); return } catch (_: Exception) {}
+        }
+    }
+
+    /**
+     * Returns true if this device is a Xiaomi/Redmi/POCO device running MIUI or HyperOS.
+     * Use this to conditionally show MIUI-specific onboarding prompts.
+     */
+    fun isMiuiDevice(): Boolean = Build.MANUFACTURER.lowercase() == "xiaomi"
 }

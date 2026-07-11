@@ -36,6 +36,7 @@ import net.sqlcipher.database.SupportFactory
  *   v2 → v3: Added message_embedding table for semantic memory (RAG).
  *   v3 → v4: Added audit_log table for persistent AIRI_PROOF event storage (Phase 2 Task 5).
  *   v4 → v5: Added workspace_artifact table for ArtifactManager persistence (Phase 2 Task 26).
+ *   v5 → v6: Added feedback column to episodic_memory (Task 1.7) and attachmentJson column (Task 4.1).
  *
  * ── Task 27: Database backup ──────────────────────────────────────────────────
  * [exportBackup] copies the live database file to a destination [File] using
@@ -67,7 +68,7 @@ import net.sqlcipher.database.SupportFactory
         AuditLogEntity::class,
         ArtifactEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(AuditLogTypeConverters::class)
@@ -176,6 +177,14 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
+        // ── v5 → v6: feedback + attachmentJson columns (Tasks 1.7, 4.1) ─────────
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE episodic_memory ADD COLUMN feedback INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE episodic_memory ADD COLUMN attachmentJson TEXT")
+            }
+        }
+
         fun getDatabase(context: Context): AiriDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = buildDatabase(context)
@@ -197,7 +206,7 @@ abstract class AiriDatabase : RoomDatabase() {
                     AiriDatabase::class.java,
                     "airi_memory_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .openHelperFactory(factory)
                     .build()
             }
@@ -206,7 +215,7 @@ abstract class AiriDatabase : RoomDatabase() {
                 context.applicationContext,
                 AiriDatabase::class.java,
                 "airi_memory_db"
-            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
         }
 

@@ -112,13 +112,9 @@ fun ModelLibraryScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 12.dp)
         ) {
-
-            // ── Section 1: Active routing status ──────────────────────────────
             item {
                 ActiveRoutingCard(modelState = modelState)
             }
-
-            // ── Section 2: Smart routing mode ─────────────────────────────────
             item {
                 SmartRoutingModeCard(
                     current = execMode,
@@ -139,8 +135,6 @@ fun ModelLibraryScreen(
                     }
                 )
             }
-
-            // ── Section 3: Local AI ───────────────────────────────────────────
             item {
                 SectionHeader(
                     icon  = Icons.Outlined.PhoneAndroid,
@@ -153,8 +147,6 @@ fun ModelLibraryScreen(
             item {
                 LocalModelCard(modelState = modelState)
             }
-
-            // ── Section 4: Cloud providers ────────────────────────────────────
             item {
                 Spacer(Modifier.height(4.dp))
                 SectionHeader(
@@ -196,8 +188,6 @@ fun ModelLibraryScreen(
                     } else null
                 )
             }
-
-            // ── Section 4b: Search & Research APIs ────────────────────────────
             item {
                 Spacer(Modifier.height(4.dp))
                 SectionHeader(
@@ -214,8 +204,6 @@ fun ModelLibraryScreen(
                     onEnterKey  = { keyDialogProvider = CloudProvider.BRAVE }
                 )
             }
-
-            // ── Section 5: OpenRouter task models ─────────────────────────────
             item {
                 Spacer(Modifier.height(4.dp))
                 SectionHeader(
@@ -241,8 +229,6 @@ fun ModelLibraryScreen(
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
-
-    // ── API key entry dialog ───────────────────────────────────────────────
     keyDialog?.let { config ->
         ApiKeyEntryDialog(
             config = config,
@@ -258,8 +244,6 @@ fun ModelLibraryScreen(
             }
         )
     }
-
-    // ── Brave Search API key dialog ────────────────────────────────────────
     keyDialogProvider?.let { provider ->
         BraveKeyEntryDialog(
             provider  = provider,
@@ -275,9 +259,6 @@ fun ModelLibraryScreen(
         )
     }
 }
-
-// ── Brave Search API card ──────────────────────────────────────────────────
-
 @Composable
 private fun BraveSearchApiCard(
     context:     Context,
@@ -357,9 +338,6 @@ private fun BraveKeyEntryDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant) } }
     )
 }
-
-// ── Active routing card ────────────────────────────────────────────────────
-
 @Composable
 private fun ActiveRoutingCard(modelState: ModelUiState) {
     val activeLabel = when {
@@ -418,9 +396,6 @@ private fun ActiveRoutingCard(modelState: ModelUiState) {
         }
     }
 }
-
-// ── Smart routing mode selector ────────────────────────────────────────────
-
 @Composable
 private fun SmartRoutingModeCard(
     current:  ExecutionMode,
@@ -483,9 +458,6 @@ private fun SmartRoutingModeCard(
         }
     }
 }
-
-// ── Local model card ───────────────────────────────────────────────────────
-
 @Composable
 private fun LocalModelCard(modelState: ModelUiState) {
     Surface(
@@ -524,9 +496,6 @@ private fun LocalModelCard(modelState: ModelUiState) {
         }
     }
 }
-
-// ── Cloud provider card ────────────────────────────────────────────────────
-
 @Composable
 private fun CloudProviderCard(
     config:      EmbeddedProviderConfig.ProviderConfig,
@@ -616,9 +585,6 @@ private fun CloudProviderCard(
         }
     }
 }
-
-// ── OpenRouter task model card ─────────────────────────────────────────────
-
 private data class TaskModelEntry(
     val modelId:    String,
     val taskLabel:  String,
@@ -700,9 +666,6 @@ private fun OpenRouterTaskModelCard(entry: TaskModelEntry) {
         }
     }
 }
-
-// ── Shared helpers ─────────────────────────────────────────────────────────
-
 @Composable
 private fun SectionHeader(
     icon:       ImageVector,
@@ -742,9 +705,6 @@ private fun InfoBadge(label: String) {
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
     }
 }
-
-// ── API key dialog (reused from CloudModelStore pattern) ───────────────────
-
 @Composable
 private fun ApiKeyEntryDialog(
     config:    EmbeddedProviderConfig.ProviderConfig,

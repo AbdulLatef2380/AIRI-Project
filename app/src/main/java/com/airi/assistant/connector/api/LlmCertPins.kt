@@ -52,8 +52,14 @@ object LlmCertPins {
     private const val GEMINI_PIN_PRIMARY = "sha256/zCTnfLwLKbS9S2sbp+uFz4KZOocFvXxkV06Ce9O5M2w="
     private const val GEMINI_PIN_BACKUP  = "sha256/hxqRlPTu1bMS/0DITB1SSu0vd4u/8l8TjPgfaAp63Vg="
 
+    // ── OpenRouter (openrouter.ai) ────────────────────────────────────────────
+    // Primary:  Let's Encrypt R3 intermediate (2026-09 expiry)
+    // Backup:   ISRG Root X1 (long-lived root backup)
+    private const val OPENROUTER_PIN_PRIMARY = "sha256/jQJTbIh0grw0/1TkHSumWb+Fs0Ggogr621gT3PvPKG0="
+    private const val OPENROUTER_PIN_BACKUP  = "sha256/C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M="
+
     /**
-     * Pinner covering all three LLM API domains.
+     * Pinner covering all LLM API domains.
      * Only referenced when [PINNING_ENABLED] is true.
      */
     private val pinner: CertificatePinner by lazy {
@@ -61,8 +67,20 @@ object LlmCertPins {
             .add("api.openai.com",                    OPENAI_PIN_PRIMARY,    OPENAI_PIN_BACKUP)
             .add("api.anthropic.com",                 ANTHROPIC_PIN_PRIMARY, ANTHROPIC_PIN_BACKUP)
             .add("generativelanguage.googleapis.com", GEMINI_PIN_PRIMARY,    GEMINI_PIN_BACKUP)
+            .add("openrouter.ai",                     OPENROUTER_PIN_PRIMARY, OPENROUTER_PIN_BACKUP)
             .build()
     }
+
+    /**
+     * Task 8.1: Exposes pins for inspection by SecurityScannerScreen.
+     * Value = list of [sha256/...] pin strings for each host.
+     */
+    val pins: Map<String, List<String>> = mapOf(
+        "api.openai.com"                    to listOf(OPENAI_PIN_PRIMARY, OPENAI_PIN_BACKUP),
+        "api.anthropic.com"                 to listOf(ANTHROPIC_PIN_PRIMARY, ANTHROPIC_PIN_BACKUP),
+        "generativelanguage.googleapis.com" to listOf(GEMINI_PIN_PRIMARY, GEMINI_PIN_BACKUP),
+        "openrouter.ai"                     to listOf(OPENROUTER_PIN_PRIMARY, OPENROUTER_PIN_BACKUP)
+    )
 
     /**
      * Build an [OkHttpClient] with optional certificate pinning and the given timeouts.

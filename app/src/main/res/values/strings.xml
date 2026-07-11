@@ -1112,4 +1112,102 @@
     <string name="attach_section_media">Media &amp; Files</string>
     <string name="attach_section_actions">Actions</string>
     <string name="attach_scheduled_tasks">Scheduled Tasks</string>
+
+
+    <!-- Welcome Screen (Task 1.6) -->
+    <string name="welcome_app_name">Airi assistant.ai</string>
+    <string name="welcome_title">Welcome to AIRI</string>
+    <string name="welcome_subtitle">To get started, set up a local model or enter a cloud API key.</string>
+    <string name="welcome_setup_model">Set up a local model</string>
+    <string name="welcome_enter_api_key">Enter an API key</string>
+    <string name="welcome_continue_anyway">Continue without setup</string>
+
+    <!-- Planning Dashboard (Task 5.1) -->
+    <string name="planning_dashboard_title">Planning Dashboard</string>
+    <string name="planning_no_active_plan">No active plan</string>
+    <string name="planning_empty_hint">Start a multi-step task to see the execution plan here.</string>
+
+    <!-- Secret Manager (Task 9.1) -->
+    <string name="secret_manager_title">Secret Manager</string>
+    <string name="secret_manager_api_key_label">API Key</string>
+    <string name="secret_manager_save">Save</string>
+    <string name="secret_manager_cancel">Cancel</string>
+
+    <!-- Security Scanner (Task 8.1) -->
+    <string name="security_scanner_title">Security Scanner</string>
+    <string name="security_scanner_scanning">Scanning\u2026</string>
+    <string name="security_scanner_no_results">No results — tap refresh to scan.</string>
+
+    <!-- Git Repository Browser (Task 6.2) -->
+    <string name="git_repo_title">Repositories</string>
+    <string name="git_repo_branches">Branches</string>
+    <string name="git_repo_commits">Recent Commits</string>
+    <string name="git_repo_empty">No repositories — connect GitHub in Settings</string>
+    <string name="git_repo_error">Could not load repositories</string>
+    <string name="git_repo_retry">Retry</string>
+    <!-- GeneralSettingsScreen -->
+    <string name="settings_reset_all">Reset All Settings</string>
+    <string name="settings_reset_dialog_title">Reset All Settings?</string>
+    <string name="settings_reset_dialog_body">Execution mode, voice settings, theme, and downloaded model paths will be cleared. This cannot be undone.</string>
+    <string name="settings_reset_confirm">Reset</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- ObservabilityScreen -->
+    <string name="loading">Loading\u2026</string>
+
+    <!-- DeveloperCenterScreen -->
+    <string name="dev_cert_pinning">LLM Certificate Pinning</string>
+    <string name="dev_no_audit_events">No audit events yet</string>
+    <string name="dev_no_profiling_data">No samples yet — start a conversation to generate profiling data.</string>
+    <string name="dev_refresh_hint">Refreshes every 5 s • tap tab to force reload</string>
+
+    <!-- SkillCreationWizardScreen -->
+    <string name="skill_wizard_title">Skill Creation Wizard</string>
+    <string name="skill_wizard_step">Step %1$d of 4 — %2$s</string>
+    <string name="skill_wizard_next_tools">Next: Define Tools</string>
+    <string name="skill_wizard_add_tool">Add Tool</string>
+    <string name="skill_wizard_next_permissions">Next: Set Permissions</string>
+    <string name="skill_wizard_parameters">Parameters</string>
+    <string name="skill_wizard_add_parameter">Add Parameter</string>
+    <string name="skill_wizard_required">Required</string>
+    <string name="skill_wizard_generate">Generate skill.json</string>
+    <string name="skill_wizard_output_title">Generated skill.json</string>
+
+    <!-- WorkspaceScreen -->
+    <string name="workspace_preview">Preview</string>
+
+    <!-- AboutScreen -->
+    <string name="about_technical_details">Technical Details</string>
+
+    <!-- DebugPanelScreen -->
+    <string name="debug_panel_title">Debug Panel</string>
+    <string name="debug_no_results">No results</string>
+
+    <!-- MarketplaceScreen -->
+    <string name="marketplace_up_to_date">All skills are up to date</string>
+    <string name="marketplace_no_updates">No updates available right now.</string>
+    <string name="marketplace_open">Open</string>
+
+    <!-- ChatScreen -->
+    <string name="chat_templates_title">Templates</string>
+    <string name="chat_convert">Convert</string>
+    <string name="chat_keep">Keep</string>
+
+    <!-- VoiceSettingsScreen -->
+    <string name="voice_cloud_provider_title">Cloud Voice Provider</string>
+    <string name="voice_cloud_provider_desc">Select a cloud realtime voice provider for low-latency audio streaming.</string>
+
+    <!-- WelcomeScreen (update to use stringResource) -->
+    <string name="welcome_setup_model_desc">Set up a local model</string>
+    <string name="welcome_enter_api_key_desc">Enter an API key</string>
+    <string name="welcome_continue_without">Continue without setup</string>
+
+    <!-- HotwordService notification -->
+    <string name="hotword_notification_title">AIRI is listening for \"Hey AIRI\"</string>
+    <string name="hotword_notification_text">Tap to open AIRI</string>
+
+    <!-- LiveVoiceService notification -->
+    <string name="voice_service_notification_listening">Listening…</string>
+    <string name="voice_service_notification_speaking">Speaking</string>
+    <string name="voice_service_notification_stop">Stop</string>
 </resources>

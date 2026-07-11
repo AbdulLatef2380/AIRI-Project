@@ -273,8 +273,8 @@ class HotwordService : Service() {
         }
         val notif: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("AIRI is listening for \"Hey AIRI\"")
-            .setContentText("Tap to open AIRI")
+            .setContentTitle(getString(R.string.hotword_notification_title))
+            .setContentText(getString(R.string.hotword_notification_text))
             .setOngoing(true)
             .setContentIntent(pi)
             .setPriority(NotificationCompat.PRIORITY_LOW)

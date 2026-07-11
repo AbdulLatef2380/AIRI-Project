@@ -119,9 +119,6 @@ fun ArtifactPreviewScreen(
         }
     }
 }
-
-// ── HTML — sandboxed WebView ──────────────────────────────────────────────────
-
 private const val HTML_TAG = "AIRI_ArtifactPreview"
 
 /**
@@ -216,9 +213,6 @@ private fun buildSandboxedHtmlDocument(rawHtml: String): String = """
     </body>
     </html>
 """.trimIndent()
-
-// ── Markdown — native Compose rendering ──────────────────────────────────────
-
 @Composable
 private fun MarkdownArtifactView(markdown: String) {
     // Phase 2: Native text rendering. Phase 3 will integrate a real Markdown
@@ -270,9 +264,6 @@ private fun MarkdownArtifactView(markdown: String) {
         }
     }
 }
-
-// ── Code — monospace text block ───────────────────────────────────────────────
-
 @Composable
 private fun CodeArtifactView(code: String) {
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
@@ -293,9 +284,6 @@ private fun CodeArtifactView(code: String) {
         }
     }
 }
-
-// ── Unsupported type placeholder ──────────────────────────────────────────────
-
 @Composable
 private fun UnsupportedArtifactView(type: String) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

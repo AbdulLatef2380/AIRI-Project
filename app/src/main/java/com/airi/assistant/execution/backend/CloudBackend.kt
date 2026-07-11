@@ -52,6 +52,23 @@ class CloudBackend(
     override val capabilities: CapabilityProfile = CapabilityProfile.CLOUD_STREAMING
     override val origin: ExecOrigin = ExecOrigin.CLOUD
 
+    // Task 7.1: Network traffic counters exposed to ObservabilityScreen
+    private val _requestCount  = java.util.concurrent.atomic.AtomicInteger(0)
+    private val _errorCount    = java.util.concurrent.atomic.AtomicInteger(0)
+    private val _totalLatencyMs = java.util.concurrent.atomic.AtomicLong(0)
+
+    data class NetworkStats(
+        val requestCount: Int,
+        val errorCount:   Int,
+        val avgLatencyMs: Long
+    )
+
+    fun stats(): NetworkStats = NetworkStats(
+        requestCount = _requestCount.get(),
+        errorCount   = _errorCount.get(),
+        avgLatencyMs = if (_requestCount.get() > 0) _totalLatencyMs.get() / _requestCount.get() else 0L
+    )
+
     override val isAvailable: Boolean
         get() {
             val guard = NetworkGuard.evaluate(prefs)
@@ -83,6 +100,9 @@ class CloudBackend(
         }
 
         var lastError = "Unknown cloud error"
+        // Task 7.1: Track request start for latency measurement
+        val requestStart = System.currentTimeMillis()
+        _requestCount.incrementAndGet(); _globalRequestCount.incrementAndGet()
 
         for ((attemptIdx, provider) in providerQueue.withIndex()) {
             val isFallback = attemptIdx > 0
@@ -136,6 +156,7 @@ class CloudBackend(
                     }
                     RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.INFO,
                         "${provider.displayName} OK: ${result.latencyMs}ms tokens=${promptTok}p+${compTok}c")
+                    _totalLatencyMs.addAndGet(System.currentTimeMillis() - requestStart); _globalTotalLatencyMs.addAndGet(System.currentTimeMillis() - requestStart)
                     onComplete(result.fullText, result.latencyMs)
                     return   // Success — do NOT continue to next provider
                 }
@@ -152,6 +173,8 @@ class CloudBackend(
         // All providers in the failover chain failed.
         RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.ERROR,
             "All ${providerQueue.size} cloud provider(s) failed. Last: ${lastError.take(80)}")
+        // Task 7.1: All providers failed — increment error counter
+        _errorCount.incrementAndGet(); _globalErrorCount.incrementAndGet()
         onError(lastError)
     }
 
@@ -214,6 +237,18 @@ class CloudBackend(
     companion object {
         private const val TAG         = "AIRI_CloudBackend"
         private const val MAX_RETRIES = 3
+
+        // Task 7.1: Global counters so ObservabilityScreen can read without a direct reference
+        private val _globalRequestCount  = java.util.concurrent.atomic.AtomicInteger(0)
+        private val _globalErrorCount    = java.util.concurrent.atomic.AtomicInteger(0)
+        private val _globalTotalLatencyMs = java.util.concurrent.atomic.AtomicLong(0)
+
+        fun globalStats(): NetworkStats = NetworkStats(
+            requestCount = _globalRequestCount.get(),
+            errorCount   = _globalErrorCount.get(),
+            avgLatencyMs = if (_globalRequestCount.get() > 0)
+                _globalTotalLatencyMs.get() / _globalRequestCount.get() else 0L
+        )
 
         /**
          * Priority order for automatic cloud provider failover.

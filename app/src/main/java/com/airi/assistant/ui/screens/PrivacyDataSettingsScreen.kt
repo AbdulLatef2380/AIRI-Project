@@ -161,7 +161,6 @@ fun PrivacyDataSettingsScreen(
                     onClick = {
                         showDeleteDialog = false
                         scope.launch {
-                            // ── AP-05: Biometric gate ──────────────────────────────
                             // Account deletion is irreversible (8-step wipe). Require
                             // biometric confirmation before proceeding.
                             val activity = context as? FragmentActivity
@@ -178,7 +177,6 @@ fun PrivacyDataSettingsScreen(
                                 )
                                 if (!confirmed) return@launch
                             }
-                            // ── Delegate to DataDeletionCoordinator ─────────────
                             // Orchestrates all 8 steps (WorkManager stop, Firebase
                             // deletion, Room wipe, filesystem wipe, credential wipe,
                             // preference reset, cache wipe, local sign-out).
@@ -207,7 +205,7 @@ fun PrivacyDataSettingsScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCC2222))
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) { Text(stringResource(R.string.delete_account)) }
             },
             dismissButton = {

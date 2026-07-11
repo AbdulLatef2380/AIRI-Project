@@ -89,6 +89,10 @@ class ProductionAgentOrchestrator {
     @Volatile
     var observabilityHub: com.airi.assistant.agent.observability.AgentObservabilityHub? = null
 
+    /** Task 1.8: DurableTaskManager hook — set by ServiceLocator after construction. */
+    @Volatile
+    var durableTaskManager: com.airi.assistant.agent.durable.DurableTaskManager? = null
+
     /**
      * Adaptive retry policy tracks per-agent-type failure rates across tasks.
      * When an agent type fails ≥65% of the time over ≥3 samples,
@@ -370,6 +374,9 @@ class ProductionAgentOrchestrator {
                                     agentId    = agent.capability.agentId,
                                     durationMs = event.durationMs
                                 )
+                                // ── Task 11.3: Record success in StrategyEvolutionEngine ──
+                                com.airi.assistant.core.ServiceLocator.strategyEvolutionEngine
+                                    .recordNodeOutcome(agent.capability.agentId, "direct", 1, true)
                             }
                             is AgentEvent.Failed -> {
                                 taskError = event.reason
@@ -379,6 +386,9 @@ class ProductionAgentOrchestrator {
                                     agentId = agent.capability.agentId,
                                     reason  = event.reason
                                 )
+                                // ── Task 11.3: Record failure in StrategyEvolutionEngine ──
+                                com.airi.assistant.core.ServiceLocator.strategyEvolutionEngine
+                                    .recordNodeOutcome(agent.capability.agentId, "direct", 1, false)
                             }
                             is AgentEvent.Delegate -> {
                                 // Delegation to another sub-agent — resolve recursively
@@ -393,6 +403,12 @@ class ProductionAgentOrchestrator {
                                 Log.d(TAG, "AIRI_PROOF TOOL_CALL tool=${event.toolName} task=${task.id}")
                                 // ── Observability: record every real tool call ─
                                 observabilityHub?.recordToolCall(event.toolName)
+                                // ── Task 1.8: Checkpoint after each tool call ──
+                                durableTaskManager?.updateCheckpoint(
+                                    taskId          = task.id,
+                                    checkpointData  = "tool:${event.toolName}",
+                                    progressMessage = "Used tool: ${event.toolName}"
+                                )
                             }
                             is AgentEvent.Progress -> {
                                 Log.d(TAG, "Progress [${event.percentComplete}%] ${event.message}")

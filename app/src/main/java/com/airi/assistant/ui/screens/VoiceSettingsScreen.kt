@@ -32,6 +32,10 @@ import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.voice.OpenWakeWordEngine
 import com.airi.assistant.voice.PorcupineEngine
 import com.airi.assistant.voice.VoskModelManager
+import com.airi.assistant.voice.realtime.GeminiLiveProvider
+import com.airi.assistant.voice.realtime.OpenAIRealtimeProvider
+import com.airi.assistant.execution.security.SecureApiKeyStore
+import com.airi.assistant.execution.CloudProvider
 import kotlinx.coroutines.launch
 
 /**
@@ -115,8 +119,6 @@ fun VoiceSettingsScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-
-            // ── Voice Personalization shortcut ───────────────────────────
             Surface(
                 shape    = RoundedCornerShape(14.dp),
                 color    = CosmicAccent.copy(alpha = 0.08f),
@@ -146,15 +148,11 @@ fun VoiceSettingsScreen(
                         modifier = Modifier.size(18.dp))
                 }
             }
-
-            // ── System status — real availability from engine state ──────
             VoiceStatusCard(
                 porcupineStatus = porcupineStatus,
                 owwStatus       = owwStatus,
                 voskReady       = VoskModelManager.isReady(context)
             )
-
-            // ── First-run: no model installed — show download prompt ─────
             if (installed.isEmpty()) {
                 Surface(
                     shape    = RoundedCornerShape(14.dp),
@@ -228,8 +226,6 @@ fun VoiceSettingsScreen(
                     }
                 }
             }
-
-            // ── Porcupine wake-word ──────────────────────────────────────
             PorcupineCard(
                 status         = porcupineStatus,
                 accessKeyInput = accessKeyInput,
@@ -246,21 +242,21 @@ fun VoiceSettingsScreen(
                     porcupineStatus = PorcupineEngine.status(context)
                 }
             )
-
-            // ── Installed Vosk models ────────────────────────────────────
             InstalledModelsCard(
                 installed = installed,
                 activeId  = activeId,
                 onActivate = { id -> VoskModelManager.setActive(context, id) },
                 onDelete   = { id -> VoskModelManager.delete(context, id) }
             )
+            CloudVoiceCard(
+                context  = context,
+                onSnackbar = { msg -> scope.launch { snackbar.showSnackbar(msg) } }
+            )
 
             Spacer(Modifier.height(32.dp))
         }
     }
 }
-
-// ── Voice system status card ───────────────────────────────────────────────────
 @Composable
 private fun VoiceStatusCard(
     porcupineStatus: PorcupineEngine.Status,
@@ -331,8 +327,6 @@ private fun VoiceStatusCard(
         }
     }
 }
-
-// ── Porcupine access key card ─────────────────────────────────────────────────
 @Composable
 private fun PorcupineCard(
     status: PorcupineEngine.Status,
@@ -422,8 +416,6 @@ private fun PorcupineCard(
         }
     }
 }
-
-// ── Installed Vosk models ─────────────────────────────────────────────────────
 @Composable
 private fun InstalledModelsCard(
     installed: List<VoskModelManager.Installed>,
@@ -501,6 +493,121 @@ private fun InstalledModelsCard(
                         }
                     }
                     if (installed.last() != model) Spacer(Modifier.height(6.dp))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Cloud Realtime Voice provider selector.
+ *
+ * Binds to [LiveVoiceService] so that selecting a provider immediately
+ * calls [LiveVoiceService.LocalBinder.setRealtimeProvider], making the
+ * switch live without an app restart.
+ *
+ * Provider state is persisted to SharedPreferences so it survives process
+ * death. On service bind, the persisted preference is applied automatically
+ * via [LiveVoiceService.restoreProviderPreference].
+ */
+@androidx.compose.runtime.Composable
+private fun CloudVoiceCard(
+    context: android.content.Context,
+    onSnackbar: (String) -> Unit
+) {
+    val keyStore        = remember { SecureApiKeyStore(context) }
+    val prefs           = remember { context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE) }
+    val hasGeminiKey    = remember { mutableStateOf(keyStore.getKey(CloudProvider.GEMINI) != null) }
+    val hasOpenAIKey    = remember { mutableStateOf(keyStore.getKey(CloudProvider.OPENAI) != null) }
+    val selectedId      = remember { mutableStateOf(prefs.getString("cloud_voice_provider", "LOCAL") ?: "LOCAL") }
+    var voiceBinder     by remember { mutableStateOf<LiveVoiceService.LocalBinder?>(null) }
+
+    // Bind to LiveVoiceService so we can call setRealtimeProvider()
+    DisposableEffect(Unit) {
+        val conn = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+                voiceBinder = binder as? LiveVoiceService.LocalBinder
+            }
+            override fun onServiceDisconnected(name: ComponentName) { voiceBinder = null }
+        }
+        val intent = android.content.Intent(context, LiveVoiceService::class.java)
+        context.bindService(intent, conn, android.content.Context.BIND_AUTO_CREATE)
+        onDispose { context.unbindService(conn) }
+    }
+
+    fun applyProvider(id: String) {
+        if (id == "GEMINI_LIVE" && !hasGeminiKey.value) {
+            onSnackbar("Set a Gemini API key in Settings first")
+            return
+        }
+        if (id == "OPENAI_REALTIME" && !hasOpenAIKey.value) {
+            onSnackbar("Set an OpenAI API key in Settings first")
+            return
+        }
+        selectedId.value = id
+        prefs.edit().putString("cloud_voice_provider", id).apply()
+
+        val provider = when (id) {
+            "GEMINI_LIVE" -> {
+                val key = keyStore.getKey(CloudProvider.GEMINI) ?: return
+                GeminiLiveProvider().also { it.storedApiKey = key }
+            }
+            "OPENAI_REALTIME" -> {
+                val key = keyStore.getKey(CloudProvider.OPENAI) ?: return
+                OpenAIRealtimeProvider().also { it.storedApiKey = key }
+            }
+            else -> null // LOCAL — falls back to LocalVoicePipeline in the service
+        }
+        voiceBinder?.setRealtimeProvider(provider)
+    }
+
+    val options = listOf(
+        Triple("LOCAL",           "Local (Vosk)",     "On-device, private, no API key needed"),
+        Triple("GEMINI_LIVE",     "Gemini Live",      if (hasGeminiKey.value)  "Gemini key set"  else "Requires Gemini API key"),
+        Triple("OPENAI_REALTIME", "OpenAI Realtime",  if (hasOpenAIKey.value)  "OpenAI key set"  else "Requires OpenAI API key"),
+    )
+
+    androidx.compose.material3.Surface(
+        shape  = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+        color  = CosmicAccent.copy(alpha = 0.06f),
+        modifier = Modifier.fillMaxWidth()
+            .border(1.dp, CosmicAccent.copy(0.20f), androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(androidx.compose.material.icons.Icons.Outlined.Cloud, null,
+                    tint = CosmicAccent, modifier = Modifier.size(20.dp))
+                Text(stringResource(R.string.voice_cloud_provider_title),
+                    fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+            }
+            Text(stringResource(R.string.voice_cloud_provider_desc),
+                fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
+
+            options.forEach { (id, label, subtitle) ->
+                val isSelected = selectedId.value == id
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                        .background(if (isSelected) CosmicAccent.copy(0.12f) else Color.Transparent)
+                        .border(
+                            0.5.dp,
+                            if (isSelected) CosmicAccent.copy(0.40f) else AiriTheme.outline.copy(0.15f),
+                            androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+                        )
+                        .clickable { applyProvider(id) }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    androidx.compose.material3.RadioButton(
+                        selected = isSelected,
+                        onClick  = null,
+                        colors   = androidx.compose.material3.RadioButtonDefaults.colors(selectedColor = CosmicAccent)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
+                        Text(subtitle, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                    }
                 }
             }
         }

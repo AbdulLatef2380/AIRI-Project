@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
  *  - [ThemeMode.DARK]   — always dark (default, matches original app behaviour)
  *  - [ThemeMode.LIGHT]  — always light
  *  - [ThemeMode.SYSTEM] — follows the OS dark/light setting
- *  - [ThemeMode.AMOLED] — pure black background for OLED power saving (B-28)
+ *  - [ThemeMode.AMOLED] — pure black background for OLED power saving ()
  */
 enum class ThemeMode { DARK, LIGHT, SYSTEM, AMOLED }
 

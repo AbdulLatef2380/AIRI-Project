@@ -46,12 +46,12 @@ import com.airi.assistant.ui.theme.SemanticWarn
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 
 /**
- * AP-C03/AP-C06: Agent Plan content for ModalBottomSheet.
+ * /: Agent Plan content for ModalBottomSheet.
  *
  * Extracted from [AgentPlanOverlay] and extended with:
  *   - Live step-status icons (PENDING / RUNNING / DONE / FAILED)
- *   - Elapsed timing display for RUNNING steps (AP-C06)
- *   - Active tool call sub-items per step (AP-C06)
+ *   - Elapsed timing display for RUNNING steps ()
+ *   - Active tool call sub-items per step ()
  *   - Dismiss handle for ModalBottomSheet
  *
  * [AgentPlanOverlay] is preserved for backward compat on inline/tablet layout paths.
@@ -143,7 +143,7 @@ fun AgentPlanContent(
     }
 }
 
-// ── Step row with live timing (AP-C06) ────────────────────────────────────────
+// ── Step row with live timing () ────────────────────────────────────────
 
 @Composable
 private fun PlanStepRow(step: PlanStepModel) {
@@ -190,7 +190,7 @@ private fun PlanStepRow(step: PlanStepModel) {
                     modifier = Modifier.weight(1f)
                 )
 
-                // AP-C06: Elapsed time for RUNNING step
+                // : Elapsed time for RUNNING step
                 if (step.status == PlanStepStatus.RUNNING && step.startedAtMs != null) {
                     val elapsed = (System.currentTimeMillis() - step.startedAtMs) / 1000L
                     Text(
@@ -203,7 +203,7 @@ private fun PlanStepRow(step: PlanStepModel) {
                 }
             }
 
-            // AP-C06: Active tool call sub-item
+            // : Active tool call sub-item
             if (step.status == PlanStepStatus.RUNNING && !step.detail.isNullOrBlank()) {
                 Text(
                     "→ ${step.detail}",

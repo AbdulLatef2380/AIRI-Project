@@ -64,7 +64,7 @@ fun DebugPanelScreen(
                 Icon(Icons.Default.BugReport, contentDescription = stringResource(R.string.cd_debug), tint = CosmicAccent)
             }
             Spacer(Modifier.width(8.dp))
-            Text("Debug Panel", color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Text(stringResource(R.string.debug_panel_title), color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 20.sp)
         }
 
         if (integrityFailed) {
@@ -115,7 +115,7 @@ fun DebugPanelScreen(
             } else {
                 val report = diagReport
                 if (report == null) {
-                    Text("No results", color = LabelColor, fontSize = 12.sp)
+                    Text(stringResource(R.string.debug_no_results), color = LabelColor, fontSize = 12.sp)
                 } else {
                     report.results.forEach { result ->
                         DiagTestRow(result)

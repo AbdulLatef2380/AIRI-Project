@@ -4,15 +4,21 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -42,7 +48,6 @@ import com.airi.assistant.ui.viewmodel.ModelUiState
  */
 @Composable
 fun AdvancedChatInputBar(
-    // ── Pass-through to AiriChatInputBar ─────────────────────────────────────
     modelState:             ModelUiState,
     isGenerating:           Boolean,
     voiceInput:             String,
@@ -61,12 +66,11 @@ fun AdvancedChatInputBar(
     onVoiceConsumed:        () -> Unit,
     onOpenModels:           () -> Unit,
     onNavigate:             (String) -> Unit        = {},
-    // AP-C09: called when user converts large prompt to attached file
+    // : called when user converts large prompt to attached file
     onStageFile:            (android.net.Uri) -> Unit = {},
     externalInputText:      String?                 = null,
     onExternalInputConsumed: () -> Unit             = {},
     onUserStartedTyping:    () -> Unit              = {},
-    // ── New Phase 3 parameters ────────────────────────────────────────────────
     onOpenToolPicker:       () -> Unit              = {},
     onOpenSkillPicker:      () -> Unit              = {},
     isPlanModeActive:       Boolean                 = false,
@@ -75,24 +79,33 @@ fun AdvancedChatInputBar(
     activeSkillCount:       Int                     = 0,
     onWebClick:             () -> Unit              = {},
     onCodeClick:            () -> Unit              = {},
-    onCalcClick:            () -> Unit              = {}
+    onCalcClick:            () -> Unit              = {},
+    // Attachments inside the pill
+    attachments:            List<com.airi.assistant.domain.ChatAttachment> = emptyList(),
+    onRemoveAttachment:     (String) -> Unit        = {}
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        // ── Action toolbar ────────────────────────────────────────────────────
-        InputActionToolbar(
-            isPlanModeActive  = isPlanModeActive,
-            onPlanModeToggle  = onPlanModeToggle,
-            onOpenToolPicker  = onOpenToolPicker,
-            onOpenSkillPicker = onOpenSkillPicker,
-            activeToolCount   = activeToolCount,
-            activeSkillCount  = activeSkillCount,
-            isGenerating      = isGenerating,
-            onWebClick        = onWebClick,
-            onCodeClick       = onCodeClick,
-            onCalcClick       = onCalcClick
-        )
+    // Track focus state to collapse toolbar when idle
+    var hasFocus by remember { mutableStateOf(false) }
 
-        // ── Original input bar (unchanged) ────────────────────────────────────
+    Column(modifier = Modifier.fillMaxWidth()) {
+        AnimatedVisibility(
+            visible = hasFocus || isGenerating || isPlanModeActive,
+            enter   = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+            exit    = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
+        ) {
+            InputActionToolbar(
+                isPlanModeActive  = isPlanModeActive,
+                onPlanModeToggle  = onPlanModeToggle,
+                onOpenToolPicker  = onOpenToolPicker,
+                onOpenSkillPicker = onOpenSkillPicker,
+                activeToolCount   = activeToolCount,
+                activeSkillCount  = activeSkillCount,
+                isGenerating      = isGenerating,
+                onWebClick        = onWebClick,
+                onCodeClick       = onCodeClick,
+                onCalcClick       = onCalcClick
+            )
+        }
         AiriChatInputBar(
             modelState              = modelState,
             isGenerating            = isGenerating,
@@ -115,15 +128,15 @@ fun AdvancedChatInputBar(
             onStageFile             = onStageFile,
             externalInputText       = externalInputText,
             onExternalInputConsumed = onExternalInputConsumed,
-            onUserStartedTyping     = onUserStartedTyping
+            onUserStartedTyping     = onUserStartedTyping,
+            onFocusChanged          = { hasFocus = it },
+            // Pass attachments through to AiriChatInputBar
+            attachments             = attachments,
+            onRemoveAttachment      = onRemoveAttachment
         )
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Toolbar composable
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun InputActionToolbar(
     isPlanModeActive:  Boolean,
@@ -167,8 +180,8 @@ private fun InputActionToolbar(
         )
 
         // Quick dynamic tools — each wired to its own callback
-        QuickToolChip(label = "Web",  emoji = "🌐", onClick = onWebClick)
-        QuickToolChip(label = "Code", emoji = "💻", onClick = onCodeClick)
+        QuickToolChip(label = "Web",  emoji = "⊕", onClick = onWebClick)
+        QuickToolChip(label = "Code", emoji = "⌨", onClick = onCodeClick)
         QuickToolChip(label = "Calc", emoji = "🧮", onClick = onCalcClick)
     }
 }

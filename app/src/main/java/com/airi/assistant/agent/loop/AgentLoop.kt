@@ -46,7 +46,7 @@ class AgentLoop(
     private val appContext:            Context,
     private val contextBudgetProvider: () -> ContextBudget = { ContextBudget.UNLOADED },
     /**
-     * AP-SS: Optional sandbox wrapper. When non-null, every tool dispatch is
+     * : Optional sandbox wrapper. When non-null, every tool dispatch is
      * routed through [agentSandbox.execute] so permission checks, workspace
      * logging, and rollback-on-violation are applied to every tool call.
      * Null keeps the legacy direct-dispatch path for callers that have not
@@ -59,7 +59,7 @@ class AgentLoop(
         private const val MAX_STEPS        = 12
         private const val TIMEOUT_MS       = 60_000L
         /**
-         * AP-SS: Stable principal registered in [ScopedPermissionRegistry] for the
+         * : Stable principal registered in [ScopedPermissionRegistry] for the
          * agent loop's tool-dispatch sandbox context. All tool calls on behalf of
          * the user-facing loop share this identity — permissions are granted to
          * "agent_loop" via [ServiceLocator.agentSandbox] setup, not per-tool.
@@ -210,7 +210,7 @@ Do not mix tool_call JSON with prose in the same message.
                 Log.i(TAG, "AIRI_PROOF TOOL_CALL step=$stepsUsed tool=$toolName args=${toolArgs.keys.joinToString()}")
                 ExecutionStatusBus.onWaveStarted(listOf("tool_$toolName"), listOf("Tool: $toolName"))
 
-                // AP-SS: route through AgentSandbox when available so every
+                // : route through AgentSandbox when available so every
                 // tool call is permission-checked and workspace-logged.
                 // NOTE: agentId must be a stable registered principal ("agent_loop"),
                 // NOT the tool name. Using the tool name caused permission checks to
@@ -317,7 +317,7 @@ Do not mix tool_call JSON with prose in the same message.
             request    = ExecutionRequest(
                 prompt                = fullPrompt,
                 systemPrompt          = systemPrompt,
-                maxTokens             = 1024,   // B-03: was 512 — too low for complex tool JSON + reasoning
+                maxTokens             = 1024,   // : was 512 — too low for complex tool JSON + reasoning
                 temperature           = 0.3f,   // low temp for structured decisions
                 queryType             = queryType,
                 requiresStreaming      = true,

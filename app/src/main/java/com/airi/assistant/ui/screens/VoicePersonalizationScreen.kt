@@ -129,10 +129,8 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
-
-            // ── Personality Presets ──────────────────────────────────────────
             item {
-                VoiceCard(title = "Personality Preset", icon = "✨") {
+                VoiceCard(title = "Personality Preset", icon = "◈") {
                     Text(
                         "Presets automatically set pitch and speed to match a voice personality.",
                         fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 17.sp,
@@ -188,8 +186,6 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                     )
                 }
             }
-
-            // ── Pitch Control ────────────────────────────────────────────────
             item {
                 VoiceCard(title = "Voice Pitch", icon = "🎵") {
                     Row(
@@ -221,8 +217,6 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                     }
                 }
             }
-
-            // ── Speech Rate ──────────────────────────────────────────────────
             item {
                 VoiceCard(title = "Speech Rate", icon = "⏱") {
                     Row(
@@ -254,8 +248,6 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                     }
                 }
             }
-
-            // ── Voice Selection ──────────────────────────────────────────────
             item {
                 VoiceCard(title = "TTS Voice", icon = "🗣️") {
                     if (availableVoices.isEmpty()) {
@@ -284,8 +276,6 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                     }
                 }
             }
-
-            // ── Voice Toggles ────────────────────────────────────────────────
             item {
                 VoiceCard(title = "Voice Features", icon = "🎛️") {
                     ToggleRow(
@@ -307,8 +297,6 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                     )
                 }
             }
-
-            // ── Preview Button ───────────────────────────────────────────────
             item {
                 Button(
                     onClick  = ::previewVoice,

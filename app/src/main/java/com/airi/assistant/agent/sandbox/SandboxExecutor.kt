@@ -133,7 +133,7 @@ class SandboxExecutor(private val session: SandboxSession) {
             }
         }
 
-        // AP-09: Argument scope restriction — prevent path traversal attacks.
+        // : Argument scope restriction — prevent path traversal attacks.
         // Find the first non-flag argument (doesn't start with '-') and check it
         // against the per-binary restriction if one exists.
         val restriction = BINARY_ARG_RESTRICTIONS[binary]
@@ -142,7 +142,7 @@ class SandboxExecutor(private val session: SandboxSession) {
             if (firstPathArg != null && !restriction.containsMatchIn(firstPathArg)) {
                 Log.w(TAG, "AIRI_PROOF SANDBOX_ARG_VIOLATION binary=$binary arg=${firstPathArg.take(60)}")
                 return ExecutionResult.SecurityViolation(
-                    "Argument scope violation: '$binary $firstPathArg' — only relative paths permitted (AP-09)"
+                    "Argument scope violation: '$binary $firstPathArg' — only relative paths permitted ()"
                 )
             }
         }
@@ -246,7 +246,7 @@ class SandboxExecutor(private val session: SandboxSession) {
         )
 
         /**
-         * AP-09: Per-binary argument scope restrictions.
+         * : Per-binary argument scope restrictions.
          *
          * Several allowlisted binaries accept path arguments that could be exploited
          * to read sensitive files outside the sandbox even when shell injection is

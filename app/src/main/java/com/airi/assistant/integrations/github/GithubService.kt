@@ -158,6 +158,109 @@ class GithubService(private val secureStorage: SecureStorage) {
 
     // ─── Internal ─────────────────────────────────────────────────────────────
 
+    /**
+     * Task 6.1: List branches for a repository.
+     */
+    suspend fun listBranches(owner: String, repo: String): ToolResult = withContext(Dispatchers.IO) {
+        val token = secureStorage.getGithubToken()
+            ?: return@withContext ToolResult(false, "", "No GitHub token — connect GitHub first")
+        runCatching {
+            val resp = get("https://api.github.com/repos/$owner/$repo/branches?per_page=30", token)
+            if (!resp.isSuccessful) return@runCatching ToolResult(false, "", "GitHub API error: ${resp.code}")
+            val arr = JSONArray(resp.body!!.string())
+            val names = (0 until arr.length()).map { arr.getJSONObject(it).getString("name") }
+            ToolResult(true, "Branches: ${names.joinToString(", ")}")
+        }.getOrElse { ToolResult(false, "", it.message ?: "Unknown error") }
+    }
+
+    /**
+     * Task 6.1: Get commit history for a branch.
+     */
+    suspend fun getCommitHistory(owner: String, repo: String, branch: String = "main", limit: Int = 20): ToolResult = withContext(Dispatchers.IO) {
+        val token = secureStorage.getGithubToken()
+            ?: return@withContext ToolResult(false, "", "No GitHub token — connect GitHub first")
+        runCatching {
+            val resp = get("https://api.github.com/repos/$owner/$repo/commits?sha=$branch&per_page=$limit", token)
+            if (!resp.isSuccessful) return@runCatching ToolResult(false, "", "GitHub API error: ${resp.code}")
+            val arr = JSONArray(resp.body!!.string())
+            val commits = (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                val msg = obj.getJSONObject("commit").getString("message").lines().first().take(72)
+                val sha = obj.getString("sha").take(7)
+                "$sha $msg"
+            }
+            ToolResult(true, commits.joinToString("\n"))
+        }.getOrElse { ToolResult(false, "", it.message ?: "Unknown error") }
+    }
+
+    /**
+     * Task 6.1: Create or update a file (commit) in a repository.
+     */
+    suspend fun createCommit(
+        owner: String, repo: String,
+        path: String, content: String,
+        message: String, branch: String = "main"
+    ): ToolResult = withContext(Dispatchers.IO) {
+        val token = secureStorage.getGithubToken()
+            ?: return@withContext ToolResult(false, "", "No GitHub token — connect GitHub first")
+        runCatching {
+            val existingSha: String? = runCatching {
+                val r = get("https://api.github.com/repos/$owner/$repo/contents/$path?ref=$branch", token)
+                if (r.isSuccessful) JSONObject(r.body!!.string()).getString("sha") else null
+            }.getOrNull()
+
+            val encoded = android.util.Base64.encodeToString(content.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+            val body = JSONObject().apply {
+                put("message", message)
+                put("content", encoded)
+                put("branch", branch)
+                if (existingSha != null) put("sha", existingSha)
+            }
+            val request = okhttp3.Request.Builder()
+                .url("https://api.github.com/repos/$owner/$repo/contents/$path")
+                .header("Authorization", "Bearer $token")
+                .header("Accept", "application/vnd.github.v3+json")
+                .header("X-GitHub-Api-Version", "2022-11-28")
+                .put(okhttp3.RequestBody.create(okhttp3.MediaType.parse("application/json"), body.toString()))
+                .build()
+            val resp = client.newCall(request).execute()
+            if (resp.isSuccessful) ToolResult(true, "Committed '$path' to $branch")
+            else ToolResult(false, "", "GitHub API error ${resp.code}: ${resp.body?.string()?.take(200)}")
+        }.getOrElse { ToolResult(false, "", it.message ?: "Unknown error") }
+    }
+
+    /**
+     * Task 6.1: Create a pull request.
+     */
+    suspend fun createPullRequest(
+        owner: String, repo: String,
+        title: String, body: String,
+        head: String, base: String = "main"
+    ): ToolResult = withContext(Dispatchers.IO) {
+        val token = secureStorage.getGithubToken()
+            ?: return@withContext ToolResult(false, "", "No GitHub token — connect GitHub first")
+        runCatching {
+            val payload = JSONObject().apply {
+                put("title", title)
+                put("body",  body)
+                put("head",  head)
+                put("base",  base)
+            }
+            val request = okhttp3.Request.Builder()
+                .url("https://api.github.com/repos/$owner/$repo/pulls")
+                .header("Authorization", "Bearer $token")
+                .header("Accept", "application/vnd.github.v3+json")
+                .header("X-GitHub-Api-Version", "2022-11-28")
+                .post(okhttp3.RequestBody.create(okhttp3.MediaType.parse("application/json"), payload.toString()))
+                .build()
+            val resp = client.newCall(request).execute()
+            if (resp.isSuccessful) {
+                val url = JSONObject(resp.body!!.string()).getString("html_url")
+                ToolResult(true, "PR created: $url")
+            } else ToolResult(false, "", "GitHub API error ${resp.code}: ${resp.body?.string()?.take(200)}")
+        }.getOrElse { ToolResult(false, "", it.message ?: "Unknown error") }
+    }
+
     private fun get(url: String, token: String): Response = client.newCall(
         Request.Builder()
             .url(url)

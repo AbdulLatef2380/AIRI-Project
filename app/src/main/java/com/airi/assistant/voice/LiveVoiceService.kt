@@ -197,7 +197,46 @@ class LiveVoiceService : Service() {
         return START_STICKY
     }
 
-    override fun onBind(intent: Intent?): IBinder = binder
+    override fun onBind(intent: Intent?): IBinder {
+        restoreProviderPreference()
+        return binder
+    }
+
+    /**
+     * Restores the user's saved cloud voice provider preference from SharedPreferences.
+     *
+     * Called on every [onBind] so that a new UI binding always reflects the
+     * persisted selection — even after process death and recreation.
+     */
+    private fun restoreProviderPreference() {
+        val prefs = getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE)
+        val providerId = prefs.getString("cloud_voice_provider", "LOCAL") ?: "LOCAL"
+        val keyStore = com.airi.assistant.execution.security.SecureApiKeyStore(this)
+
+        val provider: com.airi.assistant.voice.realtime.RealtimeVoiceProvider? = when (providerId) {
+            "GEMINI_LIVE" -> {
+                val key = keyStore.getKey(com.airi.assistant.execution.CloudProvider.GEMINI)
+                if (key != null) {
+                    com.airi.assistant.voice.realtime.GeminiLiveProvider().also { it.storedApiKey = key }
+                } else {
+                    Log.w(TAG, "GEMINI_LIVE selected but no Gemini key — falling back to local")
+                    null
+                }
+            }
+            "OPENAI_REALTIME" -> {
+                val key = keyStore.getKey(com.airi.assistant.execution.CloudProvider.OPENAI)
+                if (key != null) {
+                    com.airi.assistant.voice.realtime.OpenAIRealtimeProvider().also { it.storedApiKey = key }
+                } else {
+                    Log.w(TAG, "OPENAI_REALTIME selected but no OpenAI key — falling back to local")
+                    null
+                }
+            }
+            else -> null // "LOCAL"
+        }
+        realtimeProvider = provider ?: com.airi.assistant.voice.realtime.LocalVoicePipeline
+        Log.i(TAG, "Voice provider restored: ${realtimeProvider.name}")
+    }
 
     override fun onDestroy() {
         Log.i(TAG, "LiveVoiceService onDestroy")

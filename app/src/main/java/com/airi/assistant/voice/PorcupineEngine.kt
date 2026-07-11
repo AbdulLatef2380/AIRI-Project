@@ -41,7 +41,7 @@ object PorcupineEngine {
     private const val PPN_NAME   = "hey_airi"
     private const val ASSET_PATH = "voice/$PPN_NAME.ppn"
 
-    // AP-04: Use the ServiceLocator singleton — eliminates the per-instance
+    // : Use the ServiceLocator singleton — eliminates the per-instance
     // SecureStorage(context) construction that caused split-brain on Keystore failure.
     private val secureStorage get() = ServiceLocator.secureStorage
 
@@ -81,7 +81,7 @@ object PorcupineEngine {
         return resolveAccessKey(context).first
     }
 
-    /** P0-7 / AP-04: Saves key to EncryptedSharedPreferences via ServiceLocator.secureStorage. */
+    /** P0-7 / : Saves key to EncryptedSharedPreferences via ServiceLocator.secureStorage. */
     fun setRuntimeAccessKey(context: Context, key: String?) {
         if (key.isNullOrBlank()) {
             secureStorage.clearLlmKey(SECURE_KEY_NAME)

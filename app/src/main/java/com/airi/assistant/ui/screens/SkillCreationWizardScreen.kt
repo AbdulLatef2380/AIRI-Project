@@ -1,5 +1,7 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.R
+import androidx.compose.ui.res.stringResource
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -41,9 +43,6 @@ import com.airi.assistant.ui.theme.CosmicAccentAlt
 import com.airi.assistant.ui.theme.DividerColor
 import com.airi.assistant.ui.theme.SemanticError
 import java.util.UUID
-
-// ── Data models ───────────────────────────────────────────────────────────────
-
 private data class WizardParam(
     val id:          String  = UUID.randomUUID().toString(),
     var name:        String  = "",
@@ -65,14 +64,11 @@ private val CATEGORIES = listOf(
 )
 
 private val ICON_EMOJIS = listOf(
-    "🔧", "🔍", "🌐", "📱", "💻", "📊", "📝", "🎯",
-    "🤖", "🔬", "📚", "💡", "🔗", "🎨", "📧", "🔐"
+    "⚙", "⊙", "⊕", "▤", "⌨", "◳", "◈", "◎",
+    "◉", "◫", "▣", "◉", "⊞", "◧", "▤", "⊡"
 )
 
 private val PARAM_TYPES = listOf("string", "integer", "boolean", "number", "array", "object")
-
-// ── Wizard screen ─────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SkillCreationWizardScreen(onBack: () -> Unit) {
@@ -82,28 +78,20 @@ fun SkillCreationWizardScreen(onBack: () -> Unit) {
     val scope     = rememberCoroutineScope()
 
     var step by remember { mutableStateOf(0) }
-
-    // ── Step 1: Identity ──────────────────────────────────────────────────────
     var skillId      by remember { mutableStateOf("") }
     var name         by remember { mutableStateOf("") }
     var description  by remember { mutableStateOf("") }
     var version      by remember { mutableStateOf("1.0.0") }
     var author       by remember { mutableStateOf("") }
     var category     by remember { mutableStateOf("UTILITY") }
-    var iconEmoji    by remember { mutableStateOf("🔧") }
+    var iconEmoji    by remember { mutableStateOf("⚙") }
     var tags         by remember { mutableStateOf("") }
     var repositoryUrl by remember { mutableStateOf("") }
     var license      by remember { mutableStateOf("MIT") }
-
-    // ── Step 2: Tools ─────────────────────────────────────────────────────────
     val tools = remember { mutableStateListOf<WizardTool>() }
-
-    // ── Step 3: Permissions ───────────────────────────────────────────────────
     var memoryAccess    by remember { mutableStateOf(SkillMemoryAccess.NONE) }
     var modelAccess     by remember { mutableStateOf(SkillModelAccess.NONE) }
     var dependencies    by remember { mutableStateOf("") }
-
-    // ── Step 4: Preview ───────────────────────────────────────────────────────
     var generatedJson   by remember { mutableStateOf("") }
     var showShareDialog by remember { mutableStateOf(false) }
 
@@ -180,8 +168,8 @@ fun SkillCreationWizardScreen(onBack: () -> Unit) {
                 },
                 title = {
                     Column {
-                        Text("Skill Creation Wizard", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
-                        Text("Step ${step + 1} of 4 — ${stepTitles[step]}", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
+                        Text(stringResource(R.string.skill_wizard_title), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
+                        Text(stringResource(R.string.skill_wizard_step, step + 1, stepTitles[step]), fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
                     }
                 },
                 actions = {
@@ -205,10 +193,7 @@ fun SkillCreationWizardScreen(onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // ── Step indicator ─────────────────────────────────────────────────
             WizardStepIndicator(currentStep = step, totalSteps = 4, titles = stepTitles)
-
-            // ── Step content ───────────────────────────────────────────────────
             AnimatedContent(
                 targetState  = step,
                 transitionSpec = {
@@ -263,9 +248,6 @@ fun SkillCreationWizardScreen(onBack: () -> Unit) {
         }
     }
 }
-
-// ── Step 1: Identity ──────────────────────────────────────────────────────────
-
 @Composable
 private fun IdentityStep(
     skillId: String, onSkillIdChange: (String) -> Unit,
@@ -333,16 +315,13 @@ private fun IdentityStep(
                 shape    = RoundedCornerShape(14.dp),
                 enabled  = name.isNotBlank() && description.length >= 10 && author.isNotBlank()
             ) {
-                Text("Next: Define Tools", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.skill_wizard_next_tools), fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.width(8.dp))
                 Icon(Icons.Default.ArrowForward, null, Modifier.size(16.dp))
             }
         }
     }
 }
-
-// ── Step 2: Tools ─────────────────────────────────────────────────────────────
-
 @Composable
 private fun ToolsStep(
     tools: SnapshotStateList<WizardTool>,
@@ -386,7 +365,7 @@ private fun ToolsStep(
             ) {
                 Icon(Icons.Default.Add, null, Modifier.size(18.dp), tint = CosmicAccent)
                 Spacer(Modifier.width(8.dp))
-                Text("Add Tool", color = CosmicAccent)
+                Text(stringResource(R.string.skill_wizard_add_tool), color = CosmicAccent)
             }
         }
 
@@ -397,7 +376,7 @@ private fun ToolsStep(
                 colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
                 shape    = RoundedCornerShape(14.dp)
             ) {
-                Text("Next: Set Permissions", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.skill_wizard_next_permissions), fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.width(8.dp))
                 Icon(Icons.Default.ArrowForward, null, Modifier.size(16.dp))
             }
@@ -454,7 +433,7 @@ private fun ToolCard(
                     WizardField(tool.name, { tool.name = it }, "Tool Name *", "e.g. web_search")
                     WizardField(tool.description, { tool.description = it }, "Tool Description *", "What does this tool do?")
 
-                    Text("Parameters", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = CosmicAccent)
+                    Text(stringResource(R.string.skill_wizard_parameters), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = CosmicAccent)
 
                     tool.params.forEachIndexed { i, param ->
                         ParamRow(param = param, onRemove = { tool.params.removeAt(i) })
@@ -465,7 +444,7 @@ private fun ToolCard(
                     ) {
                         Icon(Icons.Default.Add, null, Modifier.size(16.dp), tint = CosmicAccent)
                         Spacer(Modifier.width(4.dp))
-                        Text("Add Parameter", color = CosmicAccent, fontSize = 13.sp)
+                        Text(stringResource(R.string.skill_wizard_add_parameter), color = CosmicAccent, fontSize = 13.sp)
                     }
                 }
             }
@@ -513,14 +492,11 @@ private fun ParamRow(param: WizardParam, onRemove: () -> Unit) {
                     onCheckedChange = { param.required = it },
                     colors = CheckboxDefaults.colors(checkedColor = CosmicAccent)
                 )
-                Text("Required", fontSize = 13.sp, color = AiriTheme.onBackground)
+                Text(stringResource(R.string.skill_wizard_required), fontSize = 13.sp, color = AiriTheme.onBackground)
             }
         }
     }
 }
-
-// ── Step 3: Permissions ───────────────────────────────────────────────────────
-
 @Composable
 private fun PermissionsStep(
     memoryAccess: SkillMemoryAccess, onMemoryChange: (SkillMemoryAccess) -> Unit,
@@ -599,7 +575,7 @@ private fun PermissionsStep(
             ) {
                 Icon(Icons.Default.Code, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Generate skill.json", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.skill_wizard_generate), fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -635,9 +611,6 @@ private fun AccessLevelRow(
         }
     }
 }
-
-// ── Step 4: Preview & Export ──────────────────────────────────────────────────
-
 @Composable
 private fun PreviewExportStep(
     json:         String,
@@ -651,7 +624,7 @@ private fun PreviewExportStep(
             Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Generated skill.json", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = AiriTheme.onBackground)
+            Text(stringResource(R.string.skill_wizard_output_title), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = AiriTheme.onBackground)
             Text(
                 "Your skill manifest is ready. Copy it, share it, or paste it into the Publish tab of the Marketplace.",
                 fontSize = 13.sp, color = AiriTheme.onSurfaceVariant
@@ -668,13 +641,13 @@ private fun PreviewExportStep(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1117)),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape  = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
         ) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF161B22))
+                    .background(MaterialTheme.colorScheme.surface)
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -716,9 +689,6 @@ private fun ExportButton(
         Text(label, color = color, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
 }
-
-// ── Shared UI components ──────────────────────────────────────────────────────
-
 @Composable
 private fun WizardStepIndicator(currentStep: Int, totalSteps: Int, titles: List<String>) {
     Row(

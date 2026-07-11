@@ -67,7 +67,6 @@ fun BillingHistoryScreen(
             contentPadding      = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ── Summary ──────────────────────────────────────────────────
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     SummaryCard(
@@ -86,8 +85,6 @@ fun BillingHistoryScreen(
                     )
                 }
             }
-
-            // ── Filter chips ─────────────────────────────────────────────
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
@@ -106,8 +103,6 @@ fun BillingHistoryScreen(
                     }
                 }
             }
-
-            // ── Record list ──────────────────────────────────────────────
             if (filtered.isEmpty()) {
                 item {
                     Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
@@ -152,15 +147,12 @@ private fun BillingRecordRow(record: BillingRecord, dateFormat: SimpleDateFormat
             verticalAlignment    = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ── Icon ─────────────────────────────────────────────────────
             Box(
                 Modifier.size(40.dp).background(recordColor(record.type).copy(0.15f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(recordIcon(record.type), null, Modifier.size(20.dp), tint = recordColor(record.type))
             }
-
-            // ── Content ──────────────────────────────────────────────────
             Column(Modifier.weight(1f)) {
                 Text(record.description, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground, fontSize = 14.sp)
                 Text(dateFormat.format(Date(record.timestampMs)), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
@@ -168,8 +160,6 @@ private fun BillingRecordRow(record: BillingRecord, dateFormat: SimpleDateFormat
                     Text("ID: ${it.take(24)}…", fontSize = 10.sp, color = AiriTheme.onSurfaceVariant)
                 }
             }
-
-            // ── Amount + status ───────────────────────────────────────────
             Column(horizontalAlignment = Alignment.End) {
                 Text(record.amountString, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                 if (record.credits > 0) {

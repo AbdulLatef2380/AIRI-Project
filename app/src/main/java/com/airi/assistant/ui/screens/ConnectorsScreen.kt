@@ -41,8 +41,6 @@ import com.airi.assistant.ui.theme.DividerColor
 import com.airi.assistant.ui.viewmodel.ConnectorsViewModel
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
-
-// ── Tab definition ─────────────────────────────────────────────────────────────
 private data class ConnectorTab(
     val type: ConnectorType,
     val label: String,
@@ -56,8 +54,6 @@ private val TABS = listOf(
     ConnectorTab(ConnectorType.MCP,    "MCP",    Icons.Outlined.Extension),
     ConnectorTab(ConnectorType.SYSTEM, "نظام",   Icons.Outlined.SettingsSuggest),
 )
-
-// ── Icon mapping ───────────────────────────────────────────────────────────────
 private fun iconForId(id: String): ImageVector = when {
     id.contains("llm")       -> Icons.Outlined.SmartToy
     id.contains("intent")    -> Icons.Outlined.Android
@@ -87,7 +83,7 @@ fun ConnectorsScreen(
 
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    // B-19: READ_CONTACTS runtime permission — requested when user taps connect
+    // : READ_CONTACTS runtime permission — requested when user taps connect
     // on the Contacts connector. The connector itself checks permission and
     // shows an error message; this launcher provides the in-app request path.
     val contactsPermLauncher = rememberLauncherForActivityResult(
@@ -145,7 +141,6 @@ fun ConnectorsScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // ── Tab row ────────────────────────────────────────────────────────
             ScrollableTabRow(
                 selectedTabIndex = TABS.indexOfFirst { it.type == selectedTab }.coerceAtLeast(0),
                 containerColor   = CosmicBlack,
@@ -199,8 +194,6 @@ fun ConnectorsScreen(
                     )
                 }
             }
-
-            // ── Connector list ─────────────────────────────────────────────────
             if (visibleItems.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -233,7 +226,7 @@ fun ConnectorsScreen(
                         ConnectorCard(
                             row          = row,
                             onConnect    = {
-                                // B-19: Request READ_CONTACTS permission before connecting contacts
+                                // : Request READ_CONTACTS permission before connecting contacts
                                 if (row.meta.id == "contacts_local" &&
                                     android.content.pm.PackageManager.PERMISSION_DENIED ==
                                     androidx.core.content.ContextCompat.checkSelfPermission(

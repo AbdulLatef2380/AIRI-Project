@@ -997,4 +997,136 @@
     <string name="attach_section_media">الوسائط والملفات</string>
     <string name="attach_section_actions">الإجراءات</string>
     <string name="attach_scheduled_tasks">مهام مجدولة</string>
+    <!-- Technical Details / About -->
+    <string name="about_technical_details">التفاصيل التقنية</string>
+
+    <!-- Chat -->
+    <string name="chat_convert">تحويل</string>
+    <string name="chat_keep">الإبقاء</string>
+    <string name="chat_templates_title">القوالب</string>
+
+    <!-- Debug -->
+    <string name="debug_no_results">لا توجد نتائج</string>
+
+    <!-- Account errors -->
+    <string name="delete_account_error_generic">فشل حذف الحساب. إذا انتهت صلاحية جلستك، سجّل الخروج ثم أعد تسجيل الدخول وحاول مجدداً.</string>
+    <string name="delete_account_reauth_required">انتهت صلاحية جلستك. سجّل الخروج، ثم أعد تسجيل الدخول، ثم احذف الحساب.</string>
+
+    <!-- Developer Center -->
+    <string name="dev_cert_pinning">تثبيت شهادات LLM</string>
+    <string name="dev_no_audit_events">لا توجد أحداث تدقيق بعد</string>
+    <string name="dev_no_profiling_data">لا توجد بيانات — ابدأ محادثة لتوليد بيانات التنميط.</string>
+    <string name="dev_refresh_hint">يُحدَّث كل 5 ث • اضغط على التبويب لإعادة التحميل</string>
+
+    <!-- Git Repository -->
+    <string name="git_repo_branches">الفروع</string>
+    <string name="git_repo_commits">آخر عمليات الإيداع</string>
+    <string name="git_repo_empty">لا توجد مستودعات — اربط GitHub من الإعدادات</string>
+    <string name="git_repo_error">تعذّر تحميل المستودعات</string>
+    <string name="git_repo_retry">إعادة المحاولة</string>
+    <string name="git_repo_title">المستودعات</string>
+
+    <!-- Hotword notifications -->
+    <string name="hotword_notification_text">اضغط لفتح AIRI</string>
+    <string name="hotword_notification_title">AIRI يستمع لـ \"مرحباً AIRI\"</string>
+
+    <!-- Marketplace -->
+    <string name="marketplace_import_button">استيراد المهارة</string>
+    <string name="marketplace_import_error_label">فشل الاستيراد</string>
+    <string name="marketplace_import_formats_title">صيغ الروابط المدعومة:</string>
+    <string name="marketplace_import_loading">جارٍ الاستيراد…</string>
+    <string name="marketplace_import_subtitle">ثبّت مهارة مباشرةً من مستودع GitHub أو رابط skill.json.</string>
+    <string name="marketplace_import_success">تم استيراد المهارة \"%1$s\" بنجاح</string>
+    <string name="marketplace_import_success_label">تم الاستيراد: %1$s</string>
+    <string name="marketplace_import_title">استيراد من GitHub</string>
+    <string name="marketplace_import_url_label">رابط GitHub أو رابط skill.json</string>
+    <string name="marketplace_no_updates">لا تتوفر تحديثات حالياً.</string>
+    <string name="marketplace_open">فتح</string>
+    <string name="marketplace_tab_import">استيراد</string>
+    <string name="marketplace_up_to_date">جميع المهارات محدّثة</string>
+
+    <!-- Planning Dashboard -->
+    <string name="planning_dashboard_title">لوحة التخطيط</string>
+    <string name="planning_empty_hint">ابدأ مهمة متعددة الخطوات لعرض خطة التنفيذ هنا.</string>
+    <string name="planning_no_active_plan">لا توجد خطة نشطة</string>
+
+    <!-- Secret Manager -->
+    <string name="secret_manager_api_key_label">مفتاح API</string>
+    <string name="secret_manager_cancel">إلغاء</string>
+    <string name="secret_manager_save">حفظ</string>
+    <string name="secret_manager_title">مدير الأسرار</string>
+
+    <!-- Security Scanner -->
+    <string name="security_scanner_no_results">لا توجد نتائج — اضغط تحديث للمسح.</string>
+    <string name="security_scanner_scanning">جارٍ المسح…</string>
+    <string name="security_scanner_title">فاحص الأمان</string>
+
+    <!-- Settings Reset -->
+    <string name="settings_reset_all">إعادة تعيين كل الإعدادات</string>
+    <string name="settings_reset_confirm">إعادة التعيين</string>
+    <string name="settings_reset_dialog_body">سيتم مسح وضع التنفيذ وإعدادات الصوت والسمة ومسارات النماذج المنزّلة. لا يمكن التراجع عن هذا.</string>
+    <string name="settings_reset_dialog_title">إعادة تعيين كل الإعدادات؟</string>
+
+    <!-- Skill manifest -->
+    <string name="skill_manifest_invalid">يحتوي البيان على أخطاء</string>
+    <string name="skill_manifest_valid">البيان صحيح</string>
+    <string name="skill_manifest_warnings">تحذيرات: %1$d</string>
+
+    <!-- Skill memory access -->
+    <string name="skill_memory_access_full">وصول كامل</string>
+    <string name="skill_memory_access_none">بدون وصول للذاكرة</string>
+    <string name="skill_memory_access_read_only">قراءة فقط</string>
+    <string name="skill_memory_access_read_write">قراءة / كتابة</string>
+
+    <!-- Skill model access -->
+    <string name="skill_model_access_chat">محادثة (توليد نص)</string>
+    <string name="skill_model_access_none">بدون وصول للنموذج</string>
+    <string name="skill_model_access_routing">محادثة + توجيه</string>
+
+    <!-- Skill names -->
+    <string name="skill_name_code_assistant">مساعد الكود</string>
+    <string name="skill_name_document_reader">قارئ المستندات</string>
+    <string name="skill_name_file_manager">مدير الملفات</string>
+    <string name="skill_name_memory_manager">مدير الذاكرة</string>
+    <string name="skill_name_research_agent">وكيل البحث</string>
+    <string name="skill_name_task_planner">مخطط المهام</string>
+    <string name="skill_name_translator">المترجم</string>
+    <string name="skill_name_web_search">بحث الويب</string>
+    <string name="skill_name_website_reader">قارئ المواقع</string>
+
+    <!-- Skill Creation Wizard -->
+    <string name="skill_wizard_add_parameter">إضافة معامل</string>
+    <string name="skill_wizard_add_tool">إضافة أداة</string>
+    <string name="skill_wizard_generate">توليد skill.json</string>
+    <string name="skill_wizard_next_permissions">التالي: تعيين الأذونات</string>
+    <string name="skill_wizard_next_tools">التالي: تحديد الأدوات</string>
+    <string name="skill_wizard_output_title">skill.json المُولَّد</string>
+    <string name="skill_wizard_parameters">المعاملات</string>
+    <string name="skill_wizard_required">مطلوب</string>
+    <string name="skill_wizard_step">الخطوة %1$d من 4 — %2$s</string>
+    <string name="skill_wizard_title">معالج إنشاء المهارة</string>
+
+    <!-- Voice Cloud Provider -->
+    <string name="voice_cloud_provider_desc">اختر موفر صوت سحابي للبث الصوتي بزمن استجابة منخفض.</string>
+    <string name="voice_cloud_provider_title">موفر الصوت السحابي</string>
+
+    <!-- Voice service notifications -->
+    <string name="voice_service_notification_listening">جارٍ الاستماع…</string>
+    <string name="voice_service_notification_speaking">جارٍ التحدث</string>
+    <string name="voice_service_notification_stop">إيقاف</string>
+
+    <!-- Welcome Screen -->
+    <string name="welcome_app_name">Airi assistant.ai</string>
+    <string name="welcome_continue_anyway">المتابعة بدون إعداد</string>
+    <string name="welcome_continue_without">المتابعة بدون إعداد</string>
+    <string name="welcome_enter_api_key">إدخال مفتاح API</string>
+    <string name="welcome_enter_api_key_desc">إدخال مفتاح API</string>
+    <string name="welcome_setup_model">إعداد نموذج محلي</string>
+    <string name="welcome_setup_model_desc">إعداد نموذج محلي</string>
+    <string name="welcome_subtitle">للبدء، أعدّ نموذجاً محلياً أو أدخل مفتاح API سحابياً.</string>
+    <string name="welcome_title">مرحباً بك في AIRI</string>
+
+    <!-- Workspace -->
+    <string name="workspace_preview">معاينة</string>
+
 </resources>

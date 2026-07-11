@@ -74,7 +74,6 @@ fun ZapierIftttScreen(
         containerColor = AiriTheme.background
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            // ── Tab Row ─────────────────────────────────────────────────────
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor   = AiriTheme.background,
@@ -128,18 +127,15 @@ private fun ZapierTab(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier            = Modifier.fillMaxSize()
     ) {
-        // ── Status card ──────────────────────────────────────────────────
         item {
             ConnectorStatusCard(
                 name        = "Zapier",
                 description = "Connect AIRI to 6000+ apps via Zapier automations",
-                iconEmoji   = "⚡",
+                iconEmoji   = "⚙",
                 accentColor = Color(0xFFFF4A00),
                 state       = state
             )
         }
-
-        // ── OAuth connect / disconnect ────────────────────────────────────
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
@@ -186,8 +182,6 @@ private fun ZapierTab(
                 }
             }
         }
-
-        // ── Available triggers ────────────────────────────────────────────
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
@@ -220,8 +214,6 @@ private fun ZapierTab(
                 }
             }
         }
-
-        // ── Test webhook ──────────────────────────────────────────────────
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
@@ -306,8 +298,6 @@ private fun IftttTab(
                 state       = state
             )
         }
-
-        // ── Webhook key ──────────────────────────────────────────────────
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
@@ -353,8 +343,6 @@ private fun IftttTab(
                 }
             }
         }
-
-        // ── Test trigger ─────────────────────────────────────────────────
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
@@ -413,8 +401,6 @@ private fun IftttTab(
                 }
             }
         }
-
-        // ── IFTTT info ───────────────────────────────────────────────────
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
@@ -424,9 +410,9 @@ private fun IftttTab(
                     Text(stringResource(R.string.ifttt_how_section), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                     val useCases = listOf(
                         "📧" to "Send email alerts when an agent task completes",
-                        "💡" to "Control smart lights based on AIRI reminders",
-                        "📝" to "Log AIRI messages to Google Sheets",
-                        "📱" to "Send iOS/Android push notifications from AIRI",
+                        "•" to "Control smart lights based on AIRI reminders",
+                        "•" to "Log AIRI messages to Google Sheets",
+                        "•" to "Send iOS/Android push notifications from AIRI",
                         "🔔" to "Post to Slack when credits run low"
                     )
                     useCases.forEach { (emoji, desc) ->

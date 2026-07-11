@@ -111,7 +111,7 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
 
             DefaultAssistantSection(activity = activity)
 
-            // AP-21: Reset to Defaults section
+            // : Reset to Defaults section
             // Uses PreferenceCoordinator.resetAllToDefaults() which now clears
             // exec prefs, voice prefs, theme prefs, and all model paths.
             var showResetConfirm by remember { mutableStateOf(false) }
@@ -139,18 +139,18 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Reset All Settings", fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.settings_reset_all), fontWeight = FontWeight.SemiBold)
                 }
             }
 
             if (showResetConfirm) {
                 AlertDialog(
                     onDismissRequest = { showResetConfirm = false },
-                    containerColor   = Color(0xFF12162E),
+                    containerColor   = MaterialTheme.colorScheme.surface,
                     textContentColor = Color.White.copy(alpha = 0.75f),
                     shape = RoundedCornerShape(20.dp),
-                    title = { Text("Reset All Settings?", fontWeight = FontWeight.Bold) },
-                    text  = { Text("Execution mode, voice settings, theme, and downloaded model paths will be cleared. This cannot be undone.") },
+                    title = { Text(stringResource(R.string.settings_reset_dialog_title), fontWeight = FontWeight.Bold) },
+                    text  = { Text(stringResource(R.string.settings_reset_dialog_body)) },
                     confirmButton = {
                         Button(
                             onClick = {
@@ -162,11 +162,11 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                                 containerColor = com.airi.assistant.ui.theme.SemanticWarn,
                                 contentColor   = Color.Black
                             )
-                        ) { Text("Reset") }
+                        ) { Text(stringResource(R.string.settings_reset_confirm)) }
                     },
                     dismissButton = {
                         TextButton(onClick = { showResetConfirm = false }) {
-                            Text("Cancel", color = AiriTheme.onSurfaceVariant)
+                            Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
                         }
                     }
                 )
@@ -179,7 +179,7 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
     pendingLanguage?.let { language ->
         AlertDialog(
             onDismissRequest  = { pendingLanguage = null },
-            containerColor    = Color(0xFF12162E),
+            containerColor    = MaterialTheme.colorScheme.surface,
             titleContentColor = Color.White,
             textContentColor  = Color.White.copy(alpha = 0.75f),
             shape             = RoundedCornerShape(20.dp),

@@ -4,8 +4,10 @@ import com.airi.assistant.ai.tools.ToolResult
 import com.airi.assistant.auth.SecureStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
@@ -221,7 +223,7 @@ class GithubService(private val secureStorage: SecureStorage) {
                 .header("Authorization", "Bearer $token")
                 .header("Accept", "application/vnd.github.v3+json")
                 .header("X-GitHub-Api-Version", "2022-11-28")
-                .put(okhttp3.RequestBody.create(okhttp3.MediaType.parse("application/json"), body.toString()))
+                .put(body.toString().toRequestBody("application/json".toMediaType()))
                 .build()
             val resp = client.newCall(request).execute()
             if (resp.isSuccessful) ToolResult(true, "Committed '$path' to $branch")
@@ -251,7 +253,7 @@ class GithubService(private val secureStorage: SecureStorage) {
                 .header("Authorization", "Bearer $token")
                 .header("Accept", "application/vnd.github.v3+json")
                 .header("X-GitHub-Api-Version", "2022-11-28")
-                .post(okhttp3.RequestBody.create(okhttp3.MediaType.parse("application/json"), payload.toString()))
+                .post(payload.toString().toRequestBody("application/json".toMediaType()))
                 .build()
             val resp = client.newCall(request).execute()
             if (resp.isSuccessful) {

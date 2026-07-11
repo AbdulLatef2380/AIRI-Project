@@ -92,7 +92,7 @@ fun PlanningDashboardScreen(
                             headlineContent = { Text(entry.eventType.take(80), fontSize = 13.sp) },
                             supportingContent = {
                                 Text(
-                                    java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(entry.timestampMs)),
+                                    java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(entry.timestamp)),
                                     fontSize = 11.sp,
                                     color = AiriTheme.onSurfaceVariant
                                 )

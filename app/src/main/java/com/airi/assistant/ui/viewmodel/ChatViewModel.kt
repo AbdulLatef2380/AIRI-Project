@@ -126,6 +126,11 @@ data class ChatMessage(
     // the lifetime of the in-memory list.
     val uid: String = java.util.UUID.randomUUID().toString(),
     /**
+     * Task 1.7: Persisted thumbs-up/down feedback state (1=liked, -1=disliked, 0=none).
+     * Mirrors the `feedback` column written by [com.airi.assistant.memory.repository.StorageRepository.updateMessageFeedback].
+     */
+    val feedback: Int = 0,
+    /**
      * Optional in-memory thumbnail reference for messages the user sent
      * with an attached image. UI-only — never persisted to Room (the
      * memory layer continues to store an `[image: name]` text marker).
@@ -2300,9 +2305,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             runCatching {
                                 ServiceLocator.mediaLibrary.importFile(
                                     sourceFile  = destFile,
-                                    type        = com.airi.assistant.media.MediaType.IMAGE,
+                                    type        = com.airi.assistant.media.MediaLibrary.MediaType.IMAGE,
                                     mimeType    = att.mimeType ?: "image/jpeg",
-                                    sessionId   = sessionId
+                                    sessionId   = _currentSessionId.value
                                 )
                             }
                         }

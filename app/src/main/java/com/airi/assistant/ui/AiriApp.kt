@@ -71,6 +71,8 @@ import com.airi.assistant.ui.screens.ArtifactPreviewScreen
 import com.airi.assistant.ui.screens.UpdateScreen
 import com.airi.assistant.ui.screens.VoicePersonalizationScreen
 import com.airi.assistant.ui.screens.WelcomeScreen
+import com.airi.assistant.ui.screens.WorkspaceScreen
+import androidx.compose.ui.platform.LocalContext
 import com.airi.assistant.ui.screens.PlanningDashboardScreen
 import com.airi.assistant.ui.screens.GitRepositoryScreen
 import com.airi.assistant.ui.screens.SecurityScannerScreen
@@ -173,6 +175,7 @@ private val bottomNavRoutes = setOf(
 @Composable
 fun AiriApp() {
     val navController                = rememberNavController()
+    val context                      = LocalContext.current
     val authService: AuthService     = remember { ServiceLocator.authService }
     val chatViewModel: ChatViewModel = viewModel()
     val agentViewModel: AgentViewModel = viewModel()
@@ -195,8 +198,7 @@ fun AiriApp() {
     }.getOrDefault(false)
 
     fun hasAnyApiKey(): Boolean = runCatching {
-        val ctx = ServiceLocator.appContext
-        val keyStore = com.airi.assistant.execution.security.SecureApiKeyStore(ctx)
+        val keyStore = com.airi.assistant.execution.security.SecureApiKeyStore(context)
         com.airi.assistant.execution.CloudProvider.values().any { keyStore.getKey(it) != null }
     }.getOrDefault(false)
 

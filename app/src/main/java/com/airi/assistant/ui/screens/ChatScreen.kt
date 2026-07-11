@@ -81,6 +81,7 @@ import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.ui.theme.InputBarBackground
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.AgentMode
+import com.airi.assistant.domain.ChatAttachment
 import com.airi.assistant.ui.viewmodel.ChatMessage
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import coil.compose.AsyncImage

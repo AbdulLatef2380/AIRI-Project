@@ -75,6 +75,9 @@ class OpenAIRealtimeProvider(
 
     enum class VadMode { SERVER, NONE }
 
+    /** API key stored at provider selection time; used by LiveVoiceService.restoreProviderPreference(). */
+    var storedApiKey: String = ""
+
     // ── Interface properties ───────────────────────────────────────────────────
 
     override val name: String = "OpenAI Realtime ($modelId)"

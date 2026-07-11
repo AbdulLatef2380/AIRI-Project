@@ -1150,9 +1150,7 @@
     <string name="settings_reset_dialog_title">Reset All Settings?</string>
     <string name="settings_reset_dialog_body">Execution mode, voice settings, theme, and downloaded model paths will be cleared. This cannot be undone.</string>
     <string name="settings_reset_confirm">Reset</string>
-    <string name="cancel">Cancel</string>
-
-    <!-- ObservabilityScreen -->
+        <!-- ObservabilityScreen -->
     <string name="loading">Loading\u2026</string>
 
     <!-- DeveloperCenterScreen -->

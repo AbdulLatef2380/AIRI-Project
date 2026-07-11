@@ -169,7 +169,7 @@
     <string name="downloaded_gguf_deleted">The downloaded GGUF file will be deleted from AIRI model storage.</string>
     <string name="registry_entry_removed">The registry entry will be removed. External files are only deleted when Android grants write access.</string>
     <string name="active_model">Active Model</string>
-    <string name="loading">Loading</string>
+
     <string name="loading_ellipsis">Loading…</string>
     <string name="active">Active</string>
     <string name="not_active">Not active</string>
@@ -1178,7 +1178,6 @@
     <string name="about_technical_details">Technical Details</string>
 
     <!-- DebugPanelScreen -->
-    <string name="debug_panel_title">Debug Panel</string>
     <string name="debug_no_results">No results</string>
 
     <!-- MarketplaceScreen -->

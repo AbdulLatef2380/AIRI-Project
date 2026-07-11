@@ -48,7 +48,8 @@ fun GitRepositoryScreen(
     var error     by remember { mutableStateOf<String?>(null) }
 
     fun loadRepos() {
-        loading = true; error = null
+        loading = true
+        error = null
         scope.launch {
             val result = service.getRepos(20)
             loading = false
@@ -57,15 +58,16 @@ fun GitRepositoryScreen(
             } else {
                 error = result.error ?: "Unknown error"
             }
-            }
         }
     }
 
     fun loadBranchesAndCommits(repoFullName: String) {
         val parts = repoFullName.split("/")
         if (parts.size < 2) return
-        val owner = parts[0]; val repo = parts[1]
-        selected = repoFullName; loading = true
+        val owner = parts[0]
+        val repo = parts[1]
+        selected = repoFullName
+        loading = true
         scope.launch {
             val br = service.listBranches(owner, repo)
             val cm = service.getCommitHistory(owner, repo)

@@ -118,7 +118,7 @@ fun SettingsActionRow(
             Text(
                 text     = label,
                 fontSize = 14.sp,
-                color    = if (destructive) Color(0xFFFF6B6B) else Color.White
+                color    = if (destructive) Color(0xFFFF6B6B) else MaterialTheme.colorScheme.onSurface
             )
             if (sublabel.isNotEmpty()) {
                 Text(sublabel, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
@@ -154,7 +154,7 @@ fun LanguageSelector(
                 onClick  = { onLanguageSelected(lang) },
                 shape    = RoundedCornerShape(10.dp),
                 color    = if (isSelected) CosmicAccent.copy(alpha = 0.12f)
-                           else Color.White.copy(alpha = 0.04f),
+                           else MaterialTheme.colorScheme.outline,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -166,7 +166,7 @@ fun LanguageSelector(
                     Text(
                         text     = lang.displayName,
                         fontSize = 13.sp,
-                        color    = if (isSelected) CosmicAccent else Color.White
+                        color    = if (isSelected) CosmicAccent else MaterialTheme.colorScheme.onSurface
                     )
                 }
             }

@@ -89,14 +89,14 @@ class GeminiLiveProvider(
     override val isConnected: Boolean get() = _connected.get()
 
     /** Extended: live StateFlow of connection phase for observability. */
-    private val _phase = MutableStateFlow(Phase.DISCONNECTED)
+    private val _phase = MutableStateFlow(GeminiPhase.DISCONNECTED)
     val phase: StateFlow<Phase> = _phase.asStateFlow()
 
     /** Extended: round-trip latency from connect() call to onOpen(). */
     @Volatile var connectLatencyMs: Long = 0L
         private set
 
-    enum class Phase { DISCONNECTED, CONNECTING, CONNECTED, ERROR }
+    enum class GeminiPhase { DISCONNECTED, CONNECTING, CONNECTED, ERROR }
 
     // ── Internal ───────────────────────────────────────────────────────────────
 
@@ -119,7 +119,7 @@ class GeminiLiveProvider(
         voiceId:      String
     ): RealtimeVoiceProvider.ConnectResult {
         if (_connected.get()) return RealtimeVoiceProvider.ConnectResult.Success
-        _phase.value = Phase.CONNECTING
+        _phase.value = GeminiPhase.CONNECTING
 
         val resolvedVoice = voiceId.ifBlank { voiceName }
         val endpoint = "wss://generativelanguage.googleapis.com/ws/" +
@@ -132,7 +132,7 @@ class GeminiLiveProvider(
             override fun onOpen(ws: WebSocket, response: okhttp3.Response) {
                 webSocket = ws
                 _connected.set(true)
-                _phase.value = Phase.CONNECTED
+                _phase.value = GeminiPhase.CONNECTED
                 connectLatencyMs = System.currentTimeMillis() - connectTimeMs
                 Log.i(TAG, "AIRI_PROOF GEMINI_LIVE_CONNECTED latency=${connectLatencyMs}ms")
                 sendSetup(ws, systemPrompt, resolvedVoice)
@@ -149,13 +149,13 @@ class GeminiLiveProvider(
             override fun onFailure(ws: WebSocket, t: Throwable, response: okhttp3.Response?) {
                 Log.e(TAG, "WebSocket failure: ${t.message}")
                 _connected.set(false)
-                _phase.value = Phase.ERROR
+                _phase.value = GeminiPhase.ERROR
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 Log.i(TAG, "WebSocket closed: $code $reason")
                 _connected.set(false)
-                _phase.value = Phase.DISCONNECTED
+                _phase.value = GeminiPhase.DISCONNECTED
             }
         }
 
@@ -169,7 +169,7 @@ class GeminiLiveProvider(
         webSocket?.close(1000, "AIRI disconnect")
         webSocket = null
         _connected.set(false)
-        _phase.value = Phase.DISCONNECTED
+        _phase.value = GeminiPhase.DISCONNECTED
         Log.i(TAG, "Gemini Live disconnected")
     }
 

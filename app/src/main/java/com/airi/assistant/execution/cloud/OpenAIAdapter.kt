@@ -174,22 +174,31 @@ open class OpenAIAdapter(
 
     // ── Request builder ───────────────────────────────────────────────────────
 
+    /**
+     * Build OpenAI Chat Completions request with full conversation history.
+     * OpenAI is stateless — all prior turns must be resent on every call.
+     * Roles: "user" and "assistant" (not "model" like Gemini).
+     */
     private fun buildRequestBody(req: ExecutionRequest): String = buildString {
         append("{")
         append("\"model\":${jsonString(model)},")
-
-        // Messages array
         append("\"messages\":[")
+        var needsComma = false
         if (req.systemPrompt.isNotBlank()) {
-            append("{\"role\":\"system\",\"content\":${jsonString(req.systemPrompt)}},")
+            append("{\"role\":\"system\",\"content\":${jsonString(req.systemPrompt)}}")
+            needsComma = true
         }
+        for (turn in req.conversationHistory) {
+            if (needsComma) append(",")
+            append("{\"role\":\"${turn.role}\",\"content\":${jsonString(turn.content)}}")
+            needsComma = true
+        }
+        if (needsComma) append(",")
         append("{\"role\":\"user\",\"content\":${jsonString(req.prompt)}}")
         append("],")
-
         append("\"max_tokens\":${req.maxTokens},")
         append("\"temperature\":${req.temperature},")
         append("\"stream\":true,")
-        // Request usage in the final chunk (OpenAI >= 2024-09 + compatible)
         append("\"stream_options\":{\"include_usage\":true}")
         append("}")
     }

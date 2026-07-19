@@ -53,7 +53,7 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -147,7 +147,7 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                 AlertDialog(
                     onDismissRequest = { showResetConfirm = false },
                     containerColor   = MaterialTheme.colorScheme.surface,
-                    textContentColor = Color.White.copy(alpha = 0.75f),
+                    textContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                     shape = RoundedCornerShape(20.dp),
                     title = { Text(stringResource(R.string.settings_reset_dialog_title), fontWeight = FontWeight.Bold) },
                     text  = { Text(stringResource(R.string.settings_reset_dialog_body)) },
@@ -160,7 +160,7 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = com.airi.assistant.ui.theme.SemanticWarn,
-                                contentColor   = Color.Black
+                                contentColor   = MaterialTheme.colorScheme.background
                             )
                         ) { Text(stringResource(R.string.settings_reset_confirm)) }
                     },
@@ -180,8 +180,8 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest  = { pendingLanguage = null },
             containerColor    = MaterialTheme.colorScheme.surface,
-            titleContentColor = Color.White,
-            textContentColor  = Color.White.copy(alpha = 0.75f),
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor  = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
             shape             = RoundedCornerShape(20.dp),
             title = {
                 Text(
@@ -199,7 +199,7 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = CosmicAccent,
-                        contentColor   = Color.Black
+                        contentColor   = MaterialTheme.colorScheme.background
                     )
                 ) { Text(stringResource(R.string.continue_action)) }
             },

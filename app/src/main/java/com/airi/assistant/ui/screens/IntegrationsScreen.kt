@@ -112,7 +112,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
                 ),
                 title = {
                     Text(
@@ -235,7 +235,7 @@ private fun IntegrationCard(
     val connected = item.isConnected
     val cardAlpha = if (connected) 0.10f else 0.04f
     val borderColor = if (connected) Color(0xFF4ADE80).copy(alpha = 0.35f)
-    else Color.White.copy(alpha = 0.08f)
+    else MaterialTheme.colorScheme.outline
 
     Surface(
         modifier = Modifier
@@ -243,7 +243,7 @@ private fun IntegrationCard(
             .border(0.5.dp, borderColor, RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
         color = AiriTheme.onBackground.copy(alpha = cardAlpha),
-        contentColor = Color.White,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -258,8 +258,8 @@ private fun IntegrationCard(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.08f))
-                        .border(0.5.dp, Color.White.copy(alpha = 0.12f), CircleShape),
+                        .background(MaterialTheme.colorScheme.outline)
+                        .border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     if (iconResId != null) {
@@ -381,8 +381,8 @@ private fun IntegrationCard(
 @Composable
 private fun StatusBadge(connected: Boolean) {
     val bgColor = if (connected) Color(0xFF4ADE80).copy(alpha = 0.15f)
-    else Color.White.copy(alpha = 0.07f)
-    val textColor = if (connected) Color(0xFF4ADE80) else Color.White.copy(alpha = 0.45f)
+    else MaterialTheme.colorScheme.outline
+    val textColor = if (connected) Color(0xFF4ADE80) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
     val transition = rememberInfiniteTransition(label = "integration_status")
     val pulse = transition.animateFloat(
         initialValue = 1f,
@@ -415,7 +415,7 @@ private fun StatusBadge(connected: Boolean) {
                 modifier = Modifier
                     .size(7.dp)
                     .clip(CircleShape)
-                    .background(if (connected) Color(0xFF4ADE80) else Color.White.copy(alpha = 0.35f))
+                    .background(if (connected) Color(0xFF4ADE80) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
             )
         }
         Text(
@@ -523,10 +523,10 @@ private fun TokenDialog(
                         isError = error != null,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                             focusedBorderColor = Color(0xFF7C3AED),
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.25f),
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
                             errorBorderColor = Color(0xFFFF6B6B),
                             cursorColor = Color(0xFF7C3AED)
                         )

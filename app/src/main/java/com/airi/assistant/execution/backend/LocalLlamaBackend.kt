@@ -87,6 +87,18 @@ class LocalLlamaBackend(
         // attempts the call; if a generation is already running it will
         // queue behind the Mutex and proceed when the lock is released.
 
+    /**
+     * Propagate cancellation to the native engine.
+     * Previously missing: HybridOrchestrator.cancel() set its own AtomicBoolean
+     * but never reached LlamaNative.nativeCancel(), letting llama_decode() run
+     * unchecked for the full prefill duration (~180 s) — the direct ANR cause.
+     * Lock-free: only sets atomics, never acquires lifecycleLock.
+     */
+    override fun cancelStream() {
+        Log.i(TAG, "cancelStream() → propagating to LlamaManager")
+        llamaManager.cancelStream()
+    }
+
     /** Event type used to bridge non-suspend LlamaManager callbacks to suspend callers. */
     private sealed class LlamaEvent {
         data class Token(val value: String)                      : LlamaEvent()

@@ -34,7 +34,7 @@ import com.airi.assistant.ui.theme.SurfaceRaised
 fun ShimmerBox(
     modifier: Modifier = Modifier,
     baseColor: Color   = SurfaceRaised,
-    shimmerColor: Color = Color.White.copy(alpha = 0.06f),
+    shimmerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
     cornerRadius: Dp   = 10.dp
 ) {
     val transition = rememberInfiniteTransition(label = "shimmer")

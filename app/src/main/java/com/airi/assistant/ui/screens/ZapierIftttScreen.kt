@@ -390,7 +390,7 @@ private fun IftttTab(
                         enabled = eventName.isNotBlank() && state.connected && !isTesting,
                         colors  = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C3E3))
                     ) {
-                        if (isTesting) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
+                        if (isTesting) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onSurface)
                         else Icon(Icons.Default.PlayArrow, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.ifttt_trigger_applet))
@@ -455,7 +455,7 @@ private fun ConnectorStatusCard(
                 Text(description, fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Box(Modifier.size(8.dp).background(if (state.connected) SemanticSuccess else DividerColor, CircleShape))
+                    Box(Modifier.size(8.dp).background(if (state.connected) SemanticSuccess else MaterialTheme.colorScheme.outline, CircleShape))
                     Text(
                         if (state.connected) state.statusLine else "Not connected",
                         fontSize = 12.sp,
@@ -470,7 +470,7 @@ private fun ConnectorStatusCard(
 @Composable
 private fun inputColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor   = CosmicAccent,
-    unfocusedBorderColor = DividerColor,
+    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
     focusedLabelColor    = CosmicAccent,
     cursorColor          = CosmicAccent
 )

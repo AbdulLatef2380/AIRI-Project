@@ -160,7 +160,7 @@ fun ModelSettingsScreen(
     }
 
     Scaffold(
-        containerColor = Color.Black,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
@@ -178,7 +178,7 @@ fun ModelSettingsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.92f)
+                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.92f)
                 )
             )
         },
@@ -186,7 +186,7 @@ fun ModelSettingsScreen(
             FloatingActionButton(
                 onClick = { showAddModelSheet = true },
                 containerColor = CosmicAccent,
-                contentColor   = Color.Black
+                contentColor   = MaterialTheme.colorScheme.background
             ) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_model_fab))
             }
@@ -217,13 +217,13 @@ fun ModelSettingsScreen(
                             modifier = Modifier.height(36.dp),
                             shape = CircleShape,
                             color = if (active) Color(0xFF007AFF) else Color(0xFF1C1C1E),
-                            contentColor = Color.White
+                            contentColor = MaterialTheme.colorScheme.onSurface
                         ) {
                             Box(
                                 modifier = Modifier
                                     .border(
                                         0.5.dp,
-                                        Color.White.copy(alpha = if (active) 0f else 0.12f),
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = if (active) 0f else 0.12f),
                                         CircleShape
                                     )
                                     .padding(horizontal = 16.dp),
@@ -463,7 +463,7 @@ fun RefModelGroupAccordion(
                 .fillMaxWidth()
                 .height(55.dp),
             color = if (hasActiveModel) Color(0xFF0A2540) else Color(0xFF111111),
-            contentColor = Color.White
+            contentColor = MaterialTheme.colorScheme.onSurface
         ) {
             Row(
                 modifier = Modifier
@@ -477,7 +477,7 @@ fun RefModelGroupAccordion(
                         title,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (hasActiveModel) Color(0xFF5AC8FA) else Color.White.copy(alpha = 0.72f),
+                        color = if (hasActiveModel) Color(0xFF5AC8FA) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -490,7 +490,7 @@ fun RefModelGroupAccordion(
                         Box(
                             modifier = Modifier
                                 .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.10f))
+                                .background(MaterialTheme.colorScheme.outline)
                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Text(
@@ -545,7 +545,7 @@ fun RefDownloadedModelCard(
             .border(
                 width = 1.dp,
                 color = if (isActive) Color(0xFF007AFF).copy(alpha = 0.55f)
-                        else Color.White.copy(alpha = 0.10f),
+                        else MaterialTheme.colorScheme.outline,
                 shape = RoundedCornerShape(24.dp) // borderRadius: 24
             )
             .clip(RoundedCornerShape(24.dp))
@@ -624,7 +624,7 @@ fun RefDownloadedModelCard(
                                 when {
                                     isActive  -> Color(0xFF34C759)
                                     isLoading -> Color(0xFFFF9500)
-                                    else      -> Color.White.copy(alpha = 0.22f)
+                                    else      -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.22f)
                                 }
                             )
                     )
@@ -642,7 +642,7 @@ fun RefDownloadedModelCard(
                             .height(3.dp)
                             .clip(RoundedCornerShape(2.dp)),
                         color = Color(0xFF007AFF),
-                        trackColor = Color.White.copy(alpha = 0.08f)
+                        trackColor = MaterialTheme.colorScheme.outline
                     )
                 } else {
                     LinearProgressIndicator(
@@ -652,7 +652,7 @@ fun RefDownloadedModelCard(
                             .height(3.dp)
                             .clip(RoundedCornerShape(2.dp)),
                         color = Color(0xFF007AFF),
-                        trackColor = Color.White.copy(alpha = 0.08f)
+                        trackColor = MaterialTheme.colorScheme.outline
                     )
                 }
                 Spacer(Modifier.height(6.dp))
@@ -681,7 +681,7 @@ fun RefDownloadedModelCard(
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = if (isActive) Color(0xFF34C759).copy(alpha = 0.12f)
                                          else Color.Transparent,
-                        contentColor   = if (isActive) Color(0xFF34C759) else Color.White
+                        contentColor   = if (isActive) Color(0xFF34C759) else MaterialTheme.colorScheme.onSurface
                     ),
                     contentPadding = PaddingValues(horizontal = 12.dp)
                 ) {
@@ -706,7 +706,7 @@ fun RefDownloadedModelCard(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = 0.06f))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable { onSettings() }
                         .padding(10.dp),
                     contentAlignment = Alignment.Center
@@ -742,7 +742,7 @@ fun RefDownloadedModelCard(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = 0.06f))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable { isExpanded = !isExpanded }
                         .padding(10.dp),
                     contentAlignment = Alignment.Center
@@ -913,13 +913,13 @@ fun RefCatalogModelCard(
                             contentDescription = null,
                             modifier = Modifier.size(10.dp),
                             tint = if (unsupportedByRam) Color(0xFFFF3B30).copy(alpha = 0.7f)
-                                   else Color.White.copy(alpha = 0.45f)
+                                   else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
                         )
                         Text(
                             entry.sizeBytes.toReadableSize(),
                             fontSize = 11.sp,
                             color = if (unsupportedByRam) Color(0xFFFF3B30).copy(alpha = 0.7f)
-                                    else Color.White.copy(alpha = 0.50f)
+                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                         )
                     }
                     // statusDot: always grey (not downloaded)
@@ -929,7 +929,7 @@ fun RefCatalogModelCard(
                             .clip(CircleShape)
                             .background(
                                 if (isDownloading) Color(0xFFFF9500)
-                                else Color.White.copy(alpha = 0.18f)
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
                             )
                     )
                 }
@@ -969,7 +969,7 @@ fun RefCatalogModelCard(
                         .height(3.dp)
                         .clip(RoundedCornerShape(2.dp)),
                     color = Color(0xFF007AFF),
-                    trackColor = Color.White.copy(alpha = 0.08f)
+                    trackColor = MaterialTheme.colorScheme.outline
                 )
                 Spacer(Modifier.height(8.dp))
             }
@@ -1050,7 +1050,7 @@ fun RefCatalogModelCard(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = 0.06f))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable { isExpanded = !isExpanded }
                         .padding(10.dp),
                     contentAlignment = Alignment.Center
@@ -1149,7 +1149,7 @@ private fun RefDetailCard(
                 value,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = if (warn) Color(0xFFFF3B30) else Color.White,
+                color = if (warn) Color(0xFFFF3B30) else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1170,10 +1170,10 @@ private fun ModelStoreHero(totalRamMb: Int, storageBytes: Long) {
             .clip(RoundedCornerShape(24.dp))
             .background(
                 Brush.linearGradient(
-                    listOf(Color(0xFF007AFF).copy(alpha = 0.34f), Color(0xFF121212), Color.Black)
+                    listOf(Color(0xFF007AFF).copy(alpha = 0.34f), Color(0xFF121212), MaterialTheme.colorScheme.background)
                 )
             )
-            .border(0.5.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(24.dp))
+            .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(24.dp))
             .padding(16.dp)
     ) {
         Column(
@@ -1204,8 +1204,8 @@ private fun ModelStoreHero(totalRamMb: Int, storageBytes: Long) {
                     .fillMaxWidth()
                     .height(48.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color.White.copy(alpha = 0.08f))
-                    .border(0.5.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(24.dp))
+                    .background(MaterialTheme.colorScheme.outline)
+                    .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(24.dp))
                     .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1238,11 +1238,11 @@ private fun CategoryChips(categories: List<String>, selected: String, onSelected
                 modifier = Modifier.height(36.dp),
                 shape = CircleShape,
                 color = if (active) Color(0xFF007AFF) else Color(0xFF121212),
-                contentColor = Color.White
+                contentColor = MaterialTheme.colorScheme.onSurface
             ) {
                 Box(
                     modifier = Modifier
-                        .border(0.5.dp, Color.White.copy(alpha = if (active) 0.0f else 0.10f), CircleShape)
+                        .border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = if (active) 0.0f else 0.10f), CircleShape)
                         .padding(horizontal = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1395,7 +1395,7 @@ fun CatalogCard(
             ),
         shape = RoundedCornerShape(24.dp),
         color = Color(0xFF121212),
-        contentColor = Color.White,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
@@ -1413,7 +1413,7 @@ fun CatalogCard(
                     }
                     Text(
                         if (unsupportedGemma) stringResource(R.string.model_not_supported_device) else entry.description,
-                        color = if (unsupportedGemma) Color(0xFFFF3B30) else Color.White.copy(alpha = 0.64f),
+                        color = if (unsupportedGemma) Color(0xFFFF3B30) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f),
                         fontSize = 12.sp,
                         lineHeight = 16.sp,
                         maxLines = 2,
@@ -1439,9 +1439,9 @@ fun CatalogCard(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                StoreChip(entry.sizeBytes.toReadableSize(), Color.White.copy(alpha = 0.12f))
-                StoreChip(entry.quantization, Color.White.copy(alpha = 0.12f), monospace = true)
-                StoreChip("RAM ${entry.ramRequiredMb} MB", if (unsupportedByRam) Color(0xFFFF3B30) else Color.White.copy(alpha = 0.12f))
+                StoreChip(entry.sizeBytes.toReadableSize(), MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+                StoreChip(entry.quantization, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), monospace = true)
+                StoreChip("RAM ${entry.ramRequiredMb} MB", if (unsupportedByRam) Color(0xFFFF3B30) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
                 if (isActive) StoreChip("Open", Color(0xFF34C759))
             }
 
@@ -1480,7 +1480,7 @@ private fun ManufacturerIcon(type: ModelType) {
             .size(48.dp)
             .clip(CircleShape)
             .background(bg.copy(alpha = 0.18f))
-            .border(0.5.dp, Color.White.copy(alpha = 0.10f), CircleShape),
+            .border(0.5.dp, MaterialTheme.colorScheme.outline, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Text(type.label.first().uppercase(), color = bg, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -1523,9 +1523,9 @@ private fun StoreDownloadButton(
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = if (isDownloaded || isActive) Color(0xFF34C759) else if (hasFailed) Color(0xFFFF9500) else Color(0xFF007AFF),
-            contentColor = Color.White,
-            disabledContainerColor = Color.White.copy(alpha = 0.08f),
-            disabledContentColor   = Color.White.copy(alpha = 0.35f)
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            disabledContainerColor = MaterialTheme.colorScheme.outline,
+            disabledContentColor   = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
         ),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
         modifier = Modifier.height(42.dp).widthIn(min = 88.dp)
@@ -1660,7 +1660,7 @@ fun ModelCard(
             ),
         shape = RoundedCornerShape(20.dp),
         color = Color(0xFF0E1629),
-        contentColor = Color.White,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {

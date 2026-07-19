@@ -76,7 +76,7 @@ private fun DebugCard(event: VerificationEvent) {
     }
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.85f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)),
         shape  = RoundedCornerShape(8.dp),
         modifier = Modifier.wrapContentSize()
     ) {
@@ -92,7 +92,7 @@ private fun DebugCard(event: VerificationEvent) {
                 Spacer(Modifier.width(6.dp))
                 Text(
                     event.queryType,
-                    color    = Color.White.copy(alpha = 0.6f),
+                    color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     fontSize = 10.sp,
                     fontFamily = MONO
                 )
@@ -101,8 +101,8 @@ private fun DebugCard(event: VerificationEvent) {
             OverlayRow("Latency", "${event.latencyMs} ms",
                 if (event.latencyMs < 100) GREEN else if (event.latencyMs < 3000) BLUE else RED)
             OverlayRow("P50/P90", "${VerificationTracker.p50LatencyMs()}/${VerificationTracker.p90LatencyMs()} ms", BLUE)
-            OverlayRow("Tokens",  "${event.tokens}",    Color.White)
-            OverlayRow("Cut",     "${event.wasCut}",    if (event.wasCut) RED else Color.White.copy(alpha = 0.5f))
+            OverlayRow("Tokens",  "${event.tokens}",    MaterialTheme.colorScheme.onSurface)
+            OverlayRow("Cut",     "${event.wasCut}",    if (event.wasCut) RED else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
         }
     }
 }
@@ -110,7 +110,7 @@ private fun DebugCard(event: VerificationEvent) {
 @Composable
 private fun OverlayRow(label: String, value: String, valueColor: Color) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, color = Color.White.copy(alpha = 0.45f), fontSize = 10.sp, fontFamily = MONO,
+        Text(label, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f), fontSize = 10.sp, fontFamily = MONO,
             modifier = Modifier.width(44.dp))
         Text(value, color = valueColor, fontSize = 10.sp, fontFamily = MONO, fontWeight = FontWeight.SemiBold)
     }

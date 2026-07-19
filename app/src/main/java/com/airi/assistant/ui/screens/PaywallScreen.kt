@@ -105,7 +105,7 @@ fun PaywallScreen(
         snackbarHost   = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.8f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.8f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
@@ -183,7 +183,7 @@ fun PaywallScreen(
                             Text(
                                 text     = "${100 - usagePercent}% remaining",
                                 fontSize = 11.sp,
-                                color    = if (usagePercent >= 80) goldColor else Color.White.copy(alpha = 0.45f)
+                                color    = if (usagePercent >= 80) goldColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
                             )
                         }
                         androidx.compose.material3.LinearProgressIndicator(
@@ -197,7 +197,7 @@ fun PaywallScreen(
                                 usagePercent >= 60 -> Color(0xFFFF7043)
                                 else               -> accentColor
                             },
-                            trackColor = Color.White.copy(alpha = 0.1f)
+                            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
                         )
                     }
                 }
@@ -275,8 +275,8 @@ fun PaywallScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(20.dp))
-                        .background(Color.White.copy(alpha = 0.04f))
-                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.outline)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
@@ -332,7 +332,7 @@ fun PaywallScreen(
                     shape  = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = accentColor,
-                        contentColor   = Color.White
+                        contentColor   = MaterialTheme.colorScheme.onSurface
                     ),
                     enabled = billingState !is BillingManager.BillingState.Connecting
                 ) {

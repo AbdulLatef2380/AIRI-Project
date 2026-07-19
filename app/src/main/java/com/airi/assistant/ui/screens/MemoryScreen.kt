@@ -48,7 +48,7 @@ fun MemoryScreen(
         snackbarHost   = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, null, tint = AiriTheme.onBackground)
@@ -122,8 +122,8 @@ fun MemoryScreen(
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             containerColor   = Color(0xFF12162E),
-            titleContentColor = Color.White,
-            textContentColor  = Color.White.copy(alpha = 0.7f),
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor  = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             shape            = RoundedCornerShape(20.dp),
             title = { Text(stringResource(R.string.clear_all_memory), fontWeight = FontWeight.Bold) },
             text  = { Text(stringResource(R.string.memory_clear_dialog_body)) },
@@ -163,11 +163,11 @@ private fun MemoryEntryCard(msg: ChatMessage) {
                 )
                 .background(
                     if (isUser) CosmicAccent.copy(alpha = 0.12f)
-                    else        Color.White.copy(alpha = 0.05f)
+                    else        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                 )
                 .border(
                     1.dp,
-                    if (isUser) CosmicAccent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f),
+                    if (isUser) CosmicAccent.copy(alpha = 0.25f) else MaterialTheme.colorScheme.outline,
                     if (isUser) RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp)
                     else        RoundedCornerShape(4.dp, 16.dp, 16.dp, 16.dp)
                 )
@@ -182,7 +182,7 @@ private fun MemoryEntryCard(msg: ChatMessage) {
                     Text(
                         if (isUser) "You" else "AIRI",
                         fontSize = 10.sp,
-                        color = if (isUser) CosmicAccent.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.4f),
+                        color = if (isUser) CosmicAccent.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                         fontWeight = FontWeight.Bold
                     )
                     Text(timestamp, fontSize = 10.sp, color = AiriTheme.outline)

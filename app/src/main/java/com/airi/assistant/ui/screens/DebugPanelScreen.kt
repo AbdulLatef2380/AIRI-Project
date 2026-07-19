@@ -219,7 +219,7 @@ private fun DebugBoolRow(label: String, value: Boolean) {
         Text(label, color = LabelColor, fontSize = 12.sp)
         Text(
             if (value) "true" else "false",
-            color = if (value) PassGreen else Color.White.copy(alpha = 0.5f),
+            color = if (value) PassGreen else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
             fontSize = 12.sp,
             fontFamily = MonoFont,
             fontWeight = FontWeight.SemiBold
@@ -245,7 +245,7 @@ private fun DiagTestRow(result: DiagnosticsRunner.TestResult) {
         Column {
             Text(
                 result.name,
-                color = if (result.passed) Color.White else FailRed,
+                color = if (result.passed) MaterialTheme.colorScheme.onSurface else FailRed,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold
             )

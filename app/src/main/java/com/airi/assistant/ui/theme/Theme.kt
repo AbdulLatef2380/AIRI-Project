@@ -22,14 +22,14 @@ private val DarkColorScheme = darkColorScheme(
     background       = CosmicBlack,
     surface          = SurfaceBase,
     surfaceVariant   = SurfaceRaised,
-    onPrimary        = Color.White,
-    onSecondary      = Color.White,
-    onBackground     = Color.White,
-    onSurface        = Color.White,
-    onSurfaceVariant = Color.White.copy(alpha = 0.65f),
+    onPrimary        = MaterialTheme.colorScheme.onSurface,
+    onSecondary      = MaterialTheme.colorScheme.onSurface,
+    onBackground     = MaterialTheme.colorScheme.onSurface,
+    onSurface        = MaterialTheme.colorScheme.onSurface,
+    onSurfaceVariant = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
     outline          = GlassWhiteBorder,
     error            = SemanticError,
-    onError          = Color.White,
+    onError          = MaterialTheme.colorScheme.onSurface,
 )
 
 // ── Light colour scheme ───────────────────────────────────────────────────────
@@ -40,14 +40,14 @@ private val LightColorScheme = lightColorScheme(
     background       = LightBackground,
     surface          = LightSurface,
     surfaceVariant   = LightSurfaceRaised,
-    onPrimary        = Color.White,
-    onSecondary      = Color.White,
+    onPrimary        = MaterialTheme.colorScheme.onSurface,
+    onSecondary      = MaterialTheme.colorScheme.onSurface,
     onBackground     = LightOnBackground,
     onSurface        = LightOnSurface,
     onSurfaceVariant = LightOnSurface.copy(alpha = 0.65f),
     outline          = LightOutline,
     error            = SemanticError,
-    onError          = Color.White,
+    onError          = MaterialTheme.colorScheme.onSurface,
 )
 
 // ── Typography ────────────────────────────────────────────────────────────────
@@ -71,17 +71,17 @@ private val AmoledColorScheme = darkColorScheme(
     primary          = CosmicAccent,
     secondary        = CosmicAccentAlt,
     tertiary         = SemanticSuccess,
-    background       = Color.Black,          // pure black — saves OLED power
+    background       = MaterialTheme.colorScheme.background,          // pure black — saves OLED power
     surface          = Color(0xFF0A0A0A),    // near-black surface
     surfaceVariant   = Color(0xFF111111),    // slightly raised
-    onPrimary        = Color.White,
-    onSecondary      = Color.White,
-    onBackground     = Color.White,
-    onSurface        = Color.White,
-    onSurfaceVariant = Color.White.copy(alpha = 0.65f),
-    outline          = Color.White.copy(alpha = 0.12f),
+    onPrimary        = MaterialTheme.colorScheme.onSurface,
+    onSecondary      = MaterialTheme.colorScheme.onSurface,
+    onBackground     = MaterialTheme.colorScheme.onSurface,
+    onSurface        = MaterialTheme.colorScheme.onSurface,
+    onSurfaceVariant = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+    outline          = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
     error            = SemanticError,
-    onError          = Color.White,
+    onError          = MaterialTheme.colorScheme.onSurface,
 )
 
 /**

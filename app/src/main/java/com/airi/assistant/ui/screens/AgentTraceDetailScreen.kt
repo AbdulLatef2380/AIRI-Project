@@ -44,7 +44,7 @@ fun AgentTraceDetailScreen(
         return
     }
 
-    val t = trace!!
+    val t = trace ?: return  // trace was null-checked above; ?: return handles race
     val timeStr = remember(t.timestamp) {
         SimpleDateFormat("MMM d, HH:mm:ss", Locale.getDefault()).format(Date(t.timestamp))
     }
@@ -54,7 +54,7 @@ fun AgentTraceDetailScreen(
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -175,7 +175,7 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(Color.White.copy(alpha = 0.04f))
+            .background(MaterialTheme.colorScheme.outline)
             .border(1.dp, successColor.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
             .padding(14.dp)
     ) {
@@ -222,7 +222,7 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color.White.copy(alpha = 0.03f))
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f))
                         .padding(8.dp)
                 ) {
                     Column {
@@ -247,7 +247,7 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
                         .background(
-                            if (step.success) Color.White.copy(alpha = 0.03f)
+                            if (step.success) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f)
                             else Color(0xFFFF5252).copy(alpha = 0.05f)
                         )
                         .padding(8.dp)
@@ -263,7 +263,7 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
                         Spacer(Modifier.height(2.dp))
                         Text(
                             text = step.error ?: step.outputSummary,
-                            color = if (step.success) Color.White.copy(alpha = 0.7f)
+                            color = if (step.success) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                     else Color(0xFFFF5252).copy(alpha = 0.85f),
                             fontSize = 11.sp,
                             lineHeight = 16.sp
@@ -281,8 +281,8 @@ private fun TraceDetailCard(content: @Composable ColumnScope.() -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
             .padding(14.dp)
     ) {
         Column(content = content)

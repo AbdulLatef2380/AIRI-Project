@@ -189,7 +189,7 @@ fun VoiceSettingsScreen(
                         if (downloadProgress != null) {
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 LinearProgressIndicator(
-                                    progress = (downloadProgress!! / 100f),
+                                    progress = ((downloadProgress ?: 0) / 100f),
                                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)),
                                     color = CosmicAccent,
                                     trackColor = CosmicAccent.copy(0.2f)
@@ -220,7 +220,7 @@ fun VoiceSettingsScreen(
                                 },
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = CosmicAccent,
-                                    contentColor   = Color.White
+                                    contentColor   = MaterialTheme.colorScheme.onSurface
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -391,9 +391,9 @@ private fun PorcupineCard(
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor   = CosmicAccent.copy(alpha = 0.6f),
-                    unfocusedBorderColor = DividerColor,
-                    focusedTextColor     = Color.White,
-                    unfocusedTextColor   = Color.White
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedTextColor     = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor   = MaterialTheme.colorScheme.onSurface
                 )
             )
 
@@ -409,7 +409,7 @@ private fun PorcupineCard(
                 OutlinedButton(
                     onClick = onClear,
                     shape   = RoundedCornerShape(10.dp),
-                    border  = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
+                    border  = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                 ) { Text(stringResource(R.string.clear), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant) }
             }
 
@@ -456,11 +456,11 @@ private fun InstalledModelsCard(
                             .clip(RoundedCornerShape(10.dp))
                             .background(
                                 if (isActive) CosmicAccent.copy(alpha = 0.10f)
-                                else Color.White.copy(alpha = 0.03f)
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f)
                             )
                             .border(
                                 0.5.dp,
-                                if (isActive) CosmicAccent.copy(alpha = 0.30f) else DividerColor,
+                                if (isActive) CosmicAccent.copy(alpha = 0.30f) else MaterialTheme.colorScheme.outline,
                                 RoundedCornerShape(10.dp)
                             )
                             .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -527,26 +527,47 @@ private fun CloudVoiceCard(
     val selectedId      = remember { mutableStateOf(prefs.getString("cloud_voice_provider", "LOCAL") ?: "LOCAL") }
     var voiceBinder     by remember { mutableStateOf<LiveVoiceService.LocalBinder?>(null) }
 
-    // Bind to LiveVoiceService so we can call setRealtimeProvider()
+    // Bind to LiveVoiceService so we can call setRealtimeProvider().
+    // bindService() can fail (service not registered, missing permission); guard both
+    // the bind and the dispose. unbindService() throws IllegalArgumentException when
+    // the binding never completed — the root cause of the P0 voice crash.
     DisposableEffect(Unit) {
+        var bound = false
         val conn = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName, binder: IBinder) {
                 voiceBinder = binder as? LiveVoiceService.LocalBinder
             }
-            override fun onServiceDisconnected(name: ComponentName) { voiceBinder = null }
+            override fun onServiceDisconnected(name: ComponentName) {
+                voiceBinder = null
+                // OS will rebind; 'bound' stays true so we still call unbindService on dispose.
+            }
         }
         val intent = android.content.Intent(context, LiveVoiceService::class.java)
-        context.bindService(intent, conn, android.content.Context.BIND_AUTO_CREATE)
-        onDispose { context.unbindService(conn) }
+        try {
+            bound = context.bindService(intent, conn, android.content.Context.BIND_AUTO_CREATE)
+            if (!bound) android.util.Log.w("VoiceSettings", "bindService returned false")
+        } catch (e: SecurityException) {
+            android.util.Log.w("VoiceSettings", "bindService SecurityException: \${e.message}")
+        }
+        onDispose {
+            // Guard against IllegalArgumentException: "Service not registered"
+            // which fires when bindService() failed or returned false.
+            if (bound) {
+                try { context.unbindService(conn) }
+                catch (e: IllegalArgumentException) {
+                    android.util.Log.w("VoiceSettings", "unbindService: not bound — \${e.message}")
+                }
+            }
+        }
     }
 
     fun applyProvider(id: String) {
         if (id == "GEMINI_LIVE" && !hasGeminiKey.value) {
-            onSnackbar("Set a Gemini API key in Settings first")
+            onSnackbar(context.getString(R.string.voice_gemini_key_required))
             return
         }
         if (id == "OPENAI_REALTIME" && !hasOpenAIKey.value) {
-            onSnackbar("Set an OpenAI API key in Settings first")
+            onSnackbar(context.getString(R.string.voice_openai_key_required))
             return
         }
         selectedId.value = id

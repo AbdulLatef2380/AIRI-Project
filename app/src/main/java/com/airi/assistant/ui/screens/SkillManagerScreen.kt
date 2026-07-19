@@ -348,7 +348,7 @@ private fun OfficialSkillCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(AiriTheme.surface)
-            .border(1.dp, Color.White.copy(if (needsConnector) 0.04f else 0.07f), RoundedCornerShape(14.dp))
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(if (needsConnector) 0.04f else 0.07f), RoundedCornerShape(14.dp))
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -420,10 +420,10 @@ private fun OfficialSkillCard(
                 checked         = info.isEnabled,
                 onCheckedChange = onToggle,
                 colors          = SwitchDefaults.colors(
-                    checkedThumbColor   = Color.White,
+                    checkedThumbColor   = MaterialTheme.colorScheme.onSurface,
                     checkedTrackColor   = CosmicAccent,
                     uncheckedThumbColor = AiriTheme.onBackground.copy(0.35f),
-                    uncheckedTrackColor = Color.White.copy(0.1f)
+                    uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(0.1f)
                 )
             )
         }
@@ -440,7 +440,7 @@ private fun SkillCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(AiriTheme.surface)
-            .border(1.dp, Color.White.copy(0.07f), RoundedCornerShape(14.dp))
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.07f), RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -535,9 +535,9 @@ private fun GitHubImportDialog(
                     modifier   = Modifier.fillMaxWidth(),
                     colors     = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
-                        unfocusedBorderColor = Color.White.copy(0.15f),
-                        focusedTextColor     = Color.White,
-                        unfocusedTextColor   = Color.White
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(0.15f),
+                        focusedTextColor     = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor   = MaterialTheme.colorScheme.onSurface
                     )
                 )
                 if (isImporting) LinearProgressIndicator(
@@ -626,9 +626,9 @@ private fun SkillTextField(
         keyboardOptions = KeyboardOptions(keyboardType = keyboard),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor   = CosmicAccent,
-            unfocusedBorderColor = Color.White.copy(0.15f),
-            focusedTextColor     = Color.White,
-            unfocusedTextColor   = Color.White,
+            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(0.15f),
+            focusedTextColor     = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor   = MaterialTheme.colorScheme.onSurface,
             focusedLabelColor    = CosmicAccent
         )
     )

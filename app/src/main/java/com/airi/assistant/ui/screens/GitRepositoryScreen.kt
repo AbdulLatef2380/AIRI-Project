@@ -84,7 +84,7 @@ fun GitRepositoryScreen(
             TopAppBar(
                 title = {
                     Text(
-                        if (selected != null) selected!! else "Repositories",
+                        selected ?: "Repositories",
                         color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold
                     )
                 },

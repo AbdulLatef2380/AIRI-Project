@@ -186,18 +186,24 @@ class PromptBudgetLedger private constructor(val budget: ContextBudget) {
             //   0.5 → 50% context (REDUCE throttle)
             //   0.0 → no context (EMERGENCY — abort should already prevent reaching here)
             val thermalFactor = ThermalSignal.contextBudgetFactor
+            // Thermal throttle: apply to generation output budget only.
+            // Previously claimed nCtx*(1-thermalFactor) against total context,
+            // leaving zero tokens free at 50% throttle → session_primed=false
+            // every turn → full 636-token cold KV rebuild → ANR.
+            // The KV cache already holds prior context at no additional thermal
+            // cost, so shrinking the input window is incorrect.
             if (thermalFactor < 1.0f) {
-                val thermalReserve = (budget.nCtx * (1.0f - thermalFactor)).toInt()
-                ledger.claim(Contributor.THERMAL_RESERVE, thermalReserve)
+                val wouldHave = (budget.nCtx * (1.0f - thermalFactor)).toInt()
                 Log.w(TAG,
                     "AIRI_PROOF BUDGET_THERMAL_RESERVE nCtx=${budget.nCtx} " +
-                    "thermalFactor=$thermalFactor reserve=$thermalReserve " +
-                    "remainingAfterReserve=${ledger.remaining}")
+                    "thermalFactor=$thermalFactor would_reserve=$wouldHave " +
+                    "actual_ctx_reserve=0 (throttle applied to generation only)")
             }
 
             val fixedSystem = budget.systemOverhead + budget.templateOverhead + budget.userFragmentReserve
             ledger.claim(Contributor.SYSTEM, fixedSystem)
-            ledger.claim(Contributor.GENERATION, budget.generationReserve)
+            val thermalGenReserve = (budget.generationReserve * thermalFactor).toInt().coerceAtLeast(64)
+            ledger.claim(Contributor.GENERATION, thermalGenReserve)
             ledger.claim(Contributor.SUMMARY, budget.summaryTokens)
             ledger.claim(Contributor.RAG, budget.ragTokens)
             Log.i(TAG,

@@ -124,7 +124,7 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                         .padding(horizontal = 12.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.background)
-                        .border(0.5.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(12.dp))
+                        .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
                 ) {
                     if (logs.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -209,11 +209,11 @@ private fun SessionSelectorRow(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (isSelected) CosmicAccent.copy(alpha = 0.18f) else SurfaceRaised)
-                    .border(0.5.dp, if (isSelected) CosmicAccent.copy(alpha = 0.4f) else DividerColor, RoundedCornerShape(8.dp))
+                    .border(0.5.dp, if (isSelected) CosmicAccent.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
                     .clickable { onSelect(sess) }
                     .padding(horizontal = 10.dp, vertical = 6.dp)
             ) {
-                Text(sess.label.take(18), fontSize = 12.sp, color = if (isSelected) CosmicAccent else Color.White.copy(alpha = 0.7f))
+                Text(sess.label.take(18), fontSize = 12.sp, color = if (isSelected) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                 Spacer(Modifier.width(6.dp))
                 Icon(
                     Icons.Outlined.Close, contentDescription = stringResource(R.string.sandbox_close_session_cd),
@@ -280,7 +280,7 @@ private fun SandboxCommandBar(
             textStyle      = LocalTextStyle.current.copy(fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AiriTheme.onBackground),
             colors         = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor   = CosmicAccent.copy(alpha = 0.5f),
-                unfocusedBorderColor = DividerColor,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                 focusedContainerColor   = Color(0xFF0C0F1A),
                 unfocusedContainerColor = Color(0xFF0C0F1A)
             ),

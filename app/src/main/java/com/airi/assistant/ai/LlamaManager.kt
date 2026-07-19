@@ -839,7 +839,7 @@ class LlamaManager(private val context: Context) {
             val user = newUserTurnFragment(type, prompt, systemPrompt, embedSystem = true)
             val response = LlamaNative.generateResponse(sys + user)
             invalidateSession()
-            withContext(Dispatchers.Main) { onResult(response) }
+            android.os.Handler(android.os.Looper.getMainLooper()).post { onResult(response) }
         }
     }
 
@@ -906,7 +906,7 @@ class LlamaManager(private val context: Context) {
                 if (firstSeen && idle >= STALL_WARNING_MS && stallWarned.compareAndSet(false, true)) {
                     Log.w(TAG, "STALL_DETECTED idle=${idle}ms — decode is slow but still alive")
                     Log.i("AIRI_PROOF", "STALL idle_ms=$idle threshold_ms=$STALL_WARNING_MS")
-                    withContext(Dispatchers.Main) { onStallWarning() }
+                    android.os.Handler(android.os.Looper.getMainLooper()).post { onStallWarning() }
                 }
 
                 if (idle >= budget) {
@@ -922,12 +922,10 @@ class LlamaManager(private val context: Context) {
                         // silently leave a cancel request unacknowledged.
                         runCatching { LlamaNative.cancel() }
                         runCatching { LlamaNative.nativeCancel() }
-                        // PHASE 6: contain watchdog onError too.
-                        withContext(Dispatchers.Main) {
-                            try { onError("$errCode idle_ms=$idle budget_ms=$budget") }
-                            catch (t: Throwable) {
-                                Log.w(TAG, "watchdog onError threw: ${t.message}", t)
-                            }
+                        val watchErr = "$errCode idle_ms=$idle budget_ms=$budget"
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            try { onError(watchErr) }
+                            catch (t: Throwable) { Log.w(TAG, "watchdog onError threw: \${t.message}", t) }
                         }
                     }
                     return@launch
@@ -1078,6 +1076,25 @@ class LlamaManager(private val context: Context) {
                     if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_PROOF",
                         "PREFLIGHT_OK n_past=$nPastBefore n_ctx=$nCtxNow " +
                         "user_est=$estUserNew needed=$estNeeded free=$freeRoom")
+                }
+
+                // ── PRE-PREFILL CANCEL CHECK ─────────────────────────────────
+                // If cancel arrived during reconcileSession/PREFLIGHT (Kotlin side),
+                // abort here before touching JNI. This bounds cancel latency to
+                // Kotlin-layer time (<100 ms) for the common "cancel during startup"
+                // case, and prevents leaving the KV in a mid-write state.
+                if (cancelRequested.get()) {
+                    Log.i("AIRI_PROOF",
+                        "PREFILL_CANCELLED_BEFORE_NATIVE reason=pre_jni_check tokens_streamed=0")
+                    if (finished.compareAndSet(false, true)) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            try { onComplete("") }
+                            catch (t: Throwable) {
+                                Log.w(TAG, "onComplete(pre_jni_cancel) threw: \${t.message}", t)
+                            }
+                        }
+                    }
+                    return@withLock
                 }
 
                 // ── SPEC v3 — STATE MACHINE: PREFILL ────────────────────────
@@ -1362,11 +1379,9 @@ class LlamaManager(private val context: Context) {
                         nativeTokenCount = 0
                         fullReset("GEN_STATUS_ERROR")
                         if (finished.compareAndSet(false, true)) {
-                            withContext(Dispatchers.Main) {
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
                                 try { onError("$ERR_NATIVE decode_error status=-1") }
-                                catch (t: Throwable) {
-                                    Log.w(TAG, "onError(gen_error) threw: ${t.message}", t)
-                                }
+                                catch (t: Throwable) { Log.w(TAG, "onError(gen_error) threw: \${t.message}", t) }
                             }
                         }
                         Log.i("AIRI_PROOF", "STATE_IDLE after=gen_error")
@@ -1392,11 +1407,9 @@ class LlamaManager(private val context: Context) {
                         nativeTokenCount = 0
                         fullReset("GEN_STATUS_OVERFLOW")
                         if (finished.compareAndSet(false, true)) {
-                            withContext(Dispatchers.Main) {
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
                                 try { onError("$ERR_NATIVE context_overflow status=-3") }
-                                catch (t: Throwable) {
-                                    Log.w(TAG, "onError(overflow) threw: ${t.message}", t)
-                                }
+                                catch (t: Throwable) { Log.w(TAG, "onError(overflow) threw: \${t.message}", t) }
                             }
                         }
                         Log.i("AIRI_PROOF", "STATE_IDLE after=gen_overflow")
@@ -1441,11 +1454,10 @@ class LlamaManager(private val context: Context) {
                         // response is preserved — the UI already rendered it.
                         // Surface it via onComplete so the chat bubble closes.
                         if (finished.compareAndSet(false, true)) {
-                            withContext(Dispatchers.Main) {
-                                try { onComplete(partialResponse) }
-                                catch (t: Throwable) {
-                                    Log.w(TAG, "onComplete(cancelled) threw: ${t.message}", t)
-                                }
+                            val pr = partialResponse
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                try { onComplete(pr) }
+                                catch (t: Throwable) { Log.w(TAG, "onComplete(cancelled) threw: \${t.message}", t) }
                             }
                         }
                         Log.i("AIRI_PROOF", "STATE_IDLE after=cancelled")
@@ -1567,11 +1579,10 @@ class LlamaManager(private val context: Context) {
                                 "GEN_END tokens=$nativeTokenCount elapsed_ms=$totalElapsed " +
                                 "first_token_ms=$firstTokenMs " +
                                 "tps=%.2f cancelled=${cancelRequested.get()}".format(tps))
-                            withContext(Dispatchers.Main) {
-                                try { onComplete(full) }
-                                catch (t: Throwable) {
-                                    Log.w(TAG, "onComplete threw: ${t.message}", t)
-                                }
+                            val completedText = full
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                try { onComplete(completedText) }
+                                catch (t: Throwable) { Log.w(TAG, "onComplete threw: \${t.message}", t) }
                             }
                         }
                         Log.i("AIRI_PROOF", "STATE_IDLE after=complete")
@@ -1636,20 +1647,16 @@ class LlamaManager(private val context: Context) {
                 }
                 Log.i("AIRI_PROOF", "STATE_IDLE after=${if (isCancelException) "cancel_exception" else "exception_reset"}")
                 if (finished.compareAndSet(false, true)) {
-                    withContext(Dispatchers.Main) {
-                        if (isCancelException) {
-                            // Surface partial response (may be empty if cancel fired
-                            // during prefill before any token was generated).
-                            try { onComplete(partialOnCancel) }
-                            catch (t: Throwable) {
-                                Log.w(TAG, "onComplete(cancel_exc) threw (swallowed): ${t.message}", t)
-                            }
+                    val partialForHandler = partialOnCancel
+                    val isCancelForHandler  = isCancelException
+                    val errMsgForHandler    = "$ERR_NATIVE \${e.javaClass.simpleName}: $exMsg"
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        if (isCancelForHandler) {
+                            try { onComplete(partialForHandler) }
+                            catch (t: Throwable) { Log.w(TAG, "onComplete(cancel_exc) threw: \${t.message}", t) }
                         } else {
-                            val msg = "$ERR_NATIVE ${e.javaClass.simpleName}: $exMsg"
-                            try { onError(msg) }
-                            catch (t: Throwable) {
-                                Log.w(TAG, "onError threw (swallowed): ${t.message}", t)
-                            }
+                            try { onError(errMsgForHandler) }
+                            catch (t: Throwable) { Log.w(TAG, "onError threw: \${t.message}", t) }
                         }
                     }
                 }
@@ -2094,12 +2101,10 @@ class LlamaManager(private val context: Context) {
                         Log.i("AIRI_PROOF", "VISION_TIMEOUT timeout_ms=$timeoutMs")
                         cancelRequested.set(true)
                         runCatching { LlamaNative.cancel() }
-                        // PHASE 6: contain user error callback.
-                        withContext(Dispatchers.Main) {
-                            try { onError("ERR_VISION_TIMEOUT timeout_ms=$timeoutMs") }
-                            catch (t: Throwable) {
-                                Log.w(TAG, "vision onError(timeout) threw: ${t.message}", t)
-                            }
+                        val visionErr = "ERR_VISION_TIMEOUT timeout_ms=$timeoutMs"
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            try { onError(visionErr) }
+                            catch (t: Throwable) { Log.w(TAG, "vision onError(timeout) threw: \${t.message}", t) }
                         }
                     }
                     return@launch
@@ -2130,20 +2135,15 @@ class LlamaManager(private val context: Context) {
                     // that as an explicit error so the UI doesn't silently
                     // show a blank assistant turn.
                     if (full.isBlank()) {
-                        // PHASE 6: contain user error callback.
-                        withContext(Dispatchers.Main) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
                             try { onError("ERR_VISION_EMPTY native returned blank reply") }
-                            catch (t: Throwable) {
-                                Log.w(TAG, "vision onError(empty) threw: ${t.message}", t)
-                            }
+                            catch (t: Throwable) { Log.w(TAG, "vision onError(empty) threw: \${t.message}", t) }
                         }
                     } else {
-                        // PHASE 6: contain user completion callback.
-                        withContext(Dispatchers.Main) {
-                            try { onComplete(full) }
-                            catch (t: Throwable) {
-                                Log.w(TAG, "vision onComplete threw: ${t.message}", t)
-                            }
+                        val visionResult = full
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            try { onComplete(visionResult) }
+                            catch (t: Throwable) { Log.w(TAG, "vision onComplete threw: \${t.message}", t) }
                         }
                     }
                 }
@@ -2154,12 +2154,9 @@ class LlamaManager(private val context: Context) {
                 invalidateSession()
                 if (finished.compareAndSet(false, true)) {
                     val msg = "$ERR_NATIVE ${e.javaClass.simpleName}: ${e.message ?: "unknown"}"
-                    // PHASE 6: contain user error callback.
-                    withContext(Dispatchers.Main) {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
                         try { onError(msg) }
-                        catch (t: Throwable) {
-                            Log.w(TAG, "vision onError(native) threw: ${t.message}", t)
-                        }
+                        catch (t: Throwable) { Log.w(TAG, "vision onError(native) threw: \${t.message}", t) }
                     }
                 }
             }

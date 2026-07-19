@@ -71,11 +71,11 @@ import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.CosmicAccentDark
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicBlack
-import com.airi.assistant.ui.theme.DividerColor
+import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
 import com.airi.assistant.ui.theme.GlassPurple
 import com.airi.assistant.ui.theme.GlassPurpleBorder
 import com.airi.assistant.ui.theme.ModelPillBg
-import com.airi.assistant.ui.theme.ModelPillBorder
+import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
 import com.airi.assistant.ui.theme.SurfaceCard
 import com.airi.assistant.ui.theme.SurfaceRaised
 import com.airi.assistant.util.ChatExporter
@@ -98,7 +98,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.airi.assistant.ui.theme.AiBubbleSurface
-import com.airi.assistant.ui.theme.AiBubbleBorder
+import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
 import com.airi.assistant.ui.theme.UserBubbleSurface
 import com.airi.assistant.ui.theme.SemanticError
 import com.airi.assistant.ui.theme.SemanticSuccess
@@ -806,7 +806,7 @@ fun ChatScreen(
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = AiBubbleSurface,
-                    border = androidx.compose.foundation.BorderStroke(0.5.dp, AiBubbleBorder),
+                    border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline),
                 ) {
                     com.airi.assistant.ui.components.ThinkingAnimation(
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp)
@@ -933,12 +933,12 @@ fun ChatScreen(
                             Icon(
                                 imageVector        = androidx.compose.material.icons.Icons.Outlined.Warning,
                                 contentDescription = null,
-                                tint               = Color.White,
+                                tint               = MaterialTheme.colorScheme.onSurface,
                                 modifier           = Modifier.size(16.dp)
                             )
                             Text(
                                 text     = "Context reset — conversation history cleared",
-                                color    = Color.White,
+                                color    = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -1042,7 +1042,7 @@ fun ChatScreen(
                     onClick = { viewModel.confirmAccessibilityAction(true) },
                     colors  = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFFFFB300),
-                        contentColor   = Color.Black
+                        contentColor   = MaterialTheme.colorScheme.background
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -1052,7 +1052,7 @@ fun ChatScreen(
             dismissButton = {
                 OutlinedButton(
                     onClick = { viewModel.confirmAccessibilityAction(false) },
-                    border  = BorderStroke(1.dp, Color.White.copy(0.3f)),
+                    border  = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)),
                     shape   = RoundedCornerShape(12.dp)
                 ) {
                     Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(0.8f))
@@ -1160,10 +1160,16 @@ private fun AiriChatTopBar(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
                         .background(ModelPillBg)
-                        .border(1.dp, ModelPillBorder, RoundedCornerShape(20.dp))
-                        .clickable { onModelPickerOpen() }
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                        .pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPressTitle() }) },
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
+                        // Material minimum touch target: 48 dp height.
+                        // Previously vertical padding (6+6=12 dp) + text (~20 dp) = ~32 dp —
+                        // too small, causing missed taps on outer pill areas.
+                        .heightIn(min = 48.dp)
+                        .combinedClickable(
+                            onClick     = { onModelPickerOpen() },
+                            onLongClick = { onLongPressTitle() }
+                        )
+                        .padding(horizontal = 14.dp, vertical = 0.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -1283,7 +1289,7 @@ private fun AiriModelPickerSheet(
                     modifier = Modifier
                         .width(36.dp).height(4.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(Color.White.copy(alpha = 0.25f))
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f))
                 )
             }
         }
@@ -1416,7 +1422,7 @@ private fun AiriHistoryPanel(
 
     ModalDrawerSheet(
         drawerContainerColor = Color(0xFF0D1124),
-        drawerContentColor   = Color.White,
+        drawerContentColor   = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.fillMaxWidth(0.88f)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -1582,76 +1588,95 @@ fun ChatMessageList(
     }
 
     if (messages.isEmpty() && streamingText.isEmpty()) {
-        // Empty state — centered avatar + greeting
+        // Minimal landing state — no robot icon, no cliché greeting.
+        // The input bar below is sufficient affordance; this space just
+        // needs to feel calm and professional.
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(horizontal = 32.dp)
+                modifier = Modifier.padding(horizontal = 40.dp)
             ) {
-                val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "idle_pulse")
-                val idleAlpha by infinite.animateFloat(
-                    initialValue = 0.12f,
-                    targetValue  = 0.30f,
+                val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "idle_pulse")
+                val ringAlpha by pulse.animateFloat(
+                    initialValue  = 0.07f,
+                    targetValue   = 0.18f,
                     animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                        animation  = androidx.compose.animation.core.tween(1800),
+                        animation  = androidx.compose.animation.core.tween(2200,
+                            easing = androidx.compose.animation.core.FastOutSlowInEasing),
                         repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
                     ),
-                    label = "idle_alpha"
+                    label = "ring_alpha"
                 )
-                // Outer glow ring
-                Box(
-                    modifier = Modifier
-                        .size(96.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                listOf(
-                                    CosmicAccent.copy(alpha = idleAlpha),
-                                    CosmicAccent.copy(alpha = idleAlpha * 0.4f),
-                                    Color.Transparent
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
+                // Wordmark ring — no assistant cliché icon
+                Box(contentAlignment = Alignment.Center) {
                     Box(
                         modifier = Modifier
-                            .size(68.dp)
+                            .size(76.dp)
                             .clip(CircleShape)
                             .background(
                                 Brush.radialGradient(
-                                    listOf(CosmicAccent.copy(alpha = 0.22f), CosmicAccent.copy(alpha = 0.08f))
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = ringAlpha),
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0f)
+                                    )
                                 )
                             )
-                            .border(1.5.dp, CosmicAccent.copy(alpha = 0.45f), CircleShape),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.32f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            Icons.Outlined.SmartToy,
-                            contentDescription = null,
-                            tint = CosmicAccent,
-                            modifier = Modifier.size(32.dp)
+                        Text(
+                            text          = "A",
+                            color         = MaterialTheme.colorScheme.primary,
+                            fontSize      = 20.sp,
+                            fontWeight    = FontWeight.Bold,
+                            letterSpacing = (-0.5).sp
                         )
                     }
                 }
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(22.dp))
                 Text(
-                    text = stringResource(R.string.chat_how_can_help),
-                    color = AiriTheme.onBackground.copy(alpha = 0.88f),
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 20.sp,
-                    textAlign = TextAlign.Center
+                    text          = stringResource(R.string.app_name),
+                    color         = MaterialTheme.colorScheme.onBackground,
+                    fontWeight    = FontWeight.SemiBold,
+                    fontSize      = 21.sp,
+                    textAlign     = TextAlign.Center,
+                    letterSpacing = (-0.3).sp
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text       = stringResource(R.string.chat_start_hint),
+                    color      = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.42f),
+                    fontWeight = FontWeight.Normal,
+                    fontSize   = 14.sp,
+                    textAlign  = TextAlign.Center
                 )
                 if (!isModelReady) {
-                    Spacer(Modifier.height(24.dp))
-                    Button(
+                    Spacer(Modifier.height(28.dp))
+                    OutlinedButton(
                         onClick = onOpenModels,
-                        shape = RoundedCornerShape(24.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = AiriTheme.onBackground)
+                        shape   = RoundedCornerShape(24.dp),
+                        border  = androidx.compose.foundation.BorderStroke(
+                            1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.50f)
+                        )
                     ) {
-                        Icon(Icons.Outlined.SmartToy, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(
+                            Icons.Outlined.Memory,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint     = MaterialTheme.colorScheme.primary
+                        )
                         Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.model_gallery), fontWeight = FontWeight.SemiBold)
+                        Text(
+                            stringResource(R.string.model_gallery),
+                            fontWeight = FontWeight.Medium,
+                            color      = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
@@ -1751,7 +1776,7 @@ fun UserBubble(
                             model = ImageRequest.Builder(LocalContext.current).data(imageUri).crossfade(true).build(),
                             contentDescription = null,
                             modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp)
-                                .clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.25f)),
+                                .clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.background.copy(alpha = 0.25f)),
                             contentScale = androidx.compose.ui.layout.ContentScale.Fit
                         )
                         if (displayText.isNotBlank()) Spacer(Modifier.height(8.dp))
@@ -1860,7 +1885,7 @@ fun AiBubble(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
                         .background(AiBubbleSurface)
-                        .border(1.dp, AiBubbleBorder, RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
                         .padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
                     MarkdownText(rawText = text, modifier = Modifier.fillMaxWidth(), baseFontSp = 15f, lineHeightSp = 23f)
@@ -1890,7 +1915,7 @@ fun AiBubble(
                         onFeedback(false)
                     }, modifier = Modifier.size(30.dp)) {
                         Icon(Icons.Outlined.ThumbDown, contentDescription = null,
-                            tint = if (disliked) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.35f),
+                            tint = if (disliked) Color(0xFFFF6B6B) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                             modifier = Modifier.size(14.dp))
                     }
                     IconButton(onClick = {
@@ -1900,7 +1925,7 @@ fun AiBubble(
                         onFeedback(true)
                     }, modifier = Modifier.size(30.dp)) {
                         Icon(Icons.Outlined.ThumbUp, contentDescription = null,
-                            tint = if (liked) CosmicAccent else Color.White.copy(alpha = 0.35f),
+                            tint = if (liked) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                             modifier = Modifier.size(14.dp))
                     }
                 }
@@ -1944,7 +1969,7 @@ fun AiBubble(
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(step.displayName, color = AiriTheme.onBackground.copy(0.85f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
                                             val detail = step.error ?: step.outputSummary.take(80)
-                                            if (detail.isNotBlank()) Text(detail, color = if (step.error != null) Color(0xFFFF5252).copy(0.8f) else Color.White.copy(0.4f), fontSize = 10.sp)
+                                            if (detail.isNotBlank()) Text(detail, color = if (step.error != null) Color(0xFFFF5252).copy(0.8f) else MaterialTheme.colorScheme.onSurface.copy(0.4f), fontSize = 10.sp)
                                         }
                                     }
                                 }
@@ -2252,7 +2277,7 @@ fun AiriChatInputBar(
                 .padding(horizontal = 10.dp, vertical = 8.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.96f))
-                .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(20.dp))
+                .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.09f), RoundedCornerShape(20.dp))
         ) {
             if (attachments.isNotEmpty()) {
                 LazyRow(
@@ -2382,7 +2407,7 @@ fun AiriChatInputBar(
                         }
                         Icon(Icons.Outlined.Mic, null,
                             tint = when (voiceState) {
-                                VoiceSessionState.IDLE -> if (isInferenceReady) Color.White.copy(0.70f) else Color.White.copy(0.30f)
+                                VoiceSessionState.IDLE -> if (isInferenceReady) MaterialTheme.colorScheme.onSurface.copy(0.70f) else MaterialTheme.colorScheme.onSurface.copy(0.30f)
                                 else -> CosmicAccent
                             },
                             modifier = Modifier.size(20.dp)
@@ -2396,7 +2421,7 @@ fun AiriChatInputBar(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .border(1.dp, Color.White.copy(0.12f), RoundedCornerShape(20.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.12f), RoundedCornerShape(20.dp))
                             .clickable { onNavigate(AiriRoute.CONNECTORS) }
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
@@ -2587,7 +2612,7 @@ private fun ModelErrorDialog(error: String, errorType: String, onDismiss: () -> 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
-        titleContentColor = Color.White, textContentColor = Color.White,
+        titleContentColor = MaterialTheme.colorScheme.onSurface, textContentColor = MaterialTheme.colorScheme.onSurface,
         shape = RoundedCornerShape(20.dp),
         title = { Text(stringResource(R.string.model_error), fontWeight = FontWeight.Bold) },
         text = {
@@ -2618,7 +2643,7 @@ fun AiriDrawer(
 
     ModalDrawerSheet(
         drawerContainerColor = Color(0xFF0D1124),
-        drawerContentColor   = Color.White,
+        drawerContentColor   = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.width(300.dp)
     ) {
         Box(modifier = Modifier.fillMaxHeight()) {
@@ -2688,7 +2713,7 @@ private fun DrawerNavItem(icon: androidx.compose.ui.graphics.vector.ImageVector,
 }
 
 @Composable
-private fun DrawerActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color = Color.White.copy(0.7f), onClick: () -> Unit) {
+private fun DrawerActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color = MaterialTheme.colorScheme.onSurface.copy(0.7f), onClick: () -> Unit) {
     NavigationDrawerItem(
         icon = { Icon(icon, null, tint = tint) },
         label = { Text(label, color = tint) },
@@ -2706,7 +2731,7 @@ private fun GenerationSettingsDialog(viewModel: ChatViewModel, onDismiss: () -> 
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface, titleContentColor = Color.White, textContentColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface, titleContentColor = MaterialTheme.colorScheme.onSurface, textContentColor = MaterialTheme.colorScheme.onSurface,
         shape = RoundedCornerShape(20.dp),
         title = { Text(stringResource(R.string.generation_settings), fontWeight = FontWeight.Bold) },
         text = {
@@ -2736,7 +2761,7 @@ private fun GenerationSettingsDialog(viewModel: ChatViewModel, onDismiss: () -> 
                         value = systemPrompt, onValueChange = { viewModel.setSystemPrompt(it) },
                         placeholder = { Text(stringResource(R.string.leave_empty_default), color = AiriTheme.onBackground.copy(0.3f), fontSize = 12.sp) },
                         minLines = 2, maxLines = 4,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = Color.White.copy(0.15f), focusedTextColor = Color.White, unfocusedTextColor = AiriTheme.onBackground)
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(0.15f), focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = AiriTheme.onBackground)
                     )
                 }
             }

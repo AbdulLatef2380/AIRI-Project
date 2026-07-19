@@ -40,7 +40,7 @@ object SkillPublisher {
     private val SEMVER_REGEX = Regex("""^\d+\.\d+\.\d+(-[\w.]+)?(\+[\w.]+)?$""")
     private val HTTPS_REGEX  = Regex("""^https://.*""")
 
-    data class ValidationResult(
+    data class PublishPublishValidationResult(
         val isValid: Boolean,
         val errors:  List<String> = emptyList(),
         val warnings: List<String> = emptyList()
@@ -70,12 +70,12 @@ object SkillPublisher {
      * Validate a skill manifest JSON string.
      * Returns a [ValidationResult] with all errors and warnings found.
      */
-    fun validateManifest(jsonString: String): ValidationResult {
+    fun validateManifest(jsonString: String): PublishValidationResult {
         val errors   = mutableListOf<String>()
         val warnings = mutableListOf<String>()
 
         val json = runCatching { JSONObject(jsonString) }.getOrElse {
-            return ValidationResult(false, listOf("Invalid JSON: ${it.message}"))
+            return PublishValidationResult(false, listOf("Invalid JSON: ${it.message}"))
         }
 
         // ── Required fields ──────────────────────────────────────────────────
@@ -139,7 +139,7 @@ object SkillPublisher {
         if (json.optJSONArray("tags") == null)  warnings.add("Adding 'tags' helps users discover your skill.")
         if (json.optString("documentation_url").isBlank()) warnings.add("A 'documentation_url' improves trust and discoverability.")
 
-        return ValidationResult(
+        return PublishValidationResult(
             isValid  = errors.isEmpty(),
             errors   = errors,
             warnings = warnings

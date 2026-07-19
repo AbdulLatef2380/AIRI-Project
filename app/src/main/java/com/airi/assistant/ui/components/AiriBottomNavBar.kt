@@ -45,10 +45,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.CosmicAccent
-import com.airi.assistant.ui.theme.DividerColor
+import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
 import com.airi.assistant.ui.theme.NavBarBackground
 import com.airi.assistant.ui.theme.NavIconActive
-import com.airi.assistant.ui.theme.NavIconInactive
+import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
 import com.airi.assistant.ui.theme.SurfaceRaised
 
 enum class AiriNavTab {
@@ -93,7 +93,7 @@ fun AiriBottomNavBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(0.5.dp)
-                    .background(DividerColor)
+                    .background(MaterialTheme.colorScheme.outline)
             )
             Row(
                 modifier = Modifier
@@ -122,8 +122,8 @@ private fun AiriNavTabItem(
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val iconTint  = if (isSelected) NavIconActive else NavIconInactive
-    val labelColor = if (isSelected) NavIconActive else NavIconInactive
+    val iconTint  = if (isSelected) NavIconActive else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+    val labelColor = if (isSelected) NavIconActive else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -147,7 +147,7 @@ private fun AiriNavTabItem(
             Icon(
                 imageVector = item.icon,
                 contentDescription = null,
-                tint = if (isSelected) Color.White else iconTint,
+                tint = if (isSelected) MaterialTheme.colorScheme.onSurface else iconTint,
                 modifier = Modifier.size(20.dp)
             )
         }

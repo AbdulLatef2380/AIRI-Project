@@ -125,7 +125,7 @@ fun CreditsScreen(onBack: () -> Unit) {
                             TokenProviderRow(provider = provider, stats = stats)
                             Spacer(Modifier.height(8.dp))
                         }
-                        Divider(color = DividerColor, modifier = Modifier.padding(vertical = 4.dp))
+                        Divider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 4.dp))
                         val totalTokens = tokenStats.values.sumOf { it.totalTokens }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -145,14 +145,14 @@ fun CreditsScreen(onBack: () -> Unit) {
             item {
                 CreditsCard(title = "Lifetime Statistics", icon = Icons.Outlined.Timeline) {
                     StatRow("Total credits consumed", snapshot.lifetimeTotal.toString())
-                    Divider(color = DividerColor, modifier = Modifier.padding(vertical = 8.dp))
+                    Divider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
                     StatRow(
                         "Subscription tier",
                         if (snapshot.budget > 500) "Premium ✓" else "Free"
                     )
-                    Divider(color = DividerColor, modifier = Modifier.padding(vertical = 8.dp))
+                    Divider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
                     StatRow("Daily budget", "${snapshot.budget} credits")
-                    Divider(color = DividerColor, modifier = Modifier.padding(vertical = 8.dp))
+                    Divider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
                     StatRow("Credits remaining today", "${snapshot.remaining}")
                 }
             }
@@ -193,7 +193,7 @@ private fun CreditBalanceCard(snapshot: MeterSnapshot) {
                     val stroke = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
                     // Background ring
                     drawArc(
-                        color       = Color.White.copy(alpha = 0.06f),
+                        color       = MaterialTheme.colorScheme.surfaceVariant,
                         startAngle  = -220f,
                         sweepAngle  = 260f,
                         useCenter   = false,
@@ -306,7 +306,7 @@ private fun ActionUsageRow(action: ActionType, credits: Int, maxValue: Float) {
             Spacer(Modifier.height(4.dp))
             Box(
                 modifier = Modifier.fillMaxWidth().height(5.dp)
-                    .clip(RoundedCornerShape(3.dp)).background(Color.White.copy(0.06f))
+                    .clip(RoundedCornerShape(3.dp)).background(MaterialTheme.colorScheme.onSurface.copy(0.06f))
             ) {
                 Box(
                     modifier = Modifier.fillMaxWidth(animatedWidth).fillMaxHeight()

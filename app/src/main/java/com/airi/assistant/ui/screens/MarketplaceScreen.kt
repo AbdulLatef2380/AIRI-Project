@@ -213,7 +213,7 @@ private fun ExploreTab(
                 keyboardActions = KeyboardActions(onSearch = { onSearch(); focusManager.clearFocus() }),
                 colors         = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor   = CosmicAccent,
-                    unfocusedBorderColor = DividerColor
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
                 )
             )
         }
@@ -393,7 +393,7 @@ private fun InstalledTab(
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(skill.name, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
-                            if (skill.hasUpdate) Badge(containerColor = SemanticWarn) { Text(stringResource(R.string.marketplace_update), color = Color.White, fontSize = 9.sp) }
+                            if (skill.hasUpdate) Badge(containerColor = SemanticWarn) { Text(stringResource(R.string.marketplace_update), color = MaterialTheme.colorScheme.onSurface, fontSize = 9.sp) }
                         }
                         Text("v${skill.installedVersion ?: skill.version} · ${skill.publisher.displayName}", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
                     }
@@ -472,7 +472,7 @@ private fun UpdatesTab(
                         onClick         = { onUpdate(skill) },
                         contentPadding  = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                         colors          = ButtonDefaults.buttonColors(containerColor = SemanticWarn)
-                    ) { Text(stringResource(R.string.marketplace_update), fontSize = 12.sp, color = Color.White) }
+                    ) { Text(stringResource(R.string.marketplace_update), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface) }
                 }
             }
         }
@@ -517,7 +517,7 @@ private fun GitHubImportTab(
                 singleLine    = true,
                 colors        = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor   = CosmicAccent,
-                    unfocusedBorderColor = DividerColor
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
                 )
             )
         }
@@ -558,7 +558,7 @@ private fun GitHubImportTab(
                 shape    = RoundedCornerShape(14.dp)
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                    CircularProgressIndicator(Modifier.size(18.dp), color = MaterialTheme.colorScheme.onSurface, strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.marketplace_import_loading))
                 } else {
@@ -675,13 +675,13 @@ private fun PublishTab(
         item {
             OutlinedTextField(value = publisherName, onValueChange = { publisherName = it },
                 label = { Text(stringResource(R.string.marketplace_publisher_name)) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = DividerColor))
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = MaterialTheme.colorScheme.outline))
         }
 
         item {
             OutlinedTextField(value = repositoryUrl, onValueChange = { repositoryUrl = it },
                 label = { Text(stringResource(R.string.marketplace_repo_url)) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = DividerColor))
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = MaterialTheme.colorScheme.outline))
         }
 
         item {
@@ -699,7 +699,7 @@ private fun PublishTab(
                 onValueChange = { manifestJson = it; validationResult = null },
                 modifier      = Modifier.fillMaxWidth().height(240.dp),
                 textStyle     = LocalTextStyle.current.copy(fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-                colors        = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = DividerColor)
+                colors        = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = MaterialTheme.colorScheme.outline)
             )
         }
 

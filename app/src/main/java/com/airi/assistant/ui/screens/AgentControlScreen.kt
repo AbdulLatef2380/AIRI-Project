@@ -40,7 +40,7 @@ fun AgentControlScreen(
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -99,8 +99,8 @@ fun AgentControlScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = controlSkillDisplayName(info.name),
-                                    color = if (info.isConnected) Color.White.copy(alpha = 0.9f)
-                                            else Color.White.copy(alpha = 0.35f),
+                                    color = if (info.isConnected) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -138,12 +138,12 @@ fun AgentControlScreen(
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor   = CosmicAccent,
                                 checkedTrackColor   = CosmicAccent.copy(alpha = 0.3f),
-                                uncheckedThumbColor = Color.White.copy(alpha = 0.4f),
-                                uncheckedTrackColor = Color.White.copy(alpha = 0.1f),
-                                disabledCheckedThumbColor   = Color.White.copy(alpha = 0.2f),
-                                disabledUncheckedThumbColor = Color.White.copy(alpha = 0.15f),
-                                disabledCheckedTrackColor   = Color.White.copy(alpha = 0.08f),
-                                disabledUncheckedTrackColor = Color.White.copy(alpha = 0.05f)
+                                uncheckedThumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                                disabledCheckedThumbColor   = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                                disabledUncheckedThumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                                disabledCheckedTrackColor   = MaterialTheme.colorScheme.outline,
+                                disabledUncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                             )
                         )
                     }
@@ -213,7 +213,7 @@ fun AgentControlScreen(
                         Text(
                             text = if (debugMode) "Debug info visible in traces" else "Only results shown",
                             color = if (debugMode) CosmicAccent.copy(alpha = 0.65f)
-                                    else Color.White.copy(alpha = 0.35f),
+                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                             fontSize = 11.sp
                         )
                     }
@@ -223,8 +223,8 @@ fun AgentControlScreen(
                         colors = SwitchDefaults.colors(
                             checkedThumbColor   = CosmicAccent,
                             checkedTrackColor   = CosmicAccent.copy(alpha = 0.3f),
-                            uncheckedThumbColor = Color.White.copy(alpha = 0.4f),
-                            uncheckedTrackColor = Color.White.copy(alpha = 0.1f)
+                            uncheckedThumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
                         )
                     )
                 }
@@ -239,8 +239,8 @@ private fun AgentControlCard(content: @Composable ColumnScope.() -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(18.dp))
             .padding(16.dp)
     ) {
         Column(content = content)

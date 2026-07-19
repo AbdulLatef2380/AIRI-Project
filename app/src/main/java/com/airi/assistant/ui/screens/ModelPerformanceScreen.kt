@@ -164,9 +164,9 @@ private fun RowScope.TableCell(label: String, weight: Float, bold: Boolean = fal
 @Composable
 private fun ClassBadge(p: PerfClass) {
     val (bg, fg) = when (p) {
-        PerfClass.FAST     -> Color(0xFF1B5E20) to Color.White
-        PerfClass.BALANCED -> Color(0xFF1565C0) to Color.White
-        PerfClass.SLOW     -> Color(0xFFB71C1C) to Color.White
+        PerfClass.FAST     -> Color(0xFF1B5E20) to MaterialTheme.colorScheme.onSurface
+        PerfClass.BALANCED -> Color(0xFF1565C0) to MaterialTheme.colorScheme.onSurface
+        PerfClass.SLOW     -> Color(0xFFB71C1C) to MaterialTheme.colorScheme.onSurface
     }
     Box(
         modifier = Modifier

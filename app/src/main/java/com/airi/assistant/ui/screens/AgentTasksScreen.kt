@@ -261,7 +261,7 @@ private fun TaskTab(label: String, isSelected: Boolean, modifier: Modifier = Mod
     ) {
         Text(
             text       = label,
-            color      = if (isSelected) Color.White else Color.White.copy(0.50f),
+            color      = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(0.50f),
             fontSize   = 13.sp,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
         )
@@ -286,7 +286,7 @@ private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
             .background(AiriTheme.surface)
             .border(
                 1.dp,
-                if (!isPast) CosmicAccent.copy(0.15f) else Color.White.copy(0.06f),
+                if (!isPast) CosmicAccent.copy(0.15f) else MaterialTheme.colorScheme.onSurface.copy(0.06f),
                 RoundedCornerShape(14.dp)
             )
             .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -303,7 +303,7 @@ private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(0.25f))
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f))
             )
         }
 
@@ -344,8 +344,8 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor    = Color(0xFF131728),
-        titleContentColor = Color.White,
-        textContentColor  = Color.White,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor  = MaterialTheme.colorScheme.onSurface,
         shape = RoundedCornerShape(20.dp),
         title = {
             Text(stringResource(R.string.new_task_title), fontWeight = FontWeight.Bold,
@@ -360,9 +360,9 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
-                        unfocusedBorderColor = Color.White.copy(0.15f),
-                        focusedTextColor     = Color.White,
-                        unfocusedTextColor   = Color.White
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(0.15f),
+                        focusedTextColor     = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor   = MaterialTheme.colorScheme.onSurface
                     ),
                     textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.End)
                 )
@@ -373,9 +373,9 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
-                        unfocusedBorderColor = Color.White.copy(0.15f),
-                        focusedTextColor     = Color.White,
-                        unfocusedTextColor   = Color.White,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(0.15f),
+                        focusedTextColor     = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor   = MaterialTheme.colorScheme.onSurface,
                         focusedLabelColor    = CosmicAccent
                     ),
                     textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.End)

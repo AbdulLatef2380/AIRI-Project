@@ -88,8 +88,8 @@ object AIRISurfaces {
     val card      = SurfaceCard
 
     // Glass overlays
-    val glass        = GlassWhite
-    val glassBorder  = GlassWhiteBorder
+    val glass        = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+    val glassBorder  = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)Border
     val glassPurple  = GlassPurple
     val glassBorderP = GlassPurpleBorder
 
@@ -148,7 +148,7 @@ object AIRIGradients {
         colors = if (isConnected)
             listOf(SemanticSuccess.copy(alpha = 0.15f), SemanticSuccess.copy(alpha = 0.05f))
         else
-            listOf(Color.White.copy(alpha = 0.05f), Color.White.copy(alpha = 0.02f))
+            listOf(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), MaterialTheme.colorScheme.onSurface.copy(alpha = 0.02f))
     )
 
     // Agent task state
@@ -174,28 +174,28 @@ object AIRIColors {
     val agentCompleted  = SemanticSuccess
     val agentFailed     = SemanticError
     val agentRecovering = SemanticWarn
-    val agentIdle       = Color.White.copy(alpha = 0.35f)
+    val agentIdle       = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
 
     // Connector state colors
     val connectorOnline  = SemanticSuccess
-    val connectorOffline = Color.White.copy(alpha = 0.25f)
+    val connectorOffline = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
     val connectorError   = SemanticError
     val connectorPending = SemanticWarn
 
     // Voice state colors
-    val voiceIdle       = Color.White.copy(alpha = 0.5f)
+    val voiceIdle       = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
     val voiceListening  = Color(0xFF00B4D8)
     val voiceSpeaking   = CosmicAccent
     val voiceProcessing = SemanticWarn
     val voiceError      = SemanticError
 
     // Task state colors
-    val taskQueued    = Color.White.copy(alpha = 0.4f)
+    val taskQueued    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
     val taskRunning   = CosmicAccent
     val taskDone      = SemanticSuccess
     val taskFailed    = SemanticError
     val taskRetrying  = SemanticWarn
-    val taskCancelled = Color.White.copy(alpha = 0.25f)
+    val taskCancelled = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
 }
 
 // ── Elevation / shadow tokens (expressed as alpha on surface layers) ──────────
@@ -231,10 +231,10 @@ object AIRIShadows {
 //   Old: color = SurfaceCard
 //   New: color = AiriTheme.surface
 //
-//   Old: color = Color.White
+//   Old: color = MaterialTheme.colorScheme.onSurface
 //   New: color = AiriTheme.onBackground
 //
-//   Old: color = Color.White.copy(alpha = 0.6f)
+//   Old: color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
 //   New: color = AiriTheme.onSurfaceVariant
 
 object AiriTheme {

@@ -64,7 +64,7 @@ class StripeManager(
     }
 
     sealed class PaymentState {
-        object Idle                                      : PaymentState()
+        object PaymentIdle                              : PaymentState()
         object Processing                                : PaymentState()
         data class CheckoutReady(val url: String)        : PaymentState()
         data class Success(val record: BillingRecord)    : PaymentState()
@@ -72,7 +72,7 @@ class StripeManager(
         data class Pending(val message: String)          : PaymentState()
     }
 
-    private val _paymentState = MutableStateFlow<PaymentState>(PaymentState.Idle)
+    private val _paymentState = MutableStateFlow<PaymentState>(PaymentState.PaymentIdle)
     val paymentState: StateFlow<PaymentState> = _paymentState.asStateFlow()
 
     private val _subscriptionState = MutableStateFlow<SubscriptionStatus>(SubscriptionStatus.Unknown)
@@ -290,7 +290,7 @@ class StripeManager(
         }
     }
 
-    fun resetState() { _paymentState.value = PaymentState.Idle }
+    fun resetState() { _paymentState.value = PaymentState.PaymentIdle }
 
     // ── Subscription status ───────────────────────────────────────────────────
 

@@ -89,7 +89,7 @@ fun LockedFeatureRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.03f))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f))
             .border(1.dp, goldColor.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
             .clickable {
                 AnalyticsService.premiumFeatureAttempted(title)

@@ -51,7 +51,7 @@ fun CustomizationSettingsScreen(
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -99,11 +99,11 @@ fun CustomizationSettingsScreen(
                             colors   = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
                                 selectedLabelColor     = CosmicAccent,
-                                containerColor         = Color.White.copy(alpha = 0.06f),
-                                labelColor             = Color.White.copy(alpha = 0.6f)
+                                containerColor         = MaterialTheme.colorScheme.surfaceVariant,
+                                labelColor             = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             ),
                             border = FilterChipDefaults.filterChipBorder(
-                                borderColor         = Color.White.copy(alpha = 0.1f),
+                                borderColor         = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
                                 selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
                             )
                         )
@@ -136,9 +136,9 @@ fun CustomizationSettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors   = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.12f),
-                        focusedTextColor     = Color.White,
-                        unfocusedTextColor   = Color.White
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                        focusedTextColor     = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor   = MaterialTheme.colorScheme.onSurface
                     )
                 )
                 Text(
@@ -168,11 +168,11 @@ fun CustomizationSettingsScreen(
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
                                 selectedLabelColor     = CosmicAccent,
-                                containerColor         = Color.White.copy(alpha = 0.06f),
-                                labelColor             = Color.White.copy(alpha = 0.6f)
+                                containerColor         = MaterialTheme.colorScheme.surfaceVariant,
+                                labelColor             = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             ),
                             border = FilterChipDefaults.filterChipBorder(
-                                borderColor         = Color.White.copy(alpha = 0.1f),
+                                borderColor         = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
                                 selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
                             )
                         )

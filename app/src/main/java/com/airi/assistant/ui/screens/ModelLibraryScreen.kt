@@ -292,7 +292,7 @@ private fun BraveSearchApiCard(
                     if (hasBraveKey) "Enabled — real web results + page content"
                     else "Not configured — using DDG fallback (~30% coverage)",
                     fontSize = 11.sp,
-                    color    = if (hasBraveKey) Color(0xFF30D158) else Color.White.copy(alpha = 0.5f),
+                    color    = if (hasBraveKey) Color(0xFF30D158) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                     lineHeight = 14.sp
                 )
                 Text(stringResource(R.string.brave_search_desc), fontSize = 10.sp,
@@ -425,7 +425,7 @@ private fun SmartRoutingModeCard(
             ).forEach { (mode, label, desc) ->
                 val isSelected = current == mode
                 val borderColor by animateColorAsState(
-                    if (isSelected) CosmicAccent else Color.White.copy(alpha = 0.08f),
+                    if (isSelected) CosmicAccent else MaterialTheme.colorScheme.outline,
                     animationSpec = tween(200), label = "border_$mode"
                 )
                 Row(
@@ -444,7 +444,7 @@ private fun SmartRoutingModeCard(
                         onClick  = { onSelect(mode) },
                         colors   = RadioButtonDefaults.colors(
                             selectedColor   = CosmicAccent,
-                            unselectedColor = Color.White.copy(alpha = 0.3f)
+                            unselectedColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                         ),
                         modifier = Modifier.size(18.dp)
                     )
@@ -506,7 +506,7 @@ private fun CloudProviderCard(
 ) {
     val accentColor = Color(config.badgeColor)
     val borderColor by animateColorAsState(
-        if (isActive) accentColor.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.07f),
+        if (isActive) accentColor.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outline,
         animationSpec = tween(300), label = "card_border_${config.id}"
     )
 
@@ -557,7 +557,7 @@ private fun CloudProviderCard(
                     OutlinedButton(
                         onClick = onDeactivate,
                         shape   = RoundedCornerShape(8.dp),
-                        colors  = ButtonDefaults.outlinedButtonColors(contentColor = Color.White.copy(alpha = 0.5f)),
+                        colors  = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)),
                         modifier = Modifier.height(34.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp)
                     ) {
@@ -736,9 +736,9 @@ private fun ApiKeyEntryDialog(
                     singleLine    = true,
                     colors        = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                        focusedTextColor     = Color.White,
-                        unfocusedTextColor   = Color.White
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                        focusedTextColor     = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor   = MaterialTheme.colorScheme.onSurface
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )

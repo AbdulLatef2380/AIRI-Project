@@ -76,7 +76,7 @@ private fun ExpandedFeed(events: List<ActivityEvent>, categoryFilter: ActivityCa
     val shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
     Column(modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp)
         .clip(shape).background(Color(0xFF0D1526).copy(alpha = 0.98f))
-        .border(0.5.dp, Color.White.copy(alpha = 0.08f), shape)) {
+        .border(0.5.dp, MaterialTheme.colorScheme.outline, shape)) {
         // Header
         Row(verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
@@ -113,7 +113,7 @@ private fun ExpandedFeed(events: List<ActivityEvent>, categoryFilter: ActivityCa
                     AnimatedVisibility(visible = detailVisible && hasDetail) {
                         Text(event.detail ?: "", fontSize = 11.sp, color = AiriTheme.onBackground.copy(alpha = 0.45f), lineHeight = 16.sp,
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp, start = 21.dp)
-                                .clip(RoundedCornerShape(6.dp)).background(Color.White.copy(alpha = 0.04f)).padding(8.dp))
+                                .clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.outline).padding(8.dp))
                     }
                 }
             }
@@ -125,17 +125,17 @@ private fun ExpandedFeed(events: List<ActivityEvent>, categoryFilter: ActivityCa
 private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(contentAlignment = Alignment.Center,
         modifier = Modifier.clip(CircleShape)
-            .background(if (selected) CosmicAccent.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.06f))
+            .background(if (selected) CosmicAccent.copy(alpha = 0.20f) else MaterialTheme.colorScheme.surfaceVariant)
             .border(0.5.dp, if (selected) CosmicAccent.copy(alpha = 0.50f) else Color.Transparent, CircleShape)
             .clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 4.dp)) {
-        Text(label, fontSize = 11.sp, color = if (selected) CosmicAccent else Color.White.copy(alpha = 0.5f))
+        Text(label, fontSize = 11.sp, color = if (selected) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
     }
 }
 
 private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 private fun fmtTime(ms: Long): String = timeFmt.format(Date(ms))
 private fun sevColor(sev: ActivitySeverity) = when (sev) {
-    ActivitySeverity.INFO  -> Color.White.copy(alpha = 0.78f)
+    ActivitySeverity.INFO  -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
     ActivitySeverity.WARN  -> SemanticWarn
     ActivitySeverity.ERROR -> SemanticError
 }

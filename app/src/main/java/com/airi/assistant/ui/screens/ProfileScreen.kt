@@ -75,7 +75,7 @@ fun ProfileScreen(onBack: () -> Unit) {
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
@@ -161,11 +161,11 @@ fun ProfileScreen(onBack: () -> Unit) {
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = CosmicAccent,
-                    contentColor = Color.Black
+                    contentColor = MaterialTheme.colorScheme.background
                 )
             ) {
                 if (isSaving) {
-                    CircularProgressIndicator(color = Color.Black, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.background, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
                 } else {
                     Text(stringResource(R.string.save), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
@@ -195,11 +195,11 @@ private fun ProfileField(
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = CosmicAccent,
-                unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                disabledBorderColor = Color.White.copy(alpha = 0.08f),
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                disabledTextColor = Color.White.copy(alpha = 0.45f)
+                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
             )
         )
     }

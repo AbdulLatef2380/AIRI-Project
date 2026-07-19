@@ -63,7 +63,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, null, tint = AiriTheme.onBackground) } },
                 actions = {
                     IconButton(onClick = { runtime.clearOutput() }) {
-                        Icon(Icons.Outlined.CleaningServices, null, tint = Color.White.copy(0.6f))
+                        Icon(Icons.Outlined.CleaningServices, null, tint = MaterialTheme.colorScheme.onSurface.copy(0.6f))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -83,7 +83,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                     val color = when {
                         line.isInput -> Color(0xFF4FC3F7)
                         line.isError -> SemanticError.copy(0.9f)
-                        else         -> Color.White.copy(0.78f)
+                        else         -> MaterialTheme.colorScheme.onSurface.copy(0.78f)
                     }
                     Text(
                         text       = line.text,
@@ -104,7 +104,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                 }
             }
 
-            Divider(color = Color.White.copy(0.08f))
+            Divider(color = MaterialTheme.colorScheme.onSurface.copy(0.08f))
 
             // Command input bar
             Row(
@@ -119,7 +119,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                 TextField(
                     value         = input,
                     onValueChange = { input = it },
-                    placeholder   = { Text(stringResource(R.string.terminal_command_placeholder), fontSize = 12.sp, color = Color.White.copy(0.25f), fontFamily = FontFamily.Monospace) },
+                    placeholder   = { Text(stringResource(R.string.terminal_command_placeholder), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f), fontFamily = FontFamily.Monospace) },
                     singleLine    = true,
                     modifier      = Modifier.weight(1f).onKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown) {
@@ -155,7 +155,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                         .background(if (!isRunning && input.isNotBlank()) SemanticSuccess.copy(0.2f) else Color.Transparent)
                 ) {
                     Icon(Icons.Outlined.PlayArrow, null,
-                        tint     = if (!isRunning && input.isNotBlank()) SemanticSuccess else Color.White.copy(0.2f),
+                        tint     = if (!isRunning && input.isNotBlank()) SemanticSuccess else MaterialTheme.colorScheme.onSurface.copy(0.2f),
                         modifier = Modifier.size(18.dp))
                 }
             }

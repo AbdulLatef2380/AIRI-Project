@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.memory.dao.ChatSessionSummary
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.CosmicBlack
-import com.airi.assistant.ui.theme.DividerColor
+import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
 import com.airi.assistant.ui.theme.SurfaceCard
 import com.airi.assistant.ui.theme.SurfaceRaised
 import androidx.compose.ui.res.stringResource
@@ -125,7 +125,7 @@ fun HistoryScreen(
                             modifier = Modifier
                                 .size(72.dp)
                                 .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.06f)),
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -167,8 +167,8 @@ fun HistoryScreen(
         AlertDialog(
             onDismissRequest = { sessionToDelete = null },
             containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = Color.White,
-            textContentColor = Color.White.copy(alpha = 0.75f),
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
             shape = RoundedCornerShape(20.dp),
             title = {
                 Text(
@@ -194,7 +194,7 @@ fun HistoryScreen(
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = Color.White
+                        contentColor = MaterialTheme.colorScheme.onSurface
                     ),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth(0.5f)
@@ -206,7 +206,7 @@ fun HistoryScreen(
                 OutlinedButton(
                     onClick = { sessionToDelete = null },
                     shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)),
                     modifier = Modifier.fillMaxWidth(0.45f)
                 ) {
                     Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(alpha = 0.75f))

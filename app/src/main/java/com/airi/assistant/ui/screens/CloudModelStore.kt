@@ -152,8 +152,8 @@ fun CloudModelStoreSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.04f))
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.outline)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
                     .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -226,13 +226,13 @@ private fun CloudInferenceModePicker(
                 },
                 shape = RoundedCornerShape(12.dp),
                 color = if (selected) CosmicAccent.copy(alpha = 0.18f)
-                        else Color.White.copy(alpha = 0.04f),
+                        else MaterialTheme.colorScheme.outline,
                 modifier = Modifier
                     .weight(1f)
                     .border(
                         1.dp,
                         if (selected) CosmicAccent.copy(alpha = 0.55f)
-                        else Color.White.copy(alpha = 0.08f),
+                        else MaterialTheme.colorScheme.outline,
                         RoundedCornerShape(12.dp)
                     )
             ) {
@@ -241,11 +241,11 @@ private fun CloudInferenceModePicker(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(icon, contentDescription = label,
-                        tint = if (selected) CosmicAccent else Color.White.copy(alpha = 0.4f),
+                        tint = if (selected) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                         modifier = Modifier.size(18.dp))
                     Spacer(Modifier.height(4.dp))
                     Text(label,
-                        color = if (selected) CosmicAccent else Color.White.copy(alpha = 0.5f),
+                        color = if (selected) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                         fontSize = 11.sp, fontWeight = FontWeight.Medium)
                 }
             }
@@ -294,12 +294,12 @@ private fun EmbeddedProviderCard(
                 .clip(RoundedCornerShape(14.dp))
                 .background(
                     if (isActive) accentColor.copy(alpha = 0.10f)
-                    else Color.White.copy(alpha = 0.03f)
+                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f)
                 )
                 .border(
                     1.dp,
                     if (isActive) accentColor.copy(alpha = 0.50f)
-                    else Color.White.copy(alpha = 0.07f),
+                    else MaterialTheme.colorScheme.outline,
                     RoundedCornerShape(14.dp)
                 )
                 .padding(14.dp)
@@ -391,7 +391,7 @@ private fun EmbeddedProviderCard(
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = accentColor,
-                            contentColor   = Color.Black
+                            contentColor   = MaterialTheme.colorScheme.background
                         ),
                         modifier = Modifier.height(34.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
@@ -458,8 +458,8 @@ private fun ApiKeyEntryDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor    = Color(0xFF12162E),
-        titleContentColor = Color.White,
-        textContentColor  = Color.White,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor  = MaterialTheme.colorScheme.onSurface,
         shape             = RoundedCornerShape(20.dp),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -494,9 +494,9 @@ private fun ApiKeyEntryDialog(
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                        focusedTextColor     = Color.White,
-                        unfocusedTextColor   = Color.White
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                        focusedTextColor     = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor   = MaterialTheme.colorScheme.onSurface
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -527,7 +527,7 @@ private fun ApiKeyEntryDialog(
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = CosmicAccent,
-                    contentColor   = Color.Black
+                    contentColor   = MaterialTheme.colorScheme.background
                 ),
                 enabled = key.isNotBlank()
             ) {
@@ -567,8 +567,8 @@ private fun AddRemoteModelInlineContent(
             singleLine = true, modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = CosmicAccent,
-                unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                focusedTextColor = Color.White, unfocusedTextColor = Color.White
+                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             )
         )
         OutlinedTextField(
@@ -578,8 +578,8 @@ private fun AddRemoteModelInlineContent(
             singleLine = true, modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = CosmicAccent,
-                unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                focusedTextColor = Color.White, unfocusedTextColor = Color.White
+                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             )
         )
         OutlinedTextField(
@@ -589,8 +589,8 @@ private fun AddRemoteModelInlineContent(
             visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = CosmicAccent,
-                unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                focusedTextColor = Color.White, unfocusedTextColor = Color.White
+                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             )
         )
         testStatus?.let {
@@ -638,7 +638,7 @@ private fun AddRemoteModelInlineContent(
                 },
                 enabled = serverUrl.isNotBlank() && modelName.isNotBlank(),
                 shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.Black)
+                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = MaterialTheme.colorScheme.background)
             ) {
                 Text(stringResource(R.string.cloud_add_use), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }

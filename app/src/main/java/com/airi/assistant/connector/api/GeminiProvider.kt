@@ -52,13 +52,41 @@ class GeminiProvider(
 
             val model = params["model"] ?: defaultModel
 
+            // Build multi-turn contents array. Gemini is stateless — every call must
+            // carry the full conversation history. History is passed via params["history_json"]
+            // as a JSON array of {"role":"user"|"assistant","text":"..."} objects.
+            // "assistant" role is converted to "model" per the Gemini API specification.
+            val historyJson = params[PARAM_HISTORY_JSON]?.takeIf { it.isNotBlank() }
+            val contents    = com.google.gson.JsonArray()
+            if (historyJson != null) {
+                runCatching {
+                    val parsed = com.google.gson.JsonParser.parseString(historyJson).asJsonArray
+                    for (entry in parsed) {
+                        val obj     = entry.asJsonObject
+                        val role    = obj.get("role")?.asString ?: "user"
+                        val text    = obj.get("text")?.asString ?: continue
+                        val apiRole = if (role == "assistant") "model" else "user"
+                        val turn    = JsonObject().apply {
+                            addProperty("role", apiRole)
+                            add("parts", Gson().toJsonTree(listOf(mapOf("text" to text))))
+                        }
+                        contents.add(turn)
+                    }
+                }.onFailure { e ->
+                    android.util.Log.w("GeminiProvider", "history_json parse failed: \${e.message}")
+                }
+            }
+            val currentTurn = JsonObject().apply {
+                addProperty("role", "user")
+                add("parts", Gson().toJsonTree(listOf(mapOf("text" to prompt))))
+            }
+            contents.add(currentTurn)
+
             val body = JsonObject().apply {
-                add("contents", Gson().toJsonTree(listOf(
-                    mapOf("parts" to listOf(mapOf("text" to prompt))),
-                )))
+                add("contents", contents)
                 add("generationConfig", JsonObject().apply {
-                    addProperty("temperature",      params["temperature"]?.toDoubleOrNull() ?: 0.7)
-                    addProperty("maxOutputTokens",  params["max_tokens"]?.toIntOrNull()    ?: 1024)
+                    addProperty("temperature",     params["temperature"]?.toDoubleOrNull() ?: 0.7)
+                    addProperty("maxOutputTokens", params["max_tokens"]?.toIntOrNull()    ?: 1024)
                 })
             }.toString()
 
@@ -99,5 +127,7 @@ class GeminiProvider(
 
     companion object {
         private val JSON = "application/json".toMediaType()
+        /** Key in [params] map for prior conversation turns as JSON array {"role","text"}. */
+        const val PARAM_HISTORY_JSON = "history_json"
     }
 }

@@ -40,7 +40,7 @@ import kotlinx.coroutines.launch
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.CosmicAccentAlt
-import com.airi.assistant.ui.theme.DividerColor
+import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
 import com.airi.assistant.ui.theme.SemanticError
 import java.util.UUID
 private data class WizardParam(
@@ -428,7 +428,7 @@ private fun ToolCard(
 
             AnimatedVisibility(visible = expanded) {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Divider(color = DividerColor)
+                    Divider(color = MaterialTheme.colorScheme.outline)
                     Spacer(Modifier.height(4.dp))
                     WizardField(tool.name, { tool.name = it }, "Tool Name *", "e.g. web_search")
                     WizardField(tool.description, { tool.description = it }, "Tool Description *", "What does this tool do?")
@@ -466,7 +466,7 @@ private fun ParamRow(param: WizardParam, onRemove: () -> Unit) {
                     OutlinedButton(
                         onClick = { typeExpanded = true },
                         modifier = Modifier.height(56.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(param.type, color = AiriTheme.onBackground, fontSize = 12.sp)
@@ -593,7 +593,7 @@ private fun AccessLevelRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(if (selected) CosmicAccent.copy(0.12f) else AiriTheme.surfaceVariant)
-            .border(1.dp, if (selected) CosmicAccent.copy(0.5f) else DividerColor, RoundedCornerShape(10.dp))
+            .border(1.dp, if (selected) CosmicAccent.copy(0.5f) else MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
             .padding(12.dp),
         verticalAlignment   = Alignment.CenterVertically,
@@ -715,14 +715,14 @@ private fun WizardStepIndicator(currentStep: Int, totalSteps: Int, titles: List<
                     Icon(Icons.Default.Check, null, Modifier.size(14.dp), tint = CosmicAccent)
                 } else {
                     Text("${i + 1}", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                        color = if (current) Color.White else AiriTheme.onSurfaceVariant)
+                        color = if (current) MaterialTheme.colorScheme.onSurface else AiriTheme.onSurfaceVariant)
                 }
             }
 
             if (i < totalSteps - 1) {
                 Divider(
                     modifier = Modifier.weight(1f),
-                    color    = if (i < currentStep) CosmicAccent.copy(0.5f) else DividerColor
+                    color    = if (i < currentStep) CosmicAccent.copy(0.5f) else MaterialTheme.colorScheme.outline
                 )
             }
         }
@@ -752,7 +752,7 @@ private fun WizardField(
         minLines      = minLines,
         colors        = OutlinedTextFieldDefaults.colors(
             focusedBorderColor   = CosmicAccent,
-            unfocusedBorderColor = DividerColor,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
             focusedLabelColor    = CosmicAccent
         )
     )
@@ -793,7 +793,7 @@ private fun EmojiPicker(selected: String, onSelect: (String) -> Unit) {
                     .size(40.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (active) CosmicAccent.copy(0.2f) else AiriTheme.surfaceVariant)
-                    .border(1.dp, if (active) CosmicAccent else DividerColor, RoundedCornerShape(8.dp))
+                    .border(1.dp, if (active) CosmicAccent else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
                     .clickable { onSelect(emoji) },
                 contentAlignment = Alignment.Center
             ) {

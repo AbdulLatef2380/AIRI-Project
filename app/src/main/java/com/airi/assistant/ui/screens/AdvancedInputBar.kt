@@ -189,10 +189,10 @@ private fun InputActionToolbar(
 @Composable
 private fun PlanModeChip(isActive: Boolean, onClick: () -> Unit) {
     val bg by animateColorAsState(
-        if (isActive) CosmicAccent.copy(0.20f) else Color.White.copy(0.04f), tween(200), label = "plan_bg"
+        if (isActive) CosmicAccent.copy(0.20f) else MaterialTheme.colorScheme.onSurface.copy(0.04f), tween(200), label = "plan_bg"
     )
     val border by animateColorAsState(
-        if (isActive) CosmicAccent.copy(0.60f) else DividerColor, tween(200), label = "plan_border"
+        if (isActive) CosmicAccent.copy(0.60f) else MaterialTheme.colorScheme.outline, tween(200), label = "plan_border"
     )
     Row(
         modifier = Modifier
@@ -236,7 +236,7 @@ private fun ActionChip(
     onClick:  () -> Unit
 ) {
     val bg by animateColorAsState(
-        if (isActive) iconTint.copy(0.15f) else Color.White.copy(0.04f), tween(200), label = "chip_bg"
+        if (isActive) iconTint.copy(0.15f) else MaterialTheme.colorScheme.onSurface.copy(0.04f), tween(200), label = "chip_bg"
     )
     Row(
         modifier = Modifier
@@ -245,7 +245,7 @@ private fun ActionChip(
             .background(bg)
             .border(
                 1.dp,
-                if (isActive) iconTint.copy(0.50f) else DividerColor,
+                if (isActive) iconTint.copy(0.50f) else MaterialTheme.colorScheme.outline,
                 RoundedCornerShape(8.dp)
             )
             .clickable(onClick = onClick)
@@ -269,8 +269,8 @@ private fun QuickToolChip(label: String, emoji: String, onClick: () -> Unit = {}
         modifier = Modifier
             .height(30.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color.White.copy(0.03f))
-            .border(1.dp, DividerColor, RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(0.03f))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp),
         verticalAlignment     = Alignment.CenterVertically,

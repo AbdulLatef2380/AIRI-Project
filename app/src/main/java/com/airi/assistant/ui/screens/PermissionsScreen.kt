@@ -322,7 +322,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
                                         if (idx > 0 || true) {
                                             Divider(
                                                 modifier = Modifier.padding(horizontal = 16.dp),
-                                                color = DividerColor
+                                                color = MaterialTheme.colorScheme.outline
                                             )
                                         }
                                         PermissionRow(

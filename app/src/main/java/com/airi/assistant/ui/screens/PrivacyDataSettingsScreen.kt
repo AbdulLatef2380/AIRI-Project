@@ -81,7 +81,7 @@ fun PrivacyDataSettingsScreen(
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -149,8 +149,8 @@ fun PrivacyDataSettingsScreen(
         AlertDialog(
             onDismissRequest  = { showDeleteDialog = false },
             containerColor    = Color(0xFF12162E),
-            titleContentColor = Color.White,
-            textContentColor  = Color.White.copy(alpha = 0.7f),
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor  = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             shape             = RoundedCornerShape(20.dp),
             title = {
                 Text(stringResource(R.string.delete_account), fontWeight = FontWeight.Bold)

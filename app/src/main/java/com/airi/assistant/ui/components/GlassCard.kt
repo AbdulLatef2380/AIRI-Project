@@ -10,8 +10,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.airi.assistant.ui.theme.GlassWhite
-import com.airi.assistant.ui.theme.GlassWhiteBorder
+import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)Border
 
 /**
  * Glass card component with glassmorphism effect
@@ -24,9 +24,9 @@ fun GlassCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = GlassWhite
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
         ),
-        border = BorderStroke(1.dp, GlassWhiteBorder)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)Border)
     ) {
         androidx.compose.foundation.layout.Column(
             modifier = Modifier.padding(16.dp),

@@ -204,7 +204,7 @@ private fun UpdateStatusCard(checkState: CheckState, onCheckNow: () -> Unit) {
                         when (checkState) {
                             CheckState.UpdateAvailable -> CosmicAccent.copy(0.20f)
                             CheckState.UpToDate        -> SemanticSuccess.copy(0.15f)
-                            else                       -> Color.White.copy(0.06f)
+                            else                       -> MaterialTheme.colorScheme.onSurface.copy(0.06f)
                         }
                     ),
                 contentAlignment = Alignment.Center
@@ -362,7 +362,7 @@ private fun ReleaseNoteCard(release: ReleaseNote, isExpanded: Boolean, onToggle:
 
                     if (release.fixes.isNotEmpty()) {
                         Spacer(Modifier.height(10.dp))
-                        Divider(color = DividerColor)
+                        Divider(color = MaterialTheme.colorScheme.outline)
                         Spacer(Modifier.height(10.dp))
                         Text(stringResource(R.string.updates_bug_fixes), fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                             color = SemanticSuccess, modifier = Modifier.padding(bottom = 8.dp))

@@ -106,11 +106,11 @@ fun WorkspaceScreen(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(if (isActive) CosmicAccent.copy(0.18f) else SurfaceRaised)
-                                .border(0.5.dp, if (isActive) CosmicAccent.copy(0.4f) else DividerColor, RoundedCornerShape(10.dp))
+                                .border(0.5.dp, if (isActive) CosmicAccent.copy(0.4f) else MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
                                 .clickable { workspaceRuntime.setActive(session.sessionId) }
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
-                            Text(session.name.take(20), fontSize = 13.sp, color = if (isActive) CosmicAccent else Color.White.copy(0.7f))
+                            Text(session.name.take(20), fontSize = 13.sp, color = if (isActive) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(0.7f))
                             Spacer(Modifier.width(6.dp))
                             Icon(Icons.Outlined.Close, null, tint = AiriTheme.onBackground.copy(0.3f),
                                 modifier = Modifier.size(12.dp).clickable { workspaceRuntime.closeSession(session.sessionId) })
@@ -169,9 +169,9 @@ fun WorkspaceScreen(
                         modifier      = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor   = CosmicAccent.copy(0.6f),
-                            unfocusedBorderColor = DividerColor,
-                            focusedTextColor     = Color.White,
-                            unfocusedTextColor   = Color.White
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                            focusedTextColor     = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor   = MaterialTheme.colorScheme.onSurface
                         )
                     )
                 },

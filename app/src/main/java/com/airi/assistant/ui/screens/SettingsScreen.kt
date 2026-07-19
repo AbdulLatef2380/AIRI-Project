@@ -47,7 +47,7 @@ import com.airi.assistant.ui.components.PremiumBadge
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicBlack
-import com.airi.assistant.ui.theme.DividerColor
+import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
 import com.airi.assistant.ui.theme.SurfaceCard
 import com.airi.assistant.ui.theme.SurfaceRaised
 import com.airi.assistant.ui.viewmodel.ChatViewModel
@@ -398,14 +398,14 @@ fun ColumnScope.SettingsDivider() {
             .fillMaxWidth()
             .height(0.5.dp)
             .padding(start = 52.dp)
-            .background(DividerColor)
+            .background(MaterialTheme.colorScheme.outline)
     )
 }
 
 @Composable
 fun SettingsNavItem(
     icon: ImageVector,
-    iconTint: Color = Color.White.copy(alpha = 0.65f),
+    iconTint: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
     label: String,
     badge: String? = null,
     trailing: String? = null,
@@ -469,7 +469,7 @@ fun SettingsNavItem(
 @Composable
 fun SettingsToggleItem(
     icon: ImageVector,
-    iconTint: Color = Color.White.copy(alpha = 0.65f),
+    iconTint: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
     label: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
@@ -503,10 +503,10 @@ fun SettingsToggleItem(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor   = Color.White,
+                checkedThumbColor   = MaterialTheme.colorScheme.onSurface,
                 checkedTrackColor   = CosmicAccent,
-                uncheckedThumbColor = Color.White.copy(alpha = 0.6f),
-                uncheckedTrackColor = Color.White.copy(alpha = 0.15f)
+                uncheckedThumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
             )
         )
     }

@@ -294,7 +294,7 @@ fun LoginScreen(
                     shape   = RoundedCornerShape(16.dp),
                     colors  = ButtonDefaults.buttonColors(
                         containerColor         = accentColor,
-                        contentColor           = Color.White,
+                        contentColor           = MaterialTheme.colorScheme.onSurface,
                         disabledContainerColor = accentColor.copy(alpha = 0.4f)
                     )
                 ) {
@@ -356,9 +356,9 @@ private fun LoginButton(
         shape   = RoundedCornerShape(16.dp),
         colors  = ButtonDefaults.buttonColors(
             containerColor         = bgColor,
-            contentColor           = Color.White,
+            contentColor           = MaterialTheme.colorScheme.onSurface,
             disabledContainerColor = bgColor.copy(alpha = 0.5f),
-            disabledContentColor   = Color.White.copy(alpha = 0.5f)
+            disabledContentColor   = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
         ),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
         contentPadding = PaddingValues(horizontal = 20.dp)
@@ -397,11 +397,11 @@ private fun LoginButton(
 @Composable
 private fun loginFieldColors(accentColor: Color) = OutlinedTextFieldDefaults.colors(
     focusedBorderColor     = accentColor,
-    unfocusedBorderColor   = Color.White.copy(alpha = 0.15f),
-    focusedTextColor       = Color.White,
-    unfocusedTextColor     = Color.White,
+    unfocusedBorderColor   = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+    focusedTextColor       = MaterialTheme.colorScheme.onSurface,
+    unfocusedTextColor     = MaterialTheme.colorScheme.onSurface,
     focusedLabelColor      = accentColor,
-    unfocusedLabelColor    = Color.White.copy(alpha = 0.45f),
+    unfocusedLabelColor    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
     cursorColor            = accentColor,
     focusedContainerColor  = Color(0xFF0D0D0D),
     unfocusedContainerColor = Color(0xFF0D0D0D)

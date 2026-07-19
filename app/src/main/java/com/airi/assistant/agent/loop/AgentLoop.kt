@@ -323,7 +323,19 @@ Do not mix tool_call JSON with prose in the same message.
                 requiresStreaming      = true,
                 requiresLongContext   = estimatedTokens > longContextThreshold,
                 estimatedPromptTokens = estimatedTokens,
-                sessionTag            = "agent_loop"
+                sessionTag            = "agent_loop",
+                conversationHistory   = history.mapNotNull { turn ->
+                    when (turn) {
+                        is ConversationTurn.User ->
+                            ExecutionRequest.ConversationTurn("user", turn.content)
+                        is ConversationTurn.Assistant ->
+                            ExecutionRequest.ConversationTurn("assistant", turn.content)
+                        is ConversationTurn.ToolResult ->
+                            ExecutionRequest.ConversationTurn(
+                                "user", "[Tool ${turn.toolName}: ${turn.result.take(400)}]"
+                            )
+                    }
+                }
             ),
             context    = appContext,
             onToken    = { tok ->

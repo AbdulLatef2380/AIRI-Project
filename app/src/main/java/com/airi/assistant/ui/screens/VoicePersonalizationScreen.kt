@@ -140,7 +140,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                         items(VoicePreferencesStore.PersonalityPreset.entries) { preset ->
                             val isSelected = preset == selectedPreset
                             val bgColor by animateColorAsState(
-                                if (isSelected) CosmicAccent.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.04f),
+                                if (isSelected) CosmicAccent.copy(alpha = 0.20f) else MaterialTheme.colorScheme.outline,
                                 tween(200), label = "preset_bg"
                             )
                             Column(
@@ -151,7 +151,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                                     .background(bgColor)
                                     .border(
                                         1.dp,
-                                        if (isSelected) CosmicAccent.copy(0.6f) else DividerColor,
+                                        if (isSelected) CosmicAccent.copy(0.6f) else MaterialTheme.colorScheme.outline,
                                         RoundedCornerShape(12.dp)
                                     )
                                     .clickable {
@@ -286,7 +286,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                     )
                     Divider(
                         modifier = Modifier.padding(vertical = 8.dp),
-                        color = DividerColor
+                        color = MaterialTheme.colorScheme.outline
                     )
                     ToggleRow(
                         label       = "Wake Word Detection",
@@ -350,8 +350,8 @@ private fun VoiceOption(name: String, locale: String, isSelected: Boolean, onCli
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(if (isSelected) CosmicAccent.copy(0.12f) else Color.White.copy(alpha = 0.03f))
-            .border(0.5.dp, if (isSelected) CosmicAccent.copy(0.4f) else DividerColor, RoundedCornerShape(10.dp))
+            .background(if (isSelected) CosmicAccent.copy(0.12f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f))
+            .border(0.5.dp, if (isSelected) CosmicAccent.copy(0.4f) else MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -383,7 +383,7 @@ private fun ToggleRow(
         }
         Switch(
             checked = checked, onCheckedChange = onChecked, enabled = enabled,
-            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = CosmicAccent)
+            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.onSurface, checkedTrackColor = CosmicAccent)
         )
     }
 }

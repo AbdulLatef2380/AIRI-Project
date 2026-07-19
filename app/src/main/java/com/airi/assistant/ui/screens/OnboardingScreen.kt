@@ -226,7 +226,7 @@ fun OnboardingScreen(
                             .height(8.dp)
                             .clip(RoundedCornerShape(99.dp))
                             .background(
-                                if (index == page) CosmicAccent else Color.White.copy(alpha = 0.18f)
+                                if (index == page) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
                             )
                     )
                 }
@@ -247,7 +247,7 @@ fun OnboardingScreen(
                 shape  = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = CosmicAccent,
-                    contentColor   = Color.Black
+                    contentColor   = MaterialTheme.colorScheme.background
                 )
             ) {
                 Text(
@@ -314,8 +314,8 @@ private fun PrivacyExplanationCard() {
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -348,16 +348,16 @@ private fun PermissionCard(
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.05f))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
             .border(
                 1.dp,
-                if (isGranted) CosmicAccent.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.08f),
+                if (isGranted) CosmicAccent.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outline,
                 RoundedCornerShape(16.dp)
             )
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(title, color = if (isGranted) CosmicAccent else Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(title, color = if (isGranted) CosmicAccent else MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         Text(body, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 18.sp)
         if (buttonText != null) {
             TextButton(
@@ -414,8 +414,8 @@ private fun SocialProofStrip() {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.06f))
-            .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.09f), RoundedCornerShape(16.dp))
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)

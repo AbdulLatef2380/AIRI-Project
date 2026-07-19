@@ -181,7 +181,16 @@ class AnthropicAdapter(
             append("\"system\":${jsonString(req.systemPrompt)},")
         }
 
-        append("\"messages\":[{\"role\":\"user\",\"content\":${jsonString(req.prompt)}}],")
+        append("\"messages\":[")
+        var needsComma = false
+        for (turn in req.conversationHistory) {
+            if (needsComma) append(",")
+            append("{\"role\":\"${turn.role}\",\"content\":${jsonString(turn.content)}}")
+            needsComma = true
+        }
+        if (needsComma) append(",")
+        append("{\"role\":\"user\",\"content\":${jsonString(req.prompt)}}")
+        append("],")
         append("\"stream\":true")
         append("}")
     }

@@ -46,18 +46,18 @@ fun AgentPlanCard(step: PlanStepModel, depth: Int = 0, modifier: Modifier = Modi
                     color = labelColor(step.status), maxLines = 2
                 )
                 if (!step.subLabel.isNullOrBlank())
-                    Text(step.subLabel, fontSize = 11.sp, color = Color.White.copy(alpha = 0.4f), maxLines = 1)
+                    Text(step.subLabel, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), maxLines = 1)
                 if (step.retryCount > 0)
                     Text(stringResource(R.string.agent_plan_retry_count, step.retryCount), fontSize = 10.sp, color = SemanticWarn.copy(alpha = 0.8f))
             }
-            step.elapsedLabel?.let { Text(it, fontSize = 10.sp, color = Color.White.copy(alpha = 0.3f), modifier = Modifier.padding(start = 8.dp)) }
+            step.elapsedLabel?.let { Text(it, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f), modifier = Modifier.padding(start = 8.dp)) }
         }
         AnimatedVisibility(visible = expanded && hasDetail, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Column(modifier = Modifier.padding(start = (28 + depth * 16).dp, end = 12.dp, bottom = 6.dp)) {
                 if (!step.detail.isNullOrBlank())
-                    Text(step.detail, fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f), lineHeight = 16.sp,
+                    Text(step.detail, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), lineHeight = 16.sp,
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
-                            .background(Color.White.copy(alpha = 0.04f)).padding(8.dp))
+                            .background(MaterialTheme.colorScheme.outline).padding(8.dp))
                 step.children.forEach { AgentPlanCard(step = it, depth = depth + 1) }
             }
         }
@@ -76,8 +76,8 @@ private fun StepIndicator(status: PlanStepStatus) {
             PlanStepStatus.FAILED -> Box(modifier = Modifier.size(14.dp).clip(CircleShape)
                 .background(SemanticError.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
                 Text("✕", fontSize = 9.sp, color = SemanticError) }
-            PlanStepStatus.CANCELLED -> Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.15f)))
-            PlanStepStatus.QUEUED    -> Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)))
+            PlanStepStatus.CANCELLED -> Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)))
+            PlanStepStatus.QUEUED    -> Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)))
         }
     }
 }
@@ -94,10 +94,10 @@ private fun SpinnerDot(color: Color) {
 }
 
 private fun labelColor(status: PlanStepStatus) = when (status) {
-    PlanStepStatus.RUNNING   -> Color.White
+    PlanStepStatus.RUNNING   -> MaterialTheme.colorScheme.onSurface
     PlanStepStatus.RETRYING  -> SemanticWarn
-    PlanStepStatus.COMPLETED -> Color.White.copy(alpha = 0.55f)
+    PlanStepStatus.COMPLETED -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
     PlanStepStatus.FAILED    -> SemanticError.copy(alpha = 0.9f)
-    PlanStepStatus.CANCELLED -> Color.White.copy(alpha = 0.3f)
-    PlanStepStatus.QUEUED    -> Color.White.copy(alpha = 0.4f)
+    PlanStepStatus.CANCELLED -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+    PlanStepStatus.QUEUED    -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
 }

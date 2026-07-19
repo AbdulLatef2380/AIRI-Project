@@ -65,8 +65,8 @@ private enum class DiagTab(val label: String) {
 private val ExOk     = CosmicAccent
 private val ExWarn   = Color(0xFFFFB74D)   // amber
 private val ExError  = Color(0xFFEF5350)   // red
-private val ExDim    = Color.White.copy(alpha = 0.55f)
-private val ExSubtle = Color.White.copy(alpha = 0.33f)
+private val ExDim    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+private val ExSubtle = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.33f)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,7 +128,7 @@ fun ExecDiagnosticsScreen(
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.65f)
+                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -148,7 +148,7 @@ fun ExecDiagnosticsScreen(
                         Text(
                             if (execDiag.isStreaming) "● Streaming" else "Idle",
                             color    = if (execDiag.isStreaming) CosmicAccent
-                                       else Color.White.copy(alpha = 0.38f),
+                                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
                             fontSize = 11.sp
                         )
                     }
@@ -172,7 +172,7 @@ fun ExecDiagnosticsScreen(
         ) {
             ScrollableTabRow(
                 selectedTabIndex = selectedTab.ordinal,
-                containerColor   = Color.Black.copy(alpha = 0.50f),
+                containerColor   = MaterialTheme.colorScheme.background.copy(alpha = 0.50f),
                 contentColor     = CosmicAccent,
                 edgePadding      = 8.dp
             ) {
@@ -185,7 +185,7 @@ fun ExecDiagnosticsScreen(
                                 tab.label,
                                 fontSize = 11.sp,
                                 color = if (selectedTab == tab) CosmicAccent
-                                        else Color.White.copy(alpha = 0.45f)
+                                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
                             )
                         }
                     )
@@ -357,7 +357,7 @@ private fun LiveTab(
                         .fillMaxWidth()
                         .height(8.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(Color.White.copy(alpha = 0.08f))
+                        .background(MaterialTheme.colorScheme.outline)
                 ) {
                     Box(
                         modifier = Modifier
@@ -519,7 +519,7 @@ private fun BudgetTab(
                         .fillMaxWidth()
                         .height(6.dp)
                         .clip(RoundedCornerShape(3.dp))
-                        .background(Color.White.copy(alpha = 0.07f))
+                        .background(MaterialTheme.colorScheme.outline)
                 ) {
                     val fraction = (usedPct / 100f).coerceIn(0f, 1f)
                     if (fraction > 0f) {
@@ -590,7 +590,7 @@ private fun ProviderStatsCard(
                     .clip(CircleShape)
                     .background(
                         if (hasActivity) CosmicAccent.copy(alpha = 0.14f)
-                        else Color.White.copy(alpha = 0.04f)
+                        else MaterialTheme.colorScheme.outline
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -606,7 +606,7 @@ private fun ProviderStatsCard(
                 Text(
                     provider.name,
                     fontWeight = FontWeight.Bold,
-                    color      = if (hasActivity) Color.White else ExDim,
+                    color      = if (hasActivity) MaterialTheme.colorScheme.onSurface else ExDim,
                     fontSize   = 13.sp
                 )
                 Text(
@@ -861,7 +861,7 @@ private fun TpsSparkline(values: List<Float>, modifier: Modifier = Modifier) {
         val range = max - min
 
         // Subtle reference grid (3 inner lines)
-        val gridColor = Color.White.copy(alpha = 0.07f)
+        val gridColor = MaterialTheme.colorScheme.outline
         for (i in 1..3) {
             val y = h * i / 4f
             drawLine(gridColor, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
@@ -898,7 +898,7 @@ private fun TpsSparkline(values: List<Float>, modifier: Modifier = Modifier) {
         val lastX = w
         val lastY = h - h * (values.last() - min) / range
         drawCircle(color = ExOk,                       radius = 4.dp.toPx(), center = Offset(lastX, lastY))
-        drawCircle(color = Color.Black.copy(alpha = 0.65f), radius = 2.dp.toPx(), center = Offset(lastX, lastY))
+        drawCircle(color = MaterialTheme.colorScheme.background.copy(alpha = 0.65f), radius = 2.dp.toPx(), center = Offset(lastX, lastY))
     }
 }
 // Pure helpers — no Compose state, safe to call from remember blocks

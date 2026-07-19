@@ -81,7 +81,7 @@ fun PerformanceScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f))
             )
         }
     ) { padding ->
@@ -228,10 +228,10 @@ private fun PerformanceModeCard(
             Surface(
                 onClick    = { onModeSelected(mode) },
                 shape      = RoundedCornerShape(14.dp),
-                color      = if (selected) CosmicAccent.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f),
+                color      = if (selected) CosmicAccent.copy(alpha = 0.14f) else MaterialTheme.colorScheme.outline,
                 border     = androidx.compose.foundation.BorderStroke(
                     1.dp,
-                    if (selected) CosmicAccent.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.08f)
+                    if (selected) CosmicAccent.copy(alpha = 0.55f) else MaterialTheme.colorScheme.outline
                 ),
                 modifier   = Modifier.fillMaxWidth()
             ) {
@@ -249,7 +249,7 @@ private fun PerformanceModeCard(
                         Text(
                             mode.label,
                             fontWeight = FontWeight.Bold,
-                            color      = if (selected) CosmicAccent else Color.White,
+                            color      = if (selected) CosmicAccent else MaterialTheme.colorScheme.onSurface,
                             fontSize   = 14.sp
                         )
                         Text(
@@ -264,7 +264,7 @@ private fun PerformanceModeCard(
                             PerformanceMode.BALANCED -> stringResource(R.string.perf_mode_label_balanced)
                             PerformanceMode.QUALITY  -> stringResource(R.string.perf_mode_label_quality)
                         },
-                        color    = if (selected) CosmicAccent else Color.White.copy(alpha = 0.3f),
+                        color    = if (selected) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )

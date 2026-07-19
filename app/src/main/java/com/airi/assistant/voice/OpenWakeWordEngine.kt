@@ -21,7 +21,7 @@ import java.nio.ByteOrder
  *   OR generate it from https://github.com/dscripka/openWakeWord
  *
  * This class is a graceful stub: if the model asset is absent it
- * returns [Status(ready=false)] and never fails with an exception.
+ * returns [WakeWordStatus(ready=false)] and never fails with an exception.
  * This ensures the existing Porcupine path remains the default until
  * the OpenWakeWord asset is bundled.
  *
@@ -38,22 +38,22 @@ object OpenWakeWordEngine {
     private const val SAMPLE_RATE   = 16_000
     private const val THRESHOLD     = 0.5f          // detection sensitivity
 
-    data class Status(
+    data class WakeWordWakeWordStatus(
         val ready:        Boolean,
         val modelSource:  String? = null,
         val reason:       String? = null
     )
 
     /** Check whether the model asset is present and the engine can be used. */
-    fun status(context: Context): Status {
+    fun status(context: Context): WakeWordStatus {
         val modelFile = modelFile(context)
         return when {
             modelFile != null && modelFile.exists() && modelFile.length() > 0 ->
-                Status(ready = true, modelSource = modelFile.absolutePath)
+                WakeWordStatus(ready = true, modelSource = modelFile.absolutePath)
             extractedFromAssets(context) != null ->
-                Status(ready = true, modelSource = extractedFromAssets(context)?.absolutePath)
+                WakeWordStatus(ready = true, modelSource = extractedFromAssets(context)?.absolutePath)
             else ->
-                Status(
+                WakeWordStatus(
                     ready = false,
                     reason = "No hey_airi.tflite found in assets/voice/. " +
                              "See https://github.com/dscripka/openWakeWord to generate one."

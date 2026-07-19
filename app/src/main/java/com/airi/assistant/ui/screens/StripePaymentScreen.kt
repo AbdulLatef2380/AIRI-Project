@@ -146,11 +146,11 @@ private fun CreditsTab(
                     shape    = RoundedCornerShape(14.dp),
                     colors   = ButtonDefaults.buttonColors(
                         containerColor = CosmicAccent,
-                        disabledContainerColor = DividerColor
+                        disabledContainerColor = MaterialTheme.colorScheme.outline
                     )
                 ) {
                     if (paymentState is StripeManager.PaymentState.Processing) {
-                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onSurface)
                         Spacer(Modifier.width(8.dp))
                     }
                     Text("Buy ${selectedPack?.displayName ?: ""} — ${selectedPack?.priceString ?: ""}", fontWeight = FontWeight.SemiBold)
@@ -204,7 +204,7 @@ private fun PremiumTab(
                     Text(stringResource(R.string.payment_annual), color = if (annual) AiriTheme.onBackground else AiriTheme.onSurfaceVariant, fontWeight = if (annual) FontWeight.SemiBold else FontWeight.Normal)
                     if (annual) {
                         Spacer(Modifier.width(6.dp))
-                        Badge(containerColor = SemanticSuccess) { Text(stringResource(R.string.payment_save_20), color = Color.White, fontSize = 10.sp) }
+                        Badge(containerColor = SemanticSuccess) { Text(stringResource(R.string.payment_save_20), color = MaterialTheme.colorScheme.onSurface, fontSize = 10.sp) }
                     }
                 }
             }
@@ -220,7 +220,7 @@ private fun PremiumTab(
                             Text(if (annual) "$79.99" else "$9.99", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = CosmicAccent)
                             Text(if (annual) "/year" else "/month", color = AiriTheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                         }
-                        Divider(color = DividerColor)
+                        Divider(color = MaterialTheme.colorScheme.outline)
                         val features = listOf("2,000 daily credits (10× free)", "Priority model access", "All connectors unlocked", "Community skill marketplace", "Developer API access", "Priority support")
                         features.forEach { f ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -275,7 +275,7 @@ private fun CreditPackCard(pack: CreditPackage, isSelected: Boolean, onClick: ()
                     Text(pack.displayName, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                     pack.highlight?.let {
                         Spacer(Modifier.width(6.dp))
-                        Badge(containerColor = SemanticSuccess) { Text(it, color = Color.White, fontSize = 9.sp) }
+                        Badge(containerColor = SemanticSuccess) { Text(it, color = MaterialTheme.colorScheme.onSurface, fontSize = 9.sp) }
                     }
                 }
                 Text("${pack.totalCredits.toLocaleStr()} credits", fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
@@ -299,8 +299,8 @@ private fun PremiumHeroCard() {
             .padding(24.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.payment_airi_premium), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color.White)
-            Text(stringResource(R.string.payment_premium_desc), color = Color.White.copy(alpha = 0.9f), fontSize = 14.sp, lineHeight = 20.sp)
+            Text(stringResource(R.string.payment_airi_premium), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurface)
+            Text(stringResource(R.string.payment_premium_desc), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f), fontSize = 14.sp, lineHeight = 20.sp)
         }
     }
 }

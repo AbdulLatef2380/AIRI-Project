@@ -170,7 +170,7 @@ private fun CommunitySkillCard(
                     skill.sourceUrl?.let {
                         Text("Source: $it", fontSize = 11.sp, color = CosmicAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Divider(color = DividerColor)
+                    Divider(color = MaterialTheme.colorScheme.outline)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = { onSandboxTest(skill) },
@@ -252,7 +252,7 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                     placeholder   = { Text("https://raw.githubusercontent.com/…/skill.json") },
                     modifier      = Modifier.fillMaxWidth(),
                     singleLine    = true,
-                    colors        = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = DividerColor)
+                    colors        = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = MaterialTheme.colorScheme.outline)
                 )
             }
             item {
@@ -272,7 +272,7 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                     enabled = importUrl.isNotBlank() && !isLoading,
                     colors  = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
                 ) {
-                    if (isLoading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
+                    if (isLoading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onSurface)
                     else Icon(Icons.Default.Download, null, Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.community_import_from_url))
@@ -286,7 +286,7 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                     label         = { Text(stringResource(R.string.paste_skill_json_label)) },
                     modifier      = Modifier.fillMaxWidth().height(200.dp),
                     textStyle     = LocalTextStyle.current.copy(fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-                    colors        = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = DividerColor)
+                    colors        = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = MaterialTheme.colorScheme.outline)
                 )
             }
             item {

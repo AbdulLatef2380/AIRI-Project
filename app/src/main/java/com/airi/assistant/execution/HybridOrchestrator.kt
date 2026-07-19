@@ -91,9 +91,24 @@ class HybridOrchestrator(
      * Signal cancellation of any in-flight execution.
      * Thread-safe. Does NOT acquire [executionLock].
      */
+    /** Tracks the currently executing backend so cancel() can reach its native cancel path. */
+    @Volatile private var activeBackend_: RuntimeBackend? = null
+
+    /**
+     * Signal cancellation. Propagates to the active backend's own cancellation
+     * mechanism — for LocalLlamaBackend this reaches LlamaNative.nativeCancel()
+     * within one llama_decode chunk, preventing unbounded JNI blocking.
+     */
     fun cancel() {
         cancelled.set(true)
-        Log.i(TAG, "cancel() called — genId=${currentGenId.get()}")
+        val backend = activeBackend_
+        if (backend != null) {
+            Log.i(TAG, "cancel() → ${backend.id} genId=${currentGenId.get()}")
+            runCatching { backend.cancelStream() }
+                .onFailure { e -> Log.w(TAG, "cancelStream threw: ${e.message}") }
+        } else {
+            Log.i(TAG, "cancel() — no active backend genId=${currentGenId.get()}")
+        }
         RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.WARN, "Cancel requested")
         updateDiagnostics { copy(isStreaming = false, lastCancelReason = "User cancel") }
     }
@@ -226,6 +241,7 @@ class HybridOrchestrator(
             var backendSucceeded = false
             val streamStart      = System.currentTimeMillis()
 
+            activeBackend_ = backend
             backend.generateStream(
                 request    = req,
                 onToken    = { token ->
@@ -255,10 +271,15 @@ class HybridOrchestrator(
                 }
             )
 
-            if (backendSucceeded) return@withLock
+            if (backendSucceeded) {
+                activeBackend_ = null
+                return@withLock
+            }
+            activeBackend_ = null
         }
 
         // All backends exhausted.
+        activeBackend_ = null
         updateDiagnostics { copy(isStreaming = false, lastErrorMessage = lastError) }
         RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.ERROR,
             "gen#$genId All backends failed. Last: ${lastError.take(80)}")

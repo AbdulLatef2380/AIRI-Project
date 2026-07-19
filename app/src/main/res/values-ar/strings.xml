@@ -1129,4 +1129,8 @@
     <!-- Workspace -->
     <string name="workspace_preview">معاينة</string>
 
+    <string name="chat_start_hint">اكتب رسالة للبدء</string>
+    <string name="voice_gemini_key_required">أضف مفتاح Gemini API في الإعدادات أولاً</string>
+    <string name="voice_openai_key_required">أضف مفتاح OpenAI API في الإعدادات أولاً</string>
+    <string name="default_web_client_id">REPLACE_WITH_FIREBASE_WEB_CLIENT_ID</string>
 </resources>

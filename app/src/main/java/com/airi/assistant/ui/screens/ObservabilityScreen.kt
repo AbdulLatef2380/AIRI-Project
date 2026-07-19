@@ -51,7 +51,7 @@ fun ObservabilityScreen(onBack: () -> Unit) {
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.65f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
@@ -66,7 +66,7 @@ fun ObservabilityScreen(onBack: () -> Unit) {
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             TabRow(
                 selectedTabIndex = selectedTab,
-                containerColor   = Color.Black.copy(alpha = 0.5f),
+                containerColor   = MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
                 contentColor     = CosmicAccent
             ) {
                 tabs.forEachIndexed { idx, label ->
@@ -77,7 +77,7 @@ fun ObservabilityScreen(onBack: () -> Unit) {
                             Text(
                                 label,
                                 fontSize = 12.sp,
-                                color    = if (selectedTab == idx) CosmicAccent else Color.White.copy(alpha = 0.5f)
+                                color    = if (selectedTab == idx) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                             )
                         }
                     )
@@ -327,7 +327,7 @@ private fun LiveHubTab() {
 }
 
 @Composable
-private fun MetricRow(label: String, value: String, color: Color = Color.White.copy(alpha = 0.65f)) {
+private fun MetricRow(label: String, value: String, color: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)) {
     Row(
         modifier              = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -420,8 +420,8 @@ private fun GraphNodeCard(node: com.airi.assistant.agent.planning.GoalNode) {
         "RUNNING"    -> Color(0xFF1A2E4A) to CosmicAccent
         "FAILED"     -> Color(0xFF3A1B1B) to SemanticError
         "RECOVERING" -> Color(0xFF3A2F1B) to SemanticWarn
-        "SKIPPED"    -> Color(0xFF242424) to Color.White.copy(alpha = 0.45f)
-        else         -> Color(0xFF1E1E2E) to Color.White.copy(alpha = 0.65f)
+        "SKIPPED"    -> Color(0xFF242424) to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+        else         -> Color(0xFF1E1E2E) to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
     }
     Surface(shape = RoundedCornerShape(10.dp), color = bg, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(10.dp)) {
@@ -594,7 +594,7 @@ private fun StatusCountChip(label: String, count: Int, color: Color, modifier: M
             Text(label, color = AiriTheme.onSurfaceVariant.copy(alpha = 0.45f), fontSize = 9.sp)
             Text(
                 "$count",
-                color      = if (count > 0) color else Color.White.copy(alpha = 0.3f),
+                color      = if (count > 0) color else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                 fontWeight = FontWeight.Bold,
                 fontSize   = 14.sp,
                 fontFamily = FontFamily.Monospace

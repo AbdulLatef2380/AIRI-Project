@@ -37,7 +37,7 @@ import com.airi.assistant.ui.theme.SurfaceCard
 import com.airi.assistant.ui.theme.SurfaceRaised
 import com.airi.assistant.ui.theme.SemanticSuccess
 import com.airi.assistant.ui.theme.SemanticError
-import com.airi.assistant.ui.theme.DividerColor
+import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
 import com.airi.assistant.ui.viewmodel.ConnectorsViewModel
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
@@ -163,12 +163,12 @@ fun ConnectorsScreen(
                                     tab.icon,
                                     contentDescription = null,
                                     modifier = Modifier.size(14.dp),
-                                    tint = if (isSelected) CosmicAccent else Color.White.copy(0.45f)
+                                    tint = if (isSelected) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(0.45f)
                                 )
                                 Text(
                                     tab.label,
                                     fontSize = 12.sp,
-                                    color = if (isSelected) CosmicAccent else Color.White.copy(0.45f)
+                                    color = if (isSelected) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(0.45f)
                                 )
                                 if (tabCount > 0) {
                                     Box(
@@ -177,14 +177,14 @@ fun ConnectorsScreen(
                                             .clip(CircleShape)
                                             .background(
                                                 if (isSelected) CosmicAccent.copy(0.25f)
-                                                else Color.White.copy(0.08f)
+                                                else MaterialTheme.colorScheme.onSurface.copy(0.08f)
                                             ),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             "$tabCount",
                                             fontSize = 9.sp,
-                                            color = if (isSelected) CosmicAccent else Color.White.copy(0.45f),
+                                            color = if (isSelected) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(0.45f),
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -256,7 +256,7 @@ private fun ConnectorCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val isConnected = row.state.connected
-    val statusColor = if (isConnected) SemanticSuccess else Color.White.copy(0.30f)
+    val statusColor = if (isConnected) SemanticSuccess else MaterialTheme.colorScheme.onSurface.copy(0.30f)
 
     Box(
         modifier = Modifier
@@ -265,7 +265,7 @@ private fun ConnectorCard(
             .background(AiriTheme.surface)
             .border(
                 width = 1.dp,
-                color = if (isConnected) SemanticSuccess.copy(0.25f) else Color.White.copy(0.07f),
+                color = if (isConnected) SemanticSuccess.copy(0.25f) else MaterialTheme.colorScheme.onSurface.copy(0.07f),
                 shape = RoundedCornerShape(14.dp)
             )
             .clickable { expanded = !expanded }
@@ -324,9 +324,9 @@ private fun ConnectorCard(
                     checked  = isConnected,
                     onCheckedChange = { if (it) onConnect() else onDisconnect() },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor       = Color.White,
+                        checkedThumbColor       = MaterialTheme.colorScheme.onSurface,
                         checkedTrackColor       = SemanticSuccess,
-                        uncheckedThumbColor     = Color.White.copy(0.6f),
+                        uncheckedThumbColor     = MaterialTheme.colorScheme.onSurface.copy(0.6f),
                         uncheckedTrackColor     = SurfaceRaised
                     )
                 )

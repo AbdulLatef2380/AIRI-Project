@@ -95,7 +95,7 @@ fun VoiceLiveOverlay(
                     Text(
                         text       = caption,
                         fontSize   = 15.sp,
-                        color      = Color.White.copy(alpha = 0.75f),
+                        color      = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                         fontWeight = FontWeight.Normal,
                         modifier   = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                     )
@@ -190,7 +190,7 @@ private fun VoiceOrb(voiceState: VoiceSessionState) {
             Icon(
                 imageVector        = if (voiceState == VoiceSessionState.SPEAKING) Icons.Outlined.VolumeUp else Icons.Outlined.Mic,
                 contentDescription = null,
-                tint               = Color.White.copy(alpha = 0.9f),
+                tint               = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
                 modifier           = Modifier.size(26.dp)
             )
         }
@@ -250,7 +250,7 @@ private fun VoiceWaveform(voiceState: VoiceSessionState, modifier: Modifier = Mo
         VoiceSessionState.LISTENING   -> AIRIColors.voiceListening
         VoiceSessionState.SPEAKING    -> CosmicAccent
         VoiceSessionState.PROCESSING  -> SemanticWarn
-        VoiceSessionState.IDLE        -> Color.White.copy(alpha = 0.3f)
+        VoiceSessionState.IDLE        -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
     }
 
     Canvas(modifier = modifier) {

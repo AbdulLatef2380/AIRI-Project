@@ -252,7 +252,7 @@ fun SkillBuilderScreen(
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = 0.72f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.72f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
@@ -356,7 +356,7 @@ fun SkillBuilderScreen(
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
                                     selectedLabelColor = CosmicAccent,
-                                    labelColor = Color.White.copy(alpha = 0.72f)
+                                    labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
                                 )
                             )
                         }
@@ -384,7 +384,7 @@ fun SkillBuilderScreen(
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
                                 selectedLabelColor = CosmicAccent,
-                                labelColor = Color.White.copy(alpha = 0.72f)
+                                labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
                             )
                         )
                     }
@@ -447,10 +447,10 @@ fun SkillBuilderScreen(
                     modifier = Modifier.weight(1f).height(54.dp),
                     shape = RoundedCornerShape(16.dp),
                     enabled = !isSaving && !isTesting,
-                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.Black)
+                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = MaterialTheme.colorScheme.background)
                 ) {
                     if (isSaving) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.Black, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.background, strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.skill_builder_saving), fontWeight = FontWeight.Bold)
                     } else {
@@ -529,7 +529,7 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
                         .fillMaxWidth()
                         .heightIn(max = 280.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Color.Black.copy(alpha = 0.4f))
+                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f))
                         .padding(12.dp)
                 ) {
                     Text(
@@ -678,8 +678,8 @@ private fun SkillBuilderSection(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color.White.copy(alpha = 0.055f))
-            .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.055f))
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.09f), RoundedCornerShape(18.dp))
     ) {
         Row(
             modifier = Modifier
@@ -731,11 +731,11 @@ private fun SkillTextField(
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = CosmicAccent,
-                unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
+                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                 focusedLabelColor = CosmicAccent,
-                unfocusedLabelColor = Color.White.copy(alpha = 0.55f),
+                unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
                 cursorColor = CosmicAccent
             )
         )
@@ -794,11 +794,11 @@ private fun HeaderEditor(headers: SnapshotStateList<HeaderInput>) {
 @Composable
 private fun headerFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = CosmicAccent,
-    unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-    focusedTextColor = Color.White,
-    unfocusedTextColor = Color.White,
+    unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
     focusedLabelColor = CosmicAccent,
-    unfocusedLabelColor = Color.White.copy(alpha = 0.55f),
+    unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
     cursorColor = CosmicAccent
 )
 

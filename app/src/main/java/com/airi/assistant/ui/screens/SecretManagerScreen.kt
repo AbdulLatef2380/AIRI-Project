@@ -67,10 +67,10 @@ fun SecretManagerScreen(onBack: () -> Unit) {
     if (editingProvider != null) {
         AlertDialog(
             onDismissRequest = { editingProvider = null; editText = "" },
-            title = { Text("Set API Key — ${editingProvider!!.displayName}") },
+            title = { Text("Set API Key — ${editingProvider?.displayName.orEmpty()}") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Enter your ${editingProvider!!.displayName} API key:", fontSize = 13.sp)
+                    Text("Enter your ${editingProvider?.displayName.orEmpty()} API key:", fontSize = 13.sp)
                     OutlinedTextField(
                         value          = editText,
                         onValueChange  = { editText = it },
@@ -92,7 +92,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val p = editingProvider!!
+                    val p = editingProvider ?: return@TextButton
                     if (editText.isNotBlank()) {
                         keyStore.saveKey(p, editText.trim())
                         keyStates[p]?.value = editText.trim()

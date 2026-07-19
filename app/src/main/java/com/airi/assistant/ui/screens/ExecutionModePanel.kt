@@ -41,8 +41,8 @@ private val CloudColor  = Color(0xFF29B6F6)  // light blue
 private val LocalColor  = Color(0xFF66BB6A)  // green
 private val HybridColor = Color(0xFFAB47BC)  // purple
 private val WarnAmber   = Color(0xFFFFB74D)
-private val DimWhite    = Color.White.copy(alpha = 0.55f)
-private val SubtleWhite = Color.White.copy(alpha = 0.35f)
+private val DimWhite    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+private val SubtleWhite = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
 
 /**
  * Full execution mode control panel.
@@ -245,11 +245,11 @@ private fun ExecModeOption(
         onClick  = onSelected,
         shape    = RoundedCornerShape(12.dp),
         color    = if (selected) accentColor.copy(alpha = 0.10f)
-                   else Color.White.copy(alpha = 0.04f),
+                   else MaterialTheme.colorScheme.outline,
         border   = androidx.compose.foundation.BorderStroke(
             1.dp,
             if (selected) accentColor.copy(alpha = 0.45f)
-            else Color.White.copy(alpha = 0.07f)
+            else MaterialTheme.colorScheme.outline
         )
     ) {
         Row(
@@ -264,7 +264,7 @@ private fun ExecModeOption(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     mode.displayName,
-                    color      = if (selected) Color.White else DimWhite,
+                    color      = if (selected) MaterialTheme.colorScheme.onSurface else DimWhite,
                     fontSize   = 13.sp,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
                 )
@@ -316,7 +316,7 @@ private fun PrivacyLevelOption(
         Column {
             Text(
                 level.displayName,
-                color      = if (selected) Color.White else DimWhite,
+                color      = if (selected) MaterialTheme.colorScheme.onSurface else DimWhite,
                 fontSize   = 12.sp,
                 fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
             )
@@ -348,12 +348,12 @@ private fun CloudProviderSelector(
                     .clip(RoundedCornerShape(8.dp))
                     .background(
                         if (sel) CosmicAccent.copy(alpha = 0.15f)
-                        else Color.White.copy(alpha = 0.05f)
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                     )
                     .border(
                         1.dp,
                         if (sel) CosmicAccent.copy(alpha = 0.5f)
-                        else Color.White.copy(alpha = 0.07f),
+                        else MaterialTheme.colorScheme.outline,
                         RoundedCornerShape(8.dp)
                     )
                     .clickable { onSelected(provider) }
@@ -400,7 +400,7 @@ private fun CloudTokenUsageBar(used: Int, cap: Int) {
                 .height(4.dp)
                 .clip(RoundedCornerShape(2.dp)),
             color            = color,
-            trackColor       = Color.White.copy(alpha = 0.08f)
+            trackColor       = MaterialTheme.colorScheme.outline
         )
     }
 }

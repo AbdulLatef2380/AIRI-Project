@@ -106,5 +106,29 @@ object DefaultAssistantManager {
      * Returns true if this device is a Xiaomi/Redmi/POCO device running MIUI or HyperOS.
      * Use this to conditionally show MIUI-specific onboarding prompts.
      */
-    fun isMiuiDevice(): Boolean = Build.MANUFACTURER.lowercase() == "xiaomi"
+    /**
+     * Returns true for Xiaomi/Redmi/POCO devices running MIUI or HyperOS.
+     * Checks MANUFACTURER, BRAND, and system properties so HyperOS devices
+     * (which may report brand "Redmi" or "POCO") are covered correctly.
+     */
+    fun isMiuiDevice(): Boolean {
+        val m = Build.MANUFACTURER.lowercase()
+        val b = Build.BRAND.lowercase()
+        if (m == "xiaomi" || b == "redmi" || b == "poco") return true
+        return try {
+            val prop    = Class.forName("android.os.SystemProperties")
+                .getMethod("get", String::class.java, String::class.java)
+            val miui    = prop.invoke(null, "ro.miui.ui.version.name", "") as String
+            val hyperOs = prop.invoke(null, "ro.mi.os.version.name",   "") as String
+            miui.isNotBlank() || hyperOs.isNotBlank()
+        } catch (_: Exception) { false }
+    }
+
+    /** True on HyperOS (MIUI 14+, Xiaomi 14 series onwards). */
+    fun isHyperOsDevice(): Boolean = try {
+        val prop    = Class.forName("android.os.SystemProperties")
+            .getMethod("get", String::class.java, String::class.java)
+        val hyperOs = prop.invoke(null, "ro.mi.os.version.name", "") as String
+        hyperOs.isNotBlank()
+    } catch (_: Exception) { false }
 }

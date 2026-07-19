@@ -35,8 +35,8 @@ import com.airi.assistant.ui.theme.CosmicAccent
 private val WarnColor    = Color(0xFFFFB74D)  // amber
 private val ErrorColor   = Color(0xFFEF5350)  // red
 private val OkColor      = CosmicAccent
-private val DimWhite     = Color.White.copy(alpha = 0.55f)
-private val SubtleWhite  = Color.White.copy(alpha = 0.35f)
+private val DimWhite     = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+private val SubtleWhite  = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
 // Public entry-points
 /**
  * Full runtime status panel — mode, thermal, memory, context, model, generation.

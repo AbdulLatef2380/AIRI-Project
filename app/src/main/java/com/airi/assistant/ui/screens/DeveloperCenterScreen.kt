@@ -69,7 +69,7 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
                     Tab(
                         selected = selectedTab == idx,
                         onClick  = { selectedTab = idx },
-                        text = { Text(label, fontSize = 12.sp, color = if (selectedTab == idx) CosmicAccent else Color.White.copy(0.45f)) }
+                        text = { Text(label, fontSize = 12.sp, color = if (selectedTab == idx) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(0.45f)) }
                     )
                 }
             }
@@ -216,7 +216,7 @@ private fun MemoryTab() {
                 progress   = usedPct / 100f,
                 modifier   = Modifier.fillMaxWidth().padding(top = 6.dp),
                 color      = if (usedPct > 80) SemanticError else CosmicAccent,
-                trackColor = Color.White.copy(0.1f)
+                trackColor = MaterialTheme.colorScheme.onSurface.copy(0.1f)
             )
         }
     }

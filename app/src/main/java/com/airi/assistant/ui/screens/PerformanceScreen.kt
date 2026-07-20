@@ -20,7 +20,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -313,7 +313,7 @@ private fun PerfStatCard(
                 Text(value, color = CosmicAccent.copy(alpha = 0.9f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
             if (idx < rows.lastIndex) {
-                HorizontalDivider(color = AiriTheme.outline.copy(alpha = 0.04f), modifier = Modifier.padding(vertical = 2.dp))
+                Divider(color = AiriTheme.outline.copy(alpha = 0.04f), modifier = Modifier.padding(vertical = 2.dp))
             }
         }
     }

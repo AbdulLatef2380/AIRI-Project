@@ -9,10 +9,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.DeleteSweep
-import androidx.compose.material3.Box
+
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -131,7 +132,7 @@ private fun QuantComparisonTable(rows: List<QuantSummary>) {
                 TableHeader(stringResource(R.string.model_perf_col_mem),   1.0f)
                 TableHeader(stringResource(R.string.model_perf_col_class), 1.0f)
             }
-            HorizontalDivider(Modifier.padding(vertical = 6.dp))
+            Divider(Modifier.padding(vertical = 6.dp))
             for (r in rows) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),

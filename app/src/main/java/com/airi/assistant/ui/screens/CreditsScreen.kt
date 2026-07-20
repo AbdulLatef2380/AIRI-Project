@@ -185,6 +185,7 @@ private fun CreditBalanceCard(snapshot: MeterSnapshot) {
             modifier = Modifier.padding(24.dp)
         ) {
             // Circular progress indicator
+            val bgRingColor = MaterialTheme.colorScheme.surfaceVariant
             Box(
                 modifier = Modifier.size(140.dp),
                 contentAlignment = Alignment.Center
@@ -193,7 +194,7 @@ private fun CreditBalanceCard(snapshot: MeterSnapshot) {
                     val stroke = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
                     // Background ring
                     drawArc(
-                        color       = MaterialTheme.colorScheme.surfaceVariant,
+                        color       = bgRingColor,
                         startAngle  = -220f,
                         sweepAngle  = 260f,
                         useCenter   = false,

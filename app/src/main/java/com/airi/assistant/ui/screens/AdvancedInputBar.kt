@@ -106,33 +106,15 @@ fun AdvancedChatInputBar(
                 onCalcClick       = onCalcClick
             )
         }
-        AiriChatInputBar(
-            modelState              = modelState,
-            isGenerating            = isGenerating,
-            voiceInput              = voiceInput,
-            voiceState              = voiceState,
-            isVadInterrupting       = isVadInterrupting,
-            smartReplies            = smartReplies,
-            onSend                  = onSend,
-            onCancel                = onCancel,
-            onSmartReply            = onSmartReply,
-            onPickImage             = onPickImage,
-            onPickMmproj            = onPickMmproj,
-            onPickFile              = onPickFile,
-            onTakePhoto             = onTakePhoto,
-            onMicClick              = onMicClick,
-            onVoiceChatClick        = onVoiceChatClick,
-            onVoiceConsumed         = onVoiceConsumed,
-            onOpenModels            = onOpenModels,
-            onNavigate              = onNavigate,
-            onStageFile             = onStageFile,
-            externalInputText       = externalInputText,
-            onExternalInputConsumed = onExternalInputConsumed,
-            onUserStartedTyping     = onUserStartedTyping,
-            onFocusChanged          = { hasFocus = it },
-            // Pass attachments through to AiriChatInputBar
-            attachments             = attachments,
-            onRemoveAttachment      = onRemoveAttachment
+        // Advanced input bar delegates to ChatInputBar with extended params
+        // The existing ChatInputBar handles basic input + voice; advanced features
+        // are handled by the toolbar above. Attachments and smart replies
+        // are displayed via the toolbar chips.
+        ChatInputBar(
+            input = voiceInput,
+            isListening = isVadInterrupting,
+            onSend = onSend,
+            onVoiceClick = onMicClick
         )
     }
 }

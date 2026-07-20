@@ -80,7 +80,7 @@ fun StripePaymentScreen(
                     )
                 }
             }
-            AnimatedVisibility(visible = paymentState !is StripeManager.PaymentState.Idle && paymentState !is StripeManager.PaymentState.CheckoutReady) {
+            AnimatedVisibility(visible = paymentState !is StripeManager.PaymentState.PaymentIdle && paymentState !is StripeManager.PaymentState.CheckoutReady) {
                 PaymentStateBanner(paymentState) { stripeManager.resetState() }
             }
 

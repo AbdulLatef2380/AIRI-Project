@@ -1,8 +1,6 @@
 package com.airi.assistant.voice.realtime
 
 import android.util.Log
-import com.airi.assistant.voice.realtime.RealtimeVoiceProvider
-import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import okhttp3.*
@@ -16,9 +14,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Gemini Multimodal Live API (over WebSockets).
  */
 class GeminiLiveProvider(
-    private val apiKey: String,
-    private val model:  String = "gemini-2.0-flash-exp"
+    private val model: String = "gemini-2.0-flash-exp"
 ) : RealtimeVoiceProvider {
+
+    /** API key stored at provider selection time; used by LiveVoiceService.restoreProviderPreference(). */
+    var storedApiKey: String = ""
 
     private val TAG = "AIRI_GeminiLive"
     private val BASE_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BiDiGenerateContent"
@@ -28,43 +28,48 @@ class GeminiLiveProvider(
     private val responseTextChannel = Channel<String>(Channel.BUFFERED)
 
     override val audioResponseFlow:  Flow<ShortArray> = audioOutChannel.receiveAsFlow()
-    override val transcriptFlow:     Flow<String>     = transcriptChannel.receiveAsFlow()
-    override val responseTextFlow:   Flow<String>     = responseTextChannel.receiveAsFlow()
+    override val transcriptFlow:    Flow<String>     = transcriptChannel.receiveAsFlow()
+    override val responseTextFlow:  Flow<String>     = responseTextChannel.receiveAsFlow()
+
+    // ── Interface properties ───────────────────────────────────────────────────
+
+    override val name: String = "Gemini Live ($model)"
+    override val endpointDescription: String = "$BASE_URL?key=***"
+    override val supportsBidirectionalStreaming: Boolean = true
+    override val expectedLatencyMs: IntRange = 300..600
 
     // ── Connection state ──────────────────────────────────────────────────────
 
     private val _connected = AtomicBoolean(false)
-    override val isConnected: Boolean get() = _connected.get()
-
-    /** Extended: live StateFlow of connection phase for observability. */
     private val _phase = MutableStateFlow(GeminiPhase.DISCONNECTED)
-    val phase: StateFlow<GeminiPhase> = _phase.asStateFlow()
-
-    /** Extended: round-trip latency from connect() call to onOpen(). */
-    @Volatile var connectLatencyMs: Long = 0L
-        private set
-
-    enum class GeminiPhase { DISCONNECTED, CONNECTING, CONNECTED, ERROR }
-
-    // ── Internal ───────────────────────────────────────────────────────────────
-
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var webSocket: WebSocket? = null
-    private var connectTimeMs: Long = 0L
+    private var connectTimeMs: Long = 0
+    private var apiKey: String = ""
+
+    enum class GeminiPhase { DISCONNECTED, CONNECTING, CONNECTED, ERROR, SETUP }
 
     private val httpClient = OkHttpClient.Builder()
+        .pingInterval(20, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    override suspend fun connect() {
-        if (_connected.get()) return
+    // ── connect ───────────────────────────────────────────────────────────────
+
+    override suspend fun connect(
+        systemPrompt: String,
+        apiKey: String,
+        voiceId: String
+    ): RealtimeVoiceProvider.ConnectResult {
+        this.apiKey = apiKey
+        if (_connected.get()) return RealtimeVoiceProvider.ConnectResult.Success
         _phase.value = GeminiPhase.CONNECTING
         connectTimeMs = System.currentTimeMillis()
 
         val url = "$BASE_URL?key=$apiKey"
         val request = Request.Builder().url(url).build()
         webSocket = httpClient.newWebSocket(request, GeminiWebSocketListener())
+        return RealtimeVoiceProvider.ConnectResult.Success
     }
 
     override suspend fun disconnect() {
@@ -74,39 +79,39 @@ class GeminiLiveProvider(
         _phase.value = GeminiPhase.DISCONNECTED
     }
 
-    override suspend fun sendAudio(pcm16: ShortArray) {
+    override suspend fun sendAudioChunk(pcm16: ShortArray) {
         if (!_connected.get()) return
         // Implementation of audio streaming to Gemini
     }
 
-    override suspend fun sendText(text: String) {
-        if (!_connected.get()) return
-        // Implementation of text injection
+    override suspend fun commitAudioTurn() {
+        // Gemini Live handles turn detection server-side automatically; no-op.
     }
 
     override suspend fun interrupt() {
         // Gemini Live handles interruption via specific control messages
     }
 
+    // ── Internal listener ─────────────────────────────────────────────────────
+
     private inner class GeminiWebSocketListener : WebSocketListener() {
-        override fun onOpen(webSocket: WebSocket, response: Response) {
+        override fun onOpen(ws: WebSocket, response: Response) {
             _connected.set(true)
             _phase.value = GeminiPhase.CONNECTED
-            connectLatencyMs = System.currentTimeMillis() - connectTimeMs
-            Log.i(TAG, "Connected to Gemini Live in ${connectLatencyMs}ms")
+            Log.i(TAG, "Gemini Live connected")
         }
 
-        override fun onMessage(webSocket: WebSocket, text: String) {
-            // Parse Gemini's JSON responses (audio frames, transcripts)
+        override fun onMessage(ws: WebSocket, text: String) {
+            // Parse server events and route to channels
         }
 
-        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+        override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+            Log.e(TAG, "Gemini Live failure: ${t.message}")
             _connected.set(false)
             _phase.value = GeminiPhase.ERROR
-            Log.e(TAG, "Gemini WebSocket failure: ${t.message}")
         }
 
-        override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+        override fun onClosed(ws: WebSocket, code: Int, reason: String) {
             _connected.set(false)
             _phase.value = GeminiPhase.DISCONNECTED
         }

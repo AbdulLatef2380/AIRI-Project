@@ -7,6 +7,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -258,7 +259,7 @@ fun RuntimeEventTimeline(events: List<com.airi.assistant.core.debug.RuntimeEvent
                     visible.forEachIndexed { idx, event ->
                         EventRow(event)
                         if (idx < visible.lastIndex) {
-                            HorizontalDivider(
+                            Divider(
                                 color = MaterialTheme.colorScheme.outline,
                                 modifier = Modifier.padding(vertical = 2.dp)
                             )
@@ -362,17 +363,17 @@ private fun EventRow(event: RuntimeEvent) {
     ) {
         Box(
             modifier = Modifier.size(6.dp).padding(top = 6.dp).clip(CircleShape)
-                .background(if (event.isError) ErrorColor else OkColor)
+                .background(if (event.severity == EventSeverity.ERROR) ErrorColor else OkColor)
         )
         Spacer(Modifier.width(8.dp))
         Column {
-            Text(event.message, color = MaterialTheme.colorScheme.onSurface, fontSize = 11.sp)
-            Text(event.timestamp.toString(), color = subtleWhite(), fontSize = 9.sp)
+            Text(event.reason, color = MaterialTheme.colorScheme.onSurface, fontSize = 11.sp)
+            Text(event.timestampMs.toString(), color = subtleWhite(), fontSize = 9.sp)
         }
     }
 }
 
 @Composable
 private fun DiagDivider() {
-    HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
+    Divider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
 }

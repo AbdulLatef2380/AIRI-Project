@@ -330,7 +330,7 @@ private fun PorcupineCard(
 
 @Composable
 private fun InstalledModelsCard(
-    installed: List<VoskModelManager.ModelInfo>,
+    installed: List<VoskModelManager.Installed>,
     activeId: String?,
     onActivate: (String) -> Unit,
     onDelete: (String) -> Unit
@@ -342,14 +342,14 @@ private fun InstalledModelsCard(
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Vosk STT Models", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
-            installed.forEach { model ->
+            for (model in installed) {
                 val isActive = model.id == activeId
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(model.name, fontSize = 13.sp, color = AiriTheme.onBackground)
+                    Text(model.displayName, fontSize = 13.sp, color = AiriTheme.onBackground)
                     Row {
                         if (!isActive) {
                             TextButton(onClick = { onActivate(model.id) }) {

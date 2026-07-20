@@ -492,7 +492,7 @@ private fun HistoryTab(history: List<ExecTransitionEvent>) {
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            formatMs(event.timestamp),
+                            formatMs(event.timestampMs),
                             color = exSubtle(),
                             fontSize = 9.sp,
                             fontFamily = FontFamily.Monospace
@@ -518,7 +518,7 @@ private fun ExRow(label: String, value: String, valueColor: Color = Color.Unspec
 
 @Composable
 private fun ExDivider() {
-    HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 6.dp))
+    Divider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 6.dp))
 }
 
 @Composable

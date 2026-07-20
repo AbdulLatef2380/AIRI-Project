@@ -355,7 +355,7 @@ fun ChatScreen(
                     )
                 }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
 
                 ChatInputBar(
                     input = voiceInput,
@@ -381,6 +381,7 @@ fun ChatScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatTopBar(
     agentState: AgentState,
@@ -420,7 +421,7 @@ fun ModelPill(state: ModelUiState, onClick: () -> Unit) {
             modifier = Modifier.padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(state.name, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onSurfaceVariant)
+            Text(state.selectedModelName, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onSurfaceVariant)
         }
     }
 }
@@ -456,7 +457,7 @@ fun ChatList(
         }
         if (streamingText.isNotEmpty()) {
             item {
-                MessageBubble(ChatMessage(role = "assistant", content = streamingText))
+                MessageBubble(ChatMessage(text = streamingText, isUser = false))
             }
         }
     }
@@ -471,11 +472,11 @@ fun MessageBubble(message: ChatMessage) {
     ) {
         Surface(
             color = if (isUser) CosmicAccent else MaterialTheme.colorScheme.surfaceVariant,
-            shape = if (isUser) UserBubbleSurface else AiBubbleSurface,
+            shape = RoundedCornerShape(16.dp),
             modifier = Modifier.widthIn(max = 300.dp)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
-                MarkdownText(text = message.content, color = if (isUser) Color.White else AiriTheme.onSurface)
+                MarkdownText(rawText = message.text, textColor = if (isUser) Color.White else AiriTheme.onSurface)
             }
         }
     }

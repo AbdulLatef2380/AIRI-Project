@@ -20,7 +20,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -421,7 +421,7 @@ private fun UpdatesTab(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.CheckCircle, null, tint = SemanticSuccess, modifier = Modifier.size(48.dp))
                 Spacer(Modifier.height(12.dp))
-                Text(stringResource(R.string.marketplace_all_updated), color = AiriTheme.onSurfaceVariant)
+                Text(stringResource(R.string.marketplace_up_to_date), color = AiriTheme.onSurfaceVariant)
             }
         }
     } else {
@@ -446,7 +446,7 @@ private fun UpdateSkillRow(skill: MarketplaceSkill, onUpdate: (MarketplaceSkill)
             ) { Text(skill.category.emoji, fontSize = 18.sp) }
             Column(Modifier.weight(1f)) {
                 Text(skill.name, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground, fontSize = 14.sp)
-                Text("New version available: v${skill.newVersion}", fontSize = 11.sp, color = CosmicAccent)
+                Text("New version available: v${skill.version}", fontSize = 11.sp, color = CosmicAccent)
             }
             Button(
                 onClick = { onUpdate(skill) },
@@ -471,7 +471,7 @@ private fun GitHubImportTab(
 
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(stringResource(R.string.marketplace_import_title), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
-        Text(stringResource(R.string.marketplace_import_desc), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 18.sp)
+        Text(stringResource(R.string.marketplace_import_subtitle), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 18.sp)
         
         OutlinedTextField(
             value = repoUrl,
@@ -488,13 +488,13 @@ private fun GitHubImportTab(
                 if (repoUrl.isNotBlank()) {
                     isImporting = true
                     scope.launch {
-                        val result = GitHubSkillImporter.import(repoUrl)
+                        val result = GitHubSkillImporter.importFromUrl(repoUrl)
                         isImporting = false
-                        if (result is GitHubSkillImporter.ImportResult.Success) {
-                            onImported(result.skillName)
+                        if (result.success) {
+                            onImported(result.skill?.id ?: "skill")
                             repoUrl = ""
-                        } else if (result is GitHubSkillImporter.ImportResult.Error) {
-                            onError(result.message)
+                        } else {
+                            onError(result.errors.joinToString("; "))
                         }
                     }
                 }
@@ -504,8 +504,8 @@ private fun GitHubImportTab(
             colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
             shape = RoundedCornerShape(12.dp)
         ) {
-            if (isImporting) CircularProgressIndicator(size = 20.dp, color = Color.White)
-            else Text(stringResource(R.string.marketplace_import_btn), fontWeight = FontWeight.Bold)
+            if (isImporting) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+            else Text(stringResource(R.string.marketplace_import_button), fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -522,10 +522,10 @@ private fun PublishTab(
     ) {
         Icon(Icons.Default.CloudUpload, null, modifier = Modifier.size(64.dp), tint = CosmicAccent.copy(0.2f))
         Spacer(Modifier.height(16.dp))
-        Text(stringResource(R.string.marketplace_publish_title), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, fontSize = 18.sp)
+        Text(stringResource(R.string.marketplace_publish_subtitle), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, fontSize = 18.sp)
         Spacer(Modifier.height(8.dp))
         Text(
-            stringResource(R.string.marketplace_publish_desc),
+            "Create and share your custom skills with the AIRI community.",
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             color = AiriTheme.onSurfaceVariant,
             fontSize = 14.sp,
@@ -538,7 +538,7 @@ private fun PublishTab(
             colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Text(stringResource(R.string.marketplace_start_wizard), fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.marketplace_submit_review), fontWeight = FontWeight.Bold)
         }
     }
 }

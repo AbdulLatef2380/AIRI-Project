@@ -24,7 +24,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -115,7 +115,7 @@ fun AgentPlanContent(
             )
         }
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // ── Steps ────────────────────────────────────────────────────────────
         if (steps.isEmpty()) {
@@ -133,7 +133,7 @@ fun AgentPlanContent(
             ) {
                 items(steps, key = { it.id }) { step ->
                     PlanStepRow(step = step)
-                    HorizontalDivider(
+                    Divider(
                         color     = MaterialTheme.colorScheme.outline,
                         thickness = 0.5.dp,
                         modifier  = Modifier.padding(horizontal = 14.dp)

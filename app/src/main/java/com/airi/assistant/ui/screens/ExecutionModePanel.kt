@@ -66,13 +66,13 @@ fun ExecutionModePanel(
             title = "Execution Mode"
         )
         Spacer(Modifier.height(12.dp))
-        ExecutionMode.values().forEach { mode ->
+        ExecutionMode.entries.forEach { mode ->
             ExecModeOption(
                 mode       = mode,
                 selected   = mode == currentMode,
                 onSelected = { onModeChange(mode) }
             )
-            if (mode != ExecutionMode.values().last()) Spacer(Modifier.height(6.dp))
+            if (mode != ExecutionMode.entries.last()) Spacer(Modifier.height(6.dp))
         }
         AnimatedVisibility(
             visible = currentMode != ExecutionMode.LOCAL_ONLY,
@@ -176,13 +176,13 @@ fun ExecutionModePanel(
         Spacer(Modifier.height(12.dp))
         SettingsCategoryHeader(icon = Icons.Outlined.Shield, title = "Privacy Level")
         Spacer(Modifier.height(8.dp))
-        PrivacyLevel.values().forEach { level ->
+        PrivacyLevel.entries.forEach { level ->
             PrivacyLevelOption(
                 level      = level,
                 selected   = level == currentPrivacy,
                 onSelected = { onPrivacyChange(level) }
             )
-            if (level != PrivacyLevel.values().last()) Spacer(Modifier.height(4.dp))
+            if (level != PrivacyLevel.entries.last()) Spacer(Modifier.height(4.dp))
         }
 
         // Warning when privacy overrides mode
@@ -316,7 +316,7 @@ private fun CloudProviderSelector(
     current:    CloudProvider,
     onSelected: (CloudProvider) -> Unit
 ) {
-    val providers = CloudProvider.values()
+    val providers = CloudProvider.entries
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -384,15 +384,4 @@ private fun CloudTokenUsageBar(used: Int, cap: Int) {
             )
         }
     }
-}
-
-@Composable
-private fun SettingsSurface(content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f),
-        shape    = RoundedCornerShape(16.dp),
-        border   = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        content  = { Column(modifier = Modifier.padding(14.dp), content = content) }
-    )
 }

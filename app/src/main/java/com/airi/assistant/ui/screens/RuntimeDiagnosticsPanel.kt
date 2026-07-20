@@ -375,14 +375,3 @@ private fun EventRow(event: RuntimeEvent) {
 private fun DiagDivider() {
     HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
 }
-
-@Composable
-private fun SettingsSurface(content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f),
-        shape    = RoundedCornerShape(12.dp),
-        border   = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        content  = { Column(modifier = Modifier.padding(12.dp), content = content) }
-    )
-}

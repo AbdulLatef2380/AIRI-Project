@@ -46,8 +46,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -59,7 +57,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.airi.assistant.R
@@ -68,19 +65,8 @@ import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.core.VoiceManager
 import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.ui.AiriRoute
-import com.airi.assistant.ui.theme.CosmicAccent
-import com.airi.assistant.ui.theme.CosmicAccentDark
-import com.airi.assistant.ui.theme.AiriTheme
-import com.airi.assistant.ui.theme.CosmicBlack
-import androidx.compose.material3.MaterialTheme
-import com.airi.assistant.ui.theme.GlassPurple
-import com.airi.assistant.ui.theme.GlassPurpleBorder
-import com.airi.assistant.ui.theme.ModelPillBg
-import androidx.compose.material3.MaterialTheme
-import com.airi.assistant.ui.theme.SurfaceCard
-import com.airi.assistant.ui.theme.SurfaceRaised
+import com.airi.assistant.ui.theme.*
 import com.airi.assistant.util.ChatExporter
-import com.airi.assistant.ui.theme.InputBarBackground
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.AgentMode
 import com.airi.assistant.domain.ChatAttachment
@@ -94,15 +80,11 @@ import com.airi.assistant.auth.identity.BiometricGatekeeper
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.fragment.app.FragmentActivity
 import kotlinx.coroutines.launch
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import com.airi.assistant.ui.theme.AiBubbleSurface
-import androidx.compose.material3.MaterialTheme
-import com.airi.assistant.ui.theme.UserBubbleSurface
-import com.airi.assistant.ui.theme.SemanticError
-import com.airi.assistant.ui.theme.SemanticSuccess
 import com.airi.assistant.ui.util.MarkdownText
 import androidx.compose.runtime.snapshotFlow
 
@@ -117,7 +99,6 @@ fun ChatScreen(
     onLogout: () -> Unit = {}
 ) {
     val context       = LocalContext.current
-    val drawerState   = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope         = rememberCoroutineScope()
     val messages      by viewModel.messages.collectAsState()
     val streamingText by viewModel.streamingText.collectAsState()
@@ -127,9 +108,7 @@ fun ChatScreen(
     val smartReplies  by viewModel.smartReplies.collectAsState()
     val todayTokens            by viewModel.todayTokens.collectAsState()
     val dailyCreditsRemaining  by viewModel.dailyCreditsRemaining.collectAsState()
-    // : real-time network state — drives offline banner
     val isOnline      by viewModel.isOnline.collectAsState()
-    // LiveVoiceService — voice mode state
     val voiceModeActive    by viewModel.voiceModeActive.collectAsState()
     val voicePipelineState by viewModel.voicePipelineState.collectAsState()
     val snackbarHost  = remember { SnackbarHostState() }
@@ -137,21 +116,17 @@ fun ChatScreen(
     val upgradePrompt         by viewModel.upgradePrompt.collectAsState()
     val systemIntegrityFailed by viewModel.systemIntegrityFailed.collectAsState()
     val contextResetWarning   by viewModel.contextResetWarning.collectAsState()
-    val isSummarizing         by viewModel.isSummarizing.collectAsState()  // 
+    val isSummarizing         by viewModel.isSummarizing.collectAsState()
 
-    // Chat is "active" when there are messages or the AI is responding
     val chatIsActive = messages.isNotEmpty() || streamingText.isNotEmpty() || agentState.isWorking
     LaunchedEffect(chatIsActive) { onChatActiveChanged(chatIsActive) }
-    // ChatScreen is the correct collection site because it has access to
-    // FragmentActivity via LocalContext — ViewModels must never hold Activity refs.
+    
     val activity = context as? FragmentActivity
     LaunchedEffect(Unit) {
         if (activity == null) return@LaunchedEffect
         viewModel.biometricRequest.collect { request ->
             val availability = BiometricGatekeeper.checkAvailability(activity)
             if (availability == BiometricGatekeeper.Availability.NOT_ENROLLED) {
-                // Device has no biometric enrolled — gate cannot proceed.
-                // Show snackbar prompting the user to enrol in Settings.
                 snackbarHost.showSnackbar("Add a fingerprint or screen lock in Settings to enable this mode.")
                 return@collect
             }
@@ -188,8 +163,6 @@ fun ChatScreen(
 
     LaunchedEffect(contextResetWarning) {
         val warning = contextResetWarning ?: return@LaunchedEffect
-        // : Context-reset is an implementation detail — removed from user-facing snackbar.
-        // Log to AuditRepository for DeveloperCenter visibility. Debug builds retain a subtle chip.
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
                 com.airi.assistant.core.ServiceLocator.auditRepository.info(
@@ -198,7 +171,6 @@ fun ChatScreen(
                 )
             }
         }
-        // In debug builds only: show a brief non-intrusive snackbar so devs can still see it
         if (com.airi.assistant.BuildConfig.DEBUG || viewModel.isDebugModeEnabled()) {
             snackbarHost.showSnackbar(
                 message  = "Context compressed (debug)",
@@ -226,7 +198,6 @@ fun ChatScreen(
     var voiceChatInput      by remember { mutableStateOf("") }
     var voiceState          by remember { mutableStateOf(VoiceSessionState.IDLE) }
 
-    // /C04: AgentPlanViewModel for ModalBottomSheet control
     val agentPlanViewModel: com.airi.assistant.ui.plan.AgentPlanViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel()
     val isPanelVisible by agentPlanViewModel.isVisible.collectAsState()
@@ -254,8 +225,6 @@ fun ChatScreen(
     fun startInAppStt(autoSend: Boolean) {
         if (!VoskModelManager.isReady(context)) {
             voiceState = VoiceSessionState.IDLE
-            // Route to Voice Settings so user can download a model in one tap
-            // instead of hitting a dead-end snackbar with no action path.
             onNavigate(AiriRoute.VOICE_SETTINGS)
             return
         }
@@ -326,2489 +295,245 @@ fun ChatScreen(
         if (wakeCounter > 0 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&
             VoskModelManager.isReady(context) &&
-            voiceState == VoiceSessionState.IDLE) {
+            voiceState == VoiceSessionState.IDLE
+        ) {
             startInAppStt(autoSend = true)
         }
     }
 
-    val voiceStateRef = remember { mutableStateOf(VoiceSessionState.IDLE) }
-    val liveChatActiveRef = remember { mutableStateOf(false) }
-    val voiceLoopRearmTick = remember { mutableStateOf(0) }
-    val vadInterruptedTick = remember { mutableStateOf(0) }
-    val isVadInterrupting  = remember { mutableStateOf(false) }
-
-    val voiceManager = remember {
-        VoiceManager(context, object : VoiceManager.VoiceListener {
-            override fun onWakeWordDetected() {}
-            override fun onSpeechResult(text: String) {}
-            override fun onError(error: String) {
-                scope.launch { snackbarHost.showSnackbar("Voice error: $error") }
-                if (liveChatActiveRef.value) liveChatActiveRef.value = false
-            }
-            override fun onSpeakingStarted() { voiceStateRef.value = VoiceSessionState.SPEAKING }
-            override fun onSpeakingDone() {
-                voiceStateRef.value = VoiceSessionState.IDLE
-                if (liveChatActiveRef.value) voiceLoopRearmTick.value = voiceLoopRearmTick.value + 1
-            }
-            override fun onVadInterrupted() {
-                isVadInterrupting.value = true
-                voiceStateRef.value = VoiceSessionState.LISTENING
-                vadInterruptedTick.value = vadInterruptedTick.value + 1
-            }
-        })
-    }
-    DisposableEffect(Unit) { onDispose { voiceManager.destroy() } }
-
-    var speakNextResponse  by rememberSaveable { mutableStateOf(false) }
-    var lastSpokenMsgId    by rememberSaveable { mutableStateOf(-1L) }
-    var ttsStreamingActive by rememberSaveable { mutableStateOf(false) }
-    var lastTtsStreamLen   by rememberSaveable { mutableStateOf(0) }
-
-    @Suppress("DEPRECATION")
-    val _lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
-    DisposableEffect(_lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-                voiceManager.stopVadIfRunning()
-                stopInAppStt()
-                isVadInterrupting.value = false
-                voiceStateRef.value = VoiceSessionState.IDLE
-                voiceState = VoiceSessionState.IDLE
-                if (liveChatActiveRef.value) liveChatActiveRef.value = false
-            }
-        }
-        _lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { _lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    LaunchedEffect(vadInterruptedTick.value) {
-        if (vadInterruptedTick.value > 0) {
-            voiceState = VoiceSessionState.LISTENING
-            val autoSend = liveChatActiveRef.value || speakNextResponse
-            speakNextResponse = false
-            ttsStreamingActive = false
-            lastTtsStreamLen = 0
-            if (!agentState.isWorking) {
-                isVadInterrupting.value = false
-                startInAppStt(autoSend = autoSend)
-            } else {
-                viewModel.cancelGeneration()
-                kotlinx.coroutines.delay(100)
-                isVadInterrupting.value = false
-                if (!agentState.isWorking) startInAppStt(autoSend = autoSend)
-            }
-        }
-    }
-
-    LaunchedEffect(voiceLoopRearmTick.value) {
-        if (voiceLoopRearmTick.value > 0 && liveChatActiveRef.value &&
-            (modelState.isModelReady || modelState.isCloudReady) && !agentState.isWorking) {
-            kotlinx.coroutines.delay(350)
-            if (liveChatActiveRef.value && !agentState.isWorking) startInAppStt(autoSend = true)
-        }
-    }
-
-    LaunchedEffect(voiceStateRef.value) {
-        val ttsState = voiceStateRef.value
-        if (ttsState == VoiceSessionState.SPEAKING || ttsState == VoiceSessionState.IDLE) {
-            if (voiceState != VoiceSessionState.LISTENING && voiceState != VoiceSessionState.PROCESSING) {
-                voiceState = ttsState
-            }
-        }
-    }
-
-    LaunchedEffect(voiceState) {
-        if (voiceState == VoiceSessionState.LISTENING) {
-            kotlinx.coroutines.delay(7_000L)
-            if (voiceState == VoiceSessionState.LISTENING) {
-                stopInAppStt()
-                voiceState = VoiceSessionState.IDLE
-            }
-        }
-    }
-
-    val voicePrefs = remember { context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE) }
     LaunchedEffect(voiceChatInput) {
-        val input = voiceChatInput
-        if (input.isNotBlank() && (modelState.isModelReady || modelState.isCloudReady) && !agentState.isWorking) {
+        if (voiceChatInput.isNotBlank()) {
+            viewModel.sendMessage(voiceChatInput)
             voiceChatInput = ""
             voiceState = VoiceSessionState.IDLE
-            viewModel.sendMessage(input)
-            if (liveChatActiveRef.value || voicePrefs.getBoolean("voice_enabled", false)) {
-                speakNextResponse = true
-            }
         }
     }
 
-    LaunchedEffect(agentState.isWorking) {
-        if (speakNextResponse && !agentState.isWorking) {
-            val lastMsg = messages.lastOrNull { !it.isUser }
-            if (lastMsg != null && lastMsg.id != lastSpokenMsgId) {
-                lastSpokenMsgId = lastMsg.id
-                speakNextResponse = false
-                voiceState = VoiceSessionState.SPEAKING
-                if (ttsStreamingActive) {
-                    voiceManager.ttsStreamFlush()
-                    ttsStreamingActive = false
-                } else {
-                    voiceManager.speak(lastMsg.text)
-                }
-            }
+    val listState = rememberLazyListState()
+    LaunchedEffect(messages.size, streamingText) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
         }
     }
-
-    LaunchedEffect(speakNextResponse, agentState.isWorking) {
-        snapshotFlow { streamingText }.collect { current ->
-            if (!speakNextResponse) {
-                if (ttsStreamingActive) { voiceManager.ttsStreamFlush(); ttsStreamingActive = false }
-                lastTtsStreamLen = 0; return@collect
-            }
-            val isPlaceholder = current.isBlank() || current == "Thinking..." || current == "Analyzing image..."
-            if (isPlaceholder) {
-                if (ttsStreamingActive) { voiceManager.ttsStreamFlush(); ttsStreamingActive = false }
-                lastTtsStreamLen = 0; return@collect
-            }
-            if (current.length < lastTtsStreamLen) { voiceManager.ttsStreamReset(); ttsStreamingActive = true; lastTtsStreamLen = 0 }
-            if (!ttsStreamingActive) { voiceManager.ttsStreamReset(); ttsStreamingActive = true }
-            if (current.length > lastTtsStreamLen) {
-                val delta = current.substring(lastTtsStreamLen)
-                voiceManager.ttsStreamAppend(delta)
-                lastTtsStreamLen = current.length
-            }
-        }
-    }
-
-    var pendingAttachments by remember {
-        mutableStateOf<List<com.airi.assistant.domain.ChatAttachment>>(emptyList())
-    }
-
-    fun addAttachment(att: com.airi.assistant.domain.ChatAttachment) {
-        if (pendingAttachments.size >= 6) {
-            scope.launch { snackbarHost.showSnackbar("Maximum 6 attachments per message") }
-            return
-        }
-        pendingAttachments = pendingAttachments + att
-    }
-    fun removeAttachment(id: String) {
-        pendingAttachments = pendingAttachments.filterNot { it.id == id }
-    }
-
-    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) {
-            val fileName = uri.lastPathSegment ?: uri.toString()
-            val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
-            val size = runCatching { context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } }.getOrNull()?.takeIf { it >= 0 }
-            addAttachment(com.airi.assistant.domain.ChatAttachment(
-                kind = com.airi.assistant.domain.ChatAttachment.Kind.FILE, uri = uri,
-                displayName = fileName, mimeType = mime, sizeBytes = size
-            ))
-        }
-    }
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) {
-            val name = uri.lastPathSegment ?: "image_${System.currentTimeMillis()}"
-            val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
-            addAttachment(com.airi.assistant.domain.ChatAttachment(
-                kind = com.airi.assistant.domain.ChatAttachment.Kind.IMAGE, uri = uri,
-                displayName = name, mimeType = mime
-            ))
-        }
-    }
-    val mmprojPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) viewModel.loadMmproj(uri)
-    }
-    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
-        if (bitmap != null) {
-            addAttachment(com.airi.assistant.domain.ChatAttachment(
-                kind = com.airi.assistant.domain.ChatAttachment.Kind.CAMERA, bitmap = bitmap,
-                displayName = "camera_${System.currentTimeMillis()}.jpg", mimeType = "image/jpeg"
-            ))
-            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.photo_captured)) }
-        }
-    }
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) cameraLauncher.launch(null)
-    }
-
-    val exportChatLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
-        scope.launch {
-            val success = uri != null && ChatExporter.exportToUri(context, uri, messages)
-            snackbarHost.showSnackbar(if (success) context.getString(R.string.export_success) else context.getString(R.string.export_failed))
-        }
-    }
-    val plusPickerRequest by viewModel.pendingPlusPickerRequest.collectAsState()
-    LaunchedEffect(plusPickerRequest) {
-        when (plusPickerRequest) {
-            ChatViewModel.PlusPickerRequest.IMAGE     -> { imagePicker.launch("image/*");          viewModel.consumePlusPickerRequest() }
-            ChatViewModel.PlusPickerRequest.CAMERA    -> { cameraLauncher.launch(null);             viewModel.consumePlusPickerRequest() }
-            ChatViewModel.PlusPickerRequest.FILE      -> { filePicker.launch("*/*");                viewModel.consumePlusPickerRequest() }
-            ChatViewModel.PlusPickerRequest.SKILLS    -> { onNavigate(AiriRoute.SKILL_MANAGER);     viewModel.consumePlusPickerRequest() }
-            ChatViewModel.PlusPickerRequest.SANDBOX   -> { onNavigate(AiriRoute.SANDBOX_WORKSPACE); viewModel.consumePlusPickerRequest() }
-            ChatViewModel.PlusPickerRequest.WORKSPACE -> { onNavigate(AiriRoute.WORKSPACE);         viewModel.consumePlusPickerRequest() }
-            ChatViewModel.PlusPickerRequest.TERMINAL  -> { onNavigate(AiriRoute.TERMINAL);          viewModel.consumePlusPickerRequest() }
-            null -> { /* no-op */ }
-        }
-    }
-    // When the user taps "Edit" in the user bubble contextual menu, prefillInput()
-    // sets pendingPrefill which is observed here and forwarded to AiriChatInputBar
-    // via a shared mutableState key (externalInputText).
-    val pendingPrefill by viewModel.pendingPrefill.collectAsState()
-    var externalInputText by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(pendingPrefill) {
-        val text = pendingPrefill
-        if (text != null) {
-            externalInputText = text
-            viewModel.consumePrefill()
-        }
-    }
-
-    // History panel state (replaces drawer for RTL history side panel)
-    var showHistoryPanel by remember { mutableStateOf(false) }
 
     Scaffold(
-        modifier             = Modifier.fillMaxSize(),
-        containerColor       = AiriTheme.background,
-        // Disable Scaffold's automatic WindowInsets.ime padding — the bottomBar
-        // Column owns .imePadding() exclusively, preventing double application
-        // that caused the input bar to jump too far up on keyboard open.
-        contentWindowInsets  = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHost) },
+        containerColor = AiriTheme.background,
+        contentWindowInsets = WindowInsets.statusBars,
         topBar = {
-            AiriChatTopBar(
-                modelState             = modelState,
-                agentState             = agentState,
-                agentMode              = agentMode,
-                showMenu               = showMenu,
-                todayTokens            = todayTokens,
-                dailyCreditsRemaining  = dailyCreditsRemaining,
-                onHistoryOpen     = { showHistoryPanel = true },
-                onModelPickerOpen = { showModelPicker = true },
-                onToggleDropdown  = { showMenu = !showMenu },
-                onDismissDropdown = { showMenu = false },
-                onGenSettings     = { showMenu = false; showGenSettings = true },
-                onModeSelected    = { viewModel.setAgentMode(it) },
-                onSwitchModel     = { showMenu = false; onNavigate(AiriRoute.MODELS) },
-                onLongPressTitle  = { onNavigate(AiriRoute.DEBUG_SCREEN) },
-                onExportChat      = { showMenu = false; exportChatLauncher.launch(ChatExporter.buildFileName()) },
-                onNewChat         = { viewModel.clearMessages() },
-                onMuteToggle      = {},
-                onPointsClick     = { onNavigate(AiriRoute.CREDITS) },
-                onNavigate        = onNavigate
+            ChatTopBar(
+                agentState = agentState,
+                modelState = modelState,
+                agentMode = agentMode,
+                activeSkillCount = activeSkillCount,
+                onMenuClick = { showMenu = true },
+                onModelClick = { showModelPicker = true },
+                onNavigate = onNavigate
             )
-        },
-        bottomBar = {
-            Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
-                // Activity feed only visible while agent is executing
-                AnimatedVisibility(
-                    visible = agentState.isWorking,
-                    enter   = fadeIn() + expandVertically(),
-                    exit    = fadeOut() + shrinkVertically()
-                ) {
-                    com.airi.assistant.ui.activity.ActivityFeedComposable(
-                        modifier        = Modifier.fillMaxWidth(),
-                        compactMaxItems = 3
-                    )
-                }
-                // : AgentPlanOverlay replaced with ModalBottomSheet (see below Box scope).
-                // A compact AgentStatusChip is shown here for 1–2 step executions.
-                // Attachment chips are now rendered inside the input pill (AiriChatInputBar).
-                // : "Compressing history…" chip shown while ConversationSummarizer runs.
-                // Non-blocking: chat remains usable. Chip auto-dismisses when done.
-                AnimatedVisibility(
-                    visible = isSummarizing,
-                    enter   = fadeIn() + slideInVertically { it },
-                    exit    = fadeOut() + slideOutVertically { it }
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = AiriTheme.surfaceVariant,
-                            modifier = Modifier
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(12.dp),
-                                    color = CosmicAccent,
-                                    strokeWidth = 1.5.dp
-                                )
-                                Text(
-                                    "Compressing history…",
-                                    fontSize = 11.sp,
-                                    color = AiriTheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-
-                AdvancedChatInputBar(
-                    modelState    = modelState,
-                    isGenerating  = agentState.isWorking,
-                    voiceInput    = voiceInput,
-                    smartReplies  = smartReplies,
-                    onSend        = { text ->
-                        val toSend = pendingAttachments
-                        if (toSend.isNotEmpty()) {
-                            viewModel.sendMessageWithAttachments(text, toSend)
-                            pendingAttachments = emptyList()
-                        } else {
-                            viewModel.sendMessage(text)
-                        }
-                    },
-                    onCancel      = { viewModel.cancelGeneration() },
-                    onSmartReply  = { reply -> viewModel.clearSmartReplies(); viewModel.sendMessage(reply) },
-                    onPickImage   = { imagePicker.launch("image/*") },
-                    onPickFile    = { filePicker.launch("*/*") },
-                    onPickMmproj  = { mmprojPicker.launch("*/*") },
-                    onTakePhoto   = {
-                        when {
-                            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED ->
-                                cameraLauncher.launch(null)
-                            else -> cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                    },
-                    voiceState        = voiceState,
-                    isVadInterrupting = isVadInterrupting.value,
-                    onMicClick        = mic@{
-                        if (voiceState == VoiceSessionState.SPEAKING) {
-                            voiceManager.stopVadIfRunning(); voiceManager.stopSpeaking()
-                            isVadInterrupting.value = false; voiceStateRef.value = VoiceSessionState.IDLE
-                            voiceState = VoiceSessionState.IDLE; return@mic
-                        }
-                        if (voiceState == VoiceSessionState.LISTENING) { stopInAppStt(); return@mic }
-                        when {
-                            !VoskModelManager.isReady(context) -> onNavigate(AiriRoute.VOICE_SETTINGS)
-                            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> startInAppStt(autoSend = false)
-                            else -> micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }
-                    },
-                    onVoiceChatClick  = vc@{
-                        if (voiceState == VoiceSessionState.SPEAKING) {
-                            voiceManager.stopVadIfRunning(); voiceManager.stopSpeaking()
-                            isVadInterrupting.value = false; voiceStateRef.value = VoiceSessionState.IDLE
-                            voiceState = VoiceSessionState.IDLE
-                            if (liveChatActiveRef.value) liveChatActiveRef.value = false; return@vc
-                        }
-                        if (voiceState == VoiceSessionState.LISTENING) {
-                            if (liveChatActiveRef.value) liveChatActiveRef.value = false
-                            stopInAppStt(); return@vc
-                        }
-                        // Toggle LiveVoiceService (full-duplex) when Vosk model is available
-                        // Check if cloud realtime provider is selected
-                        val voicePrefs = context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE)
-                        val cloudVoiceProvider = voicePrefs.getString("cloud_voice_provider", "LOCAL") ?: "LOCAL"
-                        when {
-                            cloudVoiceProvider != "LOCAL" -> {
-                                // Cloud realtime voice path — route through LiveVoiceService with cloud provider
-                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
-                                    == PackageManager.PERMISSION_GRANTED) {
-                                    viewModel.toggleVoiceMode()
-                                    liveChatActiveRef.value = !voiceModeActive
-                                    if (!voiceModeActive) {
-                                        // Store selected cloud provider so LiveVoiceService picks it up
-                                        android.util.Log.i("AIRI_VOICE", "Cloud voice provider: $cloudVoiceProvider")
-                                        startInAppStt(autoSend = true)
-                                    } else {
-                                        stopInAppStt()
-                                    }
-                                } else {
-                                    voiceChatPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                }
-                            }
-                            !VoskModelManager.isReady(context) -> onNavigate(AiriRoute.VOICE_SETTINGS)
-                            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
-                                == PackageManager.PERMISSION_GRANTED -> {
-                                // Use LiveVoiceService for full-duplex; fallback to in-app STT
-                                viewModel.toggleVoiceMode()
-                                if (!voiceModeActive) {
-                                    // Also start in-app STT as visual feedback
-                                    liveChatActiveRef.value = true
-                                    startInAppStt(autoSend = true)
-                                } else {
-                                    liveChatActiveRef.value = false
-                                    stopInAppStt()
-                                }
-                            }
-                            else -> voiceChatPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }
-                    },
-                    onVoiceConsumed      = { voiceInput = ""; voiceState = VoiceSessionState.IDLE },
-                    onOpenModels         = { onNavigate(AiriRoute.MODELS) },
-                    onNavigate           = onNavigate,
-                    // : stage converted file as attachment
-                    onStageFile          = { uri -> viewModel.stageAttachmentUri(uri) },
-                    externalInputText    = externalInputText,
-                    onExternalInputConsumed = { externalInputText = null },
-                    onUserStartedTyping  = {
-                        if (voiceState == VoiceSessionState.SPEAKING) {
-                            voiceManager.stopVadIfRunning(); voiceManager.stopSpeaking()
-                            isVadInterrupting.value = false; voiceState = VoiceSessionState.IDLE
-                        }
-                        if (liveChatActiveRef.value) liveChatActiveRef.value = false
-                    },
-                    isPlanModeActive  = isPlanModeActive,
-                    onPlanModeToggle  = { viewModel.togglePlanMode() },
-                    onOpenToolPicker  = { onNavigate(AiriRoute.CONNECTORS) },
-                    onOpenSkillPicker = { onNavigate(AiriRoute.SKILL_MANAGER) },
-                    activeToolCount   = com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size,
-                    activeSkillCount  = activeSkillCount,
-                    onWebClick        = { viewModel.prefillInput("/web ") },
-                    onCodeClick       = { viewModel.prefillInput("/code ") },
-                    onCalcClick       = { viewModel.prefillInput("/calc ") },
-                    // Pass attachments so they render inside the pill
-                    attachments         = pendingAttachments,
-                    onRemoveAttachment  = { uid -> pendingAttachments = pendingAttachments.filterNot { it.id == uid || it.uid == uid } }
-                )
-            }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            ChatMessageList(
-                messages      = messages,
-                streamingText = streamingText,
-                isGenerating  = agentState.isWorking,
-                isModelReady  = modelState.isModelReady,
-                onOpenModels  = { onNavigate(AiriRoute.MODELS) },
-                onShareAiResponse = { response -> shareAiResponse(context, response) },
-                onSpeak = { text ->
-                    voiceManager.stopVadIfRunning(); voiceManager.stopSpeaking()
-                    isVadInterrupting.value = false
-                    voiceState = VoiceSessionState.SPEAKING
-                    voiceStateRef.value = VoiceSessionState.SPEAKING
-                    voiceManager.speak(text)
-                },
-                onSuggestionClick  = { suggestion -> viewModel.sendMessage(suggestion) },
-                onEditMessage      = { text -> viewModel.prefillInput(text) },
-                onDeleteMessage    = { uid  -> viewModel.deleteMessage(uid) },
-                onFeedback         = { uid, liked -> viewModel.submitFeedback(uid, liked) },
-                modifier = Modifier.fillMaxSize()
-            )
-
-            // : Thinking animation — shown between send and first streaming token.
-            // Replaces the frozen-UI gap that users see during local LLM inference (2–15 s).
-            // Condition: agent is working BUT no streamed text yet (first token hasn't arrived).
-            AnimatedVisibility(
-                visible = agentState.isWorking && streamingText.isEmpty(),
-                enter   = fadeIn(),
-                exit    = fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 60.dp, bottom = 8.dp)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = AiBubbleSurface,
-                    border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline),
-                ) {
-                    com.airi.assistant.ui.components.ThinkingAnimation(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp)
-                    )
-                }
-            }
-            // Shown when the user is in live/duplex voice mode
-            if (liveChatActiveRef.value || voiceState != VoiceSessionState.IDLE) {
-                com.airi.assistant.ui.components.VoiceLiveOverlay(
-                    voiceState = voiceState,
-                    caption    = if (voiceState == VoiceSessionState.PROCESSING) "…" else "",
-                    onStop     = {
-                        voiceManager.stopVadIfRunning()
-                        voiceManager.stopSpeaking()
-                        stopInAppStt()
-                        liveChatActiveRef.value = false
-                        isVadInterrupting.value = false
-                        voiceStateRef.value = VoiceSessionState.IDLE
-                        voiceState = VoiceSessionState.IDLE
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                )
-            }
-            // : Gate DebugOverlay — only visible in debug builds OR when developer
-            // debug mode is explicitly enabled via AgentControlScreen toggle.
-            // Production builds with debugMode = false show nothing here.
-            val isDebugVisible = com.airi.assistant.BuildConfig.DEBUG ||
-                viewModel.isDebugModeEnabled()
-            if (isDebugVisible) {
-                Box(modifier = Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp)) {
-                    com.airi.assistant.ui.debug.DebugOverlay()
-                }
-            }
-            AnimatedVisibility(
-                visible  = systemIntegrityFailed,
-                enter    = slideInVertically { -it } + fadeIn(),
-                exit     = slideOutVertically { -it } + fadeOut(),
-                modifier = Modifier.align(Alignment.TopCenter)
-            ) {
-                Surface(color = Color(0xFFFF4444), modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(stringResource(R.string.system_integrity_failed), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        TextButton(onClick = { viewModel.clearSystemIntegrityFailed() }) {
-                            Text(stringResource(R.string.dismiss), color = AiriTheme.onBackground, fontSize = 12.sp)
-                        }
-                    }
-                }
-            }
-
-            // : Offline mode banner — shown when device has no internet.
-            // Informs user that cloud models are unavailable and local model is active.
-            AnimatedVisibility(
-                visible  = !isOnline,
-                enter    = slideInVertically { -it } + fadeIn(),
-                exit     = slideOutVertically { -it } + fadeOut(),
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = if (systemIntegrityFailed) 48.dp else 0.dp)
-            ) {
-                Surface(
-                    color    = Color(0xFF1A1A2E),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier              = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment     = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector        = androidx.compose.material.icons.Icons.Outlined.WifiOff,
-                            contentDescription = null,
-                            tint               = AiriTheme.onSurfaceVariant,
-                            modifier           = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text     = "Offline — using local model only",
-                            color    = AiriTheme.onBackground.copy(alpha = 0.75f),
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-            }
-
-            // Context Reset Warning Banner — only shown in debug/developer mode.
-            // In production builds this is an implementation detail logged to audit log only.
-            val showContextResetBanner = (com.airi.assistant.BuildConfig.DEBUG || viewModel.isDebugModeEnabled()) &&
-                contextResetWarning != null
-            val topOffset = when {
-                systemIntegrityFailed && !isOnline -> 96.dp
-                systemIntegrityFailed              -> 48.dp
-                !isOnline                          -> 48.dp
-                else                               -> 0.dp
-            }
-            AnimatedVisibility(
-                visible  = showContextResetBanner,
-                enter    = slideInVertically { -it } + fadeIn(),
-                exit     = slideOutVertically { -it } + fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = topOffset)
-            ) {
-                Surface(
-                    color    = Color(0xFFB45309),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier              = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment     = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment     = Alignment.CenterVertically,
-                            modifier              = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector        = androidx.compose.material.icons.Icons.Outlined.Warning,
-                                contentDescription = null,
-                                tint               = MaterialTheme.colorScheme.onSurface,
-                                modifier           = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text     = "Context reset — conversation history cleared",
-                                color    = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                        TextButton(onClick = { viewModel.acknowledgeContextReset() }) {
-                            Text(stringResource(R.string.ok), color = MaterialTheme.colorScheme.onPrimary, fontSize = 12.sp)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // History panel — slides from start side
-    if (showHistoryPanel) {
-        AiriHistoryPanel(
-            viewModel = viewModel,
-            onDismiss = { showHistoryPanel = false },
-            onSessionSelected = {
-                showHistoryPanel = false
-                onNavigate(AiriRoute.CHAT)
-            },
-            onNewChat = {
-                viewModel.clearMessages()
-                showHistoryPanel = false
-            }
-        )
-    }
-
-    // Model picker bottom sheet
-    if (showModelPicker) {
-        AiriModelPickerSheet(
-            modelState = modelState,
-            viewModel  = viewModel,
-            onDismiss  = { showModelPicker = false },
-            onNavigateToModels = { showModelPicker = false; onNavigate(AiriRoute.MODELS) }
-        )
-    }
-
-    if (showGenSettings) {
-        GenerationSettingsDialog(viewModel = viewModel, onDismiss = { showGenSettings = false })
-    }
-    // Shown when AndroidAgent requests confirmation for a destructive action
-    // (send message, post content, share, delete).
-    // Suspends the agent until the user responds. Times out after 30 s → cancel.
-    agentState.confirmationRequest?.let { req ->
-        AlertDialog(
-            onDismissRequest = { viewModel.confirmAccessibilityAction(false) },
-            containerColor   = Color(0xFF1A1F35),
-            shape            = RoundedCornerShape(20.dp),
-            icon = {
-                Icon(
-                    Icons.Outlined.Warning,
-                    contentDescription = null,
-                    tint     = Color(0xFFFFB300),
-                    modifier = Modifier.size(28.dp)
-                )
-            },
-            title = {
-                Text(
-                    stringResource(R.string.chat_confirm_action_title),
-                    color      = AiriTheme.onBackground,
-                    fontWeight = FontWeight.Bold,
-                    fontSize   = 18.sp
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        stringResource(R.string.chat_airi_about_to_execute),
-                        color    = AiriTheme.onBackground.copy(0.7f),
-                        fontSize = 14.sp
-                    )
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF252B42)
-                    ) {
-                        Text(
-                            req.actionDisplayName,
-                            color      = Color(0xFFFFB300),
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize   = 16.sp,
-                            modifier   = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
-                        )
-                    }
-                    Text(
-                        req.actionDescription,
-                        color    = AiriTheme.onBackground.copy(0.55f),
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp
-                    )
-                    Text(
-                        stringResource(R.string.chat_action_device_warning),
-                        color    = Color(0xFFFF6B6B).copy(0.8f),
-                        fontSize = 12.sp
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { viewModel.confirmAccessibilityAction(true) },
-                    colors  = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFFB300),
-                        contentColor   = MaterialTheme.colorScheme.background
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(stringResource(R.string.confirm), fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                OutlinedButton(
-                    onClick = { viewModel.confirmAccessibilityAction(false) },
-                    border  = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)),
-                    shape   = RoundedCornerShape(12.dp)
-                ) {
-                    Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(0.8f))
-                }
-            }
-        )
-    }
-
-    modelState.loadError?.let { error ->
-        ModelErrorDialog(
-            error = error,
-            errorType = modelState.loadErrorType.name,
-            onDismiss = { viewModel.clearModelError() }
-        )
-    }
-
-    // /C04: Agent Plan ModalBottomSheet — non-blocking; chat stays readable during execution.
-    // Only shown for complex tasks (≥3 steps) OR when plan mode is explicitly active.
-    if (isPanelVisible && (showPanel || isPlanModeActive)) {
-        androidx.compose.material3.ModalBottomSheet(
-            onDismissRequest = { agentPlanViewModel.collapse() },
-            sheetState       = planSheetState,
-            dragHandle       = { androidx.compose.material3.BottomSheetDefaults.DragHandle() },
-            containerColor   = androidx.compose.ui.graphics.Color(0xFF0D1117)
+        Box(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
         ) {
-            com.airi.assistant.ui.plan.AgentPlanContent(
-                viewModel = agentPlanViewModel,
-                modifier  = Modifier.fillMaxWidth().navigationBarsPadding()
-            )
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (messages.isEmpty() && streamingText.isEmpty()) {
+                    EmptyChatState(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    )
+                } else {
+                    ChatList(
+                        messages = messages,
+                        streamingText = streamingText,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        listState = listState
+                    )
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+                ChatInputBar(
+                    input = voiceInput,
+                    isListening = voiceState == VoiceSessionState.LISTENING,
+                    onSend = { text ->
+                        viewModel.sendMessage(text)
+                        voiceInput = ""
+                    },
+                    onVoiceClick = {
+                        if (voiceState == VoiceSessionState.LISTENING) {
+                            stopInAppStt()
+                        } else {
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                startInAppStt(autoSend = false)
+                            } else {
+                                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        }
+                    }
+                )
+            }
         }
     }
 }
-// NEW TOP BAR — matching reference design
-// Left: back arrow + token badge
-// Center: model selector pill (dropdown chevron + model name + cloud icon)
-// Right: mute icon + history clock icon
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AiriChatTopBar(
-    modelState: ModelUiState,
-    agentState: AgentState,
-    agentMode: AgentMode,
-    showMenu: Boolean,
-    todayTokens: Long = 0L,
-    dailyCreditsRemaining: Int = 200,
-    onHistoryOpen: () -> Unit,
-    onModelPickerOpen: () -> Unit,
-    onToggleDropdown: () -> Unit,
-    onDismissDropdown: () -> Unit,
-    onGenSettings: () -> Unit,
-    onModeSelected: (AgentMode) -> Unit,
-    onSwitchModel: () -> Unit,
-    onLongPressTitle: () -> Unit = {},
-    onExportChat: () -> Unit,
-    onNewChat: () -> Unit,
-    onMuteToggle: () -> Unit,
-    onPointsClick: () -> Unit = {},
-    onNavigate: (String) -> Unit = {}
-) {
-    // Show credits remaining (correct source) instead of raw token count
-    val tokenDisplay = dailyCreditsRemaining.toString()
 
+@Composable
+fun ChatTopBar(
+    agentState: AgentState,
+    modelState: ModelUiState,
+    agentMode: AgentMode,
+    activeSkillCount: Int,
+    onMenuClick: () -> Unit,
+    onModelClick: () -> Unit,
+    onNavigate: (String) -> Unit
+) {
     TopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = AiriTheme.background.copy(alpha = 0.92f)
-        ),
-        navigationIcon = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = 8.dp)
-            ) {
-                // Token count badge — tapping opens Credits/Usage screen
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(CosmicAccent.copy(alpha = 0.18f))
-                        .border(1.dp, CosmicAccent.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
-                        .clickable { onPointsClick() }
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(
-                            text = tokenDisplay,
-                            color = CosmicAccent,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Icon(
-                            Icons.Outlined.Bolt,
-                            contentDescription = null,
-                            tint = CosmicAccent,
-                            modifier = Modifier.size(12.dp)
-                        )
-                    }
-                }
-            }
-        },
         title = {
-            // Center model selector pill
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(ModelPillBg)
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
-                        // Material minimum touch target: 48 dp height.
-                        // Previously vertical padding (6+6=12 dp) + text (~20 dp) = ~32 dp —
-                        // too small, causing missed taps on outer pill areas.
-                        .heightIn(min = 48.dp)
-                        .combinedClickable(
-                            onClick     = { onModelPickerOpen() },
-                            onLongClick = { onLongPressTitle() }
-                        )
-                        .padding(horizontal = 14.dp, vertical = 0.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                        tint = AiriTheme.onBackground.copy(alpha = 0.70f),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = when {
-                            agentState.isWorking      -> stringResource(R.string.generating)
-                            modelState.isModelReady   -> modelState.selectedModelName
-                            modelState.isCloudReady   -> modelState.cloudModelName.ifBlank { "Airi Cloud" }
-                            modelState.isModelLoading -> stringResource(R.string.loading_model)
-                            else                      -> stringResource(R.string.no_model_active)
-                        },
-                        color = AiriTheme.onBackground,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    // Cloud/local icon
-                    Icon(
-                        if (modelState.isModelReady) Icons.Outlined.Memory else Icons.Outlined.Cloud,
-                        contentDescription = null,
-                        tint = AiriTheme.onBackground.copy(alpha = 0.55f),
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("AIRI", fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
+                Spacer(Modifier.width(8.dp))
+                ModelPill(modelState, onClick = onModelClick)
             }
         },
         actions = {
-            // History / clock
-            IconButton(onClick = onHistoryOpen) {
-                Icon(
-                    Icons.Outlined.History,
-                    contentDescription = stringResource(R.string.cd_history),
-                    tint = AiriTheme.onBackground.copy(alpha = 0.65f),
-                    modifier = Modifier.size(20.dp)
-                )
+            IconButton(onClick = onMenuClick) {
+                Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = AiriTheme.onBackground)
             }
-            // Overflow menu
-            Box {
-                if (showMenu) {
-                    DropdownMenu(
-                        expanded  = true,
-                        onDismissRequest = onDismissDropdown,
-                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        DropdownMenuItem(
-                            text  = { Text(stringResource(R.string.generation_settings), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.Tune, contentDescription = null, tint = CosmicAccent) },
-                            onClick = onGenSettings
-                        )
-                        AgentMode.values().forEach { mode ->
-                            DropdownMenuItem(
-                                text = { Text(mode.label, color = if (mode == agentMode) CosmicAccent else AiriTheme.onBackground) },
-                                leadingIcon = { Icon(Icons.Outlined.Psychology, contentDescription = null, tint = CosmicAccent) },
-                                onClick = { onModeSelected(mode); onDismissDropdown() }
-                            )
-                        }
-                        DropdownMenuItem(
-                            text  = { Text(stringResource(R.string.switch_model), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.SmartToy, contentDescription = null, tint = CosmicAccent) },
-                            onClick = onSwitchModel
-                        )
-                        HorizontalDivider(color = AiriTheme.outline.copy(alpha = 0.35f))
-                        DropdownMenuItem(
-                            text  = { Text(stringResource(R.string.export_chat), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
-                            onClick = onExportChat
-                        )
-                        // : Templates entry — was unreachable; now wired to AiriRoute.TEMPLATES
-                        DropdownMenuItem(
-                            text  = { Text(stringResource(R.string.chat_templates_title), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = CosmicAccent) },
-                            onClick = {
-                                onDismissDropdown()
-                                onNavigate(AiriRoute.TEMPLATES)
-                            }
-                        )
-                    }
-                }
-            }
-        }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
     )
 }
-// MODEL PICKER BOTTOM SHEET
-@OptIn(ExperimentalMaterial3Api::class)
+
 @Composable
-private fun AiriModelPickerSheet(
-    modelState: ModelUiState,
-    viewModel: ChatViewModel,
-    onDismiss: () -> Unit,
-    onNavigateToModels: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope      = rememberCoroutineScope()
-    val context    = LocalContext.current
-
-    // Build a real model list: local models + cloud models from EmbeddedProviderConfig
-    val localModels  = modelState.availableModels
-    val builtinCloud = remember { com.airi.assistant.execution.cloud.EmbeddedProviderConfig.catalog }
-    val activeProv   = remember { mutableStateOf(
-        com.airi.assistant.execution.cloud.EmbeddedProviderConfig.getActiveProvider(context)
-    ) }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
-        dragHandle = {
-            Box(modifier = Modifier.padding(vertical = 10.dp)) {
-                Box(
-                    modifier = Modifier
-                        .width(36.dp).height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f))
-                )
-            }
-        }
+fun ModelPill(state: ModelUiState, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.height(28.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = stringResource(R.string.chat_select_model_title),
-                color = AiriTheme.onBackground, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.End,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-            )
-            if (localModels.isNotEmpty()) {
-                Text(
-                    stringResource(R.string.chat_on_device_label),
-                    color = AiriTheme.onBackground.copy(0.45f), fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    textAlign = TextAlign.End
-                )
-                localModels.forEach { model ->
-                    val isSelected = modelState.isModelReady &&
-                        modelState.selectedModelId == model.id
-                    ModelPickerRow(
-                        name      = model.name,
-                        subtitle  = stringResource(R.string.chat_local_privacy),
-                        icon      = Icons.Outlined.Memory,
-                        isSelected = isSelected,
-                        onClick   = {
-                            scope.launch {
-                                viewModel.selectModel(model.id)
-                                onDismiss()
-                            }
-                        }
-                    )
-                    Divider(color = AiriTheme.outline.copy(alpha = 0.3f))
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-            Text(
-                stringResource(R.string.chat_cloud_label),
-                color = AiriTheme.onBackground.copy(0.45f), fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                textAlign = TextAlign.End
-            )
-            builtinCloud.forEach { prov ->
-                val isSelected = modelState.isCloudReady &&
-                    activeProv.value?.id == prov.id
-                ModelPickerRow(
-                    name      = prov.displayLabel,
-                    subtitle  = prov.description,
-                    icon      = Icons.Outlined.Cloud,
-                    isSelected = isSelected,
-                    onClick   = {
-                        scope.launch {
-                            viewModel.activateBuiltinProvider(prov)
-                            activeProv.value = prov
-                            onDismiss()
-                        }
-                    }
-                )
-                Divider(color = AiriTheme.outline.copy(alpha = 0.3f))
-            }
-
-            Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onNavigateToModels, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.chat_more_models), color = CosmicAccent, fontSize = 14.sp)
-            }
-            Spacer(Modifier.height(16.dp))
+            Text(state.name, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
-private fun ModelPickerRow(
-    name: String,
-    subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    isSelected: Boolean,
-    onClick: () -> Unit
+fun EmptyChatState(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.Assistant, contentDescription = null, modifier = Modifier.size(64.dp), tint = CosmicAccent.copy(alpha = 0.2f))
+        Spacer(Modifier.height(16.dp))
+        Text("How can I help you today?", color = AiriTheme.onSurfaceVariant, fontSize = 16.sp)
+    }
+}
+
+@Composable
+fun ChatList(
+    messages: List<ChatMessage>,
+    streamingText: String,
+    modifier: Modifier = Modifier,
+    listState: androidx.compose.foundation.lazy.LazyListState
 ) {
+    LazyColumn(
+        modifier = modifier,
+        state = listState,
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        items(messages) { message ->
+            MessageBubble(message)
+        }
+        if (streamingText.isNotEmpty()) {
+            item {
+                MessageBubble(ChatMessage(role = "assistant", content = streamingText))
+            }
+        }
+    }
+}
+
+@Composable
+fun MessageBubble(message: ChatMessage) {
+    val isUser = message.role == "user"
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+    ) {
+        Surface(
+            color = if (isUser) CosmicAccent else MaterialTheme.colorScheme.surfaceVariant,
+            shape = if (isUser) UserBubbleSurface else AiBubbleSurface,
+            modifier = Modifier.widthIn(max = 300.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                MarkdownText(text = message.content, color = if (isUser) Color.White else AiriTheme.onSurface)
+            }
+        }
+    }
+}
+
+@Composable
+fun ChatInputBar(
+    input: String,
+    isListening: Boolean,
+    onSend: (String) -> Unit,
+    onVoiceClick: () -> Unit
+) {
+    var text by remember(input) { mutableStateOf(input) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (isSelected) {
-            Box(
-                modifier = Modifier.size(22.dp).clip(CircleShape).background(CosmicAccent),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Check, null, tint = AiriTheme.onBackground, modifier = Modifier.size(14.dp))
-            }
-        } else {
-            Spacer(Modifier.size(22.dp))
-        }
-        Column(
-            modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-            horizontalAlignment = Alignment.End
+        Surface(
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant
         ) {
-            Text(name, color = AiriTheme.onBackground, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            Text(subtitle, color = AiriTheme.onBackground.copy(0.45f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Box(
-            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp))
-                .background(CosmicAccent.copy(alpha = 0.18f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
-        }
-    }
-}
-// HISTORY PANEL — slides from start side, shows chat sessions
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AiriHistoryPanel(
-    viewModel: ChatViewModel,
-    onDismiss: () -> Unit,
-    onSessionSelected: () -> Unit,
-    onNewChat: () -> Unit
-) {
-    val sessions by viewModel.sessions.collectAsState()
-
-    ModalDrawerSheet(
-        drawerContainerColor = Color(0xFF0D1124),
-        drawerContentColor   = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.fillMaxWidth(0.88f)
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Header
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_close), tint = AiriTheme.onBackground.copy(alpha = 0.7f))
-                }
-                Text(
-                    stringResource(R.string.history_title),
-                    color = AiriTheme.onBackground,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Divider(color = AiriTheme.outline)
-
-            // New conversation button
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(CosmicAccent.copy(alpha = 0.12f))
-                    .border(1.dp, CosmicAccent.copy(alpha = 0.30f), RoundedCornerShape(14.dp))
-                    .clickable { onNewChat() }
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(CosmicAccent),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = AiriTheme.onBackground, modifier = Modifier.size(16.dp))
-                }
-                Text(
-                    stringResource(R.string.new_conversation),
-                    color = CosmicAccent,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            if (sessions.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Outlined.Forum,
-                            contentDescription = null,
-                            tint = AiriTheme.onBackground.copy(alpha = 0.25f),
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            stringResource(R.string.history_no_sessions),
-                            color = AiriTheme.outline,
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    items(sessions) { session ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { viewModel.loadSession(session.id); onSessionSelected() }
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                                    .format(java.util.Date(session.updatedAt)),
-                                color = AiriTheme.onBackground.copy(alpha = 0.40f),
-                                fontSize = 11.sp
-                            )
-                            Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-                                Text(
-                                    session.title.ifBlank { stringResource(R.string.session_untitled) },
-                                    color = AiriTheme.onBackground,
-                                    fontSize = 14.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    session.lastMessage.orEmpty().ifBlank { "..." },
-                                    color = AiriTheme.onBackground.copy(alpha = 0.45f),
-                                    fontSize = 12.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                        Divider(color = AiriTheme.outline)
-                    }
-                }
-            }
-        }
-    }
-
-}
-// MESSAGES
-@Composable
-fun ChatMessageList(
-    messages: List<ChatMessage>,
-    streamingText: String,
-    isGenerating: Boolean,
-    isModelReady: Boolean = false,
-    onOpenModels: () -> Unit = {},
-    onShareAiResponse: (String) -> Unit = {},
-    onSpeak: (String) -> Unit = {},
-    onSuggestionClick: (String) -> Unit = {},
-    onEditMessage: (String) -> Unit = {},
-    onDeleteMessage: (String) -> Unit = {},
-    /** Task 1.7: Feedback callback so AiBubble can call ViewModel.submitFeedback. */
-    onFeedback: (uid: String, liked: Boolean) -> Unit = { _, _ -> },
-    modifier: Modifier = Modifier
-) {
-    val listState = rememberLazyListState()
-    val scope     = rememberCoroutineScope()
-    val reversedMessages = remember(messages) { messages.reversed() }
-    val isPinnedToBottom by remember { derivedStateOf { listState.firstVisibleItemIndex <= 1 } }
-    var lastScrolledStreamLen by remember { mutableStateOf(0) }
-
-    LaunchedEffect(messages.size) {
-        if (isPinnedToBottom && (messages.isNotEmpty() || streamingText.isNotEmpty())) {
-            scope.launch { listState.animateScrollToItem(0) }
-        }
-        lastScrolledStreamLen = 0
-    }
-
-    LaunchedEffect(Unit) {
-        snapshotFlow { streamingText.length }.collect { len ->
-            if (!isPinnedToBottom) return@collect
-            if (len == 0) { lastScrolledStreamLen = 0; return@collect }
-            val grew = len - lastScrolledStreamLen
-            if (grew >= 24 || (grew in 1..23 && len < 60)) {
-                lastScrolledStreamLen = len
-                listState.scrollToItem(0)
-            }
-        }
-    }
-
-    if (messages.isEmpty() && streamingText.isEmpty()) {
-        // Minimal landing state — no robot icon, no cliché greeting.
-        // The input bar below is sufficient affordance; this space just
-        // needs to feel calm and professional.
-        Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(horizontal = 40.dp)
-            ) {
-                val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "idle_pulse")
-                val ringAlpha by pulse.animateFloat(
-                    initialValue  = 0.07f,
-                    targetValue   = 0.18f,
-                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                        animation  = androidx.compose.animation.core.tween(2200,
-                            easing = androidx.compose.animation.core.FastOutSlowInEasing),
-                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-                    ),
-                    label = "ring_alpha"
-                )
-                // Wordmark ring — no assistant cliché icon
-                Box(contentAlignment = Alignment.Center) {
-                    Box(
-                        modifier = Modifier
-                            .size(76.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.radialGradient(
-                                    listOf(
-                                        MaterialTheme.colorScheme.primary.copy(alpha = ringAlpha),
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0f)
-                                    )
-                                )
-                            )
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(46.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surface)
-                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.32f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text          = "A",
-                            color         = MaterialTheme.colorScheme.primary,
-                            fontSize      = 20.sp,
-                            fontWeight    = FontWeight.Bold,
-                            letterSpacing = (-0.5).sp
-                        )
-                    }
-                }
-                Spacer(Modifier.height(22.dp))
-                Text(
-                    text          = stringResource(R.string.app_name),
-                    color         = MaterialTheme.colorScheme.onBackground,
-                    fontWeight    = FontWeight.SemiBold,
-                    fontSize      = 21.sp,
-                    textAlign     = TextAlign.Center,
-                    letterSpacing = (-0.3).sp
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text       = stringResource(R.string.chat_start_hint),
-                    color      = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.42f),
-                    fontWeight = FontWeight.Normal,
-                    fontSize   = 14.sp,
-                    textAlign  = TextAlign.Center
-                )
-                if (!isModelReady) {
-                    Spacer(Modifier.height(28.dp))
-                    OutlinedButton(
-                        onClick = onOpenModels,
-                        shape   = RoundedCornerShape(24.dp),
-                        border  = androidx.compose.foundation.BorderStroke(
-                            1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.50f)
-                        )
-                    ) {
-                        Icon(
-                            Icons.Outlined.Memory,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint     = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            stringResource(R.string.model_gallery),
-                            fontWeight = FontWeight.Medium,
-                            color      = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-        }
-    } else {
-        Box(modifier = modifier) {
-            LazyColumn(
-                state               = listState,
-                modifier            = Modifier.fillMaxSize(),
-                reverseLayout       = true,
-                contentPadding      = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                if (streamingText.isNotEmpty() && isGenerating) {
-                    item(key = "streaming") { AiStreamingBubble(text = streamingText) }
-                }
-                itemsIndexed(reversedMessages, key = { _, msg -> msg.uid }) { index, msg ->
-                    val prevMsg = reversedMessages.getOrNull(index + 1)
-                    val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
-                    if (msg.isUser) {
-                        UserBubble(
-                            text     = msg.text,
-                            imageUri = msg.imageUri,
-                            onEdit   = { onEditMessage(msg.text) },
-                            onDelete = { onDeleteMessage(msg.uid) }
-                        )
-                    } else {
-                        AiBubble(
-                            text            = msg.text,
-                            agentTag        = msg.agentTag,
-                            traceId         = msg.traceId,
-                            hideAvatar      = hideAvatar,
-                            onShare         = onShareAiResponse,
-                            onSpeak         = onSpeak,
-                            execOrigin      = msg.execOrigin,
-                            onFeedback      = { liked -> onFeedback(msg.uid, liked) },
-                            initialFeedback = msg.feedback
-                        )
-                    }
-                }
-            }
-            ScrollToBottomFab(
-                visible  = !isPinnedToBottom,
-                onClick  = { scope.launch { listState.animateScrollToItem(0) } },
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp)
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun UserBubble(
-    text: String,
-    imageUri: String? = null,
-    onEdit: () -> Unit = {},
-    onDelete: () -> Unit = {}
-) {
-    val displayText = remember(text, imageUri) {
-        if (imageUri != null) text.replace(Regex("""\s*\n*\[image:[^\]]*\]\s*$"""), "").trim()
-        else text
-    }
-    val context = LocalContext.current
-    val haptic  = LocalHapticFeedback.current
-
-    val transition = remember {
-        androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
-    }
-
-    // Contextual menu state — shown on long-press (not on immediate tap)
-    var showContextMenu by remember { mutableStateOf(false) }
-
-    AnimatedVisibility(
-        visibleState = transition,
-        enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(200)) +
-                slideInHorizontally(animationSpec = androidx.compose.animation.core.tween(220)) { it / 5 }
-    ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            Box {
-                Column(
-                    modifier = Modifier
-                        .widthIn(max = 300.dp)
-                        .clip(RoundedCornerShape(18.dp, 4.dp, 18.dp, 18.dp))
-                        .background(UserBubbleSurface)
-                        .combinedClickable(
-                            onClick    = { /* tap does nothing — no auto-copy */ },
-                            onLongClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                showContextMenu = true
-                            }
-                        )
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    horizontalAlignment = Alignment.End
-                ) {
-                    if (imageUri != null) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current).data(imageUri).crossfade(true).build(),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp)
-                                .clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.background.copy(alpha = 0.25f)),
-                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                        )
-                        if (displayText.isNotBlank()) Spacer(Modifier.height(8.dp))
-                    }
-                    if (displayText.isNotBlank() || imageUri == null) {
-                        Text(text = displayText, color = AiriTheme.onBackground, fontSize = 15.sp, lineHeight = 23.sp)
-                    }
-                }
-
-                // Contextual menu (long-press)
-                DropdownMenu(
-                    expanded         = showContextMenu,
-                    onDismissRequest = { showContextMenu = false },
-                    modifier         = Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    DropdownMenuItem(
-                        text         = { Text(stringResource(R.string.copy), color = AiriTheme.onBackground, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.ContentCopy, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                        onClick      = {
-                            showContextMenu = false
-                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", displayText))
-                        }
-                    )
-                    DropdownMenuItem(
-                        text         = { Text(stringResource(R.string.edit), color = AiriTheme.onBackground, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.Edit, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                        onClick      = { showContextMenu = false; onEdit() }
-                    )
-                    DropdownMenuItem(
-                        text         = { Text(stringResource(R.string.select_text), color = AiriTheme.onBackground, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.TextFields, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                        onClick      = { showContextMenu = false /* text selection handled by system */ }
-                    )
-                    DropdownMenuItem(
-                        text         = { Text(stringResource(R.string.share), color = AiriTheme.onBackground, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.Share, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                        onClick      = { showContextMenu = false; shareAiResponse(context, displayText) }
-                    )
-                    Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
-                    DropdownMenuItem(
-                        text         = { Text(stringResource(R.string.delete), color = SemanticError, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.Delete, null, tint = SemanticError.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                        onClick      = { showContextMenu = false; onDelete() }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun AiBubble(
-    text: String,
-    agentTag: String? = null,
-    traceId: String? = null,
-    hideAvatar: Boolean = false,
-    onShare: (String) -> Unit = {},
-    onSpeak: (String) -> Unit = {},
-    execOrigin: com.airi.assistant.execution.ExecOrigin = com.airi.assistant.execution.ExecOrigin.NONE,
-    /** Task 1.7: Persisted feedback state (1=liked,-1=disliked,0=none). */
-    initialFeedback: Int = 0,
-    /** Task 1.7: Called when user submits feedback so ViewModel can persist it. */
-    onFeedback: (liked: Boolean) -> Unit = {}
-) {
-    val context   = LocalContext.current
-    val haptic    = LocalHapticFeedback.current
-    val allTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsState()
-    val trace = remember(traceId, allTraces) {
-        if (traceId != null) allTraces.find { it.id == traceId } else null
-    }
-    var traceExpanded by remember { mutableStateOf(false) }
-
-    val transition = remember {
-        androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
-    }
-    AnimatedVisibility(
-        visibleState = transition,
-        enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(240)) +
-                slideInVertically(animationSpec = androidx.compose.animation.core.tween(240)) { it / 5 }
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(end = 44.dp),
-            horizontalArrangement = Arrangement.Start,
-            verticalAlignment = Alignment.Top
-        ) {
-            if (!hideAvatar) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(Brush.radialGradient(listOf(CosmicAccent.copy(alpha = 0.22f), CosmicAccent.copy(alpha = 0.06f))))
-                        .border(1.dp, CosmicAccent.copy(alpha = 0.45f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("A", color = CosmicAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.width(8.dp))
-            } else {
-                Spacer(Modifier.width(36.dp))
-            }
-
-            Column {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                        .background(AiBubbleSurface)
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
-                ) {
-                    MarkdownText(rawText = text, modifier = Modifier.fillMaxWidth(), baseFontSp = 15f, lineHeightSp = 23f)
-                }
-
-                // Action row
-                Row(modifier = Modifier.padding(start = 2.dp, top = 1.dp), verticalAlignment = Alignment.CenterVertically) {
-                    // Speak
-                    IconButton(onClick = { onSpeak(text) }, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Outlined.VolumeUp, contentDescription = null, tint = AiriTheme.outline, modifier = Modifier.size(14.dp))
-                    }
-                    // Copy
-                    IconButton(onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
-                    }, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Outlined.ContentCopy, contentDescription = null, tint = AiriTheme.outline, modifier = Modifier.size(14.dp))
-                    }
-                    // Persisted thumbs up/down — initialized from DB feedback column.
-                    var liked    by remember { mutableStateOf(initialFeedback == 1) }
-                    var disliked by remember { mutableStateOf(initialFeedback == -1) }
-                    IconButton(onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        val newDisliked = !disliked
-                        disliked = newDisliked; if (newDisliked) liked = false
-                        onFeedback(false)
-                    }, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Outlined.ThumbDown, contentDescription = null,
-                            tint = if (disliked) Color(0xFFFF6B6B) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
-                            modifier = Modifier.size(14.dp))
-                    }
-                    IconButton(onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        val newLiked = !liked
-                        liked = newLiked; if (newLiked) disliked = false
-                        onFeedback(true)
-                    }, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Outlined.ThumbUp, contentDescription = null,
-                            tint = if (liked) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
-                            modifier = Modifier.size(14.dp))
-                    }
-                }
-
-                // Agent trace card
-                if (trace != null) {
-                    Spacer(Modifier.height(6.dp))
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(CosmicAccent.copy(alpha = 0.07f))
-                            .border(0.5.dp, if (trace.hasErrors) Color(0xFFFF5252).copy(0.35f) else CosmicAccent.copy(0.3f), RoundedCornerShape(10.dp))
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable { traceExpanded = !traceExpanded }.padding(horizontal = 10.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(12.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    text = "⚙ ${agentTag ?: "Agent"} · ${trace.stepCount} ${if (traceExpanded) "▲" else "▼"}",
-                                    color = CosmicAccent.copy(0.85f), fontSize = 10.sp, fontWeight = FontWeight.Medium
-                                )
-                            }
-                            Icon(
-                                if (trace.success) Icons.Outlined.CheckCircle else Icons.Outlined.Error,
-                                contentDescription = null,
-                                tint = if (trace.success) Color(0xFF00C853) else Color(0xFFFF5252),
-                                modifier = Modifier.size(12.dp)
-                            )
-                        }
-                        if (traceExpanded) {
-                            Divider(color = AiriTheme.onBackground.copy(0.05f))
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                trace.steps.forEachIndexed { i, step ->
-                                    Row(modifier = Modifier.padding(vertical = 2.dp)) {
-                                        Text("${i+1}.", color = CosmicAccent.copy(0.6f), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(14.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(step.displayName, color = AiriTheme.onBackground.copy(0.85f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                                            val detail = step.error ?: step.outputSummary.take(80)
-                                            if (detail.isNotBlank()) Text(detail, color = if (step.error != null) Color(0xFFFF5252).copy(0.8f) else MaterialTheme.colorScheme.onSurface.copy(0.4f), fontSize = 10.sp)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else if (agentTag != null) {
-                    Spacer(Modifier.height(4.dp))
-                    Box(
-                        modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(CosmicAccent.copy(0.12f))
-                            .border(0.5.dp, CosmicAccent.copy(0.35f), RoundedCornerShape(20.dp)).padding(horizontal = 8.dp, vertical = 3.dp)
-                    ) {
-                        Text("⚙ $agentTag", color = CosmicAccent.copy(0.85f), fontSize = 10.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
-                if (execOrigin.isVisible) {
-                    Spacer(Modifier.height(3.dp))
-                    ExecOriginBadge(origin = execOrigin)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun AiStreamingBubble(text: String) {
-    val isThinkingStage = text in setOf("Thinking...", "Analyzing...", "Planning...", "Generating...", "Preparing...", "Reasoning...")
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(end = 44.dp),
-        horizontalArrangement = Arrangement.Start,
-        verticalAlignment = Alignment.Top
-    ) {
-        Box(
-            modifier = Modifier
-                .size(28.dp).clip(CircleShape)
-                .background(Brush.radialGradient(listOf(CosmicAccent.copy(0.22f), CosmicAccent.copy(0.06f))))
-                .border(1.dp, CosmicAccent.copy(0.55f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("A", color = CosmicAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-        }
-        Spacer(Modifier.width(8.dp))
-        Column(
-            modifier = Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                .background(AiBubbleSurface)
-                .border(1.dp, CosmicAccent.copy(0.22f), RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                .padding(horizontal = 14.dp, vertical = 12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text       = text,
-                    color      = AiriTheme.onBackground.copy(alpha = if (isThinkingStage) 0.50f else 0.93f),
-                    fontSize   = 15.sp, lineHeight = 23.sp,
-                    fontStyle  = if (isThinkingStage) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
-                    modifier   = Modifier.weight(1f, fill = false)
-                )
-                if (!isThinkingStage) BlinkingCursor()
-            }
-            // AiriThinkingPulse removed — ThinkingAnimation bubble is the single indicator
-        }
-    }
-}
-
-@Composable
-private fun AttachmentChip(
-    attachment: com.airi.assistant.domain.ChatAttachment,
-    onRemove: () -> Unit
-) {
-    val accent   = CosmicAccent
-    val subtitle = when (attachment.kind) {
-        com.airi.assistant.domain.ChatAttachment.Kind.IMAGE,
-        com.airi.assistant.domain.ChatAttachment.Kind.CAMERA -> attachment.mimeType ?: "image"
-        com.airi.assistant.domain.ChatAttachment.Kind.FILE   -> attachment.mimeType ?: "file"
-    }
-    Row(
-        modifier = Modifier.widthIn(min = 140.dp, max = 240.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surface.copy(0.55f))
-            .border(1.dp, accent.copy(0.35f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(accent.copy(0.18f)), contentAlignment = Alignment.Center) {
-            val fallback = when (attachment.kind) {
-                com.airi.assistant.domain.ChatAttachment.Kind.IMAGE,
-                com.airi.assistant.domain.ChatAttachment.Kind.CAMERA -> Icons.Default.Image
-                com.airi.assistant.domain.ChatAttachment.Kind.FILE   -> Icons.Default.AttachFile
-            }
-            Icon(fallback, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
-            val thumbModel: Any? = attachment.uri ?: attachment.bitmap
-            if (attachment.isVisualImage && thumbModel != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current).data(thumbModel).crossfade(true).build(),
-                    contentDescription = attachment.displayName,
-                    modifier = Modifier.matchParentSize().clip(RoundedCornerShape(8.dp)),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
-            }
-        }
-        Spacer(Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(attachment.displayName, color = AiriTheme.onBackground, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, color = AiriTheme.onBackground.copy(0.55f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
-            Icon(Icons.Default.Close, contentDescription = null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp))
-        }
-    }
-}
-
-@Composable
-private fun BlinkingCursor() {
-    var cursorOn by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(500L); cursorOn = !cursorOn } }
-    AnimatedContent(
-        targetState = cursorOn,
-        transitionSpec = { fadeIn(animationSpec = androidx.compose.animation.core.tween(80)) togetherWith fadeOut(animationSpec = androidx.compose.animation.core.tween(80)) },
-        label = "cursor_blink"
-    ) { on -> Text(if (on) "▍" else " ", color = CosmicAccent.copy(0.85f), fontSize = 15.sp, lineHeight = 23.sp) }
-}
-
-// AiriThinkingPulse removed (Task 2.4) — ThinkingAnimation bubble is the single indicator
-// NEW INPUT BAR — matches reference design
-// Layout: [send/livechat circle] [+] [mic] [waveform] [connector badges] [text field] [expand ^]
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AiriChatInputBar(
-    modelState: ModelUiState,
-    isGenerating: Boolean,
-    voiceInput: String,
-    voiceState: VoiceSessionState = VoiceSessionState.IDLE,
-    isVadInterrupting: Boolean = false,
-    smartReplies: List<String> = emptyList(),
-    onSend: (String) -> Unit,
-    onCancel: () -> Unit = {},
-    onSmartReply: (String) -> Unit = {},
-    onPickImage: () -> Unit = {},
-    onPickMmproj: () -> Unit = {},
-    onPickFile: () -> Unit = {},
-    onTakePhoto: () -> Unit = {},
-    onMicClick: () -> Unit,
-    onVoiceChatClick: () -> Unit,
-    onVoiceConsumed: () -> Unit,
-    onOpenModels: () -> Unit,
-    onNavigate: (String) -> Unit = {},
-    // : called when user converts large prompt to attached file
-    onStageFile: (android.net.Uri) -> Unit = {},
-    /** When non-null, pre-fills the text field (e.g. for Edit message). */
-    externalInputText: String? = null,
-    onExternalInputConsumed: () -> Unit = {},
-    onUserStartedTyping: () -> Unit = {},
-    /** Task 2.1: Called when focus changes so AdvancedChatInputBar can collapse toolbar. */
-    onFocusChanged: (Boolean) -> Unit = {},
-    /** Task 1.2: Attachments rendered inside the pill between text field and toolbar. */
-    attachments: List<ChatAttachment> = emptyList(),
-    onRemoveAttachment: (String) -> Unit = {}
-) {
-    var showAttachPopup by remember { mutableStateOf(false) }
-    val attachSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var text by rememberSaveable { mutableStateOf("") }
-    var isExpanded by remember { mutableStateOf(false) }
-    val isInferenceReady = modelState.isModelReady || modelState.isCloudReady
-    val canSend = text.isNotBlank() && isInferenceReady && !modelState.isModelLoading && !isGenerating
-    val isTyping = text.isNotBlank()
-
-    // : Large prompt detection (>2000 chars)
-    val showConvertBanner = text.length > 2_000
-
-    // Apply external pre-fill (e.g. from Edit bubble action)
-    LaunchedEffect(externalInputText) {
-        val prefill = externalInputText
-        if (prefill != null) {
-            text = prefill
-            onExternalInputConsumed()
-        }
-    }
-    val showSend = isTyping || isGenerating
-
-    val micPulse = remember { androidx.compose.animation.core.Animatable(1f) }
-    LaunchedEffect(voiceState) {
-        when (voiceState) {
-            VoiceSessionState.LISTENING   -> while (true) { micPulse.animateTo(1.30f, animationSpec = androidx.compose.animation.core.tween(450)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(450)) }
-            VoiceSessionState.PROCESSING  -> while (true) { micPulse.animateTo(1.18f, animationSpec = androidx.compose.animation.core.tween(600)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(600)) }
-            VoiceSessionState.SPEAKING    -> while (true) { micPulse.animateTo(1.22f, animationSpec = androidx.compose.animation.core.tween(700)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(700)) }
-            else -> micPulse.snapTo(1f)
-        }
-    }
-
-    LaunchedEffect(voiceInput) {
-        if (voiceInput.isNotBlank()) {
-            text = listOf(text, voiceInput).filter { it.isNotBlank() }.joinToString(" ")
-            onVoiceConsumed()
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-
-        // : Large prompt convert-to-file banner
-        AnimatedVisibility(
-            visible = showConvertBanner,
-            enter   = fadeIn() + expandVertically(),
-            exit    = fadeOut() + shrinkVertically()
-        ) {
-            val ctx = androidx.compose.ui.platform.LocalContext.current
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(CosmicAccent.copy(alpha = 0.10f))
-                    .padding(horizontal = 12.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                androidx.compose.material3.Icon(
-                    androidx.compose.material.icons.Icons.Outlined.Info, null,
-                    tint     = CosmicAccent,
-                    modifier = Modifier.size(14.dp)
-                )
-                Text(
-                    "Long text (${text.length} chars). Convert to file?",
-                    fontSize = 11.sp,
-                    color    = CosmicAccent.copy(0.85f),
-                    modifier = Modifier.weight(1f)
-                )
-                androidx.compose.material3.TextButton(
-                    onClick = {
-                        val uri = runCatching {
-                            val dir = java.io.File(ctx.cacheDir, "chat_attachments").apply { mkdirs() }
-                            val file = java.io.File(dir, "prompt_${System.currentTimeMillis()}.txt")
-                            file.writeText(text)
-                            androidx.core.content.FileProvider.getUriForFile(
-                                ctx, "${ctx.packageName}.fileprovider", file
-                            )
-                        }.getOrNull()
-                        if (uri != null) {
-                            onStageFile(uri)
-                            text = ""
-                        }
-                    },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                ) {
-                    Text(stringResource(R.string.chat_convert), fontSize = 11.sp, color = CosmicAccent, fontWeight = FontWeight.SemiBold)
-                }
-                androidx.compose.material3.TextButton(
-                    onClick = { /* user chooses to keep text as-is, banner dismisses when <2000 chars */ },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                ) {
-                    Text(stringResource(R.string.chat_keep), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant.copy(0.6f))
-                }
-            }
-        }
-
-        // Smart reply chips
-        AnimatedVisibility(visible = smartReplies.isNotEmpty() && !isGenerating, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                smartReplies.forEach { reply ->
-                    Surface(
-                        onClick = { onSmartReply(reply) }, shape = RoundedCornerShape(20.dp),
-                        color = CosmicAccent.copy(0.12f),
-                        modifier = Modifier.border(1.dp, CosmicAccent.copy(0.4f), RoundedCornerShape(20.dp))
-                    ) {
-                        Text(reply, color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
-                    }
-                }
-            }
-        }
-
-        // Voice state banner
-        AnimatedVisibility(visible = voiceState != VoiceSessionState.IDLE, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
-            val waveColor = when {
-                isVadInterrupting                           -> Color(0xFFFFB347)
-                voiceState == VoiceSessionState.LISTENING  -> Color(0xFFFF6B6B)
-                voiceState == VoiceSessionState.PROCESSING -> CosmicAccent
-                voiceState == VoiceSessionState.SPEAKING   -> Color(0xFF4FC3F7)
-                else -> CosmicAccent
-            }
-            val label = when {
-                isVadInterrupting                          -> stringResource(R.string.voice_interrupting)
-                voiceState == VoiceSessionState.LISTENING  -> stringResource(R.string.voice_listening)
-                voiceState == VoiceSessionState.PROCESSING -> stringResource(R.string.voice_processing)
-                voiceState == VoiceSessionState.SPEAKING   -> stringResource(R.string.voice_speaking)
-                else -> ""
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                VoiceWaveformBars(active = voiceState == VoiceSessionState.LISTENING || isVadInterrupting, color = waveColor)
-                Spacer(Modifier.width(8.dp))
-                Text(label, color = waveColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            }
-        }
-
-        // No model warning
-        if (!isInferenceReady && !modelState.isModelLoading) {
-            TextButton(onClick = onOpenModels, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp)) {
-                Icon(Icons.Outlined.Warning, null, tint = Color(0xFFFFCC00), modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(stringResource(R.string.no_model_tap_select), color = Color(0xFFFFCC00), fontSize = 12.sp)
-            }
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 8.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.96f))
-                .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.09f), RoundedCornerShape(20.dp))
-        ) {
-            if (attachments.isNotEmpty()) {
-                LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(attachments, key = { it.uid }) { attachment ->
-                        AttachmentChip(
-                            attachment = attachment,
-                            onRemove   = { onRemoveAttachment(attachment.uid) }
-                        )
-                    }
-                }
-                Divider(color = MaterialTheme.colorScheme.outline, thickness = 0.5.dp)
-            }
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
                 BasicTextField(
                     value = text,
-                    onValueChange = { newValue ->
-                        if (text.isEmpty() && newValue.isNotEmpty()) onUserStartedTyping()
-                        text = newValue
-                    },
-                    enabled = isInferenceReady && !isGenerating,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 32.dp, max = if (isExpanded) 180.dp else 60.dp)
-                        .onFocusChanged { state ->
-                            // Propagate focus change upward so toolbar collapses
-                            onFocusChanged(state.isFocused)
-                        },
-                    textStyle = androidx.compose.ui.text.TextStyle(
-                        color = AiriTheme.onBackground, fontSize = 15.sp,
-                        textAlign = TextAlign.End   // RTL default
-                    ),
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(CosmicAccent),
-                    maxLines = if (isExpanded) 8 else 3,
-                    decorationBox = { inner ->
-                        Box {
-                            if (text.isEmpty()) {
-                                Text(
-                                    text = when {
-                                        isGenerating              -> stringResource(R.string.generating)
-                                        modelState.isModelLoading -> stringResource(R.string.model_is_loading)
-                                        else                      -> stringResource(R.string.chat_assign_task_hint)
-                                    },
-                                    color = AiriTheme.onBackground.copy(0.35f),
-                                    fontSize = 15.sp,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    textAlign = TextAlign.End
-                                )
-                            }
-                            inner()
+                    onValueChange = { text = it },
+                    modifier = Modifier.weight(1f),
+                    textStyle = androidx.compose.ui.text.TextStyle(color = AiriTheme.onSurface, fontSize = 15.sp),
+                    decorationBox = { innerTextField ->
+                        if (text.isEmpty()) {
+                            Text("Ask AIRI...", color = AiriTheme.onSurfaceVariant, fontSize = 15.sp)
                         }
+                        innerTextField()
                     }
                 )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Send / LiveChat / Stop circle button
-                val mainScale = if (!showSend && voiceState != VoiceSessionState.IDLE) micPulse.value else 1f
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .graphicsLayer { scaleX = mainScale; scaleY = mainScale }
-                        .shadow(if (isInferenceReady) 10.dp else 0.dp, CircleShape, ambientColor = CosmicAccent, spotColor = CosmicAccent)
-                        .clip(CircleShape)
-                        .background(when {
-                            isGenerating -> Color(0xFFFF6B6B)
-                            isInferenceReady || showSend -> CosmicAccent
-                            else -> CosmicAccent.copy(0.30f)
-                        })
-                        .clickable(enabled = isInferenceReady || isGenerating) {
-                            when {
-                                isGenerating -> onCancel()
-                                showSend && canSend -> { onSend(text); text = "" }
-                                !showSend -> onVoiceChatClick()
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    AnimatedContent(
-                        targetState = when {
-                            isGenerating -> "stop"
-                            showSend     -> "send"
-                            else         -> "live"
-                        },
-                        transitionSpec = {
-                            (fadeIn(animationSpec = androidx.compose.animation.core.tween(180)) + scaleIn(initialScale = 0.7f)) togetherWith
-                            (fadeOut(animationSpec = androidx.compose.animation.core.tween(120)) + scaleOut(targetScale = 0.7f))
-                        },
-                        label = "main_btn"
-                    ) { state ->
-                        when (state) {
-                            "stop" -> Icon(Icons.Default.Stop, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
-                            "send" -> Icon(Icons.Default.ArrowUpward, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
-                            else   -> Icon(Icons.Default.GraphicEq, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
-
-                Spacer(Modifier.width(6.dp))
-
-                // Attach + button
-                Box(
-                    modifier = Modifier
-                        .size(36.dp).clip(CircleShape)
-                        .clickable(enabled = !isGenerating) { showAttachPopup = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Add, null, tint = AiriTheme.onBackground.copy(if (!isGenerating) 0.7f else 0.3f), modifier = Modifier.size(20.dp))
-                }
-
-                // Mic button
-                AnimatedVisibility(visible = !isTyping && !isGenerating, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
-                    Box(
-                        modifier = Modifier.size(36.dp).clip(CircleShape).clickable(enabled = isInferenceReady) { onMicClick() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (voiceState != VoiceSessionState.IDLE) {
-                            Box(modifier = Modifier.size((28 * micPulse.value).dp).clip(CircleShape).background(CosmicAccent.copy(0.18f)))
-                        }
-                        Icon(Icons.Outlined.Mic, null,
-                            tint = when (voiceState) {
-                                VoiceSessionState.IDLE -> if (isInferenceReady) MaterialTheme.colorScheme.onSurface.copy(0.70f) else MaterialTheme.colorScheme.onSurface.copy(0.30f)
-                                else -> CosmicAccent
-                            },
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                // Connector badge — tapping opens the real Connectors screen
-                if (!isTyping && !isGenerating) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.12f), RoundedCornerShape(20.dp))
-                            .clickable { onNavigate(AiriRoute.CONNECTORS) }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Outlined.Hub, null, tint = CosmicAccent, modifier = Modifier.size(14.dp))
-                            Icon(Icons.Outlined.ChevronRight, null, tint = AiriTheme.onBackground.copy(0.45f), modifier = Modifier.size(12.dp))
-                        }
-                    }
-                }
-
-                Spacer(Modifier.weight(1f))
-
-                // Expand / collapse toggle
-                IconButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = onVoiceClick) {
                     Icon(
-                        if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                        null,
-                        tint = AiriTheme.onBackground.copy(0.45f),
-                        modifier = Modifier.size(18.dp)
+                        if (isListening) Icons.Default.Mic else Icons.Default.MicNone,
+                        contentDescription = "Voice",
+                        tint = if (isListening) CosmicAccent else AiriTheme.onSurfaceVariant
                     )
                 }
             }
         }
-
-    }
-    if (showAttachPopup) {
-        ModalBottomSheet(
-            onDismissRequest = { showAttachPopup = false },
-            sheetState = attachSheetState,
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = AiriTheme.onBackground,
-            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-            dragHandle = {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(width = 32.dp, height = 4.dp)
-                            .clip(CircleShape)
-                            .background(AiriTheme.onBackground.copy(0.25f))
-                    )
-                }
-            }
+        Spacer(Modifier.width(8.dp))
+        FloatingActionButton(
+            onClick = { if (text.isNotBlank()) onSend(text) },
+            containerColor = CosmicAccent,
+            contentColor = Color.White,
+            shape = CircleShape,
+            modifier = Modifier.size(48.dp)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(0.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.attach_section_media),
-                    color = AiriTheme.onBackground.copy(0.45f),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    AttachCard(
-                        icon = Icons.Outlined.Image,
-                        label = stringResource(R.string.attach_image),
-                        modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; onPickImage() }
-                    AttachCard(
-                        icon = Icons.Outlined.CameraAlt,
-                        label = stringResource(R.string.attach_camera),
-                        modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; onTakePhoto() }
-                    AttachCard(
-                        icon = Icons.Outlined.AttachFile,
-                        label = stringResource(R.string.attach_files),
-                        modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; onPickFile() }
-                }
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = stringResource(R.string.attach_section_actions),
-                    color = AiriTheme.onBackground.copy(0.45f),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-                )
-                AttachListRow(
-                    icon = Icons.Outlined.Storage,
-                    label = stringResource(R.string.attach_spreadsheet)
-                ) {
-                    showAttachPopup = false
-                    text = text + if (text.isBlank()) "Create a spreadsheet" else "\nCreate a spreadsheet"
-                }
-                AttachListRow(
-                    icon = Icons.Outlined.History,
-                    label = stringResource(R.string.attach_scheduled_tasks)
-                ) {
-                    showAttachPopup = false
-                    onNavigate(AiriRoute.AGENT_TASKS)
-                }
-                AttachListRow(
-                    icon = Icons.Outlined.Mic,
-                    label = stringResource(R.string.attach_conversation_mode)
-                ) {
-                    showAttachPopup = false
-                    onVoiceChatClick()
-                }
-                AttachListRow(
-                    icon = Icons.Outlined.Edit,
-                    label = stringResource(R.string.attach_edit_image)
-                ) {
-                    showAttachPopup = false
-                    text = text + if (text.isBlank()) "Edit this image:" else "\nEdit this image:"
-                    onPickImage()
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AttachCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(CosmicAccent.copy(0.12f))
-            .border(1.dp, CosmicAccent.copy(0.35f), RoundedCornerShape(16.dp))
-            .clickable { onClick() }
-            .padding(vertical = 18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Icon(icon, contentDescription = label, tint = CosmicAccent, modifier = Modifier.size(26.dp))
-        Text(
-            text = label,
-            color = AiriTheme.onBackground.copy(0.85f),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center,
-            maxLines = 1
-        )
-    }
-}
-
-@Composable
-private fun AttachListRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(CosmicAccent.copy(0.12f))
-                .border(1.dp, CosmicAccent.copy(0.28f), RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = label, tint = CosmicAccent, modifier = Modifier.size(20.dp))
-        }
-        Text(
-            text = label,
-            color = AiriTheme.onBackground.copy(0.85f),
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Normal
-        )
-    }
-}
-
-@Composable
-private fun ModelErrorDialog(error: String, errorType: String, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
-        titleContentColor = MaterialTheme.colorScheme.onSurface, textContentColor = MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(20.dp),
-        title = { Text(stringResource(R.string.model_error), fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(error)
-                Text(errorType, color = AiriTheme.onBackground.copy(0.45f), fontSize = 12.sp)
-            }
-        },
-        confirmButton = {
-            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = AiriTheme.onBackground)) {
-                Text(stringResource(R.string.ok))
-            }
-        }
-    )
-}
-
-@Composable
-fun AiriDrawer(
-    modelState: ModelUiState,
-    onNavigate: (String) -> Unit,
-    onNewChat: () -> Unit,
-    onLogout: () -> Unit
-) {
-    // Task 3: Route through AuthService — no direct FirebaseAuth.getInstance() in UI.
-    val user    = remember { ServiceLocator.authService.currentUser() }
-    val email   = user?.email ?: "guest@airi.ai"
-    val initial = email.firstOrNull()?.uppercaseChar()?.toString() ?: "A"
-
-    ModalDrawerSheet(
-        drawerContainerColor = Color(0xFF0D1124),
-        drawerContentColor   = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.width(300.dp)
-    ) {
-        Box(modifier = Modifier.fillMaxHeight()) {
-            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 112.dp).verticalScroll(rememberScrollState())) {
-                Box(modifier = Modifier.fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(CosmicAccent.copy(0.15f), Color.Transparent)))
-                    .clickable { onNavigate(AiriRoute.PROFILE) }.padding(20.dp)) {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier.size(44.dp).clip(CircleShape).background(CosmicAccent.copy(0.2f)).border(1.5.dp, CosmicAccent.copy(0.5f), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) { Text(initial, color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(stringResource(R.string.app_agent_title), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, fontSize = 15.sp)
-                                Text(email, color = AiriTheme.onBackground.copy(0.5f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                    }
-                }
-                Divider(color = AiriTheme.onBackground.copy(0.06f))
-                Spacer(Modifier.height(8.dp))
-                DrawerActionItem(icon = Icons.Outlined.AddComment, label = stringResource(R.string.new_chat), onClick = onNewChat)
-                DrawerNavItem(icon = Icons.Outlined.Forum, label = stringResource(R.string.chats), route = AiriRoute.HISTORY, onNavigate = onNavigate)
-                DrawerNavItem(icon = Icons.Outlined.Psychology, label = stringResource(R.string.memory), route = AiriRoute.MEMORY, onNavigate = onNavigate)
-                DrawerNavItem(icon = Icons.Outlined.Extension, label = stringResource(R.string.integrations), route = AiriRoute.INTEGRATIONS, onNavigate = onNavigate)
-                DrawerNavItem(icon = Icons.Outlined.BuildCircle, label = stringResource(R.string.custom_skills), route = AiriRoute.SKILL_MANAGER, onNavigate = onNavigate)
-                DrawerNavItem(icon = Icons.Outlined.Share, label = stringResource(R.string.invite_friends), route = AiriRoute.REFERRALS, onNavigate = onNavigate)
-                Spacer(Modifier.height(4.dp))
-                Divider(color = AiriTheme.onBackground.copy(0.06f))
-                Spacer(Modifier.height(4.dp))
-                DrawerNavItem(icon = Icons.Outlined.ManageHistory, label = stringResource(R.string.agent_logs), route = AiriRoute.AGENT_LOGS, onNavigate = onNavigate)
-                DrawerNavItem(icon = Icons.Outlined.Tune, label = stringResource(R.string.agent_control), route = AiriRoute.AGENT_CONTROL, onNavigate = onNavigate)
-            }
-            Box(
-                modifier = Modifier.fillMaxWidth().height(32.dp).align(Alignment.BottomCenter).offset(y = (-112).dp)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xFF0D1124))))
-            )
-            Column(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
-                Divider(color = AiriTheme.onBackground.copy(0.08f))
-                DrawerNavItem(icon = Icons.Outlined.Settings, label = stringResource(R.string.settings), route = AiriRoute.SETTINGS, onNavigate = onNavigate)
-                DrawerActionItem(icon = Icons.Outlined.Logout, label = stringResource(R.string.sign_out), tint = Color(0xFFFF6B6B), onClick = onLogout)
-                Spacer(Modifier.height(16.dp))
-            }
-        }
-    }
-}
-
-private fun shareAiResponse(context: android.content.Context, response: String) {
-    val shareText = "${response.trim()}\n\nGenerated by AIRI"
-    AnalyticsService.shareableOutputShared("android_share")
-    val intent = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, shareText) }
-    context.startActivity(Intent.createChooser(intent, "Share AIRI response"))
-}
-
-@Composable
-private fun DrawerNavItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, route: String, onNavigate: (String) -> Unit) {
-    NavigationDrawerItem(
-        icon = { Icon(icon, null, tint = AiriTheme.onBackground.copy(0.7f)) },
-        label = { Text(label, color = AiriTheme.onBackground) },
-        selected = false,
-        onClick = { onNavigate(route) },
-        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent),
-        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-    )
-}
-
-@Composable
-private fun DrawerActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color = MaterialTheme.colorScheme.onSurface.copy(0.7f), onClick: () -> Unit) {
-    NavigationDrawerItem(
-        icon = { Icon(icon, null, tint = tint) },
-        label = { Text(label, color = tint) },
-        selected = false, onClick = onClick,
-        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent),
-        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-    )
-}
-
-@Composable
-private fun GenerationSettingsDialog(viewModel: ChatViewModel, onDismiss: () -> Unit) {
-    val temperature  by viewModel.temperature.collectAsState()
-    val maxTokens    by viewModel.maxTokens.collectAsState()
-    val systemPrompt by viewModel.systemPrompt.collectAsState()
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface, titleContentColor = MaterialTheme.colorScheme.onSurface, textContentColor = MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(20.dp),
-        title = { Text(stringResource(R.string.generation_settings), fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(stringResource(R.string.generation_settings_description), color = AiriTheme.onBackground.copy(0.5f), fontSize = 12.sp)
-                Column {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(stringResource(R.string.temperature), fontSize = 13.sp)
-                        Text("%.1f".format(temperature), color = CosmicAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Slider(value = temperature, onValueChange = { viewModel.setTemperature(it) }, valueRange = 0.1f..2.0f,
-                        colors = SliderDefaults.colors(thumbColor = CosmicAccent, activeTrackColor = CosmicAccent))
-                    Text(stringResource(R.string.temperature_hint), color = AiriTheme.onBackground.copy(0.35f), fontSize = 11.sp)
-                }
-                Column {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(stringResource(R.string.max_tokens), fontSize = 13.sp)
-                        Text("$maxTokens", color = CosmicAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Slider(value = maxTokens.toFloat(), onValueChange = { viewModel.setMaxTokens(it.toInt()) }, valueRange = 64f..2048f, steps = 15,
-                        colors = SliderDefaults.colors(thumbColor = CosmicAccent, activeTrackColor = CosmicAccent))
-                }
-                Column {
-                    Text(stringResource(R.string.system_prompt_override), fontSize = 13.sp)
-                    Spacer(Modifier.height(4.dp))
-                    OutlinedTextField(
-                        value = systemPrompt, onValueChange = { viewModel.setSystemPrompt(it) },
-                        placeholder = { Text(stringResource(R.string.leave_empty_default), color = AiriTheme.onBackground.copy(0.3f), fontSize = 12.sp) },
-                        minLines = 2, maxLines = 4,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(0.15f), focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = AiriTheme.onBackground)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = AiriTheme.onBackground)) {
-                Text(stringResource(R.string.save))
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(0.6f)) } }
-    )
-}
-
-@Composable
-private fun VoiceWaveformBars(active: Boolean, color: Color, barCount: Int = 5, modifier: Modifier = Modifier) {
-    val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "voice_waveform")
-    val barAlpha = if (active) 0.88f else 0.40f
-    Row(modifier = modifier.height(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        for (i in 0 until barCount) {
-            val maxH = when (i % 3) { 0 -> 14f; 1 -> 18f; else -> 10f }
-            val barH by infinite.animateFloat(
-                initialValue = 3f, targetValue = if (active) maxH else 4f,
-                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                    animation = androidx.compose.animation.core.tween(280 + i * 70),
-                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
-                    initialStartOffset = androidx.compose.animation.core.StartOffset(i * 75)
-                ), label = "bar$i"
-            )
-            Box(modifier = Modifier.width(3.dp).height(barH.dp).clip(RoundedCornerShape(2.dp)).graphicsLayer { alpha = barAlpha }.background(color))
-        }
-    }
-}
-
-@Composable
-private fun ScrollToBottomFab(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(200)) + scaleIn(animationSpec = androidx.compose.animation.core.spring(dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy), initialScale = 0.55f),
-        exit  = fadeOut(animationSpec = androidx.compose.animation.core.tween(140)) + scaleOut(targetScale = 0.55f),
-        modifier = modifier
-    ) {
-        Box(
-            modifier = Modifier.size(36.dp).clip(CircleShape).background(CosmicAccent.copy(0.90f)).clickable { onClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.KeyboardArrowDown, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.Send, contentDescription = "Send")
         }
     }
 }

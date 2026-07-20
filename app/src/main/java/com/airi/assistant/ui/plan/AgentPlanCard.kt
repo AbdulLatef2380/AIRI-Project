@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -93,7 +94,8 @@ private fun SpinnerDot(color: Color) {
     }
 }
 
-private fun labelColor(status: PlanStepStatus) = when (status) {
+@Composable
+private fun labelColor(status: PlanStepStatus): Color = when (status) {
     PlanStepStatus.RUNNING   -> MaterialTheme.colorScheme.onSurface
     PlanStepStatus.RETRYING  -> SemanticWarn
     PlanStepStatus.COMPLETED -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)

@@ -323,20 +323,18 @@ private fun FeaturedSkillCard(skill: MarketplaceSkill, onInstall: (MarketplaceSk
                     contentAlignment = Alignment.Center
                 ) { Text(skill.category.emoji, fontSize = 18.sp) }
                 Column {
-                    Text(skill.name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = AiriTheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(skill.publisher.displayName, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant, maxLines = 1)
+                    Text(skill.name, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("v${skill.version}", fontSize = 10.sp, color = AiriTheme.onSurfaceVariant)
                 }
             }
             Text(skill.description, fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 16.sp)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(skill.ratingStars, fontSize = 11.sp, color = Color(0xFFFFC107))
-                if (!skill.isInstalled) {
-                    TextButton(onClick = { onInstall(skill) }, contentPadding = PaddingValues(0.dp)) {
-                        Text(stringResource(R.string.marketplace_install), color = CosmicAccent, fontSize = 12.sp)
-                    }
-                } else {
-                    Text(stringResource(R.string.marketplace_installed_badge), fontSize = 12.sp, color = SemanticSuccess)
-                }
+            Button(
+                onClick = { onInstall(skill) },
+                modifier = Modifier.fillMaxWidth().height(36.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
+            ) {
+                Text(stringResource(R.string.marketplace_install), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -344,454 +342,203 @@ private fun FeaturedSkillCard(skill: MarketplaceSkill, onInstall: (MarketplaceSk
 
 @Composable
 private fun SkillListRow(skill: MarketplaceSkill, onInstall: (MarketplaceSkill) -> Unit) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-        shape  = RoundedCornerShape(14.dp)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(44.dp).background(CosmicAccent.copy(0.15f), RoundedCornerShape(12.dp)),
-                contentAlignment = Alignment.Center
-            ) { Text(skill.category.emoji, fontSize = 22.sp) }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(skill.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = AiriTheme.onBackground)
-                    if (skill.isVerified) Icon(Icons.Default.Verified, "Verified", Modifier.size(14.dp), tint = CosmicAccent)
-                }
-                Text("${skill.publisher.displayName} · ${skill.displayVersion}", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
-                Text(skill.description, fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(skill.ratingStars, fontSize = 11.sp, color = Color(0xFFFFC107))
-                    Text(stringResource(R.string.marketplace_installs_count, "%,d".format(skill.stats.installCount)), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            if (skill.isInstalled) {
-                if (skill.hasUpdate) {
-                    OutlinedButton(onClick = { onInstall(skill) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
-                        Text(stringResource(R.string.marketplace_update), fontSize = 12.sp, color = SemanticWarn)
-                    }
-                } else {
-                    Icon(Icons.Default.CheckCircle, stringResource(R.string.marketplace_installed_badge), Modifier.size(20.dp), tint = SemanticSuccess)
-                }
-            } else {
-                Button(
-                    onClick = { onInstall(skill) },
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    colors  = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
-                ) { Text(stringResource(R.string.marketplace_install), fontSize = 12.sp) }
-            }
+        Box(
+            Modifier.size(44.dp).background(AiriTheme.surfaceVariant, RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center
+        ) { Text(skill.category.emoji, fontSize = 20.sp) }
+        Column(Modifier.weight(1f)) {
+            Text(skill.name, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground, fontSize = 14.sp)
+            Text(skill.description, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        TextButton(onClick = { onInstall(skill) }) {
+            Text(stringResource(R.string.marketplace_install), color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
     }
 }
+
 @Composable
 private fun InstalledTab(
-    installed:  List<MarketplaceSkill>,
+    installed: List<MarketplaceSkill>,
     onUninstall: (MarketplaceSkill) -> Unit,
-    onUpdate:   (MarketplaceSkill) -> Unit
+    onUpdate: (MarketplaceSkill) -> Unit
 ) {
     if (installed.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.Extension, null, Modifier.size(56.dp), tint = AiriTheme.onSurfaceVariant)
-                Text(stringResource(R.string.marketplace_no_installed), color = AiriTheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
-                Text(stringResource(R.string.marketplace_explore_hint), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
-            }
+            Text(stringResource(R.string.marketplace_no_installed), color = AiriTheme.onSurfaceVariant)
         }
-        return
-    }
-
-    LazyColumn(
-        contentPadding      = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        modifier            = Modifier.fillMaxSize()
-    ) {
-        items(installed, key = { it.id }) { skill ->
-            Card(
-                colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-                shape  = RoundedCornerShape(14.dp)
-            ) {
-                Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(skill.name, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
-                            if (skill.hasUpdate) Badge(containerColor = SemanticWarn) { Text(stringResource(R.string.marketplace_update), color = MaterialTheme.colorScheme.onSurface, fontSize = 9.sp) }
-                        }
-                        Text("v${skill.installedVersion ?: skill.version} · ${skill.publisher.displayName}", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (skill.hasUpdate) {
-                            IconButton(onClick = { onUpdate(skill) }) {
-                                Icon(Icons.Default.SystemUpdate, stringResource(R.string.marketplace_update), tint = SemanticWarn)
-                            }
-                        }
-                        IconButton(onClick = { onUninstall(skill) }) {
-                            Icon(Icons.Default.Delete, "Uninstall", tint = SemanticError)
-                        }
-                    }
-                }
+    } else {
+        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(installed) { skill ->
+                InstalledSkillRow(skill, onUninstall, onUpdate)
             }
         }
     }
 }
+
+@Composable
+private fun InstalledSkillRow(
+    skill: MarketplaceSkill,
+    onUninstall: (MarketplaceSkill) -> Unit,
+    onUpdate: (MarketplaceSkill) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(
+                Modifier.size(40.dp).background(AiriTheme.background, RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) { Text(skill.category.emoji, fontSize = 18.sp) }
+            Column(Modifier.weight(1f)) {
+                Text(skill.name, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground, fontSize = 14.sp)
+                Text("v${skill.version}", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+            }
+            if (skill.hasUpdate) {
+                IconButton(onClick = { onUpdate(skill) }) {
+                    Icon(Icons.Default.Update, null, tint = CosmicAccent)
+                }
+            }
+            IconButton(onClick = { onUninstall(skill) }) {
+                Icon(Icons.Default.DeleteOutline, null, tint = SemanticError)
+            }
+        }
+    }
+}
+
 @Composable
 private fun UpdatesTab(
-    updates:  List<MarketplaceSkill>,
+    updates: List<MarketplaceSkill>,
     onUpdate: (MarketplaceSkill) -> Unit
 ) {
     if (updates.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.CheckCircle, null, Modifier.size(56.dp), tint = SemanticSuccess)
-                Text(stringResource(R.string.marketplace_up_to_date), color = AiriTheme.onBackground, fontWeight = FontWeight.Medium)
-                Text(stringResource(R.string.marketplace_no_updates), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.CheckCircle, null, tint = SemanticSuccess, modifier = Modifier.size(48.dp))
+                Spacer(Modifier.height(12.dp))
+                Text(stringResource(R.string.marketplace_all_updated), color = AiriTheme.onSurfaceVariant)
             }
         }
-        return
-    }
-
-    LazyColumn(
-        contentPadding      = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        modifier            = Modifier.fillMaxSize()
-    ) {
-        item {
-            Text(
-                "${updates.size} update${if (updates.size != 1) "s" else ""} available",
-                fontWeight = FontWeight.SemiBold,
-                fontSize   = 14.sp,
-                color      = SemanticWarn
-            )
-        }
-        items(updates, key = { it.id }) { skill ->
-            Card(
-                colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-                shape  = RoundedCornerShape(14.dp)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        Modifier.size(44.dp).background(SemanticWarn.copy(0.12f), RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center
-                    ) { Text(skill.category.emoji, fontSize = 22.sp) }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(skill.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = AiriTheme.onBackground)
-                            if (skill.isVerified) Icon(Icons.Default.Verified, "Verified", Modifier.size(14.dp), tint = CosmicAccent)
-                        }
-                        Text(
-                            "v${skill.installedVersion ?: "?"} → v${skill.version}",
-                            fontSize = 12.sp,
-                            color    = SemanticWarn
-                        )
-                        Text(skill.publisher.displayName, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick         = { onUpdate(skill) },
-                        contentPadding  = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        colors          = ButtonDefaults.buttonColors(containerColor = SemanticWarn)
-                    ) { Text(stringResource(R.string.marketplace_update), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface) }
-                }
+    } else {
+        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(updates) { skill ->
+                UpdateSkillRow(skill, onUpdate)
             }
         }
     }
 }
+
+@Composable
+private fun UpdateSkillRow(skill: MarketplaceSkill, onUpdate: (MarketplaceSkill) -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(
+                Modifier.size(40.dp).background(AiriTheme.background, RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) { Text(skill.category.emoji, fontSize = 18.sp) }
+            Column(Modifier.weight(1f)) {
+                Text(skill.name, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground, fontSize = 14.sp)
+                Text("New version available: v${skill.newVersion}", fontSize = 11.sp, color = CosmicAccent)
+            }
+            Button(
+                onClick = { onUpdate(skill) },
+                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.height(36.dp)
+            ) {
+                Text("Update", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
 @Composable
 private fun GitHubImportTab(
     onImported: (String) -> Unit,
-    onError:    (String) -> Unit
+    onError: (String) -> Unit
 ) {
-    val scope   = rememberCoroutineScope()
-    val context = LocalContext.current
+    var repoUrl by remember { mutableStateOf("") }
+    var isImporting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    var url          by remember { mutableStateOf("") }
-    var isLoading    by remember { mutableStateOf(false) }
-    var result       by remember { mutableStateOf<GitHubSkillImporter.ImportResult?>(null) }
-
-    LazyColumn(
-        contentPadding      = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        modifier            = Modifier.fillMaxSize()
-    ) {
-        item {
-            Text(
-                stringResource(R.string.marketplace_import_title),
-                fontWeight = FontWeight.Bold, fontSize = 20.sp, color = AiriTheme.onBackground
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                stringResource(R.string.marketplace_import_subtitle),
-                fontSize = 14.sp, color = AiriTheme.onSurfaceVariant
-            )
-        }
-
-        item {
-            OutlinedTextField(
-                value         = url,
-                onValueChange = { url = it; result = null },
-                label         = { Text(stringResource(R.string.marketplace_import_url_label)) },
-                placeholder   = { Text("https://github.com/user/my-skill", color = AiriTheme.onSurfaceVariant.copy(0.5f)) },
-                modifier      = Modifier.fillMaxWidth(),
-                singleLine    = true,
-                colors        = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor   = CosmicAccent,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                )
-            )
-        }
-
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-                shape  = RoundedCornerShape(12.dp)
-            ) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(stringResource(R.string.marketplace_import_formats_title), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = AiriTheme.onBackground)
-                    Text("• https://github.com/user/repo", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
-                    Text("• https://raw.githubusercontent.com/user/repo/main/skill.json", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
-                }
-            }
-        }
-
-        item {
-            Button(
-                onClick = {
-                    if (url.isBlank()) { onError("Please enter a URL"); return@Button }
-                    isLoading = true
-                    result    = null
+    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(stringResource(R.string.marketplace_import_title), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
+        Text(stringResource(R.string.marketplace_import_desc), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 18.sp)
+        
+        OutlinedTextField(
+            value = repoUrl,
+            onValueChange = { repoUrl = it },
+            placeholder = { Text("https://github.com/user/skill-repo") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent)
+        )
+        
+        Button(
+            onClick = {
+                if (repoUrl.isNotBlank()) {
+                    isImporting = true
                     scope.launch {
-                        val r = GitHubSkillImporter.importFromUrl(url.trim())
-                        result    = r
-                        isLoading = false
-                        if (r.success && r.skill != null) {
-                            onImported(r.manifest?.name ?: r.skill.name)
-                        } else if (!r.success) {
-                            onError(r.errors.firstOrNull() ?: "Import failed")
+                        val result = GitHubSkillImporter.import(repoUrl)
+                        isImporting = false
+                        if (result is GitHubSkillImporter.ImportResult.Success) {
+                            onImported(result.skillName)
+                            repoUrl = ""
+                        } else if (result is GitHubSkillImporter.ImportResult.Error) {
+                            onError(result.message)
                         }
                     }
-                },
-                enabled  = url.isNotBlank() && !isLoading,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
-                shape    = RoundedCornerShape(14.dp)
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(Modifier.size(18.dp), color = MaterialTheme.colorScheme.onSurface, strokeWidth = 2.dp)
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.marketplace_import_loading))
-                } else {
-                    Icon(Icons.Default.Download, null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.marketplace_import_button), fontWeight = FontWeight.SemiBold)
                 }
-            }
-        }
-
-        result?.let { r ->
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (r.success) SemanticSuccess.copy(0.1f) else SemanticError.copy(0.1f)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(
-                                if (r.success) Icons.Default.CheckCircle else Icons.Default.Error,
-                                null, Modifier.size(18.dp),
-                                tint = if (r.success) SemanticSuccess else SemanticError
-                            )
-                            Text(
-                                if (r.success) stringResource(R.string.marketplace_import_success_label, r.manifest?.name ?: "")
-                                else           stringResource(R.string.marketplace_import_error_label),
-                                fontWeight = FontWeight.SemiBold,
-                                color      = if (r.success) SemanticSuccess else SemanticError
-                            )
-                        }
-                        if (r.success) {
-                            r.manifest?.let { m ->
-                                Text("ID: ${m.id}  •  v${m.version}  •  by ${m.author}", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
-                                Text(m.description, fontSize = 13.sp, color = AiriTheme.onBackground)
-                                if (m.tools.isNotEmpty()) {
-                                    Text("Tools: ${m.tools.joinToString { it.name }}", fontSize = 12.sp, color = CosmicAccent)
-                                }
-                            }
-                        }
-                        r.errors.forEach   { Text("• $it", fontSize = 12.sp, color = SemanticError) }
-                        r.warnings.forEach { Text("⚠ $it", fontSize = 12.sp, color = SemanticWarn) }
-                    }
-                }
-            }
+            },
+            enabled = repoUrl.isNotBlank() && !isImporting,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            if (isImporting) CircularProgressIndicator(size = 20.dp, color = Color.White)
+            else Text(stringResource(R.string.marketplace_import_btn), fontWeight = FontWeight.Bold)
         }
     }
 }
+
 @Composable
 private fun PublishTab(
     onNavigateToWizard: () -> Unit,
     onPublish: (SkillPublisher.SkillSubmission) -> Unit
 ) {
-    var manifestJson   by remember { mutableStateOf(SkillPublisher.TEMPLATE_JSON) }
-    var publisherName  by remember { mutableStateOf("") }
-    var repositoryUrl  by remember { mutableStateOf("") }
-    var licenseId      by remember { mutableStateOf("MIT") }
-    var isOpenSource   by remember { mutableStateOf(true) }
-    var termsAccepted  by remember { mutableStateOf(false) }
-    var validationResult by remember { mutableStateOf<SkillPublisher.ValidationResult?>(null) }
-
-    LazyColumn(
-        contentPadding      = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        modifier            = Modifier.fillMaxSize()
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        item {
-            Text(stringResource(R.string.marketplace_publish_title), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = AiriTheme.onBackground)
-            Text(stringResource(R.string.marketplace_publish_subtitle), fontSize = 14.sp, color = AiriTheme.onSurfaceVariant)
-        }
-
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(CosmicAccent.copy(alpha = 0.10f))
-                    .border(1.dp, CosmicAccent.copy(alpha = 0.30f), RoundedCornerShape(14.dp))
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Icon(
-                    Icons.Filled.AutoAwesome,
-                    contentDescription = null,
-                    tint = CosmicAccent,
-                    modifier = Modifier.size(28.dp)
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Create with Wizard",
-                        fontWeight = FontWeight.Bold,
-                        color = CosmicAccent,
-                        fontSize = 15.sp
-                    )
-                    Text(
-                        "Build a skill.json manifest step-by-step instead of editing raw JSON.",
-                        fontSize = 12.sp,
-                        color = AiriTheme.onSurfaceVariant
-                    )
-                }
-                Button(
-                    onClick = onNavigateToWizard,
-                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text(stringResource(R.string.marketplace_open), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                }
-            }
-        }
-
-        item {
-            OutlinedTextField(value = publisherName, onValueChange = { publisherName = it },
-                label = { Text(stringResource(R.string.marketplace_publisher_name)) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = MaterialTheme.colorScheme.outline))
-        }
-
-        item {
-            OutlinedTextField(value = repositoryUrl, onValueChange = { repositoryUrl = it },
-                label = { Text(stringResource(R.string.marketplace_repo_url)) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = MaterialTheme.colorScheme.outline))
-        }
-
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = isOpenSource, onCheckedChange = { isOpenSource = it }, colors = CheckboxDefaults.colors(checkedColor = CosmicAccent))
-                Text(stringResource(R.string.marketplace_open_source), color = AiriTheme.onBackground)
-            }
-        }
-
-        item {
-            Text(stringResource(R.string.marketplace_manifest_label), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
-            Spacer(Modifier.height(6.dp))
-            OutlinedTextField(
-                value         = manifestJson,
-                onValueChange = { manifestJson = it; validationResult = null },
-                modifier      = Modifier.fillMaxWidth().height(240.dp),
-                textStyle     = LocalTextStyle.current.copy(fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-                colors        = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = MaterialTheme.colorScheme.outline)
-            )
-        }
-
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { validationResult = SkillPublisher.validateManifest(manifestJson) }) {
-                    Icon(Icons.Default.CheckCircle, null, Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.marketplace_validate))
-                }
-                OutlinedButton(onClick = { manifestJson = SkillPublisher.TEMPLATE_JSON; validationResult = null }) {
-                    Icon(Icons.Default.RestartAlt, null, Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.marketplace_reset))
-                }
-            }
-        }
-
-        validationResult?.let { vr ->
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = if (vr.isValid) SemanticSuccess.copy(0.1f) else SemanticError.copy(0.1f)),
-                    shape  = RoundedCornerShape(12.dp)
-                ) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(if (vr.isValid) Icons.Default.CheckCircle else Icons.Default.Error, null,
-                                Modifier.size(16.dp), tint = if (vr.isValid) SemanticSuccess else SemanticError)
-                            Spacer(Modifier.width(6.dp))
-                            Text(if (vr.isValid) stringResource(R.string.marketplace_manifest_valid) else stringResource(R.string.marketplace_manifest_invalid), fontWeight = FontWeight.SemiBold,
-                                color = if (vr.isValid) SemanticSuccess else SemanticError)
-                        }
-                        vr.errors.forEach   { Text("• $it", fontSize = 12.sp, color = SemanticError) }
-                        vr.warnings.forEach { Text("⚠ $it", fontSize = 12.sp, color = SemanticWarn) }
-                    }
-                }
-            }
-        }
-
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = termsAccepted, onCheckedChange = { termsAccepted = it }, colors = CheckboxDefaults.colors(checkedColor = CosmicAccent))
-                Text(stringResource(R.string.marketplace_terms), fontSize = 13.sp, color = AiriTheme.onBackground)
-            }
-        }
-
-        item {
-            Button(
-                onClick = {
-                    val submission = SkillPublisher.buildSubmission(
-                        manifestJson  = manifestJson,
-                        publisherName = publisherName,
-                        publisherId   = publisherName.lowercase().replace(" ", "_"),
-                        repositoryUrl = repositoryUrl.ifBlank { null },
-                        licenseId     = licenseId,
-                        isOpenSource  = isOpenSource,
-                        termsAccepted = termsAccepted
-                    ) ?: return@Button
-                    onPublish(submission)
-                },
-                enabled  = termsAccepted && publisherName.isNotBlank() && (validationResult?.isValid == true || validationResult == null),
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
-                shape    = RoundedCornerShape(14.dp)
-            ) {
-                Icon(Icons.Default.Publish, null, Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.marketplace_submit_review), fontWeight = FontWeight.SemiBold)
-            }
+        Icon(Icons.Default.CloudUpload, null, modifier = Modifier.size(64.dp), tint = CosmicAccent.copy(0.2f))
+        Spacer(Modifier.height(16.dp))
+        Text(stringResource(R.string.marketplace_publish_title), fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, fontSize = 18.sp)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            stringResource(R.string.marketplace_publish_desc),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            color = AiriTheme.onSurfaceVariant,
+            fontSize = 14.sp,
+            lineHeight = 20.sp
+        )
+        Spacer(Modifier.height(24.dp))
+        Button(
+            onClick = onNavigateToWizard,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text(stringResource(R.string.marketplace_start_wizard), fontWeight = FontWeight.Bold)
         }
     }
 }

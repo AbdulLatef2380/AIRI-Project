@@ -43,8 +43,10 @@ object SkillPublisher {
     data class PublishValidationResult(
         val isValid: Boolean,
         val errors:  List<String> = emptyList(),
-        val warnings: List<String> = emptyList()
+        val warnings: List<String> = emptyOf()
     )
+
+    private fun <T> emptyOf(): List<T> = emptyList()
 
     data class SkillSubmission(
         val manifest:        JSONObject,
@@ -68,7 +70,7 @@ object SkillPublisher {
 
     /**
      * Validate a skill manifest JSON string.
-     * Returns a [ValidationResult] with all errors and warnings found.
+     * Returns a [PublishValidationResult] with all errors and warnings found.
      */
     fun validateManifest(jsonString: String): PublishValidationResult {
         val errors   = mutableListOf<String>()

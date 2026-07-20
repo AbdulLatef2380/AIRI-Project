@@ -213,7 +213,7 @@ private fun LiveTab(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         SettingsSurface {
-            ExSection(icon = Icons.Outlined.MonitorHeart, title = "Active Execution")
+            SettingsCategoryHeader(icon = Icons.Outlined.MonitorHeart, title = "Active Execution")
             Spacer(Modifier.height(12.dp))
 
             ExRow(
@@ -246,7 +246,7 @@ private fun LiveTab(
                           state.lastStreamDurationMs > 0L
         if (hasTurnData) {
             SettingsSurface {
-                ExSection(icon = Icons.Outlined.Speed, title = "Last Turn")
+                SettingsCategoryHeader(icon = Icons.Outlined.Speed, title = "Last Turn")
                 Spacer(Modifier.height(12.dp))
 
                 ExRow("Prompt Tokens",     state.lastPromptTokens.toString())
@@ -261,7 +261,7 @@ private fun LiveTab(
             }
         }
         SettingsSurface {
-            ExSection(icon = Icons.Outlined.ShowChart, title = "Local Throughput")
+            SettingsCategoryHeader(icon = Icons.Outlined.ShowChart, title = "Local Throughput")
             Spacer(Modifier.height(8.dp))
             if (tokenRateHistory.isEmpty()) {
                 Box(
@@ -323,7 +323,7 @@ private fun LiveTab(
         }
         if (kvMax > 0) {
             SettingsSurface {
-                ExSection(icon = Icons.Outlined.Memory, title = "Context Window")
+                SettingsCategoryHeader(icon = Icons.Outlined.Memory, title = "Context Window")
                 Spacer(Modifier.height(10.dp))
 
                 val kvPct = (kvUsed.toFloat() / kvMax.toFloat()).coerceIn(0f, 1f)
@@ -372,65 +372,74 @@ private fun LiveTab(
 
 @Composable
 private fun BudgetTab(
-    stats:       Map<String, TokenAccountant.ProviderStats>,
+    stats:       Map<CloudProvider, TokenAccountant.ProviderStats>,
     viewModel:   ChatViewModel,
     scope:       CoroutineScope,
     onShowReset: () -> Unit
 ) {
-    if (stats.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No token usage data for today", color = exSubtle(), fontSize = 14.sp)
-        }
-        return
-    }
-
     LazyColumn(
-        modifier       = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(stats.entries.toList()) { entry ->
-            val provider = entry.key
-            val s        = entry.value
+        item {
+            Text(
+                "Today's Token Usage",
+                color = AiriTheme.onBackground,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
+            Text(
+                "Local tracking for awareness only. Actual billing is handled by providers.",
+                color = exDim(),
+                fontSize = 11.sp,
+                lineHeight = 15.sp
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+
+        val providers = CloudProvider.entries.filter { it != CloudProvider.CUSTOM && it != CloudProvider.BRAVE }
+        items(providers) { provider ->
+            val pStats = stats[provider] ?: TokenAccountant.ProviderStats()
             SettingsSurface {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    ExSection(icon = Icons.Outlined.AccountBalanceWallet, title = provider.uppercase())
-                    val cost = s.promptTokens * 0.000001 + s.completionTokens * 0.000003
-                    if (cost > 0) {
-                        Text(
-                            "est. $${"%.4f".format(cost)}",
-                            color      = ExOk,
-                            fontSize   = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    SettingsCategoryHeader(icon = providerIcon(provider), title = provider.displayName)
+                    val cost = pStats.estimatedCostUsd(provider)
+                    Text(
+                        "$%.4f".format(cost),
+                        color = if (cost > 0) ExOk else exSubtle(),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
                 }
                 Spacer(Modifier.height(12.dp))
-                ExRow("Prompt Tokens",     s.promptTokens.toString())
+                ExRow("Prompt Tokens", pStats.promptTokens.toString())
                 ExDivider()
-                ExRow("Completion Tokens", s.completionTokens.toString())
+                ExRow("Completion Tokens", pStats.completionTokens.toString())
                 ExDivider()
-                ExRow("Total Today",       (s.promptTokens + s.completionTokens).toString(), ExOk)
+                ExRow("Request Count", pStats.requestCount.toString())
+                if (pStats.failureCount > 0) {
+                    ExDivider()
+                    ExRow("Failures", pStats.failureCount.toString(), ExError)
+                }
             }
         }
+
         item {
-            Spacer(Modifier.height(8.dp))
-            Button(
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(
                 onClick = onShowReset,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ExError.copy(alpha = 0.1f),
-                    contentColor   = ExError
-                ),
-                shape = RoundedCornerShape(12.dp)
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = ExError),
+                border = BorderStroke(1.dp, ExError.copy(alpha = 0.3f))
             ) {
                 Icon(Icons.Outlined.DeleteSweep, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Reset All Daily Counters", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("Reset Token Counters")
             }
         }
     }
@@ -439,47 +448,53 @@ private fun BudgetTab(
 @Composable
 private fun HistoryTab(history: List<ExecTransitionEvent>) {
     if (history.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No execution events recorded", color = exSubtle(), fontSize = 14.sp)
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No execution events in this session", color = exSubtle())
         }
         return
     }
 
     LazyColumn(
-        modifier       = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(history) { event ->
+        items(history.reversed()) { event ->
             Surface(
-                color  = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
-                shape  = RoundedCornerShape(10.dp),
-                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline)
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(
-                        modifier              = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .padding(top = 4.dp)
+                            .clip(CircleShape)
+                            .background(backendColor(event.toBackend))
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            event.transition.replace("_", " "),
-                            color      = if (event.isError) ExError else ExOk,
-                            fontWeight = FontWeight.Bold,
-                            fontSize   = 12.sp
+                            "Transition to ${event.toBackend.replace("_", " ")}",
+                            color = AiriTheme.onBackground,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            formatTime(event.timestamp),
-                            color    = exSubtle(),
-                            fontSize = 10.sp
+                            event.reason,
+                            color = exDim(),
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
                         )
-                    }
-                    if (event.detail.isNotBlank()) {
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            event.detail,
-                            color      = exDim(),
-                            fontSize   = 11.sp,
-                            lineHeight = 15.sp,
+                            formatMs(event.timestamp),
+                            color = exSubtle(),
+                            fontSize = 9.sp,
                             fontFamily = FontFamily.Monospace
                         )
                     }
@@ -489,83 +504,72 @@ private fun HistoryTab(history: List<ExecTransitionEvent>) {
     }
 }
 
-// UI Helpers
 @Composable
-private fun SettingsSurface(content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f),
-        shape    = RoundedCornerShape(16.dp),
-        border   = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        content  = { Column(modifier = Modifier.padding(14.dp), content = content) }
-    )
-}
-
-@Composable
-private fun ExSection(icon: ImageVector, title: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(title, color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-    }
-}
-
-@Composable
-private fun ExRow(label: String, value: String, valueColor: Color = AiriTheme.onBackground) {
+private fun ExRow(label: String, value: String, valueColor: Color = exDim()) {
     Row(
-        modifier              = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment     = Alignment.CenterVertically
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, color = exDim(), fontSize = 13.sp)
-        Text(value, color = valueColor, fontSize = 13.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End)
+        Text(label, color = exDim(), fontSize = 12.sp)
+        Text(value, color = valueColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
 private fun ExDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(vertical = 10.dp),
-        color    = MaterialTheme.colorScheme.outline,
-        thickness = 0.5.dp
-    )
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 6.dp))
 }
 
 @Composable
 private fun TpsSparkline(values: List<Float>, modifier: Modifier) {
-    val max = values.max().coerceAtLeast(1f)
+    val color = ExOk
     Canvas(modifier = modifier) {
-        val w      = size.width
-        val h      = size.height
-        val dx     = w / (values.size - 1).coerceAtLeast(1)
-        val path   = Path()
+        if (values.size < 2) return@Canvas
+        val max = values.max().coerceAtLeast(1f)
+        val min = values.min()
+        val range = (max - min).coerceAtLeast(0.1f)
 
+        val width = size.width
+        val height = size.height
+        val dx = width / (values.size - 1)
+
+        val path = Path()
         values.forEachIndexed { i, v ->
             val x = i * dx
-            val y = h - (v / max * h)
+            val y = height - ((v - min) / range) * height
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
         drawPath(
-            path        = path,
-            color       = CosmicAccent,
-            style       = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+            path  = path,
+            color = color,
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
     }
 }
 
-private fun formatMs(ms: Long): String = if (ms < 1000) "${ms}ms" else "%.2fs".format(ms / 1000f)
-private fun formatTime(ms: Long): String {
-    val cal = java.util.Calendar.getInstance().apply { timeInMillis = ms }
-    return "%02d:%02d:%02d".format(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), cal.get(java.util.Calendar.SECOND))
+private fun backendColor(backend: String) = when {
+    backend.contains("LOCAL") -> Color(0xFF66BB6A)
+    backend.contains("CLOUD") -> Color(0xFF29B6F6)
+    else                      -> CosmicAccent
 }
-private fun backendColor(b: String) = when (b.lowercase()) {
-    "llama_cpp" -> Color(0xFF66BB6A)
-    "gemini"    -> Color(0xFF29B6F6)
-    "openai"    -> Color(0xFFAB47BC)
-    else        -> CosmicAccent
+
+private fun originColor(origin: String) = when (origin) {
+    "USER"      -> ExOk
+    "FALLBACK"  -> ExWarn
+    "HYBRID"    -> Color(0xFFAB47BC)
+    else        -> exDim()
 }
-private fun originColor(o: String) = when (o.uppercase()) {
-    "LOCAL" -> Color(0xFF66BB6A)
-    "CLOUD" -> Color(0xFF29B6F6)
-    else    -> Color(0xFFAB47BC)
+
+private fun providerIcon(provider: CloudProvider) = when (provider) {
+    CloudProvider.OPENAI    -> Icons.Outlined.AutoAwesome
+    CloudProvider.ANTHROPIC -> Icons.Outlined.Psychology
+    CloudProvider.GEMINI    -> Icons.Outlined.AutoAwesomeMotion
+    CloudProvider.OPENROUTER-> Icons.Outlined.Hub
+    CloudProvider.KIMI      -> Icons.Outlined.Message
+    else                    -> Icons.Outlined.Cloud
+}
+
+private fun formatMs(ms: Long): String = when {
+    ms < 1000 -> "${ms}ms"
+    else      -> "%.2fs".format(ms / 1000f)
 }

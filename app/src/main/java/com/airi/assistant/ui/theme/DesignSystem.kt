@@ -1,17 +1,13 @@
 package com.airi.assistant.ui.theme
 
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Composable as ComposeAnnotation
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -88,8 +84,8 @@ object AIRISurfaces {
     val card      = SurfaceCard
 
     // Glass overlays
-    val glass        = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-    val glassBorder  = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+    val glass: Color @Composable get() = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+    val glassBorder: Color @Composable get() = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
     val glassPurple  = GlassPurple
     val glassBorderP = GlassPurpleBorder
 
@@ -144,6 +140,7 @@ object AIRIGradients {
     )
 
     // Connector health
+    @Composable
     fun connectorGradient(isConnected: Boolean) = Brush.linearGradient(
         colors = if (isConnected)
             listOf(SemanticSuccess.copy(alpha = 0.15f), SemanticSuccess.copy(alpha = 0.05f))
@@ -174,28 +171,28 @@ object AIRIColors {
     val agentCompleted  = SemanticSuccess
     val agentFailed     = SemanticError
     val agentRecovering = SemanticWarn
-    val agentIdle       = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+    val agentIdle: Color @Composable get() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
 
     // Connector state colors
     val connectorOnline  = SemanticSuccess
-    val connectorOffline = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+    val connectorOffline: Color @Composable get() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
     val connectorError   = SemanticError
     val connectorPending = SemanticWarn
 
     // Voice state colors
-    val voiceIdle       = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+    val voiceIdle: Color @Composable get() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
     val voiceListening  = Color(0xFF00B4D8)
     val voiceSpeaking   = CosmicAccent
     val voiceProcessing = SemanticWarn
     val voiceError      = SemanticError
 
     // Task state colors
-    val taskQueued    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+    val taskQueued: Color @Composable get() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
     val taskRunning   = CosmicAccent
     val taskDone      = SemanticSuccess
     val taskFailed    = SemanticError
     val taskRetrying  = SemanticWarn
-    val taskCancelled = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+    val taskCancelled: Color @Composable get() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
 }
 
 // ── Elevation / shadow tokens (expressed as alpha on surface layers) ──────────
@@ -219,32 +216,34 @@ object AIRIShadows {
 }
 
 // ── : Theme-aware surface helpers ─────────────────────────────────────────
-// These @Composable properties read from MaterialTheme.colorScheme and
-// therefore respond to Dark / Light / AMOLED mode switches.
-// Screens that adopt these instead of hardcoded CosmicBlack/SurfaceCard will
-// automatically support all three themes.
-//
-// Migration path (incremental — no big-bang rewrite required):
-//   Old: color = CosmicBlack
-//   New: color = AiriTheme.background
-//
-//   Old: color = SurfaceCard
-//   New: color = AiriTheme.surface
-//
-//   Old: color = MaterialTheme.colorScheme.onSurface
-//   New: color = AiriTheme.onBackground
-//
-//   Old: color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-//   New: color = AiriTheme.onSurfaceVariant
-
 object AiriTheme {
-    val background: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.background
-    val surface: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.surface
-    val surfaceVariant: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.surfaceVariant
-    val onBackground: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.onBackground
-    val onSurface: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.onSurface
-    val onSurfaceVariant: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.onSurfaceVariant
-    val primary: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.primary
-    val outline: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.outline
-    val error: Color @ComposeAnnotation get() = MaterialTheme.colorScheme.error
+    val background: Color @Composable get() = MaterialTheme.colorScheme.background
+    val surface: Color @Composable get() = MaterialTheme.colorScheme.surface
+    val surfaceVariant: Color @Composable get() = MaterialTheme.colorScheme.surfaceVariant
+    val onBackground: Color @Composable get() = MaterialTheme.colorScheme.onBackground
+    val onSurface: Color @Composable get() = MaterialTheme.colorScheme.onSurface
+    val onSurfaceVariant: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+    val primary: Color @Composable get() = MaterialTheme.colorScheme.primary
+    val outline: Color @Composable get() = MaterialTheme.colorScheme.outline
+    val error: Color @Composable get() = MaterialTheme.colorScheme.error
 }
+
+// Global semantic colors (independent of MaterialTheme for consistency)
+val CosmicAccent       = Color(0xFF6366F1) // Indigo-600
+val CosmicAccentDark   = Color(0xFF4F46E5) // Indigo-700
+val CosmicBlack        = Color(0xFF020617) // Slate-950
+val GlassPurple        = Color(0x1A6366F1)
+val GlassPurpleBorder  = Color(0x336366F1)
+val ModelPillBg        = Color(0xFF1E293B)
+val SurfaceBase        = Color(0xFF020617)
+val SurfaceCard        = Color(0xFF0F172A)
+val SurfaceRaised      = Color(0xFF1E293B)
+val SurfaceFloating    = Color(0xFF334155)
+val SurfaceHighlight   = Color(0xFF475569)
+val InputBarBackground = Color(0xFF0F172A)
+val AiBubbleSurface    = Color(0xFF1E293B)
+val UserBubbleSurface  = Color(0xFF312E81)
+val SemanticError      = Color(0xFFEF4444)
+val SemanticSuccess    = Color(0xFF10B981)
+val SemanticWarn       = Color(0xFFF59E0B)
+val SemanticInfo       = Color(0xFF3B82F6)

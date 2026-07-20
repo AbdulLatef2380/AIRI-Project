@@ -37,6 +37,7 @@ class GeminiLiveProvider(
     override val endpointDescription: String = "$BASE_URL?key=***"
     override val supportsBidirectionalStreaming: Boolean = true
     override val expectedLatencyMs: IntRange = 300..600
+    override val isConnected: Boolean get() = _connected.get()
 
     // ── Connection state ──────────────────────────────────────────────────────
 

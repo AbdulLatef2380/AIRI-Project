@@ -465,7 +465,7 @@ fun ChatList(
 
 @Composable
 fun MessageBubble(message: ChatMessage) {
-    val isUser = message.role == "user"
+    val isUser = message.isUser
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start

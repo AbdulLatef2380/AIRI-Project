@@ -108,6 +108,7 @@ private fun PulseDot(color: Color, active: Boolean) {
     Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color.copy(alpha = alpha)))
 }
 
+@Composable
 private fun stageAccent(stage: ExecutionStage) = when (stage) {
     ExecutionStage.PLANNING   -> CosmicAccent
     ExecutionStage.EXECUTING  -> CosmicAccent

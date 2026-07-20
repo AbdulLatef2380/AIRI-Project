@@ -228,22 +228,4 @@ object AiriTheme {
     val error: Color @Composable get() = MaterialTheme.colorScheme.error
 }
 
-// Global semantic colors (independent of MaterialTheme for consistency)
-val CosmicAccent       = Color(0xFF6366F1) // Indigo-600
-val CosmicAccentDark   = Color(0xFF4F46E5) // Indigo-700
-val CosmicBlack        = Color(0xFF020617) // Slate-950
-val GlassPurple        = Color(0x1A6366F1)
-val GlassPurpleBorder  = Color(0x336366F1)
-val ModelPillBg        = Color(0xFF1E293B)
-val SurfaceBase        = Color(0xFF020617)
-val SurfaceCard        = Color(0xFF0F172A)
-val SurfaceRaised      = Color(0xFF1E293B)
-val SurfaceFloating    = Color(0xFF334155)
-val SurfaceHighlight   = Color(0xFF475569)
-val InputBarBackground = Color(0xFF0F172A)
-val AiBubbleSurface    = Color(0xFF1E293B)
-val UserBubbleSurface  = Color(0xFF312E81)
-val SemanticError      = Color(0xFFEF4444)
-val SemanticSuccess    = Color(0xFF10B981)
-val SemanticWarn       = Color(0xFFF59E0B)
-val SemanticInfo       = Color(0xFF3B82F6)
+// Global semantic colors are defined in Color.kt

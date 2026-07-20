@@ -79,7 +79,6 @@ import com.airi.assistant.ui.screens.SecurityScannerScreen
 import com.airi.assistant.ui.screens.SecretManagerScreen
 import com.airi.assistant.ui.plan.AgentPlanViewModel
 import com.airi.assistant.ui.theme.AIRITheme
-import com.airi.assistant.ui.theme.CosmicBlack
 import com.airi.assistant.ui.viewmodel.AgentViewModel
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 
@@ -221,7 +220,7 @@ fun AiriApp() {
 
     AIRITheme {
         Scaffold(
-            containerColor = CosmicBlack,
+            containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
                 AiriBottomNavBar(
                     selectedTab = selectedTab,
@@ -245,7 +244,7 @@ fun AiriApp() {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(CosmicBlack)
+                    .background(MaterialTheme.colorScheme.background)
                     .padding(innerPadding)
                     .consumeWindowInsets(innerPadding)
             ) {

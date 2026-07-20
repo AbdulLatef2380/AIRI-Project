@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -135,6 +136,7 @@ private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
 
 private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 private fun fmtTime(ms: Long): String = timeFmt.format(Date(ms))
+@Composable
 private fun sevColor(sev: ActivitySeverity) = when (sev) {
     ActivitySeverity.INFO  -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
     ActivitySeverity.WARN  -> SemanticWarn

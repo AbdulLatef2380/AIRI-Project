@@ -505,13 +505,14 @@ private fun HistoryTab(history: List<ExecTransitionEvent>) {
 }
 
 @Composable
-private fun ExRow(label: String, value: String, valueColor: Color = exDim()) {
+private fun ExRow(label: String, value: String, valueColor: Color = Color.Unspecified) {
+    val finalColor = if (valueColor == Color.Unspecified) exDim() else valueColor
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, color = exDim(), fontSize = 12.sp)
-        Text(value, color = valueColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(value, color = finalColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -553,6 +554,7 @@ private fun backendColor(backend: String) = when {
     else                      -> CosmicAccent
 }
 
+@Composable
 private fun originColor(origin: String) = when (origin) {
     "USER"      -> ExOk
     "FALLBACK"  -> ExWarn

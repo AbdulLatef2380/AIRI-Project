@@ -331,14 +331,15 @@ fun AdvancedDiagnosticsSection(diagnostics: RuntimeDiagnosticsState) {
 }
 
 @Composable
-private fun DiagRow(label: String, value: String, valueColor: Color = MaterialTheme.colorScheme.onSurface) {
+private fun DiagRow(label: String, value: String, valueColor: Color = Color.Unspecified) {
+    val finalColor = if (valueColor == Color.Unspecified) MaterialTheme.colorScheme.onSurface else valueColor
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, color = dimWhite(), fontSize = 12.sp)
-        Text(value, color = valueColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(value, color = finalColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
 

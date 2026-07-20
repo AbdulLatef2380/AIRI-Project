@@ -11,7 +11,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -86,7 +87,7 @@ fun AgentPlanOverlay(
                     LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
                         items(items = steps, key = { it.id }) { step ->
                             AgentPlanCard(step = step)
-                            Divider(color = MaterialTheme.colorScheme.outline, thickness = 0.5.dp,
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 0.5.dp,
                                 modifier = Modifier.padding(horizontal = 12.dp))
                         }
                     }

@@ -23,26 +23,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.core.debug.*
 import com.airi.assistant.ui.theme.CosmicAccent
+
 // RuntimeDiagnosticsPanel — production-grade runtime diagnostics UI
-//
-// All composables in this file accept IMMUTABLE state parameters already
-// collected by the caller (PerformanceScreen). No Flow collection, no
-// coroutine launch, no polling inside composables.
-//
-// Recomposition is driven solely by changes to the immutable snapshots
-// passed as parameters — zero jank during streaming because the diagnostics
-// state is only updated at generation lifecycle boundaries, not per-token.
 private val WarnColor    = Color(0xFFFFB74D)  // amber
 private val ErrorColor   = Color(0xFFEF5350)  // red
 private val OkColor      = CosmicAccent
-private val DimWhite     = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
-private val SubtleWhite  = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
-// Public entry-points
+
+@Composable
+private fun dimWhite() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+@Composable
+private fun subtleWhite() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+
+private const val MAX_VISIBLE_EVENTS = 20
+
 /**
  * Full runtime status panel — mode, thermal, memory, context, model, generation.
- *
- * Embed once in PerformanceScreen. State is passed in as a fully-formed
- * [RuntimeDiagnosticsState] snapshot; this composable never collects Flows.
  */
 @Composable
 fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
@@ -59,7 +54,7 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
                 "FAST"     -> WarnColor
                 "BALANCED" -> OkColor
                 "QUALITY"  -> OkColor
-                else       -> DimWhite
+                else       -> dimWhite()
             }
         )
         DiagRow(
@@ -72,7 +67,7 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
             },
             valueColor = when (diagnostics.modeSource) {
                 ModeSource.USER            -> OkColor
-                ModeSource.MANUAL_OVERRIDE -> DimWhite
+                ModeSource.MANUAL_OVERRIDE -> dimWhite()
                 else                       -> WarnColor
             }
         )
@@ -124,7 +119,7 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
             label = "Generation State",
             value = diagnostics.generationPhase.name,
             valueColor = when (diagnostics.generationPhase) {
-                GenerationPhase.IDLE      -> DimWhite
+                GenerationPhase.IDLE      -> dimWhite()
                 GenerationPhase.PREFILL   -> WarnColor
                 GenerationPhase.GENERATE  -> OkColor
                 GenerationPhase.CANCELLED -> WarnColor
@@ -141,23 +136,16 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
         DiagRow(
             label = "Draft Model",
             value = if (diagnostics.draftModelActive) "ACTIVE" else "INACTIVE",
-            valueColor = if (diagnostics.draftModelActive) OkColor else SubtleWhite
+            valueColor = if (diagnostics.draftModelActive) OkColor else subtleWhite()
         )
         DiagRow(
             label = "GPU / Vulkan",
             value = if (diagnostics.gpuVulkanActive) "ACTIVE" else "CPU only",
-            valueColor = if (diagnostics.gpuVulkanActive) OkColor else SubtleWhite
+            valueColor = if (diagnostics.gpuVulkanActive) OkColor else subtleWhite()
         )
     }
 }
 
-/**
- * Active warnings panel. Hidden entirely when there are no warnings —
- * no empty card cluttering the screen.
- *
- * Each warning is shown with a prominent amber icon. The panel becomes
- * a hard red error card if any warning contains a critical keyword.
- */
 @Composable
 fun RuntimeWarningsPanel(warnings: List<String>) {
     if (warnings.isEmpty()) return
@@ -217,14 +205,6 @@ fun RuntimeWarningsPanel(warnings: List<String>) {
     }
 }
 
-/**
- * Collapsible runtime event timeline.
- *
- * Displays the last [MAX_VISIBLE] events from the ring buffer in reverse
- * chronological order. Uses a simple Column (not LazyColumn) because the
- * visible set is bounded and small, avoiding LazyColumn's recycling overhead
- * for a static list.
- */
 @Composable
 fun RuntimeEventTimeline(events: List<com.airi.assistant.core.debug.RuntimeEvent>) {
     var expanded by remember { mutableStateOf(false) }
@@ -255,7 +235,7 @@ fun RuntimeEventTimeline(events: List<com.airi.assistant.core.debug.RuntimeEvent
             Icon(
                 if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                 contentDescription = null,
-                tint = DimWhite,
+                tint = dimWhite(),
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -269,7 +249,7 @@ fun RuntimeEventTimeline(events: List<com.airi.assistant.core.debug.RuntimeEvent
                 if (events.isEmpty()) {
                     Text(
                         "No events yet",
-                        color = SubtleWhite,
+                        color = subtleWhite(),
                         fontSize = 12.sp,
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
@@ -278,7 +258,7 @@ fun RuntimeEventTimeline(events: List<com.airi.assistant.core.debug.RuntimeEvent
                     visible.forEachIndexed { idx, event ->
                         EventRow(event)
                         if (idx < visible.lastIndex) {
-                            Divider(
+                            HorizontalDivider(
                                 color = MaterialTheme.colorScheme.outline,
                                 modifier = Modifier.padding(vertical = 2.dp)
                             )
@@ -288,7 +268,7 @@ fun RuntimeEventTimeline(events: List<com.airi.assistant.core.debug.RuntimeEvent
                         Spacer(Modifier.height(4.dp))
                         Text(
                             "… ${events.size - MAX_VISIBLE_EVENTS} older events not shown",
-                            color = SubtleWhite,
+                            color = subtleWhite(),
                             fontSize = 11.sp
                         )
                     }
@@ -298,36 +278,9 @@ fun RuntimeEventTimeline(events: List<com.airi.assistant.core.debug.RuntimeEvent
     }
 }
 
-/**
- * Collapsible advanced diagnostics section — session IDs, generation IDs,
- * thread counts, uptime, speculative state and other internal counters.
- * Intended for developers and support debugging — hidden by default.
- */
 @Composable
 fun AdvancedDiagnosticsSection(diagnostics: RuntimeDiagnosticsState) {
     var expanded by remember { mutableStateOf(false) }
-
-    val genDurationStr = remember(diagnostics.generationDurationMs) {
-        when {
-            diagnostics.generationDurationMs <= 0L -> "—"
-            diagnostics.generationDurationMs < 1000L ->
-                "${diagnostics.generationDurationMs} ms"
-            else ->
-                "%.1f s".format(diagnostics.generationDurationMs / 1000.0)
-        }
-    }
-
-    val uptimeStr = remember(diagnostics.runtimeUptimeMs) {
-        when {
-            diagnostics.runtimeUptimeMs <= 0L -> "—"
-            diagnostics.runtimeUptimeMs < 60_000L ->
-                "${diagnostics.runtimeUptimeMs / 1000}s"
-            diagnostics.runtimeUptimeMs < 3_600_000L ->
-                "${diagnostics.runtimeUptimeMs / 60_000}m ${(diagnostics.runtimeUptimeMs % 60_000) / 1000}s"
-            else ->
-                "${diagnostics.runtimeUptimeMs / 3_600_000}h ${(diagnostics.runtimeUptimeMs % 3_600_000) / 60_000}m"
-        }
-    }
 
     SettingsSurface {
         Row(
@@ -355,7 +308,7 @@ fun AdvancedDiagnosticsSection(diagnostics: RuntimeDiagnosticsState) {
             Icon(
                 if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                 contentDescription = null,
-                tint = DimWhite,
+                tint = dimWhite(),
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -372,110 +325,64 @@ fun AdvancedDiagnosticsSection(diagnostics: RuntimeDiagnosticsState) {
                     if (diagnostics.generationId > 0L) diagnostics.generationId.toString() else "—")
                 AdvancedRow("Replay Token Count",
                     if (diagnostics.replayTokenCount > 0) diagnostics.replayTokenCount.toString() else "—")
-                AdvancedRow("n_ctx",
-                    if (diagnostics.nCtx > 0) diagnostics.nCtx.toString() else "—")
-                AdvancedRow("Native Threads",
-                    if (diagnostics.nThreads > 0) diagnostics.nThreads.toString() else "—")
-                AdvancedRow("Runtime Uptime", uptimeStr)
-                AdvancedRow("Generation Duration", genDurationStr)
-                AdvancedRow("Speculative Decoding",
-                    if (diagnostics.speculativeActive) "ACTIVE" else "INACTIVE")
             }
         }
     }
 }
-// Internal composables
-private const val MAX_VISIBLE_EVENTS = 30
 
 @Composable
-private fun DiagRow(
-    label:      String,
-    value:      String,
-    valueColor: Color = OkColor
-) {
+private fun DiagRow(label: String, value: String, valueColor: Color = MaterialTheme.colorScheme.onSurface) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment     = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, color = DimWhite, fontSize = 12.sp, modifier = Modifier.weight(1f))
-        Text(
-            value,
-            color      = valueColor,
-            fontSize   = 12.sp,
-            fontWeight = FontWeight.Medium
-        )
+        Text(label, color = dimWhite(), fontSize = 12.sp)
+        Text(value, color = valueColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
 private fun AdvancedRow(label: String, value: String) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment     = Alignment.CenterVertically
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, color = DimWhite, fontSize = 11.sp, modifier = Modifier.weight(1f))
-        Text(
-            value,
-            color      = SubtleWhite,
-            fontSize   = 11.sp,
-            fontFamily = FontFamily.Monospace
-        )
+        Text(label, color = subtleWhite(), fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+        Text(value, color = dimWhite(), fontSize = 11.sp, fontFamily = FontFamily.Monospace)
     }
 }
 
 @Composable
-private fun EventRow(event: com.airi.assistant.core.debug.RuntimeEvent) {
-    val (severityIcon, severityColor) = when (event.severity) {
-        EventSeverity.INFO  -> Icons.Outlined.Info    to OkColor.copy(alpha = 0.7f)
-        EventSeverity.WARN  -> Icons.Outlined.Warning to WarnColor
-        EventSeverity.ERROR -> Icons.Outlined.Error   to ErrorColor
-    }
-
-    val relativeTime = remember(event.timestampMs) {
-        val diffMs = System.currentTimeMillis() - event.timestampMs
-        when {
-            diffMs < 5_000L       -> "just now"
-            diffMs < 60_000L      -> "${diffMs / 1000}s ago"
-            diffMs < 3_600_000L   -> "${diffMs / 60_000}m ago"
-            else                  -> "${diffMs / 3_600_000}h ago"
-        }
-    }
-
+private fun EventRow(event: RuntimeEvent) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Icon(severityIcon, contentDescription = null, tint = severityColor,
-            modifier = Modifier.size(12.dp).padding(top = 1.dp))
-        Spacer(Modifier.width(6.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                event.reason,
-                color    = AiriTheme.onBackground.copy(alpha = 0.80f),
-                fontSize = 11.sp,
-                lineHeight = 14.sp
-            )
-            Text(
-                "${event.subsystem}  ·  $relativeTime",
-                color    = SubtleWhite,
-                fontSize = 10.sp
-            )
+        Box(
+            modifier = Modifier.size(6.dp).padding(top = 6.dp).clip(CircleShape)
+                .background(if (event.isError) ErrorColor else OkColor)
+        )
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(event.message, color = MaterialTheme.colorScheme.onSurface, fontSize = 11.sp)
+            Text(event.timestamp.toString(), color = subtleWhite(), fontSize = 9.sp)
         }
     }
 }
 
 @Composable
 private fun DiagDivider() {
-    Divider(
-        color    = AiriTheme.onBackground.copy(alpha = 0.05f),
-        modifier = Modifier.padding(vertical = 5.dp)
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
+}
+
+@Composable
+private fun SettingsSurface(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f),
+        shape    = RoundedCornerShape(12.dp),
+        border   = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        content  = { Column(modifier = Modifier.padding(12.dp), content = content) }
     )
 }

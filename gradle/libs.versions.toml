@@ -7,7 +7,7 @@ coreKtx = "1.12.0"
 lifecycle = "2.7.0"
 activityCompose = "1.8.2"
 
-composeBom = "2023.10.01"
+composeBom = "2024.01.00"
 composeCompiler = "1.5.10"
 
 coroutines = "1.7.3"

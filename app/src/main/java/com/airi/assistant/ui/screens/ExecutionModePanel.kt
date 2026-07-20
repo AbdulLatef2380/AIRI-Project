@@ -30,39 +30,20 @@ import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.ui.theme.CosmicAccent
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
+
 // ExecutionModePanel — User control layer for the Hybrid Execution system
-//
-// All state flows through the ViewModel (via callbacks). This composable is
-// purely presentational: it accepts current values and emits change events.
-// No direct access to SharedPreferences, no coroutine launches inside.
-//
-// AIRI never hides execution origin — this panel makes every setting visible.
 private val CloudColor  = Color(0xFF29B6F6)  // light blue
 private val LocalColor  = Color(0xFF66BB6A)  // green
 private val HybridColor = Color(0xFFAB47BC)  // purple
 private val WarnAmber   = Color(0xFFFFB74D)
-private val DimWhite    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
-private val SubtleWhite = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+
+@Composable
+private fun dimWhite() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+@Composable
+private fun subtleWhite() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
 
 /**
  * Full execution mode control panel.
- *
- * Embed in PerformanceScreen or SettingsScreen. Accepts current preference
- * values and fires callbacks when the user changes anything — the ViewModel
- * owns the state, not this composable.
- *
- * @param currentMode           The currently active execution mode.
- * @param currentPrivacy        The currently active privacy level.
- * @param internetGranted       Whether the user has granted internet permission.
- * @param offlineFallback       Whether offline fallback is enabled.
- * @param preferredProvider     Currently preferred cloud provider.
- * @param cloudTokensUsed       Cloud tokens consumed today.
- * @param cloudTokensCap        Daily cap (0 = unlimited).
- * @param onModeChange          Called when user selects a different [ExecutionMode].
- * @param onPrivacyChange       Called when user selects a different [PrivacyLevel].
- * @param onInternetPermChange  Called when user toggles internet permission.
- * @param onOfflineFallbackChange Called when user toggles offline fallback.
- * @param onProviderChange      Called when user selects a different [CloudProvider].
  */
 @Composable
 fun ExecutionModePanel(
@@ -100,7 +81,7 @@ fun ExecutionModePanel(
         ) {
             Column {
                 Spacer(Modifier.height(12.dp))
-                Divider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
+                HorizontalDivider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
                 Spacer(Modifier.height(12.dp))
 
                 Row(
@@ -117,7 +98,7 @@ fun ExecutionModePanel(
                         )
                         Text(
                             "Allow AIRI to reach cloud providers",
-                            color = DimWhite,
+                            color = dimWhite(),
                             fontSize = 11.sp
                         )
                     }
@@ -139,7 +120,7 @@ fun ExecutionModePanel(
         ) {
             Column {
                 Spacer(Modifier.height(12.dp))
-                Divider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
+                HorizontalDivider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
                 Spacer(Modifier.height(12.dp))
 
                 // Provider preference
@@ -151,7 +132,7 @@ fun ExecutionModePanel(
                 )
 
                 Spacer(Modifier.height(12.dp))
-                Divider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
+                HorizontalDivider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
                 Spacer(Modifier.height(12.dp))
 
                 // Offline fallback toggle
@@ -169,7 +150,7 @@ fun ExecutionModePanel(
                         )
                         Text(
                             "Use local model when cloud is unavailable",
-                            color = DimWhite,
+                            color = dimWhite(),
                             fontSize = 11.sp
                         )
                     }
@@ -191,7 +172,7 @@ fun ExecutionModePanel(
             }
         }
         Spacer(Modifier.height(12.dp))
-        Divider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
+        HorizontalDivider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
         Spacer(Modifier.height(12.dp))
         SettingsCategoryHeader(icon = Icons.Outlined.Shield, title = "Privacy Level")
         Spacer(Modifier.height(8.dp))
@@ -228,7 +209,7 @@ fun ExecutionModePanel(
         }
     }
 }
-// Internal composables
+
 @Composable
 private fun ExecModeOption(
     mode:       ExecutionMode,
@@ -245,7 +226,7 @@ private fun ExecModeOption(
         onClick  = onSelected,
         shape    = RoundedCornerShape(12.dp),
         color    = if (selected) accentColor.copy(alpha = 0.10f)
-                   else MaterialTheme.colorScheme.outline,
+                   else MaterialTheme.colorScheme.surfaceVariant,
         border   = androidx.compose.foundation.BorderStroke(
             1.dp,
             if (selected) accentColor.copy(alpha = 0.45f)
@@ -258,19 +239,19 @@ private fun ExecModeOption(
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, null, tint = if (selected) accentColor else DimWhite,
+            Icon(icon, null, tint = if (selected) accentColor else dimWhite(),
                 modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     mode.displayName,
-                    color      = if (selected) MaterialTheme.colorScheme.onSurface else DimWhite,
+                    color      = if (selected) MaterialTheme.colorScheme.onSurface else dimWhite(),
                     fontSize   = 13.sp,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
                 )
                 Text(
                     mode.description,
-                    color    = if (selected) DimWhite else SubtleWhite,
+                    color    = if (selected) dimWhite() else subtleWhite(),
                     fontSize = 11.sp,
                     lineHeight = 14.sp
                 )
@@ -316,13 +297,13 @@ private fun PrivacyLevelOption(
         Column {
             Text(
                 level.displayName,
-                color      = if (selected) MaterialTheme.colorScheme.onSurface else DimWhite,
+                color      = if (selected) MaterialTheme.colorScheme.onSurface else dimWhite(),
                 fontSize   = 12.sp,
                 fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
             )
             Text(
                 level.description,
-                color    = SubtleWhite,
+                color    = subtleWhite(),
                 fontSize = 10.sp,
                 lineHeight = 13.sp
             )
@@ -361,10 +342,10 @@ private fun CloudProviderSelector(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    provider.displayName.split(" ").first(),   // "Google", "OpenAI", etc.
-                    color    = if (sel) CosmicAccent else SubtleWhite,
-                    fontSize = 10.sp,
-                    fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal
+                    provider.displayName.split(" ").first(),
+                    color    = if (sel) CosmicAccent else subtleWhite(),
+                    fontSize = 11.sp,
+                    fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal
                 )
             }
         }
@@ -373,34 +354,45 @@ private fun CloudProviderSelector(
 
 @Composable
 private fun CloudTokenUsageBar(used: Int, cap: Int) {
-    val pct = ((used.toFloat() / cap.toFloat()) * 100f).coerceIn(0f, 100f)
+    val pct = (used.toFloat() / cap.toFloat()).coerceIn(0f, 1f)
     val color = when {
-        pct >= 90f -> Color(0xFFEF5350)
-        pct >= 70f -> WarnAmber
+        pct > 0.9f -> Color(0xFFEF5350)
+        pct > 0.7f -> WarnAmber
         else       -> CosmicAccent
     }
-    Column {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(stringResource(R.string.exec_cloud_tokens_today), color = DimWhite, fontSize = 11.sp)
-            Text(
-                "$used / $cap  (${pct.toInt()}%)",
-                color    = color,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
+            Text("Cloud Usage", color = dimWhite(), fontSize = 11.sp)
+            Text("$used / $cap tokens", color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
-        Spacer(Modifier.height(4.dp))
-        LinearProgressIndicator(
-            progress = pct / 100f,
+        Spacer(Modifier.height(6.dp))
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(4.dp)
-                .clip(RoundedCornerShape(2.dp)),
-            color            = color,
-            trackColor       = MaterialTheme.colorScheme.outline
-        )
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(pct)
+                    .fillMaxHeight()
+                    .background(color)
+            )
+        }
     }
+}
+
+@Composable
+private fun SettingsSurface(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f),
+        shape    = RoundedCornerShape(16.dp),
+        border   = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        content  = { Column(modifier = Modifier.padding(14.dp), content = content) }
+    )
 }

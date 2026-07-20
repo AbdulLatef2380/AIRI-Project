@@ -40,7 +40,7 @@ object SkillPublisher {
     private val SEMVER_REGEX = Regex("""^\d+\.\d+\.\d+(-[\w.]+)?(\+[\w.]+)?$""")
     private val HTTPS_REGEX  = Regex("""^https://.*""")
 
-    data class PublishPublishValidationResult(
+    data class PublishValidationResult(
         val isValid: Boolean,
         val errors:  List<String> = emptyList(),
         val warnings: List<String> = emptyList()

@@ -46,7 +46,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -1238,7 +1239,7 @@ private fun AiriChatTopBar(
                             leadingIcon = { Icon(Icons.Outlined.SmartToy, contentDescription = null, tint = CosmicAccent) },
                             onClick = onSwitchModel
                         )
-                        Divider(color = AiriTheme.outline.copy(alpha = 0.35f))
+                        HorizontalDivider(color = AiriTheme.outline.copy(alpha = 0.35f))
                         DropdownMenuItem(
                             text  = { Text(stringResource(R.string.export_chat), color = AiriTheme.onBackground) },
                             leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },

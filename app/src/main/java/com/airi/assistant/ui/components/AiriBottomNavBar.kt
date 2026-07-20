@@ -45,10 +45,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.CosmicAccent
-import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
+import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.theme.NavBarBackground
 import com.airi.assistant.ui.theme.NavIconActive
-import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+// Fixed invalid import
 import com.airi.assistant.ui.theme.SurfaceRaised
 
 enum class AiriNavTab {

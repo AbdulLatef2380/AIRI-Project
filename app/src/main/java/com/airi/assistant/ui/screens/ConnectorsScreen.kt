@@ -37,7 +37,7 @@ import com.airi.assistant.ui.theme.SurfaceCard
 import com.airi.assistant.ui.theme.SurfaceRaised
 import com.airi.assistant.ui.theme.SemanticSuccess
 import com.airi.assistant.ui.theme.SemanticError
-import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
+import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.viewmodel.ConnectorsViewModel
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R

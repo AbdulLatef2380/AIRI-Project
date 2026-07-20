@@ -89,7 +89,7 @@ object AIRISurfaces {
 
     // Glass overlays
     val glass        = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-    val glassBorder  = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)Border
+    val glassBorder  = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
     val glassPurple  = GlassPurple
     val glassBorderP = GlassPurpleBorder
 

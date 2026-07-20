@@ -47,7 +47,7 @@ import com.airi.assistant.ui.components.PremiumBadge
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicBlack
-import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
+import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.theme.SurfaceCard
 import com.airi.assistant.ui.theme.SurfaceRaised
 import com.airi.assistant.ui.viewmodel.ChatViewModel

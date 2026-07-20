@@ -40,7 +40,7 @@ import kotlinx.coroutines.launch
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.CosmicAccentAlt
-import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
+import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.theme.SemanticError
 import java.util.UUID
 private data class WizardParam(

@@ -71,11 +71,11 @@ import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.CosmicAccentDark
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicBlack
-import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
+import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.theme.GlassPurple
 import com.airi.assistant.ui.theme.GlassPurpleBorder
 import com.airi.assistant.ui.theme.ModelPillBg
-import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
+import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.theme.SurfaceCard
 import com.airi.assistant.ui.theme.SurfaceRaised
 import com.airi.assistant.util.ChatExporter
@@ -98,7 +98,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.airi.assistant.ui.theme.AiBubbleSurface
-import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
+import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.theme.UserBubbleSurface
 import com.airi.assistant.ui.theme.SemanticError
 import com.airi.assistant.ui.theme.SemanticSuccess

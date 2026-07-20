@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.memory.dao.ChatSessionSummary
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.CosmicBlack
-import com.airi.assistant.ui.theme.MaterialTheme.colorScheme.outline
+import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.theme.SurfaceCard
 import com.airi.assistant.ui.theme.SurfaceRaised
 import androidx.compose.ui.res.stringResource

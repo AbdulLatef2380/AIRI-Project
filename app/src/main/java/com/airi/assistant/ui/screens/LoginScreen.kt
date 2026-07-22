@@ -152,11 +152,11 @@ fun LoginScreen(
                 contentDescription = "AIRI",
                 modifier           = Modifier
                     .size(100.dp)
-                    .clip(RoundedCornerShape(24.dp))
+                    .clip(AIRIShapes.xl)
             )
             Spacer(Modifier.height(32.dp))
             Text(
-                text       = "مرحباً بك في AIRI",
+                text       = stringResource(R.string.welcome_greeting),
                 fontSize   = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color      = AiriTheme.onBackground,
@@ -195,7 +195,7 @@ fun LoginScreen(
                     color    = dividerLine
                 )
                 Text(
-                    text     = "  أو  ",
+                    text     = stringResource(R.string.login_or_divider),
                     color    = AiriTheme.onBackground.copy(alpha = 0.45f),
                     fontSize = 13.sp
                 )
@@ -225,7 +225,7 @@ fun LoginScreen(
                     },
                     modifier    = Modifier.fillMaxWidth(),
                     singleLine  = true,
-                    shape       = RoundedCornerShape(16.dp),
+                    shape       = AIRIShapes.md,
                     colors      = loginFieldColors(accentColor)
                 )
 
@@ -253,7 +253,7 @@ fun LoginScreen(
                                            else PasswordVisualTransformation(),
                     modifier   = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    shape      = RoundedCornerShape(16.dp),
+                    shape      = AIRIShapes.md,
                     colors     = loginFieldColors(accentColor)
                 )
 
@@ -291,10 +291,10 @@ fun LoginScreen(
                         .fillMaxWidth()
                         .height(56.dp),
                     enabled = !isLoading,
-                    shape   = RoundedCornerShape(16.dp),
+                    shape   = AIRIShapes.md,
                     colors  = ButtonDefaults.buttonColors(
                         containerColor         = accentColor,
-                        contentColor           = MaterialTheme.colorScheme.onSurface,
+                        contentColor           = AiriTheme.onSurface,
                         disabledContainerColor = accentColor.copy(alpha = 0.4f)
                     )
                 ) {
@@ -353,12 +353,12 @@ private fun LoginButton(
             .fillMaxWidth()
             .height(56.dp),
         enabled = enabled,
-        shape   = RoundedCornerShape(16.dp),
+        shape   = AIRIShapes.md,
         colors  = ButtonDefaults.buttonColors(
             containerColor         = bgColor,
-            contentColor           = MaterialTheme.colorScheme.onSurface,
+            contentColor           = AiriTheme.onSurface,
             disabledContainerColor = bgColor.copy(alpha = 0.5f),
-            disabledContentColor   = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            disabledContentColor   = AiriTheme.onSurface.copy(alpha = 0.5f)
         ),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
         contentPadding = PaddingValues(horizontal = 20.dp)
@@ -397,11 +397,11 @@ private fun LoginButton(
 @Composable
 private fun loginFieldColors(accentColor: Color) = OutlinedTextFieldDefaults.colors(
     focusedBorderColor     = accentColor,
-    unfocusedBorderColor   = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-    focusedTextColor       = MaterialTheme.colorScheme.onSurface,
-    unfocusedTextColor     = MaterialTheme.colorScheme.onSurface,
+    unfocusedBorderColor   = AiriTheme.onSurface.copy(alpha = 0.15f),
+    focusedTextColor       = AiriTheme.onSurface,
+    unfocusedTextColor     = AiriTheme.onSurface,
     focusedLabelColor      = accentColor,
-    unfocusedLabelColor    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+    unfocusedLabelColor    = AiriTheme.onSurface.copy(alpha = 0.45f),
     cursorColor            = accentColor,
     focusedContainerColor  = Color(0xFF0D0D0D),
     unfocusedContainerColor = Color(0xFF0D0D0D)

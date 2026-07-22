@@ -266,7 +266,7 @@ private fun BraveSearchApiCard(
     onEnterKey:  () -> Unit
 ) {
     Surface(
-        shape    = RoundedCornerShape(14.dp),
+        shape    = AIRIShapes.md,
         color    = Color(0xFF1C1C1E),
         modifier = Modifier
             .fillMaxWidth()
@@ -280,7 +280,7 @@ private fun BraveSearchApiCard(
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(AIRIShapes.sm)
                     .background(Color(0xFFFF6D00).copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
@@ -292,7 +292,7 @@ private fun BraveSearchApiCard(
                     if (hasBraveKey) "Enabled — real web results + page content"
                     else "Not configured — using DDG fallback (~30% coverage)",
                     fontSize = 11.sp,
-                    color    = if (hasBraveKey) Color(0xFF30D158) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    color    = if (hasBraveKey) Color(0xFF30D158) else AiriTheme.onSurface.copy(alpha = 0.5f),
                     lineHeight = 14.sp
                 )
                 Text(stringResource(R.string.brave_search_desc), fontSize = 10.sp,
@@ -353,7 +353,7 @@ private fun ActiveRoutingCard(modelState: ModelUiState) {
     }
 
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = AIRIShapes.md,
         color = AiriTheme.surface,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -381,7 +381,7 @@ private fun ActiveRoutingCard(modelState: ModelUiState) {
             }
             if (modelState.isAnyInferenceReady) {
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
+                    shape = AIRIShapes.xs,
                     color = statusColor.copy(alpha = 0.15f)
                 ) {
                     Text(
@@ -402,7 +402,7 @@ private fun SmartRoutingModeCard(
     onSelect: (ExecutionMode) -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = AIRIShapes.md,
         color = AiriTheme.surface,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -425,15 +425,15 @@ private fun SmartRoutingModeCard(
             ).forEach { (mode, label, desc) ->
                 val isSelected = current == mode
                 val borderColor by animateColorAsState(
-                    if (isSelected) CosmicAccent else MaterialTheme.colorScheme.outline,
-                    animationSpec = tween(200), label = "border_$mode"
+                    if (isSelected) CosmicAccent else AiriTheme.outline,
+                    animationSpec = tween(AIRIAnimations.FAST), label = "border_$mode"
                 )
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .padding(vertical = 3.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+                        .clip(AIRIShapes.sm)
+                        .border(1.dp, borderColor, AIRIShapes.sm)
                         .background(if (isSelected) CosmicAccent.copy(alpha = 0.08f) else Color.Transparent)
                         .clickable { onSelect(mode) }
                         .padding(12.dp),
@@ -444,7 +444,7 @@ private fun SmartRoutingModeCard(
                         onClick  = { onSelect(mode) },
                         colors   = RadioButtonDefaults.colors(
                             selectedColor   = CosmicAccent,
-                            unselectedColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                            unselectedColor = AiriTheme.onSurface.copy(alpha = 0.3f)
                         ),
                         modifier = Modifier.size(18.dp)
                     )
@@ -461,7 +461,7 @@ private fun SmartRoutingModeCard(
 @Composable
 private fun LocalModelCard(modelState: ModelUiState) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = AIRIShapes.md,
         color = AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -506,16 +506,16 @@ private fun CloudProviderCard(
 ) {
     val accentColor = Color(config.badgeColor)
     val borderColor by animateColorAsState(
-        if (isActive) accentColor.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outline,
-        animationSpec = tween(300), label = "card_border_${config.id}"
+        if (isActive) accentColor.copy(alpha = 0.6f) else AiriTheme.outline,
+        animationSpec = tween(AIRIAnimations.NORMAL), label = "card_border_${config.id}"
     )
 
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = AIRIShapes.md,
         color = AiriTheme.surfaceVariant,
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, borderColor, RoundedCornerShape(14.dp))
+            .border(1.dp, borderColor, AIRIShapes.md)
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -556,8 +556,8 @@ private fun CloudProviderCard(
                 if (isActive && onDeactivate != null) {
                     OutlinedButton(
                         onClick = onDeactivate,
-                        shape   = RoundedCornerShape(8.dp),
-                        colors  = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)),
+                        shape   = AIRIShapes.xs,
+                        colors  = ButtonDefaults.outlinedButtonColors(contentColor = AiriTheme.onSurface.copy(alpha = 0.5f)),
                         modifier = Modifier.height(34.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp)
                     ) {
@@ -566,7 +566,7 @@ private fun CloudProviderCard(
                 } else {
                     Button(
                         onClick = onConnect,
-                        shape   = RoundedCornerShape(8.dp),
+                        shape   = AIRIShapes.xs,
                         colors  = ButtonDefaults.buttonColors(containerColor = accentColor.copy(alpha = 0.85f)),
                         modifier = Modifier.height(34.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp)
@@ -634,7 +634,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
 @Composable
 private fun OpenRouterTaskModelCard(entry: TaskModelEntry) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = AIRIShapes.md,
         color = AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -656,7 +656,7 @@ private fun OpenRouterTaskModelCard(entry: TaskModelEntry) {
                     fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Surface(
-                shape = RoundedCornerShape(6.dp),
+                shape = AIRIShapes.xs,
                 color = Color(0xFF7C4DFF).copy(alpha = 0.15f)
             ) {
                 Text(stringResource(R.string.auto_badge), color = Color(0xFF7C4DFF), fontSize = 9.sp,
@@ -717,7 +717,7 @@ private fun ApiKeyEntryDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor   = SurfaceCard,
-        shape            = RoundedCornerShape(16.dp),
+        shape            = AIRIShapes.md,
         title = {
             Text(stringResource(R.string.connect_label, config.displayLabel), color = AiriTheme.onBackground,
                 fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -736,9 +736,9 @@ private fun ApiKeyEntryDialog(
                     singleLine    = true,
                     colors        = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                        focusedTextColor     = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor   = MaterialTheme.colorScheme.onSurface
+                        unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.2f),
+                        focusedTextColor     = AiriTheme.onSurface,
+                        unfocusedTextColor   = AiriTheme.onSurface
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )

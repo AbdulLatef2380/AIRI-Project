@@ -143,7 +143,7 @@ object CommandRouter {
             actionLower == "scroll_right" || actionLower == "swipe_right" ->
                 AccessibilityCommandBridge.scrollRight()
 
-            // Phase 2: synthesize / respond — LLM-generated meta-actions that carry
+            
             // their output text in a parameter. Return the text directly so the
             // TypedPlanGraph can propagate it as the step's CommandResult.message
             // rather than silently acknowledging the step with no useful output.
@@ -214,7 +214,7 @@ object CommandRouter {
 
         // ── Tier 3: explicit failure for unroutable steps ──────────────────────
         //
-        // Phase 2: Changed from silent success to explicit UNKNOWN_ACTION failure.
+        
         // The TypedPlanGraph RecoveryBranch decides whether to abort the whole plan
         // (critical steps) or continue (non-critical steps) based on this signal.
         // Returning success here was masking real routing failures and making the

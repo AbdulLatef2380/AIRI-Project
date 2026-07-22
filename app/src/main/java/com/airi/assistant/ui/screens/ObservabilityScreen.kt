@@ -51,7 +51,7 @@ fun ObservabilityScreen(onBack: () -> Unit) {
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background.copy(alpha = 0.65f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
@@ -66,7 +66,7 @@ fun ObservabilityScreen(onBack: () -> Unit) {
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             TabRow(
                 selectedTabIndex = selectedTab,
-                containerColor   = MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
+                containerColor   = AiriTheme.background.copy(alpha = 0.5f),
                 contentColor     = CosmicAccent
             ) {
                 tabs.forEachIndexed { idx, label ->
@@ -77,7 +77,7 @@ fun ObservabilityScreen(onBack: () -> Unit) {
                             Text(
                                 label,
                                 fontSize = 12.sp,
-                                color    = if (selectedTab == idx) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                color    = if (selectedTab == idx) CosmicAccent else AiriTheme.onSurface.copy(alpha = 0.5f)
                             )
                         }
                     )
@@ -152,7 +152,7 @@ private fun EventCard(entry: ExecutionHistoryStore.HistoryEntry) {
         null  -> Color(0xFF1A1A2E) to CosmicAccent
     }
     Surface(
-        shape = RoundedCornerShape(8.dp),
+        shape = AIRIShapes.xs,
         color = bg,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -327,7 +327,7 @@ private fun LiveHubTab() {
 }
 
 @Composable
-private fun MetricRow(label: String, value: String, color: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)) {
+private fun MetricRow(label: String, value: String, color: Color = AiriTheme.onSurface.copy(alpha = 0.65f)) {
     Row(
         modifier              = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -420,10 +420,10 @@ private fun GraphNodeCard(node: com.airi.assistant.agent.planning.GoalNode) {
         "RUNNING"    -> Color(0xFF1A2E4A) to CosmicAccent
         "FAILED"     -> Color(0xFF3A1B1B) to SemanticError
         "RECOVERING" -> Color(0xFF3A2F1B) to SemanticWarn
-        "SKIPPED"    -> Color(0xFF242424) to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-        else         -> Color(0xFF1E1E2E) to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+        "SKIPPED"    -> Color(0xFF242424) to AiriTheme.onSurface.copy(alpha = 0.45f)
+        else         -> Color(0xFF1E1E2E) to AiriTheme.onSurface.copy(alpha = 0.65f)
     }
-    Surface(shape = RoundedCornerShape(10.dp), color = bg, modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = AIRIShapes.sm, color = bg, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(10.dp)) {
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -493,7 +493,7 @@ private fun TraceSpanCard(span: TraceSpan) {
     val bg     = if (span.success) Color(0xFF0F2218) else Color(0xFF2A0F0F)
 
     Surface(
-        shape    = RoundedCornerShape(8.dp),
+        shape    = AIRIShapes.xs,
         color    = bg,
         modifier = Modifier
             .fillMaxWidth()
@@ -566,7 +566,7 @@ private fun TraceSpanCard(span: TraceSpan) {
 private fun HubCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape    = RoundedCornerShape(12.dp),
+        shape    = AIRIShapes.md,
         color    = AiriTheme.surfaceVariant
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -586,7 +586,7 @@ private fun HubCard(title: String, content: @Composable ColumnScope.() -> Unit) 
 
 @Composable
 private fun StatusCountChip(label: String, count: Int, color: Color, modifier: Modifier) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(6.dp), color = AiriTheme.surfaceVariant) {
+    Surface(modifier = modifier, shape = AIRIShapes.xs, color = AiriTheme.surfaceVariant) {
         Column(
             modifier             = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalAlignment  = Alignment.CenterHorizontally
@@ -594,7 +594,7 @@ private fun StatusCountChip(label: String, count: Int, color: Color, modifier: M
             Text(label, color = AiriTheme.onSurfaceVariant.copy(alpha = 0.45f), fontSize = 9.sp)
             Text(
                 "$count",
-                color      = if (count > 0) color else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                color      = if (count > 0) color else AiriTheme.onSurface.copy(alpha = 0.3f),
                 fontWeight = FontWeight.Bold,
                 fontSize   = 14.sp,
                 fontFamily = FontFamily.Monospace
@@ -625,7 +625,7 @@ private fun NetworkTab() {
             color = CosmicAccent
         )
         if (s == null) {
-            Text(stringResource(R.string.loading), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.loading), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
         } else {
             NetworkStatRow("Total Requests", s.requestCount.toString())
             NetworkStatRow("Errors", s.errorCount.toString())
@@ -641,17 +641,17 @@ private fun NetworkTab() {
 @Composable
 private fun NetworkStatRow(label: String, value: String) {
     Surface(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surface,
+        shape = androidx.compose.foundation.shape.AIRIShapes.sm,
+        color = AiriTheme.surface,
         modifier = androidx.compose.ui.Modifier.fillMaxWidth()
     ) {
         androidx.compose.foundation.layout.Row(
             modifier = androidx.compose.ui.Modifier.padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(label, fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
             Text(value, fontSize = 13.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onBackground)
+                color = AiriTheme.onBackground)
         }
     }
 }

@@ -118,7 +118,7 @@ fun GitRepositoryScreen(
                 LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(repos) { repo ->
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = AIRIShapes.md,
                             color = AiriTheme.surface,
                             modifier = Modifier.fillMaxWidth().clickable { loadBranchesAndCommits(repo) }
                         ) {
@@ -141,7 +141,7 @@ fun GitRepositoryScreen(
                     if (branches.isNotEmpty()) {
                         item { Text(stringResource(R.string.git_repo_branches), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CosmicAccent) }
                         items(branches) { branch ->
-                            Surface(shape = RoundedCornerShape(8.dp), color = AiriTheme.surface) {
+                            Surface(shape = AIRIShapes.xs, color = AiriTheme.surface) {
                                 Text(branch, modifier = Modifier.padding(10.dp), fontSize = 13.sp, color = AiriTheme.onBackground)
                             }
                         }

@@ -153,7 +153,7 @@ class LocalLlamaBackend(
             when (event) {
                 is LlamaEvent.Token    -> onToken(event.value)
                 is LlamaEvent.Complete -> {
-                    // Task 20: Record local token usage. Use char-length estimation
+                    
                     // since nativeTokenCount is not surfaced through this interface.
                     tokenAccountant?.let { accountant ->
                         runCatching {
@@ -226,7 +226,7 @@ class LocalLlamaBackend(
         // Await the result in suspend context — this is the correct place to call
         // suspend functions. tokenAccountant.recordLocal is a suspend fun (uses Mutex)
         // and cannot be called inside the non-suspend onComplete lambda above.
-        // Task 20: Record local tokens in batch generate path.
+        
         val result = deferred.await()
         if (result is ExecutionResult.Success) {
             tokenAccountant?.let { accountant ->

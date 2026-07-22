@@ -46,7 +46,7 @@ import androidx.compose.ui.unit.sp
 fun MarkdownText(
     rawText     : String,
     modifier    : Modifier = Modifier,
-    textColor   : Color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.93f),
+    textColor   : Color    = AiriTheme.onSurface.copy(alpha = 0.93f),
     baseFontSp  : Float    = 15f,
     lineHeightSp: Float    = 23f
 ) {

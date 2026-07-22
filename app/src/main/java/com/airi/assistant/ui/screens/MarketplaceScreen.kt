@@ -231,12 +231,12 @@ private fun ExploreTab(
                 }) else null,
                 singleLine     = true,
                 modifier       = Modifier.fillMaxWidth(),
-                shape          = RoundedCornerShape(14.dp),
+                shape          = AIRIShapes.md,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onSearch(); focusManager.clearFocus() }),
                 colors         = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor   = CosmicAccent,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    unfocusedBorderColor = AiriTheme.outline
                 )
             )
         }
@@ -259,7 +259,7 @@ private fun ExploreTab(
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = SemanticWarn.copy(0.1f)),
-                    shape  = RoundedCornerShape(12.dp)
+                    shape  = AIRIShapes.md
                 ) {
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.WifiOff, null, tint = SemanticWarn)
@@ -313,13 +313,13 @@ private fun ExploreTab(
 private fun FeaturedSkillCard(skill: MarketplaceSkill, onInstall: (MarketplaceSkill) -> Unit) {
     Card(
         colors   = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-        shape    = RoundedCornerShape(16.dp),
+        shape    = AIRIShapes.md,
         modifier = Modifier.width(200.dp)
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(
-                    Modifier.size(36.dp).background(CosmicAccent.copy(0.15f), RoundedCornerShape(10.dp)),
+                    Modifier.size(36.dp).background(CosmicAccent.copy(0.15f), AIRIShapes.sm),
                     contentAlignment = Alignment.Center
                 ) { Text(skill.category.emoji, fontSize = 18.sp) }
                 Column {
@@ -331,7 +331,7 @@ private fun FeaturedSkillCard(skill: MarketplaceSkill, onInstall: (MarketplaceSk
             Button(
                 onClick = { onInstall(skill) },
                 modifier = Modifier.fillMaxWidth().height(36.dp),
-                shape = RoundedCornerShape(10.dp),
+                shape = AIRIShapes.sm,
                 colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
             ) {
                 Text(stringResource(R.string.marketplace_install), fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -348,7 +348,7 @@ private fun SkillListRow(skill: MarketplaceSkill, onInstall: (MarketplaceSkill) 
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Box(
-            Modifier.size(44.dp).background(AiriTheme.surfaceVariant, RoundedCornerShape(12.dp)),
+            Modifier.size(44.dp).background(AiriTheme.surfaceVariant, AIRIShapes.md),
             contentAlignment = Alignment.Center
         ) { Text(skill.category.emoji, fontSize = 20.sp) }
         Column(Modifier.weight(1f)) {
@@ -388,11 +388,11 @@ private fun InstalledSkillRow(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-        shape = RoundedCornerShape(14.dp)
+        shape = AIRIShapes.md
     ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(
-                Modifier.size(40.dp).background(AiriTheme.background, RoundedCornerShape(10.dp)),
+                Modifier.size(40.dp).background(AiriTheme.background, AIRIShapes.sm),
                 contentAlignment = Alignment.Center
             ) { Text(skill.category.emoji, fontSize = 18.sp) }
             Column(Modifier.weight(1f)) {
@@ -437,11 +437,11 @@ private fun UpdatesTab(
 private fun UpdateSkillRow(skill: MarketplaceSkill, onUpdate: (MarketplaceSkill) -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-        shape = RoundedCornerShape(14.dp)
+        shape = AIRIShapes.md
     ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(
-                Modifier.size(40.dp).background(AiriTheme.background, RoundedCornerShape(10.dp)),
+                Modifier.size(40.dp).background(AiriTheme.background, AIRIShapes.sm),
                 contentAlignment = Alignment.Center
             ) { Text(skill.category.emoji, fontSize = 18.sp) }
             Column(Modifier.weight(1f)) {
@@ -451,7 +451,7 @@ private fun UpdateSkillRow(skill: MarketplaceSkill, onUpdate: (MarketplaceSkill)
             Button(
                 onClick = { onUpdate(skill) },
                 colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
-                shape = RoundedCornerShape(10.dp),
+                shape = AIRIShapes.sm,
                 modifier = Modifier.height(36.dp)
             ) {
                 Text("Update", fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -478,7 +478,7 @@ private fun GitHubImportTab(
             onValueChange = { repoUrl = it },
             placeholder = { Text("https://github.com/user/skill-repo") },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
+            shape = AIRIShapes.md,
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent)
         )
@@ -502,7 +502,7 @@ private fun GitHubImportTab(
             enabled = repoUrl.isNotBlank() && !isImporting,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
-            shape = RoundedCornerShape(12.dp)
+            shape = AIRIShapes.md
         ) {
             if (isImporting) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
             else Text(stringResource(R.string.marketplace_import_button), fontWeight = FontWeight.Bold)
@@ -536,7 +536,7 @@ private fun PublishTab(
             onClick = onNavigateToWizard,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
-            shape = RoundedCornerShape(12.dp)
+            shape = AIRIShapes.md
         ) {
             Text(stringResource(R.string.marketplace_submit_review), fontWeight = FontWeight.Bold)
         }

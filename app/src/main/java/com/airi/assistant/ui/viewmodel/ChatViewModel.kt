@@ -1,5 +1,7 @@
 package com.airi.assistant.ui.viewmodel
 
+import com.airi.assistant.R
+
 import android.Manifest
 import android.app.Application
 import android.content.BroadcastReceiver
@@ -115,7 +117,7 @@ data class ChatMessage(
     val id: Long = System.currentTimeMillis(),
     val agentTag: String? = null,
     val traceId: String? = null,
-    // Phase 1 crash fix: stable per-instance UUID for LazyColumn keys.
+    
     // Previously the list used `msg.hashCode()` as the key. Two messages
     // with identical text+isUser produced an identical hashCode, which made
     // Compose throw `IllegalArgumentException: Key … was already used` and
@@ -194,9 +196,9 @@ enum class LoadErrorType {
 }
 
 enum class AgentMode(val label: String, val prompt: String) {
-    ASSISTANT("Assistant", "أنت AIRI، مساعد ذكي متوازن، واضح، ودقيق."),
-    CREATIVE("Creative", "أنت AIRI في الوضع الإبداعي. اقترح أفكاراً متنوعة، استخدم خيالاً عملياً، واجعل الردود ملهمة دون إطالة غير ضرورية."),
-    TECHNICAL("Technical", "أنت AIRI في الوضع التقني. ركز على الدقة، الخطوات العملية، والتحليل المنظم.")
+    ASSISTANT("Assistant", "You are AIRI, a balanced, clear, and precise AI assistant."),
+    CREATIVE("Creative", "You are AIRI in Creative mode. Suggest diverse ideas, use practical imagination, and make responses inspiring without unnecessary length."),
+    TECHNICAL("Technical", "You are AIRI in Technical mode. Focus on accuracy, practical steps, and structured analysis.")
 }
 
 data class ModelUiState(
@@ -339,7 +341,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // ── Hybrid Execution layer ────────────────────────────────────────────────
     // ExecModePreferences is the source of truth for execution mode, privacy
     // level, and internet permission. All preference mutations go through it.
-    // Task 12: obtain from ServiceLocator so all consumers share one instance
+    
     // via PreferenceCoordinator, eliminating split-brain when preferences change.
     private val execModePrefs  = com.airi.assistant.core.ServiceLocator.execModePrefs
     val tokenAccountant     = TokenAccountant(appContext)
@@ -380,10 +382,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         registry    = SkillRegistry(appContext),
         context     = appContext,
         modelBridge = SkillModelBridge.create(hybridOrchestrator, appContext),
-        // Phase 7: inject live memory + session into SkillContext so every skill
+        
         // execution has access to MemoryManager (MemoryManagerSkill) and the
         // modelBridge is enforced per-skill by SkillToolBridge.invoke() itself.
-        // Phase 8: also inject configValues (Brave API key) so WebSearchSkill and
+        
         // ResearchAgentSkill can use Brave Search without a separate key lookup.
         skillCtx    = {
             com.airi.assistant.ai.skills.SkillContext(
@@ -1119,7 +1121,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             ServiceLocator.voiceTranscriptBus.collect { transcript ->
                 if (transcript.isNotBlank()) {
-                    // Phase 4: Gate on Vosk model readiness before forwarding to LLM.
+                    
                     // If no model is installed, surface a download prompt once instead of
                     // silently dropping the transcript or crashing downstream.
                     if (!VoskModelManager.isReady(appContext)) {
@@ -1143,7 +1145,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Phase 4: Expose Vosk model readiness so the UI and voice settings screen
+    
     // can show a download prompt without depending on VoskModelManager directly.
     fun isVoiceModelReady(): Boolean = VoskModelManager.isReady(appContext)
 
@@ -1313,7 +1315,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                            else RemoteModelRegistry.getActive()
         if ((ModelManager.getCurrent() == null || !_modelState.value.isModelReady) && activeRemote == null) {
             _messages.update {
-                it + ChatMessage("قم باختيار نموذج محلي أو Remote Model أولاً.", isUser = false)
+                it + ChatMessage(appContext.getString(R.string.err_select_model_first), isUser = false)
             }
             return
         }
@@ -1484,7 +1486,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             generationStartMs = System.currentTimeMillis()
                             val ftMs = System.currentTimeMillis() - requestStart
                             _debugState.update { it.copy(lastFirstTokenMs = ftMs) }
-                            Log.d("AIRI_SPEED", "LOOP first_token=${ftMs}ms")
+                            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_SPEED", "LOOP first_token=${ftMs}ms")
                         }
                         if (_streamingText.value == "Generating...") streamAccumulator.setLength(0)
                         streamAccumulator.append(tok)
@@ -1667,15 +1669,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return buildEffectiveSystemPrompt(perfMode, queryType, ragContext, memorySummary, hasAgentTools)
     }
 
-
-
     private fun recordGenerationStats(elapsedMs: Long, tokenCount: Int) {
         val elapsed = elapsedMs.coerceAtLeast(1L)
         val tps = tokenCount * 1000f / elapsed
         // Sync duration to ModelController so diagnostics snapshot reflects last generation
         lastGenerationDurationMs = elapsed
         modelController.lastGenerationDurationMs = elapsed
-        Log.d("AIRI_PERF", "Generation complete: latency=${elapsed}ms tokens=$tokenCount tps=%.2f".format(tps))
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_PERF", "Generation complete: latency=${elapsed}ms tokens=$tokenCount tps=%.2f".format(tps))
 
         // ── Health monitor: slow generation is a runtime pressure signal ──────
         // If a local generation takes > 10s it indicates thermal/memory pressure
@@ -2159,7 +2159,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (current == null) {
             Log.w("AIRI_PROOF", "MMPROJ_LOAD_REJECTED reason=no_model_loaded")
             _messages.update {
-                it + ChatMessage("حمّل النموذج النصي أولاً قبل تحميل ملف الرؤية.", isUser = false)
+                it + ChatMessage(appContext.getString(R.string.err_load_text_model_first), isUser = false)
             }
             return
         }
@@ -2180,7 +2180,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 withContext(Dispatchers.Main) {
                     _messages.update {
                         it + ChatMessage(
-                            "تعذر نسخ ملف ال mmproj. تحقق من الصلاحيات وأعد المحاولة.",
+                            appContext.getString(R.string.err_mmproj_copy_failed),
                             isUser = false
                         )
                     }
@@ -2204,18 +2204,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _modelState.update { it.copy(capabilities = newCaps) }
                 if (loaded && newCaps.vision) {
                     _messages.update {
-                        it + ChatMessage("تم تحميل ملف الرؤية بنجاح. الآن يمكنك إرسال صور.", isUser = false)
+                        it + ChatMessage(appContext.getString(R.string.msg_vision_loaded_ok), isUser = false)
                     }
                 } else if (loaded) {
                     _messages.update {
                         it + ChatMessage(
-                            "تم تحميل ملف الرؤية، لكن النموذج النصي الحالي ليس من النماذج المدعومة لتحليل الصور.",
+                            appContext.getString(R.string.msg_vision_unsupported_model),
                             isUser = false
                         )
                     }
                 } else {
                     _messages.update {
-                        it + ChatMessage("فشل تحميل ملف الرؤية. تأكد أن الملف هو mmproj صالح.", isUser = false)
+                        it + ChatMessage(appContext.getString(R.string.err_vision_load_failed), isUser = false)
                     }
                 }
             }
@@ -2343,7 +2343,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // Text-marker path — every attachment becomes one [image:]/[file:] line.
             val markers = attachments.joinToString(separator = "\n") { it.toTextMarker() }
             val fullText = if (trimmed.isBlank()) markers else "$trimmed\n\n$markers"
-            // PHASE 3: when there's an image we still want the user bubble
+            
             // to display the thumbnail, so re-use the existing single-shot
             // pendingImageUriForNextSend hand-off used by the old fallback.
             primaryImage?.uri?.let { pendingImageUriForNextSend = it.toString() }
@@ -2413,7 +2413,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val current = ModelManager.getCurrent()
         if (current == null || !_modelState.value.isModelReady) {
             _messages.update {
-                it + ChatMessage("قم بتحميل النموذج النصي أولاً.", isUser = false)
+                it + ChatMessage(appContext.getString(R.string.err_load_text_model_first), isUser = false)
             }
             return
         }
@@ -2461,7 +2461,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _agentState.value = AgentState()
                 streamAccumulator.setLength(0); _streamingText.value = ""
                 _messages.update {
-                    it + ChatMessage("تعذر معالجة الصورة (تأكد من تنسيقها وحجمها).", isUser = false)
+                    it + ChatMessage(appContext.getString(R.string.err_image_process_failed), isUser = false)
                 }
                 Log.w("AIRI_PROOF", "VISION_PREP_FAILED name=$attachmentName")
                 return@launch
@@ -2501,7 +2501,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     Log.w("AIRI_PROOF", "VISION_REPLY_FAILED $errMsg")
                     viewModelScope.launch {
                         _messages.update {
-                            it + ChatMessage("تعذر تحليل الصورة: $errMsg", isUser = false)
+                            it + ChatMessage(appContext.getString(R.string.err_image_analyze_failed, errMsg), isUser = false)
                         }
                         streamAccumulator.setLength(0); _streamingText.value = ""
                         _agentState.value = AgentState()
@@ -2799,7 +2799,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun activateCatalogDownload(entry: CatalogEntry) {
         val file = downloadManager.getFileForName(entry.fileName)
         if (!file.exists()) {
-            _modelState.update { it.copy(loadError = "${entry.fileName} غير موجود، قم بتحميله أولاً", loadErrorType = LoadErrorType.FILE_NOT_FOUND) }
+            _modelState.update { it.copy(loadError = "${entry.fileName} not found — please download it first", loadErrorType = LoadErrorType.FILE_NOT_FOUND) }
             return
         }
         if (file.length() < (entry.sizeBytes * 0.97).toLong()) {
@@ -2906,7 +2906,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun refreshSessions() {
         _sessions.value = memoryManager.getAllSessions()
     }
-
 
     private companion object {
         // KEY_MODEL_ID, KEY_MODEL_PATH, KEY_MODEL_REGISTRY, KEY_SCANNED_IDS

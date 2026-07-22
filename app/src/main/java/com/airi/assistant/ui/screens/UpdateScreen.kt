@@ -189,7 +189,7 @@ private fun UpdateStatusCard(checkState: CheckState, onCheckNow: () -> Unit) {
     )
 
     Surface(
-        shape    = RoundedCornerShape(18.dp),
+        shape    = AIRIShapes.lg,
         color    = AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -204,7 +204,7 @@ private fun UpdateStatusCard(checkState: CheckState, onCheckNow: () -> Unit) {
                         when (checkState) {
                             CheckState.UpdateAvailable -> CosmicAccent.copy(0.20f)
                             CheckState.UpToDate        -> SemanticSuccess.copy(0.15f)
-                            else                       -> MaterialTheme.colorScheme.onSurface.copy(0.06f)
+                            else                       -> AiriTheme.onSurface.copy(0.06f)
                         }
                     ),
                 contentAlignment = Alignment.Center
@@ -251,7 +251,7 @@ private fun UpdateStatusCard(checkState: CheckState, onCheckNow: () -> Unit) {
                 Button(
                     onClick  = onCheckNow,
                     colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
-                    shape    = RoundedCornerShape(12.dp)
+                    shape    = AIRIShapes.md
                 ) {
                     Text(stringResource(R.string.updates_check), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
@@ -263,9 +263,9 @@ private fun UpdateStatusCard(checkState: CheckState, onCheckNow: () -> Unit) {
 @Composable
 private fun UpdateBanner(newVersion: String, onInstall: () -> Unit) {
     Surface(
-        shape    = RoundedCornerShape(14.dp),
+        shape    = AIRIShapes.md,
         color    = CosmicAccent.copy(0.12f),
-        modifier = Modifier.fillMaxWidth().border(1.dp, CosmicAccent.copy(0.40f), RoundedCornerShape(14.dp))
+        modifier = Modifier.fillMaxWidth().border(1.dp, CosmicAccent.copy(0.40f), AIRIShapes.md)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -282,7 +282,7 @@ private fun UpdateBanner(newVersion: String, onInstall: () -> Unit) {
             Button(
                 onClick  = onInstall,
                 colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
-                shape    = RoundedCornerShape(10.dp),
+                shape    = AIRIShapes.sm,
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
             ) {
                 Text(stringResource(R.string.updates_install), fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -294,12 +294,12 @@ private fun UpdateBanner(newVersion: String, onInstall: () -> Unit) {
 @Composable
 private fun ReleaseNoteCard(release: ReleaseNote, isExpanded: Boolean, onToggle: () -> Unit) {
     Surface(
-        shape    = RoundedCornerShape(14.dp),
+        shape    = AIRIShapes.md,
         color    = AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth().border(
             1.dp,
             if (release.isCurrent) CosmicAccent.copy(0.35f) else Color.Transparent,
-            RoundedCornerShape(14.dp)
+            AIRIShapes.md
         )
     ) {
         Column {
@@ -322,9 +322,9 @@ private fun ReleaseNoteCard(release: ReleaseNote, isExpanded: Boolean, onToggle:
                         )
                         if (release.isCurrent) {
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
+                                shape = AIRIShapes.xs,
                                 color = CosmicAccent.copy(0.15f),
-                                modifier = Modifier.border(0.5.dp, CosmicAccent.copy(0.4f), RoundedCornerShape(6.dp))
+                                modifier = Modifier.border(0.5.dp, CosmicAccent.copy(0.4f), AIRIShapes.xs)
                             ) {
                                 Text(
                                     "Current", fontSize = 10.sp, color = CosmicAccent,
@@ -362,7 +362,7 @@ private fun ReleaseNoteCard(release: ReleaseNote, isExpanded: Boolean, onToggle:
 
                     if (release.fixes.isNotEmpty()) {
                         Spacer(Modifier.height(10.dp))
-                        Divider(color = MaterialTheme.colorScheme.outline)
+                        Divider(color = AiriTheme.outline)
                         Spacer(Modifier.height(10.dp))
                         Text(stringResource(R.string.updates_bug_fixes), fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                             color = SemanticSuccess, modifier = Modifier.padding(bottom = 8.dp))

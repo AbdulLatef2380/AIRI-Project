@@ -201,14 +201,14 @@ object PromptCompressor {
             sb.append(baseSystemPrompt.trim()).append('\n')
         }
         if (facts.isNotEmpty()) {
-            // Phase 7: isolate retrieved facts behind injection-prevention boundary
+            
             val rawFacts = facts.joinToString("\n") { "- $it" }
             val isolated = AccessibilityPolicyGuard.wrapRetrievedContent(rawFacts)
             sb.append("\n[Memory — known user facts]\n")
             sb.append(isolated).append('\n')
         }
         if (summary.isNotBlank()) {
-            // Phase 7: isolate conversation summary behind injection-prevention boundary
+            
             val isolated = AccessibilityPolicyGuard.wrapRetrievedContent(summary.trim())
             sb.append("\n[Summary of earlier conversation]\n")
             sb.append(isolated).append('\n')

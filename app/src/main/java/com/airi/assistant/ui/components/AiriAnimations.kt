@@ -35,7 +35,7 @@ import com.airi.assistant.ui.theme.SurfaceRaised
 fun ShimmerBox(
     modifier: Modifier = Modifier,
     baseColor: Color   = SurfaceRaised,
-    shimmerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+    shimmerColor: Color = AiriTheme.surfaceVariant,
     cornerRadius: Dp   = 10.dp
 ) {
     val transition = rememberInfiniteTransition(label = "shimmer")
@@ -168,7 +168,7 @@ fun StreamingCursor(
 @Composable
 fun AgentThinkingIndicator(
     visible:  Boolean,
-    label:    String  = "AIRI يفكر…",
+    label:    String  = "AIRI is thinking…",
     modifier: Modifier = Modifier
 ) {
     androidx.compose.animation.AnimatedVisibility(

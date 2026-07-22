@@ -112,7 +112,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
+                    containerColor = AiriTheme.background.copy(alpha = 0.65f)
                 ),
                 title = {
                     Text(
@@ -235,15 +235,15 @@ private fun IntegrationCard(
     val connected = item.isConnected
     val cardAlpha = if (connected) 0.10f else 0.04f
     val borderColor = if (connected) Color(0xFF4ADE80).copy(alpha = 0.35f)
-    else MaterialTheme.colorScheme.outline
+    else AiriTheme.outline
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .border(0.5.dp, borderColor, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
+            .border(0.5.dp, borderColor, AIRIShapes.xl),
+        shape = AIRIShapes.xl,
         color = AiriTheme.onBackground.copy(alpha = cardAlpha),
-        contentColor = MaterialTheme.colorScheme.onSurface,
+        contentColor = AiriTheme.onSurface,
         tonalElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -258,8 +258,8 @@ private fun IntegrationCard(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.outline)
-                        .border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), CircleShape),
+                        .background(AiriTheme.outline)
+                        .border(0.5.dp, AiriTheme.onSurface.copy(alpha = 0.12f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     if (iconResId != null) {
@@ -359,7 +359,7 @@ private fun IntegrationCard(
                     colors   = ButtonDefaults.outlinedButtonColors(
                         contentColor = Color(0xFFFF6B6B)
                     ),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = AIRIShapes.md
                 ) {
                     Text(stringResource(R.string.integration_disconnect))
                 }
@@ -368,9 +368,9 @@ private fun IntegrationCard(
                     onClick  = onConnect,
                     modifier = Modifier.fillMaxWidth(),
                     colors   = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
+                        containerColor = CosmicAccent
                     ),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = AIRIShapes.md
                 ) {
                     Text(stringResource(R.string.integration_connect), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
                 }
@@ -381,8 +381,8 @@ private fun IntegrationCard(
 @Composable
 private fun StatusBadge(connected: Boolean) {
     val bgColor = if (connected) Color(0xFF4ADE80).copy(alpha = 0.15f)
-    else MaterialTheme.colorScheme.outline
-    val textColor = if (connected) Color(0xFF4ADE80) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+    else AiriTheme.outline
+    val textColor = if (connected) Color(0xFF4ADE80) else AiriTheme.onSurface.copy(alpha = 0.45f)
     val transition = rememberInfiniteTransition(label = "integration_status")
     val pulse = transition.animateFloat(
         initialValue = 1f,
@@ -395,7 +395,7 @@ private fun StatusBadge(connected: Boolean) {
 
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(AIRIShapes.xl)
             .background(bgColor)
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -415,7 +415,7 @@ private fun StatusBadge(connected: Boolean) {
                 modifier = Modifier
                     .size(7.dp)
                     .clip(CircleShape)
-                    .background(if (connected) Color(0xFF4ADE80) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
+                    .background(if (connected) Color(0xFF4ADE80) else AiriTheme.onSurface.copy(alpha = 0.35f))
             )
         }
         Text(
@@ -442,8 +442,8 @@ private fun TokenDialog(
 ) {
     AlertDialog(
         onDismissRequest = { if (!loading) onDismiss() },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp),
+        containerColor = AiriTheme.surface,
+        shape = AIRIShapes.xl,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(emoji, fontSize = 22.sp)
@@ -523,10 +523,10 @@ private fun TokenDialog(
                         isError = error != null,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedTextColor = AiriTheme.onSurface,
+                            unfocusedTextColor = AiriTheme.onSurface,
                             focusedBorderColor = Color(0xFF7C3AED),
-                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
+                            unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.25f),
                             errorBorderColor = Color(0xFFFF6B6B),
                             cursorColor = Color(0xFF7C3AED)
                         )
@@ -583,7 +583,7 @@ private fun TokenDialog(
                 onClick = onConfirm,
                 enabled = !loading && token.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
+                    containerColor = CosmicAccent,
                     disabledContainerColor = Color(0xFF6D28D9).copy(alpha = 0.35f)
                 )
             ) {

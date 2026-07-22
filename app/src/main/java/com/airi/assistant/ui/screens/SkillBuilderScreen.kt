@@ -252,7 +252,7 @@ fun SkillBuilderScreen(
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.72f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background.copy(alpha = 0.72f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
@@ -356,7 +356,7 @@ fun SkillBuilderScreen(
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
                                     selectedLabelColor = CosmicAccent,
-                                    labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
+                                    labelColor = AiriTheme.onSurface.copy(alpha = 0.72f)
                                 )
                             )
                         }
@@ -384,7 +384,7 @@ fun SkillBuilderScreen(
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
                                 selectedLabelColor = CosmicAccent,
-                                labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
+                                labelColor = AiriTheme.onSurface.copy(alpha = 0.72f)
                             )
                         )
                     }
@@ -426,7 +426,7 @@ fun SkillBuilderScreen(
                 OutlinedButton(
                     onClick = ::testSkill,
                     modifier = Modifier.weight(1f).height(54.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = AIRIShapes.md,
                     enabled = !isTesting && !isSaving,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = CosmicAccent),
                     border = BorderStroke(1.dp, CosmicAccent.copy(alpha = if (isTesting) 0.3f else 0.6f))
@@ -445,12 +445,12 @@ fun SkillBuilderScreen(
                 Button(
                     onClick = ::save,
                     modifier = Modifier.weight(1f).height(54.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = AIRIShapes.md,
                     enabled = !isSaving && !isTesting,
-                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = MaterialTheme.colorScheme.background)
+                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = AiriTheme.background)
                 ) {
                     if (isSaving) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.background, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = AiriTheme.background, strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.skill_builder_saving), fontWeight = FontWeight.Bold)
                     } else {
@@ -470,9 +470,9 @@ private fun SkillHealthBanner(message: String, color: Color) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(AIRIShapes.md)
             .background(color.copy(alpha = 0.1f))
-            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+            .border(1.dp, color.copy(alpha = 0.35f), AIRIShapes.md)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -495,9 +495,9 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, statusColor.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                .clip(AIRIShapes.xl)
+                .background(AiriTheme.surface)
+                .border(1.dp, statusColor.copy(alpha = 0.4f), AIRIShapes.xl)
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -505,7 +505,7 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Surface(shape = RoundedCornerShape(999.dp), color = statusColor.copy(alpha = 0.15f)) {
+                Surface(shape = AIRIShapes.pill, color = statusColor.copy(alpha = 0.15f)) {
                     Text(
                         text = if (result.success) "Connected" else "Failed",
                         color = statusColor,
@@ -528,8 +528,8 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 280.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f))
+                        .clip(AIRIShapes.sm)
+                        .background(Color.Black.copy(alpha = 0.40f))
                         .padding(12.dp)
                 ) {
                     Text(
@@ -546,9 +546,9 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(AIRIShapes.sm)
                         .background(Color(0xFFFF6B6B).copy(alpha = 0.08f))
-                        .border(1.dp, Color(0xFFFF6B6B).copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                        .border(1.dp, Color(0xFFFF6B6B).copy(alpha = 0.2f), AIRIShapes.sm)
                         .padding(12.dp)
                 ) {
                     Text(
@@ -608,9 +608,9 @@ private fun TemplateVariablesHint() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(AIRIShapes.sm)
             .background(CosmicAccent.copy(alpha = 0.05f))
-            .border(1.dp, CosmicAccent.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+            .border(1.dp, CosmicAccent.copy(alpha = 0.15f), AIRIShapes.sm)
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -640,9 +640,9 @@ private fun PresetCard(preset: SkillPreset, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(AIRIShapes.md)
             .background(CosmicAccent.copy(alpha = 0.07f))
-            .border(1.dp, CosmicAccent.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
+            .border(1.dp, CosmicAccent.copy(alpha = 0.18f), AIRIShapes.md)
             .clickable(onClick = onClick)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -652,7 +652,7 @@ private fun PresetCard(preset: SkillPreset, onClick: () -> Unit) {
             Text(preset.label, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             Text(preset.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
         }
-        Surface(shape = RoundedCornerShape(999.dp), color = CosmicAccent.copy(alpha = 0.15f)) {
+        Surface(shape = AIRIShapes.pill, color = CosmicAccent.copy(alpha = 0.15f)) {
             Text(
                 "Use",
                 color = CosmicAccent,
@@ -677,9 +677,9 @@ private fun SkillBuilderSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.055f))
-            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.09f), RoundedCornerShape(18.dp))
+            .clip(AIRIShapes.lg)
+            .background(AiriTheme.onSurface.copy(alpha = 0.055f))
+            .border(1.dp, AiriTheme.onSurface.copy(alpha = 0.09f), AIRIShapes.lg)
     ) {
         Row(
             modifier = Modifier
@@ -731,11 +731,11 @@ private fun SkillTextField(
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = CosmicAccent,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.2f),
+                focusedTextColor = AiriTheme.onSurface,
+                unfocusedTextColor = AiriTheme.onSurface,
                 focusedLabelColor = CosmicAccent,
-                unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                unfocusedLabelColor = AiriTheme.onSurface.copy(alpha = 0.55f),
                 cursorColor = CosmicAccent
             )
         )
@@ -794,11 +794,11 @@ private fun HeaderEditor(headers: SnapshotStateList<HeaderInput>) {
 @Composable
 private fun headerFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = CosmicAccent,
-    unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.2f),
+    focusedTextColor = AiriTheme.onSurface,
+    unfocusedTextColor = AiriTheme.onSurface,
     focusedLabelColor = CosmicAccent,
-    unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+    unfocusedLabelColor = AiriTheme.onSurface.copy(alpha = 0.55f),
     cursorColor = CosmicAccent
 )
 

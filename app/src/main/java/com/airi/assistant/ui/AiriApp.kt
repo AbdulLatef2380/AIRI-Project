@@ -1,6 +1,9 @@
 package com.airi.assistant.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -221,7 +224,7 @@ fun AiriApp() {
 
     AIRITheme {
         Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
+            containerColor = AiriTheme.background,
             bottomBar = {
                 AiriBottomNavBar(
                     selectedTab = selectedTab,
@@ -245,7 +248,7 @@ fun AiriApp() {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
+                    .background(AiriTheme.background)
                     .padding(innerPadding)
                     .consumeWindowInsets(innerPadding)
             ) {

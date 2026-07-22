@@ -115,7 +115,7 @@ class ModelDownloadService : Service() {
                         Log.i("AIRI_PROOF", "DOWNLOAD_CANCELLED fileName=$fileName reason=cancel_during_retry")
                         break
                     }
-                    if (attempt < 3) Thread.sleep(1500L * attempt)
+                    if (attempt < 3) kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) { kotlinx.coroutines.delay(1500L * attempt) }
                 }
             }
             if (!success) {
@@ -123,7 +123,7 @@ class ModelDownloadService : Service() {
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("DOWNLOAD", false, finalReason)
                 if (finalReason != "cancelled") {
                     Handler(Looper.getMainLooper()).post {
-                        Toast.makeText(applicationContext, "فشل تحميل $fileName: $finalReason", Toast.LENGTH_LONG).show()
+                        Toast.makeText(applicationContext, "Download failed: $fileName ($finalReason)", Toast.LENGTH_LONG).show()
                     }
                 }
             }

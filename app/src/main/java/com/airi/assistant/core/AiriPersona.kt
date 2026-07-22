@@ -59,7 +59,6 @@ class AiriPersona(
         return basePrompt + modePrompt
     }
 
-
     fun getInitialGreeting(userName: String): String {
         return "مرحباً $userName، أنا AIRI. أنا هنا إلى جانبك، كيف يمكنني مساعدتك اليوم؟"
     }

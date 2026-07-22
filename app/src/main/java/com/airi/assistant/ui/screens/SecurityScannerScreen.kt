@@ -148,7 +148,7 @@ fun SecurityScannerScreen(onBack: () -> Unit) {
                     }
                     items(results) { r ->
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = AIRIShapes.md,
                             color = (if (r.passed) Color(0xFF00C853) else Color(0xFFD50000)).copy(alpha = 0.08f),
                             modifier = Modifier.fillMaxWidth()
                         ) {

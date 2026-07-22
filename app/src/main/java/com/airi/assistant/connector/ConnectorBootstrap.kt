@@ -86,7 +86,7 @@ object ConnectorBootstrap {
             Log.e(TAG, "AP-06: SecureStorage unavailable — Telegram connector NOT registered (secure storage error)")
         }
 
-        // Task 8 / AP-06: NotionMcpConnector — legacy adapter removed.
+        
         if (storage != null) {
             registry.register(NotionMcpConnector(storage))
         } else {

@@ -67,27 +67,27 @@ fun AgentPlanOverlay(
                 Spacer(Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(stageLabel(stage), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = stageAccent(stage))
-                    if (goal.isNotBlank()) Text(goal.take(72), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), maxLines = 1)
+                    if (goal.isNotBlank()) Text(goal.take(72), fontSize = 12.sp, color = AiriTheme.onSurface.copy(alpha = 0.7f), maxLines = 1)
                 }
                 val done = steps.count { it.status == PlanStepStatus.COMPLETED }
-                if (steps.isNotEmpty()) Text("$done/${steps.size}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), modifier = Modifier.padding(end = 10.dp))
-                Text(if (isExpanded) "⌃" else "⌄", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                if (steps.isNotEmpty()) Text("$done/${steps.size}", fontSize = 11.sp, color = AiriTheme.onSurface.copy(alpha = 0.4f), modifier = Modifier.padding(end = 10.dp))
+                Text(if (isExpanded) "⌃" else "⌄", fontSize = 14.sp, color = AiriTheme.onSurface.copy(alpha = 0.5f))
                 Spacer(Modifier.width(10.dp))
                 if (stage == ExecutionStage.COMPLETED || stage == ExecutionStage.FAILED || stage == ExecutionStage.IDLE)
-                    Text("✕", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                    Text("✕", fontSize = 12.sp, color = AiriTheme.onSurface.copy(alpha = 0.3f),
                         modifier = Modifier.clickable { planViewModel.dismissPanel() })
             }
             // Steps
             AnimatedVisibility(visible = isExpanded, enter = expandVertically(), exit = shrinkVertically()) {
                 if (steps.isEmpty()) {
                     Box(modifier = Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
-                        Text(stringResource(R.string.agent_plan_initialising), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                        Text(stringResource(R.string.agent_plan_initialising), fontSize = 12.sp, color = AiriTheme.onSurface.copy(alpha = 0.4f))
                     }
                 } else {
                     LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
                         items(items = steps, key = { it.id }) { step ->
                             AgentPlanCard(step = step)
-                            Divider(color = MaterialTheme.colorScheme.outline, thickness = 0.5.dp,
+                            Divider(color = AiriTheme.outline, thickness = 0.5.dp,
                                 modifier = Modifier.padding(horizontal = 12.dp))
                         }
                     }
@@ -116,7 +116,7 @@ private fun stageAccent(stage: ExecutionStage) = when (stage) {
     ExecutionStage.REFLECTING -> Color(0xFFB57BFF)
     ExecutionStage.COMPLETED  -> SemanticSuccess
     ExecutionStage.FAILED     -> SemanticError
-    ExecutionStage.IDLE       -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+    ExecutionStage.IDLE       -> AiriTheme.onSurface.copy(alpha = 0.4f)
 }
 
 private fun stageLabel(stage: ExecutionStage) = when (stage) {

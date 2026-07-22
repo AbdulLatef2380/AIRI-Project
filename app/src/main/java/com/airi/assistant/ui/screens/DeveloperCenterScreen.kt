@@ -69,7 +69,7 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
                     Tab(
                         selected = selectedTab == idx,
                         onClick  = { selectedTab = idx },
-                        text = { Text(label, fontSize = 12.sp, color = if (selectedTab == idx) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(0.45f)) }
+                        text = { Text(label, fontSize = 12.sp, color = if (selectedTab == idx) CosmicAccent else AiriTheme.onSurface.copy(0.45f)) }
                     )
                 }
             }
@@ -130,7 +130,7 @@ private fun ConnectorsTab() {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         contentPadding = PaddingValues(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
-            Surface(shape = RoundedCornerShape(12.dp), color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
+            Surface(shape = AIRIShapes.md, color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(modifier = Modifier.size(9.dp).clip(CircleShape)
@@ -149,7 +149,7 @@ private fun ConnectorsTab() {
         }
 
         items(healthSummary, key = { it.connectorId }) { entry ->
-            Surface(shape = RoundedCornerShape(12.dp), color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
+            Surface(shape = AIRIShapes.md, color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(modifier = Modifier.size(9.dp).clip(CircleShape)
@@ -216,7 +216,7 @@ private fun MemoryTab() {
                 progress   = usedPct / 100f,
                 modifier   = Modifier.fillMaxWidth().padding(top = 6.dp),
                 color      = if (usedPct > 80) SemanticError else CosmicAccent,
-                trackColor = MaterialTheme.colorScheme.onSurface.copy(0.1f)
+                trackColor = AiriTheme.onSurface.copy(0.1f)
             )
         }
     }
@@ -242,7 +242,7 @@ private fun DiagnosticsTab() {
             }
         }
         report?.results?.forEach { test ->
-            Surface(shape = RoundedCornerShape(8.dp), color = if (test.passed) Color(0xFF1A251A) else Color(0xFF251A1A), modifier = Modifier.fillMaxWidth()) {
+            Surface(shape = AIRIShapes.xs, color = if (test.passed) Color(0xFF1A251A) else Color(0xFF251A1A), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(if (test.passed) "✓" else "✗", fontSize = 12.sp, color = if (test.passed) Color(0xFF30D158) else Color(0xFFFF453A), fontWeight = FontWeight.Bold)
@@ -263,7 +263,7 @@ private fun HealthTab() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Surface(
-            shape = RoundedCornerShape(12.dp),
+            shape = AIRIShapes.md,
             color = if (health.isHealthy) Color(0xFF1A251A) else Color(0xFF251A1A),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -390,7 +390,7 @@ private fun AuditLogTab() {
         } else {
             items(entries, key = { it.id }) { entry ->
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
+                    shape = AIRIShapes.xs,
                     color = AiriTheme.surfaceVariant,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -429,7 +429,7 @@ private fun AuditLogTab() {
 }
 @Composable
 private fun DevCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Surface(shape = RoundedCornerShape(12.dp), color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = AIRIShapes.md, color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CosmicAccent)
             Divider(color = AiriTheme.outline.copy(0.5f), modifier = Modifier.padding(bottom = 2.dp))

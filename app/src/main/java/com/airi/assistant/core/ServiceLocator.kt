@@ -93,7 +93,7 @@ object ServiceLocator {
     }
 
     val authService: AuthService by lazy {
-        // Task 10: pass auditRepository so all auth events reach the persistent audit log.
+        
         AuthService(auditRepository = auditRepository)
     }
 
@@ -230,7 +230,7 @@ object ServiceLocator {
                 registry      = reg,
                 authManager   = connectorAuthManager,   // P1-7: for GitHubConnector
                 llmProviders  = llmProviders,
-                secureStorage = secureStorage,          // Task 8: for NotionMcpConnector
+                secureStorage = secureStorage,          
             )
             // GitHubConnector is now registered inside ConnectorBootstrap.installDefaults.
             // No duplicate registration needed here.
@@ -454,7 +454,7 @@ object ServiceLocator {
             context         = requireContext(),
             thermalProfiler = thermalProfiler,
             onThrottleChange = { action ->
-                // Task 11: Close the feedback loop — update ThermalSignal so
+                
                 // PromptBudgetLedger.forBudget() can apply the correct budget fraction.
                 val (factor, emergency) = when (action) {
                     is com.airi.assistant.runtime.health.SystemHealthCoordinator.ThrottleAction.FullPerformance ->

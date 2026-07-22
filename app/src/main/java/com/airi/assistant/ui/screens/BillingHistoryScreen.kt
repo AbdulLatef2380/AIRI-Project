@@ -125,7 +125,7 @@ fun BillingHistoryScreen(
 private fun SummaryCard(label: String, value: String, icon: ImageVector, color: Color, modifier: Modifier = Modifier) {
     Card(
         colors   = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-        shape    = RoundedCornerShape(16.dp),
+        shape    = AIRIShapes.md,
         modifier = modifier
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -140,7 +140,7 @@ private fun SummaryCard(label: String, value: String, icon: ImageVector, color: 
 private fun BillingRecordRow(record: BillingRecord, dateFormat: SimpleDateFormat) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-        shape  = RoundedCornerShape(14.dp)
+        shape  = AIRIShapes.md
     ) {
         Row(
             Modifier.fillMaxWidth().padding(14.dp),
@@ -176,7 +176,7 @@ private fun BillingRecordRow(record: BillingRecord, dateFormat: SimpleDateFormat
 private fun StatusBadge(status: BillingRecord.Status) {
     val color = statusColor(status)
     Box(
-        Modifier.background(color.copy(0.15f), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
+        Modifier.background(color.copy(0.15f), AIRIShapes.xs).padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
         Text(
             status.name.lowercase().replaceFirstChar { it.uppercase() },

@@ -41,8 +41,7 @@ fun ReferralScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHost = remember { SnackbarHostState() }
-    // Task 3: Route through AuthService — no direct FirebaseAuth.getInstance() in UI.
-    val userId = remember { ServiceLocator.authService.currentUser()?.uid }
+        val userId = remember { ServiceLocator.authService.currentUser()?.uid }
     var bonus by remember { mutableStateOf(ReferralManager.getBonusMessages()) }
     var codeInput by remember { mutableStateOf("") }
     val code = remember(userId) { ReferralManager.getOrCreateCode(userId) }
@@ -53,7 +52,7 @@ fun ReferralScreen(onBack: () -> Unit) {
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.75f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background.copy(alpha = 0.75f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
@@ -85,9 +84,9 @@ fun ReferralScreen(onBack: () -> Unit) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
+                    .clip(AIRIShapes.xl)
+                    .background(AiriTheme.surfaceVariant)
+                    .border(1.dp, AiriTheme.onSurface.copy(alpha = 0.1f), AIRIShapes.xl)
                     .padding(18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -123,9 +122,9 @@ fun ReferralScreen(onBack: () -> Unit) {
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = CosmicAccent,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f),
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.18f),
+                    focusedTextColor = AiriTheme.onSurface,
+                    unfocusedTextColor = AiriTheme.onSurface
                 )
             )
 
@@ -154,7 +153,7 @@ private fun ReferralButton(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().height(52.dp),
         shape = RoundedCornerShape(15.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.outline, contentColor = AiriTheme.onBackground)
+        colors = ButtonDefaults.buttonColors(containerColor = AiriTheme.outline, contentColor = AiriTheme.onBackground)
     ) {
         Icon(icon, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(19.dp))
         Spacer(Modifier.width(10.dp))

@@ -54,7 +54,7 @@ fun AgentTraceDetailScreen(
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
+                    containerColor = AiriTheme.background.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -93,7 +93,7 @@ fun AgentTraceDetailScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(AIRIShapes.md)
                         .background(
                             if (t.success) Color(0xFF00C853).copy(alpha = 0.1f)
                             else Color(0xFFFF5252).copy(alpha = 0.1f)
@@ -102,7 +102,7 @@ fun AgentTraceDetailScreen(
                             1.dp,
                             if (t.success) Color(0xFF00C853).copy(alpha = 0.25f)
                             else Color(0xFFFF5252).copy(alpha = 0.25f),
-                            RoundedCornerShape(12.dp)
+                            AIRIShapes.md
                         )
                         .padding(12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -174,9 +174,9 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.outline)
-            .border(1.dp, successColor.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
+            .clip(AIRIShapes.md)
+            .background(AiriTheme.outline)
+            .border(1.dp, successColor.copy(alpha = 0.2f), AIRIShapes.md)
             .padding(14.dp)
     ) {
         Column {
@@ -221,8 +221,8 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f))
+                        .clip(AIRIShapes.xs)
+                        .background(AiriTheme.onSurface.copy(alpha = 0.03f))
                         .padding(8.dp)
                 ) {
                     Column {
@@ -245,9 +245,9 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(AIRIShapes.xs)
                         .background(
-                            if (step.success) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f)
+                            if (step.success) AiriTheme.onSurface.copy(alpha = 0.03f)
                             else Color(0xFFFF5252).copy(alpha = 0.05f)
                         )
                         .padding(8.dp)
@@ -263,7 +263,7 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
                         Spacer(Modifier.height(2.dp))
                         Text(
                             text = step.error ?: step.outputSummary,
-                            color = if (step.success) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            color = if (step.success) AiriTheme.onSurface.copy(alpha = 0.7f)
                                     else Color(0xFFFF5252).copy(alpha = 0.85f),
                             fontSize = 11.sp,
                             lineHeight = 16.sp
@@ -280,9 +280,9 @@ private fun TraceDetailCard(content: @Composable ColumnScope.() -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
+            .clip(AIRIShapes.md)
+            .background(AiriTheme.onSurface.copy(alpha = 0.05f))
+            .border(1.dp, AiriTheme.outline, AIRIShapes.md)
             .padding(14.dp)
     ) {
         Column(content = content)

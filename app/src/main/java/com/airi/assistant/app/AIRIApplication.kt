@@ -86,7 +86,7 @@ class AIRIApplication : Application() {
             AnalyticsService.init(this, ServiceLocator.telemetryConsentStore)
             LoggingService.info(TAG, "✓ AnalyticsService initialized")
 
-            // Task 14: Gate install-open analytics behind GDPR consent.
+            
             // AnalyticsService.init() already wires the consentStore internally, but
             // installOpen() fires an event unconditionally on the first launch —
             // which would transmit data before the user has seen the consent screen.

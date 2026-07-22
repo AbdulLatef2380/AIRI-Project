@@ -64,7 +64,7 @@ fun SettingsScreen(
     onNavigate: (String) -> Unit,
     onLogout:   () -> Unit
 ) {
-    // Task 3: Route through AuthService instead of direct FirebaseAuth.getInstance() call.
+    // Route through AuthService instead of direct FirebaseAuth.getInstance() call.
     val authService = remember { ServiceLocator.authService }
     val email     = authService.currentUser()?.email ?: "guest"
     val isPremium = remember { viewModel.isPremium() }
@@ -109,7 +109,7 @@ fun SettingsScreen(
             }
             if (!isStorageEncrypted) {
                 Surface(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                    shape = androidx.compose.foundation.shape.AIRIShapes.md,
                     color = Color(0xFF3A2800),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -385,7 +385,7 @@ fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(AIRIShapes.md)
             .background(AiriTheme.surface),
         content = content
     )
@@ -398,14 +398,14 @@ fun ColumnScope.SettingsDivider() {
             .fillMaxWidth()
             .height(0.5.dp)
             .padding(start = 52.dp)
-            .background(MaterialTheme.colorScheme.outline)
+            .background(AiriTheme.outline)
     )
 }
 
 @Composable
 fun SettingsNavItem(
     icon: ImageVector,
-    iconTint: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+    iconTint: Color = AiriTheme.onSurface.copy(alpha = 0.65f),
     label: String,
     badge: String? = null,
     trailing: String? = null,
@@ -441,7 +441,7 @@ fun SettingsNavItem(
             if (badge != null) {
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
+                        .clip(AIRIShapes.xs)
                         .background(CosmicAccent)
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
@@ -469,7 +469,7 @@ fun SettingsNavItem(
 @Composable
 fun SettingsToggleItem(
     icon: ImageVector,
-    iconTint: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+    iconTint: Color = AiriTheme.onSurface.copy(alpha = 0.65f),
     label: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
@@ -503,10 +503,10 @@ fun SettingsToggleItem(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor   = MaterialTheme.colorScheme.onSurface,
+                checkedThumbColor   = AiriTheme.onSurface,
                 checkedTrackColor   = CosmicAccent,
-                uncheckedThumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
+                uncheckedThumbColor = AiriTheme.onSurface.copy(alpha = 0.6f),
+                uncheckedTrackColor = AiriTheme.onSurface.copy(alpha = 0.15f)
             )
         )
     }

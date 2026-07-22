@@ -125,7 +125,7 @@ fun CreditsScreen(onBack: () -> Unit) {
                             TokenProviderRow(provider = provider, stats = stats)
                             Spacer(Modifier.height(8.dp))
                         }
-                        Divider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 4.dp))
+                        Divider(color = AiriTheme.outline, modifier = Modifier.padding(vertical = 4.dp))
                         val totalTokens = tokenStats.values.sumOf { it.totalTokens }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -145,14 +145,14 @@ fun CreditsScreen(onBack: () -> Unit) {
             item {
                 CreditsCard(title = "Lifetime Statistics", icon = Icons.Outlined.Timeline) {
                     StatRow("Total credits consumed", snapshot.lifetimeTotal.toString())
-                    Divider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
+                    Divider(color = AiriTheme.outline, modifier = Modifier.padding(vertical = 8.dp))
                     StatRow(
                         "Subscription tier",
                         if (snapshot.budget > 500) "Premium ✓" else "Free"
                     )
-                    Divider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
+                    Divider(color = AiriTheme.outline, modifier = Modifier.padding(vertical = 8.dp))
                     StatRow("Daily budget", "${snapshot.budget} credits")
-                    Divider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
+                    Divider(color = AiriTheme.outline, modifier = Modifier.padding(vertical = 8.dp))
                     StatRow("Credits remaining today", "${snapshot.remaining}")
                 }
             }
@@ -176,7 +176,7 @@ private fun CreditBalanceCard(snapshot: MeterSnapshot) {
     }
 
     Surface(
-        shape    = RoundedCornerShape(18.dp),
+        shape    = AIRIShapes.lg,
         color    = AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -185,7 +185,7 @@ private fun CreditBalanceCard(snapshot: MeterSnapshot) {
             modifier = Modifier.padding(24.dp)
         ) {
             // Circular progress indicator
-            val bgRingColor = MaterialTheme.colorScheme.surfaceVariant
+            val bgRingColor = AiriTheme.surfaceVariant
             Box(
                 modifier = Modifier.size(140.dp),
                 contentAlignment = Alignment.Center
@@ -266,9 +266,9 @@ private fun UsageAlertsCard(snapshot: MeterSnapshot) {
     }
 
     Surface(
-        shape    = RoundedCornerShape(14.dp),
+        shape    = AIRIShapes.md,
         color    = bgColor as Color,
-        modifier = Modifier.fillMaxWidth().border(1.dp, borderColor as Color, RoundedCornerShape(14.dp))
+        modifier = Modifier.fillMaxWidth().border(1.dp, borderColor as Color, AIRIShapes.md)
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -290,7 +290,7 @@ private fun UsageAlertsCard(snapshot: MeterSnapshot) {
 private fun ActionUsageRow(action: ActionType, credits: Int, maxValue: Float) {
     val animatedWidth by animateFloatAsState(
         targetValue = credits / maxValue,
-        animationSpec = tween(800),
+        animationSpec = tween(AIRIAnimations.SLOWER),
         label = "action_bar"
     )
     val actionInfo = actionDisplayInfo(action)
@@ -307,7 +307,7 @@ private fun ActionUsageRow(action: ActionType, credits: Int, maxValue: Float) {
             Spacer(Modifier.height(4.dp))
             Box(
                 modifier = Modifier.fillMaxWidth().height(5.dp)
-                    .clip(RoundedCornerShape(3.dp)).background(MaterialTheme.colorScheme.onSurface.copy(0.06f))
+                    .clip(RoundedCornerShape(3.dp)).background(AiriTheme.onSurface.copy(0.06f))
             ) {
                 Box(
                     modifier = Modifier.fillMaxWidth(animatedWidth).fillMaxHeight()
@@ -346,7 +346,7 @@ private fun TokenProviderRow(provider: CloudProvider, stats: TokenAccountant.Pro
 
 @Composable
 private fun CreditsCard(title: String, icon: ImageVector, content: @Composable ColumnScope.() -> Unit) {
-    Surface(shape = RoundedCornerShape(14.dp), color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = AIRIShapes.md, color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(icon, null, tint = CosmicAccent, modifier = Modifier.size(18.dp))

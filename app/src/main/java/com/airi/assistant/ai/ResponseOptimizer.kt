@@ -132,7 +132,7 @@ object ResponseOptimizer {
         val tokens = lower.split(Regex("[\\s\\p{Punct}،؛؟]+")).filter { it.isNotBlank() }
         val isShort = lower.length <= 32 && tokens.size <= 5
         if (!isShort) {
-            Log.d(TAG, "fast_response BYPASS reason=long_input len=${lower.length} tokens=${tokens.size}")
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "fast_response BYPASS reason=long_input len=${lower.length} tokens=${tokens.size}")
             Log.i("AIRI_PROOF", "FAST_PATH_BYPASSED reason=long_input len=${lower.length}")
             return null
         }
@@ -157,7 +157,7 @@ object ResponseOptimizer {
             }
             if (matched) {
                 val reply = entry.replies.random()()
-                Log.d(TAG, "fast_response matched len=${input.length} reply_len=${reply.length}")
+                if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "fast_response matched len=${input.length} reply_len=${reply.length}")
                 Log.i("AIRI_PROOF", "FAST_PATH_HIT input_len=${input.length} reply_len=${reply.length}")
                 return reply
             }
@@ -202,7 +202,7 @@ object ResponseOptimizer {
             recentP90Ms >= 6000L && queryType != QueryType.CREATIVE -> (base.temperature - 0.1f).coerceAtLeast(0.2f)
             else -> base.temperature
         }
-        Log.d(TAG, "adaptive_tuning queryType=${queryType.name} p90=${recentP90Ms}ms premium=$isPremium baseTokens=${base.maxTokens} tunedTokens=$tunedTokens temp=$tunedTemperature")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "adaptive_tuning queryType=${queryType.name} p90=${recentP90Ms}ms premium=$isPremium baseTokens=${base.maxTokens} tunedTokens=$tunedTokens temp=$tunedTemperature")
         return GenerationConfig(temperature = tunedTemperature, maxTokens = tunedTokens)
     }
 
@@ -236,7 +236,7 @@ object ResponseOptimizer {
         val maxElapsed = if (isPremium) 6500L else 4200L
         val hasSemanticStop = lastBoundaryIndex(partialText) >= 80
         val shouldCut = elapsedMs >= maxElapsed && tokensStreamed >= minTokens && hasSemanticStop
-        Log.d(TAG, "semantic_cut_check queryType=${queryType.name} elapsed=${elapsedMs}ms tokens=$tokensStreamed boundary=$hasSemanticStop premium=$isPremium cut=$shouldCut")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "semantic_cut_check queryType=${queryType.name} elapsed=${elapsedMs}ms tokens=$tokensStreamed boundary=$hasSemanticStop premium=$isPremium cut=$shouldCut")
         return shouldCut
     }
 
@@ -248,7 +248,7 @@ object ResponseOptimizer {
             return SemanticCutResult(cleaned, false, "no_better_boundary")
         }
         val cut = cleaned.take(boundary + 1).trim()
-        Log.d(TAG, "semantic_cut_applied original_len=${cleaned.length} cut_len=${cut.length}")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "semantic_cut_applied original_len=${cleaned.length} cut_len=${cut.length}")
         return SemanticCutResult("$cut\n\nResponse shortened to keep AIRI fast.", true, "semantic_boundary")
     }
 

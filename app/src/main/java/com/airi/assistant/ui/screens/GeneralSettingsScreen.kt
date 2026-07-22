@@ -53,7 +53,7 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
+                    containerColor = AiriTheme.background.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -146,9 +146,9 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
             if (showResetConfirm) {
                 AlertDialog(
                     onDismissRequest = { showResetConfirm = false },
-                    containerColor   = MaterialTheme.colorScheme.surface,
-                    textContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
-                    shape = RoundedCornerShape(20.dp),
+                    containerColor   = AiriTheme.surface,
+                    textContentColor = AiriTheme.onSurface.copy(alpha = 0.75f),
+                    shape = AIRIShapes.xl,
                     title = { Text(stringResource(R.string.settings_reset_dialog_title), fontWeight = FontWeight.Bold) },
                     text  = { Text(stringResource(R.string.settings_reset_dialog_body)) },
                     confirmButton = {
@@ -160,7 +160,7 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = com.airi.assistant.ui.theme.SemanticWarn,
-                                contentColor   = MaterialTheme.colorScheme.background
+                                contentColor   = AiriTheme.background
                             )
                         ) { Text(stringResource(R.string.settings_reset_confirm)) }
                     },
@@ -179,10 +179,10 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
     pendingLanguage?.let { language ->
         AlertDialog(
             onDismissRequest  = { pendingLanguage = null },
-            containerColor    = MaterialTheme.colorScheme.surface,
-            titleContentColor = MaterialTheme.colorScheme.onSurface,
-            textContentColor  = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
-            shape             = RoundedCornerShape(20.dp),
+            containerColor    = AiriTheme.surface,
+            titleContentColor = AiriTheme.onSurface,
+            textContentColor  = AiriTheme.onSurface.copy(alpha = 0.75f),
+            shape             = AIRIShapes.xl,
             title = {
                 Text(
                     stringResource(R.string.performance_notice_title),
@@ -199,7 +199,7 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = CosmicAccent,
-                        contentColor   = MaterialTheme.colorScheme.background
+                        contentColor   = AiriTheme.background
                     )
                 ) { Text(stringResource(R.string.continue_action)) }
             },

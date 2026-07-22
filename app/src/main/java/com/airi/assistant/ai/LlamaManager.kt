@@ -305,7 +305,7 @@ class LlamaManager(private val context: Context) {
      */
     fun applyRuntimeMode(mode: PerformanceMode) {
         if (!isLoaded) {
-            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "applyRuntimeMode skipped — model not loaded yet")
+            if (com.airi.assistant.BuildConfig.DEBUG) if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "applyRuntimeMode skipped — model not loaded yet")
             return
         }
         scope.launch {
@@ -339,7 +339,7 @@ class LlamaManager(private val context: Context) {
         // a cancellation request unacknowledged.
         runCatching { LlamaNative.cancel() }
         runCatching { LlamaNative.nativeCancel() }
-        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "cancelStream requested")
+        if (com.airi.assistant.BuildConfig.DEBUG) if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "cancelStream requested")
         Log.i("AIRI_PROOF", "GEN_CANCEL_REQUESTED tid=${Thread.currentThread().id}")
     }
 
@@ -510,11 +510,11 @@ class LlamaManager(private val context: Context) {
                         severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
                     )
                 }
-                // PHASE 3: opportunistically attach the matching mmproj
+                
                 // sidecar so the unified attach flow can do real vision
                 // inference without the user touching a separate button.
                 maybeAutoLoadMmproj(modelFile.absolutePath)
-                // PHASE 5: opportunistically attach a matching embedding
+                
                 // GGUF so the Memory pipeline produces real pooled vectors
                 // instead of falling back to chat-context approximations.
                 maybeAutoLoadEmbeddingModel(modelFile.absolutePath)
@@ -542,9 +542,9 @@ class LlamaManager(private val context: Context) {
                             severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
                         )
                     }
-                    // PHASE 3: same auto-mmproj wiring as the primary path.
+                    
                     maybeAutoLoadMmproj(modelFile.absolutePath)
-                    // PHASE 5: same auto-embedding wiring as the primary path.
+                    
                     maybeAutoLoadEmbeddingModel(modelFile.absolutePath)
                 } else {
                     lastLoadFailure = "native loader returned $result for architecture=${inspection.architecture}"
@@ -863,11 +863,11 @@ class LlamaManager(private val context: Context) {
     ) {
         val model = ModelManager.getCurrent()
         if (!isLoaded || model == null) {
-            // PHASE 6: even the early "engine not loaded" path must
+            
             // contain user-supplied callbacks so an exception inside
             // onToken/onComplete cannot crash the app.
             scope.launch(Dispatchers.Main) {
-                try { onToken("المحرك غير مفعل") }
+                try { onToken("[Engine not initialised]") }
                 catch (t: Throwable) {
                     Log.w(TAG, "onToken(early) threw (swallowed): ${t.message}", t)
                 }
@@ -880,7 +880,7 @@ class LlamaManager(private val context: Context) {
         }
 
         cancelRequested.set(false)
-        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "generateStream params: maxTokens=$maxTokens temp=$temperature " +
+        if (com.airi.assistant.BuildConfig.DEBUG) if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "generateStream params: maxTokens=$maxTokens temp=$temperature " +
                 "first_token_budget=${timeoutMs}ms inactivity_budget=${INACTIVITY_TIMEOUT_MS}ms " +
                 "prompt_len=${prompt.length}")
 
@@ -941,7 +941,7 @@ class LlamaManager(private val context: Context) {
             var firstTokenMs = -1L
             var nativeTokenCount = 0
 
-            // PHASE 1 instrumentation (per spec): one tag per lifecycle stage
+            
             // so logcat can prove WHERE the pipeline stops if it ever does.
             // adb logcat | grep AIRI_PROOF should show this exact sequence
             // for every successful turn:
@@ -1073,7 +1073,7 @@ class LlamaManager(private val context: Context) {
                         "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
                         "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
                 } else {
-                    if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_PROOF",
+                    if (com.airi.assistant.BuildConfig.DEBUG) if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_PROOF",
                         "PREFLIGHT_OK n_past=$nPastBefore n_ctx=$nCtxNow " +
                         "user_est=$estUserNew needed=$estNeeded free=$freeRoom")
                 }
@@ -1253,7 +1253,7 @@ class LlamaManager(private val context: Context) {
 
                     // Per-token trace — gated to AIRI_TOKEN tag and BuildConfig.DEBUG.
                     // adb shell setprop log.tag.AIRI_TOKEN VERBOSE
-                    if (com.airi.assistant.BuildConfig.DEBUG) Log.v("AIRI_TOKEN", "n=$nativeTokenCount bytes=${token.length}")
+                    if (com.airi.assistant.BuildConfig.DEBUG) if (com.airi.assistant.BuildConfig.DEBUG) Log.v("AIRI_TOKEN", "n=$nativeTokenCount bytes=${token.length}")
 
                     val isFirst = firstTokenLogged.compareAndSet(false, true)
                     if (isFirst) {
@@ -1272,7 +1272,7 @@ class LlamaManager(private val context: Context) {
                         val batch = tokenBuffer.toString()
                         tokenBuffer.clear()
                         lastFlushTime = now
-                        // PHASE 6: harden the Main-dispatched callback. A UI
+                        
                         // exception (Compose state update after disposal,
                         // unexpected substring index from a downstream
                         // listener, etc.) must NOT escape and tear down the
@@ -2164,12 +2164,12 @@ class LlamaManager(private val context: Context) {
     }
 
     private fun defaultSystemPrompt(): String = """
-        أنت AIRI، المساعد الذكي المتطور بنظام Android.
-        هويتك: ذكي، مرح، ومفيد جداً.
-        قواعد الرد:
-        1. أجب دائماً باللغة العربية (لهجة بيضاء مفهومة أو فصحى بسيطة).
-        2. اجعل ردودك قصيرة ومباشرة (إلا إذا طلب المستخدم تفاصيل).
-        3. إذا لم تعرف الإجابة، قل ذلك بصدق ولا تخترع معلومات.
-        4. تذكر دائماً أنك جزء من مشروع AIRI المفتوح المصدر.
+        You are AIRI, an advanced AI assistant running on Android.
+        Identity: intelligent, friendly, and genuinely helpful.
+        Response rules:
+        1. Always reply in the user's language.
+        2. Keep responses concise unless the user asks for detail.
+        3. If you don't know, say so honestly — never invent information.
+        4. You are part of the open-source AIRI project.
     """.trimIndent()
 }

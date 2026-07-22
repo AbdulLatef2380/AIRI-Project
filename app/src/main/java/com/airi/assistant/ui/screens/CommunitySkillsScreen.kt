@@ -142,12 +142,12 @@ private fun CommunitySkillCard(
 
     Card(
         colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-        shape  = RoundedCornerShape(14.dp)
+        shape  = AIRIShapes.md
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(40.dp).background(CosmicAccent.copy(0.15f), RoundedCornerShape(10.dp)),
+                    Modifier.size(40.dp).background(CosmicAccent.copy(0.15f), AIRIShapes.sm),
                     contentAlignment = Alignment.Center
                 ) { Text("🔌", fontSize = 20.sp) }
                 Spacer(Modifier.width(10.dp))
@@ -157,7 +157,7 @@ private fun CommunitySkillCard(
                 }
                 // Trust badge
                 Box(
-                    Modifier.background(tierColor(breakdown.tier).copy(0.15f), RoundedCornerShape(8.dp))
+                    Modifier.background(tierColor(breakdown.tier).copy(0.15f), AIRIShapes.xs)
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text("${breakdown.tier.emoji} ${breakdown.totalScore}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = tierColor(breakdown.tier))
@@ -170,7 +170,7 @@ private fun CommunitySkillCard(
                     skill.sourceUrl?.let {
                         Text("Source: $it", fontSize = 11.sp, color = CosmicAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Divider(color = MaterialTheme.colorScheme.outline)
+                    Divider(color = AiriTheme.outline)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = { onSandboxTest(skill) },
@@ -252,7 +252,7 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                     placeholder   = { Text("https://raw.githubusercontent.com/…/skill.json") },
                     modifier      = Modifier.fillMaxWidth(),
                     singleLine    = true,
-                    colors        = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = MaterialTheme.colorScheme.outline)
+                    colors        = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = AiriTheme.outline)
                 )
             }
             item {
@@ -272,7 +272,7 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                     enabled = importUrl.isNotBlank() && !isLoading,
                     colors  = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
                 ) {
-                    if (isLoading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onSurface)
+                    if (isLoading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = AiriTheme.onSurface)
                     else Icon(Icons.Default.Download, null, Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.community_import_from_url))
@@ -286,7 +286,7 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                     label         = { Text(stringResource(R.string.paste_skill_json_label)) },
                     modifier      = Modifier.fillMaxWidth().height(200.dp),
                     textStyle     = LocalTextStyle.current.copy(fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-                    colors        = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = MaterialTheme.colorScheme.outline)
+                    colors        = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = AiriTheme.outline)
                 )
             }
             item {
@@ -318,7 +318,7 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                 val isError = it.startsWith("✗") || it.startsWith("🚫")
                 Card(
                     colors = CardDefaults.cardColors(containerColor = if (isError) SemanticError.copy(0.1f) else SemanticSuccess.copy(0.1f)),
-                    shape  = RoundedCornerShape(12.dp)
+                    shape  = AIRIShapes.md
                 ) {
                     Text(it, Modifier.padding(12.dp), fontSize = 13.sp, color = if (isError) SemanticError else SemanticSuccess)
                 }
@@ -327,7 +327,7 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-                shape  = RoundedCornerShape(12.dp)
+                shape  = AIRIShapes.md
             ) {
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Security, null, Modifier.size(20.dp), tint = CosmicAccent)
@@ -364,7 +364,7 @@ private fun TrustScoreTab(skill: CommunitySkill?, hub: CommunitySkillHub) {
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = tierColor(breakdown.tier).copy(0.1f)),
-                shape  = RoundedCornerShape(20.dp),
+                shape  = AIRIShapes.xl,
                 border = androidx.compose.foundation.BorderStroke(1.dp, tierColor(breakdown.tier).copy(0.3f))
             ) {
                 Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -392,7 +392,7 @@ private fun TrustScoreTab(skill: CommunitySkill?, hub: CommunitySkillHub) {
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-                shape  = RoundedCornerShape(14.dp)
+                shape  = AIRIShapes.md
             ) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Science, null, Modifier.size(20.dp), tint = CosmicAccent)
@@ -411,7 +411,7 @@ private fun TrustScoreTab(skill: CommunitySkill?, hub: CommunitySkillHub) {
 private fun TrustSignalRow(signal: TrustScoringEngine.TrustBreakdown.SignalDetail) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-        shape  = RoundedCornerShape(12.dp)
+        shape  = AIRIShapes.md
     ) {
         Row(Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Icon(

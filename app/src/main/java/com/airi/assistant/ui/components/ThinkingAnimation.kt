@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
+import com.airi.assistant.ui.theme.CosmicAccent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -17,7 +18,7 @@ import androidx.compose.ui.unit.dp
  * Three-dot breathing indicator shown while the model is generating a response.
  * Replaces the previous "Thinking..." text label.
  *
- * Colors come from MaterialTheme.colorScheme.primary so they adapt correctly
+ * Colors come from CosmicAccent so they adapt correctly
  * to Dark, Light, and AMOLED themes without any hardcoded values.
  * Dots are staggered by 160 ms to create a left-to-right wave feel.
  */
@@ -27,7 +28,7 @@ fun ThinkingAnimation(modifier: Modifier = Modifier) {
 
     Row(
         modifier              = modifier.padding(horizontal = 10.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment     = Alignment.CenterVertically
     ) {
         repeat(3) { i ->
@@ -59,10 +60,10 @@ fun ThinkingAnimation(modifier: Modifier = Modifier) {
             )
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .size(7.dp)
                     .scale(scale)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = alpha))
+                    .background(CosmicAccent.copy(alpha = alpha))
             )
         }
     }

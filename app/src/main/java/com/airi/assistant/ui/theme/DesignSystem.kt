@@ -84,8 +84,8 @@ object AIRISurfaces {
     val card      = SurfaceCard
 
     // Glass overlays
-    val glass: Color @Composable get() = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-    val glassBorder: Color @Composable get() = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+    val glass: Color @Composable get() = AiriTheme.surfaceVariant.copy(alpha = 0.4f)
+    val glassBorder: Color @Composable get() = AiriTheme.surfaceVariant.copy(alpha = 0.4f)
     val glassPurple  = GlassPurple
     val glassBorderP = GlassPurpleBorder
 
@@ -145,7 +145,7 @@ object AIRIGradients {
         colors = if (isConnected)
             listOf(SemanticSuccess.copy(alpha = 0.15f), SemanticSuccess.copy(alpha = 0.05f))
         else
-            listOf(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f), MaterialTheme.colorScheme.onSurface.copy(alpha = 0.02f))
+            listOf(AiriTheme.onSurface.copy(alpha = 0.05f), AiriTheme.onSurface.copy(alpha = 0.02f))
     )
 
     // Agent task state
@@ -171,28 +171,28 @@ object AIRIColors {
     val agentCompleted  = SemanticSuccess
     val agentFailed     = SemanticError
     val agentRecovering = SemanticWarn
-    val agentIdle: Color @Composable get() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+    val agentIdle: Color @Composable get() = AiriTheme.onSurface.copy(alpha = 0.35f)
 
     // Connector state colors
     val connectorOnline  = SemanticSuccess
-    val connectorOffline: Color @Composable get() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+    val connectorOffline: Color @Composable get() = AiriTheme.onSurface.copy(alpha = 0.25f)
     val connectorError   = SemanticError
     val connectorPending = SemanticWarn
 
     // Voice state colors
-    val voiceIdle: Color @Composable get() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+    val voiceIdle: Color @Composable get() = AiriTheme.onSurface.copy(alpha = 0.5f)
     val voiceListening  = Color(0xFF00B4D8)
     val voiceSpeaking   = CosmicAccent
     val voiceProcessing = SemanticWarn
     val voiceError      = SemanticError
 
     // Task state colors
-    val taskQueued: Color @Composable get() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+    val taskQueued: Color @Composable get() = AiriTheme.onSurface.copy(alpha = 0.4f)
     val taskRunning   = CosmicAccent
     val taskDone      = SemanticSuccess
     val taskFailed    = SemanticError
     val taskRetrying  = SemanticWarn
-    val taskCancelled: Color @Composable get() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+    val taskCancelled: Color @Composable get() = AiriTheme.onSurface.copy(alpha = 0.25f)
 }
 
 // ── Elevation / shadow tokens (expressed as alpha on surface layers) ──────────
@@ -217,15 +217,15 @@ object AIRIShadows {
 
 // ── : Theme-aware surface helpers ─────────────────────────────────────────
 object AiriTheme {
-    val background: Color @Composable get() = MaterialTheme.colorScheme.background
-    val surface: Color @Composable get() = MaterialTheme.colorScheme.surface
-    val surfaceVariant: Color @Composable get() = MaterialTheme.colorScheme.surfaceVariant
-    val onBackground: Color @Composable get() = MaterialTheme.colorScheme.onBackground
-    val onSurface: Color @Composable get() = MaterialTheme.colorScheme.onSurface
-    val onSurfaceVariant: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
-    val primary: Color @Composable get() = MaterialTheme.colorScheme.primary
-    val outline: Color @Composable get() = MaterialTheme.colorScheme.outline
-    val error: Color @Composable get() = MaterialTheme.colorScheme.error
+    val background: Color @Composable get() = AiriTheme.background
+    val surface: Color @Composable get() = AiriTheme.surface
+    val surfaceVariant: Color @Composable get() = AiriTheme.surfaceVariant
+    val onBackground: Color @Composable get() = AiriTheme.onBackground
+    val onSurface: Color @Composable get() = AiriTheme.onSurface
+    val onSurfaceVariant: Color @Composable get() = AiriTheme.onSurfaceVariant
+    val primary: Color @Composable get() = CosmicAccent
+    val outline: Color @Composable get() = AiriTheme.outline
+    val error: Color @Composable get() = SemanticError
 }
 
 // Global semantic colors are defined in Color.kt

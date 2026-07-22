@@ -151,9 +151,9 @@ fun CloudModelStoreSection(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.outline)
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+                    .clip(AIRIShapes.md)
+                    .background(AiriTheme.outline)
+                    .border(1.dp, AiriTheme.outline, AIRIShapes.md)
                     .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -224,16 +224,16 @@ private fun CloudInferenceModePicker(
                     selectedMode = mode
                     onModeSet(mode)
                 },
-                shape = RoundedCornerShape(12.dp),
+                shape = AIRIShapes.md,
                 color = if (selected) CosmicAccent.copy(alpha = 0.18f)
-                        else MaterialTheme.colorScheme.outline,
+                        else AiriTheme.outline,
                 modifier = Modifier
                     .weight(1f)
                     .border(
                         1.dp,
                         if (selected) CosmicAccent.copy(alpha = 0.55f)
-                        else MaterialTheme.colorScheme.outline,
-                        RoundedCornerShape(12.dp)
+                        else AiriTheme.outline,
+                        AIRIShapes.md
                     )
             ) {
                 Column(
@@ -241,11 +241,11 @@ private fun CloudInferenceModePicker(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(icon, contentDescription = label,
-                        tint = if (selected) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                        tint = if (selected) CosmicAccent else AiriTheme.onSurface.copy(alpha = 0.4f),
                         modifier = Modifier.size(18.dp))
                     Spacer(Modifier.height(4.dp))
                     Text(label,
-                        color = if (selected) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        color = if (selected) CosmicAccent else AiriTheme.onSurface.copy(alpha = 0.5f),
                         fontSize = 11.sp, fontWeight = FontWeight.Medium)
                 }
             }
@@ -291,16 +291,16 @@ private fun EmbeddedProviderCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(AIRIShapes.md)
                 .background(
                     if (isActive) accentColor.copy(alpha = 0.10f)
-                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f)
+                    else AiriTheme.onSurface.copy(alpha = 0.03f)
                 )
                 .border(
                     1.dp,
                     if (isActive) accentColor.copy(alpha = 0.50f)
-                    else MaterialTheme.colorScheme.outline,
-                    RoundedCornerShape(14.dp)
+                    else AiriTheme.outline,
+                    AIRIShapes.md
                 )
                 .padding(14.dp)
         ) {
@@ -332,7 +332,7 @@ private fun EmbeddedProviderCard(
                         // Tier badge
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
+                                .clip(AIRIShapes.xs)
                                 .background(accentColor.copy(alpha = 0.20f))
                                 .padding(horizontal = 5.dp, vertical = 2.dp)
                         ) {
@@ -343,7 +343,7 @@ private fun EmbeddedProviderCard(
                             Spacer(Modifier.width(5.dp))
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
+                                    .clip(AIRIShapes.xs)
                                     .background(Color(0xFF00C853).copy(alpha = 0.20f))
                                     .padding(horizontal = 5.dp, vertical = 2.dp)
                             ) {
@@ -377,7 +377,7 @@ private fun EmbeddedProviderCard(
                     // Deactivate
                     OutlinedButton(
                         onClick = onDeactivate,
-                        shape = RoundedCornerShape(10.dp),
+                        shape = AIRIShapes.sm,
                         border = ButtonDefaults.outlinedButtonBorder,
                         modifier = Modifier.height(34.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
@@ -388,10 +388,10 @@ private fun EmbeddedProviderCard(
                     // Activate / Get key
                     Button(
                         onClick = onActivate,
-                        shape = RoundedCornerShape(10.dp),
+                        shape = AIRIShapes.sm,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = accentColor,
-                            contentColor   = MaterialTheme.colorScheme.background
+                            contentColor   = AiriTheme.background
                         ),
                         modifier = Modifier.height(34.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
@@ -458,9 +458,9 @@ private fun ApiKeyEntryDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor    = Color(0xFF12162E),
-        titleContentColor = MaterialTheme.colorScheme.onSurface,
-        textContentColor  = MaterialTheme.colorScheme.onSurface,
-        shape             = RoundedCornerShape(20.dp),
+        titleContentColor = AiriTheme.onSurface,
+        textContentColor  = AiriTheme.onSurface,
+        shape             = AIRIShapes.xl,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Key, contentDescription = null,
@@ -494,9 +494,9 @@ private fun ApiKeyEntryDialog(
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                        focusedTextColor     = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor   = MaterialTheme.colorScheme.onSurface
+                        unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.15f),
+                        focusedTextColor     = AiriTheme.onSurface,
+                        unfocusedTextColor   = AiriTheme.onSurface
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -527,7 +527,7 @@ private fun ApiKeyEntryDialog(
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = CosmicAccent,
-                    contentColor   = MaterialTheme.colorScheme.background
+                    contentColor   = AiriTheme.background
                 ),
                 enabled = key.isNotBlank()
             ) {
@@ -567,8 +567,8 @@ private fun AddRemoteModelInlineContent(
             singleLine = true, modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = CosmicAccent,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.15f),
+                focusedTextColor = AiriTheme.onSurface, unfocusedTextColor = AiriTheme.onSurface
             )
         )
         OutlinedTextField(
@@ -578,8 +578,8 @@ private fun AddRemoteModelInlineContent(
             singleLine = true, modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = CosmicAccent,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.15f),
+                focusedTextColor = AiriTheme.onSurface, unfocusedTextColor = AiriTheme.onSurface
             )
         )
         OutlinedTextField(
@@ -589,13 +589,13 @@ private fun AddRemoteModelInlineContent(
             visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = CosmicAccent,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.15f),
+                focusedTextColor = AiriTheme.onSurface, unfocusedTextColor = AiriTheme.onSurface
             )
         )
         testStatus?.let {
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = AIRIShapes.xs,
                 color = if (it.startsWith("✓")) Color(0xFF1B5E20) else Color(0xFF7F0000)
             ) {
                 Text(it, color = AiriTheme.onBackground, fontSize = 12.sp,
@@ -615,7 +615,7 @@ private fun AddRemoteModelInlineContent(
                     }
                 },
                 enabled = serverUrl.isNotBlank() && !isTesting,
-                shape = RoundedCornerShape(10.dp)
+                shape = AIRIShapes.sm
             ) {
                 if (isTesting) CircularProgressIndicator(modifier = Modifier.size(14.dp),
                     strokeWidth = 2.dp, color = CosmicAccent)
@@ -637,8 +637,8 @@ private fun AddRemoteModelInlineContent(
                     onActivated()
                 },
                 enabled = serverUrl.isNotBlank() && modelName.isNotBlank(),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = MaterialTheme.colorScheme.background)
+                shape = AIRIShapes.sm,
+                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = AiriTheme.background)
             ) {
                 Text(stringResource(R.string.cloud_add_use), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }

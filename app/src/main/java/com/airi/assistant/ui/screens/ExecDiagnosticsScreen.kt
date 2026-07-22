@@ -54,9 +54,9 @@ private val ExWarn   = Color(0xFFFFB74D)   // amber
 private val ExError  = Color(0xFFEF5350)   // red
 
 @Composable
-private fun exDim() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+private fun exDim() = AiriTheme.onSurface.copy(alpha = 0.55f)
 @Composable
-private fun exSubtle() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.33f)
+private fun exSubtle() = AiriTheme.onSurface.copy(alpha = 0.33f)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,7 +116,7 @@ fun ExecDiagnosticsScreen(
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
+                    containerColor = AiriTheme.background.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -136,7 +136,7 @@ fun ExecDiagnosticsScreen(
                         Text(
                             if (execDiag.isStreaming) "● Streaming" else "Idle",
                             color    = if (execDiag.isStreaming) CosmicAccent
-                                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                       else AiriTheme.onSurface.copy(alpha = 0.38f),
                             fontSize = 11.sp
                         )
                     }
@@ -160,7 +160,7 @@ fun ExecDiagnosticsScreen(
         ) {
             ScrollableTabRow(
                 selectedTabIndex = selectedTab.ordinal,
-                containerColor   = MaterialTheme.colorScheme.background.copy(alpha = 0.50f),
+                containerColor   = AiriTheme.background.copy(alpha = 0.50f),
                 contentColor     = CosmicAccent,
                 edgePadding      = 8.dp
             ) {
@@ -173,7 +173,7 @@ fun ExecDiagnosticsScreen(
                                 tab.label,
                                 fontSize = 11.sp,
                                 color = if (selectedTab == tab) CosmicAccent
-                                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                                        else AiriTheme.onSurface.copy(alpha = 0.45f)
                             )
                         }
                     )
@@ -338,7 +338,7 @@ private fun LiveTab(
                         .fillMaxWidth()
                         .height(8.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                        .background(AiriTheme.onSurface.copy(alpha = 0.06f))
                 ) {
                     Box(
                         modifier = Modifier
@@ -439,7 +439,7 @@ private fun BudgetTab(
             ) {
                 Icon(Icons.Outlined.DeleteSweep, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Reset Token Counters")
+                Text(stringResource(R.string.exec_diagnostics_reset_tokens))
             }
         }
     }
@@ -449,7 +449,7 @@ private fun BudgetTab(
 private fun HistoryTab(history: List<ExecTransitionEvent>) {
     if (history.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No execution events in this session", color = exSubtle())
+            Text(stringResource(R.string.exec_diagnostics_no_events), color = exSubtle())
         }
         return
     }
@@ -461,9 +461,9 @@ private fun HistoryTab(history: List<ExecTransitionEvent>) {
     ) {
         items(history.reversed()) { event ->
             Surface(
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f),
-                shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                color = AiriTheme.onSurface.copy(alpha = 0.04f),
+                shape = AIRIShapes.sm,
+                border = BorderStroke(1.dp, AiriTheme.outline)
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
@@ -518,7 +518,7 @@ private fun ExRow(label: String, value: String, valueColor: Color = Color.Unspec
 
 @Composable
 private fun ExDivider() {
-    Divider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 6.dp))
+    Divider(color = AiriTheme.outline, modifier = Modifier.padding(vertical = 6.dp))
 }
 
 @Composable

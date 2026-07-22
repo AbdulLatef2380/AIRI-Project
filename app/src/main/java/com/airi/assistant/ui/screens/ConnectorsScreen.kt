@@ -49,13 +49,13 @@ private data class ConnectorTab(
 
 private val TABS = listOf(
     ConnectorTab(ConnectorType.API,    "API",    Icons.Outlined.Cloud),
-    ConnectorTab(ConnectorType.APP,    "تطبيقات", Icons.Outlined.Apps),
-    ConnectorTab(ConnectorType.LOCAL,  "الجهاز", Icons.Outlined.PhoneAndroid),
+    ConnectorTab(ConnectorType.APP,    stringResource(R.string.connectors_tab_apps), Icons.Outlined.Apps),
+    ConnectorTab(ConnectorType.LOCAL,  stringResource(R.string.connectors_tab_device), Icons.Outlined.PhoneAndroid),
     ConnectorTab(ConnectorType.MCP,    "MCP",    Icons.Outlined.Extension),
-    ConnectorTab(ConnectorType.SYSTEM, "نظام",   Icons.Outlined.SettingsSuggest),
+    ConnectorTab(ConnectorType.SYSTEM, stringResource(R.string.connectors_tab_system), Icons.Outlined.SettingsSuggest),
 )
 private fun iconForId(id: String): ImageVector = when {
-    id.contains("llm")       -> Icons.Outlined.SmartToy
+    id.contains("llm")       -> Icons.Outlined.AccountTree
     id.contains("intent")    -> Icons.Outlined.Android
     id.contains("voice")     -> Icons.Outlined.Mic
     id.contains("clipboard") -> Icons.Outlined.ContentCopy
@@ -110,7 +110,7 @@ fun ConnectorsScreen(
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "الموصلات",
+                            text = stringResource(R.string.connectors_title),
                             color = AiriTheme.onBackground,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -118,7 +118,7 @@ fun ConnectorsScreen(
                         )
                         if (connectedCount > 0) {
                             Text(
-                                text = "$connectedCount متصل",
+                                text = stringResource(R.string.connectors_connected_count, connectedCount),
                                 color = SemanticSuccess,
                                 fontSize = 11.sp
                             )
@@ -163,12 +163,12 @@ fun ConnectorsScreen(
                                     tab.icon,
                                     contentDescription = null,
                                     modifier = Modifier.size(14.dp),
-                                    tint = if (isSelected) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(0.45f)
+                                    tint = if (isSelected) CosmicAccent else AiriTheme.onSurface.copy(0.45f)
                                 )
                                 Text(
                                     tab.label,
                                     fontSize = 12.sp,
-                                    color = if (isSelected) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(0.45f)
+                                    color = if (isSelected) CosmicAccent else AiriTheme.onSurface.copy(0.45f)
                                 )
                                 if (tabCount > 0) {
                                     Box(
@@ -177,14 +177,14 @@ fun ConnectorsScreen(
                                             .clip(CircleShape)
                                             .background(
                                                 if (isSelected) CosmicAccent.copy(0.25f)
-                                                else MaterialTheme.colorScheme.onSurface.copy(0.08f)
+                                                else AiriTheme.onSurface.copy(0.08f)
                                             ),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             "$tabCount",
                                             fontSize = 9.sp,
-                                            color = if (isSelected) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(0.45f),
+                                            color = if (isSelected) CosmicAccent else AiriTheme.onSurface.copy(0.45f),
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -208,7 +208,7 @@ fun ConnectorsScreen(
                         )
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            "لا توجد موصلات في هذه الفئة",
+                            stringResource(R.string.connectors_empty_category),
                             color = AiriTheme.onSurfaceVariant.copy(alpha = 0.35f),
                             fontSize = 14.sp
                         )
@@ -256,17 +256,17 @@ private fun ConnectorCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val isConnected = row.state.connected
-    val statusColor = if (isConnected) SemanticSuccess else MaterialTheme.colorScheme.onSurface.copy(0.30f)
+    val statusColor = if (isConnected) SemanticSuccess else AiriTheme.onSurface.copy(0.30f)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(AIRIShapes.md)
             .background(AiriTheme.surface)
             .border(
                 width = 1.dp,
-                color = if (isConnected) SemanticSuccess.copy(0.25f) else MaterialTheme.colorScheme.onSurface.copy(0.07f),
-                shape = RoundedCornerShape(14.dp)
+                color = if (isConnected) SemanticSuccess.copy(0.25f) else AiriTheme.onSurface.copy(0.07f),
+                shape = AIRIShapes.md
             )
             .clickable { expanded = !expanded }
     ) {
@@ -292,7 +292,7 @@ private fun ConnectorCard(
                     Box(
                         modifier = Modifier
                             .size(38.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(AIRIShapes.sm)
                             .background(CosmicAccent.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
@@ -313,7 +313,7 @@ private fun ConnectorCard(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            if (isConnected) "متصل" else "غير متصل",
+                            if (isConnected) stringResource(R.string.connectors_status_connected) else stringResource(R.string.connectors_status_disconnected),
                             color = statusColor,
                             fontSize = 11.sp
                         )
@@ -324,9 +324,9 @@ private fun ConnectorCard(
                     checked  = isConnected,
                     onCheckedChange = { if (it) onConnect() else onDisconnect() },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor       = MaterialTheme.colorScheme.onSurface,
+                        checkedThumbColor       = AiriTheme.onSurface,
                         checkedTrackColor       = SemanticSuccess,
-                        uncheckedThumbColor     = MaterialTheme.colorScheme.onSurface.copy(0.6f),
+                        uncheckedThumbColor     = AiriTheme.onSurface.copy(0.6f),
                         uncheckedTrackColor     = SurfaceRaised
                     )
                 )

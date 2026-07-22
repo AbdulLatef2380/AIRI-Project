@@ -215,7 +215,7 @@ private fun buildSandboxedHtmlDocument(rawHtml: String): String = """
 """.trimIndent()
 @Composable
 private fun MarkdownArtifactView(markdown: String) {
-    // Phase 2: Native text rendering. Phase 3 will integrate a real Markdown
+    // Native text rendering. Phase 3 will integrate a real Markdown
     // parser (e.g. Markwon or CommonMark-Android) for full rendering fidelity.
     // Native rendering is safe — no code execution possible.
     Column(
@@ -270,7 +270,7 @@ private fun CodeArtifactView(code: String) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(AIRIShapes.md)
                 .background(Color(0xFF0D0D0D))
                 .padding(16.dp)
         ) {

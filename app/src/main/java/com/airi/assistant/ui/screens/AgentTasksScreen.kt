@@ -138,7 +138,7 @@ fun AgentTasksScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(AIRIShapes.md)
                     .background(AiriTheme.surface),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
@@ -175,7 +175,7 @@ fun AgentTasksScreen(
                     if (!canScheduleExact.value && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                         item {
                             Surface(
-                                shape = RoundedCornerShape(10.dp),
+                                shape = AIRIShapes.sm,
                                 color = Color(0xFF2A2010),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -253,7 +253,7 @@ private fun TaskTab(label: String, isSelected: Boolean, modifier: Modifier = Mod
     Box(
         modifier = modifier
             .padding(4.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(AIRIShapes.sm)
             .background(if (isSelected) CosmicAccent else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(vertical = 10.dp),
@@ -261,7 +261,7 @@ private fun TaskTab(label: String, isSelected: Boolean, modifier: Modifier = Mod
     ) {
         Text(
             text       = label,
-            color      = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(0.50f),
+            color      = if (isSelected) AiriTheme.onSurface else AiriTheme.onSurface.copy(0.50f),
             fontSize   = 13.sp,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
         )
@@ -282,12 +282,12 @@ private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(AIRIShapes.md)
             .background(AiriTheme.surface)
             .border(
                 1.dp,
-                if (!isPast) CosmicAccent.copy(0.15f) else MaterialTheme.colorScheme.onSurface.copy(0.06f),
-                RoundedCornerShape(14.dp)
+                if (!isPast) CosmicAccent.copy(0.15f) else AiriTheme.onSurface.copy(0.06f),
+                AIRIShapes.md
             )
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -303,7 +303,7 @@ private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f))
+                    .background(AiriTheme.onSurface.copy(alpha = 0.25f))
             )
         }
 
@@ -321,7 +321,7 @@ private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(AIRIShapes.sm)
                 .background(CosmicAccent.copy(0.12f)),
             contentAlignment = Alignment.Center
         ) {
@@ -344,9 +344,9 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor    = Color(0xFF131728),
-        titleContentColor = MaterialTheme.colorScheme.onSurface,
-        textContentColor  = MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(20.dp),
+        titleContentColor = AiriTheme.onSurface,
+        textContentColor  = AiriTheme.onSurface,
+        shape = AIRIShapes.xl,
         title = {
             Text(stringResource(R.string.new_task_title), fontWeight = FontWeight.Bold,
                 modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
@@ -360,9 +360,9 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(0.15f),
-                        focusedTextColor     = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor   = MaterialTheme.colorScheme.onSurface
+                        unfocusedBorderColor = AiriTheme.onSurface.copy(0.15f),
+                        focusedTextColor     = AiriTheme.onSurface,
+                        unfocusedTextColor   = AiriTheme.onSurface
                     ),
                     textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.End)
                 )
@@ -373,9 +373,9 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(0.15f),
-                        focusedTextColor     = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor   = MaterialTheme.colorScheme.onSurface,
+                        unfocusedBorderColor = AiriTheme.onSurface.copy(0.15f),
+                        focusedTextColor     = AiriTheme.onSurface,
+                        unfocusedTextColor   = AiriTheme.onSurface,
                         focusedLabelColor    = CosmicAccent
                     ),
                     textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.End)
@@ -393,7 +393,7 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
                     onAdd(taskName.trim(), delay)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = AiriTheme.onBackground),
-                shape  = RoundedCornerShape(12.dp),
+                shape  = AIRIShapes.md,
                 enabled = taskName.isNotBlank()
             ) { Text(stringResource(R.string.schedule_button)) }
         },

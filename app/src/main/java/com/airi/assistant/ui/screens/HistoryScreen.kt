@@ -87,9 +87,9 @@ fun HistoryScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(AIRIShapes.md)
                     .background(CosmicAccent.copy(alpha = 0.10f))
-                    .border(1.dp, CosmicAccent.copy(alpha = 0.28f), RoundedCornerShape(16.dp))
+                    .border(1.dp, CosmicAccent.copy(alpha = 0.28f), AIRIShapes.md)
                     .clickable { viewModel.clearMessages(); onSessionSelected() }
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -125,7 +125,7 @@ fun HistoryScreen(
                             modifier = Modifier
                                 .size(72.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                                .background(AiriTheme.surfaceVariant),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -166,10 +166,10 @@ fun HistoryScreen(
     sessionToDelete?.let { session ->
         AlertDialog(
             onDismissRequest = { sessionToDelete = null },
-            containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = MaterialTheme.colorScheme.onSurface,
-            textContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
-            shape = RoundedCornerShape(20.dp),
+            containerColor = AiriTheme.surface,
+            titleContentColor = AiriTheme.onSurface,
+            textContentColor = AiriTheme.onSurface.copy(alpha = 0.75f),
+            shape = AIRIShapes.xl,
             title = {
                 Text(
                     stringResource(R.string.confirm_delete_title),
@@ -193,10 +193,10 @@ fun HistoryScreen(
                         sessionToDelete = null
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onSurface
+                        containerColor = SemanticError,
+                        contentColor = AiriTheme.onSurface
                     ),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = AIRIShapes.md,
                     modifier = Modifier.fillMaxWidth(0.5f)
                 ) {
                     Text(stringResource(R.string.delete), fontWeight = FontWeight.SemiBold)
@@ -205,8 +205,8 @@ fun HistoryScreen(
             dismissButton = {
                 OutlinedButton(
                     onClick = { sessionToDelete = null },
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)),
+                    shape = AIRIShapes.md,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AiriTheme.onSurface.copy(alpha = 0.15f)),
                     modifier = Modifier.fillMaxWidth(0.45f)
                 ) {
                     Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(alpha = 0.75f))
@@ -229,7 +229,7 @@ private fun HistorySessionItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(AIRIShapes.md)
             .background(if (showActions) CosmicAccent.copy(alpha = 0.06f) else Color.Transparent)
             .combinedClickable(
                 onClick = onSelect,

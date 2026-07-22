@@ -70,7 +70,7 @@ fun DebugPanelScreen(
         if (integrityFailed) {
             Surface(
                 color = FailRed.copy(alpha = 0.15f),
-                shape = RoundedCornerShape(8.dp),
+                shape = AIRIShapes.xs,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -124,7 +124,7 @@ fun DebugPanelScreen(
                     val allPassed = report.allPassed
                     Surface(
                         color = (if (allPassed) PassGreen else FailRed).copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(6.dp)
+                        shape = AIRIShapes.xs
                     ) {
                         Row(
                             modifier = Modifier
@@ -158,7 +158,7 @@ fun DebugPanelScreen(
             },
             modifier = Modifier.align(Alignment.End)
         ) {
-            Text("Re-run Diagnostics", color = CosmicAccent, fontSize = 12.sp)
+            Text(stringResource(R.string.debug_rerun_diagnostics), color = CosmicAccent, fontSize = 12.sp)
         }
 
         LaunchedEffect(isRunning) {
@@ -176,7 +176,7 @@ fun DebugPanelScreen(
 private fun DebugSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Surface(
         color = CardBg,
-        shape = RoundedCornerShape(10.dp),
+        shape = AIRIShapes.sm,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -219,7 +219,7 @@ private fun DebugBoolRow(label: String, value: Boolean) {
         Text(label, color = LabelColor, fontSize = 12.sp)
         Text(
             if (value) "true" else "false",
-            color = if (value) PassGreen else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            color = if (value) PassGreen else AiriTheme.onSurface.copy(alpha = 0.5f),
             fontSize = 12.sp,
             fontFamily = MonoFont,
             fontWeight = FontWeight.SemiBold
@@ -245,7 +245,7 @@ private fun DiagTestRow(result: DiagnosticsRunner.TestResult) {
         Column {
             Text(
                 result.name,
-                color = if (result.passed) MaterialTheme.colorScheme.onSurface else FailRed,
+                color = if (result.passed) AiriTheme.onSurface else FailRed,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold
             )

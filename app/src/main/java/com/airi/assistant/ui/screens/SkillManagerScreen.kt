@@ -346,9 +346,9 @@ private fun OfficialSkillCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(AIRIShapes.md)
             .background(AiriTheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(if (needsConnector) 0.04f else 0.07f), RoundedCornerShape(14.dp))
+            .border(1.dp, AiriTheme.onSurface.copy(if (needsConnector) 0.04f else 0.07f), AIRIShapes.md)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -373,8 +373,8 @@ private fun OfficialSkillCard(
                 )
                 if (needsConnector) {
                     Surface(
-                        shape = RoundedCornerShape(999.dp),
-                        color = MaterialTheme.colorScheme.outline
+                        shape = AIRIShapes.pill,
+                        color = AiriTheme.outline
                     ) {
                         Text(
                             "Connector required",
@@ -385,7 +385,7 @@ private fun OfficialSkillCard(
                     }
                 } else {
                     Surface(
-                        shape = RoundedCornerShape(999.dp),
+                        shape = AIRIShapes.pill,
                         color = CosmicAccent.copy(alpha = 0.14f)
                     ) {
                         Text(
@@ -420,10 +420,10 @@ private fun OfficialSkillCard(
                 checked         = info.isEnabled,
                 onCheckedChange = onToggle,
                 colors          = SwitchDefaults.colors(
-                    checkedThumbColor   = MaterialTheme.colorScheme.onSurface,
+                    checkedThumbColor   = AiriTheme.onSurface,
                     checkedTrackColor   = CosmicAccent,
                     uncheckedThumbColor = AiriTheme.onBackground.copy(0.35f),
-                    uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(0.1f)
+                    uncheckedTrackColor = AiriTheme.onSurface.copy(0.1f)
                 )
             )
         }
@@ -438,9 +438,9 @@ private fun SkillCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(AIRIShapes.md)
             .background(AiriTheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.07f), RoundedCornerShape(14.dp))
+            .border(1.dp, AiriTheme.onSurface.copy(0.07f), AIRIShapes.md)
             .clickable(onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -462,7 +462,7 @@ private fun SkillCard(
                     overflow   = TextOverflow.Ellipsis
                 )
                 Surface(
-                    shape = RoundedCornerShape(999.dp),
+                    shape = AIRIShapes.pill,
                     color = CosmicAccent.copy(alpha = 0.14f)
                 ) {
                     Text(
@@ -506,7 +506,7 @@ private fun GitHubImportDialog(
     var rawUrl by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor   = MaterialTheme.colorScheme.surface,
+        containerColor   = AiriTheme.surface,
         title = {
             Text(
                 stringResource(R.string.skill_menu_import_github),
@@ -535,9 +535,9 @@ private fun GitHubImportDialog(
                     modifier   = Modifier.fillMaxWidth(),
                     colors     = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(0.15f),
-                        focusedTextColor     = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor   = MaterialTheme.colorScheme.onSurface
+                        unfocusedBorderColor = AiriTheme.onSurface.copy(0.15f),
+                        focusedTextColor     = AiriTheme.onSurface,
+                        unfocusedTextColor   = AiriTheme.onSurface
                     )
                 )
                 if (isImporting) LinearProgressIndicator(
@@ -572,7 +572,7 @@ private fun AiSkillCreateDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor   = MaterialTheme.colorScheme.surface,
+        containerColor   = AiriTheme.surface,
         title = {
             Text(
                 stringResource(R.string.skill_menu_create_with_airi),
@@ -626,9 +626,9 @@ private fun SkillTextField(
         keyboardOptions = KeyboardOptions(keyboardType = keyboard),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor   = CosmicAccent,
-            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(0.15f),
-            focusedTextColor     = MaterialTheme.colorScheme.onSurface,
-            unfocusedTextColor   = MaterialTheme.colorScheme.onSurface,
+            unfocusedBorderColor = AiriTheme.onSurface.copy(0.15f),
+            focusedTextColor     = AiriTheme.onSurface,
+            unfocusedTextColor   = AiriTheme.onSurface,
             focusedLabelColor    = CosmicAccent
         )
     )

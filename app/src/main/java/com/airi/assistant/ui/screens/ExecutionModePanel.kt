@@ -38,9 +38,9 @@ private val HybridColor = Color(0xFFAB47BC)  // purple
 private val WarnAmber   = Color(0xFFFFB74D)
 
 @Composable
-private fun dimWhite() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+private fun dimWhite() = AiriTheme.onSurface.copy(alpha = 0.55f)
 @Composable
-private fun subtleWhite() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+private fun subtleWhite() = AiriTheme.onSurface.copy(alpha = 0.35f)
 
 /**
  * Full execution mode control panel.
@@ -191,7 +191,7 @@ fun ExecutionModePanel(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(AIRIShapes.xs)
                     .background(WarnAmber.copy(alpha = 0.1f))
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -224,13 +224,13 @@ private fun ExecModeOption(
 
     Surface(
         onClick  = onSelected,
-        shape    = RoundedCornerShape(12.dp),
+        shape    = AIRIShapes.md,
         color    = if (selected) accentColor.copy(alpha = 0.10f)
-                   else MaterialTheme.colorScheme.surfaceVariant,
+                   else AiriTheme.surfaceVariant,
         border   = androidx.compose.foundation.BorderStroke(
             1.dp,
             if (selected) accentColor.copy(alpha = 0.45f)
-            else MaterialTheme.colorScheme.outline
+            else AiriTheme.outline
         )
     ) {
         Row(
@@ -245,7 +245,7 @@ private fun ExecModeOption(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     mode.displayName,
-                    color      = if (selected) MaterialTheme.colorScheme.onSurface else dimWhite(),
+                    color      = if (selected) AiriTheme.onSurface else dimWhite(),
                     fontSize   = 13.sp,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
                 )
@@ -282,7 +282,7 @@ private fun PrivacyLevelOption(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(AIRIShapes.xs)
             .background(if (selected) accentColor.copy(alpha = 0.08f) else Color.Transparent)
             .clickable(onClick = onSelected)
             .padding(horizontal = 10.dp, vertical = 7.dp),
@@ -297,7 +297,7 @@ private fun PrivacyLevelOption(
         Column {
             Text(
                 level.displayName,
-                color      = if (selected) MaterialTheme.colorScheme.onSurface else dimWhite(),
+                color      = if (selected) AiriTheme.onSurface else dimWhite(),
                 fontSize   = 12.sp,
                 fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
             )
@@ -326,16 +326,16 @@ private fun CloudProviderSelector(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(AIRIShapes.xs)
                     .background(
                         if (sel) CosmicAccent.copy(alpha = 0.15f)
-                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+                        else AiriTheme.onSurface.copy(alpha = 0.05f)
                     )
                     .border(
                         1.dp,
                         if (sel) CosmicAccent.copy(alpha = 0.5f)
-                        else MaterialTheme.colorScheme.outline,
-                        RoundedCornerShape(8.dp)
+                        else AiriTheme.outline,
+                        AIRIShapes.xs
                     )
                     .clickable { onSelected(provider) }
                     .padding(horizontal = 4.dp, vertical = 6.dp),
@@ -365,7 +365,7 @@ private fun CloudTokenUsageBar(used: Int, cap: Int) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Cloud Usage", color = dimWhite(), fontSize = 11.sp)
+            Text(stringResource(R.string.cloud_usage_label), color = dimWhite(), fontSize = 11.sp)
             Text("$used / $cap tokens", color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(6.dp))
@@ -374,7 +374,7 @@ private fun CloudTokenUsageBar(used: Int, cap: Int) {
                 .fillMaxWidth()
                 .height(4.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                .background(AiriTheme.onSurface.copy(alpha = 0.06f))
         ) {
             Box(
                 modifier = Modifier

@@ -70,7 +70,7 @@ class AgentWorkspace(
             textValue     = text.take(MAX_TEXT_LEN),
             producerTaskId = producerTaskId
         )
-        Log.d(TAG, "PUT TEXT key=$key len=${text.length} producer=$producerTaskId ws=$workspaceId")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "PUT TEXT key=$key len=${text.length} producer=$producerTaskId ws=$workspaceId")
     }
 
     /**
@@ -86,7 +86,7 @@ class AgentWorkspace(
             textValue      = path,
             producerTaskId = producerTaskId
         )
-        Log.d(TAG, "PUT PATH key=$key path=$path producer=$producerTaskId ws=$workspaceId")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "PUT PATH key=$key path=$path producer=$producerTaskId ws=$workspaceId")
     }
 
     /**
@@ -100,7 +100,7 @@ class AgentWorkspace(
             textValue      = json.take(MAX_TEXT_LEN),
             producerTaskId = producerTaskId
         )
-        Log.d(TAG, "PUT JSON key=$key len=${json.length} producer=$producerTaskId ws=$workspaceId")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "PUT JSON key=$key len=${json.length} producer=$producerTaskId ws=$workspaceId")
     }
 
     /**
@@ -114,7 +114,7 @@ class AgentWorkspace(
             textValue      = ref,
             producerTaskId = producerTaskId
         )
-        Log.d(TAG, "PUT REF key=$key ref=$ref producer=$producerTaskId ws=$workspaceId")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "PUT REF key=$key ref=$ref producer=$producerTaskId ws=$workspaceId")
     }
 
     // ── Read API ──────────────────────────────────────────────────────────────
@@ -154,7 +154,7 @@ class AgentWorkspace(
         dataFlowEdges.getOrPut(edgeKey) { mutableListOf() }.add(
             DataFlowEdge(producerTaskId, key, consumerTaskId)
         )
-        Log.d(TAG, "LINK $producerTaskId[$key] → $consumerTaskId ws=$workspaceId")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "LINK $producerTaskId[$key] → $consumerTaskId ws=$workspaceId")
     }
 
     /**
@@ -168,7 +168,7 @@ class AgentWorkspace(
                 val value = getRaw(edge.artifactKey)
                 if (value != null) {
                     resolved[edge.artifactKey] = value
-                    Log.d(TAG, "RESOLVE $consumerTaskId ← ${edge.artifactKey}=${value.take(60)}")
+                    if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "RESOLVE $consumerTaskId ← ${edge.artifactKey}=${value.take(60)}")
                 }
             }
         }
@@ -202,7 +202,7 @@ class AgentWorkspace(
     fun clear() {
         artifacts.clear()
         dataFlowEdges.clear()
-        Log.d(TAG, "Workspace $workspaceId cleared")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "Workspace $workspaceId cleared")
     }
 }
 

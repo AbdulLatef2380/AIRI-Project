@@ -140,19 +140,19 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                         items(VoicePreferencesStore.PersonalityPreset.entries) { preset ->
                             val isSelected = preset == selectedPreset
                             val bgColor by animateColorAsState(
-                                if (isSelected) CosmicAccent.copy(alpha = 0.20f) else MaterialTheme.colorScheme.outline,
-                                tween(200), label = "preset_bg"
+                                if (isSelected) CosmicAccent.copy(alpha = 0.20f) else AiriTheme.outline,
+                                tween(AIRIAnimations.FAST), label = "preset_bg"
                             )
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier
                                     .width(90.dp)
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(AIRIShapes.md)
                                     .background(bgColor)
                                     .border(
                                         1.dp,
-                                        if (isSelected) CosmicAccent.copy(0.6f) else MaterialTheme.colorScheme.outline,
-                                        RoundedCornerShape(12.dp)
+                                        if (isSelected) CosmicAccent.copy(0.6f) else AiriTheme.outline,
+                                        AIRIShapes.md
                                     )
                                     .clickable {
                                         selectedPreset = preset
@@ -286,7 +286,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                     )
                     Divider(
                         modifier = Modifier.padding(vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.outline
+                        color = AiriTheme.outline
                     )
                     ToggleRow(
                         label       = "Wake Word Detection",
@@ -302,7 +302,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                     onClick  = ::previewVoice,
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
-                    shape    = RoundedCornerShape(14.dp)
+                    shape    = AIRIShapes.md
                 ) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
@@ -313,7 +313,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                     onClick  = ::saveSettings,
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccentDark),
-                    shape    = RoundedCornerShape(14.dp)
+                    shape    = AIRIShapes.md
                 ) {
                     Text(stringResource(R.string.voice_save_preferences), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 }
@@ -329,7 +329,7 @@ private fun customPresetFor(current: VoicePreferencesStore.PersonalityPreset) = 
 @Composable
 private fun VoiceCard(title: String, icon: String, content: @Composable ColumnScope.() -> Unit) {
     Surface(
-        shape    = RoundedCornerShape(14.dp),
+        shape    = AIRIShapes.md,
         color    = AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -349,9 +349,9 @@ private fun VoiceOption(name: String, locale: String, isSelected: Boolean, onCli
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (isSelected) CosmicAccent.copy(0.12f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f))
-            .border(0.5.dp, if (isSelected) CosmicAccent.copy(0.4f) else MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
+            .clip(AIRIShapes.sm)
+            .background(if (isSelected) CosmicAccent.copy(0.12f) else AiriTheme.onSurface.copy(alpha = 0.03f))
+            .border(0.5.dp, if (isSelected) CosmicAccent.copy(0.4f) else AiriTheme.outline, AIRIShapes.sm)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -383,7 +383,7 @@ private fun ToggleRow(
         }
         Switch(
             checked = checked, onCheckedChange = onChecked, enabled = enabled,
-            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.onSurface, checkedTrackColor = CosmicAccent)
+            colors = SwitchDefaults.colors(checkedThumbColor = AiriTheme.onSurface, checkedTrackColor = CosmicAccent)
         )
     }
 }

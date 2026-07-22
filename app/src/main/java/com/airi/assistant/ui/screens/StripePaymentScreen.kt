@@ -143,14 +143,14 @@ private fun CreditsTab(
                     },
                     enabled  = selectedPack != null && paymentState !is StripeManager.PaymentState.Processing,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape    = RoundedCornerShape(14.dp),
+                    shape    = AIRIShapes.md,
                     colors   = ButtonDefaults.buttonColors(
                         containerColor = CosmicAccent,
-                        disabledContainerColor = MaterialTheme.colorScheme.outline
+                        disabledContainerColor = AiriTheme.outline
                     )
                 ) {
                     if (paymentState is StripeManager.PaymentState.Processing) {
-                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onSurface)
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = AiriTheme.onSurface)
                         Spacer(Modifier.width(8.dp))
                     }
                     Text("Buy ${selectedPack?.displayName ?: ""} — ${selectedPack?.priceString ?: ""}", fontWeight = FontWeight.SemiBold)
@@ -204,7 +204,7 @@ private fun PremiumTab(
                     Text(stringResource(R.string.payment_annual), color = if (annual) AiriTheme.onBackground else AiriTheme.onSurfaceVariant, fontWeight = if (annual) FontWeight.SemiBold else FontWeight.Normal)
                     if (annual) {
                         Spacer(Modifier.width(6.dp))
-                        Badge(containerColor = SemanticSuccess) { Text(stringResource(R.string.payment_save_20), color = MaterialTheme.colorScheme.onSurface, fontSize = 10.sp) }
+                        Badge(containerColor = SemanticSuccess) { Text(stringResource(R.string.payment_save_20), color = AiriTheme.onSurface, fontSize = 10.sp) }
                     }
                 }
             }
@@ -212,7 +212,7 @@ private fun PremiumTab(
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-                    shape  = RoundedCornerShape(16.dp),
+                    shape  = AIRIShapes.md,
                     border = androidx.compose.foundation.BorderStroke(1.dp, CosmicAccent.copy(0.3f))
                 ) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -220,7 +220,7 @@ private fun PremiumTab(
                             Text(if (annual) "$79.99" else "$9.99", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = CosmicAccent)
                             Text(if (annual) "/year" else "/month", color = AiriTheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                         }
-                        Divider(color = MaterialTheme.colorScheme.outline)
+                        Divider(color = AiriTheme.outline)
                         val features = listOf("2,000 daily credits (10× free)", "Priority model access", "All connectors unlocked", "Community skill marketplace", "Developer API access", "Priority support")
                         features.forEach { f ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -241,7 +241,7 @@ private fun PremiumTab(
                             },
                             enabled  = paymentState !is StripeManager.PaymentState.Processing,
                             modifier = Modifier.fillMaxWidth().height(52.dp),
-                            shape    = RoundedCornerShape(14.dp),
+                            shape    = AIRIShapes.md,
                             colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
                         ) {
                             Text(stringResource(R.string.payment_subscribe_now), fontWeight = FontWeight.SemiBold)
@@ -262,7 +262,7 @@ private fun CreditPackCard(pack: CreditPackage, isSelected: Boolean, onClick: ()
         colors   = CardDefaults.cardColors(
             containerColor = if (isSelected) CosmicAccent.copy(alpha = 0.1f) else AiriTheme.surfaceVariant
         ),
-        shape    = RoundedCornerShape(14.dp),
+        shape    = AIRIShapes.md,
         border   = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, CosmicAccent)
                    else if (pack.highlight != null) androidx.compose.foundation.BorderStroke(1.dp, SemanticSuccess.copy(0.5f))
                    else null
@@ -275,7 +275,7 @@ private fun CreditPackCard(pack: CreditPackage, isSelected: Boolean, onClick: ()
                     Text(pack.displayName, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                     pack.highlight?.let {
                         Spacer(Modifier.width(6.dp))
-                        Badge(containerColor = SemanticSuccess) { Text(it, color = MaterialTheme.colorScheme.onSurface, fontSize = 9.sp) }
+                        Badge(containerColor = SemanticSuccess) { Text(it, color = AiriTheme.onSurface, fontSize = 9.sp) }
                     }
                 }
                 Text("${pack.totalCredits.toLocaleStr()} credits", fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
@@ -294,13 +294,13 @@ private fun CreditPackCard(pack: CreditPackage, isSelected: Boolean, onClick: ()
 @Composable
 private fun PremiumHeroCard() {
     Box(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+        Modifier.fillMaxWidth().clip(AIRIShapes.xl)
             .background(Brush.linearGradient(listOf(CosmicAccent, CosmicAccentDark)))
             .padding(24.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.payment_airi_premium), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurface)
-            Text(stringResource(R.string.payment_premium_desc), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f), fontSize = 14.sp, lineHeight = 20.sp)
+            Text(stringResource(R.string.payment_airi_premium), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = AiriTheme.onSurface)
+            Text(stringResource(R.string.payment_premium_desc), color = AiriTheme.onSurface.copy(alpha = 0.9f), fontSize = 14.sp, lineHeight = 20.sp)
         }
     }
 }
@@ -309,7 +309,7 @@ private fun PremiumHeroCard() {
 private fun PremiumActiveBanner() {
     Card(
         colors = CardDefaults.cardColors(containerColor = SemanticSuccess.copy(0.1f)),
-        shape  = RoundedCornerShape(16.dp),
+        shape  = AIRIShapes.md,
         border = androidx.compose.foundation.BorderStroke(1.dp, SemanticSuccess.copy(0.3f))
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -144,7 +144,7 @@ object SubAgentRegistry {
                     val ungranted = agent.capability.requiredPermissions
                         .filterNot { context.grantedPermissions.contains(it) }
                     if (ungranted.isNotEmpty()) {
-                        Log.d(TAG, "Agent '${agent.capability.agentId}' blocked — missing: $ungranted")
+                        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "Agent '${agent.capability.agentId}' blocked — missing: $ungranted")
                         return@filter false
                     }
                 }
@@ -172,13 +172,13 @@ object SubAgentRegistry {
             .sortedByDescending { (_, score) -> score }
 
         if (scored.isEmpty()) {
-            Log.d(TAG, "No keyword match for input='${input.take(60)}'")
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "No keyword match for input='${input.take(60)}'")
             return null
         }
 
         // Step 2: Fine-grained canHandle check in score order
         for ((agent, score) in scored) {
-            Log.d(TAG, "Checking '${agent.capability.agentId}' score=$score")
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "Checking '${agent.capability.agentId}' score=$score")
             val result = runCatching { agent.canHandle(input, context) }.getOrElse { false }
             if (result) {
                 Log.i(TAG, "Routed to '${agent.capability.displayName}' score=$score")
@@ -186,7 +186,7 @@ object SubAgentRegistry {
             }
         }
 
-        Log.d(TAG, "No agent confirmed canHandle for input='${input.take(60)}'")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "No agent confirmed canHandle for input='${input.take(60)}'")
         return null
     }
 

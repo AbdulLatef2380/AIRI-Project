@@ -106,15 +106,32 @@ fun AdvancedChatInputBar(
                 onCalcClick       = onCalcClick
             )
         }
-        // Advanced input bar delegates to ChatInputBar with extended params
-        // The existing ChatInputBar handles basic input + voice; advanced features
-        // are handled by the toolbar above. Attachments and smart replies
-        // are displayed via the toolbar chips.
-        ChatInputBar(
-            input = voiceInput,
-            isListening = isVadInterrupting,
-            onSend = onSend,
-            onVoiceClick = onMicClick
+        AiriChatInputBar(
+            modelState              = modelState,
+            isGenerating            = isGenerating,
+            voiceInput              = voiceInput,
+            voiceState              = voiceState,
+            isVadInterrupting       = isVadInterrupting,
+            smartReplies            = smartReplies,
+            onSend                  = onSend,
+            onCancel                = onCancel,
+            onSmartReply            = onSmartReply,
+            onPickImage             = onPickImage,
+            onPickMmproj            = onPickMmproj,
+            onPickFile              = onPickFile,
+            onTakePhoto             = onTakePhoto,
+            onMicClick              = onMicClick,
+            onVoiceChatClick        = onVoiceChatClick,
+            onVoiceConsumed         = onVoiceConsumed,
+            onOpenModels            = onOpenModels,
+            onNavigate              = onNavigate,
+            onStageFile             = onStageFile,
+            externalInputText       = externalInputText,
+            onExternalInputConsumed = onExternalInputConsumed,
+            onUserStartedTyping     = onUserStartedTyping,
+            onFocusChanged          = { hasFocus = it },
+            attachments             = attachments,
+            onRemoveAttachment      = onRemoveAttachment
         )
     }
 }
@@ -171,17 +188,17 @@ private fun InputActionToolbar(
 @Composable
 private fun PlanModeChip(isActive: Boolean, onClick: () -> Unit) {
     val bg by animateColorAsState(
-        if (isActive) CosmicAccent.copy(0.20f) else MaterialTheme.colorScheme.onSurface.copy(0.04f), tween(200), label = "plan_bg"
+        if (isActive) CosmicAccent.copy(0.20f) else Color.White.copy(0.04f), tween(AIRIAnimations.FAST), label = "plan_bg"
     )
     val border by animateColorAsState(
-        if (isActive) CosmicAccent.copy(0.60f) else MaterialTheme.colorScheme.outline, tween(200), label = "plan_border"
+        if (isActive) CosmicAccent.copy(0.60f) else DividerColor, tween(AIRIAnimations.FAST), label = "plan_border"
     )
     Row(
         modifier = Modifier
             .height(30.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(AIRIShapes.xs)
             .background(bg)
-            .border(1.dp, border, RoundedCornerShape(8.dp))
+            .border(1.dp, border, AIRIShapes.xs)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp),
         verticalAlignment     = Alignment.CenterVertically,
@@ -218,17 +235,17 @@ private fun ActionChip(
     onClick:  () -> Unit
 ) {
     val bg by animateColorAsState(
-        if (isActive) iconTint.copy(0.15f) else MaterialTheme.colorScheme.onSurface.copy(0.04f), tween(200), label = "chip_bg"
+        if (isActive) iconTint.copy(0.15f) else Color.White.copy(0.04f), tween(AIRIAnimations.FAST), label = "chip_bg"
     )
     Row(
         modifier = Modifier
             .height(30.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(AIRIShapes.xs)
             .background(bg)
             .border(
                 1.dp,
-                if (isActive) iconTint.copy(0.50f) else MaterialTheme.colorScheme.outline,
-                RoundedCornerShape(8.dp)
+                if (isActive) iconTint.copy(0.50f) else DividerColor,
+                AIRIShapes.xs
             )
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp),
@@ -250,9 +267,9 @@ private fun QuickToolChip(label: String, emoji: String, onClick: () -> Unit = {}
     Row(
         modifier = Modifier
             .height(30.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.onSurface.copy(0.03f))
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+            .clip(AIRIShapes.xs)
+            .background(Color.White.copy(0.03f))
+            .border(0.5.dp, DividerColor, AIRIShapes.xs)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp),
         verticalAlignment     = Alignment.CenterVertically,

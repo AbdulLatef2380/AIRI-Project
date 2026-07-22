@@ -42,7 +42,7 @@ fun Context.findActivity(): Activity? {
 @Composable
 fun SettingsSurface(content: @Composable ColumnScope.() -> Unit) {
     Surface(
-        shape    = RoundedCornerShape(16.dp),
+        shape    = AIRIShapes.md,
         color    = AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -118,7 +118,7 @@ fun SettingsActionRow(
             Text(
                 text     = label,
                 fontSize = 14.sp,
-                color    = if (destructive) Color(0xFFFF6B6B) else MaterialTheme.colorScheme.onSurface
+                color    = if (destructive) Color(0xFFFF6B6B) else AiriTheme.onSurface
             )
             if (sublabel.isNotEmpty()) {
                 Text(sublabel, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
@@ -152,9 +152,9 @@ fun LanguageSelector(
             val isSelected = lang.code == selectedLanguage
             Surface(
                 onClick  = { onLanguageSelected(lang) },
-                shape    = RoundedCornerShape(10.dp),
+                shape    = AIRIShapes.sm,
                 color    = if (isSelected) CosmicAccent.copy(alpha = 0.12f)
-                           else MaterialTheme.colorScheme.outline,
+                           else AiriTheme.outline,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -166,7 +166,7 @@ fun LanguageSelector(
                     Text(
                         text     = lang.displayName,
                         fontSize = 13.sp,
-                        color    = if (isSelected) CosmicAccent else MaterialTheme.colorScheme.onSurface
+                        color    = if (isSelected) CosmicAccent else AiriTheme.onSurface
                     )
                 }
             }

@@ -67,8 +67,12 @@ class TerminalRuntime(
     val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
 
     private val scrollback = LinkedList<TerminalLine>()
-    private val commandHistory = ArrayDeque<String>()
+    private val historyBuffer = ArrayDeque<String>()
     private var historyIndex   = -1
+
+    private val _commandHistoryFlow = MutableStateFlow<List<String>>(emptyList())
+    /** Publicly observable command history (most-recent first). */
+    val commandHistory: StateFlow<List<String>> = _commandHistoryFlow.asStateFlow()
 
     // T33: Persist history across process restarts via SharedPreferences.
     private val historyPrefs by lazy {
@@ -84,13 +88,13 @@ class TerminalRuntime(
     private fun restoreHistory() {
         val stored = historyPrefs?.getString(PREF_HISTORY, null) ?: return
         val historyEntries = stored.split("\n").filter { it.isNotBlank() }
-        historyEntries.reversed().forEach { commandHistory.addFirst(it) }
-        Log.d(TAG, "Restored ${commandHistory.size} history entries")
+        historyEntries.reversed().forEach { historyBuffer.addFirst(it) }
+        Log.d(TAG, "Restored ${historyBuffer.size} history entries")
     }
 
     private fun persistHistory() {
         historyPrefs?.edit()
-            ?.putString(PREF_HISTORY, commandHistory.take(MAX_PERSISTED_HISTORY).joinToString("\n"))
+            ?.putString(PREF_HISTORY, historyBuffer.take(MAX_PERSISTED_HISTORY).joinToString("\n"))
             ?.apply()
     }
 
@@ -116,7 +120,8 @@ class TerminalRuntime(
 
         // Record input line
         appendLine(TerminalLine(text = "$ $command", isInput = true))
-        commandHistory.addFirst(command)
+        historyBuffer.addFirst(command)
+        _commandHistoryFlow.value = historyBuffer.toList()
         historyIndex = -1
         persistHistory()
 
@@ -190,15 +195,15 @@ class TerminalRuntime(
     // ── History navigation ────────────────────────────────────────────────────
 
     fun historyUp(): String? {
-        if (commandHistory.isEmpty()) return null
-        historyIndex = (historyIndex + 1).coerceAtMost(commandHistory.size - 1)
-        return commandHistory[historyIndex]
+        if (historyBuffer.isEmpty()) return null
+        historyIndex = (historyIndex + 1).coerceAtMost(historyBuffer.size - 1)
+        return historyBuffer[historyIndex]
     }
 
     fun historyDown(): String? {
         if (historyIndex <= 0) { historyIndex = -1; return "" }
         historyIndex--
-        return commandHistory[historyIndex]
+        return historyBuffer[historyIndex]
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

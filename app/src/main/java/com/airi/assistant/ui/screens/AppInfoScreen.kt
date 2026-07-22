@@ -42,7 +42,7 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
+                    containerColor = AiriTheme.background.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -66,15 +66,15 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(AIRIShapes.xl)
                     .background(CosmicAccent.copy(alpha = 0.07f))
-                    .border(1.dp, CosmicAccent.copy(alpha = 0.22f), RoundedCornerShape(20.dp))
+                    .border(1.dp, CosmicAccent.copy(alpha = 0.22f), AIRIShapes.xl)
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        Icons.Outlined.SmartToy,
+                        Icons.Outlined.Memory,
                         contentDescription = null,
                         tint     = CosmicAccent,
                         modifier = Modifier.size(48.dp)
@@ -95,10 +95,10 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                     )
                     Spacer(Modifier.height(8.dp))
                     Surface(
-                        shape = RoundedCornerShape(20.dp),
+                        shape = AIRIShapes.xl,
                         color = CosmicAccent.copy(alpha = 0.15f),
                         modifier = Modifier
-                            .border(1.dp, CosmicAccent.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                            .border(1.dp, CosmicAccent.copy(alpha = 0.4f), AIRIShapes.xl)
                     ) {
                         Text(
                             "Version 1.0",
@@ -254,9 +254,9 @@ private fun AboutCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(18.dp))
+            .clip(AIRIShapes.lg)
+            .background(AiriTheme.onSurface.copy(alpha = 0.05f))
+            .border(1.dp, AiriTheme.outline, AIRIShapes.lg)
             .padding(16.dp)
     ) {
         Column {
@@ -299,9 +299,9 @@ fun AppInfoSectionCard(title: String, content: @Composable ColumnScope.() -> Uni
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+            .clip(AIRIShapes.md)
+            .background(AiriTheme.onSurface.copy(alpha = 0.05f))
+            .border(1.dp, AiriTheme.outline, AIRIShapes.md)
             .padding(16.dp)
     ) {
         Column {

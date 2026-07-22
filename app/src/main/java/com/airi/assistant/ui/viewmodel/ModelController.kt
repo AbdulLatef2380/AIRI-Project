@@ -299,12 +299,12 @@ internal class ModelController(
     }
 
     internal fun validationMessage(result: ValidationResult): Pair<String, LoadErrorType> = when (result) {
-        is ValidationResult.FileNotFound    -> "الملف غير موجود"                  to LoadErrorType.FILE_NOT_FOUND
-        is ValidationResult.InvalidFormat   -> "صيغة الملف غير صحيحة"             to LoadErrorType.INVALID_FORMAT
-        is ValidationResult.TooSmall        -> "حجم الملف صغير جداً"              to LoadErrorType.TOO_SMALL
+        is ValidationResult.FileNotFound    -> "File not found"                  to LoadErrorType.FILE_NOT_FOUND
+        is ValidationResult.InvalidFormat   -> "Invalid file format"             to LoadErrorType.INVALID_FORMAT
+        is ValidationResult.TooSmall        -> "File too small"              to LoadErrorType.TOO_SMALL
         is ValidationResult.InsufficientRam ->
-            "الذاكرة غير كافية (مطلوب ${(result as ValidationResult.InsufficientRam).requiredMb} MB)" to LoadErrorType.INSUFFICIENT_RAM
-        else                                -> "خطأ غير متوقع"                    to LoadErrorType.LOAD_FAILED
+            "Insufficient RAM — ${(result as ValidationResult.InsufficientRam).requiredMb} MB required" to LoadErrorType.INSUFFICIENT_RAM
+        else                                -> "Unexpected error"                    to LoadErrorType.LOAD_FAILED
     }
 
     internal fun persistScannedIds(ids: Set<String>) {

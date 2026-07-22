@@ -54,7 +54,7 @@ object UILearningEngine {
 
                 editor.putString(key, id)
 
-                Log.d(TAG, "Learned UI element $key -> $id")
+                if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "Learned UI element $key -> $id")
             }
         }
 

@@ -31,11 +31,11 @@ fun PlusMenuSheet(onDismiss: () -> Unit, onAction: (PlusMenuAction) -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState       = sheetState,
-        containerColor   = MaterialTheme.colorScheme.surface,
-        contentColor     = MaterialTheme.colorScheme.onSurface,
+        containerColor   = AiriTheme.surface,
+        contentColor     = AiriTheme.onSurface,
         dragHandle = {
             Box(modifier = Modifier.padding(vertical = 10.dp).width(36.dp).height(4.dp)
-                .clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)))
+                .clip(RoundedCornerShape(2.dp)).background(AiriTheme.onSurface.copy(alpha = 0.18f)))
         },
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
     ) {
@@ -62,7 +62,7 @@ fun PlusMenuSheet(onDismiss: () -> Unit, onAction: (PlusMenuAction) -> Unit) {
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.clip(RoundedCornerShape(14.dp))
                                 .background(AiriTheme.surfaceVariant)
-                                .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
+                                .border(0.5.dp, AiriTheme.outline, RoundedCornerShape(14.dp))
                                 .clickable { onAction(action); onDismiss() }
                                 .padding(vertical = 14.dp, horizontal = 8.dp).fillMaxWidth()) {
                             Text(action.emoji, fontSize = 26.sp)

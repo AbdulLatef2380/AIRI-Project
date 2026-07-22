@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
      */
     private val wakeWordReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            Log.d(TAG, "Wake-word broadcast received → bringing chat to front")
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "Wake-word broadcast received → bringing chat to front")
             val launch = Intent(this@MainActivity, MainActivity::class.java).apply {
                 addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -160,7 +160,7 @@ class MainActivity : ComponentActivity() {
                 registerReceiver(wakeWordReceiver, filter)
             }
             wakeReceiverRegistered = true
-            Log.d(TAG, "Wake-word receiver registered")
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "Wake-word receiver registered")
         }
     }
 
@@ -169,7 +169,7 @@ class MainActivity : ComponentActivity() {
         if (wakeReceiverRegistered) {
             try { unregisterReceiver(wakeWordReceiver) } catch (_: Throwable) {}
             wakeReceiverRegistered = false
-            Log.d(TAG, "Wake-word receiver unregistered")
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "Wake-word receiver unregistered")
         }
     }
 
@@ -208,7 +208,7 @@ class MainActivity : ComponentActivity() {
 
         if (state.isNullOrBlank()) {
             // Legacy paste-token path — emit without provider
-            android.util.Log.d("AIRI_OAUTH", "OAuth callback: no state (legacy paste-token path)")
+            if (com.airi.assistant.BuildConfig.DEBUG) android.util.Log.d("AIRI_OAUTH", "OAuth callback: no state (legacy paste-token path)")
             com.airi.assistant.domain.event.EventBus.emit(
                 com.airi.assistant.domain.event.AppEvent.OAuthCallbackReceived(
                     code = code, state = "", provider = ""

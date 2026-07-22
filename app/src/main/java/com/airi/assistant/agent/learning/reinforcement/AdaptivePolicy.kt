@@ -41,7 +41,7 @@ object AdaptivePolicy {
     fun adjustScore(baseScore: Int, context: String, key: String): Int {
         val learnedDelta = ReinforcementMemory.getAdjustment(context, key)
         val blended = baseScore + (learnedDelta * LEARNED_WEIGHT).toInt()
-        Log.d(TAG, "adjustScore base=$baseScore learned=$learnedDelta blended=$blended ctx=$context key=$key")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "adjustScore base=$baseScore learned=$learnedDelta blended=$blended ctx=$context key=$key")
         return blended
     }
 
@@ -62,7 +62,7 @@ object AdaptivePolicy {
             .map  { (id, base) -> id to adjustScore(base, context, id) }
             .maxByOrNull { (_, score) -> score }
             ?.first
-            .also { Log.d(TAG, "preferredAgent=$it context=$context") }
+            if (com.airi.assistant.BuildConfig.DEBUG) .also { Log.d(TAG, "preferredAgent=$it context=$context") }
     }
 
     /**

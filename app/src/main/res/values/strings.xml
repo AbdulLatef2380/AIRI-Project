@@ -436,7 +436,7 @@
     <string name="settings_skills">Skills</string>
     <string name="settings_connectors">Connectors</string>
     <string name="settings_follow_system">Follow System</string>
-    <string name="settings_ai_library">AI Library</string>
+    <string name="settings_ai_library">AI Settings</string>
     <string name="settings_smart_routing">Smart Routing</string>
     <string name="settings_voice_wakeword">Voice &amp; Wake Word</string>
     <string name="settings_credits_usage">Credits &amp; Usage</string>
@@ -602,7 +602,7 @@
     <string name="premium_active_subtitle">2,000 daily credits, all features unlocked.</string>
     <string name="stripe_footer">Payments processed securely by Stripe. AIRI never stores card details.</string>
 
-    <!-- AI Library -->
+    <!-- AI Settings -->
     <string name="ai_library_routes_auto">AIRI routes automatically</string>
     <string name="brave_search_api">Brave Search API</string>
     <string name="brave_search_desc">Free: 2,000 searches/month · brave.com/search/api</string>
@@ -910,7 +910,7 @@
     <string name="memory_episodic_section">Episodic Memory</string>
 
     <!-- Model Library screen -->
-    <string name="model_library_title">AI Library</string>
+    <string name="model_library_title">AI Settings</string>
     <string name="model_library_subtitle">AIRI routes automatically</string>
     <string name="brave_search_title">Brave Search API</string>
     <string name="brave_key_dialog_body">Get a free key at brave.com/search/api (2,000 searches/month free)</string>
@@ -1211,4 +1211,230 @@
     <string name="voice_gemini_key_required">Set a Gemini API key in Settings first</string>
     <string name="voice_openai_key_required">Set an OpenAI API key in Settings first</string>
     <string name="default_web_client_id">REPLACE_WITH_FIREBASE_WEB_CLIENT_ID</string>
+    <string name="welcome_greeting">Welcome to AIRI</string>
+
+    <!-- Voice Settings — Phase 2 localization -->
+    <string name="voice_porcupine_legacy">Porcupine (Legacy Wake Word)</string>
+    <string name="voice_access_key_active">Access Key active</string>
+    <string name="voice_clear_access_key">Clear Access Key</string>
+    <string name="voice_access_key_label">Access Key</string>
+    <string name="voice_save_access_key">Save Access Key</string>
+    <string name="voice_vosk_stt_models">Vosk STT Models</string>
+    <string name="voice_activate">Activate</string>
+    <string name="voice_cloud_realtime_title">Cloud Realtime Voice</string>
+    <string name="voice_cloud_realtime_desc">Gemini Live and OpenAI Realtime providers are available for low-latency voice chat.</string>
+
+    <!-- Debug / Developer — Phase 2 localization -->
+    <string name="debug_rerun_diagnostics">Re-run Diagnostics</string>
+    <string name="exec_diagnostics_reset_tokens">Reset Token Counters</string>
+    <string name="exec_diagnostics_no_events">No execution events in this session</string>
+    <string name="cloud_usage_label">Cloud Usage</string>
+    <string name="permissions_enable">Enable</string>
+
+    <!-- Marketplace / Skills — Phase 2 localization -->
+    <string name="marketplace_update">Update</string>
+    <string name="marketplace_install_source_label">Source: %1$s</string>
+
+    <!-- Naming rename — AI Library → AI Settings -->
+    <string name="ai_settings_title">AI Settings</string>
+    <string name="ai_settings_subtitle">Models, providers, and inference settings</string>
+
+
+    <!-- Connector screen strings -->
+    <string name="connectors_title">Connectors</string>
+    <string name="connectors_tab_apps">Apps</string>
+    <string name="connectors_tab_device">Device</string>
+    <string name="connectors_tab_system">System</string>
+    <string name="connectors_connected_count">%1$d connected</string>
+    <string name="connectors_empty_category">No connectors in this category</string>
+    <string name="connectors_status_connected">Connected</string>
+    <string name="connectors_status_disconnected">Disconnected</string>
+
+    <!-- Customization strings -->
+    <string name="customization_display_mode">Display Mode</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_system">System</string>
+    <string name="theme_amoled">AMOLED</string>
+
+    <!-- Login strings -->
+    <string name="login_or_divider">or</string>
+
+    <!-- Model Settings strings -->
+    <string name="model_settings_discover_title">Discover AIRI's new mind</string>
+    <string name="model_settings_discover_subtitle">Local models selected by device RAM, storage, and processor.</string>
+
+    <!-- ChatViewModel error messages -->
+    <string name="err_select_model_first">Select a local or remote model first.</string>
+    <string name="err_load_text_model_first">Load a text model before adding a vision file.</string>
+    <string name="err_mmproj_copy_failed">Could not copy mmproj file. Check permissions and try again.</string>
+    <string name="msg_vision_loaded_ok">Vision file loaded. You can now send images.</string>
+    <string name="msg_vision_unsupported_model">Vision file loaded, but the current model does not support image analysis.</string>
+    <string name="err_vision_load_failed">Vision file failed to load. Ensure the file is a valid mmproj.</string>
+    <string name="err_image_process_failed">Could not process image (check format and file size).</string>
+    <string name="err_image_analyze_failed">Image analysis failed: %1$s</string>
+
+    <!-- Secret Manager additional -->
+    <string name="secret_manager_save">Save</string>
+    <string name="secret_manager_cancel">Cancel</string>
+    <string name="secret_manager_api_key_label">API Key</string>
+    <string name="delete">Delete</string>
+
+</resources>
+    <!-- Terminal — Phase 2 improvements -->
+    <string name="terminal_history_empty">No command history yet</string>
+    <string name="terminal_search_hint">Search output…</string>
+    <string name="terminal_copy_cd">Copy output</string>
+    <string name="terminal_clear_cd">Clear terminal</string>
+    <string name="terminal_history_cd">Command history</string>
+    <string name="terminal_search_cd">Search</string>
+    <string name="terminal_close_search_cd">Close search</string>
+    <string name="terminal_copied">Copied to clipboard</string>
+    <string name="terminal_session_ended">Session ended</string>
+    <string name="terminal_no_output">No output yet — type a command to begin</string>
+    <string name="terminal_welcome">AIRI Terminal  |  Type \'help\' for available commands</string>
+
+    <!-- Sandbox — Phase 2 improvements -->
+    <string name="sandbox_no_sessions">No active sessions</string>
+    <string name="sandbox_no_sessions_desc">Create a session to start executing code</string>
+    <string name="sandbox_new_session_button">New Session</string>
+    <string name="sandbox_new_session_cd">Create new session</string>
+    <string name="sandbox_close_session_cd">Close session</string>
+    <string name="sandbox_run_cd">Run command</string>
+    <string name="sandbox_command_placeholder">shell command…</string>
+    <string name="sandbox_no_executions">No executions yet</string>
+    <string name="sandbox_restart_cd">Restart session</string>
+    <string name="sandbox_memory_usage">Memory</string>
+    <string name="sandbox_cancel_execution">Cancel</string>
+    <string name="sandbox_file_explorer">Files</string>
+    <string name="sandbox_session_age">Age</string>
+
+    <!-- Secret Manager — Phase 2 improvements -->
+    <string name="secret_manager_not_set">Not configured</string>
+    <string name="secret_manager_set_key_title">Configure Key — %1$s</string>
+    <string name="secret_manager_description">API keys are stored in Android EncryptedSharedPreferences and never transmitted except to their respective service.</string>
+    <string name="secret_manager_edit_cd">Edit API key</string>
+    <string name="secret_manager_delete_cd">Delete API key</string>
+    <string name="secret_manager_key_placeholder">Paste your API key here…</string>
+    <string name="secret_manager_show_key_cd">Show key</string>
+    <string name="secret_manager_hide_key_cd">Hide key</string>
+    <string name="secret_manager_key_saved">Key saved securely</string>
+    <string name="secret_manager_key_deleted">Key removed</string>
+    <string name="secret_manager_copy_cd">Copy key</string>
+    <string name="secret_manager_copied">Key copied to clipboard</string>
+    <string name="secret_manager_configured">Configured</string>
+    <string name="secret_manager_enter_key_hint">Enter your %1$s key</string>
+
+    <!-- Profile — Phase 2 improvements -->
+    <string name="profile_title">Profile</string>
+    <string name="profile_photo_cd">Profile photo</string>
+    <string name="profile_change_photo">Change Photo</string>
+    <string name="profile_remove_photo">Remove Photo</string>
+    <string name="profile_display_name_label">Display Name</string>
+    <string name="profile_email_label">Email</string>
+    <string name="profile_account_section">Account</string>
+    <string name="profile_session_section">Session</string>
+    <string name="profile_login_provider">Sign-in provider</string>
+    <string name="profile_member_since">Member since</string>
+    <string name="profile_sign_out">Sign Out</string>
+    <string name="profile_delete_account">Delete Account</string>
+    <string name="profile_delete_confirm_title">Delete Account?</string>
+    <string name="profile_delete_confirm_body">This will permanently delete your Firebase account. Local model files and conversation history stored on this device are NOT deleted. This action cannot be undone.</string>
+    <string name="profile_delete_confirm_action">Delete Account</string>
+    <string name="profile_saving">Saving…</string>
+    <string name="profile_saved_ok">Profile updated</string>
+
+    <!-- About — Phase 2 improvements -->
+    <string name="about_version">Version</string>
+    <string name="about_build">Build</string>
+    <string name="about_licenses">Open Source Licenses</string>
+    <string name="about_privacy">Privacy Policy</string>
+    <string name="about_acknowledgements">Acknowledgements</string>
+    <string name="about_runtime_title">Runtime</string>
+    <string name="about_voice_title">Voice</string>
+    <string name="about_privacy_title">Privacy</string>
+    <string name="about_stack_title">Tech Stack</string>
+    <string name="about_community_title">Community</string>
+    <string name="about_tagline">Autonomous AI Operating System</string>
+
+    <!-- Voice Live Overlay — fix hardcoded Arabic -->
+    <string name="voice_listening_label">Listening…</string>
+    <string name="voice_speaking_label">AIRI is speaking</string>
+    <string name="voice_processing_label">Processing…</string>
+
+    <!-- Memory — Phase 2 improvements -->
+    <string name="memory_search_hint">Search memories…</string>
+    <string name="memory_stored_count">%1$d stored interactions</string>
+    <string name="memory_empty_title">No memories yet</string>
+    <string name="memory_empty_subtitle">Conversations are summarised and indexed here</string>
+    <string name="memory_clear_confirm_title">Clear All Memory?</string>
+    <string name="welcome_greeting">Welcome to AIRI</string>
+
+    <!-- Voice Settings — Phase 2 localization -->
+    <string name="voice_porcupine_legacy">Porcupine (Legacy Wake Word)</string>
+    <string name="voice_access_key_active">Access Key active</string>
+    <string name="voice_clear_access_key">Clear Access Key</string>
+    <string name="voice_access_key_label">Access Key</string>
+    <string name="voice_save_access_key">Save Access Key</string>
+    <string name="voice_vosk_stt_models">Vosk STT Models</string>
+    <string name="voice_activate">Activate</string>
+    <string name="voice_cloud_realtime_title">Cloud Realtime Voice</string>
+    <string name="voice_cloud_realtime_desc">Gemini Live and OpenAI Realtime providers are available for low-latency voice chat.</string>
+
+    <!-- Debug / Developer — Phase 2 localization -->
+    <string name="debug_rerun_diagnostics">Re-run Diagnostics</string>
+    <string name="exec_diagnostics_reset_tokens">Reset Token Counters</string>
+    <string name="exec_diagnostics_no_events">No execution events in this session</string>
+    <string name="cloud_usage_label">Cloud Usage</string>
+    <string name="permissions_enable">Enable</string>
+
+    <!-- Marketplace / Skills — Phase 2 localization -->
+    <string name="marketplace_update">Update</string>
+    <string name="marketplace_install_source_label">Source: %1$s</string>
+
+    <!-- Naming rename — AI Library → AI Settings -->
+    <string name="ai_settings_title">AI Settings</string>
+    <string name="ai_settings_subtitle">Models, providers, and inference settings</string>
+
+
+    <!-- Connector screen strings -->
+    <string name="connectors_title">Connectors</string>
+    <string name="connectors_tab_apps">Apps</string>
+    <string name="connectors_tab_device">Device</string>
+    <string name="connectors_tab_system">System</string>
+    <string name="connectors_connected_count">%1$d connected</string>
+    <string name="connectors_empty_category">No connectors in this category</string>
+    <string name="connectors_status_connected">Connected</string>
+    <string name="connectors_status_disconnected">Disconnected</string>
+
+    <!-- Customization strings -->
+    <string name="customization_display_mode">Display Mode</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_system">System</string>
+    <string name="theme_amoled">AMOLED</string>
+
+    <!-- Login strings -->
+    <string name="login_or_divider">or</string>
+
+    <!-- Model Settings strings -->
+    <string name="model_settings_discover_title">Discover AIRI's new mind</string>
+    <string name="model_settings_discover_subtitle">Local models selected by device RAM, storage, and processor.</string>
+
+    <!-- ChatViewModel error messages -->
+    <string name="err_select_model_first">Select a local or remote model first.</string>
+    <string name="err_load_text_model_first">Load a text model before adding a vision file.</string>
+    <string name="err_mmproj_copy_failed">Could not copy mmproj file. Check permissions and try again.</string>
+    <string name="msg_vision_loaded_ok">Vision file loaded. You can now send images.</string>
+    <string name="msg_vision_unsupported_model">Vision file loaded, but the current model does not support image analysis.</string>
+    <string name="err_vision_load_failed">Vision file failed to load. Ensure the file is a valid mmproj.</string>
+    <string name="err_image_process_failed">Could not process image (check format and file size).</string>
+    <string name="err_image_analyze_failed">Image analysis failed: %1$s</string>
+
+    <!-- Secret Manager additional -->
+    <string name="secret_manager_save">Save</string>
+    <string name="secret_manager_cancel">Cancel</string>
+    <string name="secret_manager_api_key_label">API Key</string>
+    <string name="delete">Delete</string>
+
 </resources>

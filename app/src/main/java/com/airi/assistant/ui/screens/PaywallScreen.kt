@@ -97,7 +97,7 @@ fun PaywallScreen(
         onDispose { billingManager.destroy() }
     }
 
-    val accentColor = MaterialTheme.colorScheme.primary
+    val accentColor = CosmicAccent
     val goldColor   = Color(0xFFFFB300)
 
     Scaffold(
@@ -105,7 +105,7 @@ fun PaywallScreen(
         snackbarHost   = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.8f)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background.copy(alpha = 0.8f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
@@ -122,7 +122,7 @@ fun PaywallScreen(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.background)
+                        colors = listOf(AiriTheme.background, AiriTheme.surface, AiriTheme.background)
                     )
                 )
         ) {
@@ -183,7 +183,7 @@ fun PaywallScreen(
                             Text(
                                 text     = "${100 - usagePercent}% remaining",
                                 fontSize = 11.sp,
-                                color    = if (usagePercent >= 80) goldColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                                color    = if (usagePercent >= 80) goldColor else AiriTheme.onSurface.copy(alpha = 0.45f)
                             )
                         }
                         androidx.compose.material3.LinearProgressIndicator(
@@ -197,7 +197,7 @@ fun PaywallScreen(
                                 usagePercent >= 60 -> Color(0xFFFF7043)
                                 else               -> accentColor
                             },
-                            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                            trackColor = AiriTheme.onSurface.copy(alpha = 0.1f)
                         )
                     }
                 }
@@ -223,9 +223,9 @@ fun PaywallScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(AIRIShapes.xl)
                         .background(accentColor.copy(alpha = 0.12f))
-                        .border(1.5.dp, accentColor.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                        .border(1.5.dp, accentColor.copy(alpha = 0.4f), AIRIShapes.xl)
                         .padding(20.dp)
                 ) {
                     Row(
@@ -257,7 +257,7 @@ fun PaywallScreen(
                             }
                         }
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = AIRIShapes.md,
                             color = accentColor.copy(alpha = 0.25f)
                         ) {
                             Text(
@@ -274,9 +274,9 @@ fun PaywallScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.outline)
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
+                        .clip(AIRIShapes.xl)
+                        .background(AiriTheme.outline)
+                        .border(1.dp, AiriTheme.outline, AIRIShapes.xl)
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
@@ -294,7 +294,7 @@ fun PaywallScreen(
                         description = "Send as many messages as you need, every day"
                     )
                     BenefitRow(
-                        icon        = Icons.Outlined.SmartToy,
+                        icon        = Icons.Outlined.AutoAwesome,
                         title       = "Unlimited Agent Execution",
                         description = "Run AI agents without daily execution caps"
                     )
@@ -329,10 +329,10 @@ fun PaywallScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
-                    shape  = RoundedCornerShape(16.dp),
+                    shape  = AIRIShapes.md,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = accentColor,
-                        contentColor   = MaterialTheme.colorScheme.onSurface
+                        contentColor   = AiriTheme.onSurface
                     ),
                     enabled = billingState !is BillingManager.BillingState.Connecting
                 ) {
@@ -354,7 +354,7 @@ fun PaywallScreen(
                 }
                 if (showUrgency) {
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = AIRIShapes.xs,
                         color = accentColor.copy(alpha = 0.1f)
                     ) {
                         Row(
@@ -436,15 +436,15 @@ private fun BenefitRow(
         Box(
             modifier = Modifier
                 .size(38.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(10.dp)),
+                .clip(AIRIShapes.sm)
+                .background(CosmicAccent.copy(alpha = 0.15f))
+                .border(1.dp, CosmicAccent.copy(alpha = 0.3f), AIRIShapes.sm),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector     = icon,
                 contentDescription = null,
-                tint            = MaterialTheme.colorScheme.primary,
+                tint            = CosmicAccent,
                 modifier        = Modifier.size(20.dp)
             )
         }

@@ -189,7 +189,7 @@ class PlanGenerator {
                     )
                 }
 
-                // Phase 6: Explicit aliases for LLM-generated meta-actions.
+                
                 // Previously these fell through to PlanStep.Custom with action="synthesize"
                 // (or "respond"/"conversation") and were silently acknowledged by
                 // CommandRouter Tier 3. Now they are first-class plan steps so that:
@@ -355,7 +355,7 @@ class PlanGenerator {
         )
         // Keep only the last 30 outcomes
         if (executionHistory.size > 30) executionHistory.removeAt(0)
-        Log.d(TAG, "Recorded execution: goalId=$goalId rate=$rate failedActions=$failedActions")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "Recorded execution: goalId=$goalId rate=$rate failedActions=$failedActions")
     }
 
     /**

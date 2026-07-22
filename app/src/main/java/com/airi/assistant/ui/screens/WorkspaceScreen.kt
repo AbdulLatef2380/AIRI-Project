@@ -49,7 +49,7 @@ fun WorkspaceScreen(
     onBack: () -> Unit,
     onOpenChat: () -> Unit = {},
     onNavigate: (String) -> Unit = {},
-    /** Task 5.2/5.3: "prototype", "wireframe", or null for general workspace. */
+    
     sessionType: String? = null
 ) {
     val workspaceRuntime = ServiceLocator.workspaceRuntime
@@ -104,13 +104,13 @@ fun WorkspaceScreen(
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
+                                .clip(AIRIShapes.sm)
                                 .background(if (isActive) CosmicAccent.copy(0.18f) else SurfaceRaised)
-                                .border(0.5.dp, if (isActive) CosmicAccent.copy(0.4f) else MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
+                                .border(0.5.dp, if (isActive) CosmicAccent.copy(0.4f) else AiriTheme.outline, AIRIShapes.sm)
                                 .clickable { workspaceRuntime.setActive(session.sessionId) }
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
-                            Text(session.name.take(20), fontSize = 13.sp, color = if (isActive) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(0.7f))
+                            Text(session.name.take(20), fontSize = 13.sp, color = if (isActive) CosmicAccent else AiriTheme.onSurface.copy(0.7f))
                             Spacer(Modifier.width(6.dp))
                             Icon(Icons.Outlined.Close, null, tint = AiriTheme.onBackground.copy(0.3f),
                                 modifier = Modifier.size(12.dp).clickable { workspaceRuntime.closeSession(session.sessionId) })
@@ -169,9 +169,9 @@ fun WorkspaceScreen(
                         modifier      = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor   = CosmicAccent.copy(0.6f),
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                            focusedTextColor     = MaterialTheme.colorScheme.onSurface,
-                            unfocusedTextColor   = MaterialTheme.colorScheme.onSurface
+                            unfocusedBorderColor = AiriTheme.outline,
+                            focusedTextColor     = AiriTheme.onSurface,
+                            unfocusedTextColor   = AiriTheme.onSurface
                         )
                     )
                 },
@@ -187,7 +187,7 @@ fun WorkspaceScreen(
                 dismissButton = {
                     TextButton(onClick = { showNewWorkspace = false }) { Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(0.5f)) }
                 },
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = AiriTheme.surface
             )
         }
     }
@@ -203,7 +203,7 @@ private fun ArtifactCard(
     onPreview:  (ArtifactManager.Artifact) -> Unit = {}
 ) {
     Surface(
-        shape    = RoundedCornerShape(14.dp),
+        shape    = AIRIShapes.md,
         color    = if (isSelected) CosmicAccent.copy(0.08f) else SurfaceRaised,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -232,10 +232,10 @@ private fun ArtifactCard(
                     color      = AiriTheme.onBackground.copy(0.6f),
                     lineHeight = 16.sp,
                     maxLines   = 12,
-                    modifier   = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surface).padding(10.dp)
+                    modifier   = Modifier.fillMaxWidth().clip(AIRIShapes.xs)
+                        .background(AiriTheme.surface).padding(10.dp)
                 )
-                // : "Preview" button → ArtifactPreviewScreen (sandboxed WebView/Markdown/Code)
+                
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(
                         onClick = { onPreview(artifact) },
@@ -259,7 +259,7 @@ private fun WorkspaceEmptyState(onCreate: () -> Unit) {
             Icon(Icons.Outlined.WorkOutline, null, tint = CosmicAccent.copy(0.5f), modifier = Modifier.size(48.dp))
             Text(stringResource(R.string.workspace_no_workspaces), fontSize = 16.sp, color = AiriTheme.onBackground.copy(0.6f))
             Text(stringResource(R.string.workspace_no_workspaces_desc), fontSize = 13.sp, color = AiriTheme.onBackground.copy(0.35f))
-            Button(onClick = onCreate, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent.copy(0.85f)), shape = RoundedCornerShape(12.dp)) {
+            Button(onClick = onCreate, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent.copy(0.85f)), shape = AIRIShapes.md) {
                 Icon(Icons.Outlined.Add, null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(R.string.workspace_new_button))
@@ -275,7 +275,7 @@ private fun ArtifactEmptyState(onCreateFromChat: () -> Unit) {
             Icon(Icons.Outlined.FolderOpen, null, tint = CosmicAccent.copy(0.4f), modifier = Modifier.size(40.dp))
             Text(stringResource(R.string.workspace_no_artifacts), fontSize = 15.sp, color = AiriTheme.onBackground.copy(0.5f))
             Text(stringResource(R.string.workspace_no_artifacts_desc), fontSize = 13.sp, color = AiriTheme.onBackground.copy(0.3f))
-            OutlinedButton(onClick = onCreateFromChat, shape = RoundedCornerShape(10.dp),
+            OutlinedButton(onClick = onCreateFromChat, shape = AIRIShapes.sm,
                 border = androidx.compose.foundation.BorderStroke(1.dp, CosmicAccent.copy(0.4f))) {
                 Text(stringResource(R.string.workspace_open_chat), color = CosmicAccent, fontSize = 13.sp)
             }

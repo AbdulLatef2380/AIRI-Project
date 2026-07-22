@@ -172,7 +172,7 @@
     <string name="settings_skills">Habilidades</string>
     <string name="settings_connectors">Conectores</string>
     <string name="settings_follow_system">Seguir sistema</string>
-    <string name="settings_ai_library">Biblioteca IA</string>
+    <string name="settings_ai_library">Ajustes de IA</string>
     <string name="settings_smart_routing">Enrutamiento inteligente</string>
     <string name="settings_voice_wakeword">Voz y palabra de activación</string>
     <string name="settings_credits_usage">Créditos y uso</string>
@@ -606,7 +606,7 @@
     <string name="premium_active_subtitle">2.000 créditos diarios, todas las funciones desbloqueadas.</string>
     <string name="stripe_footer">Pagos procesados de forma segura por Stripe. AIRI nunca almacena datos de tarjetas.</string>
 
-    <!-- AI Library -->
+    <!-- AI Settings -->
     <string name="ai_library_routes_auto">AIRI enruta automáticamente</string>
     <string name="brave_search_api">Brave Search API</string>
     <string name="brave_search_desc">Gratis: 2.000 búsquedas/mes · brave.com/search/api</string>
@@ -891,7 +891,7 @@
     <string name="memory_no_memory">Sin memoria aún</string>
     <string name="memory_no_memory_desc">Inicia una conversación para construir memoria</string>
     <string name="memory_episodic_section">Memoria episódica</string>
-    <string name="model_library_title">Biblioteca de IA</string>
+    <string name="model_library_title">Ajustes de IA</string>
     <string name="model_library_subtitle">AIRI enruta automáticamente</string>
     <string name="brave_search_title">Brave Search API</string>
     <string name="brave_key_dialog_body">Obtén una clave gratuita en brave.com/search/api (2,000 búsquedas/mes gratis)</string>

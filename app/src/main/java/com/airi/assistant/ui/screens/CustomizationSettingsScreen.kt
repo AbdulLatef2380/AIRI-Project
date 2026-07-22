@@ -51,7 +51,7 @@ fun CustomizationSettingsScreen(
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
+                    containerColor = AiriTheme.background.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -79,16 +79,16 @@ fun CustomizationSettingsScreen(
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "وضع العرض",
+                    stringResource(R.string.customization_display_mode),
                     fontSize = 13.sp,
                     color    = AiriTheme.onBackground.copy(alpha = 0.7f)
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val modes = listOf(
-                        ThemeMode.DARK   to "مظلم",
-                        ThemeMode.LIGHT  to "فاتح",
-                        ThemeMode.SYSTEM to "النظام",
+                        ThemeMode.DARK   to stringResource(R.string.theme_dark),
+                        ThemeMode.LIGHT  to stringResource(R.string.theme_light),
+                        ThemeMode.SYSTEM to stringResource(R.string.theme_system),
                         ThemeMode.AMOLED to "AMOLED"   // : pure black for OLED
                     )
                     modes.forEach { (mode, label) ->
@@ -99,11 +99,11 @@ fun CustomizationSettingsScreen(
                             colors   = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
                                 selectedLabelColor     = CosmicAccent,
-                                containerColor         = MaterialTheme.colorScheme.surfaceVariant,
-                                labelColor             = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                containerColor         = AiriTheme.surfaceVariant,
+                                labelColor             = AiriTheme.onSurface.copy(alpha = 0.6f)
                             ),
                             border = FilterChipDefaults.filterChipBorder(
-                                borderColor         = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                                borderColor         = AiriTheme.onSurface.copy(alpha = 0.1f),
                                 selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
                             )
                         )
@@ -136,9 +136,9 @@ fun CustomizationSettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors   = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor   = CosmicAccent,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                        focusedTextColor     = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor   = MaterialTheme.colorScheme.onSurface
+                        unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.12f),
+                        focusedTextColor     = AiriTheme.onSurface,
+                        unfocusedTextColor   = AiriTheme.onSurface
                     )
                 )
                 Text(
@@ -168,11 +168,11 @@ fun CustomizationSettingsScreen(
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
                                 selectedLabelColor     = CosmicAccent,
-                                containerColor         = MaterialTheme.colorScheme.surfaceVariant,
-                                labelColor             = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                containerColor         = AiriTheme.surfaceVariant,
+                                labelColor             = AiriTheme.onSurface.copy(alpha = 0.6f)
                             ),
                             border = FilterChipDefaults.filterChipBorder(
-                                borderColor         = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                                borderColor         = AiriTheme.onSurface.copy(alpha = 0.1f),
                                 selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
                             )
                         )

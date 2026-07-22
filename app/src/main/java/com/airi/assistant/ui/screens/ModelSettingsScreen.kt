@@ -160,7 +160,7 @@ fun ModelSettingsScreen(
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = AiriTheme.background,
         topBar = {
             TopAppBar(
                 title = {
@@ -178,7 +178,7 @@ fun ModelSettingsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.92f)
+                    containerColor = AiriTheme.background.copy(alpha = 0.92f)
                 )
             )
         },
@@ -186,7 +186,7 @@ fun ModelSettingsScreen(
             FloatingActionButton(
                 onClick = { showAddModelSheet = true },
                 containerColor = CosmicAccent,
-                contentColor   = MaterialTheme.colorScheme.background
+                contentColor   = AiriTheme.background
             ) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_model_fab))
             }
@@ -217,13 +217,13 @@ fun ModelSettingsScreen(
                             modifier = Modifier.height(36.dp),
                             shape = CircleShape,
                             color = if (active) Color(0xFF007AFF) else Color(0xFF1C1C1E),
-                            contentColor = MaterialTheme.colorScheme.onSurface
+                            contentColor = AiriTheme.onSurface
                         ) {
                             Box(
                                 modifier = Modifier
                                     .border(
                                         0.5.dp,
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = if (active) 0f else 0.12f),
+                                        AiriTheme.onSurface.copy(alpha = if (active) 0f else 0.12f),
                                         CircleShape
                                     )
                                     .padding(horizontal = 16.dp),
@@ -400,7 +400,7 @@ fun ModelSettingsScreen(
                         } else {
                             stringResource(R.string.registry_entry_removed)
                         },
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = AiriTheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -412,7 +412,7 @@ fun ModelSettingsScreen(
                         viewModel.refreshDownloadedModelState()
                         modelPendingDelete = null
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    colors = ButtonDefaults.buttonColors(containerColor = SemanticError)
                 ) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
@@ -430,7 +430,7 @@ fun ModelSettingsScreen(
                     Text(error)
                     Text(
                         modelState.loadErrorType.name,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = AiriTheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
@@ -463,7 +463,7 @@ fun RefModelGroupAccordion(
                 .fillMaxWidth()
                 .height(55.dp),
             color = if (hasActiveModel) Color(0xFF0A2540) else Color(0xFF111111),
-            contentColor = MaterialTheme.colorScheme.onSurface
+            contentColor = AiriTheme.onSurface
         ) {
             Row(
                 modifier = Modifier
@@ -477,7 +477,7 @@ fun RefModelGroupAccordion(
                         title,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (hasActiveModel) Color(0xFF5AC8FA) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                        color = if (hasActiveModel) Color(0xFF5AC8FA) else AiriTheme.onSurface.copy(alpha = 0.72f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -490,7 +490,7 @@ fun RefModelGroupAccordion(
                         Box(
                             modifier = Modifier
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.outline)
+                                .background(AiriTheme.outline)
                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Text(
@@ -545,11 +545,11 @@ fun RefDownloadedModelCard(
             .border(
                 width = 1.dp,
                 color = if (isActive) Color(0xFF007AFF).copy(alpha = 0.55f)
-                        else MaterialTheme.colorScheme.outline,
-                shape = RoundedCornerShape(24.dp) // borderRadius: 24
+                        else AiriTheme.outline,
+                shape = AIRIShapes.xl // borderRadius: 24
             )
-            .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .clip(AIRIShapes.xl)
+            .background(AiriTheme.surface)
     ) {
         Column {
             // compactHeader: paddingH 18, paddingV 12
@@ -624,7 +624,7 @@ fun RefDownloadedModelCard(
                                 when {
                                     isActive  -> Color(0xFF34C759)
                                     isLoading -> Color(0xFFFF9500)
-                                    else      -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.22f)
+                                    else      -> AiriTheme.onSurface.copy(alpha = 0.22f)
                                 }
                             )
                     )
@@ -642,7 +642,7 @@ fun RefDownloadedModelCard(
                             .height(3.dp)
                             .clip(RoundedCornerShape(2.dp)),
                         color = Color(0xFF007AFF),
-                        trackColor = MaterialTheme.colorScheme.outline
+                        trackColor = AiriTheme.outline
                     )
                 } else {
                     LinearProgressIndicator(
@@ -652,7 +652,7 @@ fun RefDownloadedModelCard(
                             .height(3.dp)
                             .clip(RoundedCornerShape(2.dp)),
                         color = Color(0xFF007AFF),
-                        trackColor = MaterialTheme.colorScheme.outline
+                        trackColor = AiriTheme.outline
                     )
                 }
                 Spacer(Modifier.height(6.dp))
@@ -674,14 +674,14 @@ fun RefDownloadedModelCard(
                     modifier = Modifier
                         .weight(1f)
                         .height(40.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = AIRIShapes.md,
                     border = ButtonDefaults.outlinedButtonBorder.copy(
                         width = 1.dp
                     ),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = if (isActive) Color(0xFF34C759).copy(alpha = 0.12f)
                                          else Color.Transparent,
-                        contentColor   = if (isActive) Color(0xFF34C759) else MaterialTheme.colorScheme.onSurface
+                        contentColor   = if (isActive) Color(0xFF34C759) else AiriTheme.onSurface
                     ),
                     contentPadding = PaddingValues(horizontal = 12.dp)
                 ) {
@@ -705,8 +705,8 @@ fun RefDownloadedModelCard(
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clip(AIRIShapes.md)
+                        .background(AiriTheme.surfaceVariant)
                         .clickable { onSettings() }
                         .padding(10.dp),
                     contentAlignment = Alignment.Center
@@ -723,7 +723,7 @@ fun RefDownloadedModelCard(
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(AIRIShapes.md)
                         .background(Color(0xFFFF3B30).copy(alpha = 0.08f))
                         .clickable { onDelete() }
                         .padding(10.dp),
@@ -741,8 +741,8 @@ fun RefDownloadedModelCard(
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clip(AIRIShapes.md)
+                        .background(AiriTheme.surfaceVariant)
                         .clickable { isExpanded = !isExpanded }
                         .padding(10.dp),
                     contentAlignment = Alignment.Center
@@ -767,7 +767,7 @@ fun RefDownloadedModelCard(
                     // descriptionContainer: bg surface, borderRadius 16, padding 12
                     Surface(
                         color = Color(0xFF1C1C1E),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = AIRIShapes.md,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
@@ -854,10 +854,10 @@ fun RefCatalogModelCard(
             .border(
                 width = 1.dp,
                 color = AiriTheme.outline.copy(alpha = 0.3f),
-                shape = RoundedCornerShape(24.dp) // borderRadius: 24
+                shape = AIRIShapes.xl // borderRadius: 24
             )
-            .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .clip(AIRIShapes.xl)
+            .background(AiriTheme.surface)
     ) {
         Column {
             // compactHeader: paddingH 18, paddingV 12
@@ -913,13 +913,13 @@ fun RefCatalogModelCard(
                             contentDescription = null,
                             modifier = Modifier.size(10.dp),
                             tint = if (unsupportedByRam) Color(0xFFFF3B30).copy(alpha = 0.7f)
-                                   else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                                   else AiriTheme.onSurface.copy(alpha = 0.45f)
                         )
                         Text(
                             entry.sizeBytes.toReadableSize(),
                             fontSize = 11.sp,
                             color = if (unsupportedByRam) Color(0xFFFF3B30).copy(alpha = 0.7f)
-                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                    else AiriTheme.onSurface.copy(alpha = 0.5f)
                         )
                     }
                     // statusDot: always grey (not downloaded)
@@ -929,7 +929,7 @@ fun RefCatalogModelCard(
                             .clip(CircleShape)
                             .background(
                                 if (isDownloading) Color(0xFFFF9500)
-                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
+                                else AiriTheme.onSurface.copy(alpha = 0.18f)
                             )
                     )
                 }
@@ -969,7 +969,7 @@ fun RefCatalogModelCard(
                         .height(3.dp)
                         .clip(RoundedCornerShape(2.dp)),
                     color = Color(0xFF007AFF),
-                    trackColor = MaterialTheme.colorScheme.outline
+                    trackColor = AiriTheme.outline
                 )
                 Spacer(Modifier.height(8.dp))
             }
@@ -990,7 +990,7 @@ fun RefCatalogModelCard(
                     modifier = Modifier
                         .weight(1f)
                         .height(40.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = AIRIShapes.md,
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = Color(0xFF007AFF).copy(alpha = 0.10f),
                         contentColor   = Color(0xFF007AFF),
@@ -1028,7 +1028,7 @@ fun RefCatalogModelCard(
                     OutlinedButton(
                         onClick = onCancel,
                         modifier = Modifier.height(40.dp),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = AIRIShapes.md,
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = Color(0xFFFF3B30).copy(alpha = 0.10f),
                             contentColor   = Color(0xFFFF3B30)
@@ -1049,8 +1049,8 @@ fun RefCatalogModelCard(
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clip(AIRIShapes.md)
+                        .background(AiriTheme.surfaceVariant)
                         .clickable { isExpanded = !isExpanded }
                         .padding(10.dp),
                     contentAlignment = Alignment.Center
@@ -1076,7 +1076,7 @@ fun RefCatalogModelCard(
                     if (entry.description.isNotBlank()) {
                         Surface(
                             color = Color(0xFF1C1C1E),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = AIRIShapes.md,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
@@ -1134,7 +1134,7 @@ private fun RefDetailCard(
 ) {
     Surface(
         color = Color(0xFF1C1C1E),
-        shape = RoundedCornerShape(16.dp),
+        shape = AIRIShapes.md,
         modifier = modifier
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -1149,7 +1149,7 @@ private fun RefDetailCard(
                 value,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = if (warn) Color(0xFFFF3B30) else MaterialTheme.colorScheme.onSurface,
+                color = if (warn) Color(0xFFFF3B30) else AiriTheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1167,13 +1167,13 @@ private fun ModelStoreHero(totalRamMb: Int, storageBytes: Long) {
         modifier = Modifier
             .fillMaxWidth()
             .height(180.dp)
-            .clip(RoundedCornerShape(24.dp))
+            .clip(AIRIShapes.xl)
             .background(
                 Brush.linearGradient(
-                    listOf(Color(0xFF007AFF).copy(alpha = 0.34f), Color(0xFF121212), MaterialTheme.colorScheme.background)
+                    listOf(Color(0xFF007AFF).copy(alpha = 0.34f), Color(0xFF121212), AiriTheme.background)
                 )
             )
-            .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(24.dp))
+            .border(0.5.dp, AiriTheme.outline, AIRIShapes.xl)
             .padding(16.dp)
     ) {
         Column(
@@ -1182,7 +1182,7 @@ private fun ModelStoreHero(totalRamMb: Int, storageBytes: Long) {
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "اكتشف عقل AIRI الجديد",
+                    stringResource(R.string.model_settings_discover_title),
                     color = AiriTheme.onBackground,
                     fontSize = 26.sp,
                     lineHeight = 32.sp,
@@ -1191,7 +1191,7 @@ private fun ModelStoreHero(totalRamMb: Int, storageBytes: Long) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "نماذج محلية مختارة حسب ذاكرة الجهاز والتخزين والمعالج.",
+                    stringResource(R.string.model_settings_discover_subtitle),
                     color = AiriTheme.onBackground.copy(alpha = 0.68f),
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
@@ -1203,9 +1203,9 @@ private fun ModelStoreHero(totalRamMb: Int, storageBytes: Long) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(MaterialTheme.colorScheme.outline)
-                    .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(24.dp))
+                    .clip(AIRIShapes.xl)
+                    .background(AiriTheme.outline)
+                    .border(0.5.dp, AiriTheme.outline, AIRIShapes.xl)
                     .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1238,11 +1238,11 @@ private fun CategoryChips(categories: List<String>, selected: String, onSelected
                 modifier = Modifier.height(36.dp),
                 shape = CircleShape,
                 color = if (active) Color(0xFF007AFF) else Color(0xFF121212),
-                contentColor = MaterialTheme.colorScheme.onSurface
+                contentColor = AiriTheme.onSurface
             ) {
                 Box(
                     modifier = Modifier
-                        .border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = if (active) 0.0f else 0.10f), CircleShape)
+                        .border(0.5.dp, AiriTheme.onSurface.copy(alpha = if (active) 0.0f else 0.10f), CircleShape)
                         .padding(horizontal = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1258,8 +1258,8 @@ fun ActiveModelSummaryCard(state: ModelUiState, onOpenGenerationSettings: () -> 
     val activeModel = state.availableModels.firstOrNull { it.id == state.selectedModelId }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface,
+        shape = AIRIShapes.xl,
+        color = AiriTheme.surface,
         tonalElevation = 3.dp,
         shadowElevation = 2.dp
     ) {
@@ -1270,7 +1270,7 @@ fun ActiveModelSummaryCard(state: ModelUiState, onOpenGenerationSettings: () -> 
                     Text(
                         activeModel?.name ?: state.selectedModelName,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = AiriTheme.onSurfaceVariant
                     )
                 }
                 StatusChip(
@@ -1319,13 +1319,13 @@ fun SectionHeader(title: String, subtitle: String) {
             title,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
+            color = AiriTheme.onSurface
         )
         Spacer(Modifier.height(2.dp))
         Text(
             subtitle,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = AiriTheme.onSurfaceVariant
         )
     }
 }
@@ -1334,9 +1334,9 @@ fun SectionHeader(title: String, subtitle: String) {
 fun ScanDeviceCard(isScanning: Boolean, onScan: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = AIRIShapes.md,
+        color = CosmicAccentAltContainer,
+        contentColor = AiriTheme.onBackground,
         tonalElevation = 2.dp,
         shadowElevation = 2.dp
     ) {
@@ -1391,11 +1391,11 @@ fun CatalogCard(
             .border(
                 width = 0.5.dp,
                 color = AiriTheme.onBackground.copy(alpha = 0.10f),
-                shape = RoundedCornerShape(24.dp)
+                shape = AIRIShapes.xl
             ),
-        shape = RoundedCornerShape(24.dp),
+        shape = AIRIShapes.xl,
         color = Color(0xFF121212),
-        contentColor = MaterialTheme.colorScheme.onSurface,
+        contentColor = AiriTheme.onSurface,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
@@ -1413,7 +1413,7 @@ fun CatalogCard(
                     }
                     Text(
                         if (unsupportedGemma) stringResource(R.string.model_not_supported_device) else entry.description,
-                        color = if (unsupportedGemma) Color(0xFFFF3B30) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f),
+                        color = if (unsupportedGemma) Color(0xFFFF3B30) else AiriTheme.onSurface.copy(alpha = 0.64f),
                         fontSize = 12.sp,
                         lineHeight = 16.sp,
                         maxLines = 2,
@@ -1439,9 +1439,9 @@ fun CatalogCard(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                StoreChip(entry.sizeBytes.toReadableSize(), MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
-                StoreChip(entry.quantization, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), monospace = true)
-                StoreChip("RAM ${entry.ramRequiredMb} MB", if (unsupportedByRam) Color(0xFFFF3B30) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+                StoreChip(entry.sizeBytes.toReadableSize(), AiriTheme.onSurface.copy(alpha = 0.12f))
+                StoreChip(entry.quantization, AiriTheme.onSurface.copy(alpha = 0.12f), monospace = true)
+                StoreChip("RAM ${entry.ramRequiredMb} MB", if (unsupportedByRam) Color(0xFFFF3B30) else AiriTheme.onSurface.copy(alpha = 0.12f))
                 if (isActive) StoreChip("Open", Color(0xFF34C759))
             }
 
@@ -1480,7 +1480,7 @@ private fun ManufacturerIcon(type: ModelType) {
             .size(48.dp)
             .clip(CircleShape)
             .background(bg.copy(alpha = 0.18f))
-            .border(0.5.dp, MaterialTheme.colorScheme.outline, CircleShape),
+            .border(0.5.dp, AiriTheme.outline, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Text(type.label.first().uppercase(), color = bg, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -1520,12 +1520,12 @@ private fun StoreDownloadButton(
     Button(
         onClick = { if (isDownloaded || isActive) onOpen() else onDownload() },
         enabled = enabled && !isDownloading,
-        shape = RoundedCornerShape(16.dp),
+        shape = AIRIShapes.md,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (isDownloaded || isActive) Color(0xFF34C759) else if (hasFailed) Color(0xFFFF9500) else Color(0xFF007AFF),
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            disabledContainerColor = MaterialTheme.colorScheme.outline,
-            disabledContentColor   = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+            contentColor = AiriTheme.onSurface,
+            disabledContainerColor = AiriTheme.outline,
+            disabledContentColor   = AiriTheme.onSurface.copy(alpha = 0.35f)
         ),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
         modifier = Modifier.height(42.dp).widthIn(min = 88.dp)
@@ -1616,9 +1616,9 @@ fun RegistryModelCard(
 fun EmptyModelRegistryCard() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        shape = AIRIShapes.md,
+        color = AiriTheme.surfaceVariant,
+        contentColor = AiriTheme.onSurfaceVariant,
         tonalElevation = 2.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1656,11 +1656,11 @@ fun ModelCard(
             .border(
                 width = 1.dp,
                 color = CosmicAccent.copy(alpha = 0.14f),
-                shape = RoundedCornerShape(20.dp)
+                shape = AIRIShapes.xl
             ),
-        shape = RoundedCornerShape(20.dp),
+        shape = AIRIShapes.xl,
         color = Color(0xFF0E1629),
-        contentColor = MaterialTheme.colorScheme.onSurface,
+        contentColor = AiriTheme.onSurface,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
@@ -1673,7 +1673,7 @@ fun ModelCard(
                     Text(subtitle, style = MaterialTheme.typography.bodySmall)
                     extraLabel?.let {
                         Spacer(Modifier.height(2.dp))
-                        Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                        Text(it, style = MaterialTheme.typography.labelSmall, color = CosmicAccentAlt)
                     }
                 }
                 if (onSettings != null) {
@@ -1758,8 +1758,8 @@ fun ModelCard(
                 Text(
                     it,
                     color = when (errorType) {
-                        LoadErrorType.INSUFFICIENT_RAM -> MaterialTheme.colorScheme.tertiary
-                        else -> MaterialTheme.colorScheme.error
+                        LoadErrorType.INSUFFICIENT_RAM -> CosmicAccent
+                        else -> SemanticError
                     },
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -1803,7 +1803,7 @@ fun AdvancedGenerationSettingsDialog(
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
                     stringResource(R.string.advanced_generation_description),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = AiriTheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall
                 )
 
@@ -1843,7 +1843,7 @@ fun AdvancedGenerationSettingsDialog(
                         Text(
                             stringResource(R.string.gemma_context_warning),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.tertiary
+                            color = CosmicAccent
                         )
                     }
                 }
@@ -1970,7 +1970,7 @@ fun SettingSlider(
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(title, style = MaterialTheme.typography.labelLarge)
-            Text(valueLabel, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Text(valueLabel, color = CosmicAccent, fontWeight = FontWeight.Bold)
         }
         Slider(value = value, onValueChange = onValueChange, valueRange = valueRange, steps = steps)
     }
@@ -1986,9 +1986,9 @@ fun MetadataRow(items: List<String>) {
 @Composable
 fun MetaChip(label: String) {
     Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.64f),
-        contentColor = MaterialTheme.colorScheme.onSurface
+        shape = AIRIShapes.xl,
+        color = AiriTheme.surface.copy(alpha = 0.64f),
+        contentColor = AiriTheme.onSurface
     ) {
         Text(
             label,
@@ -2003,12 +2003,12 @@ private enum class ChipTone { SUCCESS, WARNING, INFO, NEUTRAL }
 @Composable
 private fun StatusChip(label: String, tone: ChipTone) {
     val (container, content) = when (tone) {
-        ChipTone.SUCCESS -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-        ChipTone.WARNING -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-        ChipTone.INFO    -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
-        ChipTone.NEUTRAL -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+        ChipTone.SUCCESS -> CosmicAccentContainer to Color.WhiteContainer
+        ChipTone.WARNING -> CosmicAccentAltContainer to AiriTheme.onBackground
+        ChipTone.INFO    -> CosmicAccent to Color.White
+        ChipTone.NEUTRAL -> AiriTheme.surfaceVariant to AiriTheme.onSurfaceVariant
     }
-    Surface(shape = RoundedCornerShape(20.dp), color = container, contentColor = content) {
+    Surface(shape = AIRIShapes.xl, color = container, contentColor = content) {
         Text(
             label,
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
@@ -2021,9 +2021,9 @@ private fun StatusChip(label: String, tone: ChipTone) {
 @Composable
 private fun TypeAvatar(type: ModelType) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.primary,
+        shape = AIRIShapes.md,
+        color = AiriTheme.surface,
+        contentColor = CosmicAccent,
         modifier = Modifier.size(50.dp)
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -2035,9 +2035,9 @@ private fun TypeAvatar(type: ModelType) {
 @Composable
 private fun StaticAvatar(icon: String) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.primary,
+        shape = AIRIShapes.md,
+        color = AiriTheme.surface,
+        contentColor = CosmicAccent,
         modifier = Modifier.size(50.dp)
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -2255,7 +2255,7 @@ fun AddModelBottomSheet(
             if (!showRemote) {
                 Surface(
                     onClick  = onPickLocal,
-                    shape    = RoundedCornerShape(14.dp),
+                    shape    = AIRIShapes.md,
                     color    = Color(0xFF0E1629),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -2278,8 +2278,8 @@ fun AddModelBottomSheet(
 
                 Surface(
                     onClick  = { showRemote = true },
-                    shape    = RoundedCornerShape(14.dp),
-                    color    = MaterialTheme.colorScheme.secondaryContainer,
+                    shape    = AIRIShapes.md,
+                    color    = CosmicAccentAltContainer,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -2287,13 +2287,13 @@ fun AddModelBottomSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Icon(Icons.Outlined.Cloud, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                        Icon(Icons.Outlined.Cloud, contentDescription = null, tint = CosmicAccentAlt)
                         Column {
                             Text(stringResource(R.string.add_remote_model), fontWeight = FontWeight.Bold)
                             Text(
                                 stringResource(R.string.add_openai_compatible_server),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
+                                color = AiriTheme.onBackground.copy(alpha = 0.6f)
                             )
                         }
                     }
@@ -2324,16 +2324,16 @@ private fun AddRemoteModelContent(
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Surface(
-            color    = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
-            shape    = RoundedCornerShape(10.dp),
+            color    = SemanticErrorContainer.copy(alpha = 0.4f),
+            shape    = AIRIShapes.sm,
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(modifier = Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Outlined.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.Warning, contentDescription = null, tint = SemanticError, modifier = Modifier.size(18.dp))
                 Text(
                     stringResource(R.string.remote_model_warning),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer
+                    color = Color.WhiteContainer
                 )
             }
         }
@@ -2391,7 +2391,7 @@ private fun AddRemoteModelContent(
         testStatus?.let { msg ->
             Text(
                 msg,
-                color = if (msg.contains("success", true) || msg.contains("ناجح", true)) CosmicAccent else MaterialTheme.colorScheme.error,
+                color = if (msg.contains("success", true) || msg.contains("success", true)) CosmicAccent else SemanticError,
                 style = MaterialTheme.typography.labelMedium
             )
         }
@@ -2442,7 +2442,7 @@ private fun EmbeddingModelSection(
         )
 
         Surface(
-            shape  = RoundedCornerShape(14.dp),
+            shape  = AIRIShapes.md,
             color  = Color(0xFF1C1C1E),
             modifier = Modifier.fillMaxWidth()
         ) {

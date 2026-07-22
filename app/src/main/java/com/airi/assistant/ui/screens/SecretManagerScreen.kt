@@ -1,184 +1,333 @@
 package com.airi.assistant.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import androidx.compose.animation.*
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airi.assistant.R
 import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.security.SecureApiKeyStore
-import com.airi.assistant.ui.theme.AiriTheme
-import com.airi.assistant.ui.theme.CosmicAccent
+import com.airi.assistant.ui.theme.*
+import kotlinx.coroutines.launch
 
-/**
- * Task 9.1 – Secret Manager Screen.
- * Lists all CloudProvider API keys with set/clear controls.
- * Uses SecureApiKeyStore — does NOT duplicate storage.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SecretManagerScreen(onBack: () -> Unit) {
     val context  = LocalContext.current
     val keyStore = remember { SecureApiKeyStore(context) }
+    val scope    = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
 
-    // Providers that have user-facing API keys (exclude internal-only providers)
     val providers = remember {
         listOf(
             CloudProvider.OPENAI,
-            CloudProvider.GEMINI,
             CloudProvider.ANTHROPIC,
+            CloudProvider.GEMINI,
             CloudProvider.OPENROUTER,
             CloudProvider.KIMI,
             CloudProvider.BRAVE
         )
     }
 
-    // Track key state per provider (null = not set)
     val keyStates = remember {
-        providers.associateWith { p ->
-            mutableStateOf(keyStore.getKey(p))
-        }.toMutableMap()
+        providers.associateWith { p -> mutableStateOf(keyStore.getKey(p)) }.toMutableMap()
     }
 
     var editingProvider by remember { mutableStateOf<CloudProvider?>(null) }
     var editText        by remember { mutableStateOf("") }
     var showKey         by remember { mutableStateOf(false) }
+    var showDeleteFor   by remember { mutableStateOf<CloudProvider?>(null) }
 
-    val snackbarHost = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-
-    if (editingProvider != null) {
+    // Delete confirmation dialog
+    showDeleteFor?.let { provider ->
         AlertDialog(
-            onDismissRequest = { editingProvider = null; editText = "" },
-            title = { Text("Set API Key — ${editingProvider?.displayName.orEmpty()}") },
+            onDismissRequest = { showDeleteFor = null },
+            containerColor   = SurfaceFloating,
+            shape            = AIRIShapes.xl,
+            icon = {
+                Icon(Icons.Outlined.Delete, null, tint = SemanticError, modifier = Modifier.size(28.dp))
+            },
+            title = { Text("Remove ${provider.displayName} key?", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
+            text  = {
+                Text(
+                    "This will remove the stored API key for ${provider.displayName}. You can re-enter it at any time.",
+                    color = AiriTheme.onSurfaceVariant,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        keyStore.clearKey(provider)
+                        keyStates[provider]?.value = null
+                        showDeleteFor = null
+                        scope.launch { snackbar.showSnackbar(context.getString(R.string.secret_manager_key_deleted)) }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SemanticError),
+                    shape  = AIRIShapes.md
+                ) { Text(stringResource(R.string.delete), fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteFor = null }) {
+                    Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
+                }
+            }
+        )
+    }
+
+    // Edit / set key dialog
+    editingProvider?.let { provider ->
+        AlertDialog(
+            onDismissRequest = { editingProvider = null; editText = ""; showKey = false },
+            containerColor   = SurfaceFloating,
+            shape            = AIRIShapes.xl,
+            icon = {
+                Box(
+                    modifier = Modifier.size(40.dp).clip(AIRIShapes.md).background(CosmicAccent.copy(0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.Key, null, tint = CosmicAccent, modifier = Modifier.size(20.dp))
+                }
+            },
+            title = {
+                Text(
+                    context.getString(R.string.secret_manager_set_key_title, provider.displayName),
+                    color = AiriTheme.onBackground,
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Enter your ${editingProvider?.displayName.orEmpty()} API key:", fontSize = 13.sp)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        context.getString(R.string.secret_manager_enter_key_hint, provider.displayName),
+                        color = AiriTheme.onSurfaceVariant,
+                        fontSize = 13.sp
+                    )
                     OutlinedTextField(
-                        value          = editText,
-                        onValueChange  = { editText = it },
-                        singleLine     = true,
+                        value              = editText,
+                        onValueChange      = { editText = it },
+                        singleLine         = true,
+                        placeholder        = { Text(stringResource(R.string.secret_manager_key_placeholder), color = AiriTheme.outline, fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
                         visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        keyboardOptions    = KeyboardOptions(keyboardType = KeyboardType.Password),
                         trailingIcon = {
                             IconButton(onClick = { showKey = !showKey }) {
                                 Icon(
                                     if (showKey) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                                    contentDescription = null
+                                    stringResource(if (showKey) R.string.secret_manager_hide_key_cd else R.string.secret_manager_show_key_cd),
+                                    tint = AiriTheme.onSurfaceVariant
                                 )
                             }
                         },
-                        label = { Text("API Key") },
+                        label  = { Text(stringResource(R.string.secret_manager_api_key_label)) },
+                        shape  = AIRIShapes.md,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor   = CosmicAccent,
+                            unfocusedBorderColor = AiriTheme.outline,
+                            focusedLabelColor    = CosmicAccent,
+                            focusedTextColor     = AiriTheme.onBackground,
+                            unfocusedTextColor   = AiriTheme.onBackground
+                        ),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    val p = editingProvider ?: return@TextButton
-                    if (editText.isNotBlank()) {
-                        keyStore.saveKey(p, editText.trim())
-                        keyStates[p]?.value = editText.trim()
-                    }
-                    editingProvider = null
-                    editText = ""
-                    showKey = false
-                }) { Text("Save", color = CosmicAccent) }
+                Button(
+                    onClick = {
+                        val p = editingProvider ?: return@Button
+                        if (editText.isNotBlank()) {
+                            keyStore.saveKey(p, editText.trim())
+                            keyStates[p]?.value = editText.trim()
+                            scope.launch { snackbar.showSnackbar(context.getString(R.string.secret_manager_key_saved)) }
+                        }
+                        editingProvider = null; editText = ""; showKey = false
+                    },
+                    enabled = editText.isNotBlank(),
+                    colors  = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+                    shape   = AIRIShapes.md
+                ) { Text(stringResource(R.string.secret_manager_save), fontWeight = FontWeight.SemiBold) }
             },
             dismissButton = {
-                TextButton(onClick = { editingProvider = null; editText = "" }) {
-                    Text("Cancel")
+                TextButton(onClick = { editingProvider = null; editText = ""; showKey = false }) {
+                    Text(stringResource(R.string.secret_manager_cancel), color = AiriTheme.onSurfaceVariant)
                 }
             }
         )
     }
 
     Scaffold(
+        containerColor = AiriTheme.background,
+        snackbarHost   = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
-                title = { Text("Secret Manager", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Outlined.Security, null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
+                        Text(stringResource(R.string.secret_manager_title), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Outlined.ArrowBack, stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background)
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHost) },
-        containerColor = AiriTheme.background
+        }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.padding(padding).fillMaxSize(),
+            modifier       = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
-                Text(
-                    "API keys are stored in Android EncryptedSharedPreferences and never transmitted except to their respective API.",
-                    fontSize = 12.sp,
-                    color = AiriTheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-            }
-            items(providers) { provider ->
-                val currentKey = keyStates[provider]?.value
-                val isSet      = !currentKey.isNullOrBlank()
-                val preview    = if (isSet) "•••••••${currentKey!!.takeLast(4)}" else "Not set"
-
+                // Info banner
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = AiriTheme.surface,
+                    shape = AIRIShapes.md,
+                    color = CosmicAccent.copy(0.08f),
+                    border = BorderStroke(0.5.dp, CosmicAccent.copy(0.20f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(provider.displayName, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
-                            Text(
-                                preview,
-                                fontSize = 12.sp,
-                                color = if (isSet) CosmicAccent else AiriTheme.onSurfaceVariant
-                            )
+                        Icon(Icons.Outlined.Lock, null, tint = CosmicAccent, modifier = Modifier.size(16.dp).padding(top = 1.dp))
+                        Text(
+                            stringResource(R.string.secret_manager_description),
+                            fontSize = 12.sp,
+                            color    = AiriTheme.onSurfaceVariant,
+                            lineHeight = 17.sp
+                        )
+                    }
+                }
+            }
+
+            items(providers) { provider ->
+                val currentKey = keyStates[provider]?.value
+                val isSet      = !currentKey.isNullOrBlank()
+                val preview    = if (isSet) "••••••••${currentKey!!.takeLast(4)}" else null
+
+                SecretKeyCard(
+                    provider  = provider,
+                    isSet     = isSet,
+                    preview   = preview,
+                    onEdit    = {
+                        editText        = ""
+                        showKey         = false
+                        editingProvider = provider
+                    },
+                    onCopy    = {
+                        if (!currentKey.isNullOrBlank()) {
+                            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            cm.setPrimaryClip(ClipData.newPlainText("api_key", currentKey))
+                            scope.launch { snackbar.showSnackbar(context.getString(R.string.secret_manager_copied)) }
                         }
-                        // Edit button
-                        IconButton(onClick = {
-                            editText = ""
-                            showKey  = false
-                            editingProvider = provider
-                        }) {
-                            Icon(Icons.Outlined.Edit, "Set key", tint = CosmicAccent, modifier = Modifier.size(20.dp))
-                        }
-                        // Clear button
-                        if (isSet) {
-                            IconButton(onClick = {
-                                keyStore.clearKey(provider)
-                                keyStates[provider]?.value = null
-                            }) {
-                                Icon(Icons.Outlined.Delete, "Clear key",
-                                    tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
-                            }
-                        }
+                    },
+                    onDelete  = { showDeleteFor = provider }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SecretKeyCard(
+    provider: CloudProvider,
+    isSet:    Boolean,
+    preview:  String?,
+    onEdit:   () -> Unit,
+    onCopy:   () -> Unit,
+    onDelete: () -> Unit
+) {
+    Surface(
+        shape    = AIRIShapes.md,
+        color    = SurfaceRaised,
+        border   = BorderStroke(0.5.dp, if (isSet) CosmicAccent.copy(0.18f) else AiriTheme.outline.copy(0.25f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Provider icon placeholder
+            Box(
+                modifier = Modifier.size(38.dp).clip(AIRIShapes.sm)
+                    .background(if (isSet) CosmicAccent.copy(0.14f) else AiriTheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Outlined.Key,
+                    null,
+                    tint = if (isSet) CosmicAccent else AiriTheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Spacer(Modifier.width(12.dp))
+
+            // Name and status
+            Column(modifier = Modifier.weight(1f)) {
+                Text(provider.displayName, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
+                Spacer(Modifier.height(2.dp))
+                if (isSet && preview != null) {
+                    Text(
+                        preview,
+                        fontSize   = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color      = CosmicAccent.copy(0.80f)
+                    )
+                } else {
+                    Surface(shape = AIRIShapes.xs, color = AiriTheme.outline.copy(0.12f)) {
+                        Text(
+                            stringResource(R.string.secret_manager_not_set),
+                            fontSize = 11.sp,
+                            color    = AiriTheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            // Action buttons
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (isSet) {
+                    IconButton(onClick = onCopy, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Outlined.ContentCopy, stringResource(R.string.secret_manager_copy_cd), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    }
+                }
+                IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Outlined.Edit, stringResource(R.string.secret_manager_edit_cd), tint = CosmicAccent, modifier = Modifier.size(18.dp))
+                }
+                if (isSet) {
+                    IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Outlined.Delete, stringResource(R.string.secret_manager_delete_cd), tint = SemanticError.copy(0.7f), modifier = Modifier.size(18.dp))
                     }
                 }
             }

@@ -92,7 +92,7 @@ fun AgentPlanContent(
                     Text(
                         goal.take(80),
                         fontSize = 12.sp,
-                        color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                        color    = AiriTheme.onSurface.copy(alpha = 0.65f),
                         maxLines = 2
                     )
                 }
@@ -102,20 +102,20 @@ fun AgentPlanContent(
                 Text(
                     "$done / ${steps.size}",
                     fontSize = 11.sp,
-                    color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                    color    = AiriTheme.onSurface.copy(alpha = 0.45f)
                 )
             }
             Icon(
                 Icons.Outlined.Close,
                 contentDescription = "Dismiss",
-                tint     = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                tint     = AiriTheme.onSurface.copy(alpha = 0.4f),
                 modifier = Modifier
                     .size(18.dp)
                     .clickable { viewModel.collapse() }
             )
         }
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = AiriTheme.outline)
 
         // ── Steps ────────────────────────────────────────────────────────────
         if (steps.isEmpty()) {
@@ -123,7 +123,7 @@ fun AgentPlanContent(
                 modifier = Modifier.fillMaxWidth().height(60.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Initialising…", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
+                Text("Initialising…", fontSize = 12.sp, color = AiriTheme.onSurface.copy(alpha = 0.35f))
             }
         } else {
             LazyColumn(
@@ -134,7 +134,7 @@ fun AgentPlanContent(
                 items(steps, key = { it.id }) { step ->
                     PlanStepRow(step = step)
                     Divider(
-                        color     = MaterialTheme.colorScheme.outline,
+                        color     = AiriTheme.outline,
                         thickness = 0.5.dp,
                         modifier  = Modifier.padding(horizontal = 14.dp)
                     )
@@ -159,7 +159,7 @@ private fun PlanStepRow(step: PlanStepModel) {
         Box(modifier = Modifier.padding(top = 2.dp)) {
             when (step.status) {
                 PlanStepStatus.QUEUED   -> Icon(Icons.Outlined.HourglassEmpty, null,
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f), modifier = Modifier.size(14.dp))
+                    tint = AiriTheme.onSurface.copy(alpha = 0.3f), modifier = Modifier.size(14.dp))
                 PlanStepStatus.RUNNING   -> CircularProgressIndicator(
                     modifier = Modifier.size(14.dp), color = CosmicAccent, strokeWidth = 1.5.dp)
                 PlanStepStatus.COMPLETED -> Icon(Icons.Outlined.Check, null,
@@ -169,7 +169,7 @@ private fun PlanStepRow(step: PlanStepModel) {
                 PlanStepStatus.RETRYING  -> CircularProgressIndicator(
                     modifier = Modifier.size(14.dp), color = SemanticWarn, strokeWidth = 1.5.dp)
                 PlanStepStatus.CANCELLED   -> Icon(Icons.Outlined.PlayArrow, null,
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f), modifier = Modifier.size(14.dp))
+                    tint = AiriTheme.onSurface.copy(alpha = 0.25f), modifier = Modifier.size(14.dp))
             }
         }
 
@@ -183,10 +183,10 @@ private fun PlanStepRow(step: PlanStepModel) {
                     fontSize   = 12.sp,
                     fontWeight = if (step.status == PlanStepStatus.RUNNING) FontWeight.SemiBold else FontWeight.Normal,
                     color      = when (step.status) {
-                        PlanStepStatus.RUNNING   -> MaterialTheme.colorScheme.onSurface
-                        PlanStepStatus.COMPLETED -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                        PlanStepStatus.RUNNING   -> AiriTheme.onSurface
+                        PlanStepStatus.COMPLETED -> AiriTheme.onSurface.copy(alpha = 0.55f)
                         PlanStepStatus.FAILED    -> SemanticError.copy(0.85f)
-                        else                     -> MaterialTheme.colorScheme.onSurface.copy(0.4f)
+                        else                     -> AiriTheme.onSurface.copy(0.4f)
                     },
                     modifier = Modifier.weight(1f)
                 )
@@ -250,7 +250,7 @@ private fun stageColor(stage: ExecutionStage) = when (stage) {
     ExecutionStage.REFLECTING -> Color(0xFFB57BFF)
     ExecutionStage.COMPLETED  -> SemanticSuccess
     ExecutionStage.FAILED     -> SemanticError
-    ExecutionStage.IDLE       -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+    ExecutionStage.IDLE       -> AiriTheme.onSurface.copy(alpha = 0.4f)
 }
 
 private fun stageLabel(stage: ExecutionStage) = when (stage) {

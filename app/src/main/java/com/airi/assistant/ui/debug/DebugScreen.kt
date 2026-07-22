@@ -170,7 +170,7 @@ private fun BoolRow(label: String, value: Boolean, positiveColor: Color) {
         Text(label, color = LABEL, fontSize = 12.sp)
         Text(
             if (value) "true" else "false",
-            color = if (value) positiveColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+            color = if (value) positiveColor else AiriTheme.onSurface.copy(alpha = 0.4f),
             fontSize = 12.sp,
             fontFamily = MONO,
             fontWeight = FontWeight.SemiBold

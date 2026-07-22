@@ -40,7 +40,7 @@ fun AgentControlScreen(
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
+                    containerColor = AiriTheme.background.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -99,14 +99,14 @@ fun AgentControlScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = controlSkillDisplayName(info.name),
-                                    color = if (info.isConnected) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
-                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                                    color = if (info.isConnected) AiriTheme.onSurface.copy(alpha = 0.9f)
+                                            else AiriTheme.onSurface.copy(alpha = 0.35f),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Surface(
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = AIRIShapes.sm,
                                     color = if (info.isConnected)
                                                 Color(0xFF00C853).copy(alpha = 0.15f)
                                             else Color(0xFFFF5252).copy(alpha = 0.12f)
@@ -138,12 +138,12 @@ fun AgentControlScreen(
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor   = CosmicAccent,
                                 checkedTrackColor   = CosmicAccent.copy(alpha = 0.3f),
-                                uncheckedThumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                                uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                disabledCheckedThumbColor   = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                                disabledUncheckedThumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                                disabledCheckedTrackColor   = MaterialTheme.colorScheme.outline,
-                                disabledUncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+                                uncheckedThumbColor = AiriTheme.onSurface.copy(alpha = 0.4f),
+                                uncheckedTrackColor = AiriTheme.onSurface.copy(alpha = 0.1f),
+                                disabledCheckedThumbColor   = AiriTheme.onSurface.copy(alpha = 0.2f),
+                                disabledUncheckedThumbColor = AiriTheme.onSurface.copy(alpha = 0.15f),
+                                disabledCheckedTrackColor   = AiriTheme.outline,
+                                disabledUncheckedTrackColor = AiriTheme.onSurface.copy(alpha = 0.05f)
                             )
                         )
                     }
@@ -177,7 +177,7 @@ fun AgentControlScreen(
                             )
                         }
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = AIRIShapes.xs,
                             color = CosmicAccent.copy(alpha = 0.1f)
                         ) {
                             Text(
@@ -213,7 +213,7 @@ fun AgentControlScreen(
                         Text(
                             text = if (debugMode) "Debug info visible in traces" else "Only results shown",
                             color = if (debugMode) CosmicAccent.copy(alpha = 0.65f)
-                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                                    else AiriTheme.onSurface.copy(alpha = 0.35f),
                             fontSize = 11.sp
                         )
                     }
@@ -223,8 +223,8 @@ fun AgentControlScreen(
                         colors = SwitchDefaults.colors(
                             checkedThumbColor   = CosmicAccent,
                             checkedTrackColor   = CosmicAccent.copy(alpha = 0.3f),
-                            uncheckedThumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                            uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                            uncheckedThumbColor = AiriTheme.onSurface.copy(alpha = 0.4f),
+                            uncheckedTrackColor = AiriTheme.onSurface.copy(alpha = 0.1f)
                         )
                     )
                 }
@@ -238,9 +238,9 @@ private fun AgentControlCard(content: @Composable ColumnScope.() -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(18.dp))
+            .clip(AIRIShapes.lg)
+            .background(AiriTheme.onSurface.copy(alpha = 0.05f))
+            .border(1.dp, AiriTheme.outline, AIRIShapes.lg)
             .padding(16.dp)
     ) {
         Column(content = content)

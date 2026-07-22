@@ -46,7 +46,7 @@ fun AgentLogsScreen(
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
+                    containerColor = AiriTheme.background.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -127,13 +127,13 @@ private fun TraceListItem(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+            .clip(AIRIShapes.md)
+            .background(AiriTheme.onSurface.copy(alpha = 0.05f))
             .border(
                 1.dp,
                 if (trace.hasErrors) Color(0xFFFF5252).copy(alpha = 0.25f)
-                else MaterialTheme.colorScheme.outline,
-                RoundedCornerShape(14.dp)
+                else AiriTheme.outline,
+                AIRIShapes.md
             )
             .clickable(onClick = onClick)
             .padding(14.dp)

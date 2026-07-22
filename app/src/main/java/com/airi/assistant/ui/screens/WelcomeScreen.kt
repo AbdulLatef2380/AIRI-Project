@@ -3,6 +3,8 @@ package com.airi.assistant.ui.screens
 import com.airi.assistant.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -18,8 +20,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airi.assistant.ui.theme.AiriTheme
-import com.airi.assistant.ui.theme.CosmicAccent
+
+import com.airi.assistant.ui.theme.*
 
 /**
  * Task 1.6: WelcomeScreen — shown to signed-in users with no model and no API key.
@@ -38,10 +40,22 @@ fun WelcomeScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(stringResource(R.string.welcome_app_name), color = CosmicAccent, fontSize = 18.sp)
+        // AIRI identity orb — replaces generic text logo
+        Box(
+            modifier = Modifier.size(68.dp).clip(androidx.compose.foundation.shape.AIRIShapes.lg)
+                .background(
+                    androidx.compose.ui.graphics.Brush.radialGradient(
+                        listOf(CosmicAccent.copy(alpha = 0.28f), com.airi.assistant.ui.theme.SurfaceRaised)
+                    )
+                )
+                .border(1.dp, CosmicAccent.copy(alpha = 0.35f), androidx.compose.foundation.shape.AIRIShapes.lg),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("A", color = CosmicAccent, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.5).sp)
+        }
         Spacer(Modifier.height(20.dp))
         Text(
-            text = "Welcome to AIRI",
+            text = stringResource(R.string.welcome_greeting),
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = AiriTheme.onBackground,
@@ -60,7 +74,7 @@ fun WelcomeScreen(
         Button(
             onClick = onSetupModel,
             modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(14.dp),
+            shape = AIRIShapes.md,
             colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
         ) {
             Icon(Icons.Outlined.Extension, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -74,7 +88,7 @@ fun WelcomeScreen(
         OutlinedButton(
             onClick = onEnterApiKey,
             modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(14.dp),
+            shape = AIRIShapes.md,
             border = BorderStroke(1.5.dp, CosmicAccent)
         ) {
             Icon(Icons.Outlined.Key, contentDescription = null,

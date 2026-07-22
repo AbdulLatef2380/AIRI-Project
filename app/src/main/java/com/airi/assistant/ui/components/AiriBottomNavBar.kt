@@ -28,7 +28,7 @@ import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -48,6 +48,7 @@ import com.airi.assistant.ui.theme.CosmicAccent
 import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.theme.NavBarBackground
 import com.airi.assistant.ui.theme.NavIconActive
+import com.airi.assistant.ui.theme.NavIconInactive
 // Fixed invalid import
 import com.airi.assistant.ui.theme.SurfaceRaised
 
@@ -75,7 +76,7 @@ fun AiriBottomNavBar(
         AiriNavItem(AiriNavTab.SKILLS,   Icons.Outlined.Star,             R.string.nav_skills),
         AiriNavItem(AiriNavTab.SCHEDULE, Icons.Outlined.History,    R.string.nav_schedule),
         AiriNavItem(AiriNavTab.SETTINGS, Icons.Outlined.Settings,         R.string.nav_settings),
-        AiriNavItem(AiriNavTab.CHAT,     Icons.Outlined.SmartToy,         R.string.nav_chat),
+        AiriNavItem(AiriNavTab.CHAT,     Icons.Outlined.AutoAwesome,       R.string.nav_chat),
         AiriNavItem(AiriNavTab.NEW,      Icons.Outlined.Forum, R.string.nav_new),
     )
 
@@ -93,7 +94,7 @@ fun AiriBottomNavBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(0.5.dp)
-                    .background(MaterialTheme.colorScheme.outline)
+                    .background(AiriTheme.outline)
             )
             Row(
                 modifier = Modifier
@@ -122,8 +123,8 @@ private fun AiriNavTabItem(
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val iconTint  = if (isSelected) NavIconActive else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-    val labelColor = if (isSelected) NavIconActive else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+    val iconTint  = if (isSelected) NavIconActive else AiriTheme.onSurface.copy(alpha = 0.45f)
+    val labelColor = if (isSelected) NavIconActive else AiriTheme.onSurface.copy(alpha = 0.45f)
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -137,17 +138,17 @@ private fun AiriNavTabItem(
     ) {
         Box(
             modifier = Modifier
-                .size(if (isSelected) 44.dp else 36.dp)
-                .clip(if (isSelected) RoundedCornerShape(14.dp) else CircleShape)
+                .size(42.dp)
+                .clip(RoundedCornerShape(12.dp))
                 .background(
-                    if (isSelected) CosmicAccent else Color.Transparent
+                    if (isSelected) CosmicAccent.copy(alpha = 0.18f) else Color.Transparent
                 ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = item.icon,
                 contentDescription = null,
-                tint = if (isSelected) MaterialTheme.colorScheme.onSurface else iconTint,
+                tint = if (isSelected) CosmicAccent else iconTint,
                 modifier = Modifier.size(20.dp)
             )
         }

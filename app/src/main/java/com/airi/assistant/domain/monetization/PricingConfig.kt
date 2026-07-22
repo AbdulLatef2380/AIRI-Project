@@ -10,8 +10,8 @@ object PricingConfig {
 
     // ── Soft Limit Thresholds (degrade before hard block) ─────────────────────
 
-    const val FREE_SOFT_LIMIT_START    = 22          // phase 1: hint zone (22-26)
-    const val FREE_NEAR_LIMIT          = 27          // phase 2: warning zone (27-29)
+    const val FREE_SOFT_LIMIT_START    = 22          
+    const val FREE_NEAR_LIMIT          = 27          
     const val SOFT_LIMIT_TOKEN_FACTOR  = 0.65f       // reduce max tokens by 35% in soft zone
     const val SOFT_LIMIT_DELAY_MS      = 200L        // add 200 ms delay in soft zone
     const val NEAR_LIMIT_TOKEN_FACTOR  = 0.45f       // reduce max tokens by 55% near limit

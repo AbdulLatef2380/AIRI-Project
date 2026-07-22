@@ -312,7 +312,7 @@ private fun IdentityStep(
                 onClick  = onNext,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
-                shape    = RoundedCornerShape(14.dp),
+                shape    = AIRIShapes.md,
                 enabled  = name.isNotBlank() && description.length >= 10 && author.isNotBlank()
             ) {
                 Text(stringResource(R.string.skill_wizard_next_tools), fontWeight = FontWeight.SemiBold)
@@ -361,7 +361,7 @@ private fun ToolsStep(
                 },
                 modifier = Modifier.fillMaxWidth(),
                 border   = androidx.compose.foundation.BorderStroke(1.dp, CosmicAccent.copy(0.5f)),
-                shape    = RoundedCornerShape(12.dp)
+                shape    = AIRIShapes.md
             ) {
                 Icon(Icons.Default.Add, null, Modifier.size(18.dp), tint = CosmicAccent)
                 Spacer(Modifier.width(8.dp))
@@ -374,7 +374,7 @@ private fun ToolsStep(
                 onClick  = onNext,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
-                shape    = RoundedCornerShape(14.dp)
+                shape    = AIRIShapes.md
             ) {
                 Text(stringResource(R.string.skill_wizard_next_permissions), fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.width(8.dp))
@@ -393,7 +393,7 @@ private fun ToolCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
-        shape  = RoundedCornerShape(12.dp)
+        shape  = AIRIShapes.md
     ) {
         Column {
             Row(
@@ -428,7 +428,7 @@ private fun ToolCard(
 
             AnimatedVisibility(visible = expanded) {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Divider(color = MaterialTheme.colorScheme.outline)
+                    Divider(color = AiriTheme.outline)
                     Spacer(Modifier.height(4.dp))
                     WizardField(tool.name, { tool.name = it }, "Tool Name *", "e.g. web_search")
                     WizardField(tool.description, { tool.description = it }, "Tool Description *", "What does this tool do?")
@@ -456,7 +456,7 @@ private fun ToolCard(
 private fun ParamRow(param: WizardParam, onRemove: () -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AiriTheme.surface),
-        shape  = RoundedCornerShape(8.dp)
+        shape  = AIRIShapes.xs
     ) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -466,8 +466,8 @@ private fun ParamRow(param: WizardParam, onRemove: () -> Unit) {
                     OutlinedButton(
                         onClick = { typeExpanded = true },
                         modifier = Modifier.height(56.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                        shape = RoundedCornerShape(8.dp)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AiriTheme.outline),
+                        shape = AIRIShapes.xs
                     ) {
                         Text(param.type, color = AiriTheme.onBackground, fontSize = 12.sp)
                         Icon(Icons.Default.ArrowDropDown, null, Modifier.size(16.dp), tint = AiriTheme.onBackground)
@@ -571,7 +571,7 @@ private fun PermissionsStep(
                 onClick  = onPreview,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
-                shape    = RoundedCornerShape(14.dp)
+                shape    = AIRIShapes.md
             ) {
                 Icon(Icons.Default.Code, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
@@ -591,9 +591,9 @@ private fun AccessLevelRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(AIRIShapes.sm)
             .background(if (selected) CosmicAccent.copy(0.12f) else AiriTheme.surfaceVariant)
-            .border(1.dp, if (selected) CosmicAccent.copy(0.5f) else MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
+            .border(1.dp, if (selected) CosmicAccent.copy(0.5f) else AiriTheme.outline, AIRIShapes.sm)
             .clickable(onClick = onClick)
             .padding(12.dp),
         verticalAlignment   = Alignment.CenterVertically,
@@ -641,13 +641,13 @@ private fun PreviewExportStep(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            colors = CardDefaults.cardColors(containerColor = AiriTheme.surface),
             shape  = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
         ) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(AiriTheme.surface)
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -682,7 +682,7 @@ private fun ExportButton(
         onClick  = onClick,
         modifier = modifier.height(44.dp),
         border   = androidx.compose.foundation.BorderStroke(1.dp, color.copy(0.5f)),
-        shape    = RoundedCornerShape(10.dp)
+        shape    = AIRIShapes.sm
     ) {
         Icon(icon, null, Modifier.size(15.dp), tint = color)
         Spacer(Modifier.width(6.dp))
@@ -715,14 +715,14 @@ private fun WizardStepIndicator(currentStep: Int, totalSteps: Int, titles: List<
                     Icon(Icons.Default.Check, null, Modifier.size(14.dp), tint = CosmicAccent)
                 } else {
                     Text("${i + 1}", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                        color = if (current) MaterialTheme.colorScheme.onSurface else AiriTheme.onSurfaceVariant)
+                        color = if (current) AiriTheme.onSurface else AiriTheme.onSurfaceVariant)
                 }
             }
 
             if (i < totalSteps - 1) {
                 Divider(
                     modifier = Modifier.weight(1f),
-                    color    = if (i < currentStep) CosmicAccent.copy(0.5f) else MaterialTheme.colorScheme.outline
+                    color    = if (i < currentStep) CosmicAccent.copy(0.5f) else AiriTheme.outline
                 )
             }
         }
@@ -752,7 +752,7 @@ private fun WizardField(
         minLines      = minLines,
         colors        = OutlinedTextFieldDefaults.colors(
             focusedBorderColor   = CosmicAccent,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            unfocusedBorderColor = AiriTheme.outline,
             focusedLabelColor    = CosmicAccent
         )
     )
@@ -791,9 +791,9 @@ private fun EmojiPicker(selected: String, onSelect: (String) -> Unit) {
             Box(
                 Modifier
                     .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(AIRIShapes.xs)
                     .background(if (active) CosmicAccent.copy(0.2f) else AiriTheme.surfaceVariant)
-                    .border(1.dp, if (active) CosmicAccent else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                    .border(1.dp, if (active) CosmicAccent else AiriTheme.outline, AIRIShapes.xs)
                     .clickable { onSelect(emoji) },
                 contentAlignment = Alignment.Center
             ) {

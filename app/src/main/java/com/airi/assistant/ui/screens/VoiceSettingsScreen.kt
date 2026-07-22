@@ -107,11 +107,11 @@ fun VoiceSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Surface(
-                shape    = RoundedCornerShape(14.dp),
+                shape    = AIRIShapes.md,
                 color    = CosmicAccent.copy(alpha = 0.08f),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, CosmicAccent.copy(0.25f), RoundedCornerShape(14.dp))
+                    .border(1.dp, CosmicAccent.copy(0.25f), AIRIShapes.md)
                     .clickable { onNavigateToPersonalization() }
             ) {
                 Row(
@@ -142,10 +142,10 @@ fun VoiceSettingsScreen(
             )
             if (installed.isEmpty()) {
                 Surface(
-                    shape    = RoundedCornerShape(14.dp),
+                    shape    = AIRIShapes.md,
                     color    = CosmicAccent.copy(alpha = 0.12f),
                     modifier = Modifier.fillMaxWidth().border(
-                        1.dp, CosmicAccent.copy(0.4f), RoundedCornerShape(14.dp)
+                        1.dp, CosmicAccent.copy(0.4f), AIRIShapes.md
                     )
                 ) {
                     Column(
@@ -172,7 +172,7 @@ fun VoiceSettingsScreen(
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 LinearProgressIndicator(
                                     progress = ((downloadProgress ?: 0) / 100f),
-                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)),
+                                    modifier = Modifier.fillMaxWidth().clip(AIRIShapes.xs.copy(topStart = 4.dp)),
                                     color = CosmicAccent,
                                     trackColor = CosmicAccent.copy(0.2f)
                                 )
@@ -196,13 +196,13 @@ fun VoiceSettingsScreen(
                                             is VoskModelManager.DownloadResult.Ok ->
                                                 snackbar.showSnackbar(context.getString(R.string.vosk_install_success))
                                             is VoskModelManager.DownloadResult.Failed ->
-                                                downloadError = "فشل التنزيل: ${result.reason}"
+                                                downloadError = "Download failed: ${result.reason}"
                                         }
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = CosmicAccent,
-                                    contentColor   = MaterialTheme.colorScheme.onSurface
+                                    contentColor   = AiriTheme.onSurface
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -258,7 +258,7 @@ private fun VoiceStatusCard(
     val liveReady       = false
 
     Surface(
-        shape    = RoundedCornerShape(14.dp),
+        shape    = AIRIShapes.md,
         color    = AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -301,27 +301,27 @@ private fun PorcupineCard(
     onClear: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = AIRIShapes.md,
         color = AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Porcupine (Legacy Wake Word)", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
+            Text(stringResource(R.string.voice_porcupine_legacy), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
             if (status.ready) {
-                Text("Access Key active", color = SemanticSuccess, fontSize = 12.sp)
+                Text(stringResource(R.string.voice_access_key_active), color = SemanticSuccess, fontSize = 12.sp)
                 Button(onClick = onClear, colors = ButtonDefaults.buttonColors(containerColor = SemanticError)) {
-                    Text("Clear Access Key")
+                    Text(stringResource(R.string.voice_clear_access_key))
                 }
             } else {
                 OutlinedTextField(
                     value = accessKeyInput,
                     onValueChange = onKeyChange,
-                    label = { Text("Access Key") },
+                    label = { Text(stringResource(R.string.voice_access_key_label)) },
                     visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
-                    Text("Save Access Key")
+                    Text(stringResource(R.string.voice_save_access_key))
                 }
             }
         }
@@ -336,12 +336,12 @@ private fun InstalledModelsCard(
     onDelete: (String) -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = AIRIShapes.md,
         color = AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Vosk STT Models", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
+            Text(stringResource(R.string.voice_vosk_stt_models), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
             for (model in installed) {
                 val isActive = model.id == activeId
                 Row(
@@ -353,7 +353,7 @@ private fun InstalledModelsCard(
                     Row {
                         if (!isActive) {
                             TextButton(onClick = { onActivate(model.id) }) {
-                                Text("Activate")
+                                Text(stringResource(R.string.voice_activate))
                             }
                         }
                         IconButton(onClick = { onDelete(model.id) }) {
@@ -372,13 +372,13 @@ private fun CloudVoiceCard(
     onSnackbar: (String) -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = AIRIShapes.md,
         color = AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Cloud Realtime Voice", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
-            Text("Gemini Live and OpenAI Realtime providers are available for low-latency voice chat.", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
+            Text(stringResource(R.string.voice_cloud_realtime_title), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
+            Text(stringResource(R.string.voice_cloud_realtime_desc), fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
         }
     }
 }

@@ -266,7 +266,7 @@ class UnifiedCognitiveLoop {
                         graph.markDone(node.id, result.message)
                         nodeResults.add(NodeExecutionRecord(node, true, result.message))
                         Log.i(TAG, "AIRI_PROOF GRAPH_NODE_DONE id=${node.id} latency=${latency}ms")
-                        // Phase 5: update live progress counter
+                        
                         ExecutionStatusBus.onNodeCompleted(node.id, ++nodesCompleted)
                     } else {
                         when (val recovery = graph.markFailed(node.id, result.message ?: "unknown")) {
@@ -278,7 +278,7 @@ class UnifiedCognitiveLoop {
                                 // node in RECOVERING and never actually retried it.
                                 graph.resetForRetry(node.id)
                                 Log.i(TAG, "GRAPH_RETRY_QUEUED id=${node.id} attempt=${node.attempts}")
-                                // Phase 5: signal recovery state to UI
+                                
                                 ExecutionStatusBus.onNodeRecovering(
                                     nodeId     = node.id,
                                     reason     = result.message ?: "retry",

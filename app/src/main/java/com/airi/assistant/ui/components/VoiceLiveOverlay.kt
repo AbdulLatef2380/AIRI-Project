@@ -96,7 +96,7 @@ fun VoiceLiveOverlay(
                     Text(
                         text       = caption,
                         fontSize   = 15.sp,
-                        color      = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                        color      = AiriTheme.onSurface.copy(alpha = 0.75f),
                         fontWeight = FontWeight.Normal,
                         modifier   = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                     )
@@ -191,7 +191,7 @@ private fun VoiceOrb(voiceState: VoiceSessionState) {
             Icon(
                 imageVector        = if (voiceState == VoiceSessionState.SPEAKING) Icons.Outlined.VolumeUp else Icons.Outlined.Mic,
                 contentDescription = null,
-                tint               = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
+                tint               = AiriTheme.onSurface.copy(alpha = 0.9f),
                 modifier           = Modifier.size(26.dp)
             )
         }
@@ -202,9 +202,9 @@ private fun VoiceOrb(voiceState: VoiceSessionState) {
 @Composable
 private fun VoiceStateLabel(voiceState: VoiceSessionState) {
     val (label, color) = when (voiceState) {
-        VoiceSessionState.LISTENING   -> "جارٍ الاستماع…" to AIRIColors.voiceListening
-        VoiceSessionState.SPEAKING    -> "AIRI يتحدث" to AIRIColors.voiceSpeaking
-        VoiceSessionState.PROCESSING  -> "جارٍ المعالجة…" to AIRIColors.voiceProcessing
+        VoiceSessionState.LISTENING   -> stringResource(R.string.voice_listening_label) to AIRIColors.voiceListening
+        VoiceSessionState.SPEAKING    -> stringResource(R.string.voice_speaking_label) to AIRIColors.voiceSpeaking
+        VoiceSessionState.PROCESSING  -> stringResource(R.string.voice_processing_label) to AIRIColors.voiceProcessing
         VoiceSessionState.IDLE        -> "" to Color.Transparent
     }
     if (label.isNotBlank()) {
@@ -251,7 +251,7 @@ private fun VoiceWaveform(voiceState: VoiceSessionState, modifier: Modifier = Mo
         VoiceSessionState.LISTENING   -> AIRIColors.voiceListening
         VoiceSessionState.SPEAKING    -> CosmicAccent
         VoiceSessionState.PROCESSING  -> SemanticWarn
-        VoiceSessionState.IDLE        -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+        VoiceSessionState.IDLE        -> AiriTheme.onSurface.copy(alpha = 0.3f)
     }
 
     Canvas(modifier = modifier) {

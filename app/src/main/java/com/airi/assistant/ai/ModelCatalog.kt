@@ -31,7 +31,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "qwen2.5-0.5b-q4",
             name = "Qwen2.5 0.5B Instruct",
-            description = "أصغر نموذج — سريع جداً ومناسب للأجهزة المحدودة",
+            description = "Smallest model — very fast, ideal for low-memory devices.",
             type = ModelType.QWEN,
             quantization = "Q4_K_M",
             sizeBytes = 397L * 1024 * 1024,
@@ -44,7 +44,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "qwen2.5-1.5b-q4",
             name = "Qwen2.5 1.5B Instruct",
-            description = "النموذج الافتراضي — توازن ممتاز بين الأداء والحجم",
+            description = "Default model — excellent balance of performance and size.",
             type = ModelType.QWEN,
             quantization = "Q4_K_M",
             sizeBytes = 934L * 1024 * 1024,
@@ -57,7 +57,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "qwen2.5-3b-q4",
             name = "Qwen2.5 3B Instruct",
-            description = "نموذج أكبر — إجابات أكثر دقة، يحتاج ذاكرة أعلى",
+            description = "Larger model — more accurate answers, requires more RAM.",
             type = ModelType.QWEN,
             quantization = "Q4_K_M",
             sizeBytes = 1_900L * 1024 * 1024,
@@ -70,7 +70,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "gemma-2b-it-q4-k-m",
             name = "Gemma 2B Instruct",
-            description = "Gemma صغير وسريع — مناسب للأجهزة الضعيفة مع قالب محادثة Gemma الصحيح",
+            description = "Small, fast Gemma — suited for low-end devices with correct Gemma chat template.",
             type = ModelType.GEMMA,
             quantization = "Q4_K_M",
             sizeBytes = 1_670L * 1024 * 1024,
@@ -83,7 +83,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "gemma-2b-it-q5-k-m",
             name = "Gemma 2B Instruct",
-            description = "Gemma بدقة أعلى — جودة أفضل من Q4 ويحتاج ذاكرة إضافية",
+            description = "Higher-precision Gemma — better quality than Q4, needs extra RAM.",
             type = ModelType.GEMMA,
             quantization = "Q5_K_M",
             sizeBytes = 1_990L * 1024 * 1024,
@@ -98,7 +98,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "gemma-2-2b-it-q4-k-m",
             name = "Gemma 2 2B Instruct",
-            description = "Gemma 2 الجديد بحجم صغير — جودة محسّنة وقالب Gemma الصحيح",
+            description = "New Gemma 2 small — improved quality with correct Gemma 2 chat template.",
             type = ModelType.GEMMA,
             quantization = "Q4_K_M",
             sizeBytes = 1_710L * 1024 * 1024,
@@ -111,7 +111,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "gemma-2-9b-it-q4-k-m",
             name = "Gemma 2 9B Instruct",
-            description = "Gemma 2 الكبير — جودة عالية، يحتاج 6GB+ RAM",
+            description = "Gemma 2 large — high quality, requires 6 GB+ RAM.",
             type = ModelType.GEMMA,
             quantization = "Q4_K_M",
             sizeBytes = 5_760L * 1024 * 1024,
@@ -126,7 +126,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "llama-3.2-1b-instruct-q4",
             name = "Llama 3.2 1B Instruct",
-            description = "Meta Llama 3.2 1B — أسرع نموذج Llama، مثالي للأجهزة المتوسطة",
+            description = "Meta Llama 3.2 1B — fastest Llama model, ideal for mid-range devices.",
             type = ModelType.LLAMA,
             quantization = "Q4_K_M",
             sizeBytes = 808L * 1024 * 1024,
@@ -139,7 +139,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "llama-3.2-3b-instruct-q4",
             name = "Llama 3.2 3B Instruct",
-            description = "Meta Llama 3.2 3B — جودة أعلى، يحتاج ذاكرة 3GB+",
+            description = "Meta Llama 3.2 3B — higher quality, requires 3 GB+ RAM.",
             type = ModelType.LLAMA,
             quantization = "Q4_K_M",
             sizeBytes = 2_020L * 1024 * 1024,
@@ -157,7 +157,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "mistral-7b-instruct-v03-q4",
             name = "Mistral 7B Instruct v0.3",
-            description = "Mistral 7B — قوي جداً، يحتاج هاتف بـ 6GB RAM على الأقل",
+            description = "Mistral 7B — very capable, requires a device with at least 6 GB RAM.",
             type = ModelType.MISTRAL,
             quantization = "Q4_K_M",
             sizeBytes = 4_370L * 1024 * 1024,
@@ -175,7 +175,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "phi-3.5-mini-instruct-q4",
             name = "Phi-3.5 Mini Instruct",
-            description = "Microsoft Phi-3.5 Mini 3.8B — استدلال قوي وسريع",
+            description = "Microsoft Phi-3.5 Mini 3.8B — powerful reasoning at high speed.",
             type = ModelType.LLAMA, // Phi uses LLaMA-style ChatML; mapped to LLAMA template
             quantization = "Q4_K_M",
             sizeBytes = 2_390L * 1024 * 1024,
@@ -191,7 +191,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "qwen2.5-coder-1.5b-q4",
             name = "Qwen2.5 Coder 1.5B",
-            description = "متخصص في كتابة وإصلاح الكود — Python, Kotlin, JS, C++",
+            description = "Specialised in writing and fixing code — Python, Kotlin, JS, C++.",
             type = ModelType.QWEN,
             quantization = "Q4_K_M",
             sizeBytes = 986L * 1024 * 1024,
@@ -204,7 +204,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "qwen2.5-coder-3b-q4",
             name = "Qwen2.5 Coder 3B",
-            description = "نموذج كود أكبر — جودة أفضل بكثير، يحتاج 3GB RAM",
+            description = "Larger code model — significantly better quality, requires 3 GB RAM.",
             type = ModelType.QWEN,
             quantization = "Q4_K_M",
             sizeBytes = 1_930L * 1024 * 1024,
@@ -219,7 +219,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "tinyllama-1.1b-chat-q4",
             name = "TinyLlama 1.1B Chat",
-            description = "أصغر نموذج Llama — يعمل على أي هاتف تقريباً",
+            description = "Smallest Llama model — runs on almost any device.",
             type = ModelType.LLAMA,
             quantization = "Q4_K_M",
             sizeBytes = 668L * 1024 * 1024,
@@ -232,7 +232,7 @@ object ModelCatalog {
         CatalogEntry(
             id = "smollm2-1.7b-instruct-q4",
             name = "SmolLM2 1.7B Instruct",
-            description = "نموذج HuggingFace جديد، خفيف وذكي",
+            description = "New HuggingFace model — lightweight and capable.",
             type = ModelType.LLAMA,
             quantization = "Q4_K_M",
             sizeBytes = 1_060L * 1024 * 1024,

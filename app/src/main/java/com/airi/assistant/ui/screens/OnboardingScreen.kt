@@ -23,7 +23,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -88,7 +88,7 @@ fun OnboardingScreen(
     val pages = remember {
         listOf(
             OnboardingPage(
-                icon     = Icons.Outlined.SmartToy,
+                icon     = Icons.Outlined.Psychology,
                 title    = "Meet AIRI",
                 subtitle = "Your private, on-device AI assistant. AIRI chats, automates tasks, and acts for you — without sending your data to the cloud unless you choose to."
             ),
@@ -226,7 +226,7 @@ fun OnboardingScreen(
                             .height(8.dp)
                             .clip(RoundedCornerShape(99.dp))
                             .background(
-                                if (index == page) CosmicAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
+                                if (index == page) CosmicAccent else AiriTheme.onSurface.copy(alpha = 0.18f)
                             )
                     )
                 }
@@ -244,10 +244,10 @@ fun OnboardingScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                shape  = RoundedCornerShape(18.dp),
+                shape  = AIRIShapes.lg,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = CosmicAccent,
-                    contentColor   = MaterialTheme.colorScheme.background
+                    contentColor   = AiriTheme.background
                 )
             ) {
                 Text(
@@ -313,9 +313,9 @@ private fun MicrophonePermissionCard(
 private fun PrivacyExplanationCard() {
     Column(
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+            .clip(AIRIShapes.md)
+            .background(AiriTheme.onSurface.copy(alpha = 0.05f))
+            .border(1.dp, AiriTheme.outline, AIRIShapes.md)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -347,17 +347,17 @@ private fun PermissionCard(
 ) {
     Column(
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+            .clip(AIRIShapes.md)
+            .background(AiriTheme.onSurface.copy(alpha = 0.05f))
             .border(
                 1.dp,
-                if (isGranted) CosmicAccent.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outline,
-                RoundedCornerShape(16.dp)
+                if (isGranted) CosmicAccent.copy(alpha = 0.35f) else AiriTheme.outline,
+                AIRIShapes.md
             )
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(title, color = if (isGranted) CosmicAccent else MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(title, color = if (isGranted) CosmicAccent else AiriTheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         Text(body, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 18.sp)
         if (buttonText != null) {
             TextButton(
@@ -413,9 +413,9 @@ private fun CalendarPermissionCard(
 private fun SocialProofStrip() {
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.09f), RoundedCornerShape(16.dp))
+            .clip(AIRIShapes.md)
+            .background(AiriTheme.surfaceVariant)
+            .border(1.dp, AiriTheme.onSurface.copy(alpha = 0.09f), AIRIShapes.md)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)

@@ -88,7 +88,7 @@ fun ModelPerformanceScreen(onBack: () -> Unit) {
                 Text(
                     stringResource(R.string.model_perf_empty),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = AiriTheme.onSurfaceVariant
                 )
             }
             return@Scaffold
@@ -158,7 +158,7 @@ private fun RowScope.TableHeader(label: String, weight: Float) {
         label,
         modifier = Modifier.weight(weight),
         style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        color = AiriTheme.onSurfaceVariant
     )
 }
 
@@ -175,13 +175,13 @@ private fun RowScope.TableCell(label: String, weight: Float, bold: Boolean = fal
 @Composable
 private fun ClassBadge(p: PerfClass) {
     val (bg, fg) = when (p) {
-        PerfClass.FAST     -> Color(0xFF1B5E20) to MaterialTheme.colorScheme.onSurface
-        PerfClass.BALANCED -> Color(0xFF1565C0) to MaterialTheme.colorScheme.onSurface
-        PerfClass.SLOW     -> Color(0xFFB71C1C) to MaterialTheme.colorScheme.onSurface
+        PerfClass.FAST     -> Color(0xFF1B5E20) to AiriTheme.onSurface
+        PerfClass.BALANCED -> Color(0xFF1565C0) to AiriTheme.onSurface
+        PerfClass.SLOW     -> Color(0xFFB71C1C) to AiriTheme.onSurface
     }
     Box(
         modifier = Modifier
-            .background(bg, RoundedCornerShape(6.dp))
+            .background(bg, AIRIShapes.xs)
             .padding(horizontal = 8.dp, vertical = 2.dp)
     ) {
         Text(p.name, style = MaterialTheme.typography.labelSmall, color = fg)
@@ -208,7 +208,7 @@ private fun RunRow(r: ModelBenchmark) {
             Text(
                 "$ts • ${r.modelDesc}",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = AiriTheme.onSurfaceVariant
             )
             Spacer(Modifier.height(6.dp))
             Text(

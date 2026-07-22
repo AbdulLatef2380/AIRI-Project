@@ -54,13 +54,13 @@ object ReinforcementMemory {
     /** Record a successful agent execution outcome. */
     fun recordSuccess(context: String, key: String) {
         update(context, key, SUCCESS_WEIGHT)
-        Log.d(TAG, "SUCCESS recorded: ${context}_$key")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "SUCCESS recorded: ${context}_$key")
     }
 
     /** Record a failed agent execution outcome. */
     fun recordFailure(context: String, key: String) {
         update(context, key, FAILURE_WEIGHT)
-        Log.d(TAG, "FAILURE recorded: ${context}_$key")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "FAILURE recorded: ${context}_$key")
     }
 
     /**

@@ -210,14 +210,14 @@ fun PermissionsScreen(onBack: () -> Unit) {
         ) {
             item {
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = AIRIShapes.md,
                     color = if (grantedCount == totalCount) SemanticSuccess.copy(0.10f)
                             else CosmicAccent.copy(0.10f),
                     modifier = Modifier.fillMaxWidth().border(
                         1.dp,
                         if (grantedCount == totalCount) SemanticSuccess.copy(0.30f)
                         else CosmicAccent.copy(0.30f),
-                        RoundedCornerShape(14.dp)
+                        AIRIShapes.md
                     )
                 ) {
                     Row(
@@ -262,7 +262,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
                         context.startActivity(intent)
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape    = RoundedCornerShape(12.dp),
+                    shape    = AIRIShapes.md,
                     border   = androidx.compose.foundation.BorderStroke(
                         1.dp, androidx.compose.ui.graphics.SolidColor(CosmicAccent.copy(0.5f))
                     )
@@ -275,7 +275,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
             groups.forEach { (groupName, perms) ->
                 item(key = "group_$groupName") {
                     Surface(
-                        shape    = RoundedCornerShape(14.dp),
+                        shape    = AIRIShapes.md,
                         color    = AiriTheme.surfaceVariant,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -322,7 +322,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
                                         if (idx > 0 || true) {
                                             Divider(
                                                 modifier = Modifier.padding(horizontal = 16.dp),
-                                                color = MaterialTheme.colorScheme.outline
+                                                color = AiriTheme.outline
                                             )
                                         }
                                         PermissionRow(
@@ -354,7 +354,7 @@ private fun PermissionRow(perm: PermissionInfo, isGranted: Boolean) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(36.dp).clip(RoundedCornerShape(10.dp))
+                Modifier.size(36.dp).clip(AIRIShapes.sm)
                     .background(perm.iconTint.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
@@ -375,10 +375,10 @@ private fun PermissionRow(perm: PermissionInfo, isGranted: Boolean) {
                 val scope = rememberCoroutineScope()
                 if (perm.permission == "android.permission.BIND_ACCESSIBILITY_SERVICE") {
                     Surface(
-                        shape = RoundedCornerShape(6.dp),
+                        shape = AIRIShapes.xs,
                         color = CosmicAccent.copy(0.12f),
                         modifier = Modifier
-                            .border(0.5.dp, CosmicAccent.copy(0.35f), RoundedCornerShape(6.dp))
+                            .border(0.5.dp, CosmicAccent.copy(0.35f), AIRIShapes.xs)
                             .clickable {
                                 scope.launch {
                                     val activity = ctx as? FragmentActivity
@@ -406,9 +406,9 @@ private fun PermissionRow(perm: PermissionInfo, isGranted: Boolean) {
                     }
                 } else {
                     Surface(
-                        shape = RoundedCornerShape(6.dp),
+                        shape = AIRIShapes.xs,
                         color = SemanticWarn.copy(0.12f),
-                        modifier = Modifier.border(0.5.dp, SemanticWarn.copy(0.3f), RoundedCornerShape(6.dp))
+                        modifier = Modifier.border(0.5.dp, SemanticWarn.copy(0.3f), AIRIShapes.xs)
                     ) {
                         Text(stringResource(R.string.permissions_special_badge), fontSize = 10.sp, color = SemanticWarn,
                             fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
@@ -426,10 +426,10 @@ private fun PermissionRow(perm: PermissionInfo, isGranted: Boolean) {
 
         AnimatedVisibility(visible = showRationale) {
             Surface(
-                shape    = RoundedCornerShape(10.dp),
+                shape    = AIRIShapes.sm,
                 color    = CosmicAccent.copy(0.06f),
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp).border(
-                    0.5.dp, CosmicAccent.copy(0.2f), RoundedCornerShape(10.dp)
+                    0.5.dp, CosmicAccent.copy(0.2f), AIRIShapes.sm
                 )
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {

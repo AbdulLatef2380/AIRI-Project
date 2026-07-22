@@ -81,7 +81,7 @@ fun PrivacyDataSettingsScreen(
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.65f)
+                    containerColor = AiriTheme.background.copy(alpha = 0.65f)
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -149,9 +149,9 @@ fun PrivacyDataSettingsScreen(
         AlertDialog(
             onDismissRequest  = { showDeleteDialog = false },
             containerColor    = Color(0xFF12162E),
-            titleContentColor = MaterialTheme.colorScheme.onSurface,
-            textContentColor  = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-            shape             = RoundedCornerShape(20.dp),
+            titleContentColor = AiriTheme.onSurface,
+            textContentColor  = AiriTheme.onSurface.copy(alpha = 0.7f),
+            shape             = AIRIShapes.xl,
             title = {
                 Text(stringResource(R.string.delete_account), fontWeight = FontWeight.Bold)
             },
@@ -205,7 +205,7 @@ fun PrivacyDataSettingsScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    colors = ButtonDefaults.buttonColors(containerColor = SemanticError)
                 ) { Text(stringResource(R.string.delete_account)) }
             },
             dismissButton = {

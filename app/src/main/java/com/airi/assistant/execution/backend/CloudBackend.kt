@@ -52,7 +52,7 @@ class CloudBackend(
     override val capabilities: CapabilityProfile = CapabilityProfile.CLOUD_STREAMING
     override val origin: ExecOrigin = ExecOrigin.CLOUD
 
-    // Task 7.1: Network traffic counters exposed to ObservabilityScreen
+    
     private val _requestCount  = java.util.concurrent.atomic.AtomicInteger(0)
     private val _errorCount    = java.util.concurrent.atomic.AtomicInteger(0)
     private val _totalLatencyMs = java.util.concurrent.atomic.AtomicLong(0)
@@ -100,7 +100,7 @@ class CloudBackend(
         }
 
         var lastError = "Unknown cloud error"
-        // Task 7.1: Track request start for latency measurement
+        
         val requestStart = System.currentTimeMillis()
         _requestCount.incrementAndGet(); _globalRequestCount.incrementAndGet()
 
@@ -173,7 +173,7 @@ class CloudBackend(
         // All providers in the failover chain failed.
         RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.ERROR,
             "All ${providerQueue.size} cloud provider(s) failed. Last: ${lastError.take(80)}")
-        // Task 7.1: All providers failed — increment error counter
+        
         _errorCount.incrementAndGet(); _globalErrorCount.incrementAndGet()
         onError(lastError)
     }
@@ -238,7 +238,7 @@ class CloudBackend(
         private const val TAG         = "AIRI_CloudBackend"
         private const val MAX_RETRIES = 3
 
-        // Task 7.1: Global counters so ObservabilityScreen can read without a direct reference
+        
         private val _globalRequestCount  = java.util.concurrent.atomic.AtomicInteger(0)
         private val _globalErrorCount    = java.util.concurrent.atomic.AtomicInteger(0)
         private val _globalTotalLatencyMs = java.util.concurrent.atomic.AtomicLong(0)

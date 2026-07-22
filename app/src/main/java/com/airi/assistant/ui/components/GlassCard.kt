@@ -23,9 +23,9 @@ fun GlassCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+            containerColor = AiriTheme.surfaceVariant.copy(alpha = 0.4f)
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+        border = BorderStroke(1.dp, AiriTheme.surfaceVariant.copy(alpha = 0.4f))
     ) {
         androidx.compose.foundation.layout.Column(
             modifier = Modifier.padding(16.dp),

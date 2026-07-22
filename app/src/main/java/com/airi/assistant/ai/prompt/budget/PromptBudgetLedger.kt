@@ -84,7 +84,7 @@ class PromptBudgetLedger private constructor(val budget: ContextBudget) {
      * Lower ordinal = higher priority = allocated first.
      */
     enum class Contributor(val displayName: String) {
-        // Task 11: THERMAL_RESERVE is pre-allocated first (highest priority) and
+        
         // represents tokens withheld from all contributors due to thermal throttling.
         // Under NONE throttle: reserve = 0. REDUCE: reserve = 50% of nCtx.
         // EMERGENCY: reserve = 100% of nCtx (no tokens left for anything).
@@ -180,7 +180,7 @@ class PromptBudgetLedger private constructor(val budget: ContextBudget) {
         fun forBudget(budget: ContextBudget): PromptBudgetLedger {
             val ledger = PromptBudgetLedger(budget)
 
-            // Task 11: Apply thermal throttle FIRST so all subsequent claims are
+            
             // already constrained. ThermalSignal.contextBudgetFactor is:
             //   1.0 → full context (NONE throttle)
             //   0.5 → 50% context (REDUCE throttle)

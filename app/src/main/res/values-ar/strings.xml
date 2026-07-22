@@ -592,7 +592,7 @@
     <string name="premium_active_subtitle">2,000 رصيد يومي، جميع الميزات مفتوحة.</string>
     <string name="stripe_footer">المدفوعات مؤمّنة عبر Stripe. لا يحتفظ AIRI ببيانات بطاقتك.</string>
 
-    <!-- AI Library -->
+    <!-- AI Settings -->
     <string name="ai_library_routes_auto">AIRI يوجّه تلقائيًا</string>
     <string name="brave_search_api">Brave Search API</string>
     <string name="brave_search_desc">مجاني: 2,000 بحث/شهر · brave.com/search/api</string>

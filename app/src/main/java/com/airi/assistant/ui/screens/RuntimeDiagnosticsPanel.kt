@@ -31,9 +31,9 @@ private val ErrorColor   = Color(0xFFEF5350)  // red
 private val OkColor      = CosmicAccent
 
 @Composable
-private fun dimWhite() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+private fun dimWhite() = AiriTheme.onSurface.copy(alpha = 0.55f)
 @Composable
-private fun subtleWhite() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+private fun subtleWhite() = AiriTheme.onSurface.copy(alpha = 0.35f)
 
 private const val MAX_VISIBLE_EVENTS = 20
 
@@ -179,7 +179,7 @@ fun RuntimeWarningsPanel(warnings: List<String>) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(AIRIShapes.xs)
                     .background(
                         if (hasCritical) ErrorColor.copy(alpha = 0.08f)
                         else WarnColor.copy(alpha = 0.07f)
@@ -196,7 +196,7 @@ fun RuntimeWarningsPanel(warnings: List<String>) {
                 Spacer(Modifier.width(6.dp))
                 Text(
                     warning,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    color = AiriTheme.onBackground,
                     fontSize = 12.sp,
                     lineHeight = 16.sp
                 )
@@ -260,7 +260,7 @@ fun RuntimeEventTimeline(events: List<com.airi.assistant.core.debug.RuntimeEvent
                         EventRow(event)
                         if (idx < visible.lastIndex) {
                             Divider(
-                                color = MaterialTheme.colorScheme.outline,
+                                color = AiriTheme.outline,
                                 modifier = Modifier.padding(vertical = 2.dp)
                             )
                         }
@@ -333,7 +333,7 @@ fun AdvancedDiagnosticsSection(diagnostics: RuntimeDiagnosticsState) {
 
 @Composable
 private fun DiagRow(label: String, value: String, valueColor: Color = Color.Unspecified) {
-    val finalColor = if (valueColor == Color.Unspecified) MaterialTheme.colorScheme.onSurface else valueColor
+    val finalColor = if (valueColor == Color.Unspecified) AiriTheme.onSurface else valueColor
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -367,7 +367,7 @@ private fun EventRow(event: RuntimeEvent) {
         )
         Spacer(Modifier.width(8.dp))
         Column {
-            Text(event.reason, color = MaterialTheme.colorScheme.onSurface, fontSize = 11.sp)
+            Text(event.reason, color = AiriTheme.onSurface, fontSize = 11.sp)
             Text(event.timestampMs.toString(), color = subtleWhite(), fontSize = 9.sp)
         }
     }
@@ -375,5 +375,5 @@ private fun EventRow(event: RuntimeEvent) {
 
 @Composable
 private fun DiagDivider() {
-    Divider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
+    Divider(color = AiriTheme.outline, modifier = Modifier.padding(vertical = 8.dp))
 }

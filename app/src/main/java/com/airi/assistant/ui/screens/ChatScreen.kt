@@ -67,6 +67,8 @@ import com.airi.assistant.core.VoiceManager
 import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.*
+import com.airi.assistant.domain.ChatAttachment
+import androidx.compose.foundation.lazy.LazyRow
 import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.AgentMode
@@ -2150,7 +2152,8 @@ private fun AttachmentChip(
 @Composable
 private fun BlinkingCursor() {
     var cursorOn by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) { while (kotlinx.coroutines.isActive) { kotlinx.coroutines.delay(500L); cursorOn = !cursorOn } }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(500L); cursorOn = !cursorOn } }
     AnimatedContent(
         targetState = cursorOn,
         transitionSpec = { fadeIn(animationSpec = androidx.compose.animation.core.tween(80)) togetherWith fadeOut(animationSpec = androidx.compose.animation.core.tween(80)) },
@@ -2217,9 +2220,9 @@ fun AiriChatInputBar(
     val micPulse = remember { androidx.compose.animation.core.Animatable(1f) }
     LaunchedEffect(voiceState) {
         when (voiceState) {
-            VoiceSessionState.LISTENING   -> while (kotlinx.coroutines.isActive) { micPulse.animateTo(1.30f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOW)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOW)) }
-            VoiceSessionState.PROCESSING  -> while (kotlinx.coroutines.isActive) { micPulse.animateTo(1.18f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOWER)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOWER)) }
-            VoiceSessionState.SPEAKING    -> while (kotlinx.coroutines.isActive) { micPulse.animateTo(1.22f, animationSpec = androidx.compose.animation.core.tween(700)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(700)) }
+            VoiceSessionState.LISTENING   -> while (true) { micPulse.animateTo(1.30f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOW)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOW)) }
+            VoiceSessionState.PROCESSING  -> while (true) { micPulse.animateTo(1.18f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOWER)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOWER)) }
+            VoiceSessionState.SPEAKING    -> while (true) { micPulse.animateTo(1.22f, animationSpec = androidx.compose.animation.core.tween(700)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(700)) }
             else -> micPulse.snapTo(1f)
         }
     }

@@ -133,7 +133,7 @@ private fun QuantComparisonTable(rows: List<QuantSummary>) {
                 TableHeader(stringResource(R.string.model_perf_col_mem),   1.0f)
                 TableHeader(stringResource(R.string.model_perf_col_class), 1.0f)
             }
-            Divider(Modifier.padding(vertical = 6.dp))
+            HorizontalDivider(Modifier.padding(vertical = 6.dp))
             for (r in rows) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),

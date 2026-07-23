@@ -114,7 +114,7 @@ fun PrivacyDataSettingsScreen(
                     label    = stringResource(R.string.export_chats),
                     sublabel = stringResource(R.string.download_chat_history)
                 ) { exportChatLauncher.launch(ChatExporter.buildFileName()) }
-                Divider(
+                HorizontalDivider(
                     color    = AiriTheme.onBackground.copy(alpha = 0.06f),
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
@@ -122,7 +122,7 @@ fun PrivacyDataSettingsScreen(
                     label    = stringResource(R.string.import_chats),
                     sublabel = stringResource(R.string.import_chat_history)
                 ) { importChatLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }
-                Divider(
+                HorizontalDivider(
                     color    = AiriTheme.onBackground.copy(alpha = 0.06f),
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
@@ -130,7 +130,7 @@ fun PrivacyDataSettingsScreen(
                     label    = stringResource(R.string.clear_chat_history),
                     sublabel = stringResource(R.string.remove_from_display)
                 ) { viewModel.clearMessages() }
-                Divider(
+                HorizontalDivider(
                     color    = AiriTheme.onBackground.copy(alpha = 0.06f),
                     modifier = Modifier.padding(vertical = 8.dp)
                 )

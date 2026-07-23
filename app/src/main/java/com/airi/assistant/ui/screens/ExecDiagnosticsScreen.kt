@@ -520,7 +520,7 @@ private fun ExRow(label: String, value: String, valueColor: Color = Color.Unspec
 
 @Composable
 private fun ExDivider() {
-    Divider(color = AiriTheme.outline, modifier = Modifier.padding(vertical = 6.dp))
+    HorizontalDivider(color = AiriTheme.outline, modifier = Modifier.padding(vertical = 6.dp))
 }
 
 @Composable

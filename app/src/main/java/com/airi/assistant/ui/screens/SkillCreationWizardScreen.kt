@@ -430,7 +430,7 @@ private fun ToolCard(
 
             AnimatedVisibility(visible = expanded) {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Divider(color = AiriTheme.outline)
+                    HorizontalDivider(color = AiriTheme.outline)
                     Spacer(Modifier.height(4.dp))
                     WizardField(tool.name, { tool.name = it }, "Tool Name *", "e.g. web_search")
                     WizardField(tool.description, { tool.description = it }, "Tool Description *", "What does this tool do?")
@@ -722,7 +722,7 @@ private fun WizardStepIndicator(currentStep: Int, totalSteps: Int, titles: List<
             }
 
             if (i < totalSteps - 1) {
-                Divider(
+                HorizontalDivider(
                     modifier = Modifier.weight(1f),
                     color    = if (i < currentStep) CosmicAccent.copy(0.5f) else AiriTheme.outline
                 )

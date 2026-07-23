@@ -32,6 +32,7 @@ import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.ui.theme.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -65,9 +66,9 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
     // Poll logs every 250 ms so the list stays live without Flow wiring in SandboxSession
     var logs by remember { mutableStateOf(session?.execLog ?: emptyList<SandboxLogEntry>()) }
     LaunchedEffect(session?.sessionId) {
-        while (kotlinx.coroutines.isActive) {
+        while (isActive) {
             logs = session?.execLog ?: emptyList()
-            kotlinx.coroutines.delay(250)
+            delay(250)
         }
     }
 
@@ -101,7 +102,7 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                                     color = Color(0xFFCDD5E0)
                                 )
                                 if (activeSessions.isNotEmpty()) {
-                                    Surface(shape = AIRIShapes.xs.copy(topStart = 4.dp), color = CosmicAccent.copy(0.18f)) {
+                                    Surface(shape = RoundedCornerShape(topStart = 4.dp, topEnd = 6.dp, bottomStart = 6.dp, bottomEnd = 6.dp), color = CosmicAccent.copy(0.18f)) {
                                         Text(
                                             "${activeSessions.size}",
                                             fontSize = 9.sp,

@@ -111,7 +111,7 @@ fun SettingsScreen(
             }
             if (!isStorageEncrypted) {
                 Surface(
-                    shape = androidx.compose.foundation.shape.AIRIShapes.md,
+                    shape = AIRIShapes.md,
                     color = Color(0xFF3A2800),
                     modifier = Modifier.fillMaxWidth()
                 ) {

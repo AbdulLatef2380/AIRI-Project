@@ -134,7 +134,7 @@ fun MemoryScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)
                     )
                 }
-                Divider(color = DividerColor)
+                HorizontalDivider(color = DividerColor)
             }
         }
     ) { padding ->

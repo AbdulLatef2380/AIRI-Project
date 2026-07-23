@@ -172,7 +172,7 @@ fun VoiceSettingsScreen(
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 LinearProgressIndicator(
                                     progress = ((downloadProgress ?: 0) / 100f),
-                                    modifier = Modifier.fillMaxWidth().clip(AIRIShapes.xs.copy(topStart = 4.dp)),
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 4.dp, topEnd = 6.dp, bottomStart = 6.dp, bottomEnd = 6.dp)),
                                     color = CosmicAccent,
                                     trackColor = CosmicAccent.copy(0.2f)
                                 )

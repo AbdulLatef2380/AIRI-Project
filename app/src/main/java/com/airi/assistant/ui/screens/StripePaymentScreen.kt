@@ -220,7 +220,7 @@ private fun PremiumTab(
                             Text(if (annual) "$79.99" else "$9.99", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = CosmicAccent)
                             Text(if (annual) "/year" else "/month", color = AiriTheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                         }
-                        Divider(color = AiriTheme.outline)
+                        HorizontalDivider(color = AiriTheme.outline)
                         val features = listOf("2,000 daily credits (10× free)", "Priority model access", "All connectors unlocked", "Community skill marketplace", "Developer API access", "Priority support")
                         features.forEach { f ->
                             Row(verticalAlignment = Alignment.CenterVertically) {

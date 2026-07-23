@@ -63,7 +63,7 @@ fun ExecOriginBadge(
 ) {
     if (origin == ExecOrigin.NONE) return
 
-    val (icon, label, bgColor, textColor) = when (origin) {
+    val spec = when (origin) {
         ExecOrigin.LOCAL  -> BadgeSpec(
             Icons.Outlined.PhoneAndroid,
             "LOCAL",
@@ -82,8 +82,12 @@ fun ExecOriginBadge(
             HybridBadgeColor.copy(alpha = 0.15f),
             HybridBadgeColor
         )
-        ExecOrigin.NONE   -> return  // unreachable; handled above
+        ExecOrigin.NONE   -> return
     }
+    val icon = spec.icon
+    val label = spec.label
+    val bgColor = spec.bgColor
+    val textColor = spec.textColor
 
     if (showDot) {
         Box(

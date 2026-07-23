@@ -340,7 +340,7 @@ fun ModelSettingsScreen(
             // without requiring a local GGUF model.
             item {
                 Spacer(Modifier.height(8.dp))
-                Divider(color = AiriTheme.outline.copy(alpha = 0.3f))
+                HorizontalDivider(color = AiriTheme.outline.copy(alpha = 0.3f))
                 Spacer(Modifier.height(8.dp))
                 CloudModelStoreSection(
                     viewModel  = viewModel,
@@ -353,7 +353,7 @@ fun ModelSettingsScreen(
             // chronological recall regardless of query content.
             item {
                 Spacer(Modifier.height(8.dp))
-                Divider(color = AiriTheme.outline.copy(alpha = 0.3f))
+                HorizontalDivider(color = AiriTheme.outline.copy(alpha = 0.3f))
                 Spacer(Modifier.height(8.dp))
                 EmbeddingModelSection(
                     viewModel       = viewModel,
@@ -1457,7 +1457,7 @@ fun CatalogCard(
 
             AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
+                    HorizontalDivider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
                     DetailRow("parameters", "CTX ${entry.contextSize.contextLabel()} • ${entry.quantization}")
                     DetailRow("last update", "Catalog verified")
                     DetailRow("architecture", entry.type.label)
@@ -1740,7 +1740,7 @@ fun ModelCard(
 
             AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Divider(color = AiriTheme.outline.copy(alpha = 0.35f))
+                    HorizontalDivider(color = AiriTheme.outline.copy(alpha = 0.35f))
                     Text(
                         subtitle,
                         style = MaterialTheme.typography.labelSmall,

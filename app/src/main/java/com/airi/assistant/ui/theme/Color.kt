@@ -37,6 +37,10 @@ val SemanticSuccess  = Color(0xFF30D158)   // iOS-derived green — readable on 
 val SemanticError    = Color(0xFFFF453A)   // iOS-derived red — vibrant on dark
 val SemanticWarn     = Color(0xFFFFD60A)   // Amber — caution without aggression
 
+val SemanticSuccessContainer = SemanticSuccess.copy(alpha = 0.12f)
+val SemanticErrorContainer   = SemanticError.copy(alpha = 0.12f)
+val SemanticWarnContainer    = SemanticWarn.copy(alpha = 0.12f)
+
 // ── Chat bubbles ──────────────────────────────────────────────────────────────
 // User bubble: solid accent — distinct, unambiguous ownership
 val UserBubbleSurface= CosmicAccent

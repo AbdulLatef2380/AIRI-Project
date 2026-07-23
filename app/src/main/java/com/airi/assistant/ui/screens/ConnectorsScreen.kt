@@ -149,7 +149,7 @@ fun ConnectorsScreen(
                 containerColor   = CosmicBlack,
                 contentColor     = CosmicAccent,
                 edgePadding      = 12.dp,
-                divider          = { Divider(color = AiriTheme.outline) }
+                divider          = { HorizontalDivider(color = AiriTheme.outline) }
             ) {
                 TABS.forEach { tab ->
                     val isSelected = tab.type == selectedTab
@@ -344,7 +344,7 @@ private fun ConnectorCard(
             ) {
                 Column {
                     Spacer(Modifier.height(10.dp))
-                    Divider(color = AiriTheme.outline.copy(alpha = 0.07f))
+                    HorizontalDivider(color = AiriTheme.outline.copy(alpha = 0.07f))
                     Spacer(Modifier.height(10.dp))
                     Text(
                         row.meta.description,

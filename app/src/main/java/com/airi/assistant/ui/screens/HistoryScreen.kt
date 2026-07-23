@@ -300,7 +300,7 @@ private fun HistorySessionItem(
         }
     }
 
-    Divider(
+    HorizontalDivider(
         color = AiriTheme.outline,
         modifier = Modifier.padding(start = 14.dp)
     )

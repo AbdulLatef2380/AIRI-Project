@@ -284,7 +284,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                         checked     = voiceEnabled,
                         onChecked   = { voiceEnabled = it }
                     )
-                    Divider(
+                    HorizontalDivider(
                         modifier = Modifier.padding(vertical = 8.dp),
                         color = AiriTheme.outline
                     )

@@ -1,6 +1,8 @@
 package com.airi.assistant.ui.screens
 
 import com.airi.assistant.ui.theme.*
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.delay
 
 import android.app.ActivityManager
 import android.content.Context
@@ -315,7 +317,7 @@ private fun PerfStatCard(
                 Text(value, color = CosmicAccent.copy(alpha = 0.9f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
             if (idx < rows.lastIndex) {
-                Divider(color = AiriTheme.outline.copy(alpha = 0.04f), modifier = Modifier.padding(vertical = 2.dp))
+                HorizontalDivider(color = AiriTheme.outline.copy(alpha = 0.04f), modifier = Modifier.padding(vertical = 2.dp))
             }
         }
     }
@@ -401,10 +403,10 @@ private fun SpecDecodingCard() {
         draftLoaded = runCatching { LlamaNative.isDraftLoaded() }.getOrDefault(false)
     }
     LaunchedEffect(Unit) {
-        while (kotlinx.coroutines.isActive) {
+        while (isActive) {
             stats       = mgr.stats()
             draftLoaded = runCatching { LlamaNative.isDraftLoaded() }.getOrDefault(false)
-            kotlinx.coroutines.delay(2000)
+            delay(2000)
         }
     }
 

@@ -170,7 +170,7 @@ private fun CommunitySkillCard(
                     skill.sourceUrl?.let {
                         Text(stringResource(R.string.community_skill_source_prefix, it), fontSize = 11.sp, color = CosmicAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Divider(color = AiriTheme.outline)
+                    HorizontalDivider(color = AiriTheme.outline)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = { onSandboxTest(skill) },

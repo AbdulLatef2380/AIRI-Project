@@ -80,7 +80,7 @@ fun PlanningDashboardScreen(
                 }.getOrDefault(emptyList())
             }
             if (history.isNotEmpty()) {
-                Divider(modifier = Modifier.padding(vertical = 8.dp), color = AiriTheme.outline.copy(0.2f))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = AiriTheme.outline.copy(0.2f))
                 Text(
                     "Past Executions",
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -99,7 +99,7 @@ fun PlanningDashboardScreen(
                             },
                             colors = ListItemDefaults.colors(containerColor = AiriTheme.background)
                         )
-                        Divider(color = AiriTheme.outline.copy(0.1f))
+                        HorizontalDivider(color = AiriTheme.outline.copy(0.1f))
                     }
                 }
             }

@@ -42,6 +42,7 @@ import com.airi.assistant.R
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.terminal.TerminalRuntime
 import com.airi.assistant.ui.theme.*
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 // ── Terminal colour tokens ───────────────────────────────────────────────────
@@ -149,7 +150,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                                 )
                                 if (isRunning) {
                                     Surface(
-                                        shape = AIRIShapes.xs.copy(topStart = 4.dp),
+                                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 6.dp, bottomStart = 6.dp, bottomEnd = 6.dp),
                                         color = TermSuccess.copy(0.15f)
                                     ) {
                                         Text(
@@ -423,7 +424,7 @@ private fun TerminalLineRow(line: TerminalRuntime.TerminalLine, searchQuery: Str
                     var start = 0
                     val lower = text.lowercase()
                     val query = searchQuery.lowercase()
-                    while (kotlinx.coroutines.isActive) {
+                    while (true) {
                         val idx = lower.indexOf(query, start)
                         if (idx < 0) { append(text.substring(start)); break }
                         append(text.substring(start, idx))

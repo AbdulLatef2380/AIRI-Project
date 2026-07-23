@@ -296,7 +296,7 @@ private fun IntegrationCard(
             ) {
                 Column {
                     Spacer(Modifier.height(10.dp))
-                    Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
+                    HorizontalDivider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
                     Spacer(Modifier.height(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
@@ -487,7 +487,7 @@ private fun TokenDialog(
                 }
 
                 Spacer(Modifier.height(16.dp))
-                Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
+                HorizontalDivider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
                 Spacer(Modifier.height(16.dp))
 
                 // Token input — forced to LTR so the placeholder examples

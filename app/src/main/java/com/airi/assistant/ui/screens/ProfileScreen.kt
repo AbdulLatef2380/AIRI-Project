@@ -242,7 +242,7 @@ fun ProfileScreen(
             DropdownMenu(
                 expanded        = showPhotoMenu,
                 onDismissRequest = { showPhotoMenu = false },
-                containerColor  = SurfaceFloating
+                modifier        = Modifier.background(SurfaceFloating)
             ) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.profile_change_photo), fontSize = 14.sp, color = AiriTheme.onBackground) },
@@ -332,7 +332,7 @@ fun ProfileScreen(
                 },
                 icon  = Icons.Outlined.AccountCircle
             )
-            Divider(modifier = Modifier.padding(vertical = 1.dp), color = DividerColor)
+            HorizontalDivider(modifier = Modifier.padding(vertical = 1.dp), color = DividerColor)
             InfoRow(
                 label = stringResource(R.string.profile_member_since),
                 value = memberSince,

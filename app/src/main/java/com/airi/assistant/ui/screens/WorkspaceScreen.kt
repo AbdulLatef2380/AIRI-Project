@@ -118,7 +118,7 @@ fun WorkspaceScreen(
                     }
                 }
 
-                Divider(color = AiriTheme.outline, modifier = Modifier.padding(horizontal = 12.dp))
+                HorizontalDivider(color = AiriTheme.outline, modifier = Modifier.padding(horizontal = 12.dp))
                 if (artifacts.isEmpty()) {
                     ArtifactEmptyState(onCreateFromChat = onOpenChat)
                 } else {

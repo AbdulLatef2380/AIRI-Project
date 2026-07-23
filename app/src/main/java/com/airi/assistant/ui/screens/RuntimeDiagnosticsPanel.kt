@@ -261,7 +261,7 @@ fun RuntimeEventTimeline(events: List<com.airi.assistant.core.debug.RuntimeEvent
                     visible.forEachIndexed { idx, event ->
                         EventRow(event)
                         if (idx < visible.lastIndex) {
-                            Divider(
+                            HorizontalDivider(
                                 color = AiriTheme.outline,
                                 modifier = Modifier.padding(vertical = 2.dp)
                             )
@@ -377,5 +377,5 @@ private fun EventRow(event: RuntimeEvent) {
 
 @Composable
 private fun DiagDivider() {
-    Divider(color = AiriTheme.outline, modifier = Modifier.padding(vertical = 8.dp))
+    HorizontalDivider(color = AiriTheme.outline, modifier = Modifier.padding(vertical = 8.dp))
 }

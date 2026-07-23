@@ -1,6 +1,8 @@
 package com.airi.assistant.ui.screens
 
 import com.airi.assistant.ui.theme.*
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.delay
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -608,9 +610,9 @@ private fun StatusCountChip(label: String, count: Int, color: Color, modifier: M
 private fun NetworkTab() {
     var stats by remember { mutableStateOf<com.airi.assistant.execution.backend.CloudBackend.NetworkStats?>(null) }
     LaunchedEffect(Unit) {
-        while (kotlinx.coroutines.isActive) {
+        while (isActive) {
             stats = com.airi.assistant.execution.backend.CloudBackend.globalStats()
-            kotlinx.coroutines.delay(2_000)
+            delay(2_000)
         }
     }
     val s = stats
@@ -643,7 +645,7 @@ private fun NetworkTab() {
 @Composable
 private fun NetworkStatRow(label: String, value: String) {
     Surface(
-        shape = androidx.compose.foundation.shape.AIRIShapes.sm,
+        shape = AIRIShapes.sm,
         color = AiriTheme.surface,
         modifier = androidx.compose.ui.Modifier.fillMaxWidth()
     ) {

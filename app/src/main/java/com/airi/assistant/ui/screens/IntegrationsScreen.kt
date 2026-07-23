@@ -66,6 +66,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -185,14 +186,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
             // Token-acquisition steps stay in English because every label they
             // reference (GitHub menu names, scopes) is itself English in the
             // GitHub UI — translating them would make the steps unfollowable.
-            steps = listOf(
-                "Open github.com and sign in",
-                "Go to Settings → Developer Settings",
-                "Select Personal access tokens → Tokens (classic)",
-                "Click Generate new token (classic)",
-                "Enable scopes: repo, read:user",
-                "Generate and copy the token"
-            ),
+            steps = stringArrayResource(R.array.integration_github_steps).toList(),
             inputLabel = stringResource(R.string.integration_github_token_label),
             inputHint = "ghp_xxxxxxxxxxxxxxxxxxxx",
             token = state.token,
@@ -208,13 +202,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
         TokenDialog(
             title = stringResource(R.string.integration_telegram_dialog_title),
             emoji = "✈️",
-            steps = listOf(
-                "Open Telegram and search for @BotFather",
-                "Send the command /newbot",
-                "Follow the steps to name and create your bot",
-                "BotFather will send you a token",
-                "Copy the token and paste it below"
-            ),
+            steps = stringArrayResource(R.array.integration_telegram_steps).toList(),
             inputLabel = stringResource(R.string.integration_telegram_token_label),
             inputHint = "123456789:AAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
             token = state.token,

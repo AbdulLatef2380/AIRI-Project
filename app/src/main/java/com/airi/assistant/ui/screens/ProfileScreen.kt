@@ -1,12 +1,15 @@
 package com.airi.assistant.ui.screens
 
 import android.content.Context
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -18,27 +21,33 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.airi.assistant.R
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.ui.theme.*
 import com.google.firebase.auth.userProfileChangeRequest
+import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.launch
 
-private const val PREFS_PROFILE   = "airi_profile"
+private const val PREFS_PROFILE    = "airi_profile"
 private const val KEY_DISPLAY_NAME = "display_name"
 private const val KEY_USERNAME     = "username"
+private const val KEY_PHOTO_PATH   = "local_photo_path"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    onBack:   () -> Unit,
+    onBack:    () -> Unit,
     onSignOut: (() -> Unit)? = null
 ) {
     val context     = LocalContext.current
@@ -60,9 +69,31 @@ fun ProfileScreen(
     var username by remember {
         mutableStateOf(prefs.getString(KEY_USERNAME, "").orEmpty())
     }
+    // Local photo URI — persisted to private cache across sessions
+    var localPhotoPath by remember {
+        mutableStateOf(prefs.getString(KEY_PHOTO_PATH, null))
+    }
+
     var isSaving          by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var isDeleting        by remember { mutableStateOf(false) }
+    var showPhotoMenu     by remember { mutableStateOf(false) }
+
+    // Photo picker — PickVisualMedia (API 33+), falls back gracefully on older devices
+    val pickPhoto = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                val cached = cachePhotoLocally(context, uri)
+                if (cached != null) {
+                    localPhotoPath = cached
+                    prefs.edit().putString(KEY_PHOTO_PATH, cached).apply()
+                    snackbar.showSnackbar(context.getString(R.string.profile_photo_saved))
+                }
+            }
+        }
+    }
 
     // Delete account confirmation dialog
     if (showDeleteConfirm) {
@@ -90,13 +121,16 @@ fun ProfileScreen(
                                 onSignOut?.invoke()
                             } else {
                                 scope.launch {
-                                    snackbar.showSnackbar(task.exception?.message ?: "Delete failed")
+                                    snackbar.showSnackbar(
+                                        task.exception?.message
+                                            ?: context.getString(R.string.profile_delete_failed)
+                                    )
                                 }
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = SemanticError),
-                    shape  = AIRIShapes.md,
+                    colors  = ButtonDefaults.buttonColors(containerColor = SemanticError),
+                    shape   = AIRIShapes.md,
                     enabled = !isDeleting
                 ) {
                     if (isDeleting) {
@@ -153,33 +187,83 @@ fun ProfileScreen(
         ) {
             Spacer(Modifier.height(16.dp))
 
-            // Avatar
+            // Avatar — tappable, opens photo action menu
             Box(contentAlignment = Alignment.BottomEnd) {
                 Box(
                     modifier = Modifier
                         .size(88.dp)
                         .clip(CircleShape)
                         .background(
-                            Brush.radialGradient(
-                                listOf(CosmicAccent.copy(0.30f), SurfaceRaised)
-                            )
+                            Brush.radialGradient(listOf(CosmicAccent.copy(0.30f), SurfaceRaised))
                         )
-                        .border(1.5.dp, CosmicAccent.copy(0.45f), CircleShape),
+                        .border(1.5.dp, CosmicAccent.copy(0.45f), CircleShape)
+                        .clickable { showPhotoMenu = true },
                     contentAlignment = Alignment.Center
                 ) {
-                    val initials = when {
-                        displayName.isNotBlank() -> displayName.take(2).uppercase()
-                        email.isNotBlank()       -> email.first().uppercaseChar().toString()
-                        else                     -> "A"
+                    if (localPhotoPath != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(File(localPhotoPath!!))
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = stringResource(R.string.profile_photo_cd),
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize().clip(CircleShape)
+                        )
+                    } else {
+                        val initials = when {
+                            displayName.isNotBlank() -> displayName.take(2).uppercase()
+                            email.isNotBlank()       -> email.first().uppercaseChar().toString()
+                            else                     -> "A"
+                        }
+                        Text(
+                            initials,
+                            color      = CosmicAccent,
+                            fontWeight = FontWeight.Bold,
+                            fontSize   = if (initials.length > 1) 26.sp else 32.sp
+                        )
                     }
-                    Text(initials, color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = if (initials.length > 1) 26.sp else 32.sp)
                 }
-                // Edit photo indicator
+                // Edit indicator badge
                 Box(
-                    modifier = Modifier.size(26.dp).clip(CircleShape).background(CosmicAccent).border(2.dp, AiriTheme.background, CircleShape),
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(CosmicAccent)
+                        .border(2.dp, AiriTheme.background, CircleShape)
+                        .clickable { showPhotoMenu = true },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Outlined.Edit, stringResource(R.string.profile_photo_cd), tint = Color.White, modifier = Modifier.size(13.dp))
+                }
+            }
+
+            // Photo action menu
+            DropdownMenu(
+                expanded        = showPhotoMenu,
+                onDismissRequest = { showPhotoMenu = false },
+                containerColor  = SurfaceFloating
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.profile_change_photo), fontSize = 14.sp, color = AiriTheme.onBackground) },
+                    leadingIcon = { Icon(Icons.Outlined.PhotoCamera, null, tint = CosmicAccent, modifier = Modifier.size(18.dp)) },
+                    onClick = {
+                        showPhotoMenu = false
+                        pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    }
+                )
+                if (localPhotoPath != null) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.profile_remove_photo), fontSize = 14.sp, color = SemanticError) },
+                        leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = SemanticError, modifier = Modifier.size(18.dp)) },
+                        onClick = {
+                            showPhotoMenu = false
+                            localPhotoPath?.let { File(it).delete() }
+                            localPhotoPath = null
+                            prefs.edit().remove(KEY_PHOTO_PATH).apply()
+                            scope.launch { snackbar.showSnackbar(context.getString(R.string.profile_photo_removed)) }
+                        }
+                    )
                 }
             }
 
@@ -196,7 +280,7 @@ fun ProfileScreen(
                 label       = stringResource(R.string.profile_display_name_label),
                 value       = displayName,
                 onChange    = { displayName = it },
-                placeholder = "Your name",
+                placeholder = stringResource(R.string.profile_photo_placeholder),
                 icon        = Icons.Outlined.Person
             )
             Spacer(Modifier.height(10.dp))
@@ -204,7 +288,7 @@ fun ProfileScreen(
                 label       = stringResource(R.string.username),
                 value       = username,
                 onChange    = { username = it },
-                placeholder = "@handle",
+                placeholder = stringResource(R.string.profile_handle_placeholder),
                 icon        = Icons.Outlined.AlternateEmail
             )
             Spacer(Modifier.height(10.dp))
@@ -248,7 +332,7 @@ fun ProfileScreen(
                 },
                 icon  = Icons.Outlined.AccountCircle
             )
-            Divider(modifier = Modifier.padding(vertical = 1.dp), color = DividerColor)
+            HorizontalDivider(modifier = Modifier.padding(vertical = 1.dp), color = DividerColor)
             InfoRow(
                 label = stringResource(R.string.profile_member_since),
                 value = memberSince,
@@ -260,7 +344,6 @@ fun ProfileScreen(
             // ── Session actions ──
             SectionLabel(stringResource(R.string.profile_session_section))
 
-            // Sign out
             Surface(
                 onClick  = { onSignOut?.invoke() },
                 shape    = AIRIShapes.md,
@@ -282,7 +365,6 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            // Delete account (destructive — visually separated and subdued)
             Surface(
                 onClick  = { showDeleteConfirm = true },
                 shape    = AIRIShapes.md,
@@ -307,15 +389,31 @@ fun ProfileScreen(
     }
 }
 
+/**
+ * Copies the user-picked [uri] into the app's private cache directory and returns
+ * the absolute path of the cached file, or null on failure.
+ * Using a cached copy ensures the URI remains accessible across sessions.
+ */
+private fun cachePhotoLocally(context: Context, uri: Uri): String? {
+    return try {
+        val dir = File(context.cacheDir, "profile").also { it.mkdirs() }
+        val dest = File(dir, "avatar.jpg")
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            FileOutputStream(dest).use { output -> input.copyTo(output) }
+        }
+        dest.absolutePath
+    } catch (_: Exception) { null }
+}
+
 @Composable
 private fun SectionLabel(text: String) {
     Text(
-        text     = text.uppercase(),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.SemiBold,
-        color    = AiriTheme.onSurfaceVariant.copy(0.55f),
+        text          = text.uppercase(),
+        fontSize      = 11.sp,
+        fontWeight    = FontWeight.SemiBold,
+        color         = AiriTheme.onSurfaceVariant.copy(0.55f),
         letterSpacing = 0.8f.sp,
-        modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
+        modifier      = Modifier.fillMaxWidth().padding(bottom = 10.dp)
     )
 }
 

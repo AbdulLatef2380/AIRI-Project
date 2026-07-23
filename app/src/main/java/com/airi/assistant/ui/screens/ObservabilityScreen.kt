@@ -606,7 +606,7 @@ private fun StatusCountChip(label: String, count: Int, color: Color, modifier: M
 private fun NetworkTab() {
     var stats by remember { mutableStateOf<com.airi.assistant.execution.backend.CloudBackend.NetworkStats?>(null) }
     LaunchedEffect(Unit) {
-        while (true) {
+        while (kotlinx.coroutines.isActive) {
             stats = com.airi.assistant.execution.backend.CloudBackend.globalStats()
             kotlinx.coroutines.delay(2_000)
         }

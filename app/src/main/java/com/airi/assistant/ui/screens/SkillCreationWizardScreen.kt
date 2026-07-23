@@ -300,7 +300,7 @@ private fun IdentityStep(
         item {
             WizardSectionLabel("Publishing Metadata")
             Spacer(Modifier.height(8.dp))
-            WizardField(author, onAuthorChange, "Author *", "Your name or organisation")
+            WizardField(author, onAuthorChange, stringResource(R.string.skill_wizard_author_label), stringResource(R.string.skill_wizard_author_placeholder))
         }
         item { WizardField(version, onVersionChange, "Version *", "1.0.0 — must be semver") }
         item { WizardField(license, onLicenseChange, "License", "MIT, Apache-2.0, etc.") }
@@ -631,9 +631,9 @@ private fun PreviewExportStep(
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ExportButton(Icons.Default.ContentCopy, "Copy",  CosmicAccent,     onClick = onCopy,       Modifier.weight(1f))
+                ExportButton(Icons.Default.ContentCopy, stringResource(R.string.skill_copy_action),  CosmicAccent,     onClick = onCopy,       Modifier.weight(1f))
                 ExportButton(Icons.Default.Share,       "Share", CosmicAccentAlt,  onClick = onShare,      Modifier.weight(1f))
-                ExportButton(Icons.Default.Edit,        "Edit",  AiriTheme.onSurfaceVariant, onClick = onEdit, Modifier.weight(1f))
+                ExportButton(Icons.Default.Edit,        stringResource(R.string.skill_edit_action),  AiriTheme.onSurfaceVariant, onClick = onEdit, Modifier.weight(1f))
             }
         }
 

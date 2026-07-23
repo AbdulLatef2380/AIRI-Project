@@ -5,7 +5,6 @@
     <string name="back">Back</string>
     <string name="cancel">Cancel</string>
     <string name="continue_action">Continue</string>
-    <string name="delete">Delete</string>
     <string name="ok">OK</string>
     <string name="save">Save</string>
     <string name="settings">Settings</string>
@@ -57,9 +56,6 @@
     <string name="reset_ai_context">Reset AI context (irreversible)</string>
     <string name="appearance">Appearance</string>
     <string name="theme">Theme</string>
-    <string name="theme_dark">Dark</string>
-    <string name="theme_light">Light</string>
-    <string name="theme_system">System</string>
     <string name="language">Language</string>
     <string name="ui_language">UI Language</string>
     <string name="model_language">Model Language</string>
@@ -420,14 +416,14 @@
     <string name="suggestion_explain_ai">How does on-device AI work?</string>
     <string name="suggestion_write_poem">Write me a short poem</string>
     <string name="suggestion_brainstorm">Help me brainstorm ideas</string>    <!-- Bottom navigation labels -->
-    <string name="nav_skills">مهارات</string>
-    <string name="nav_schedule">مجدول</string>
-    <string name="nav_settings">إعدادات</string>
-    <string name="nav_chat">دردشة</string>
-    <string name="nav_new">جديد</string>
+    <string name="nav_skills">Skills</string>
+    <string name="nav_schedule">Schedule</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_chat">Chat</string>
+    <string name="nav_new">New</string>
     <!-- Bottom navigation labels -->
     <!-- Agent tasks route alias -->
-    <string name="agent_tasks">المهام</string>
+    <string name="agent_tasks">Tasks</string>
 
     <!-- Settings screen navigation labels -->
     <string name="settings_agent_tasks">Scheduled Tasks</string>
@@ -467,7 +463,6 @@
     <string name="marketplace_all_skills">All Skills</string>
     <string name="marketplace_install">Install</string>
     <string name="marketplace_installed_badge">Installed</string>
-    <string name="marketplace_update">Update</string>
     <string name="marketplace_install_success">✓ %1$s installed!</string>
     <string name="marketplace_install_failed">Install failed — try again.</string>
     <string name="marketplace_removed">%1$s removed.</string>
@@ -944,14 +939,6 @@
 
     <!-- Sandbox Workspace screen -->
     <string name="sandbox_title">Sandbox</string>
-    <string name="sandbox_new_session_cd">New session</string>
-    <string name="sandbox_no_executions">No executions yet — run a command below</string>
-    <string name="sandbox_no_sessions">No active sandbox sessions</string>
-    <string name="sandbox_no_sessions_desc">Create a session to start running isolated tasks</string>
-    <string name="sandbox_new_session_button">New Session</string>
-    <string name="sandbox_close_session_cd">Close session</string>
-    <string name="sandbox_run_cd">Run</string>
-    <string name="sandbox_command_placeholder">shell command…</string>
 
     <!-- Skill Builder screen -->
     <string name="skill_builder_saving">Saving...</string>
@@ -1129,9 +1116,6 @@
 
     <!-- Secret Manager (Task 9.1) -->
     <string name="secret_manager_title">Secret Manager</string>
-    <string name="secret_manager_api_key_label">API Key</string>
-    <string name="secret_manager_save">Save</string>
-    <string name="secret_manager_cancel">Cancel</string>
 
     <!-- Security Scanner (Task 8.1) -->
     <string name="security_scanner_title">Security Scanner</string>
@@ -1211,230 +1195,228 @@
     <string name="voice_gemini_key_required">Set a Gemini API key in Settings first</string>
     <string name="voice_openai_key_required">Set an OpenAI API key in Settings first</string>
     <string name="default_web_client_id">REPLACE_WITH_FIREBASE_WEB_CLIENT_ID</string>
-    <string name="welcome_greeting">Welcome to AIRI</string>
 
     <!-- Voice Settings — Phase 2 localization -->
-    <string name="voice_porcupine_legacy">Porcupine (Legacy Wake Word)</string>
-    <string name="voice_access_key_active">Access Key active</string>
-    <string name="voice_clear_access_key">Clear Access Key</string>
-    <string name="voice_access_key_label">Access Key</string>
-    <string name="voice_save_access_key">Save Access Key</string>
-    <string name="voice_vosk_stt_models">Vosk STT Models</string>
-    <string name="voice_activate">Activate</string>
-    <string name="voice_cloud_realtime_title">Cloud Realtime Voice</string>
-    <string name="voice_cloud_realtime_desc">Gemini Live and OpenAI Realtime providers are available for low-latency voice chat.</string>
 
     <!-- Debug / Developer — Phase 2 localization -->
-    <string name="debug_rerun_diagnostics">Re-run Diagnostics</string>
-    <string name="exec_diagnostics_reset_tokens">Reset Token Counters</string>
-    <string name="exec_diagnostics_no_events">No execution events in this session</string>
-    <string name="cloud_usage_label">Cloud Usage</string>
-    <string name="permissions_enable">Enable</string>
 
     <!-- Marketplace / Skills — Phase 2 localization -->
-    <string name="marketplace_update">Update</string>
-    <string name="marketplace_install_source_label">Source: %1$s</string>
 
     <!-- Naming rename — AI Library → AI Settings -->
-    <string name="ai_settings_title">AI Settings</string>
-    <string name="ai_settings_subtitle">Models, providers, and inference settings</string>
 
 
     <!-- Connector screen strings -->
-    <string name="connectors_title">Connectors</string>
-    <string name="connectors_tab_apps">Apps</string>
-    <string name="connectors_tab_device">Device</string>
-    <string name="connectors_tab_system">System</string>
-    <string name="connectors_connected_count">%1$d connected</string>
-    <string name="connectors_empty_category">No connectors in this category</string>
-    <string name="connectors_status_connected">Connected</string>
-    <string name="connectors_status_disconnected">Disconnected</string>
 
     <!-- Customization strings -->
-    <string name="customization_display_mode">Display Mode</string>
-    <string name="theme_dark">Dark</string>
-    <string name="theme_light">Light</string>
-    <string name="theme_system">System</string>
-    <string name="theme_amoled">AMOLED</string>
 
     <!-- Login strings -->
-    <string name="login_or_divider">or</string>
 
     <!-- Model Settings strings -->
-    <string name="model_settings_discover_title">Discover AIRI's new mind</string>
-    <string name="model_settings_discover_subtitle">Local models selected by device RAM, storage, and processor.</string>
 
     <!-- ChatViewModel error messages -->
-    <string name="err_select_model_first">Select a local or remote model first.</string>
-    <string name="err_load_text_model_first">Load a text model before adding a vision file.</string>
-    <string name="err_mmproj_copy_failed">Could not copy mmproj file. Check permissions and try again.</string>
-    <string name="msg_vision_loaded_ok">Vision file loaded. You can now send images.</string>
-    <string name="msg_vision_unsupported_model">Vision file loaded, but the current model does not support image analysis.</string>
-    <string name="err_vision_load_failed">Vision file failed to load. Ensure the file is a valid mmproj.</string>
-    <string name="err_image_process_failed">Could not process image (check format and file size).</string>
-    <string name="err_image_analyze_failed">Image analysis failed: %1$s</string>
 
     <!-- Secret Manager additional -->
-    <string name="secret_manager_save">Save</string>
-    <string name="secret_manager_cancel">Cancel</string>
-    <string name="secret_manager_api_key_label">API Key</string>
-    <string name="delete">Delete</string>
+    <!-- Referral screen -->
+    <string name="chat_create_spreadsheet_prefix">Create a spreadsheet</string>
+    <string name="referral_copy_link">Copy link</string>
+    <string name="referral_share_link">Share link</string>
+    <!-- Voice settings -->
+    <string name="voice_delete_wake_word_cd">Delete wake word</string>
+    <!-- Chat screen -->
+    <string name="chat_edit_image_prefix">Edit this image:</string>
+    <!-- Integrations screen -->
+    <string name="integrations_copy_token_hint">Copy the token and paste it below</string>
+    <!-- Billing history -->
+    <string name="billing_transaction_id_prefix">ID: </string>
 
-</resources>
-    <!-- Terminal — Phase 2 improvements -->
-    <string name="terminal_history_empty">No command history yet</string>
-    <string name="terminal_search_hint">Search output…</string>
-    <string name="terminal_copy_cd">Copy output</string>
-    <string name="terminal_clear_cd">Clear terminal</string>
-    <string name="terminal_history_cd">Command history</string>
-    <string name="terminal_search_cd">Search</string>
-    <string name="terminal_close_search_cd">Close search</string>
-    <string name="terminal_copied">Copied to clipboard</string>
-    <string name="terminal_session_ended">Session ended</string>
-    <string name="terminal_no_output">No output yet — type a command to begin</string>
-    <string name="terminal_welcome">AIRI Terminal  |  Type \'help\' for available commands</string>
+    <!-- Debug screen -->
+    <string name="debug_no_events">No events yet. Send a message.</string>
 
-    <!-- Sandbox — Phase 2 improvements -->
-    <string name="sandbox_no_sessions">No active sessions</string>
-    <string name="sandbox_no_sessions_desc">Create a session to start executing code</string>
-    <string name="sandbox_new_session_button">New Session</string>
-    <string name="sandbox_new_session_cd">Create new session</string>
-    <string name="sandbox_close_session_cd">Close session</string>
-    <string name="sandbox_run_cd">Run command</string>
-    <string name="sandbox_command_placeholder">shell command…</string>
-    <string name="sandbox_no_executions">No executions yet</string>
-    <string name="sandbox_restart_cd">Restart session</string>
-    <string name="sandbox_memory_usage">Memory</string>
-    <string name="sandbox_cancel_execution">Cancel</string>
-    <string name="sandbox_file_explorer">Files</string>
-    <string name="sandbox_session_age">Age</string>
+    <!-- Community skills -->
+    <string name="community_skill_source_prefix">Source: %1$s</string>
+    <string name="community_sandbox_level_prefix">Sandbox Level: %1$s</string>
 
-    <!-- Secret Manager — Phase 2 improvements -->
-    <string name="secret_manager_not_set">Not configured</string>
-    <string name="secret_manager_set_key_title">Configure Key — %1$s</string>
-    <string name="secret_manager_description">API keys are stored in Android EncryptedSharedPreferences and never transmitted except to their respective service.</string>
-    <string name="secret_manager_edit_cd">Edit API key</string>
-    <string name="secret_manager_delete_cd">Delete API key</string>
-    <string name="secret_manager_key_placeholder">Paste your API key here…</string>
-    <string name="secret_manager_show_key_cd">Show key</string>
-    <string name="secret_manager_hide_key_cd">Hide key</string>
-    <string name="secret_manager_key_saved">Key saved securely</string>
-    <string name="secret_manager_key_deleted">Key removed</string>
-    <string name="secret_manager_copy_cd">Copy key</string>
-    <string name="secret_manager_copied">Key copied to clipboard</string>
-    <string name="secret_manager_configured">Configured</string>
-    <string name="secret_manager_enter_key_hint">Enter your %1$s key</string>
+    <!-- Referral clipboard label (internal, non-visible) -->
+    <string name="referral_clipboard_label">AIRI referral</string>
 
-    <!-- Profile — Phase 2 improvements -->
-    <string name="profile_title">Profile</string>
-    <string name="profile_photo_cd">Profile photo</string>
-    <string name="profile_change_photo">Change Photo</string>
-    <string name="profile_remove_photo">Remove Photo</string>
-    <string name="profile_display_name_label">Display Name</string>
-    <string name="profile_email_label">Email</string>
-    <string name="profile_account_section">Account</string>
-    <string name="profile_session_section">Session</string>
-    <string name="profile_login_provider">Sign-in provider</string>
-    <string name="profile_member_since">Member since</string>
-    <string name="profile_sign_out">Sign Out</string>
-    <string name="profile_delete_account">Delete Account</string>
-    <string name="profile_delete_confirm_title">Delete Account?</string>
-    <string name="profile_delete_confirm_body">This will permanently delete your Firebase account. Local model files and conversation history stored on this device are NOT deleted. This action cannot be undone.</string>
-    <string name="profile_delete_confirm_action">Delete Account</string>
-    <string name="profile_saving">Saving…</string>
-    <string name="profile_saved_ok">Profile updated</string>
+    <!-- === All missing string definitions added by production audit === -->
 
-    <!-- About — Phase 2 improvements -->
-    <string name="about_version">Version</string>
+    <!-- about -->
     <string name="about_build">Build</string>
     <string name="about_licenses">Open Source Licenses</string>
     <string name="about_privacy">Privacy Policy</string>
-    <string name="about_acknowledgements">Acknowledgements</string>
-    <string name="about_runtime_title">Runtime</string>
-    <string name="about_voice_title">Voice</string>
+    <string name="about_privacy_body">All local inference stays entirely on-device. Cloud requests pass through a privacy sanitisation gate before transmission.</string>
     <string name="about_privacy_title">Privacy</string>
+    <string name="about_privacy_url">https://airiapp.com/privacy</string>
+    <string name="about_runtime_body">Local-first hybrid inference using llama.cpp GGUF runtime with cloud failover via Anthropic, Gemini, and OpenAI adapters.</string>
+    <string name="about_runtime_title">Runtime</string>
+    <string name="about_stack_body">Kotlin · Jetpack Compose · Coroutines · StateFlow · Room · JNI/NDK · llama.cpp · Material 3</string>
     <string name="about_stack_title">Tech Stack</string>
-    <string name="about_community_title">Community</string>
-    <string name="about_tagline">Autonomous AI Operating System</string>
+    <string name="about_tagline">Your private AI assistant</string>
+    <string name="about_version">Version</string>
+    <string name="about_voice_body">On-device speech recognition via Vosk. Wake-word detection via Porcupine. Full-duplex VAD for barge-in interruption during generation.</string>
+    <string name="about_voice_title">Voice</string>
 
-    <!-- Voice Live Overlay — fix hardcoded Arabic -->
-    <string name="voice_listening_label">Listening…</string>
-    <string name="voice_speaking_label">AIRI is speaking</string>
-    <string name="voice_processing_label">Processing…</string>
+    <!-- cloud -->
+    <string name="cloud_usage_label">Cloud usage</string>
 
-    <!-- Memory — Phase 2 improvements -->
-    <string name="memory_search_hint">Search memories…</string>
-    <string name="memory_stored_count">%1$d stored interactions</string>
-    <string name="memory_empty_title">No memories yet</string>
-    <string name="memory_empty_subtitle">Conversations are summarised and indexed here</string>
-    <string name="memory_clear_confirm_title">Clear All Memory?</string>
-    <string name="welcome_greeting">Welcome to AIRI</string>
-
-    <!-- Voice Settings — Phase 2 localization -->
-    <string name="voice_porcupine_legacy">Porcupine (Legacy Wake Word)</string>
-    <string name="voice_access_key_active">Access Key active</string>
-    <string name="voice_clear_access_key">Clear Access Key</string>
-    <string name="voice_access_key_label">Access Key</string>
-    <string name="voice_save_access_key">Save Access Key</string>
-    <string name="voice_vosk_stt_models">Vosk STT Models</string>
-    <string name="voice_activate">Activate</string>
-    <string name="voice_cloud_realtime_title">Cloud Realtime Voice</string>
-    <string name="voice_cloud_realtime_desc">Gemini Live and OpenAI Realtime providers are available for low-latency voice chat.</string>
-
-    <!-- Debug / Developer — Phase 2 localization -->
-    <string name="debug_rerun_diagnostics">Re-run Diagnostics</string>
-    <string name="exec_diagnostics_reset_tokens">Reset Token Counters</string>
-    <string name="exec_diagnostics_no_events">No execution events in this session</string>
-    <string name="cloud_usage_label">Cloud Usage</string>
-    <string name="permissions_enable">Enable</string>
-
-    <!-- Marketplace / Skills — Phase 2 localization -->
-    <string name="marketplace_update">Update</string>
-    <string name="marketplace_install_source_label">Source: %1$s</string>
-
-    <!-- Naming rename — AI Library → AI Settings -->
-    <string name="ai_settings_title">AI Settings</string>
-    <string name="ai_settings_subtitle">Models, providers, and inference settings</string>
-
-
-    <!-- Connector screen strings -->
-    <string name="connectors_title">Connectors</string>
+    <!-- connectors -->
+    <string name="connectors_connected_count">%1$d connected</string>
+    <string name="connectors_empty_category">No connectors in this category yet</string>
+    <string name="connectors_status_connected">Connected</string>
+    <string name="connectors_status_disconnected">Disconnected</string>
     <string name="connectors_tab_apps">Apps</string>
     <string name="connectors_tab_device">Device</string>
     <string name="connectors_tab_system">System</string>
-    <string name="connectors_connected_count">%1$d connected</string>
-    <string name="connectors_empty_category">No connectors in this category</string>
-    <string name="connectors_status_connected">Connected</string>
-    <string name="connectors_status_disconnected">Disconnected</string>
+    <string name="connectors_title">Connectors</string>
 
-    <!-- Customization strings -->
-    <string name="customization_display_mode">Display Mode</string>
+    <!-- customization -->
+    <string name="customization_display_mode">Display mode</string>
+
+    <!-- debug -->
+    <string name="debug_rerun_diagnostics">Re-run diagnostics</string>
+
+    <!-- delete -->
+    <string name="delete">Delete</string>
+
+    <!-- err -->
+    <string name="err_image_analyze_failed">Failed to analyse image</string>
+    <string name="err_image_process_failed">Failed to process image</string>
+    <string name="err_load_text_model_first">Load a text model first</string>
+    <string name="err_mmproj_copy_failed">Failed to copy vision model</string>
+    <string name="err_select_model_first">Select a model first</string>
+    <string name="err_vision_load_failed">Failed to load vision model</string>
+
+    <!-- exec -->
+    <string name="exec_diagnostics_no_events">No diagnostic events yet</string>
+    <string name="exec_diagnostics_reset_tokens">Reset token counter</string>
+
+    <!-- login -->
+    <string name="login_or_divider">or</string>
+
+    <!-- marketplace -->
+    <string name="marketplace_update">Update</string>
+    <string name="marketplace_update_available">New version available: v%1$s</string>
+    <string name="marketplace_version_prefix">v%1$s</string>
+
+    <!-- memory -->
+    <string name="memory_clear_confirm_title">Clear all memories?</string>
+    <string name="memory_cleared_snack">Memory cleared</string>
+    <string name="memory_empty_subtitle">Start a conversation and AIRI will remember what matters</string>
+    <string name="memory_empty_title">No memories yet</string>
+    <string name="memory_search_hint">Search memories…</string>
+    <string name="memory_search_no_results">No memories match "%1$s"</string>
+    <string name="memory_stored_count">%1$d memories stored</string>
+
+    <!-- model -->
+    <string name="model_settings_discover_subtitle">Browse and download GGUF models from Hugging Face</string>
+    <string name="model_settings_discover_title">Discover Models</string>
+
+    <!-- msg -->
+    <string name="msg_vision_loaded_ok">Vision model loaded</string>
+    <string name="msg_vision_unsupported_model">This model does not support vision</string>
+
+    <!-- permissions -->
+    <string name="permissions_enable_label">Enable</string>
+
+    <!-- profile -->
+    <string name="profile_account_section">Account</string>
+    <string name="profile_change_photo">Change photo</string>
+    <string name="profile_delete_account">Delete account</string>
+    <string name="profile_delete_confirm_action">Delete account</string>
+    <string name="profile_delete_confirm_body">This will permanently delete your AIRI account and all local data. This action cannot be undone.</string>
+    <string name="profile_delete_confirm_title">Delete your account?</string>
+    <string name="profile_delete_failed">Could not delete account. Please try again.</string>
+    <string name="profile_display_name_label">Display name</string>
+    <string name="profile_email_label">Email</string>
+    <string name="profile_handle_placeholder">@handle</string>
+    <string name="profile_login_provider">Sign-in method</string>
+    <string name="profile_member_since">Member since</string>
+    <string name="profile_photo_cd">Profile photo</string>
+    <string name="profile_photo_placeholder">Your name</string>
+    <string name="profile_photo_removed">Profile photo removed</string>
+    <string name="profile_photo_saved">Profile photo updated</string>
+    <string name="profile_remove_photo">Remove photo</string>
+    <string name="profile_saved_ok">Profile saved</string>
+    <string name="profile_saving">Saving…</string>
+    <string name="profile_session_section">Session</string>
+    <string name="profile_sign_out">Sign out</string>
+    <string name="profile_title">Profile</string>
+
+    <!-- sandbox -->
+    <string name="sandbox_cancel_confirm">Execution cancelled</string>
+    <string name="sandbox_cancel_execution">Cancel</string>
+    <string name="sandbox_command_placeholder">shell command…</string>
+    <string name="sandbox_new_session_button">New session</string>
+    <string name="sandbox_new_session_cd">Create new sandbox session</string>
+    <string name="sandbox_no_executions">No executions yet</string>
+    <string name="sandbox_no_sessions">No active sessions</string>
+    <string name="sandbox_no_sessions_desc">Create a session to start executing code</string>
+    <string name="sandbox_restart_cd">Restart session</string>
+    <string name="sandbox_run_cd">Run command</string>
+
+    <!-- secret -->
+    <string name="secret_manager_api_key_label">API key</string>
+    <string name="secret_manager_biometric_cancel">Authentication failed</string>
+    <string name="secret_manager_biometric_subtitle">Confirm your identity to copy or view the API key</string>
+    <string name="secret_manager_biometric_title">Authenticate to reveal key</string>
+    <string name="secret_manager_cancel">Cancel</string>
+    <string name="secret_manager_copied">API key copied to clipboard</string>
+    <string name="secret_manager_copy_cd">Copy API key</string>
+    <string name="secret_manager_delete_cd">Delete API key</string>
+    <string name="secret_manager_description">Keys are stored using Android EncryptedSharedPreferences. They never leave your device unless explicitly sent in a request.</string>
+    <string name="secret_manager_edit_cd">Edit API key</string>
+    <string name="secret_manager_enter_key_hint">Paste your %1$s API key below</string>
+    <string name="secret_manager_hide_key_cd">Hide key</string>
+    <string name="secret_manager_key_deleted">Key removed</string>
+    <string name="secret_manager_key_placeholder">sk-••••••••••••••••</string>
+    <string name="secret_manager_key_saved">Key saved</string>
+    <string name="secret_manager_not_set">Not configured</string>
+    <string name="secret_manager_remove_body">This will permanently delete the stored API key for %1$s. You can re-enter it at any time.</string>
+    <string name="secret_manager_remove_title">Remove %1$s key?</string>
+    <string name="secret_manager_save">Save</string>
+    <string name="secret_manager_set_key_title">Set %1$s API key</string>
+    <string name="secret_manager_show_key_cd">Show key</string>
+
+    <!-- skill -->
+    <string name="skill_builder_create_title">Create Skill</string>
+    <string name="skill_builder_edit_title">Edit Skill</string>
+    <string name="skill_copy_action">Copy</string>
+    <string name="skill_edit_action">Edit</string>
+    <string name="skill_wizard_author_label">Author *</string>
+    <string name="skill_wizard_author_placeholder">Your name or organisation</string>
+
+    <!-- terminal -->
+    <string name="terminal_clear_cd">Clear terminal</string>
+    <string name="terminal_close_search_cd">Close search</string>
+    <string name="terminal_copied">Output copied to clipboard</string>
+    <string name="terminal_copy_cd">Copy output</string>
+    <string name="terminal_history_cd">Command history</string>
+    <string name="terminal_history_empty">No previous commands</string>
+    <string name="terminal_no_output">Run a command to see output</string>
+    <string name="terminal_search_cd">Search output</string>
+    <string name="terminal_search_hint">Search output…</string>
+
+    <!-- theme -->
     <string name="theme_dark">Dark</string>
     <string name="theme_light">Light</string>
     <string name="theme_system">System</string>
-    <string name="theme_amoled">AMOLED</string>
 
-    <!-- Login strings -->
-    <string name="login_or_divider">or</string>
+    <!-- voice -->
+    <string name="voice_access_key_active">Access key active</string>
+    <string name="voice_access_key_label">Picovoice access key</string>
+    <string name="voice_activate">Activate</string>
+    <string name="voice_clear_access_key">Clear access key</string>
+    <string name="voice_cloud_realtime_desc">Low-latency real-time transcription via Deepgram. Requires network.</string>
+    <string name="voice_cloud_realtime_title">Cloud real-time STT</string>
+    <string name="voice_listening_label">Listening…</string>
+    <string name="voice_porcupine_legacy">Porcupine (legacy)</string>
+    <string name="voice_processing_label">Processing…</string>
+    <string name="voice_save_access_key">Save access key</string>
+    <string name="voice_speaking_label">Speaking…</string>
+    <string name="voice_vosk_stt_models">Vosk STT models</string>
 
-    <!-- Model Settings strings -->
-    <string name="model_settings_discover_title">Discover AIRI's new mind</string>
-    <string name="model_settings_discover_subtitle">Local models selected by device RAM, storage, and processor.</string>
-
-    <!-- ChatViewModel error messages -->
-    <string name="err_select_model_first">Select a local or remote model first.</string>
-    <string name="err_load_text_model_first">Load a text model before adding a vision file.</string>
-    <string name="err_mmproj_copy_failed">Could not copy mmproj file. Check permissions and try again.</string>
-    <string name="msg_vision_loaded_ok">Vision file loaded. You can now send images.</string>
-    <string name="msg_vision_unsupported_model">Vision file loaded, but the current model does not support image analysis.</string>
-    <string name="err_vision_load_failed">Vision file failed to load. Ensure the file is a valid mmproj.</string>
-    <string name="err_image_process_failed">Could not process image (check format and file size).</string>
-    <string name="err_image_analyze_failed">Image analysis failed: %1$s</string>
-
-    <!-- Secret Manager additional -->
-    <string name="secret_manager_save">Save</string>
-    <string name="secret_manager_cancel">Cancel</string>
-    <string name="secret_manager_api_key_label">API Key</string>
-    <string name="delete">Delete</string>
+    <!-- welcome -->
+    <string name="welcome_greeting">Hello, I\'m AIRI</string>
 
 </resources>

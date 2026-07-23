@@ -168,7 +168,7 @@ private fun CommunitySkillCard(
                 Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(skill.description, fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
                     skill.sourceUrl?.let {
-                        Text("Source: $it", fontSize = 11.sp, color = CosmicAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(stringResource(R.string.community_skill_source_prefix, it), fontSize = 11.sp, color = CosmicAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Divider(color = AiriTheme.outline)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -398,7 +398,7 @@ private fun TrustScoreTab(skill: CommunitySkill?, hub: CommunitySkillHub) {
                     Icon(Icons.Default.Science, null, Modifier.size(20.dp), tint = CosmicAccent)
                     Spacer(Modifier.width(10.dp))
                     Column {
-                        Text("Sandbox Level: ${breakdown.tier.sandboxLevel.name}", fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
+                        Text(stringResource(R.string.community_sandbox_level_prefix, breakdown.tier.sandboxLevel.name), fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
                         Text(sandboxLevelDescription(breakdown.tier.sandboxLevel), fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
                     }
                 }

@@ -1133,4 +1133,191 @@
     <string name="voice_gemini_key_required">أضف مفتاح Gemini API في الإعدادات أولاً</string>
     <string name="voice_openai_key_required">أضف مفتاح OpenAI API في الإعدادات أولاً</string>
     <string name="default_web_client_id">REPLACE_WITH_FIREBASE_WEB_CLIENT_ID</string>
+
+    <!-- Billing -->
+    <string name="billing_transaction_id_prefix">المعرف: </string>
+
+    <!-- Chat prefixes -->
+    <string name="chat_create_spreadsheet_prefix">أنشئ جدول بيانات</string>
+    <string name="chat_edit_image_prefix">عدِّل هذه الصورة:</string>
+
+    <!-- Community skills -->
+    <string name="community_sandbox_level_prefix">مستوى الصندوق: %1$s</string>
+    <string name="community_skill_source_prefix">المصدر: %1$s</string>
+
+    <!-- Debug -->
+    <string name="debug_no_events">لا توجد أحداث بعد. أرسل رسالة.</string>
+
+    <!-- Integrations -->
+    <string name="integrations_copy_token_hint">انسخ الرمز والصقه أدناه</string>
+
+    <!-- Referral -->
+    <string name="referral_clipboard_label">دعوة AIRI</string>
+    <string name="referral_copy_link">نسخ الرابط</string>
+    <string name="referral_share_link">مشاركة الرابط</string>
+
+    <!-- Voice -->
+    <string name="voice_delete_wake_word_cd">حذف كلمة التنبيه</string>
+
+    <!-- === Production audit additions === -->
+
+    <!-- about -->
+    <string name="about_build">الإصدار البنائي</string>
+    <string name="about_licenses">تراخيص المصدر المفتوح</string>
+    <string name="about_privacy">سياسة الخصوصية</string>
+    <string name="about_privacy_body">تبقى جميع عمليات المعالجة المحلية على الجهاز تمامًا.</string>
+    <string name="about_privacy_title">الخصوصية</string>
+    <string name="about_privacy_url">https://airiapp.com/privacy</string>
+    <string name="about_runtime_body">استدلال محلي-أول بنظام llama.cpp مع تحويل سحابي.</string>
+    <string name="about_runtime_title">وقت التشغيل</string>
+    <string name="about_stack_body">Kotlin · Jetpack Compose · Coroutines · StateFlow · Room · JNI/NDK · llama.cpp · Material 3</string>
+    <string name="about_stack_title">التقنيات المستخدمة</string>
+    <string name="about_tagline">مساعدك الذكي الخاص</string>
+    <string name="about_version">الإصدار</string>
+    <string name="about_voice_body">التعرف على الكلام عبر Vosk. كشف كلمة التنبيه عبر Porcupine.</string>
+    <string name="about_voice_title">الصوت</string>
+
+    <!-- cloud -->
+    <string name="cloud_usage_label">استخدام السحابة</string>
+
+    <!-- connectors -->
+    <string name="connectors_connected_count">%1$d متصل</string>
+    <string name="connectors_empty_category">لا توجد موصلات في هذه الفئة بعد</string>
+    <string name="connectors_status_connected">متصل</string>
+    <string name="connectors_status_disconnected">غير متصل</string>
+    <string name="connectors_tab_apps">التطبيقات</string>
+    <string name="connectors_tab_device">الجهاز</string>
+    <string name="connectors_tab_system">النظام</string>
+    <string name="connectors_title">الموصلات</string>
+
+    <!-- customization -->
+    <string name="customization_display_mode">وضع العرض</string>
+
+    <!-- debug -->
+    <string name="debug_rerun_diagnostics">إعادة تشغيل التشخيص</string>
+
+    <!-- err -->
+    <string name="err_image_analyze_failed">فشل تحليل الصورة</string>
+    <string name="err_image_process_failed">فشل معالجة الصورة</string>
+    <string name="err_load_text_model_first">قم بتحميل نموذج نصي أولاً</string>
+    <string name="err_mmproj_copy_failed">فشل نسخ نموذج الرؤية</string>
+    <string name="err_select_model_first">اختر نموذجاً أولاً</string>
+    <string name="err_vision_load_failed">فشل تحميل نموذج الرؤية</string>
+
+    <!-- exec -->
+    <string name="exec_diagnostics_no_events">لا توجد أحداث تشخيصية بعد</string>
+    <string name="exec_diagnostics_reset_tokens">إعادة تعيين عداد الرموز</string>
+
+    <!-- login -->
+    <string name="login_or_divider">أو</string>
+
+    <!-- marketplace -->
+    <string name="marketplace_update_available">إصدار جديد متاح: v%1$s</string>
+    <string name="marketplace_version_prefix">v%1$s</string>
+
+    <!-- memory -->
+    <string name="memory_clear_confirm_title">مسح جميع الذكريات؟</string>
+    <string name="memory_cleared_snack">تم مسح الذاكرة</string>
+    <string name="memory_empty_subtitle">ابدأ محادثة وسيتذكر AIRI ما يهمك</string>
+    <string name="memory_empty_title">لا توجد ذكريات بعد</string>
+    <string name="memory_search_hint">البحث في الذكريات…</string>
+    <string name="memory_search_no_results">لا توجد ذكريات تطابق "%1$s"</string>
+    <string name="memory_stored_count">%1$d ذكريات مخزنة</string>
+
+    <!-- model -->
+    <string name="model_settings_discover_subtitle">استعرض وحمّل نماذج GGUF من Hugging Face</string>
+    <string name="model_settings_discover_title">اكتشاف النماذج</string>
+
+    <!-- msg -->
+    <string name="msg_vision_loaded_ok">تم تحميل نموذج الرؤية</string>
+    <string name="msg_vision_unsupported_model">هذا النموذج لا يدعم الرؤية</string>
+
+    <!-- permissions -->
+    <string name="permissions_enable_label">تفعيل</string>
+
+    <!-- profile -->
+    <string name="profile_account_section">الحساب</string>
+    <string name="profile_change_photo">تغيير الصورة</string>
+    <string name="profile_delete_account">حذف الحساب</string>
+    <string name="profile_delete_confirm_action">حذف الحساب</string>
+    <string name="profile_delete_confirm_body">سيؤدي هذا إلى حذف حساب AIRI وجميع البيانات المحلية نهائياً. لا يمكن التراجع عن هذا الإجراء.</string>
+    <string name="profile_delete_confirm_title">هل تريد حذف حسابك؟</string>
+    <string name="profile_delete_failed">تعذّر حذف الحساب. يرجى المحاولة مجدداً.</string>
+    <string name="profile_display_name_label">الاسم المعروض</string>
+    <string name="profile_email_label">البريد الإلكتروني</string>
+    <string name="profile_handle_placeholder">@معرف</string>
+    <string name="profile_login_provider">طريقة تسجيل الدخول</string>
+    <string name="profile_member_since">عضو منذ</string>
+    <string name="profile_photo_cd">صورة الملف الشخصي</string>
+    <string name="profile_photo_placeholder">اسمك</string>
+    <string name="profile_photo_removed">تم إزالة صورة الملف الشخصي</string>
+    <string name="profile_photo_saved">تم تحديث صورة الملف الشخصي</string>
+    <string name="profile_remove_photo">إزالة الصورة</string>
+    <string name="profile_saved_ok">تم حفظ الملف الشخصي</string>
+    <string name="profile_saving">جارٍ الحفظ…</string>
+    <string name="profile_session_section">الجلسة</string>
+    <string name="profile_sign_out">تسجيل الخروج</string>
+    <string name="profile_title">الملف الشخصي</string>
+
+    <!-- sandbox -->
+    <string name="sandbox_cancel_confirm">تم إلغاء التنفيذ</string>
+    <string name="sandbox_cancel_execution">إلغاء</string>
+    <string name="sandbox_restart_cd">إعادة تشغيل الجلسة</string>
+
+    <!-- secret -->
+    <string name="secret_manager_biometric_cancel">فشل المصادقة</string>
+    <string name="secret_manager_biometric_subtitle">أكّد هويتك لنسخ أو عرض مفتاح API</string>
+    <string name="secret_manager_biometric_title">المصادقة للكشف عن المفتاح</string>
+    <string name="secret_manager_copied">تم نسخ مفتاح API إلى الحافظة</string>
+    <string name="secret_manager_copy_cd">نسخ مفتاح API</string>
+    <string name="secret_manager_delete_cd">حذف مفتاح API</string>
+    <string name="secret_manager_description">تُخزَّن المفاتيح باستخدام EncryptedSharedPreferences. لا تغادر جهازك إلا إذا أُرسلت صراحةً في طلب.</string>
+    <string name="secret_manager_edit_cd">تعديل مفتاح API</string>
+    <string name="secret_manager_enter_key_hint">الصق مفتاح %1$s API أدناه</string>
+    <string name="secret_manager_hide_key_cd">إخفاء المفتاح</string>
+    <string name="secret_manager_key_deleted">تم حذف المفتاح</string>
+    <string name="secret_manager_key_placeholder">sk-••••••••••••••••</string>
+    <string name="secret_manager_key_saved">تم حفظ المفتاح</string>
+    <string name="secret_manager_not_set">غير مُهيَّأ</string>
+    <string name="secret_manager_remove_body">سيؤدي هذا إلى حذف مفتاح API المخزن لـ %1$s نهائياً. يمكنك إعادة إدخاله في أي وقت.</string>
+    <string name="secret_manager_remove_title">إزالة مفتاح %1$s؟</string>
+    <string name="secret_manager_set_key_title">تعيين مفتاح %1$s API</string>
+    <string name="secret_manager_show_key_cd">إظهار المفتاح</string>
+
+    <!-- skill -->
+    <string name="skill_builder_create_title">إنشاء مهارة</string>
+    <string name="skill_builder_edit_title">تعديل مهارة</string>
+    <string name="skill_copy_action">نسخ</string>
+    <string name="skill_edit_action">تعديل</string>
+    <string name="skill_wizard_author_label">المؤلف *</string>
+    <string name="skill_wizard_author_placeholder">اسمك أو مؤسستك</string>
+
+    <!-- terminal -->
+    <string name="terminal_clear_cd">مسح الطرفية</string>
+    <string name="terminal_close_search_cd">إغلاق البحث</string>
+    <string name="terminal_copied">تم نسخ الإخراج إلى الحافظة</string>
+    <string name="terminal_copy_cd">نسخ الإخراج</string>
+    <string name="terminal_history_cd">سجل الأوامر</string>
+    <string name="terminal_history_empty">لا توجد أوامر سابقة</string>
+    <string name="terminal_no_output">شغّل أمرًا لرؤية الإخراج</string>
+    <string name="terminal_search_cd">البحث في الإخراج</string>
+    <string name="terminal_search_hint">البحث في الإخراج…</string>
+
+    <!-- voice -->
+    <string name="voice_access_key_active">مفتاح الوصول نشط</string>
+    <string name="voice_access_key_label">مفتاح وصول Picovoice</string>
+    <string name="voice_activate">تفعيل</string>
+    <string name="voice_clear_access_key">مسح مفتاح الوصول</string>
+    <string name="voice_cloud_realtime_desc">نسخ فوري منخفض التأخير عبر Deepgram. يتطلب اتصالاً بالشبكة.</string>
+    <string name="voice_cloud_realtime_title">STT سحابي فوري</string>
+    <string name="voice_listening_label">جارٍ الاستماع…</string>
+    <string name="voice_porcupine_legacy">Porcupine (قديم)</string>
+    <string name="voice_processing_label">جارٍ المعالجة…</string>
+    <string name="voice_save_access_key">حفظ مفتاح الوصول</string>
+    <string name="voice_speaking_label">جارٍ الكلام…</string>
+    <string name="voice_vosk_stt_models">نماذج Vosk STT</string>
+
+    <!-- welcome -->
+    <string name="welcome_greeting">مرحباً، أنا AIRI</string>
+
 </resources>

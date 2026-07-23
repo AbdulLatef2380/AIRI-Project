@@ -2,6 +2,7 @@ package com.airi.assistant.ui.screens
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,6 +28,7 @@ import com.airi.assistant.ui.theme.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
+    val uriHandler = LocalUriHandler.current
     Scaffold(
         containerColor = AiriTheme.background,
         topBar = {
@@ -108,27 +110,28 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
             AboutInfoCard(
                 icon   = Icons.Outlined.Memory,
                 title  = stringResource(R.string.about_runtime_title),
-                body   = "Local-first hybrid inference using llama.cpp GGUF runtime with cloud failover via Anthropic, Gemini, and OpenAI adapters."
+                body   = stringResource(R.string.about_runtime_body)
             )
             AboutInfoCard(
                 icon   = Icons.Outlined.Mic,
                 title  = stringResource(R.string.about_voice_title),
-                body   = "On-device speech recognition via Vosk. Wake-word detection via Porcupine. Full-duplex VAD for barge-in interruption during generation."
+                body   = stringResource(R.string.about_voice_body)
             )
             AboutInfoCard(
                 icon   = Icons.Outlined.Lock,
                 title  = stringResource(R.string.about_privacy_title),
-                body   = "All local inference stays entirely on-device. Cloud requests pass through a privacy sanitisation gate before transmission."
+                body   = stringResource(R.string.about_privacy_body)
             )
             AboutInfoCard(
                 icon   = Icons.Outlined.Code,
                 title  = stringResource(R.string.about_stack_title),
-                body   = "Kotlin · Jetpack Compose · Coroutines · StateFlow · Room · JNI/NDK · llama.cpp · Material 3"
+                body   = stringResource(R.string.about_stack_body)
             )
 
             HorizontalDivider(color = DividerColor)
 
-            // Navigation links
+            // Navigation links — Technical Details and Licenses route to AppInfoScreen;
+            // Privacy Policy opens the canonical URL in the system browser.
             AboutLinkRow(
                 icon    = Icons.Outlined.Info,
                 label   = stringResource(R.string.about_technical_details),
@@ -142,7 +145,7 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
             AboutLinkRow(
                 icon    = Icons.Outlined.PrivacyTip,
                 label   = stringResource(R.string.about_privacy),
-                onClick = {}
+                onClick = { uriHandler.openUri(stringResource(R.string.about_privacy_url)) }
             )
 
             Spacer(Modifier.height(8.dp))

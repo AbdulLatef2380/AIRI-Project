@@ -3,13 +3,17 @@ package com.airi.assistant.ui.screens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
+import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -27,6 +31,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import com.airi.assistant.R
 import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.security.SecureApiKeyStore
@@ -61,6 +67,45 @@ fun SecretManagerScreen(onBack: () -> Unit) {
     var showKey         by remember { mutableStateOf(false) }
     var showDeleteFor   by remember { mutableStateOf<CloudProvider?>(null) }
 
+    // Biometric availability check — performed once
+    val biometricAvailable = remember {
+        val bm = BiometricManager.from(context)
+        bm.canAuthenticate(BIOMETRIC_WEAK or DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
+    }
+
+    /**
+     * Run BiometricPrompt if hardware is available; invoke [onSuccess] immediately otherwise.
+     * Errors and denials are surfaced as snackbar messages.
+     */
+    fun authenticateThen(onSuccess: () -> Unit) {
+        if (!biometricAvailable) { onSuccess(); return }
+        val activity = context as? FragmentActivity ?: run { onSuccess(); return }
+        val executor = ContextCompat.getMainExecutor(context)
+        val callback = object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                onSuccess()
+            }
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
+                    errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
+                    scope.launch { snackbar.showSnackbar(errString.toString()) }
+                }
+            }
+            override fun onAuthenticationFailed() {
+                scope.launch {
+                    snackbar.showSnackbar(context.getString(R.string.secret_manager_biometric_cancel))
+                }
+            }
+        }
+        val prompt = BiometricPrompt(activity, executor, callback)
+        val info = BiometricPrompt.PromptInfo.Builder()
+            .setTitle(context.getString(R.string.secret_manager_biometric_title))
+            .setSubtitle(context.getString(R.string.secret_manager_biometric_subtitle))
+            .setAllowedAuthenticators(BIOMETRIC_WEAK or DEVICE_CREDENTIAL)
+            .build()
+        prompt.authenticate(info)
+    }
+
     // Delete confirmation dialog
     showDeleteFor?.let { provider ->
         AlertDialog(
@@ -70,10 +115,16 @@ fun SecretManagerScreen(onBack: () -> Unit) {
             icon = {
                 Icon(Icons.Outlined.Delete, null, tint = SemanticError, modifier = Modifier.size(28.dp))
             },
-            title = { Text("Remove ${provider.displayName} key?", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
+            title = {
+                Text(
+                    stringResource(R.string.secret_manager_remove_title, provider.displayName),
+                    color = AiriTheme.onBackground,
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
             text  = {
                 Text(
-                    "This will remove the stored API key for ${provider.displayName}. You can re-enter it at any time.",
+                    stringResource(R.string.secret_manager_remove_body, provider.displayName),
                     color = AiriTheme.onSurfaceVariant,
                     fontSize = 14.sp,
                     lineHeight = 20.sp
@@ -115,7 +166,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
             },
             title = {
                 Text(
-                    context.getString(R.string.secret_manager_set_key_title, provider.displayName),
+                    stringResource(R.string.secret_manager_set_key_title, provider.displayName),
                     color = AiriTheme.onBackground,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -123,7 +174,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        context.getString(R.string.secret_manager_enter_key_hint, provider.displayName),
+                        stringResource(R.string.secret_manager_enter_key_hint, provider.displayName),
                         color = AiriTheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -206,7 +257,6 @@ fun SecretManagerScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
-                // Info banner
                 Surface(
                     shape = AIRIShapes.md,
                     color = CosmicAccent.copy(0.08f),
@@ -245,9 +295,20 @@ fun SecretManagerScreen(onBack: () -> Unit) {
                     },
                     onCopy    = {
                         if (!currentKey.isNullOrBlank()) {
-                            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            cm.setPrimaryClip(ClipData.newPlainText("api_key", currentKey))
-                            scope.launch { snackbar.showSnackbar(context.getString(R.string.secret_manager_copied)) }
+                            authenticateThen {
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                val clip = ClipData.newPlainText("", currentKey).also { cd ->
+                                    // Android 13+: mark clip as sensitive so the system
+                                    // does not show a clipboard access toast with the key value
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        cd.description.extras = android.os.PersistableBundle().also {
+                                            it.putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+                                        }
+                                    }
+                                }
+                                cm.setPrimaryClip(clip)
+                                scope.launch { snackbar.showSnackbar(context.getString(R.string.secret_manager_copied)) }
+                            }
                         }
                     },
                     onDelete  = { showDeleteFor = provider }
@@ -276,7 +337,6 @@ private fun SecretKeyCard(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Provider icon placeholder
             Box(
                 modifier = Modifier.size(38.dp).clip(AIRIShapes.sm)
                     .background(if (isSet) CosmicAccent.copy(0.14f) else AiriTheme.surfaceVariant),
@@ -292,7 +352,6 @@ private fun SecretKeyCard(
 
             Spacer(Modifier.width(12.dp))
 
-            // Name and status
             Column(modifier = Modifier.weight(1f)) {
                 Text(provider.displayName, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
                 Spacer(Modifier.height(2.dp))
@@ -315,7 +374,6 @@ private fun SecretKeyCard(
                 }
             }
 
-            // Action buttons
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 if (isSet) {
                     IconButton(onClick = onCopy, modifier = Modifier.size(36.dp)) {

@@ -2150,7 +2150,7 @@ private fun AttachmentChip(
 @Composable
 private fun BlinkingCursor() {
     var cursorOn by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(500L); cursorOn = !cursorOn } }
+    LaunchedEffect(Unit) { while (kotlinx.coroutines.isActive) { kotlinx.coroutines.delay(500L); cursorOn = !cursorOn } }
     AnimatedContent(
         targetState = cursorOn,
         transitionSpec = { fadeIn(animationSpec = androidx.compose.animation.core.tween(80)) togetherWith fadeOut(animationSpec = androidx.compose.animation.core.tween(80)) },
@@ -2192,6 +2192,7 @@ fun AiriChatInputBar(
     attachments: List<ChatAttachment> = emptyList(),
     onRemoveAttachment: (String) -> Unit = {}
 ) {
+    val context          = LocalContext.current
     var showAttachPopup by remember { mutableStateOf(false) }
     val attachSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var text by rememberSaveable { mutableStateOf("") }
@@ -2216,9 +2217,9 @@ fun AiriChatInputBar(
     val micPulse = remember { androidx.compose.animation.core.Animatable(1f) }
     LaunchedEffect(voiceState) {
         when (voiceState) {
-            VoiceSessionState.LISTENING   -> while (true) { micPulse.animateTo(1.30f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOW)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOW)) }
-            VoiceSessionState.PROCESSING  -> while (true) { micPulse.animateTo(1.18f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOWER)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOWER)) }
-            VoiceSessionState.SPEAKING    -> while (true) { micPulse.animateTo(1.22f, animationSpec = androidx.compose.animation.core.tween(700)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(700)) }
+            VoiceSessionState.LISTENING   -> while (kotlinx.coroutines.isActive) { micPulse.animateTo(1.30f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOW)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOW)) }
+            VoiceSessionState.PROCESSING  -> while (kotlinx.coroutines.isActive) { micPulse.animateTo(1.18f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOWER)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOWER)) }
+            VoiceSessionState.SPEAKING    -> while (kotlinx.coroutines.isActive) { micPulse.animateTo(1.22f, animationSpec = androidx.compose.animation.core.tween(700)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(700)) }
             else -> micPulse.snapTo(1f)
         }
     }
@@ -2580,7 +2581,7 @@ fun AiriChatInputBar(
                     label = stringResource(R.string.attach_spreadsheet)
                 ) {
                     showAttachPopup = false
-                    text = text + if (text.isBlank()) "Create a spreadsheet" else "\nCreate a spreadsheet"
+                    text = text + if (text.isBlank()) context.getString(R.string.chat_create_spreadsheet_prefix) else "\n${context.getString(R.string.chat_create_spreadsheet_prefix)}"
                 }
                 AttachListRow(
                     icon = Icons.Outlined.History,
@@ -2601,7 +2602,7 @@ fun AiriChatInputBar(
                     label = stringResource(R.string.attach_edit_image)
                 ) {
                     showAttachPopup = false
-                    text = text + if (text.isBlank()) "Edit this image:" else "\nEdit this image:"
+                    text = text + if (text.isBlank()) context.getString(R.string.chat_edit_image_prefix) else "\n${context.getString(R.string.chat_edit_image_prefix)}"
                     onPickImage()
                 }
             }

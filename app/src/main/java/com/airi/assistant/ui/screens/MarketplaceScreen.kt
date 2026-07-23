@@ -324,7 +324,7 @@ private fun FeaturedSkillCard(skill: MarketplaceSkill, onInstall: (MarketplaceSk
                 ) { Text(skill.category.emoji, fontSize = 18.sp) }
                 Column {
                     Text(skill.name, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("v${skill.version}", fontSize = 10.sp, color = AiriTheme.onSurfaceVariant)
+                    Text(stringResource(R.string.marketplace_version_prefix, skill.version), fontSize = 10.sp, color = AiriTheme.onSurfaceVariant)
                 }
             }
             Text(skill.description, fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 16.sp)
@@ -397,7 +397,7 @@ private fun InstalledSkillRow(
             ) { Text(skill.category.emoji, fontSize = 18.sp) }
             Column(Modifier.weight(1f)) {
                 Text(skill.name, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground, fontSize = 14.sp)
-                Text("v${skill.version}", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                Text(stringResource(R.string.marketplace_version_prefix, skill.version), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
             }
             if (skill.hasUpdate) {
                 IconButton(onClick = { onUpdate(skill) }) {
@@ -446,7 +446,7 @@ private fun UpdateSkillRow(skill: MarketplaceSkill, onUpdate: (MarketplaceSkill)
             ) { Text(skill.category.emoji, fontSize = 18.sp) }
             Column(Modifier.weight(1f)) {
                 Text(skill.name, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground, fontSize = 14.sp)
-                Text("New version available: v${skill.version}", fontSize = 11.sp, color = CosmicAccent)
+                Text(stringResource(R.string.marketplace_update_available, skill.version), fontSize = 11.sp, color = CosmicAccent)
             }
             Button(
                 onClick = { onUpdate(skill) },
@@ -454,7 +454,7 @@ private fun UpdateSkillRow(skill: MarketplaceSkill, onUpdate: (MarketplaceSkill)
                 shape = AIRIShapes.sm,
                 modifier = Modifier.height(36.dp)
             ) {
-                Text("Update", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.marketplace_update), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

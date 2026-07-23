@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -47,12 +48,15 @@ private val SandboxTagColor    = Color(0xFF7C6FF0)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SandboxWorkspaceScreen(onBack: () -> Unit) {
+    val context         = LocalContext.current
     val sandboxManager  = ServiceLocator.sandboxManager
     val activeSessions  by sandboxManager.activeSessions.collectAsStateWithLifecycle()
     var selectedSession by remember { mutableStateOf<SandboxSession?>(null) }
     var commandInput    by remember { mutableStateOf("") }
     var isExecuting     by remember { mutableStateOf(false) }
     val scope           = rememberCoroutineScope()
+    // Track the active execution job so the cancel button can terminate it
+    var execJob         by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val logState        = rememberLazyListState()
     val snackbar        = remember { SnackbarHostState() }
 
@@ -61,7 +65,7 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
     // Poll logs every 250 ms so the list stays live without Flow wiring in SandboxSession
     var logs by remember { mutableStateOf(session?.execLog ?: emptyList<SandboxLogEntry>()) }
     LaunchedEffect(session?.sessionId) {
-        while (true) {
+        while (kotlinx.coroutines.isActive) {
             logs = session?.execLog ?: emptyList()
             kotlinx.coroutines.delay(250)
         }
@@ -239,7 +243,15 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                         // Cancel / Run button
                         if (isExecuting) {
                             Surface(
-                                onClick = { /* cancel */ },
+                                onClick = {
+                                    execJob?.cancel()
+                                    execJob     = null
+                                    isExecuting = false
+                                    session?.appendLog(
+                                        SandboxLogEntry(level = "WARN", message = "⊘ Cancelled by user")
+                                    )
+                                    scope.launch { snackbar.showSnackbar(context.getString(R.string.sandbox_cancel_confirm)) }
+                                },
                                 shape = AIRIShapes.xs,
                                 color = SandboxErrorText.copy(0.15f)
                             ) {
@@ -267,16 +279,20 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                                     .clickable(enabled = commandInput.isNotBlank()) {
                                         val cmd = commandInput.trim()
                                         val target = session ?: return@clickable
-                                        scope.launch {
-                                            isExecuting = true
-                                            SandboxExecutor(target).execute(
-                                                SandboxExecutor.SandboxTask(
-                                                    type    = SandboxExecutor.TaskType.SHELL_COMMAND,
-                                                    command = cmd
+                                        commandInput = ""
+                                        isExecuting  = true
+                                        execJob = scope.launch {
+                                            try {
+                                                SandboxExecutor(target).execute(
+                                                    SandboxExecutor.SandboxTask(
+                                                        type    = SandboxExecutor.TaskType.SHELL_COMMAND,
+                                                        command = cmd
+                                                    )
                                                 )
-                                            )
-                                            commandInput = ""
-                                            isExecuting  = false
+                                            } finally {
+                                                isExecuting = false
+                                                execJob     = null
+                                            }
                                         }
                                     },
                                 contentAlignment = Alignment.Center

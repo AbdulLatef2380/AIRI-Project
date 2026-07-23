@@ -260,7 +260,7 @@ fun SkillBuilderScreen(
                 },
                 title = {
                     Text(
-                        if (existing == null) "Create Skill" else "Edit Skill",
+                        if (existing == null) stringResource(R.string.skill_builder_create_title) else stringResource(R.string.skill_builder_edit_title),
                         color = AiriTheme.onBackground,
                         fontWeight = FontWeight.Bold
                     )

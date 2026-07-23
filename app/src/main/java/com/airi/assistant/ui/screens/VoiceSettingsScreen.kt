@@ -357,7 +357,7 @@ private fun InstalledModelsCard(
                             }
                         }
                         IconButton(onClick = { onDelete(model.id) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = SemanticError)
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.voice_delete_wake_word_cd), tint = SemanticError)
                         }
                     }
                 }

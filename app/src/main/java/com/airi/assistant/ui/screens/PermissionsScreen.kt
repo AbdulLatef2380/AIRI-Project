@@ -401,7 +401,7 @@ private fun PermissionRow(perm: PermissionInfo, isGranted: Boolean) {
                                 }
                             }
                     ) {
-                        Text("Enable", fontSize = 10.sp, color = CosmicAccent,
+                        Text(stringResource(R.string.permissions_enable_label), fontSize = 10.sp, color = CosmicAccent,
                             fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
                     }
                 } else {

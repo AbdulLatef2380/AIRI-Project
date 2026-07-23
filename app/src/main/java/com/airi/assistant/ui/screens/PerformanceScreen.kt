@@ -399,7 +399,7 @@ private fun SpecDecodingCard() {
         draftLoaded = runCatching { LlamaNative.isDraftLoaded() }.getOrDefault(false)
     }
     LaunchedEffect(Unit) {
-        while (true) {
+        while (kotlinx.coroutines.isActive) {
             stats       = mgr.stats()
             draftLoaded = runCatching { LlamaNative.isDraftLoaded() }.getOrDefault(false)
             kotlinx.coroutines.delay(2000)

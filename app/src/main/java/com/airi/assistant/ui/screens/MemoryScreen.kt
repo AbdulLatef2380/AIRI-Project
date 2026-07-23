@@ -15,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -42,6 +43,7 @@ fun MemoryScreen(
     var showConfirm    by remember { mutableStateOf(false) }
     var searchQuery    by remember { mutableStateOf("") }
     var showSearch     by remember { mutableStateOf(false) }
+    val context        = LocalContext.current
     val snackbarHost   = remember { SnackbarHostState() }
     val listState      = rememberLazyListState()
     val scope          = rememberCoroutineScope()
@@ -69,7 +71,7 @@ fun MemoryScreen(
                     onClick = {
                         viewModel.clearMemory()
                         showConfirm = false
-                        scope.launch { snackbarHost.showSnackbar("Memory cleared") }
+                        scope.launch { snackbarHost.showSnackbar(context.getString(R.string.memory_cleared_snack)) }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = SemanticError),
                     shape  = AIRIShapes.md
@@ -164,7 +166,7 @@ fun MemoryScreen(
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Icons.Outlined.SearchOff, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(28.dp))
-                    Text("No memories match \"$searchQuery\"", fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
+                    Text(stringResource(R.string.memory_search_no_results, searchQuery), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
                 }
             }
         } else {

@@ -33,6 +33,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -123,7 +125,7 @@ fun AgentPlanContent(
                 modifier = Modifier.fillMaxWidth().height(60.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Initialising…", fontSize = 12.sp, color = AiriTheme.onSurface.copy(alpha = 0.35f))
+                Text(stringResource(R.string.agent_plan_initialising), fontSize = 12.sp, color = AiriTheme.onSurface.copy(alpha = 0.35f))
             }
         } else {
             LazyColumn(

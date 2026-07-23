@@ -106,7 +106,7 @@ fun ReferralScreen(onBack: () -> Unit) {
                 ReferralManager.onReferralSent("telegram", userId)
                 bonus = ReferralManager.getBonusMessages()
             }
-            ReferralButton(Icons.Outlined.ContentCopy, "Copy link") {
+            ReferralButton(Icons.Outlined.ContentCopy, stringResource(R.string.referral_copy_link)) {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("AIRI referral", shareText))
                 ReferralManager.onReferralSent("copy_link", userId)

@@ -20,6 +20,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 import com.airi.assistant.core.debug.Diagnostics
 import com.airi.assistant.core.debug.RuntimeStore
 import com.airi.assistant.domain.verification.VerificationEvent
@@ -123,7 +125,7 @@ fun DebugScreen(onBack: () -> Unit) {
 
         Section("Event History (last ${events.size})") {
             if (events.isEmpty()) {
-                Text("No events yet. Send a message.", color = LABEL, fontSize = 12.sp)
+                Text(stringResource(R.string.debug_no_events), color = LABEL, fontSize = 12.sp)
             } else {
                 events.takeLast(8).reversed().forEach { event ->
                     EventRow(event)

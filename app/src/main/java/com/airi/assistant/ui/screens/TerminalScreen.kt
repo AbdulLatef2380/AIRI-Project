@@ -423,7 +423,7 @@ private fun TerminalLineRow(line: TerminalRuntime.TerminalLine, searchQuery: Str
                     var start = 0
                     val lower = text.lowercase()
                     val query = searchQuery.lowercase()
-                    while (true) {
+                    while (kotlinx.coroutines.isActive) {
                         val idx = lower.indexOf(query, start)
                         if (idx < 0) { append(text.substring(start)); break }
                         append(text.substring(start, idx))

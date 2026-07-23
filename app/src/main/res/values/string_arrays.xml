@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- GitHub integration setup steps -->
+    <string-array name="integration_github_steps">
+        <item>Open github.com and sign in</item>
+        <item>Go to Settings → Developer Settings</item>
+        <item>Select Personal access tokens</item>
+        <item>Click Generate new token (classic)</item>
+        <item>Enable scopes: repo, read:user</item>
+        <item>Generate and copy the token</item>
+    </string-array>
+
+    <!-- Telegram integration setup steps -->
+    <string-array name="integration_telegram_steps">
+        <item>Open Telegram and search for @BotFather</item>
+        <item>Send the command /newbot</item>
+        <item>Follow the steps to name and create your bot</item>
+        <item>BotFather will send you a token</item>
+        <item>Copy the token and paste it below</item>
+    </string-array>
+</resources>

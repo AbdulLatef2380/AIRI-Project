@@ -157,7 +157,7 @@ private fun BillingRecordRow(record: BillingRecord, dateFormat: SimpleDateFormat
                 Text(record.description, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground, fontSize = 14.sp)
                 Text(dateFormat.format(Date(record.timestampMs)), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                 record.stripePaymentId?.let {
-                    Text("ID: ${it.take(24)}…", fontSize = 10.sp, color = AiriTheme.onSurfaceVariant)
+                    Text("${stringResource(R.string.billing_transaction_id_prefix)}${it.take(24)}…", fontSize = 10.sp, color = AiriTheme.onSurfaceVariant)
                 }
             }
             Column(horizontalAlignment = Alignment.End) {

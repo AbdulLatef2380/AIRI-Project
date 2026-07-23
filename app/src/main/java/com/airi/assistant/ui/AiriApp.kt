@@ -82,7 +82,7 @@ import com.airi.assistant.ui.screens.GitRepositoryScreen
 import com.airi.assistant.ui.screens.SecurityScannerScreen
 import com.airi.assistant.ui.screens.SecretManagerScreen
 import com.airi.assistant.ui.plan.AgentPlanViewModel
-import com.airi.assistant.ui.theme.AIRITheme
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.AgentViewModel
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 
@@ -222,7 +222,7 @@ fun AiriApp() {
         else                    -> AiriNavTab.NEW   // CHAT and others
     }
 
-    AIRITheme {
+    AiriTheme {
         Scaffold(
             containerColor = AiriTheme.background,
             bottomBar = {

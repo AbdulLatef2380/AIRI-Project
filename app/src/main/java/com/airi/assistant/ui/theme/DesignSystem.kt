@@ -215,17 +215,6 @@ object AIRIShadows {
     val errorGlow   = SemanticError.copy(alpha = 0.22f)
 }
 
-// ── : Theme-aware surface helpers ─────────────────────────────────────────
-object AiriTheme {
-    val background: Color @Composable get() = AiriTheme.background
-    val surface: Color @Composable get() = AiriTheme.surface
-    val surfaceVariant: Color @Composable get() = AiriTheme.surfaceVariant
-    val onBackground: Color @Composable get() = AiriTheme.onBackground
-    val onSurface: Color @Composable get() = AiriTheme.onSurface
-    val onSurfaceVariant: Color @Composable get() = AiriTheme.onSurfaceVariant
-    val primary: Color @Composable get() = CosmicAccent
-    val outline: Color @Composable get() = AiriTheme.outline
-    val error: Color @Composable get() = SemanticError
-}
+
 
 // Global semantic colors are defined in Color.kt

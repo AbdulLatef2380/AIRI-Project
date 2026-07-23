@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
+import com.airi.assistant.ui.theme.AiriTheme
 
 /**
  * Glass card component with glassmorphism effect

@@ -15,7 +15,7 @@ All screens, shared composables, ViewModels, theme, and navigation.
 
 ## Theme
 
-`AIRITheme` wraps `MaterialTheme` with four color schemes:
+`AiriTheme` wraps `MaterialTheme` with four color schemes:
 - **Light**: White surfaces, purple accent
 - **Dark**: Dark-gray surfaces, purple accent
 - **AMOLED**: Pure-black surfaces, purple accent

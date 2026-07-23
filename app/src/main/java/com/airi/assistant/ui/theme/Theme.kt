@@ -1,11 +1,13 @@
 package com.airi.assistant.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
@@ -86,18 +88,9 @@ private val AmoledColorScheme = darkColorScheme(
 
 /**
  * Root theme composable.
- *
- * Reads [ThemePreferences.themeMode] as a StateFlow so any change to the
- * mode (e.g. from CustomizationSettingsScreen) causes an immediate
- * recomposition of the entire tree — no restart required.
- *
- * - [ThemeMode.DARK]   → always dark
- * - [ThemeMode.LIGHT]  → always light
- * - [ThemeMode.SYSTEM] → follows isSystemInDarkTheme()
- * - [ThemeMode.AMOLED] → pure black for OLED screens ()
  */
 @Composable
-fun AIRITheme(content: @Composable () -> Unit) {
+fun AiriTheme(content: @Composable () -> Unit) {
     val context          = LocalContext.current
     val themePrefs       = ThemePreferences.get(context)
     val themeMode        by themePrefs.themeMode.collectAsState()
@@ -115,4 +108,30 @@ fun AIRITheme(content: @Composable () -> Unit) {
         typography  = AIRITypography,
         content     = content,
     )
+}
+
+/**
+ * Static object to access theme tokens.
+ */
+object AiriTheme {
+    val colorScheme: ColorScheme
+        @Composable
+        @ReadOnlyComposable
+        get() = MaterialTheme.colorScheme
+
+    val typography: Typography
+        @Composable
+        @ReadOnlyComposable
+        get() = MaterialTheme.typography
+
+    // Helper accessors for common tokens
+    val background: Color @Composable @ReadOnlyComposable get() = colorScheme.background
+    val surface: Color @Composable @ReadOnlyComposable get() = colorScheme.surface
+    val surfaceVariant: Color @Composable @ReadOnlyComposable get() = colorScheme.surfaceVariant
+    val onBackground: Color @Composable @ReadOnlyComposable get() = colorScheme.onBackground
+    val onSurface: Color @Composable @ReadOnlyComposable get() = colorScheme.onSurface
+    val onSurfaceVariant: Color @Composable @ReadOnlyComposable get() = colorScheme.onSurfaceVariant
+    val primary: Color @Composable @ReadOnlyComposable get() = colorScheme.primary
+    val outline: Color @Composable @ReadOnlyComposable get() = colorScheme.outline
+    val error: Color @Composable @ReadOnlyComposable get() = colorScheme.error
 }

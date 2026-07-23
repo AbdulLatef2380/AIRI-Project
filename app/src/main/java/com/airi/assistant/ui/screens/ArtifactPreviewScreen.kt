@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.airi.assistant.ui.theme.AiriTheme
+import com.airi.assistant.ui.theme.AIRIShapes
 
 /**
  * ArtifactPreviewScreen — isolated, sandboxed rendering for AIRI artifacts.

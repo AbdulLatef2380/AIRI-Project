@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SurfaceRaised
 

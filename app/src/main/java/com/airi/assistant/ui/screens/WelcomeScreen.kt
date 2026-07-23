@@ -42,13 +42,13 @@ fun WelcomeScreen(
     ) {
         // AIRI identity orb — replaces generic text logo
         Box(
-            modifier = Modifier.size(68.dp).clip(androidx.compose.foundation.shape.AIRIShapes.lg)
+            modifier = Modifier.size(68.dp).clip(AIRIShapes.lg)
                 .background(
                     androidx.compose.ui.graphics.Brush.radialGradient(
-                        listOf(CosmicAccent.copy(alpha = 0.28f), com.airi.assistant.ui.theme.SurfaceRaised)
+                        listOf(CosmicAccent.copy(alpha = 0.28f), SurfaceRaised)
                     )
                 )
-                .border(1.dp, CosmicAccent.copy(alpha = 0.35f), androidx.compose.foundation.shape.AIRIShapes.lg),
+                .border(1.dp, CosmicAccent.copy(alpha = 0.35f), AIRIShapes.lg),
             contentAlignment = Alignment.Center
         ) {
             Text("A", color = CosmicAccent, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.5).sp)

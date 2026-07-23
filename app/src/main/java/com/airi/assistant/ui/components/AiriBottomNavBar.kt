@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.theme.NavBarBackground

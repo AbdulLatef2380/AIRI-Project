@@ -28,6 +28,7 @@ import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SurfaceRaised
 import com.airi.assistant.ui.theme.AiriTheme
+import com.airi.assistant.ui.theme.AIRIShapes
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 
 fun Context.findActivity(): Activity? {

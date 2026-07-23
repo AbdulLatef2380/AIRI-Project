@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.domain.verification.VerificationEvent
 import com.airi.assistant.domain.verification.VerificationTracker
+import com.airi.assistant.ui.theme.AiriTheme
 
 private val GREEN  = Color(0xFF4CAF50)
 private val BLUE   = Color(0xFF42A5F5)

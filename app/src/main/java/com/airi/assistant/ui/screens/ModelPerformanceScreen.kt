@@ -30,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.airi.assistant.R
+import com.airi.assistant.ui.theme.*
 import com.airi.assistant.perf.ModelBenchmark
 import com.airi.assistant.perf.ModelBenchmarkRepository
 import com.airi.assistant.perf.PerfClass

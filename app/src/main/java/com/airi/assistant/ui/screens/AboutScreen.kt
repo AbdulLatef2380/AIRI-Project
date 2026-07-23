@@ -104,7 +104,7 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
                 VersionChip(label = stringResource(R.string.about_build),   value = BuildConfig.VERSION_CODE.toString())
             }
 
-            HorizontalDivider(color = DividerColor)
+            Divider(color = DividerColor)
 
             // Info cards
             AboutInfoCard(
@@ -128,7 +128,7 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
                 body   = stringResource(R.string.about_stack_body)
             )
 
-            HorizontalDivider(color = DividerColor)
+            Divider(color = DividerColor)
 
             // Navigation links — Technical Details and Licenses route to AppInfoScreen;
             // Privacy Policy opens the canonical URL in the system browser.
@@ -142,10 +142,11 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
                 label   = stringResource(R.string.about_licenses),
                 onClick = { onNavigate(AiriRoute.APP_INFO) }
             )
+            val privacyUrl = stringResource(R.string.about_privacy_url)
             AboutLinkRow(
                 icon    = Icons.Outlined.PrivacyTip,
                 label   = stringResource(R.string.about_privacy),
-                onClick = { uriHandler.openUri(stringResource(R.string.about_privacy_url)) }
+                onClick = { uriHandler.openUri(privacyUrl) }
             )
 
             Spacer(Modifier.height(8.dp))

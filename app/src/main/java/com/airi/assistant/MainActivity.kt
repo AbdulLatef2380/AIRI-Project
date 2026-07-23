@@ -30,7 +30,7 @@ import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.connector.oauth.OAuthStateRegistry
 import com.airi.assistant.system.LanguageManager
-import com.airi.assistant.ui.theme.AIRITheme
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.voice.HotwordService
 import com.airi.assistant.R
 
@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
         intent?.let { dispatchOAuthCallback(it) }
 
         setContent {
-            AIRITheme {
+            AiriTheme {
                 val prefs = remember { getSharedPreferences("airi_flags", Context.MODE_PRIVATE) }
                 val isFirstLaunch = remember {
                     val first = !prefs.getBoolean("accessibility_shown", false)

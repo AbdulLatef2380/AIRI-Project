@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airi.assistant.ui.theme.AiriTheme
 
 /**
  * Streaming-safe Markdown renderer. Zero external dependencies — uses only

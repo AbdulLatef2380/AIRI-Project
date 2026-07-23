@@ -42,10 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.airi.assistant.ui.theme.CosmicAccent
-import com.airi.assistant.ui.theme.SemanticError
-import com.airi.assistant.ui.theme.SemanticSuccess
-import com.airi.assistant.ui.theme.SemanticWarn
+import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 
 /**

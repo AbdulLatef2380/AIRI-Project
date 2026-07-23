@@ -45,16 +45,17 @@ import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
 private data class ConnectorTab(
     val type: ConnectorType,
-    val label: String,
+    val labelResId: Int? = null,
+    val labelText: String? = null,
     val icon: ImageVector
 )
 
 private val TABS = listOf(
-    ConnectorTab(ConnectorType.API,    "API",    Icons.Outlined.Cloud),
-    ConnectorTab(ConnectorType.APP,    stringResource(R.string.connectors_tab_apps), Icons.Outlined.Apps),
-    ConnectorTab(ConnectorType.LOCAL,  stringResource(R.string.connectors_tab_device), Icons.Outlined.PhoneAndroid),
-    ConnectorTab(ConnectorType.MCP,    "MCP",    Icons.Outlined.Extension),
-    ConnectorTab(ConnectorType.SYSTEM, stringResource(R.string.connectors_tab_system), Icons.Outlined.SettingsSuggest),
+    ConnectorTab(ConnectorType.API,    labelText = "API",    icon = Icons.Outlined.Cloud),
+    ConnectorTab(ConnectorType.APP,    labelResId = R.string.connectors_tab_apps, icon = Icons.Outlined.Apps),
+    ConnectorTab(ConnectorType.LOCAL,  labelResId = R.string.connectors_tab_device, icon = Icons.Outlined.PhoneAndroid),
+    ConnectorTab(ConnectorType.MCP,    labelText = "MCP",    icon = Icons.Outlined.Extension),
+    ConnectorTab(ConnectorType.SYSTEM, labelResId = R.string.connectors_tab_system, icon = Icons.Outlined.SettingsSuggest),
 )
 private fun iconForId(id: String): ImageVector = when {
     id.contains("llm")       -> Icons.Outlined.AccountTree
@@ -167,8 +168,9 @@ fun ConnectorsScreen(
                                     modifier = Modifier.size(14.dp),
                                     tint = if (isSelected) CosmicAccent else AiriTheme.onSurface.copy(0.45f)
                                 )
+                                val label = tab.labelResId?.let { stringResource(it) } ?: tab.labelText ?: ""
                                 Text(
-                                    tab.label,
+                                    label,
                                     fontSize = 12.sp,
                                     color = if (isSelected) CosmicAccent else AiriTheme.onSurface.copy(0.45f)
                                 )

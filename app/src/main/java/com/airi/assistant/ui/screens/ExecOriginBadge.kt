@@ -97,7 +97,7 @@ fun ExecOriginBadge(
 
     Row(
         modifier = modifier
-            .clip(AIRIShapes.xs.copy(topStart = 4.dp))
+            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 6.dp, bottomStart = 6.dp, bottomEnd = 6.dp))
             .background(bgColor)
             .padding(horizontal = 5.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically

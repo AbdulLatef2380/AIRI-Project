@@ -1337,7 +1337,7 @@ fun ScanDeviceCard(isScanning: Boolean, onScan: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = AIRIShapes.md,
-        color = CosmicAccentAltContainer,
+        color = CosmicAccentAlt.copy(alpha = 0.2f),
         contentColor = AiriTheme.onBackground,
         tonalElevation = 2.dp,
         shadowElevation = 2.dp
@@ -2005,8 +2005,8 @@ private enum class ChipTone { SUCCESS, WARNING, INFO, NEUTRAL }
 @Composable
 private fun StatusChip(label: String, tone: ChipTone) {
     val (container, content) = when (tone) {
-        ChipTone.SUCCESS -> CosmicAccentContainer to Color.WhiteContainer
-        ChipTone.WARNING -> CosmicAccentAltContainer to AiriTheme.onBackground
+        ChipTone.SUCCESS -> CosmicAccent.copy(alpha = 0.2f) to Color.White.copy(alpha = 0.1f)
+        ChipTone.WARNING -> CosmicAccentAlt.copy(alpha = 0.2f) to AiriTheme.onBackground
         ChipTone.INFO    -> CosmicAccent to Color.White
         ChipTone.NEUTRAL -> AiriTheme.surfaceVariant to AiriTheme.onSurfaceVariant
     }
@@ -2281,7 +2281,7 @@ fun AddModelBottomSheet(
                 Surface(
                     onClick  = { showRemote = true },
                     shape    = AIRIShapes.md,
-                    color    = CosmicAccentAltContainer,
+                    color    = CosmicAccentAlt.copy(alpha = 0.2f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -2335,7 +2335,7 @@ private fun AddRemoteModelContent(
                 Text(
                     stringResource(R.string.remote_model_warning),
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.WhiteContainer
+                    color = Color.White.copy(alpha = 0.1f)
                 )
             }
         }

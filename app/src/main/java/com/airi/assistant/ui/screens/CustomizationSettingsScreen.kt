@@ -190,7 +190,7 @@ fun CustomizationSettingsScreen(
                     label    = stringResource(R.string.view_stored_memory),
                     sublabel = stringResource(R.string.browse_conversation_history)
                 ) { onNavigate(AiriRoute.MEMORY) }
-                HorizontalDivider(
+                Divider(
                     color    = AiriTheme.onBackground.copy(alpha = 0.06f),
                     modifier = Modifier.padding(vertical = 8.dp)
                 )

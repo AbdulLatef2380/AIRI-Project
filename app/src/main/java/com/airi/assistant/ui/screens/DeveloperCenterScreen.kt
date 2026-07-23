@@ -63,7 +63,7 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
                 selectedTabIndex = selectedTab,
                 containerColor   = Color.Transparent,
                 contentColor     = CosmicAccent,
-                divider = { HorizontalDivider(color = AiriTheme.outline) }
+                divider = { Divider(color = AiriTheme.outline) }
             ) {
                 tabs.forEachIndexed { idx, label ->
                     Tab(
@@ -432,7 +432,7 @@ private fun DevCard(title: String, content: @Composable ColumnScope.() -> Unit) 
     Surface(shape = AIRIShapes.md, color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CosmicAccent)
-            HorizontalDivider(color = AiriTheme.outline.copy(0.5f), modifier = Modifier.padding(bottom = 2.dp))
+            Divider(color = AiriTheme.outline.copy(0.5f), modifier = Modifier.padding(bottom = 2.dp))
             content()
         }
     }

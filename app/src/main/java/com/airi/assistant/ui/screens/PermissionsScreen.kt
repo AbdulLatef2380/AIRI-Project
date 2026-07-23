@@ -320,7 +320,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
                                 Column(modifier = Modifier.padding(bottom = 8.dp)) {
                                     perms.forEachIndexed { idx, perm ->
                                         if (idx > 0 || true) {
-                                            HorizontalDivider(
+                                            Divider(
                                                 modifier = Modifier.padding(horizontal = 16.dp),
                                                 color = AiriTheme.outline
                                             )

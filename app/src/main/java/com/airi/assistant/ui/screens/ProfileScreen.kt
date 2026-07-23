@@ -332,7 +332,7 @@ fun ProfileScreen(
                 },
                 icon  = Icons.Outlined.AccountCircle
             )
-            HorizontalDivider(modifier = Modifier.padding(vertical = 1.dp), color = DividerColor)
+            Divider(modifier = Modifier.padding(vertical = 1.dp), color = DividerColor)
             InfoRow(
                 label = stringResource(R.string.profile_member_since),
                 value = memberSince,

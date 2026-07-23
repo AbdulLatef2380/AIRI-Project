@@ -317,7 +317,7 @@ private fun PerfStatCard(
                 Text(value, color = CosmicAccent.copy(alpha = 0.9f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
             if (idx < rows.lastIndex) {
-                HorizontalDivider(color = AiriTheme.outline.copy(alpha = 0.04f), modifier = Modifier.padding(vertical = 2.dp))
+                Divider(color = AiriTheme.outline.copy(alpha = 0.04f), modifier = Modifier.padding(vertical = 2.dp))
             }
         }
     }

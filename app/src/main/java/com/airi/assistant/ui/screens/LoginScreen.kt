@@ -192,7 +192,7 @@ fun LoginScreen(
                 modifier          = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                HorizontalDivider(
+                Divider(
                     modifier = Modifier.weight(1f),
                     color    = dividerLine
                 )
@@ -201,7 +201,7 @@ fun LoginScreen(
                     color    = AiriTheme.onBackground.copy(alpha = 0.45f),
                     fontSize = 13.sp
                 )
-                HorizontalDivider(
+                Divider(
                     modifier = Modifier.weight(1f),
                     color    = dividerLine
                 )

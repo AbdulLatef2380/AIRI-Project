@@ -83,7 +83,7 @@ fun ExecutionModePanel(
         ) {
             Column {
                 Spacer(Modifier.height(12.dp))
-                HorizontalDivider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
+                Divider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
                 Spacer(Modifier.height(12.dp))
 
                 Row(
@@ -122,7 +122,7 @@ fun ExecutionModePanel(
         ) {
             Column {
                 Spacer(Modifier.height(12.dp))
-                HorizontalDivider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
+                Divider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
                 Spacer(Modifier.height(12.dp))
 
                 // Provider preference
@@ -134,7 +134,7 @@ fun ExecutionModePanel(
                 )
 
                 Spacer(Modifier.height(12.dp))
-                HorizontalDivider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
+                Divider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
                 Spacer(Modifier.height(12.dp))
 
                 // Offline fallback toggle
@@ -174,7 +174,7 @@ fun ExecutionModePanel(
             }
         }
         Spacer(Modifier.height(12.dp))
-        HorizontalDivider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
+        Divider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
         Spacer(Modifier.height(12.dp))
         SettingsCategoryHeader(icon = Icons.Outlined.Shield, title = "Privacy Level")
         Spacer(Modifier.height(8.dp))

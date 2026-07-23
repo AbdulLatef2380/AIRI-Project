@@ -362,7 +362,7 @@ private fun ReleaseNoteCard(release: ReleaseNote, isExpanded: Boolean, onToggle:
 
                     if (release.fixes.isNotEmpty()) {
                         Spacer(Modifier.height(10.dp))
-                        HorizontalDivider(color = AiriTheme.outline)
+                        Divider(color = AiriTheme.outline)
                         Spacer(Modifier.height(10.dp))
                         Text(stringResource(R.string.updates_bug_fixes), fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                             color = SemanticSuccess, modifier = Modifier.padding(bottom = 8.dp))

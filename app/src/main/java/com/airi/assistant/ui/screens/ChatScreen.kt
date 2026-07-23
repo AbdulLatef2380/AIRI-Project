@@ -1222,7 +1222,7 @@ private fun AiriChatTopBar(
                             leadingIcon = { Icon(Icons.Outlined.Memory, contentDescription = null, tint = CosmicAccent) },
                             onClick = onSwitchModel
                         )
-                        HorizontalDivider(color = AiriTheme.outline.copy(alpha = 0.35f))
+                        Divider(color = AiriTheme.outline.copy(alpha = 0.35f))
                         DropdownMenuItem(
                             text  = { Text(stringResource(R.string.export_chat), color = AiriTheme.onBackground) },
                             leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
@@ -1312,7 +1312,7 @@ private fun AiriModelPickerSheet(
                             }
                         }
                     )
-                    HorizontalDivider(color = AiriTheme.outline.copy(alpha = 0.3f))
+                    Divider(color = AiriTheme.outline.copy(alpha = 0.3f))
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -1339,7 +1339,7 @@ private fun AiriModelPickerSheet(
                         }
                     }
                 )
-                HorizontalDivider(color = AiriTheme.outline.copy(alpha = 0.3f))
+                Divider(color = AiriTheme.outline.copy(alpha = 0.3f))
             }
 
             Spacer(Modifier.height(8.dp))
@@ -1441,7 +1441,7 @@ private fun AiriHistoryPanel(
                 }
             }
 
-            HorizontalDivider(color = AiriTheme.outline)
+            Divider(color = AiriTheme.outline)
 
             // New conversation button
             Row(
@@ -1533,7 +1533,7 @@ private fun AiriHistoryPanel(
                                 )
                             }
                         }
-                        HorizontalDivider(color = AiriTheme.outline)
+                        Divider(color = AiriTheme.outline)
                     }
                 }
             }
@@ -1871,7 +1871,7 @@ fun UserBubble(
                         leadingIcon  = { Icon(Icons.Outlined.Share, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
                         onClick      = { showContextMenu = false; shareAiResponse(context, displayText) }
                     )
-                    HorizontalDivider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
+                    Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
                     DropdownMenuItem(
                         text         = { Text(stringResource(R.string.delete), color = SemanticError, fontSize = 14.sp) },
                         leadingIcon  = { Icon(Icons.Outlined.Delete, null, tint = SemanticError.copy(0.7f), modifier = Modifier.size(16.dp)) },
@@ -2016,7 +2016,7 @@ fun AiBubble(
                             )
                         }
                         if (traceExpanded) {
-                            HorizontalDivider(color = AiriTheme.onBackground.copy(0.05f))
+                            Divider(color = AiriTheme.onBackground.copy(0.05f))
                             Column(modifier = Modifier.padding(10.dp)) {
                                 trace.steps.forEachIndexed { i, step ->
                                     Row(modifier = Modifier.padding(vertical = 2.dp)) {
@@ -2361,7 +2361,7 @@ fun AiriChatInputBar(
                         )
                     }
                 }
-                HorizontalDivider(color = AiriTheme.outline, thickness = 0.5.dp)
+                Divider(color = AiriTheme.outline, thickness = 0.5.dp)
             }
             Box(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
@@ -2733,7 +2733,7 @@ fun AiriDrawer(
                         }
                     }
                 }
-                HorizontalDivider(color = AiriTheme.onBackground.copy(0.06f))
+                Divider(color = AiriTheme.onBackground.copy(0.06f))
                 Spacer(Modifier.height(8.dp))
                 DrawerActionItem(icon = Icons.Outlined.AddComment, label = stringResource(R.string.new_chat), onClick = onNewChat)
                 DrawerNavItem(icon = Icons.Outlined.Forum, label = stringResource(R.string.chats), route = AiriRoute.HISTORY, onNavigate = onNavigate)
@@ -2742,7 +2742,7 @@ fun AiriDrawer(
                 DrawerNavItem(icon = Icons.Outlined.BuildCircle, label = stringResource(R.string.custom_skills), route = AiriRoute.SKILL_MANAGER, onNavigate = onNavigate)
                 DrawerNavItem(icon = Icons.Outlined.Share, label = stringResource(R.string.invite_friends), route = AiriRoute.REFERRALS, onNavigate = onNavigate)
                 Spacer(Modifier.height(4.dp))
-                HorizontalDivider(color = AiriTheme.onBackground.copy(0.06f))
+                Divider(color = AiriTheme.onBackground.copy(0.06f))
                 Spacer(Modifier.height(4.dp))
                 DrawerNavItem(icon = Icons.Outlined.ManageHistory, label = stringResource(R.string.agent_logs), route = AiriRoute.AGENT_LOGS, onNavigate = onNavigate)
                 DrawerNavItem(icon = Icons.Outlined.Tune, label = stringResource(R.string.agent_control), route = AiriRoute.AGENT_CONTROL, onNavigate = onNavigate)
@@ -2752,7 +2752,7 @@ fun AiriDrawer(
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xFF0D1124))))
             )
             Column(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(AiriTheme.surface)) {
-                HorizontalDivider(color = AiriTheme.onBackground.copy(0.08f))
+                Divider(color = AiriTheme.onBackground.copy(0.08f))
                 DrawerNavItem(icon = Icons.Outlined.Settings, label = stringResource(R.string.settings), route = AiriRoute.SETTINGS, onNavigate = onNavigate)
                 DrawerActionItem(icon = Icons.Outlined.Logout, label = stringResource(R.string.sign_out), tint = Color(0xFFFF6B6B), onClick = onLogout)
                 Spacer(Modifier.height(16.dp))

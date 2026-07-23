@@ -1,5 +1,7 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.*
+
 import com.airi.assistant.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable

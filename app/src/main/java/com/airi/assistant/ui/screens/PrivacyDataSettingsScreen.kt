@@ -1,5 +1,7 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.*
+
 import com.airi.assistant.ui.theme.AiriTheme
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult

@@ -1,5 +1,7 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.*
+
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Build

@@ -1,5 +1,7 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.*
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically

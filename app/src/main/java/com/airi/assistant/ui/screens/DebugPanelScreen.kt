@@ -1,5 +1,7 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.ui.theme.*
+
 import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*

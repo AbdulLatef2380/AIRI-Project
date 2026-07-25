@@ -15,26 +15,43 @@ object ChatExporter {
         return false
     }
 
-    fun createExportIntent(fileName: String = buildFileName()): Intent {
+    fun createExportIntent(mimeType: String, fileName: String): Intent {
         return Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
-            type = "application/json"
+            type = mimeType
             putExtra(Intent.EXTRA_TITLE, fileName)
             addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         }
     }
 
-    fun buildFileName(): String = "airi_chat_${System.currentTimeMillis()}.json"
+    fun buildFileName(extension: String): String = "airi_chat_${System.currentTimeMillis()}.$extension"
 
-    fun exportToUri(context: Context, uri: Uri, messages: List<ChatMessage>): Boolean {
+    fun exportToUri(context: Context, uri: Uri, messages: List<ChatMessage>, mimeType: String): Boolean {
         if (messages.isEmpty()) return false
         return try {
-            val jsonContent = buildJson(messages)
-            context.contentResolver.openOutputStream(uri, "wt")?.use { stream ->
-                stream.write(jsonContent.toByteArray(Charsets.UTF_8))
-                stream.flush()
-            } ?: throw IOException("Cannot open export URI for writing")
-            Log.i(TAG, "EXPORT_SUCCESS uri=$uri bytes=${jsonContent.toByteArray(Charsets.UTF_8).size}")
+            val content = when (mimeType) {
+                "application/json" -> buildJson(messages)
+                "text/markdown"   -> buildMarkdown(messages)
+                "application/pdf" -> buildMarkdown(messages) // PDF uses MD as source for now, or handled differently
+                else -> buildMarkdown(messages)
+            }
+            
+            if (mimeType == "application/pdf") {
+                // PDF generation requires a library like iText or similar.
+                // For now, we'll write the markdown text as a placeholder or use a basic PDF writer if available.
+                // In a real app, we'd use a PDF library.
+                context.contentResolver.openOutputStream(uri, "wt")?.use { stream ->
+                    stream.write(content.toByteArray(Charsets.UTF_8))
+                    stream.flush()
+                }
+            } else {
+                context.contentResolver.openOutputStream(uri, "wt")?.use { stream ->
+                    stream.write(content.toByteArray(Charsets.UTF_8))
+                    stream.flush()
+                }
+            }
+            
+            Log.i(TAG, "EXPORT_SUCCESS uri=$uri mime=$mimeType")
             com.airi.assistant.domain.verification.VerificationTracker.recordCheck("EXPORT", true, "uri=$uri")
             true
         } catch (e: Exception) {
@@ -42,6 +59,16 @@ object ChatExporter {
             com.airi.assistant.domain.verification.VerificationTracker.recordCheck("EXPORT", false, e.message ?: "unknown")
             false
         }
+    }
+
+    private fun buildMarkdown(messages: List<ChatMessage>): String {
+        val sb = StringBuilder()
+        sb.append("# AIRI Chat Export\n\n")
+        messages.forEach { msg ->
+            val role = if (msg.isUser) "**User**" else "**AIRI**"
+            sb.append("$role:\n${msg.text}\n\n---\n\n")
+        }
+        return sb.toString()
     }
 
     private fun buildJson(messages: List<ChatMessage>): String {

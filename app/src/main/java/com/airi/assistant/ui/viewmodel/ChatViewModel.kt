@@ -581,6 +581,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _isSummarizing = MutableStateFlow(false)
     val isSummarizing: StateFlow<Boolean> = _isSummarizing.asStateFlow()
 
+    private val _pendingSummary = MutableStateFlow<String?>(null)
+    val pendingSummary: StateFlow<String?> = _pendingSummary.asStateFlow()
+
+    fun acceptSummary(sessionId: String, summary: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            com.airi.assistant.ai.prompt.MemoryStore.setSummary(appContext, sessionId, summary)
+            _pendingSummary.value = null
+        }
+    }
+
+    fun rejectSummary() {
+        _pendingSummary.value = null
+    }
+
     // ── ModelController: owns model lifecycle (loadModel, registry, diagnostics) ──
     // Extracted from ChatViewModel in Phase 9 ViewModel decomposition.
     // State ownership stays here (_modelState); ModelController mutates via .value.
@@ -1679,15 +1693,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (needsResummarize) {
                     viewModelScope.launch(Dispatchers.IO) {
                         _isSummarizing.value = true
-                        runCatching {
+                        val result = runCatching {
                             com.airi.assistant.ai.prompt.ConversationSummarizer.summarize(
                                 ctx             = appContext,
                                 sessionId       = sessionId,
                                 llamaManager    = llamaManager,
                                 olderTurns      = olderToFold,
                                 previousSummary = "",
-                                contextBudget   = llamaManager.contextBudget
+                                contextBudget   = llamaManager.contextBudget,
+                                persistImmediately = false
                             )
+                        }.getOrNull()
+                        
+                        if (result != null) {
+                            _pendingSummary.value = result
                         }
                         _isSummarizing.value = false
                     }

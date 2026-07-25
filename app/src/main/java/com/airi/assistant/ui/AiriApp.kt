@@ -129,6 +129,7 @@ object AiriRoute {
     const val PERMISSIONS_SCREEN     = "screen_permissions"
     const val UPDATE_SCREEN          = "screen_update"
     const val VOICE_PERSONALIZATION  = "screen_voice_personalization"
+    const val LIBRARY                = "screen_library"
 
     // ── Phase 4 routes ────────────────────────────────────────────────────────
     const val ZAPIER_IFTTT           = "screen_zapier_ifttt"
@@ -172,7 +173,8 @@ private val bottomNavRoutes = setOf(
     AiriRoute.SETTINGS,
     AiriRoute.SKILL_MANAGER,
     AiriRoute.AGENT_TASKS,
-    AiriRoute.HISTORY
+    AiriRoute.HISTORY,
+    AiriRoute.LIBRARY
 )
 
 @Composable
@@ -217,6 +219,7 @@ fun AiriApp() {
     val selectedTab = when (currentRoute) {
         AiriRoute.SKILL_MANAGER -> AiriNavTab.SKILLS
         AiriRoute.AGENT_TASKS   -> AiriNavTab.SCHEDULE
+        AiriRoute.LIBRARY       -> AiriNavTab.LIBRARY
         AiriRoute.SETTINGS      -> AiriNavTab.SETTINGS
         AiriRoute.HISTORY       -> AiriNavTab.CHAT
         else                    -> AiriNavTab.NEW   // CHAT and others
@@ -233,6 +236,7 @@ fun AiriApp() {
                         when (tab) {
                             AiriNavTab.SKILLS   -> navController.navigate(AiriRoute.SKILL_MANAGER) { launchSingleTop = true; restoreState = true }
                             AiriNavTab.SCHEDULE -> navController.navigate(AiriRoute.AGENT_TASKS)   { launchSingleTop = true; restoreState = true }
+                            AiriNavTab.LIBRARY  -> navController.navigate(AiriRoute.LIBRARY)       { launchSingleTop = true; restoreState = true }
                             AiriNavTab.SETTINGS -> navController.navigate(AiriRoute.SETTINGS)      { launchSingleTop = true; restoreState = true }
                             AiriNavTab.CHAT     -> navController.navigate(AiriRoute.HISTORY)       { launchSingleTop = true; restoreState = true }
                             AiriNavTab.NEW      -> {
@@ -527,7 +531,18 @@ fun AiriApp() {
                     }
 
                     composable(AiriRoute.PROFILE) {
-                        ProfileScreen(onBack = { navController.popBackStack() })
+                        ProfileScreen(
+                            onBack = { navController.popBackStack() },
+                            onSignOut = {
+                                authService.signOut()
+                                chatViewModel.clearMessages()
+                                chatIsActive = false
+                                navController.navigate(AiriRoute.LOGIN) {
+                                    popUpTo(AiriRoute.CHAT) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
                     }
 
                     composable(AiriRoute.AGENT_CONTROL) {
@@ -544,6 +559,12 @@ fun AiriApp() {
                             onNavigateToAgentControl = {
                                 navController.navigate(AiriRoute.AGENT_CONTROL) { launchSingleTop = true }
                             }
+                        )
+                    }
+
+                    composable(AiriRoute.LIBRARY) {
+                        LibraryScreen(
+                            onBack = { navController.popBackStack() }
                         )
                     }
 

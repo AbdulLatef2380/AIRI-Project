@@ -184,38 +184,30 @@ private fun InputActionToolbar(
         )
 
         // Quick dynamic tools — each wired to its own callback
-        QuickToolChip(label = "Web",  emoji = "⊕", onClick = onWebClick)
-        QuickToolChip(label = "Code", emoji = "⌨", onClick = onCodeClick)
-        QuickToolChip(label = "Calc", emoji = "🧮", onClick = onCalcClick)
+        QuickToolChip(label = "Web",  emoji = "🌐", onClick = onWebClick)
+        QuickToolChip(label = "Code", emoji = "💻", onClick = onCodeClick)
+        QuickToolChip(label = "Calc", emoji = "🔢", onClick = onCalcClick)
+        QuickToolChip(label = "Draft", emoji = "📝", onClick = { /* TODO: Open drafts */ })
 
-        // Spacer + Attachment shortcuts
-        Spacer(modifier = Modifier.width(4.dp))
+        // Divider
+        Box(modifier = Modifier.width(1.dp).height(20.dp).background(DividerColor))
 
-        // Camera shortcut
-        IconButton(
-            onClick = onTakePhoto,
-            modifier = Modifier.size(30.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.PhotoCamera,
-                contentDescription = "Take photo",
-                tint = AiriTheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp)
-            )
-        }
+        // Attachment shortcuts
+        ActionChip(
+            label = "Camera",
+            icon = Icons.Outlined.PhotoCamera,
+            iconTint = AiriTheme.onSurfaceVariant,
+            isActive = false,
+            onClick = onTakePhoto
+        )
 
-        // File shortcut
-        IconButton(
-            onClick = onPickFile,
-            modifier = Modifier.size(30.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.AttachFile,
-                contentDescription = "Attach file",
-                tint = AiriTheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp)
-            )
-        }
+        ActionChip(
+            label = "File",
+            icon = Icons.Outlined.AttachFile,
+            iconTint = AiriTheme.onSurfaceVariant,
+            isActive = false,
+            onClick = onPickFile
+        )
     }
 }
 

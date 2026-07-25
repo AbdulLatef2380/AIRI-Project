@@ -49,7 +49,8 @@ object ConversationSummarizer {
         llamaManager: LlamaManager,
         olderTurns: List<ChatMessage>,
         previousSummary: String,
-        contextBudget: ContextBudget = ContextBudget.UNLOADED
+        contextBudget: ContextBudget = ContextBudget.UNLOADED,
+        persistImmediately: Boolean = true
     ): String? {
         if (olderTurns.isEmpty()) return null
         val transcript = buildTranscript(olderTurns)
@@ -101,10 +102,16 @@ object ConversationSummarizer {
         // Falls back to ContextBudget.UNLOADED.summaryChars when no model is loaded.
         val cleaned = result.trim().take(contextBudget.summaryChars)
 
-        MemoryStore.setSummary(ctx, sessionId, cleaned)
-        MemoryStore.setSummaryCoverage(ctx, sessionId, olderTurns.size)
-        Log.i("AIRI_PROMPT_COMPRESS",
-            "SUMMARIZE_OK session=$sessionId folded=${olderTurns.size} chars=${cleaned.length}")
+        if (persistImmediately) {
+            MemoryStore.setSummary(ctx, sessionId, cleaned)
+            MemoryStore.setSummaryCoverage(ctx, sessionId, olderTurns.size)
+            Log.i("AIRI_PROMPT_COMPRESS",
+                "SUMMARIZE_OK session=$sessionId folded=${olderTurns.size} chars=${cleaned.length}")
+        } else {
+            // Even if not persisting the summary text, we mark these turns as covered
+            // so we don't keep trying to summarize the same block.
+            MemoryStore.setSummaryCoverage(ctx, sessionId, olderTurns.size)
+        }
         return cleaned
     }
 

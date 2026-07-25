@@ -59,6 +59,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.core.content.ContextCompat
 import com.airi.assistant.R
 import com.airi.assistant.WakeWordDispatcher
@@ -88,6 +93,10 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.airi.assistant.ui.util.MarkdownText
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.foundation.lazy.LazyListState
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
 
@@ -120,7 +129,9 @@ fun ChatScreen(
     val upgradePrompt         by viewModel.upgradePrompt.collectAsState()
     val systemIntegrityFailed by viewModel.systemIntegrityFailed.collectAsState()
     val contextResetWarning   by viewModel.contextResetWarning.collectAsState()
-    val isSummarizing         by viewModel.isSummarizing.collectAsState()  // 
+    val isSummarizing         by viewModel.isSummarizing.collectAsState()
+    val pendingSummary        by viewModel.pendingSummary.collectAsState()
+    val currentSessionId      by viewModel.currentSessionId.collectAsState()
 
     // Chat is "active" when there are messages or the AI is responding
     val chatIsActive = messages.isNotEmpty() || streamingText.isNotEmpty() || agentState.isWorking
@@ -513,9 +524,21 @@ fun ChatScreen(
         if (granted) cameraLauncher.launch(null)
     }
 
-    val exportChatLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
+    val exportJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
         scope.launch {
-            val success = uri != null && ChatExporter.exportToUri(context, uri, messages)
+            val success = uri != null && ChatExporter.exportToUri(context, uri, messages, "application/json")
+            snackbarHost.showSnackbar(if (success) context.getString(R.string.export_success) else context.getString(R.string.export_failed))
+        }
+    }
+    val exportMdLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri: Uri? ->
+        scope.launch {
+            val success = uri != null && ChatExporter.exportToUri(context, uri, messages, "text/markdown")
+            snackbarHost.showSnackbar(if (success) context.getString(R.string.export_success) else context.getString(R.string.export_failed))
+        }
+    }
+    val exportPdfLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri: Uri? ->
+        scope.launch {
+            val success = uri != null && ChatExporter.exportToUri(context, uri, messages, "application/pdf")
             snackbarHost.showSnackbar(if (success) context.getString(R.string.export_success) else context.getString(R.string.export_failed))
         }
     }
@@ -630,6 +653,21 @@ fun ChatScreen(
                                 )
                             }
                         }
+                    }
+                }
+
+                // Memory acceptance banner
+                AnimatedVisibility(
+                    visible = pendingSummary != null,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    pendingSummary?.let { summary ->
+                        MemoryAcceptanceBanner(
+                            summary = summary,
+                            onAccept = { viewModel.acceptSummary(currentSessionId, summary) },
+                            onReject = { viewModel.rejectSummary() }
+                        )
                     }
                 }
 
@@ -772,6 +810,8 @@ fun ChatScreen(
                 onSuggestionClick  = { suggestion -> viewModel.sendMessage(suggestion) },
                 onEditMessage      = { text -> viewModel.prefillInput(text) },
                 onDeleteMessage    = { uid  -> viewModel.deleteMessage(uid) },
+                onExportPdf        = { exportPdfLauncher.launch(ChatExporter.buildFileName("pdf")) },
+                onExportMarkdown   = { exportMdLauncher.launch(ChatExporter.buildFileName("md")) },
                 onFeedback         = { uid, liked -> viewModel.submitFeedback(uid, liked) },
                 modifier = Modifier.fillMaxSize()
             )
@@ -1073,6 +1113,71 @@ fun ChatScreen(
 // Chat top bar — credits badge | model pill | history | overflow
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun MemoryAcceptanceBanner(
+    summary: String,
+    onAccept: () -> Unit,
+    onReject: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        shape = AIRIShapes.md,
+        color = CosmicAccent.copy(alpha = 0.1f),
+        border = BorderStroke(1.dp, CosmicAccent.copy(alpha = 0.2f))
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.Psychology,
+                    contentDescription = null,
+                    tint = CosmicAccent,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = stringResource(R.string.memory_new_knowledge),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = AiriTheme.onBackground
+                )
+            }
+            
+            Text(
+                text = summary,
+                fontSize = 13.sp,
+                color = AiriTheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onReject) {
+                    Text(stringResource(R.string.memory_reject), color = AiriTheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = onAccept,
+                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+                    shape = AIRIShapes.sm,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
+                ) {
+                    Text(stringResource(R.string.memory_accept), color = Color.White)
+                }
+            }
+        }
+    }
+}
+
 private fun AiriChatTopBar(
     modelState: ModelUiState,
     agentState: AgentState,
@@ -1555,7 +1660,8 @@ fun ChatMessageList(
     onSuggestionClick: (String) -> Unit = {},
     onEditMessage: (String) -> Unit = {},
     onDeleteMessage: (String) -> Unit = {},
-    
+    onExportPdf: (String) -> Unit = {},
+    onExportMarkdown: (String) -> Unit = {},
     onFeedback: (uid: String, liked: Boolean) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
@@ -1741,7 +1847,9 @@ fun ChatMessageList(
         Box(modifier = modifier) {
             LazyColumn(
                 state               = listState,
-                modifier            = Modifier.fillMaxSize(),
+                modifier            = Modifier
+                    .fillMaxSize()
+                    .verticalScrollbar(listState),
                 reverseLayout       = true,
                 contentPadding      = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1771,6 +1879,8 @@ fun ChatMessageList(
                             onSpeak         = onSpeak,
                             execOrigin      = msg.execOrigin,
                             onFeedback      = { liked -> onFeedback(msg.uid, liked) },
+                            onExportPdf     = onExportPdf,
+                            onExportMarkdown = onExportMarkdown,
                             initialFeedback = msg.feedback
                         )
                     }
@@ -1782,6 +1892,29 @@ fun ChatMessageList(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp)
             )
         }
+    }
+}
+
+fun Modifier.verticalScrollbar(
+    state: LazyListState,
+    color: Color = Color.White.copy(alpha = 0.2f),
+    width: Dp = 4.dp
+): Modifier = this.drawWithContent {
+    drawContent()
+    
+    val firstVisibleElementIndex = state.layoutInfo.visibleItemsInfo.firstOrNull()?.index
+    val totalItemsCount = state.layoutInfo.totalItemsCount
+    
+    if (firstVisibleElementIndex != null && totalItemsCount > 0) {
+        val elementHeight = size.height / totalItemsCount
+        val scrollbarHeight = state.layoutInfo.visibleItemsInfo.size * elementHeight
+        val scrollbarOffsetY = firstVisibleElementIndex * elementHeight
+        
+        drawRect(
+            color = color,
+            topLeft = Offset(size.width - width.toPx(), scrollbarOffsetY),
+            size = Size(width.toPx(), scrollbarHeight)
+        )
     }
 }
 
@@ -1910,7 +2043,9 @@ fun AiBubble(
     
     initialFeedback: Int = 0,
     
-    onFeedback: (liked: Boolean) -> Unit = {}
+    onFeedback: (liked: Boolean) -> Unit = {},
+    onExportPdf: (String) -> Unit = {},
+    onExportMarkdown: (String) -> Unit = {}
 ) {
     val context   = LocalContext.current
     val haptic    = LocalHapticFeedback.current
@@ -1919,6 +2054,7 @@ fun AiBubble(
         if (traceId != null) allTraces.find { it.id == traceId } else null
     }
     var traceExpanded by remember { mutableStateOf(false) }
+    var showContextMenu by remember { mutableStateOf(false) }
 
     val transition = remember {
         androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
@@ -1950,15 +2086,41 @@ fun AiBubble(
             }
 
             Column {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                        .background(AiBubbleSurface)
-                        .border(1.dp, AiBubbleBorder, RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
-                ) {
-                    MarkdownText(rawText = text, modifier = Modifier.fillMaxWidth(), baseFontSp = 15f, lineHeightSp = 23f)
+                Box {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
+                            .background(AiBubbleSurface)
+                            .border(1.dp, AiBubbleBorder, RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
+                            .combinedClickable(
+                                onClick = {},
+                                onLongClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    showContextMenu = true
+                                }
+                            )
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        MarkdownText(rawText = text, modifier = Modifier.fillMaxWidth(), baseFontSp = 15f, lineHeightSp = 23f)
+                    }
+
+                    DropdownMenu(
+                        expanded = showContextMenu,
+                        onDismissRequest = { showContextMenu = false },
+                        modifier = Modifier.background(AiriTheme.surfaceVariant)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Export as PDF", color = AiriTheme.onBackground) },
+                            leadingIcon = { Icon(Icons.Outlined.PictureAsPdf, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                            onClick = { showContextMenu = false; onExportPdf(text) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Export as Markdown", color = AiriTheme.onBackground) },
+                            leadingIcon = { Icon(Icons.Outlined.Description, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                            onClick = { showContextMenu = false; onExportMarkdown(text) }
+                        )
+                    }
                 }
 
                 // Action row
@@ -2219,8 +2381,12 @@ fun AiriChatInputBar(
     val canSend = text.isNotBlank() && isInferenceReady && !modelState.isModelLoading && !isGenerating
     val isTyping = text.isNotBlank()
 
-    // : Large prompt detection (>2000 chars)
-    val showConvertBanner = text.length > 2_000
+    // : Large prompt detection
+    val showWarningBanner = text.length in 2001..2999
+    val showLimitBottomSheet = text.length >= 3000
+    var hasDismissedBottomSheet by remember(text.length < 3000) { mutableStateOf(false) }
+
+    val limitSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Apply external pre-fill (e.g. from Edit bubble action)
     LaunchedEffect(externalInputText) {
@@ -2235,7 +2401,7 @@ fun AiriChatInputBar(
     val micPulse = remember { androidx.compose.animation.core.Animatable(1f) }
     LaunchedEffect(voiceState) {
         when (voiceState) {
-            VoiceSessionState.LISTENING   -> while (true) { micPulse.animateTo(1.30f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOW)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOW)) }
+            VoiceSessionState.LISTENING   -> while (true) { micPulse.animateTo(1.30f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) }
             VoiceSessionState.PROCESSING  -> while (true) { micPulse.animateTo(1.18f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOWER)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOWER)) }
             VoiceSessionState.SPEAKING    -> while (true) { micPulse.animateTo(1.22f, animationSpec = androidx.compose.animation.core.tween(700)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(700)) }
             else -> micPulse.snapTo(1f)
@@ -2249,59 +2415,97 @@ fun AiriChatInputBar(
         }
     }
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-
-        // : Large prompt convert-to-file banner
-        AnimatedVisibility(
-            visible = showConvertBanner,
-            enter   = fadeIn() + expandVertically(),
-            exit    = fadeOut() + shrinkVertically()
+    if (showLimitBottomSheet && !hasDismissedBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { hasDismissedBottomSheet = true },
+            sheetState = limitSheetState,
+            containerColor = AiriTheme.surface,
+            scrimColor = Color.Black.copy(alpha = 0.32f)
         ) {
-            val ctx = androidx.compose.ui.platform.LocalContext.current
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(CosmicAccent.copy(alpha = 0.10f))
-                    .padding(horizontal = 12.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    .padding(24.dp)
+                    .padding(bottom = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                androidx.compose.material3.Icon(
-                    androidx.compose.material.icons.Icons.Outlined.Info, null,
-                    tint     = CosmicAccent,
-                    modifier = Modifier.size(14.dp)
+                Icon(
+                    Icons.Outlined.WarningAmber, null,
+                    tint = Color(0xFFFFB347),
+                    modifier = Modifier.size(48.dp)
                 )
                 Text(
-                    "Long text (${text.length} chars). Convert to file?",
-                    fontSize = 11.sp,
-                    color    = CosmicAccent.copy(0.85f),
-                    modifier = Modifier.weight(1f)
+                    stringResource(R.string.char_limit_reached_title),
+                    style = AiriTheme.typography.headlineSmall,
+                    color = AiriTheme.onSurface,
+                    fontWeight = FontWeight.Bold
                 )
-                androidx.compose.material3.TextButton(
+                Text(
+                    stringResource(R.string.char_limit_reached_desc),
+                    style = AiriTheme.typography.bodyMedium,
+                    color = AiriTheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Button(
                     onClick = {
                         val uri = runCatching {
-                            val dir = java.io.File(ctx.cacheDir, "chat_attachments").apply { mkdirs() }
+                            val dir = java.io.File(context.cacheDir, "chat_attachments").apply { mkdirs() }
                             val file = java.io.File(dir, "prompt_${System.currentTimeMillis()}.txt")
                             file.writeText(text)
                             androidx.core.content.FileProvider.getUriForFile(
-                                ctx, "${ctx.packageName}.fileprovider", file
+                                context, "${context.packageName}.fileprovider", file
                             )
                         }.getOrNull()
                         if (uri != null) {
                             onStageFile(uri)
                             text = ""
+                            hasDismissedBottomSheet = true
                         }
                     },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+                    shape = AIRIShapes.medium
                 ) {
-                    Text(stringResource(R.string.chat_convert), fontSize = 11.sp, color = CosmicAccent, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.auto_convert), color = Color.White)
                 }
-                androidx.compose.material3.TextButton(
-                    onClick = { /* user chooses to keep text as-is, banner dismisses when <2000 chars */ },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                TextButton(
+                    onClick = { hasDismissedBottomSheet = true },
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(stringResource(R.string.chat_keep), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant.copy(0.6f))
+                    Text(stringResource(R.string.chat_keep), color = AiriTheme.onSurfaceVariant)
                 }
+            }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+
+        // : Warning banner for 2000-3000 chars
+        AnimatedVisibility(
+            visible = showWarningBanner,
+            enter   = fadeIn() + expandVertically(),
+            exit    = fadeOut() + shrinkVertically()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFFFB347).copy(alpha = 0.10f))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.Info, null,
+                    tint     = Color(0xFFFFB347),
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    stringResource(R.string.char_limit_warning),
+                    fontSize = 12.sp,
+                    color    = Color(0xFFFFB347),
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
 

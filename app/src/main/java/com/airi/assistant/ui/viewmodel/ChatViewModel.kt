@@ -149,7 +149,15 @@ data class ChatMessage(
      * [ExecOrigin.NONE] for user messages and untagged system messages.
      * Used by [ExecOriginBadge] in the chat UI — AIRI never hides origin.
      */
-    val execOrigin: ExecOrigin = ExecOrigin.NONE
+    val execOrigin: ExecOrigin = ExecOrigin.NONE,
+    /**
+     * Optional voice recording path for voice messages.
+     * When non-null, the UI renders a VoiceMessageBubble with audio playback
+     * controls instead of plain text.
+     */
+    val voiceRecordingPath: String? = null,
+    /** Duration of the voice recording in milliseconds (for display). */
+    val voiceDurationMs: Long = 0L
 )
 
 /**
@@ -1257,11 +1265,44 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Message Handling ──────────────────────────────────────────────────────
 
+        // Long-text file conversion threshold: messages over this length are
+    // automatically saved as a text file and attached to the conversation
+    // instead of being sent as raw text. This prevents context overflow
+    // and keeps the token budget manageable.
+    private val LONG_TEXT_THRESHOLD = 3000
+
     fun sendMessage(input: String) {
         val trimmedInput = input.trim()
         if (trimmedInput.isEmpty()) return
         if (_modelState.value.isModelLoading) return
-
+        // ── Long-text-to-file conversion (3000+ chars) ────────────────────────
+        // When the user pastes/sends very long text (e.g. code, articles, logs),
+        // convert it to a .txt file attachment instead of embedding it inline.
+        // This prevents token overflow and keeps the conversation manageable.
+        if (trimmedInput.length >= LONG_TEXT_THRESHOLD) {
+            val file = File(appContext.cacheDir, "chat_attachments")
+            file.mkdirs()
+            val fileName = "pasted_${System.currentTimeMillis()}.txt"
+            val fileUri = runCatching {
+                val f = File(file, fileName)
+                f.writeText(trimmedInput)
+                androidx.core.content.FileProvider.getUriForFile(
+                    appContext, "${appContext.packageName}.fileprovider", f
+                )
+            }.getOrNull()
+            if (fileUri != null) {
+                Log.i("AIRI_PROOF", "LONG_TEXT_CONVERSION chars=${trimmedInput.length} -> file=$fileName")
+                // Stage the file via SharedFlow so ChatScreen adds it to pending attachments
+                stageAttachmentUri(fileUri)
+                // Send with a short summary prefix instead of the full text
+                val summary = if (trimmedInput.length > 200) {
+                    "[Attached file: $fileName]\n\n${trimmedInput.take(200)}..."
+                } else {
+                    trimmedInput
+                }
+                return sendMessage(summary)
+            }
+        }
         // ── Intent classification (before any async work) ─────────────────────
         val queryType = QueryClassifier.classifyQuery(trimmedInput)
         val wordCount = trimmedInput.split(Regex("\\s+")).size
@@ -1325,7 +1366,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val sessionId = currentSessionOrCreate()
             val wasEmpty   = _messages.value.isEmpty()
             val rawHistory = memoryManager.loadSession(sessionId)
-            val history    = ResponseOptimizer.smartTrim(rawHistory)
+            val history    = ResponseOptimizer.smartTrim(rawHistory, isAgentMode = true)
             Log.d("AIRI_TRIM", "before=${rawHistory.size} after=${history.size}")
             val userMessage = memoryManager.recordChatMessage(sessionId, "user", trimmedInput)
             if (wasEmpty) memoryManager.renameSession(sessionId, trimmedInput.take(48))
@@ -1569,6 +1610,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             success  = true,
                             latencyMs = 0L  // approximate — latency tracked separately by TokenAccountant
                         )
+                    }
+                    // Token-based credit deduction: local=1000, cloud=200-300.
+                    // This supplements the per-action MESSAGE weight (1 credit) with a
+                    // real token-volume cost so users see the actual resource impact.
+                    runCatching {
+                        val isCloud = _lastExecOrigin.value == ExecOrigin.CLOUD
+                        val tokenCreditCost = if (isCloud) {
+                            // Cloud: deduct 200-300 based on token count (proportional)
+                            when {
+                                tokenCount > 1000 -> 300
+                                tokenCount > 500  -> 250
+                                else              -> 200
+                            }
+                        } else {
+                            // Local: flat 1000 tokens credit cost
+                            1000
+                        }
+                        ServiceLocator.creditMeteringEngine.recordTokenCost(
+                            origin  = _lastExecOrigin.value,
+                            tokens  = tokenCount,
+                            credits = tokenCreditCost
+                        )
+                        refreshTodayTokens()
                     }
                     _smartReplies.value = ResponseOptimizer.generateSuggestions(loopResult.finalAnswer)
                     subscriptionManager.recordConsecutiveSuccess()

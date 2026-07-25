@@ -56,8 +56,11 @@ class AgentLoop(
 ) {
     companion object {
         private const val TAG              = "AIRI_AgentLoop"
-        private const val MAX_STEPS        = 12
-        private const val TIMEOUT_MS       = 60_000L
+        private const val MAX_STEPS        = 16
+        // Timeout increased from 60s to 120s. Agent loops with tool calls
+        // (file ops, web search, code execution) can easily exceed 60s on
+        // local inference, especially with retries and multi-step reasoning.
+        private const val TIMEOUT_MS       = 120_000L
         /**
          * : Stable principal registered in [ScopedPermissionRegistry] for the
          * agent loop's tool-dispatch sandbox context. All tool calls on behalf of

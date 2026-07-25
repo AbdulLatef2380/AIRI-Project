@@ -15,7 +15,7 @@ enum class PerformanceMode(
     FAST(
         label                = "Fast",
         description          = "Low context + aggressive truncation — fastest responses",
-        maxTokens            = 128,
+        maxTokens            = 256,
         contextWindow        = 1024,   // matches nCtx exactly
         aggressiveTruncation = true,
         temperature          = 0.7f,
@@ -25,21 +25,21 @@ enum class PerformanceMode(
     BALANCED(
         label                = "Balanced",
         description          = "Default — good quality without sacrificing speed",
-        maxTokens            = 256,
-        contextWindow        = 1536,   // matches nCtx exactly
+        maxTokens            = 512,
+        contextWindow        = 2048,   // matches nCtx exactly
         aggressiveTruncation = false,
         temperature          = 0.8f,
-        nCtx                 = 1536,
+        nCtx                 = 2048,
         nThreads             = 4
     ),
     QUALITY(
         label                = "Quality",
         description          = "Full context + slower — best accuracy",
-        maxTokens            = 512,
-        contextWindow        = 2048,   // matches nCtx exactly (was misleadingly 6000)
+        maxTokens            = 1024,
+        contextWindow        = 4096,   // matches nCtx exactly (doubled for complex tasks)
         aggressiveTruncation = false,
         temperature          = 0.9f,
-        nCtx                 = 2048,
+        nCtx                 = 4096,
         nThreads             = Runtime.getRuntime().availableProcessors().coerceAtLeast(4)
     )
 }

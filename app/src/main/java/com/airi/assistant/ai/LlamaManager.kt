@@ -112,7 +112,12 @@ class LlamaManager(private val context: Context) {
         // becomes a bottleneck — never as a default.
         private const val TOKEN_BATCH_MS = 0L
         private const val TOKEN_BATCH_CHARS = 1
-        private const val INACTIVITY_TIMEOUT_MS = 20_000L
+        // Inactivity timeout: increased from 20s to 45s. On mid-range devices
+        // (Snapdragon 4xx/6xx, ~4GB RAM) running Q4-quantized 3B+ models,
+        // token generation can legitimately stall for 20-35s during heavy
+        // KV-cache churn or memory pressure. 45s provides a safe margin
+        // without masking genuine hangs (which would exceed 45s of no output).
+        private const val INACTIVITY_TIMEOUT_MS = 45_000L
         // First-token budget bumped 60s -> 120s. On a 2B Q4 model with mmap,
         // the very first cold prefill of system prompt + history on CPU genuinely
         // takes 60-90s on mid-range Snapdragon devices; 60s was firing as a

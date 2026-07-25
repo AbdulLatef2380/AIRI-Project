@@ -265,28 +265,37 @@ object ResponseOptimizer {
      *  - Always keeps the system prompt (role == "system")
      *  - Keeps the last [keepLast] non-system messages
      *  - Removes exact-content duplicates
-     *  - Truncates oversized non-recent messages (>600 chars)
+     *  - Truncates oversized non-recent messages (>600 chars assistant, >400 user)
      *  - Preserves the very last message intact (user's current input)
+     *
+     * In agent mode (isAgentMode=true), preserves more context for multi-step
+     * reasoning: keeps at least 12 turns and relaxes truncation limits to
+     * 2000 chars for assistant and 800 for user messages.
      */
-    fun smartTrim(messages: List<ChatMessage>, keepLast: Int = 6): List<ChatMessage> {
+    fun smartTrim(messages: List<ChatMessage>, keepLast: Int = 6, isAgentMode: Boolean = false): List<ChatMessage> {
         if (messages.isEmpty()) return emptyList()
 
         val systemMsg = messages.firstOrNull { it.role == "system" }
         val nonSystem = messages.filter { it.role != "system" }
 
-        val recent = nonSystem.takeLast(keepLast)
+        // Agent mode needs more context for multi-step reasoning.
+        val effectiveKeep = if (isAgentMode) keepLast.coerceAtLeast(12) else keepLast
+        val recent = nonSystem.takeLast(effectiveKeep)
 
         val seen    = mutableSetOf<String>()
         val deduped = recent.filter { msg -> seen.add(msg.content.take(60)) }
 
         val lastIdx = deduped.lastIndex
+        // Relax truncation limits for agent mode
+        val assistantMaxLen = if (isAgentMode) 2000 else 600
+        val userMaxLen      = if (isAgentMode) 800 else 400
         val trimmed = deduped.mapIndexed { i, msg ->
             when {
                 i == lastIdx -> msg
-                msg.role == "assistant" && msg.content.length > 600 ->
-                    msg.copy(content = msg.content.take(600) + " […]")
-                msg.role == "user" && msg.content.length > 400 ->
-                    msg.copy(content = msg.content.take(400) + " […]")
+                msg.role == "assistant" && msg.content.length > assistantMaxLen ->
+                    msg.copy(content = msg.content.take(assistantMaxLen) + " […]")
+                msg.role == "user" && msg.content.length > userMaxLen ->
+                    msg.copy(content = msg.content.take(userMaxLen) + " […]")
                 else -> msg
             }
         }

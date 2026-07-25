@@ -103,7 +103,9 @@ fun AdvancedChatInputBar(
                 isGenerating      = isGenerating,
                 onWebClick        = onWebClick,
                 onCodeClick       = onCodeClick,
-                onCalcClick       = onCalcClick
+                onCalcClick       = onCalcClick,
+                onTakePhoto       = onTakePhoto,
+                onPickFile        = onPickFile
             )
         }
         AiriChatInputBar(
@@ -147,7 +149,10 @@ private fun InputActionToolbar(
     isGenerating:      Boolean,
     onWebClick:        () -> Unit,
     onCodeClick:       () -> Unit,
-    onCalcClick:       () -> Unit
+    onCalcClick:       () -> Unit,
+    // Attachment shortcuts
+    onTakePhoto:       () -> Unit = {},
+    onPickFile:        () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -182,6 +187,35 @@ private fun InputActionToolbar(
         QuickToolChip(label = "Web",  emoji = "⊕", onClick = onWebClick)
         QuickToolChip(label = "Code", emoji = "⌨", onClick = onCodeClick)
         QuickToolChip(label = "Calc", emoji = "🧮", onClick = onCalcClick)
+
+        // Spacer + Attachment shortcuts
+        Spacer(modifier = Modifier.width(4.dp))
+
+        // Camera shortcut
+        IconButton(
+            onClick = onTakePhoto,
+            modifier = Modifier.size(30.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.PhotoCamera,
+                contentDescription = "Take photo",
+                tint = AiriTheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+
+        // File shortcut
+        IconButton(
+            onClick = onPickFile,
+            modifier = Modifier.size(30.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.AttachFile,
+                contentDescription = "Attach file",
+                tint = AiriTheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
+            )
+        }
     }
 }
 

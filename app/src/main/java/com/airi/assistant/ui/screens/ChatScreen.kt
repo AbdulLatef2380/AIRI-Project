@@ -793,7 +793,8 @@ fun ChatScreen(
                     border = androidx.compose.foundation.BorderStroke(0.5.dp, AiBubbleBorder),
                 ) {
                     com.airi.assistant.ui.components.ThinkingAnimation(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp)
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+                        stageText = agentState.currentAction.takeIf { it.isNotBlank() }
                     )
                 }
             }
@@ -1753,10 +1754,12 @@ fun ChatMessageList(
                     val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
                     if (msg.isUser) {
                         UserBubble(
-                            text     = msg.text,
-                            imageUri = msg.imageUri,
-                            onEdit   = { onEditMessage(msg.text) },
-                            onDelete = { onDeleteMessage(msg.uid) }
+                            text               = msg.text,
+                            imageUri           = msg.imageUri,
+                            voiceRecordingPath = msg.voiceRecordingPath,
+                            voiceDurationMs    = msg.voiceDurationMs,
+                            onEdit             = { onEditMessage(msg.text) },
+                            onDelete           = { onDeleteMessage(msg.uid) }
                         )
                     } else {
                         AiBubble(
@@ -1788,7 +1791,9 @@ fun UserBubble(
     text: String,
     imageUri: String? = null,
     onEdit: () -> Unit = {},
-    onDelete: () -> Unit = {}
+    onDelete: () -> Unit = {},
+    voiceRecordingPath: String? = null,
+    voiceDurationMs: Long = 0L
 ) {
     val displayText = remember(text, imageUri) {
         if (imageUri != null) text.replace(Regex("""\s*\n*\[image:[^\]]*\]\s*$"""), "").trim()
@@ -1826,6 +1831,16 @@ fun UserBubble(
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     horizontalAlignment = Alignment.End
                 ) {
+                    // Voice message display
+                    if (voiceRecordingPath != null && voiceDurationMs > 0) {
+                        com.airi.assistant.ui.components.VoiceMessageBubble(
+                            durationMs  = voiceDurationMs,
+                            isPlaying   = false,
+                            progress    = 0f,
+                            onPlayPause = { /* playback handled by parent */ },
+                            modifier    = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
                     if (imageUri != null) {
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current).data(imageUri).crossfade(true).build(),

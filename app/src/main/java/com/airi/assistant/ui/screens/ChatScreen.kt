@@ -2473,7 +2473,7 @@ fun AiriChatInputBar(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
-                    shape = AIRIShapes.medium
+                    shape = AIRIShapes.md
                 ) {
                     Text(stringResource(R.string.auto_convert), color = Color.White)
                 }

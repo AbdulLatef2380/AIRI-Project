@@ -56,7 +56,7 @@ fun PrivacyDataSettingsScreen(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
         scope.launch {
-            val success = uri != null && ChatExporter.exportToUri(context, uri, messages)
+            val success = uri != null && ChatExporter.exportToUri(context, uri, messages, "application/json")
             snackbarHost.showSnackbar(
                 if (success) context.getString(R.string.export_success)
                 else         context.getString(R.string.export_failed)
@@ -113,7 +113,7 @@ fun PrivacyDataSettingsScreen(
                 SettingsActionRow(
                     label    = stringResource(R.string.export_chats),
                     sublabel = stringResource(R.string.download_chat_history)
-                ) { exportChatLauncher.launch(ChatExporter.buildFileName()) }
+                ) { exportChatLauncher.launch(ChatExporter.buildFileName("json")) }
                 Divider(
                     color    = AiriTheme.onBackground.copy(alpha = 0.06f),
                     modifier = Modifier.padding(vertical = 8.dp)

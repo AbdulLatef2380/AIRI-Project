@@ -1266,28 +1266,6 @@
     <string name="permissions_enable_label">تفعيل</string>
 
     <!-- profile -->
-    <string name="profile_account_section">الحساب</string>
-    <string name="profile_change_photo">تغيير الصورة</string>
-    <string name="profile_delete_account">حذف الحساب</string>
-    <string name="profile_delete_confirm_action">حذف الحساب</string>
-    <string name="profile_delete_confirm_body">سيؤدي هذا إلى حذف حساب AIRI وجميع البيانات المحلية نهائياً. لا يمكن التراجع عن هذا الإجراء.</string>
-    <string name="profile_delete_confirm_title">هل تريد حذف حسابك؟</string>
-    <string name="profile_delete_failed">تعذّر حذف الحساب. يرجى المحاولة مجدداً.</string>
-    <string name="profile_display_name_label">الاسم المعروض</string>
-    <string name="profile_email_label">البريد الإلكتروني</string>
-    <string name="profile_handle_placeholder">@معرف</string>
-    <string name="profile_login_provider">طريقة تسجيل الدخول</string>
-    <string name="profile_member_since">عضو منذ</string>
-    <string name="profile_photo_cd">صورة الملف الشخصي</string>
-    <string name="profile_photo_placeholder">اسمك</string>
-    <string name="profile_photo_removed">تم إزالة صورة الملف الشخصي</string>
-    <string name="profile_photo_saved">تم تحديث صورة الملف الشخصي</string>
-    <string name="profile_remove_photo">إزالة الصورة</string>
-    <string name="profile_saved_ok">تم حفظ الملف الشخصي</string>
-    <string name="profile_saving">جارٍ الحفظ…</string>
-    <string name="profile_session_section">الجلسة</string>
-    <string name="profile_sign_out">تسجيل الخروج</string>
-    <string name="profile_title">الملف الشخصي</string>
 
     <!-- sandbox -->
     <string name="sandbox_cancel_confirm">تم إلغاء التنفيذ</string>

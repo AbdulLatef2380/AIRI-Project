@@ -1350,28 +1350,6 @@
     <string name="permissions_enable_label">Enable</string>
 
     <!-- profile -->
-    <string name="profile_account_section">Account</string>
-    <string name="profile_change_photo">Change photo</string>
-    <string name="profile_delete_account">Delete account</string>
-    <string name="profile_delete_confirm_action">Delete account</string>
-    <string name="profile_delete_confirm_body">This will permanently delete your AIRI account and all local data. This action cannot be undone.</string>
-    <string name="profile_delete_confirm_title">Delete your account?</string>
-    <string name="profile_delete_failed">Could not delete account. Please try again.</string>
-    <string name="profile_display_name_label">Display name</string>
-    <string name="profile_email_label">Email</string>
-    <string name="profile_handle_placeholder">@handle</string>
-    <string name="profile_login_provider">Sign-in method</string>
-    <string name="profile_member_since">Member since</string>
-    <string name="profile_photo_cd">Profile photo</string>
-    <string name="profile_photo_placeholder">Your name</string>
-    <string name="profile_photo_removed">Profile photo removed</string>
-    <string name="profile_photo_saved">Profile photo updated</string>
-    <string name="profile_remove_photo">Remove photo</string>
-    <string name="profile_saved_ok">Profile saved</string>
-    <string name="profile_saving">Saving…</string>
-    <string name="profile_session_section">Session</string>
-    <string name="profile_sign_out">Sign out</string>
-    <string name="profile_title">Profile</string>
 
     <!-- sandbox -->
     <string name="sandbox_cancel_confirm">Execution cancelled</string>

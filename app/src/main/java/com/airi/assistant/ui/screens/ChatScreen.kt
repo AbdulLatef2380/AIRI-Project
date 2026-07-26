@@ -2039,6 +2039,7 @@ fun UserBubble(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AiBubble(
     text: String,

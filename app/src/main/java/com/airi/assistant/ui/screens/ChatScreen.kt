@@ -100,7 +100,7 @@ import androidx.compose.foundation.lazy.LazyListState
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel,

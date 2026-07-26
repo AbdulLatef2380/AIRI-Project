@@ -353,6 +353,12 @@ fun ChatScreen(
     }
     DisposableEffect(Unit) { onDispose { voiceManager.destroy() } }
 
+    val exportChatLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/markdown")
+    ) { uri ->
+        uri?.let { ChatExporter.exportToUri(context, it, messages, "text/markdown") }
+    }
+
     var speakNextResponse  by rememberSaveable { mutableStateOf(false) }
     var lastSpokenMsgId    by rememberSaveable { mutableStateOf(-1L) }
     var ttsStreamingActive by rememberSaveable { mutableStateOf(false) }
@@ -595,7 +601,7 @@ fun ChatScreen(
                 onModeSelected    = { viewModel.setAgentMode(it) },
                 onSwitchModel     = { showMenu = false; onNavigate(AiriRoute.MODELS) },
                 onLongPressTitle  = { onNavigate(AiriRoute.DEBUG_SCREEN) },
-                onExportChat      = { showMenu = false; exportChatLauncher.launch(ChatExporter.buildFileName()) },
+                onExportChat      = { showMenu = false; exportChatLauncher.launch(ChatExporter.buildFileName("md")) },
                 onNewChat         = { viewModel.clearMessages() },
                 onMuteToggle      = {},
                 onPointsClick     = { onNavigate(AiriRoute.CREDITS) },
@@ -1178,6 +1184,8 @@ private fun MemoryAcceptanceBanner(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun AiriChatTopBar(
     modelState: ModelUiState,
     agentState: AgentState,

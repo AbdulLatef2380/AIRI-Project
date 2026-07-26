@@ -49,6 +49,7 @@ import com.airi.assistant.ui.screens.ChatScreen
 import com.airi.assistant.ui.screens.CustomizationSettingsScreen
 import com.airi.assistant.ui.screens.GeneralSettingsScreen
 import com.airi.assistant.ui.screens.HistoryScreen
+import com.airi.assistant.ui.screens.LibraryScreen
 import com.airi.assistant.ui.screens.ConnectorsScreen
 import com.airi.assistant.ui.screens.IntegrationsScreen
 import com.airi.assistant.ui.screens.ModelLibraryScreen

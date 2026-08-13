@@ -1135,9 +1135,11 @@
     <string name="cd_open_connectors">Open connectors</string>
     <string name="cd_expand_input">Expand input tools</string>
     <string name="cd_collapse_input">Collapse input tools</string>
-    <!-- English fallbacks pending native-language review. -->
     <string name="zapier_auth_description">Zapier uses OAuth 2.0. Connecting opens Zapier’s authorization page in your browser.</string>
     <string name="zapier_authorization_started">Browser opened. Authorize AIRI in Zapier, then return to the app.</string>
     <string name="zapier_disconnected">Disconnected from Zapier.</string>
     <string name="zapier_webhook_placeholder">https://hooks.zapier.com/hooks/catch/...</string>
+    <!-- English fallbacks pending native-language review. -->
+    <string name="dev_cert_pinning_deferred">Platform TLS verification is active; certificate pinning is pending verification.</string>
+    <string name="dev_cert_pinning_active">Certificate pinning is active.</string>
 </resources>

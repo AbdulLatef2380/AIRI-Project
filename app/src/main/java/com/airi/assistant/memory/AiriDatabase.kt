@@ -86,17 +86,12 @@ abstract class AiriDatabase : RoomDatabase() {
         private const val TAG = "AiriDatabase"
 
         /**
-         * AP-02: SQLCipher at-rest encryption — ENABLED.
-         *
-         * Requires in app/build.gradle.kts (added by AP-02):
-         *   implementation("net.zetetic:android-database-sqlcipher:4.5.4")
-         *   implementation("androidx.sqlite:sqlite-ktx:2.4.0")
-         *
-         * Migration: [AiriDatabaseMigrationHelper.migrateIfNeeded] runs before
-         * Room opens the database. Existing plaintext installs are upgraded
-         * automatically via ATTACH/sqlcipher_export without data loss.
+         * SQLCipher remains disabled until plaintext-to-encrypted migration is
+         * verified on supported Android versions. Enabling it without a tested
+         * recovery path risks losing an existing local database after a failed
+         * file replacement.
          */
-        private const val ENCRYPTION_ENABLED = true
+        private const val ENCRYPTION_ENABLED = false
 
         @Volatile
         private var INSTANCE: AiriDatabase? = null

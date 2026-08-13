@@ -1,0 +1,131 @@
+# تقرير القبول الإنتاجي النهائي — AIRI
+
+**تاريخ التدقيق:** 13 أغسطس 2026
+**الشجرة المدققة:** `architecture-refactor` عند `a5859d8922341fec88de8e9a372bcb67559e8b0d`، مع إصلاحات تدقيق محلية لاحقة غير مرفوعة بعد.
+**قرار الإطلاق:** **🔴 NOT READY**
+
+> لا يمكن أن يُعتمد AIRI للاستخدام العام أو النشر لأن Debug وRelease لم يُجمعا، ولا توجد حزمة موقعة أو APK/AAB مفحوص، كما أن مسارات المستخدم الجوهرية لم تختبر وقت التشغيل. هذا قرار قبول، لا تقرير تقدم.
+
+## 1. الملخص التنفيذي
+
+أظهر التدقيق أن المشروع يحتوي على أجزاء جوهرية معالجة في المصدر، منها إلغاء التوليد بحاجز callbacks، وسياسة ذاكرة مقيدة، بحث RAG مقيّد بالجلسة، `/` و`@`، جدولة فريدة في WorkManager، وPKCE. مرّ الفاحص الساكن من الشجرة المدققة في **23/23** فحصاً. ومع ذلك، لم يبدأ Gradle في تهيئة المشروع لأن AGP `8.2.2` غير متاح محلياً وDNS غير قادر على حل مستودعات التنزيل. لا يوجد توقيع Release أو artifact أو اختبار Android أو جهاز حقيقي.
+
+أصلح التدقيق أربع مخاطر مصدرية مباشرة: أُوقف SQLCipher افتراضياً إلى حين اختبار ترحيل حقيقي، وأضيفت استعادة احتياطية لمسار استبدال قاعدة البيانات، وأزيل موصل MCP تجريبي بنجاح وهمي، وحُذف منفذ shell غير مستخدم، كما أزيلت certificate pins غير موثقة قد تمنع الموفرات. هذه إصلاحات مصدرية وليست إثباتاً تشغيلياً.
+
+| مجال القرار | النتيجة | أثر الإطلاق |
+|---|---|---|
+| البناء والتوقيع والـ artifact | BLOCKED_BY_ENVIRONMENT / NOT_VERIFIED | حرج: لا يمكن إصدار تطبيق بلا حزمة موقعة ومفحوصة. |
+| الحوار والإلغاء والذاكرة | PASS_WITH_LIMITATION | كود موجود وفحص ساكن ناجح؛ لا دليل جهاز. |
+| الصوت والموفرات والخدمات | NOT_RUNTIME_VERIFIED | حرج لوعد ميزات مدعومة؛ لا مفاتيح أو ميكروفون أو backend متاح. |
+| قاعدة البيانات والترحيل | NOT_RUNTIME_VERIFIED | خطر فقد بيانات لا يمكن قبوله دون fixtures واختبار ترقية. |
+| الأمان | PASS_WITH_LIMITATION | تحسنت المخاطر المكتشفة؛ يلزم فحص APK واختبار تكامل. |
+| الأداء وRTL والإتاحة | NOT_RUNTIME_VERIFIED | لا قياسات أو مراجعة بصرية أو TalkBack. |
+
+## 2. بيئة البناء الحالية
+
+| عنصر | القيمة المثبتة | الدليل |
+|---|---|---|
+| Gradle | 8.5 محلي | `/home/ubuntu/tools/gradle-8.5` |
+| AGP | 8.2.2 | `gradle/libs.versions.toml` |
+| Kotlin | 1.9.22 | `gradle/libs.versions.toml` |
+| Compose compiler / BOM | 1.5.10 / 2024.01.00 | `app/build.gradle.kts`, `libs.versions.toml` |
+| Room | 2.6.1 | `libs.versions.toml` |
+| SDK | compile/target 34؛ min 26 | `app/build.gradle.kts` |
+| Java | OpenJDK 21.0.11 في بيئة التدقيق؛ المشروع يستهدف JVM 17 | `java -version`, `app/build.gradle.kts` |
+| NDK / CMake | 25.2.9519653 / 3.22.1 | `app/build.gradle.kts` |
+| ABI | `arm64-v8a` فقط | `app/build.gradle.kts` |
+| Room database version | 6، وليس 9 كما ورد في طلب التدقيق المرفق | `AiriDatabase.kt` |
+| Release signing | غير مهيأ في البيئة | متغيرات keystore الأربعة غائبة |
+
+## 3. التحقق من البناء والإصدار
+
+توقفت محاولة `./gradlew :app:compileDebugKotlin :app:assembleDebug :app:lintDebug` قبل تهيئة المشروع لأن الغلاف حاول تنزيل Gradle وفشل DNS. واستخدمت محاولة ثانية Gradle 8.5 المحلي، لكنها توقفت قبل التهيئة لأن plugin `com.android.application:8.2.2` غير موجود ولا يمكن تنزيله. لذلك لم تُشغّل اختبارات الوحدة أو Android instrumentation أو Release bundle؛ ولا توجد ملفات APK/AAB في `app/build`.
+
+**الحالة:** `BLOCKED_BY_ENVIRONMENT`. لا يجوز الاستنتاج أن Kotlin أو JNI أو R8 أو الموارد أو الحزمة سليمة.
+
+## 4. قاعدة البيانات والترحيلات
+
+قاعدة Room تسجل تسع entities عند الإصدار 6، مع ترحيلات 1→2→3→4→5→6. لا يستخدم المصدر `fallbackToDestructiveMigration` في المسار المفحوص، وحدود الذاكرة والتنظيف موجودة. أضيف اختبار instrumentation لمعرف الإدراج، لكنه لم يُشغّل.
+
+أوقف التدقيق `ENCRYPTION_ENABLED` لأن مسار plaintext→SQLCipher غير مختبر؛ وكان يمكن أن يحذف الملف الأصلي قبل تأكيد نجاح الاستبدال. أضيفت الآن آلية احتفاظ بـ `.plaintext_backup` واستعادة عند فشل تغيير الاسم، لكن هذا المسار ما زال **NOT_RUNTIME_VERIFIED** ولا ينبغي تفعيله قبل fixtures واختبار حقيقي.
+
+## 5. الحوار والإلغاء والمرفقات
+
+يملك `ChatViewModel` معرف توليد نشطاً، ويمنع `HybridOrchestrator` callbacks المتأخرة بعد الإلغاء. يثبت الفاحص وجود هذه الحواجز. مسارات المرفقات والحفظ والإزالة ظاهرة في المصدر، لكن لم يثبت المستخدم رحلة صورة أو ملف أو فشل تحميل أو إلغاء upload.
+
+**الحالة:** `PASS_WITH_LIMITATION` للحواجز المصدرية، و`NOT_RUNTIME_VERIFIED` للحوار الكامل والبث والإلغاء والمرفقات.
+
+## 6. الذاكرة وRAG و`@`
+
+تطبق الذاكرة سياسة قبول تستبعد الحسّاس والعابر والحجم الزائد، وتحد جلسة الرسائل إلى 200 وحفظ الحقائق طويلة الأجل إلى 50 لكل جلسة. البحث المتجهي مقيّد بالجلسة، والسياق المسترجع موصوف كبيانات تاريخية غير موثوقة. أضيف تطبيع يحتفظ بالرموز العربية ويعالج التشكيل والألف والياء.
+
+**الحالة:** `PASS_WITH_LIMITATION`. لا يوجد اختبار جهاز لتكرار الحقائق أو التعارض أو الحذف أو الاسترجاع بعد restart أو جودة ترتيب عربي فعلي.
+
+## 7. المهارات و`/` والموصلات
+
+تظهر `/` مهارات مفعلة ومتاحة فقط، وتعيد طبقة ViewModel التحقق من المرجع. أصبح التسجيل الديناميكي موحداً ويرفض manifest بلا endpoint قابل للتشغيل. حُذف `InMemoryMcpConnector` التجريبي الذي كان ينجح في handshake ويعرض echo من دون خادم حقيقي.
+
+**الحالة:** `PASS_WITH_LIMITATION`. لم يختبر import GitHub أو skill endpoint بعيد أو approval flow أو marketplace backend.
+
+## 8. المهام المجدولة
+
+لكل مهمة اسم WorkManager فريد ومعرف طلب محفوظ وحالة تشغيل دائمة؛ الواجهة تعرض انتظاراً وإعادة محاولة ونجاحاً وفشلاً، وتدعم لمرة واحدة أو دورياً مع شرط شبكة.
+
+**الحالة:** `PASS_WITH_LIMITATION`. لا دليل WorkManager أو Doze أو reboot أو timezone أو notification في جهاز فعلي.
+
+## 9. الصوت
+
+توجد تهدئة لكلمة التنبيه، وإيقاف صريح يلغي الاسترداد، وتُسجل مقاطعة VAD، وتملك جلسة `LiveVoiceService` إخراج TTS للوكيل. لم يعد موجّه الوكيل مالك TTS مستقلاً. كما لا تسجل الخدمة مقتطفات النص المنطوق.
+
+**الحالة:** `NOT_RUNTIME_VERIFIED`. لا دليل RECORD_AUDIO أو Vosk أو Porcupine أو TTS أو Bluetooth أو Arabic STT أو audio-focus.
+
+## 10. الملف الشخصي والإعدادات والتاريخ والتخطيط
+
+يمر حذف الحساب عبر منسق حذف البيانات، وصورة الملف الشخصي تتحقق من MIME والحجم وتخزن في `filesDir`. لم تُختبر Firebase أو re-auth أو avatar picker أو setting persistence أو history actions أو planning dashboard على جهاز.
+
+**الحالة:** `NOT_RUNTIME_VERIFIED` للمسارات المرئية والدائمة؛ `PASS_WITH_LIMITATION` لربط الحذف المصدرى.
+
+## 11. الخدمات الخارجية وOAuth
+
+يصدر `OAuthStateRegistry` state وPKCE S256، ويربط verifier بحالة وحيدة الاستهلاك. يمنع Zapier فتح تدفق عند placeholder configuration. أزيلت pins الشبكة والعميل غير الموثقة واعتمدت TLS النظامية؛ أُعيد وصف الحالة في واجهة المطوّر بصراحة.
+
+**الحالة:** `NOT_RUNTIME_VERIFIED`. لا credentials أو callback أو token exchange أو Firebase أو rate-limit أو fallback موفر متاح في بيئة التدقيق.
+
+## 12. الأمان والخصوصية
+
+لا كشف مسح الأنماط عن مفتاح API أو private key أو token مطابق للنمط المفحوص. التطبيق يمنع backup، وFileProvider غير مصدر مباشرة، وخدمات الصوت والتنزيل غير مصدرة. MainActivity وAccessibilityService مصدران للأسباب المتوقعة، ويجب اختبار deep links وقيود الوصول فعلياً.
+
+حُذف `com.airi.assistant.tools.ToolExecutor` غير المستخدم الذي كان يستدعي `Runtime.exec` بأمر قابل للاستبدال. كما أزيلت رسالة منبه كانت تسجل محتوى المستخدم، وأزيل تقرير برمجي قديم يدعي اكتمالاً وبناءً لا دليل عليه.
+
+**الحالة:** `PASS_WITH_LIMITATION`. يلزم تحليل APK وdependency scan وFirebase review وفحص FileProvider وdeep-link على جهاز.
+
+## 13. الأداء والتخزين والإتاحة والترجمة
+
+يوجد تنظيف لسجل الذاكرة والحقائق وسجل التدقيق والسياق وcache المرفقات وبعض artifacts، كما توجد استجابة لضغط الذاكرة. لا توجد قياسات startup أو RAM أو CPU أو jank أو حجم تخزين. تماثل مفاتيح الإنجليزية والعربية والإسبانية والصينية صفر فجوات، لكن الإسبانية والصينية تحتوي احتياطيات إنجليزية تحتاج ترجمة أصلية. توجد أوصاف وصول للأزرار الأساسية في composer، لا تدقيق TalkBack كامل.
+
+**الحالة:** `NOT_RUNTIME_VERIFIED` للأداء والإتاحة وRTL المرئي؛ `PASS_WITH_LIMITATION` لتماثل مفاتيح الموارد.
+
+## 14. APK/AAB وتوافق Android
+
+لا artifact للفحص بسبب بوابة البناء. لذلك لا يمكن فحص package size أو native libraries أو debug symbols أو release resources أو manifest المدمج. المصدر يستهدف API 26+ ويعلن الأذونات وforeground services، لكن التشغيل على API 26/28/30/33/34 غير مختبر.
+
+**الحالة:** `BLOCKED_BY_ENVIRONMENT` للـ artifact و`NOT_RUNTIME_VERIFIED` للتوافق.
+
+## 15. الفجوات والشروط قبل الإطلاق
+
+| الأولوية | الإجراء | شرط النجاح |
+|---|---|---|
+| P0 | تشغيل Debug وRelease وLint وunit/instrumentation في CI متصل | نجاح أوامر Gradle وحل كل error وfatal lint. |
+| P0 | إعداد توقيع Release في CI وفحص AAB/APK | artifact موقّع مع package/version/ABI/native libraries موثقة. |
+| P0 | اختبار رحلة المستخدم: onboarding، نموذج/موفر، chat، streaming، Stop، retry، attachment، restart | فيديو/سجل device أو automated test قابل لإعادة التشغيل. |
+| P0 | اختبار Room 1→6 وتثبيت جديد وبيانات تالفة | fixtures وMigrationTestHelper ونتائج عدم فقد بيانات. |
+| P1 | اختبار الموفرات وFirebase/OAuth وبدائل الفشل | مفاتيح تجريبية، callback، timeout، rate limit، credential safety. |
+| P1 | اختبار الصوت والجدولة وDoze والإشعارات | جهاز فعلي ونتائج موثقة. |
+| P1 | قياس جهاز منخفض المواصفات وRTL وTalkBack | baseline مقابل حدود قبول معلنة. |
+| P2 | ترجمة أصلية لكل احتياط إسباني وصيني ومسح النصوص المباشرة | مراجعة لغوية ولقطات RTL/LTR. |
+
+## 16. القرار النهائي
+
+**🔴 NOT READY**
+
+النسخة ليست صالحة للنشر العام في وضعها الحالي. سبب القرار ليس ادعاء وجود خطأ محدد في المصدر، بل غياب الأدلة الحرجة التي لا يمكن تعويضها بتحليل ساكن: لا تجميع، لا توقيع، لا artifact، لا اختبارات Android، ولا تحقق حقيقي من الحوار أو قاعدة البيانات أو الصوت أو الموفرات أو الأداء. بعد إغلاق شروط P0 وإعادة التدقيق من artifact حقيقي، يمكن إعادة تقييم ما إذا كانت النتيجة `🟡 CONDITIONALLY READY` أو `🟢 READY FOR RELEASE`.

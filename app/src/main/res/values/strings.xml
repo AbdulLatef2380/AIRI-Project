@@ -1471,4 +1471,6 @@
     <string name="voice_error_busy">Speech recognition is busy. Please try again in a moment.</string>
     <string name="voice_error_generic">Voice recognition could not be completed. Please try again.</string>
 
+    <string name="dev_cert_pinning_deferred">Platform TLS verification is active; certificate pinning is pending verification.</string>
+    <string name="dev_cert_pinning_active">Certificate pinning is active.</string>
 </resources>

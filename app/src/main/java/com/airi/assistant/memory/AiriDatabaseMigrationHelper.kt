@@ -58,6 +58,7 @@ object AiriDatabaseMigrationHelper {
     fun migrateIfNeeded(context: Context, encKey: String) {
         val dbFile  = context.getDatabasePath(DB_NAME)
         val encFile = File(dbFile.absolutePath + ".cipher_tmp")
+        val backupFile = File(dbFile.absolutePath + ".plaintext_backup")
 
         // ── Guard 1: no plaintext file → already migrated or first launch ────
         if (!dbFile.exists()) {
@@ -73,8 +74,10 @@ object AiriDatabaseMigrationHelper {
 
         Log.i(TAG, "AP-02 migrateIfNeeded: plaintext DB detected — starting SQLCipher migration")
 
-        // Clean up any leftover temp file from a previous failed attempt
+        // Clean up artifacts from a previous failed attempt. The original
+        // database is never deleted until its encrypted replacement is in place.
         encFile.delete()
+        backupFile.delete()
 
         try {
             // ── Step 1: open plaintext DB with SQLCipher in "plain" mode ─────
@@ -101,27 +104,35 @@ object AiriDatabaseMigrationHelper {
                 sqliteDb.close()
             }
 
-            // ── Step 5+6: atomic replace ──────────────────────────────────────
-            dbFile.delete()
+            // ── Step 5+6: replace with rollback protection ────────────────────
+            if (!encFile.exists() || encFile.length() == 0L) {
+                Log.e(TAG, "SQLCipher migration did not create an encrypted database")
+                return
+            }
+            if (!dbFile.renameTo(backupFile)) {
+                Log.e(TAG, "SQLCipher migration could not preserve the plaintext database")
+                return
+            }
+            if (!encFile.renameTo(dbFile)) {
+                val restored = backupFile.renameTo(dbFile)
+                Log.e(TAG, "SQLCipher migration replacement failed; plaintext restored=$restored")
+                return
+            }
+            backupFile.delete()
 
-            // Remove WAL and SHM sidecars so Room doesn't get confused
+            // Remove stale sidecars only after the encrypted database is in place.
             File(dbFile.absolutePath + "-wal").delete()
             File(dbFile.absolutePath + "-shm").delete()
 
-            val renamed = encFile.renameTo(dbFile)
-            if (!renamed) {
-                Log.e(TAG, "AP-02 migrateIfNeeded: rename failed — '$encFile' → '$dbFile'")
-                encFile.delete()
-                return
-            }
-
-            Log.i(TAG, "AIRI_RUNTIME DB_ENCRYPTED AP-02 migration successful size=${dbFile.length()}")
+            Log.i(TAG, "AIRI_RUNTIME DB_ENCRYPTED migration successful size=${dbFile.length()}")
 
         } catch (e: Exception) {
             Log.e(TAG, "AP-02 migrateIfNeeded: migration FAILED — ${e.message}. " +
                 "Plaintext DB preserved for retry.", e)
-            // Clean up temp file; original plaintext DB is untouched
+            // Clean up the temporary database. The original plaintext database
+            // remains in place unless the guarded replacement completed.
             encFile.delete()
+            if (backupFile.exists() && !dbFile.exists()) backupFile.renameTo(dbFile)
             // Do NOT rethrow — let Room open the existing plaintext DB rather
             // than crashing the app. Encryption will retry on next launch.
         }

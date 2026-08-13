@@ -62,7 +62,7 @@ class AlarmTool(private val context: Context) {
             }
             context.startActivity(intent)
             val label = "${padded(hour)}:${padded(minute)}"
-            Log.i(TAG, "Alarm set via intent: $label '$message'")
+            Log.i(TAG, "Alarm set via intent: time=$label messageChars=${message.length}")
             AlarmResult(success = true, label = label, message = "Alarm set for $label")
         } catch (e: Exception) {
             Log.e(TAG, "setAlarmViaIntent failed: ${e.message}")

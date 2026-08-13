@@ -1371,4 +1371,6 @@
     <string name="voice_error_busy">التعرّف على الصوت مشغول. حاول مرة أخرى بعد لحظة.</string>
     <string name="voice_error_generic">تعذّر إكمال التعرّف على الصوت. حاول مرة أخرى.</string>
 
+    <string name="dev_cert_pinning_deferred">التحقق القياسي من TLS مفعّل؛ تثبيت الشهادات مؤجل حتى التحقق.</string>
+    <string name="dev_cert_pinning_active">تثبيت الشهادات مفعّل.</string>
 </resources>

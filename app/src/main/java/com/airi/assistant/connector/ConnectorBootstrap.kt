@@ -14,7 +14,6 @@ import com.airi.assistant.connector.local.ClipboardConnector
 import com.airi.assistant.connector.local.ContactsConnector
 import com.airi.assistant.connector.local.DeviceAppsConnector
 import com.airi.assistant.connector.local.VoiceConnector
-import com.airi.assistant.connector.mcp.InMemoryMcpConnector
 import com.airi.assistant.connector.mcp.NotionMcpConnector
 import com.airi.assistant.connector.system.SystemInfoConnector
 import com.airi.assistant.core.ServiceLocator
@@ -64,9 +63,6 @@ object ConnectorBootstrap {
 
         // ── SYSTEM tab ────────────────────────────────────────────────────────
         registry.register(SystemInfoConnector(appContext))
-
-        // ── MCP tab ───────────────────────────────────────────────────────────
-        registry.register(InMemoryMcpConnector())
 
         // ── APP tab ───────────────────────────────────────────────────────────
         registry.register(ZapierConnector(authManager))

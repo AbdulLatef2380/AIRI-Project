@@ -1,7 +1,7 @@
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-ROOT = Path('/home/ubuntu/AIRI-Project')
+ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / 'app/src/main/java/com/airi/assistant'
 
 checks = []

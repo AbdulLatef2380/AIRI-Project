@@ -134,13 +134,19 @@ private fun ConnectorsTab() {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(modifier = Modifier.size(9.dp).clip(CircleShape)
-                        .background(if (LlmCertPins.PINNING_ENABLED) SemanticSuccess else SemanticError))
+                        .background(if (LlmCertPins.PINNING_ENABLED) SemanticSuccess else AiriTheme.outline))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.dev_cert_pinning), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
                         Text(
-                            if (LlmCertPins.PINNING_ENABLED) "Active — MitM protection enabled" else "DISABLED — traffic unprotected",
+                            stringResource(
+                                if (LlmCertPins.PINNING_ENABLED) {
+                                    R.string.dev_cert_pinning_active
+                                } else {
+                                    R.string.dev_cert_pinning_deferred
+                                }
+                            ),
                             fontSize = 11.sp,
-                            color = if (LlmCertPins.PINNING_ENABLED) SemanticSuccess.copy(0.8f) else SemanticError.copy(0.7f)
+                            color = if (LlmCertPins.PINNING_ENABLED) SemanticSuccess.copy(0.8f) else AiriTheme.onSurfaceVariant
                         )
                     }
                     Text("cert-pins", fontSize = 10.sp, color = AiriTheme.outline.copy(alpha = 0.25f), fontFamily = FontFamily.Monospace)

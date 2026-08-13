@@ -38,6 +38,8 @@ class AIRIApplication : Application() {
         private const val TAG = "AIRIApplication"
     }
 
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate() {
         super.onCreate()
 
@@ -56,31 +58,10 @@ class AIRIApplication : Application() {
             LoggingService.info(TAG, "✓ RuntimeRecoveryEngine initialized")
 
             // ── Infrastructure ─────────────────────────────────────────────────
-            ServiceLocator.networkService
-            LoggingService.info(TAG, "✓ NetworkService initialized")
-
-            ServiceLocator.executionHistoryStore
-            LoggingService.info(TAG, "✓ ExecutionHistoryStore initialized")
-
-            ServiceLocator.subscriptionManager
-            LoggingService.info(TAG, "✓ SubscriptionManager initialized")
-
-            AiriDatabase.getDatabase(this)
-            LoggingService.info(TAG, "✓ Database initialized")
-
             // ── Identity Layer ─────────────────────────────────────────────────
-            ServiceLocator.sessionManager
-            LoggingService.info(TAG, "✓ SessionManager initialized")
-
             // ── User Profile Runtime ───────────────────────────────────────────
-            ServiceLocator.userProfileRepository
-            LoggingService.info(TAG, "✓ UserProfileRepository initialized")
-
             // ── Privacy / Telemetry ────────────────────────────────────────────
             ServiceLocator.telemetryConsentStore
-            ServiceLocator.privacyTelemetryReporter
-            LoggingService.info(TAG, "✓ PrivacyTelemetryReporter initialized")
-
             // ── Growth & Analytics ─────────────────────────────────────────────
             // Pass consentStore so AnalyticsService gates Firebase on opt-in.
             AnalyticsService.init(this, ServiceLocator.telemetryConsentStore)
@@ -169,8 +150,17 @@ class AIRIApplication : Application() {
             // Moving them to IO reduces cold-start main-thread time by ~60–120 ms
             // on mid-range devices (each lazy init touches SharedPreferences / DB /
             // network, which are blocking I/O operations on the main thread).
-            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            applicationScope.launch {
                 runCatching {
+                    ServiceLocator.networkService
+                    ServiceLocator.executionHistoryStore
+                    ServiceLocator.subscriptionManager
+                    AiriDatabase.getDatabase(applicationContext)
+                    ServiceLocator.sessionManager
+                    ServiceLocator.userProfileRepository
+                    ServiceLocator.privacyTelemetryReporter
+                    LoggingService.info(TAG, "Deferred infrastructure initialized")
+
                     ServiceLocator.ragRetriever
                     LoggingService.info(TAG, "✓ RAGRetriever initialized (deferred)")
 
@@ -212,7 +202,7 @@ class AIRIApplication : Application() {
             // Fires a background integrity token request so that the first
             // high-trust action (cloud call, subscription purchase) already has
             // a cached verdict available without blocking the user.
-            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            applicationScope.launch {
                 PlayIntegrityVerifier.warmUp(applicationContext)
             }
 
@@ -278,7 +268,7 @@ class AIRIApplication : Application() {
     private val batteryLowReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action != Intent.ACTION_BATTERY_LOW) return
-            LoggingService.warn(TAG, "AIRI_PROOF BATTERY_LOW_RECEIVED — invalidating hardware profile cache")
+            LoggingService.warn(TAG, "AIRI_RUNTIME BATTERY_LOW_RECEIVED — invalidating hardware profile cache")
             // Invalidate the hardware profiler cache so the next call reflects
             // current battery/power-save state.
             runCatching { ServiceLocator.hardwareProfiler }.getOrNull()

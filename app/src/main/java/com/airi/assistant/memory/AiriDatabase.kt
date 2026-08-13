@@ -34,7 +34,7 @@ import net.sqlcipher.database.SupportFactory
  * Version history:
  *   v1 → v2: Added sessionId/isMemory columns to episodic_memory; created chat_sessions table.
  *   v2 → v3: Added message_embedding table for semantic memory (RAG).
- *   v3 → v4: Added audit_log table for persistent AIRI_PROOF event storage (Phase 2 Task 5).
+ *   v3 → v4: Added audit_log table for persistent AIRI_RUNTIME event storage (Phase 2 Task 5).
  *   v4 → v5: Added workspace_artifact table for ArtifactManager persistence (Phase 2 Task 26).
  *   v5 → v6: Added feedback column to episodic_memory (Task 1.7) and attachmentJson column (Task 4.1).
  *
@@ -245,7 +245,7 @@ abstract class AiriDatabase : RoomDatabase() {
             val key = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
             val encoded = android.util.Base64.encodeToString(key, android.util.Base64.NO_WRAP)
             prefs.edit().putString(KEY_ALIAS, encoded).apply()
-            Log.i(TAG, "AIRI_PROOF DB_KEY_GENERATED new SQLCipher passphrase stored")
+            Log.i(TAG, "AIRI_RUNTIME DB_KEY_GENERATED new SQLCipher passphrase stored")
             return encoded
         }
 
@@ -303,10 +303,10 @@ abstract class AiriDatabase : RoomDatabase() {
                 destFile.parentFile?.mkdirs()
                 dbFile.copyTo(destFile, overwrite = true)
 
-                Log.i(TAG, "AIRI_PROOF DB_BACKUP_OK dest=${destFile.absolutePath} size=${destFile.length()}")
+                Log.i(TAG, "AIRI_RUNTIME DB_BACKUP_OK dest=${destFile.absolutePath} size=${destFile.length()}")
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "AIRI_PROOF DB_BACKUP_FAILED: ${e.message}", e)
+                Log.e(TAG, "AIRI_RUNTIME DB_BACKUP_FAILED: ${e.message}", e)
                 false
             }
         }

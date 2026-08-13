@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit
  * PRIVACY:
  *   - Blocked in PRIVACY_MAXIMUM mode (would send prompt to cloud).
  *   - The image prompt is logged at WARN level (not DEBUG) so it is
- *     visible in the AIRI_PROOF stream without being noisy.
+ *     visible in the AIRI_RUNTIME stream without being noisy.
  */
 class MediaGenerationAgent(
     private val context: Context
@@ -83,7 +83,7 @@ class MediaGenerationAgent(
 
     override fun execute(input: String, context: SubAgentContext): Flow<AgentEvent> = flow {
         val start = System.currentTimeMillis()
-        Log.w(TAG, "AIRI_PROOF MEDIA_GEN_START prompt='${input.take(80)}'")
+        Log.w(TAG, "AIRI_RUNTIME MEDIA_GEN_START prompt='${input.take(80)}'")
 
         if (context.privacyLevel == SubAgentContext.PRIVACY_MAXIMUM) {
             emit(AgentEvent.Failed("Image generation blocked: privacy=MAXIMUM", recoverable = false))
@@ -116,7 +116,7 @@ class MediaGenerationAgent(
         val durationMs = System.currentTimeMillis() - start
 
         if (imageUrl != null) {
-            Log.w(TAG, "AIRI_PROOF MEDIA_GEN_COMPLETE url=$imageUrl durationMs=$durationMs")
+            Log.w(TAG, "AIRI_RUNTIME MEDIA_GEN_COMPLETE url=$imageUrl durationMs=$durationMs")
             emit(AgentEvent.PartialResult(
                 "Here is your generated image:\n$imageUrl\n\nTap the link to view the full image.",
                 isFinal = true

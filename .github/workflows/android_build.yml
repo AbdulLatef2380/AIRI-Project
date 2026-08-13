@@ -19,6 +19,9 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
+    - name: Setup Gradle cache
+      uses: gradle/actions/setup-gradle@v4
+
     - name: Setup Android SDK + NDK + CMake
       uses: android-actions/setup-android@v3
 
@@ -32,28 +35,20 @@ jobs:
     - name: Grant execute permission
       run: chmod +x gradlew
 
-    # 🔥 تنظيف كامل (مهم جداً)
-    - name: Clean project
-      run: ./gradlew clean
-
-    # 🔥 بناء مع إجبار native
-    - name: Build APK (with native)
+    - name: Clean, compile, and package debug build
       run: |
-        ./gradlew assembleDebug \
-        -Pandroid.native.buildOutput=verbose \
-        --stacktrace
+        ./gradlew clean :app:assembleDebug \
+          -Pandroid.native.buildOutput=verbose \
+          --stacktrace
 
-    # 🔥 تحقق من وجود .so (أهم خطوة)
-    - name: Verify native library
+    - name: Run unit tests and Android lint
+      run: ./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace
+
+    - name: Verify native library output
       run: |
-        echo "Checking for libairi_native.so..."
-        find . -name "libairi_native.so"
-
-        if ! find . -name "libairi_native.so" | grep -q .; then
-          echo "❌ ERROR: Native library NOT built!"
+        if ! find app/build -name "libairi_native.so" | grep -q .; then
+          echo "Native library was not produced."
           exit 1
-        else
-          echo "✅ Native library found"
         fi
 
     - name: Upload APK

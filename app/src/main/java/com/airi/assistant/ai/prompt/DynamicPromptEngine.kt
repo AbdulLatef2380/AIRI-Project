@@ -43,7 +43,7 @@ import com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
  *
  * ── PROOF LOGGING ─────────────────────────────────────────────────────────────
  *
- *   Logs AIRI_PROOF PROMPT_BUILT with the slot sizes so the engineering team
+ *   Logs AIRI_RUNTIME PROMPT_BUILT with the slot sizes so the engineering team
  *   can verify injection without a debugger.
  */
 object DynamicPromptEngine {
@@ -205,7 +205,7 @@ object DynamicPromptEngine {
         val totalToks   = estimateTokens(result)
 
         Log.i(TAG,
-            "AIRI_PROOF PROMPT_BUILT totalTokens=$totalToks ragTokens=$ragToks " +
+            "AIRI_RUNTIME PROMPT_BUILT totalTokens=$totalToks ragTokens=$ragToks " +
             "summaryTokens=$summaryToks skillTokens=$skillToks toolTokens=$toolToks " +
             "effectiveRagBudget=$effectiveRagTokens nCtx=${contextBudget.nCtx} " +
             "mode=${performanceMode.name} query=${queryType.name} " +

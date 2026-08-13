@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.flow
  *      [CAPABILITY_ACCESSIBILITY] — the token granted by AiriAccessibilityService
  *      when it binds. If the service is not enabled, canHandle() returns false.
  *
- *   2. Every action is logged to Logcat tag AIRI_PROOF_ACCESSIBILITY.
+ *   2. Every action is logged to Logcat tag AIRI_RUNTIME_ACCESSIBILITY.
  *
  *   3. The engine enforces: maxActions=20, maxRetries=3, 8s timeout/action.
  *

@@ -3,6 +3,8 @@ package com.airi.assistant.agent.scheduler
 import android.content.Context
 import android.util.Log
 import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.Data
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
@@ -63,16 +65,17 @@ class ScheduledJobOrchestrator(private val context: Context) {
         delayMs:     Long,
         requiresNet: Boolean = false
     ): ScheduledJob {
+        val safeDelayMs = delayMs.coerceAtLeast(0L)
         val job = ScheduledJob(
             id          = UUID.randomUUID().toString(),
             agentId     = agentId,
             payload     = payload,
             label       = label,
             type        = ScheduleType.ONE_TIME,
-            triggerAtMs = System.currentTimeMillis() + delayMs,
-            intervalMs  = null
+            triggerAtMs = System.currentTimeMillis() + safeDelayMs,
+            intervalMs  = null,
+            requiresNetwork = requiresNet
         )
-        persistJob(job)
 
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(if (requiresNet) NetworkType.CONNECTED else NetworkType.NOT_REQUIRED)
@@ -86,15 +89,17 @@ class ScheduledJobOrchestrator(private val context: Context) {
         val request = OneTimeWorkRequestBuilder<ScheduledAgentWorker>()
             .setInputData(data)
             .setConstraints(constraints)
-            .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
+            .setInitialDelay(safeDelayMs, TimeUnit.MILLISECONDS)
             .addTag("airi_job_${job.id}")
             .addTag("airi_agent_$agentId")
             .build()
 
-        workManager.enqueue(request)
-        Log.i(TAG, "AIRI_PROOF SCHEDULED_JOB_QUEUED id=${job.id} agent=$agentId delayMs=$delayMs")
+        val persistedJob = job.copy(workRequestId = request.id.toString())
+        persistJob(persistedJob)
+        workManager.enqueueUniqueWork(uniqueWorkName(job.id), ExistingWorkPolicy.KEEP, request)
+        Log.i(TAG, "Scheduled job queued id=${job.id} agent=$agentId delayMs=$safeDelayMs")
         EventBus.emitSync(AppEvent.GenericInfo("ScheduledJob queued: $label"))
-        return job
+        return persistedJob
     }
 
     /**
@@ -116,9 +121,9 @@ class ScheduledJobOrchestrator(private val context: Context) {
             label       = label,
             type        = ScheduleType.PERIODIC,
             triggerAtMs = System.currentTimeMillis() + safeInterval * 60_000L,
-            intervalMs  = safeInterval * 60_000L
+            intervalMs  = safeInterval * 60_000L,
+            requiresNetwork = requiresNet
         )
-        persistJob(job)
 
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(if (requiresNet) NetworkType.CONNECTED else NetworkType.NOT_REQUIRED)
@@ -138,14 +143,20 @@ class ScheduledJobOrchestrator(private val context: Context) {
             .addTag("airi_agent_$agentId")
             .build()
 
-        workManager.enqueue(request)
-        Log.i(TAG, "AIRI_PROOF PERIODIC_JOB_QUEUED id=${job.id} agent=$agentId intervalMin=$safeInterval")
-        return job
+        val persistedJob = job.copy(workRequestId = request.id.toString())
+        persistJob(persistedJob)
+        workManager.enqueueUniquePeriodicWork(
+            uniqueWorkName(job.id),
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+        Log.i(TAG, "AIRI_RUNTIME PERIODIC_JOB_QUEUED id=${job.id} agent=$agentId intervalMin=$safeInterval")
+        return persistedJob
     }
 
     /** Cancel a scheduled job by its [jobId]. */
     fun cancel(jobId: String): Boolean {
-        workManager.cancelAllWorkByTag("airi_job_$jobId")
+        workManager.cancelUniqueWork(uniqueWorkName(jobId))
         val removed = removePersistedJob(jobId)
         Log.i(TAG, "Job cancelled id=$jobId removed=$removed")
         return removed
@@ -170,16 +181,35 @@ class ScheduledJobOrchestrator(private val context: Context) {
         }.getOrDefault(emptyList())
     }
 
+    /** Persist the terminal result of an attempted job run for the task UI. */
+    fun recordRunResult(jobId: String, outcome: ScheduledJobOutcome) {
+        val current = listJobs().toMutableList()
+        val index = current.indexOfFirst { it.id == jobId }
+        if (index >= 0) {
+            current[index] = current[index].copy(
+                lastRunAtMs = System.currentTimeMillis(),
+                lastOutcome = outcome
+            )
+            persistAllJobs(current)
+        }
+    }
+
     /** Query the WorkManager status for a job. */
-    fun getJobStatus(jobId: String): WorkInfo.State? =
-        runCatching {
-            workManager.getWorkInfosByTag("airi_job_$jobId")
+    fun getJobStatus(jobId: String): WorkInfo.State? {
+        val job = listJobs().firstOrNull { it.id == jobId } ?: return null
+        return runCatching {
+            job.workRequestId?.let { requestId ->
+                workManager.getWorkInfoById(UUID.fromString(requestId)).get()?.state
+            } ?: workManager.getWorkInfosByTag("airi_job_$jobId")
                 .get()
                 .firstOrNull()
                 ?.state
         }.getOrNull()
+    }
 
     // ── Persistence ────────────────────────────────────────────────────────────
+
+    private fun uniqueWorkName(jobId: String): String = "airi_job_$jobId"
 
     private fun persistJob(job: ScheduledJob) {
         val current = listJobs().toMutableList()
@@ -210,6 +240,10 @@ class ScheduledJobOrchestrator(private val context: Context) {
         put("type",         job.type.name)
         put("trigger_at",   job.triggerAtMs)
         put("interval_ms",  job.intervalMs ?: JSONObject.NULL)
+        put("requires_network", job.requiresNetwork)
+        put("work_request_id", job.workRequestId ?: JSONObject.NULL)
+        put("last_run_at", job.lastRunAtMs ?: JSONObject.NULL)
+        put("last_outcome", job.lastOutcome.name)
     }
 
     private fun parseJob(json: JSONObject) = ScheduledJob(
@@ -219,7 +253,12 @@ class ScheduledJobOrchestrator(private val context: Context) {
         label       = json.getString("label"),
         type        = ScheduleType.valueOf(json.getString("type")),
         triggerAtMs = json.getLong("trigger_at"),
-        intervalMs  = if (json.isNull("interval_ms")) null else json.getLong("interval_ms")
+        intervalMs  = if (json.isNull("interval_ms")) null else json.getLong("interval_ms"),
+        requiresNetwork = json.optBoolean("requires_network", false),
+        workRequestId = json.optString("work_request_id").takeUnless { it.isBlank() || it == "null" },
+        lastRunAtMs = if (json.isNull("last_run_at")) null else json.optLong("last_run_at").takeIf { it > 0L },
+        lastOutcome = runCatching { ScheduledJobOutcome.valueOf(json.optString("last_outcome", "PENDING")) }
+            .getOrDefault(ScheduledJobOutcome.PENDING)
     )
 }
 
@@ -232,8 +271,13 @@ data class ScheduledJob(
     val label:       String,
     val type:        ScheduleType,
     val triggerAtMs: Long,
-    val intervalMs:  Long?
+    val intervalMs:  Long?,
+    val requiresNetwork: Boolean = false,
+    val workRequestId: String? = null,
+    val lastRunAtMs: Long? = null,
+    val lastOutcome: ScheduledJobOutcome = ScheduledJobOutcome.PENDING
 )
 
 enum class ScheduleType { ONE_TIME, PERIODIC }
+enum class ScheduledJobOutcome { PENDING, RETRYING, COMPLETED, FAILED }
 

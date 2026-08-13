@@ -84,7 +84,7 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
                     lastUpdatedMs = System.currentTimeMillis()
                 )
                 AgentActivityBus.emit("Telegram connected as $display", ActivityCategory.CONNECTOR)
-                Log.i(TAG, "AIRI_PROOF TELEGRAM_CONNECTED bot=$display")
+                Log.i(TAG, "AIRI_RUNTIME TELEGRAM_CONNECTED bot=$display")
             } else {
                 val desc = me.optString("description", "Auth failed")
                 _state.value = ConnectorState(false, statusLine = "Auth failed", errorMessage = desc)

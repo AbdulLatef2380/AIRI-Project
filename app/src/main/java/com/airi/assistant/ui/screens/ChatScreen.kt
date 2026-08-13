@@ -77,6 +77,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.AgentMode
+import com.airi.assistant.ui.viewmodel.ChatInputSuggestion
 import com.airi.assistant.ui.viewmodel.ChatMessage
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import coil.compose.AsyncImage
@@ -97,6 +98,8 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
 
@@ -132,6 +135,9 @@ fun ChatScreen(
     val isSummarizing         by viewModel.isSummarizing.collectAsState()
     val pendingSummary        by viewModel.pendingSummary.collectAsState()
     val currentSessionId      by viewModel.currentSessionId.collectAsState()
+    var skillSuggestions by remember { mutableStateOf<List<ChatInputSuggestion>>(emptyList()) }
+    var knowledgeSuggestions by remember { mutableStateOf<List<ChatInputSuggestion>>(emptyList()) }
+    var knowledgeSearchVersion by remember { mutableStateOf(0) }
 
     // Chat is "active" when there are messages or the AI is responding
     val chatIsActive = messages.isNotEmpty() || streamingText.isNotEmpty() || agentState.isWorking
@@ -336,7 +342,7 @@ fun ChatScreen(
             override fun onWakeWordDetected() {}
             override fun onSpeechResult(text: String) {}
             override fun onError(error: String) {
-                scope.launch { snackbarHost.showSnackbar("Voice error: $error") }
+                scope.launch { snackbarHost.showSnackbar(context.userFacingVoiceError(error)) }
                 if (liveChatActiveRef.value) liveChatActiveRef.value = false
             }
             override fun onSpeakingStarted() { voiceStateRef.value = VoiceSessionState.SPEAKING }
@@ -729,35 +735,15 @@ fun ChatScreen(
                             if (liveChatActiveRef.value) liveChatActiveRef.value = false
                             stopInAppStt(); return@vc
                         }
-                        // Toggle LiveVoiceService (full-duplex) when Vosk model is available
-                        // Check if cloud realtime provider is selected
-                        val voicePrefs = context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE)
-                        val cloudVoiceProvider = voicePrefs.getString("cloud_voice_provider", "LOCAL") ?: "LOCAL"
+                        // The active voice-chat path is local Vosk STT plus Android TTS.
+                        // Realtime providers remain isolated until their PCM transport is wired end-to-end;
+                        // the UI must never claim a cloud session when it is using local recognition.
                         when {
-                            cloudVoiceProvider != "LOCAL" -> {
-                                // Cloud realtime voice path — route through LiveVoiceService with cloud provider
-                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
-                                    == PackageManager.PERMISSION_GRANTED) {
-                                    viewModel.toggleVoiceMode()
-                                    liveChatActiveRef.value = !voiceModeActive
-                                    if (!voiceModeActive) {
-                                        // Store selected cloud provider so LiveVoiceService picks it up
-                                        android.util.Log.i("AIRI_VOICE", "Cloud voice provider: $cloudVoiceProvider")
-                                        startInAppStt(autoSend = true)
-                                    } else {
-                                        stopInAppStt()
-                                    }
-                                } else {
-                                    voiceChatPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                }
-                            }
                             !VoskModelManager.isReady(context) -> onNavigate(AiriRoute.VOICE_SETTINGS)
                             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
                                 == PackageManager.PERMISSION_GRANTED -> {
-                                // Use LiveVoiceService for full-duplex; fallback to in-app STT
                                 viewModel.toggleVoiceMode()
                                 if (!voiceModeActive) {
-                                    // Also start in-app STT as visual feedback
                                     liveChatActiveRef.value = true
                                     startInAppStt(autoSend = true)
                                 } else {
@@ -791,6 +777,21 @@ fun ChatScreen(
                     onWebClick        = { viewModel.prefillInput("/web ") },
                     onCodeClick       = { viewModel.prefillInput("/code ") },
                     onCalcClick       = { viewModel.prefillInput("/calc ") },
+                    skillSuggestions = skillSuggestions,
+                    knowledgeSuggestions = knowledgeSuggestions,
+                    onSkillQueryChanged = { query ->
+                        skillSuggestions = viewModel.searchSkillsForQuery(query)
+                        knowledgeSuggestions = emptyList()
+                    },
+                    onKnowledgeQueryChanged = { query ->
+                        skillSuggestions = emptyList()
+                        val version = knowledgeSearchVersion + 1
+                        knowledgeSearchVersion = version
+                        scope.launch {
+                            val results = viewModel.searchKnowledgeForQuery(query)
+                            if (version == knowledgeSearchVersion) knowledgeSuggestions = results
+                        }
+                    },
                     // Pass attachments so they render inside the pill
                     attachments         = pendingAttachments,
                     onRemoveAttachment  = { uid -> pendingAttachments = pendingAttachments.filterNot { it.id == uid || it.uid == uid } }
@@ -2377,7 +2378,11 @@ fun AiriChatInputBar(
     onUserStartedTyping: () -> Unit = {},
     
     onFocusChanged: (Boolean) -> Unit = {},
-    
+    skillSuggestions: List<ChatInputSuggestion> = emptyList(),
+    knowledgeSuggestions: List<ChatInputSuggestion> = emptyList(),
+    onSkillQueryChanged: (String) -> Unit = {},
+    onKnowledgeQueryChanged: (String) -> Unit = {},
+
     attachments: List<ChatAttachment> = emptyList(),
     onRemoveAttachment: (String) -> Unit = {}
 ) {
@@ -2389,6 +2394,14 @@ fun AiriChatInputBar(
     val isInferenceReady = modelState.isModelReady || modelState.isCloudReady
     val canSend = text.isNotBlank() && isInferenceReady && !modelState.isModelLoading && !isGenerating
     val isTyping = text.isNotBlank()
+    val shortcutInput = text.trimStart()
+    val showingSkillShortcuts = shortcutInput.startsWith("/")
+    val showingKnowledgeShortcuts = shortcutInput.startsWith("@")
+    val activeSuggestions = when {
+        showingSkillShortcuts -> skillSuggestions
+        showingKnowledgeShortcuts -> knowledgeSuggestions
+        else -> emptyList()
+    }
 
     // : Large prompt detection
     val showWarningBanner = text.length in 2001..2999
@@ -2591,6 +2604,69 @@ fun AiriChatInputBar(
                 }
                 Divider(color = AiriTheme.outline, thickness = 0.5.dp)
             }
+            AnimatedVisibility(
+                visible = activeSuggestions.isNotEmpty() && !isGenerating,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .clip(AIRIShapes.md)
+                        .background(AiriTheme.surfaceVariant)
+                ) {
+                    activeSuggestions.forEach { suggestion ->
+                        Surface(
+                            onClick = {
+                                text = if (suggestion.isKnowledge) {
+                                    "@knowledge:${suggestion.id} "
+                                } else {
+                                    "/skill:${suggestion.id} "
+                                }
+                                onSkillQueryChanged("")
+                                onKnowledgeQueryChanged("")
+                            },
+                            color = Color.Transparent,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (suggestion.isKnowledge) Icons.Outlined.Lightbulb else Icons.Outlined.AutoAwesome,
+                                    contentDescription = suggestion.title,
+                                    tint = if (suggestion.isKnowledge) Color(0xFFFFB347) else CosmicAccent,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        suggestion.title,
+                                        color = AiriTheme.onSurface,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        if (suggestion.subtitle.isBlank() && suggestion.isKnowledge) {
+                                            stringResource(R.string.input_saved_knowledge)
+                                        } else {
+                                            suggestion.subtitle
+                                        },
+                                        color = AiriTheme.onSurfaceVariant,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             Box(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
@@ -2599,6 +2675,23 @@ fun AiriChatInputBar(
                     onValueChange = { newValue ->
                         if (text.isEmpty() && newValue.isNotEmpty()) onUserStartedTyping()
                         text = newValue
+                        val query = newValue.trimStart()
+                        when {
+                            query.startsWith("/skill:") || query.startsWith("@knowledge:") -> {
+                                onSkillQueryChanged("")
+                                onKnowledgeQueryChanged("")
+                            }
+                            query.startsWith("/") -> {
+                                onSkillQueryChanged(query.drop(1).takeWhile { !it.isWhitespace() })
+                            }
+                            query.startsWith("@") -> {
+                                onKnowledgeQueryChanged(query.drop(1).takeWhile { !it.isWhitespace() })
+                            }
+                            else -> {
+                                onSkillQueryChanged("")
+                                onKnowledgeQueryChanged("")
+                            }
+                        }
                     },
                     enabled = isInferenceReady && !isGenerating,
                     modifier = Modifier
@@ -2610,7 +2703,7 @@ fun AiriChatInputBar(
                         },
                     textStyle = androidx.compose.ui.text.TextStyle(
                         color = AiriTheme.onBackground, fontSize = 15.sp,
-                        textAlign = TextAlign.End   // RTL default
+                        textAlign = TextAlign.Start
                     ),
                     cursorBrush = androidx.compose.ui.graphics.SolidColor(CosmicAccent),
                     maxLines = if (isExpanded) 8 else 3,
@@ -2626,7 +2719,7 @@ fun AiriChatInputBar(
                                     color = AiriTheme.onBackground.copy(0.35f),
                                     fontSize = 15.sp,
                                     modifier = Modifier.fillMaxWidth(),
-                                    textAlign = TextAlign.End
+                                    textAlign = TextAlign.Start
                                 )
                             }
                             inner()
@@ -2640,6 +2733,17 @@ fun AiriChatInputBar(
             ) {
                 // Send / LiveChat / Stop circle button
                 val mainScale = if (!showSend && voiceState != VoiceSessionState.IDLE) micPulse.value else 1f
+                val mainActionDescription = when {
+                    isGenerating -> stringResource(R.string.cd_cancel_generation)
+                    showSend -> stringResource(R.string.cd_send_message)
+                    else -> stringResource(R.string.cd_start_voice_chat)
+                }
+                val attachmentDescription = stringResource(R.string.cd_add_attachment)
+                val voiceInputDescription = stringResource(R.string.cd_start_voice_input)
+                val connectorsDescription = stringResource(R.string.cd_open_connectors)
+                val expansionDescription = stringResource(
+                    if (isExpanded) R.string.cd_collapse_input else R.string.cd_expand_input
+                )
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -2651,6 +2755,10 @@ fun AiriChatInputBar(
                             isInferenceReady || showSend -> CosmicAccent
                             else -> CosmicAccent.copy(0.30f)
                         })
+                        .semantics {
+                            contentDescription = mainActionDescription
+                            role = Role.Button
+                        }
                         .clickable(enabled = isInferenceReady || isGenerating) {
                             when {
                                 isGenerating -> onCancel()
@@ -2673,9 +2781,9 @@ fun AiriChatInputBar(
                         label = "main_btn"
                     ) { state ->
                         when (state) {
-                            "stop" -> Icon(Icons.Default.Stop, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
-                            "send" -> Icon(Icons.Default.ArrowUpward, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
-                            else   -> Icon(Icons.Default.GraphicEq, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                            "stop" -> Icon(Icons.Default.Stop, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                            "send" -> Icon(Icons.Default.ArrowUpward, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                            else -> Icon(Icons.Default.GraphicEq, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -2686,22 +2794,31 @@ fun AiriChatInputBar(
                 Box(
                     modifier = Modifier
                         .size(36.dp).clip(CircleShape)
+                        .semantics {
+                            contentDescription = attachmentDescription
+                            role = Role.Button
+                        }
                         .clickable(enabled = !isGenerating) { showAttachPopup = true },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Add, null, tint = AiriTheme.onBackground.copy(if (!isGenerating) 0.7f else 0.3f), modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Add, attachmentDescription, tint = AiriTheme.onBackground.copy(if (!isGenerating) 0.7f else 0.3f), modifier = Modifier.size(20.dp))
                 }
 
                 // Mic button
                 AnimatedVisibility(visible = !isTyping && !isGenerating, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
                     Box(
-                        modifier = Modifier.size(36.dp).clip(CircleShape).clickable(enabled = isInferenceReady) { onMicClick() },
+                        modifier = Modifier.size(36.dp).clip(CircleShape)
+                            .semantics {
+                                contentDescription = voiceInputDescription
+                                role = Role.Button
+                            }
+                            .clickable(enabled = isInferenceReady) { onMicClick() },
                         contentAlignment = Alignment.Center
                     ) {
                         if (voiceState != VoiceSessionState.IDLE) {
                             Box(modifier = Modifier.size((28 * micPulse.value).dp).clip(CircleShape).background(CosmicAccent.copy(0.18f)))
                         }
-                        Icon(Icons.Outlined.Mic, null,
+                        Icon(Icons.Outlined.Mic, voiceInputDescription,
                             tint = when (voiceState) {
                                 VoiceSessionState.IDLE -> if (isInferenceReady) Color.White.copy(0.70f) else Color.White.copy(0.30f)
                                 else -> CosmicAccent
@@ -2718,6 +2835,10 @@ fun AiriChatInputBar(
                             .clip(AIRIShapes.xl)
                             .background(AiriTheme.surfaceVariant)
                             .border(1.dp, Color.White.copy(0.12f), AIRIShapes.xl)
+                            .semantics {
+                                contentDescription = connectorsDescription
+                                role = Role.Button
+                            }
                             .clickable { onNavigate(AiriRoute.CONNECTORS) }
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
@@ -2731,10 +2852,13 @@ fun AiriChatInputBar(
                 Spacer(Modifier.weight(1f))
 
                 // Expand / collapse toggle
-                IconButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.size(32.dp)) {
+                IconButton(
+                    onClick = { isExpanded = !isExpanded },
+                    modifier = Modifier.size(32.dp)
+                ) {
                     Icon(
                         if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                        null,
+                        expansionDescription,
                         tint = AiriTheme.onBackground.copy(0.45f),
                         modifier = Modifier.size(18.dp)
                     )
@@ -3121,4 +3245,29 @@ private fun ScrollToBottomFab(visible: Boolean, onClick: () -> Unit, modifier: M
             Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(20.dp))
         }
     }
+}
+
+private fun android.content.Context.userFacingVoiceError(error: String): String {
+    val platformCode = error.removePrefix("stt_platform_error_").toIntOrNull()
+    val resourceId = when {
+        error == "stt_unavailable" -> R.string.voice_error_unavailable
+        error == "vosk_model_load_failed" -> R.string.voice_error_model_load
+        error == "stt_empty_result" -> R.string.voice_error_empty_result
+        platformCode in setOf(
+            android.speech.SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
+            android.speech.SpeechRecognizer.ERROR_NETWORK,
+            android.speech.SpeechRecognizer.ERROR_SERVER
+        ) -> R.string.voice_error_network
+        platformCode in setOf(
+            android.speech.SpeechRecognizer.ERROR_AUDIO,
+            android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS
+        ) -> R.string.voice_error_microphone
+        platformCode == android.speech.SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> R.string.voice_error_busy
+        platformCode in setOf(
+            android.speech.SpeechRecognizer.ERROR_NO_MATCH,
+            android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+        ) -> R.string.voice_error_empty_result
+        else -> R.string.voice_error_generic
+    }
+    return getString(resourceId)
 }

@@ -1,40 +1,17 @@
-# memory — Room Database and RAG
+# Memory package
 
-All persistent state: chat messages, sessions, artifacts, embeddings, behavior stats, audit log.
+This package owns Room-backed chat history, long-term memory admission, embeddings, and retrieval-augmented context.
 
-## Database
+## Memory model
 
-`AiriDatabase` — Room database encrypted with SQLCipher (AES-256).
+Conversation history and durable memory are separate. Recent normal chat rows are bounded per session. `MemoryAdmissionPolicy` decides whether a turn is eligible for embedding and rejects transient, oversized, and sensitive content. Durable extracted facts require an explicit user memory request and are restricted to non-sensitive preference, dislike, language, and project categories.
 
-### Schema (current: version 6)
+`EmbeddingService` performs semantic search only inside the current session. `RagRetriever` combines bounded semantic hits with explicit long-term memory and labels all injected content as untrusted historical reference data. It must not be treated as instructions.
 
-| Table | Purpose |
-|-------|---------|
-| `episodic_memory` | Chat messages with `feedback INT` column (added migration 5→6) |
-| `chat_sessions` | Session metadata (title, timestamp, model) |
-| `workspace_artifact` | Code/file artifacts with `attachment_json` column |
-| `message_embedding` | Vector embeddings for RAG retrieval |
-| `context_cache` | Compressed context summaries |
-| `behavior_stats` | Tool/agent execution statistics |
-| `usage_stats` | Daily token usage per provider |
-| `audit_log` | Security and access audit trail |
+## Limits and follow-up
 
-### Migrations
+Memory policy detection is heuristic, not a substitute for a complete PII classifier. SQLCipher migration and all Room migrations require real-device validation before a release claim. The build version and implementation details must be checked in `AiriDatabase.kt`, not inferred from historical reports.
 
-All migrations are registered in `AiriDatabase.MIGRATION_*`. The sequence is: 1→2→3→4→5→6. Never skip a migration — apply sequentially.
+## Verification
 
-## Feedback Persistence
-
-`ChatMessage.feedback: Int` — 1 = thumbs up, -1 = thumbs down, 0 = none.
-
-Stored by `ChatViewModel.submitFeedback()` via `MemoryDao.updateFeedback()`. Loaded on chat startup via `getAllMessages()` (`SELECT *` includes the feedback column). Displayed in `AiBubble` via `initialFeedback` parameter.
-
-## RAG Pipeline
-
-`MemoryRagEngine` embeds user messages using a local embedding model and stores vectors in `message_embedding`. At inference time, the top-K similar messages are prepended to the context window as "memory context".
-
-## Status
-
-- Schema: **Current** (version 6, all migrations registered)
-- Feedback persistence: **Complete** (write + restore on restart)
-- RAG: **Wired** (requires local embedding model)
+Static verification covers admission-policy use, session-scoped vector retrieval, and RAG prompt framing. Full Room migration and device-performance tests remain pending.

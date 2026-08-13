@@ -5,10 +5,10 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * AuditLogEntity — persistent AIRI_PROOF audit record.
+ * AuditLogEntity — persistent AIRI_RUNTIME audit record.
  *
- * ── Phase 2, Task 5: Persist AIRI_PROOF to Room ────────────────────────────
- * Previously all AIRI_PROOF events lived only in logcat and were lost on
+ * ── Phase 2, Task 5: Persist AIRI_RUNTIME to Room ────────────────────────────
+ * Previously all AIRI_RUNTIME events lived only in logcat and were lost on
  * process death, making post-incident forensic analysis impossible without an
  * active ADB connection.
  *
@@ -37,7 +37,7 @@ data class AuditLogEntity(
     /** Module tag, e.g. "THERMAL_PROFILER", "AUTH", "FIREWALL". */
     val tag: String,
 
-    /** Full AIRI_PROOF message text. */
+    /** Full AIRI_RUNTIME message text. */
     val message: String,
 
     /** Severity level for filtering — mirrors Android log priorities. */

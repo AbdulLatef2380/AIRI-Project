@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.theme.*
+import com.airi.assistant.ui.viewmodel.ChatInputSuggestion
 import com.airi.assistant.ui.viewmodel.ModelUiState
 
 /**
@@ -80,6 +81,10 @@ fun AdvancedChatInputBar(
     onWebClick:             () -> Unit              = {},
     onCodeClick:            () -> Unit              = {},
     onCalcClick:            () -> Unit              = {},
+    skillSuggestions:       List<ChatInputSuggestion> = emptyList(),
+    knowledgeSuggestions:   List<ChatInputSuggestion> = emptyList(),
+    onSkillQueryChanged:    (String) -> Unit         = {},
+    onKnowledgeQueryChanged:(String) -> Unit         = {},
     // Attachments inside the pill
     attachments:            List<com.airi.assistant.domain.ChatAttachment> = emptyList(),
     onRemoveAttachment:     (String) -> Unit        = {}
@@ -132,6 +137,10 @@ fun AdvancedChatInputBar(
             onExternalInputConsumed = onExternalInputConsumed,
             onUserStartedTyping     = onUserStartedTyping,
             onFocusChanged          = { hasFocus = it },
+            skillSuggestions         = skillSuggestions,
+            knowledgeSuggestions     = knowledgeSuggestions,
+            onSkillQueryChanged      = onSkillQueryChanged,
+            onKnowledgeQueryChanged  = onKnowledgeQueryChanged,
             attachments             = attachments,
             onRemoveAttachment      = onRemoveAttachment
         )
@@ -187,7 +196,6 @@ private fun InputActionToolbar(
         QuickToolChip(label = "Web",  emoji = "🌐", onClick = onWebClick)
         QuickToolChip(label = "Code", emoji = "💻", onClick = onCodeClick)
         QuickToolChip(label = "Calc", emoji = "🔢", onClick = onCalcClick)
-        QuickToolChip(label = "Draft", emoji = "📝", onClick = { /* TODO: Open drafts */ })
 
         // Divider
         Box(modifier = Modifier.width(1.dp).height(20.dp).background(DividerColor))

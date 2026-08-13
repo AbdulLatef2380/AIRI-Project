@@ -35,7 +35,7 @@ class ModelDownloadService : Service() {
         if (intent?.action == ACTION_CANCEL_DOWNLOAD) {
             cancelRequested.set(true)
             Log.i(TAG, "CANCEL requested via intent")
-            Log.i("AIRI_PROOF", "DOWNLOAD_CANCEL_REQUESTED source=intent")
+            Log.i("AIRI_RUNTIME", "DOWNLOAD_CANCEL_REQUESTED source=intent")
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
@@ -78,7 +78,7 @@ class ModelDownloadService : Service() {
                     if (tempFile.exists()) tempFile.delete()
                     if (cancelRequested.get()) throw InterruptedException("user_cancel_pre_start")
                     Log.i(TAG, "START attempt=$attempt file=$fileName expected=$expectedSize url=$url")
-                    Log.i("AIRI_PROOF", "DOWNLOAD_START fileName=$fileName expected=$expectedSize attempt=$attempt")
+                    Log.i("AIRI_RUNTIME", "DOWNLOAD_START fileName=$fileName expected=$expectedSize attempt=$attempt")
                     downloadToFile(url, tempFile)
                     val actual = tempFile.length()
                     if (actual < 100_000_000L) throw IllegalStateException("download too small actual=$actual")
@@ -89,7 +89,7 @@ class ModelDownloadService : Service() {
                     if (!tempFile.renameTo(finalFile)) throw IllegalStateException("rename failed")
                     Log.i(TAG, "SUCCESS file=${finalFile.absolutePath} size=${finalFile.length()} attempts=$attempt")
                     com.airi.assistant.domain.verification.VerificationTracker.recordCheck("DOWNLOAD", true, "file=${finalFile.absolutePath} size=${finalFile.length()}")
-                    Log.i("AIRI_PROOF", "DOWNLOAD_COMPLETE fileName=$fileName path=${finalFile.absolutePath} sizeBytes=${finalFile.length()}")
+                    Log.i("AIRI_RUNTIME", "DOWNLOAD_COMPLETE fileName=$fileName path=${finalFile.absolutePath} sizeBytes=${finalFile.length()}")
                     success = true
                     val broadcastIntent = Intent(ACTION_DOWNLOAD_COMPLETE).apply {
                         putExtra(EXTRA_RESULT_FILENAME, fileName)
@@ -104,7 +104,7 @@ class ModelDownloadService : Service() {
                 } catch (e: InterruptedException) {
                     lastError = "cancelled"
                     Log.i(TAG, "CANCELLED attempt=$attempt file=$fileName reason=${e.message}")
-                    Log.i("AIRI_PROOF", "DOWNLOAD_CANCELLED fileName=$fileName partial_bytes=${tempFile.length()}")
+                    Log.i("AIRI_RUNTIME", "DOWNLOAD_CANCELLED fileName=$fileName partial_bytes=${tempFile.length()}")
                     tempFile.delete()
                     break
                 } catch (e: Exception) {
@@ -112,7 +112,7 @@ class ModelDownloadService : Service() {
                     Log.e(TAG, "FAILED reason=$lastError attempt=$attempt file=$fileName", e)
                     tempFile.delete()
                     if (cancelRequested.get()) {
-                        Log.i("AIRI_PROOF", "DOWNLOAD_CANCELLED fileName=$fileName reason=cancel_during_retry")
+                        Log.i("AIRI_RUNTIME", "DOWNLOAD_CANCELLED fileName=$fileName reason=cancel_during_retry")
                         break
                     }
                     if (attempt < 3) kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) { kotlinx.coroutines.delay(1500L * attempt) }
@@ -131,7 +131,7 @@ class ModelDownloadService : Service() {
             // clear the authoritative "in progress" flag so the next caller
             // of cancelActiveDownload() gets the truth.
             isDownloading.set(false)
-            Log.i("AIRI_PROOF", "DOWNLOAD_WORKER_EXIT success=$success reason=${lastError ?: "ok"}")
+            Log.i("AIRI_RUNTIME", "DOWNLOAD_WORKER_EXIT success=$success reason=${lastError ?: "ok"}")
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }.start()
@@ -168,7 +168,7 @@ class ModelDownloadService : Service() {
                         val now = System.currentTimeMillis()
                         if (now - lastProofMs >= 5000) {
                             android.util.Log.i(
-                                "AIRI_PROOF",
+                                "AIRI_RUNTIME",
                                 "DOWNLOAD_PROGRESS bytes=$totalBytes mb=${totalBytes / 1_048_576}"
                             )
                             lastProofMs = now

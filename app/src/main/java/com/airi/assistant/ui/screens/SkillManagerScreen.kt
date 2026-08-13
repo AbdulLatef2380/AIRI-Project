@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ai.skills.OfficialSkillLibrary
+import com.airi.assistant.ai.skills.SkillManifest
 import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.domain.customskill.CustomSkill
 import com.airi.assistant.domain.customskill.CustomSkillRepository
@@ -71,10 +72,14 @@ fun SkillManagerScreen(
     var importSource   by remember { mutableStateOf<ImportSource?>(null) }
     var errorMessage   by remember { mutableStateOf<String?>(null) }
     var isImporting    by remember { mutableStateOf(false) }
+    val connectorAvailability by skillRegistry.connectorAvailability.collectAsState()
 
     fun reload() {
         officialSkills = skillRegistry.getAllSkillInfos().filter { it.author == "AIRI Official" }
         customSkills   = repository.getAllSkills()
+    }
+    LaunchedEffect(connectorAvailability) {
+        reload()
     }
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -85,7 +90,14 @@ fun SkillManagerScreen(
                 val json = context.contentResolver.openInputStream(uri)
                     ?.bufferedReader()?.readText() ?: error("Empty file")
                 val skill = parseSkillJson(json)
-                repository.saveSkill(skill)
+                check(
+                    skillRegistry.registerDynamicFromManifest(
+                        manifest = skill.toManifest(),
+                        endpoint = skill.config.endpoint,
+                        method = skill.config.method,
+                        bodyTemplate = skill.config.bodyTemplate
+                    )
+                ) { "The skill manifest or endpoint is not valid." }
                 withContext(Dispatchers.Main) { reload(); importSource = null }
             }.onFailure { e ->
                 withContext(Dispatchers.Main) {
@@ -119,7 +131,8 @@ fun SkillManagerScreen(
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
-                        val activeCount = officialSkills.count { it.isEnabled && it.isConnected } + customSkills.size
+                        val activeCount = officialSkills.count { it.isEnabled && it.isConnected } +
+                            customSkills.count { skillRegistry.isCustomSkillAvailable(it) }
                         val totalCount  = officialSkills.size + customSkills.size
                         Text(
                             "$totalCount skills · $activeCount active",
@@ -194,8 +207,17 @@ fun SkillManagerScreen(
                             }
                             withContext(Dispatchers.Main) {
                                 isImporting = false
-                                if (result.success && result.skill != null) {
-                                    repository.saveSkill(result.skill)
+                                if (result.success && result.skill != null && result.manifest != null) {
+                                    val registered = skillRegistry.registerDynamicFromManifest(
+                                        manifest = result.manifest,
+                                        endpoint = result.skill.config.endpoint,
+                                        method = result.skill.config.method,
+                                        bodyTemplate = result.skill.config.bodyTemplate
+                                    )
+                                    if (!registered) {
+                                        errorMessage = context.getString(R.string.skill_import_github_failed, "The skill endpoint could not be registered.")
+                                        return@withContext
+                                    }
                                     reload()
                                     importSource = null
                                     if (result.warnings.isNotEmpty()) {
@@ -230,9 +252,18 @@ fun SkillManagerScreen(
                             ),
                             createdAt   = System.currentTimeMillis()
                         )
-                        repository.saveSkill(skill)
-                        reload()
-                        importSource = null
+                        val registered = skillRegistry.registerDynamicFromManifest(
+                            manifest = skill.toManifest(),
+                            endpoint = skill.config.endpoint,
+                            method = skill.config.method,
+                            bodyTemplate = skill.config.bodyTemplate
+                        )
+                        if (registered) {
+                            reload()
+                            importSource = null
+                        } else {
+                            errorMessage = "The skill name, description, or endpoint is not valid."
+                        }
                     }
                 )
             }
@@ -650,7 +681,9 @@ private fun SkillTextField(
 private fun parseSkillJson(json: String): CustomSkill {
     val obj = JSONObject(json)
     return CustomSkill(
-        id          = UUID.randomUUID().toString(),
+        id = obj.optString("id")
+            .takeIf { it.matches(Regex("^[a-z][a-z0-9_-]{2,63}$")) }
+            ?: "custom_${UUID.randomUUID().toString().replace("-", "")}",
         name        = obj.getString("name"),
         description = obj.optString("description", ""),
         type        = runCatching {
@@ -664,3 +697,19 @@ private fun parseSkillJson(json: String): CustomSkill {
         createdAt = System.currentTimeMillis()
     )
 }
+
+private fun CustomSkill.toManifest(): SkillManifest = SkillManifest(
+    id = id,
+    name = name,
+    description = description,
+    version = "1.0.0",
+    author = "Local user",
+    endpoint = config.endpoint,
+    tools = listOf(
+        SkillManifest.ToolDef(
+            name = "run",
+            description = description,
+            parameters = mapOf("input" to SkillManifest.ParamDef(type = "string"))
+        )
+    )
+)

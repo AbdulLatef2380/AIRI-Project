@@ -145,7 +145,7 @@ data class ContextBudget(
             }
             return if (n > 0) {
                 val budget = ContextBudget(n)
-                Log.i("AIRI_PROOF", "CONTEXT_BUDGET_MINTED ${budget.toLogString()}")
+                Log.i("AIRI_RUNTIME", "CONTEXT_BUDGET_MINTED ${budget.toLogString()}")
                 budget
             } else {
                 Log.w(TAG, "getNCtx() returned $n — using UNLOADED budget")

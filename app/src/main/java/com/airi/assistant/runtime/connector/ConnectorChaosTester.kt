@@ -25,7 +25,7 @@ import kotlinx.coroutines.withTimeout
  * ── Usage ─────────────────────────────────────────────────────────────────
  * Inject a [ConnectorUnderTest] adapter for the connector being validated.
  * Call [runChaos] with the desired failure set. Results are emitted to
- * [results] StateFlow and printed with AIRI_PROOF tags.
+ * [results] StateFlow and printed with AIRI_RUNTIME tags.
  */
 class ConnectorChaosTester {
 
@@ -74,12 +74,12 @@ class ConnectorChaosTester {
         scope.launch {
             val accumulated = mutableListOf<ChaosResult>()
             for (scenario in scenarios) {
-                Log.i(TAG, "AIRI_PROOF CHAOS_START connector=${connector.name} scenario=$scenario")
+                Log.i(TAG, "AIRI_RUNTIME CHAOS_START connector=${connector.name} scenario=$scenario")
                 val result = runScenario(connector, scenario)
                 connector.restoreNormal()
                 accumulated.add(result)
                 _results.value = accumulated.toList()
-                Log.i(TAG, "AIRI_PROOF CHAOS_DONE connector=${connector.name} " +
+                Log.i(TAG, "AIRI_RUNTIME CHAOS_DONE connector=${connector.name} " +
                         "scenario=$scenario passed=${result.passed} retries=${result.retryCount}")
                 delay(1_000L) // allow connector to settle
             }
@@ -189,7 +189,7 @@ class ConnectorChaosTester {
         } catch (e: Exception) {
             errorClass = e::class.simpleName
             notes = "Unexpected: ${e.message?.take(80)}"
-            Log.e(TAG, "AIRI_PROOF CHAOS_EXCEPTION connector=${connector.name} scenario=$scenario", e)
+            Log.e(TAG, "AIRI_RUNTIME CHAOS_EXCEPTION connector=${connector.name} scenario=$scenario", e)
         }
 
         return ChaosResult(

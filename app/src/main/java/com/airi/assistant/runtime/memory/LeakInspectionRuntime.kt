@@ -86,7 +86,7 @@ object LeakInspectionRuntime {
 
     fun start() {
         scope.launch {
-            Log.i(TAG, "AIRI_PROOF LEAK_INSPECTOR_STARTED")
+            Log.i(TAG, "AIRI_RUNTIME LEAK_INSPECTOR_STARTED")
             while (isActive) {
                 delay(AUDIT_INTERVAL_MS)
                 audit()
@@ -146,19 +146,19 @@ object LeakInspectionRuntime {
                     expectedDeadMs= ref.expectedDeadMs,
                     leaked        = true
                 ))
-                Log.e(TAG, "AIRI_PROOF LEAK_DETECTED key=$key category=${ref.category} tag=${ref.tag}")
+                Log.e(TAG, "AIRI_RUNTIME LEAK_DETECTED key=$key category=${ref.category} tag=${ref.tag}")
             }
         }
         dead.forEach { tracked.remove(it) }
 
         if (nativeRefs.get() < 0) {
-            Log.e(TAG, "AIRI_PROOF JNI_OVERRELEASE nativeRefs=${nativeRefs.get()}")
+            Log.e(TAG, "AIRI_RUNTIME JNI_OVERRELEASE nativeRefs=${nativeRefs.get()}")
         } else if (nativeRefs.get() > 1) {
-            Log.w(TAG, "AIRI_PROOF JNI_MULTI_CONTEXT nativeRefs=${nativeRefs.get()}")
+            Log.w(TAG, "AIRI_RUNTIME JNI_MULTI_CONTEXT nativeRefs=${nativeRefs.get()}")
         }
 
         if (audioRefs.get() > 2) {
-            Log.w(TAG, "AIRI_PROOF AUDIO_REF_ACCUMULATION count=${audioRefs.get()}")
+            Log.w(TAG, "AIRI_RUNTIME AUDIO_REF_ACCUMULATION count=${audioRefs.get()}")
         }
 
         val heapMb = (Runtime.getRuntime().let { it.totalMemory() - it.freeMemory() }) / 1_048_576
@@ -170,7 +170,7 @@ object LeakInspectionRuntime {
             heapUsedMb     = heapMb
         )
 
-        Log.i(TAG, "AIRI_PROOF LEAK_AUDIT confirmed=${leaks.size} " +
+        Log.i(TAG, "AIRI_RUNTIME LEAK_AUDIT confirmed=${leaks.size} " +
                 "nativeRefs=${nativeRefs.get()} audioRefs=${audioRefs.get()} heap=${heapMb}MB")
     }
 }

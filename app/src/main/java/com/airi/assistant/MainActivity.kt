@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.airi.assistant.ui.AiriApp
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.growth.ReferralManager
@@ -32,7 +33,9 @@ import com.airi.assistant.connector.oauth.OAuthStateRegistry
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.voice.HotwordService
+import com.airi.assistant.connector.app.ZapierConnector
 import com.airi.assistant.R
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: Context) {
@@ -43,34 +46,13 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { /* result ignored — we never block the app */ }
 
-    /**
-     * Receives the broadcast emitted by [HotwordService] when "Hey AIRI" is
-     * recognized. Brings the activity to the front and signals the chat input
-     * to start a fresh listen turn. Without this receiver the wake-word
-     * service was firing into the void — Bug #4 in the user report ("the wake
-     * word does nothing").
-     */
-    private val wakeWordReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "Wake-word broadcast received → bringing chat to front")
-            val launch = Intent(this@MainActivity, MainActivity::class.java).apply {
-                addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP
-                )
-                action = ACTION_WAKE_WORD_TRIGGERED
-            }
-            startActivity(launch)
-        }
-    }
-
-    private var wakeReceiverRegistered = false
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         ReferralManager.captureReferralIntent(intent)
+        if (intent?.action == HotwordService.ACTION_WAKE_WORD_TRIGGERED) {
+            WakeWordDispatcher.fireTriggered()
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -142,42 +124,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onStart() {
-        super.onStart()
-        if (!wakeReceiverRegistered) {
-            val filter = IntentFilter(HotwordService.ACTION_WAKE_WORD)
-            // RECEIVER_NOT_EXPORTED on API 33+ — the service that emits this
-            // broadcast lives in our own process, no external sender allowed.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                ContextCompat.registerReceiver(
-                    this,
-                    wakeWordReceiver,
-                    filter,
-                    ContextCompat.RECEIVER_NOT_EXPORTED
-                )
-            } else {
-                @Suppress("UnspecifiedRegisterReceiverFlag")
-                registerReceiver(wakeWordReceiver, filter)
-            }
-            wakeReceiverRegistered = true
-            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "Wake-word receiver registered")
-        }
-    }
-
-    override fun onStop() {
-        super.onStop()
-        if (wakeReceiverRegistered) {
-            try { unregisterReceiver(wakeWordReceiver) } catch (_: Throwable) {}
-            wakeReceiverRegistered = false
-            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "Wake-word receiver unregistered")
-        }
-    }
-
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         ReferralManager.captureReferralIntent(intent)
-        if (intent.action == ACTION_WAKE_WORD_TRIGGERED) {
+        if (intent.action == HotwordService.ACTION_WAKE_WORD_TRIGGERED) {
             WakeWordDispatcher.fireTriggered()
         }
         dispatchOAuthCallback(intent)
@@ -189,14 +140,13 @@ class MainActivity : ComponentActivity() {
      * Called from both [onNewIntent] (warm start) and [onCreate] (cold start
      * via CustomTab redirect) so the validation path is shared.
      *
-     * CSRF protection: the inbound `state` is validated against
+     * CSRF and PKCE protection: the inbound `state` is consumed against
      * [OAuthStateRegistry]. Unknown, expired, or replayed states are dropped
-     * silently — the EventBus is never touched.
+     * before any token exchange is attempted.
      *
-     * Legacy empty-state callbacks (token-paste integrations) still emit
-     * [AppEvent.OAuthCallbackReceived] with `provider=""` so IntegrationsViewModel
-     * can handle them; subscribers must check `provider.isNotEmpty()` to
-     * distinguish a CSRF-validated flow from a paste-token flow.
+     * Every browser callback must carry a state value created by the registry.
+     * Token-paste integrations are not browser callbacks and must use their own
+     * explicit settings flow rather than this deep-link entry point.
      */
     private fun dispatchOAuthCallback(intent: Intent) {
         val data = intent.data ?: return
@@ -207,31 +157,27 @@ class MainActivity : ComponentActivity() {
         val state = data.getQueryParameter("state")
 
         if (state.isNullOrBlank()) {
-            // Legacy paste-token path — emit without provider
-            if (com.airi.assistant.BuildConfig.DEBUG) android.util.Log.d("AIRI_OAUTH", "OAuth callback: no state (legacy paste-token path)")
-            com.airi.assistant.domain.event.EventBus.emit(
-                com.airi.assistant.domain.event.AppEvent.OAuthCallbackReceived(
-                    code = code, state = "", provider = ""
-                )
-            )
+            android.util.Log.w("AIRI_OAUTH", "Rejected OAuth callback without state")
             return
         }
 
-        // CSRF-validated path: consume the state from the registry
-        val provider = OAuthStateRegistry.consume(state)
-        if (provider == null) {
-            android.util.Log.w("AIRI_OAUTH",
-                "Rejected OAuth callback — state unknown/expired/replayed: ${state.take(8)}…")
+        val requestContext = OAuthStateRegistry.consumeRequest(state)
+        if (requestContext == null) {
+            android.util.Log.w("AIRI_OAUTH", "Rejected OAuth callback with invalid state")
             return
         }
 
-        android.util.Log.i("AIRI_OAUTH",
-            "OAuth callback validated: provider=$provider code=${code.take(8)}…")
-        com.airi.assistant.domain.event.EventBus.emit(
-            com.airi.assistant.domain.event.AppEvent.OAuthCallbackReceived(
-                code = code, state = state, provider = provider
-            )
-        )
+        when (requestContext.connectorId) {
+            ZapierConnector.CONNECTOR_ID -> lifecycleScope.launch {
+                val connector = ServiceLocator.connectorRegistry
+                    .get(ZapierConnector.CONNECTOR_ID) as? ZapierConnector
+                val exchanged = connector?.handleCallback(code, requestContext) ?: false
+                if (!exchanged) {
+                    android.util.Log.w("AIRI_OAUTH", "OAuth code exchange failed for Zapier")
+                }
+            }
+            else -> android.util.Log.w("AIRI_OAUTH", "Rejected OAuth callback for unsupported connector")
+        }
     }
 
     private fun isAccessibilityServiceEnabled(): Boolean {
@@ -246,7 +192,6 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         private const val TAG = "AIRI_MAIN"
-        const val ACTION_WAKE_WORD_TRIGGERED = "com.airi.assistant.action.WAKE_WORD_TRIGGERED"
     }
 }
 

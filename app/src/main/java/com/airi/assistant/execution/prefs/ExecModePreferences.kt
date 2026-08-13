@@ -81,7 +81,7 @@ class ExecModePreferences(context: Context) {
         } catch (e: Exception) {
             Log.e(
                 TAG,
-                "AIRI_PROOF EXEC_PREFS_ENCRYPT_FAILED — EncryptedSharedPreferences init failed; " +
+                "AIRI_RUNTIME EXEC_PREFS_ENCRYPT_FAILED — EncryptedSharedPreferences init failed; " +
                     "falling back to IN-MEMORY only (no plaintext disk writes). " +
                     "Cause: ${e.message}"
             )
@@ -233,7 +233,7 @@ class ExecModePreferences(context: Context) {
      *     file so the migration can be re-attempted on the next launch.
      *
      * Never throws — any unexpected error is caught, logged with an
-     * `AIRI_PROOF` tag, and treated as a migration failure.
+     * `AIRI_RUNTIME` tag, and treated as a migration failure.
      *
      * Only called when [isEncrypted] is true (i.e., [prefs] is backed by
      * [EncryptedSharedPreferences], not the in-memory fallback).
@@ -249,7 +249,7 @@ class ExecModePreferences(context: Context) {
 
             Log.i(
                 TAG,
-                "AIRI_PROOF EXEC_PREFS_MIGRATION_START — " +
+                "AIRI_RUNTIME EXEC_PREFS_MIGRATION_START — " +
                     "found ${legacyAll.size} key(s) in legacy plaintext store; " +
                     "migrating to encrypted store"
             )
@@ -278,7 +278,7 @@ class ExecModePreferences(context: Context) {
             if (!committed) {
                 Log.e(
                     TAG,
-                    "AIRI_PROOF EXEC_PREFS_MIGRATION_FAILED — commit() returned false; " +
+                    "AIRI_RUNTIME EXEC_PREFS_MIGRATION_FAILED — commit() returned false; " +
                         "legacy plaintext file preserved for next-launch retry"
                 )
                 return
@@ -301,7 +301,7 @@ class ExecModePreferences(context: Context) {
                 } else {
                     Log.e(
                         TAG,
-                        "AIRI_PROOF EXEC_PREFS_MIGRATION_VERIFY_FAIL — " +
+                        "AIRI_RUNTIME EXEC_PREFS_MIGRATION_VERIFY_FAIL — " +
                             "key=\"$key\" did not round-trip correctly"
                     )
                 }
@@ -311,7 +311,7 @@ class ExecModePreferences(context: Context) {
             if (verifiedCount == stagedCount) {
                 Log.i(
                     TAG,
-                    "AIRI_PROOF EXEC_PREFS_MIGRATION_VERIFIED — " +
+                    "AIRI_RUNTIME EXEC_PREFS_MIGRATION_VERIFIED — " +
                         "$verifiedCount/$stagedCount key(s) verified; " +
                         "clearing legacy plaintext file"
                 )
@@ -320,13 +320,13 @@ class ExecModePreferences(context: Context) {
                 context.deleteSharedPreferences(LEGACY_PREFS_FILE)
                 Log.i(
                     TAG,
-                    "AIRI_PROOF EXEC_PREFS_MIGRATION_COMPLETE — " +
+                    "AIRI_RUNTIME EXEC_PREFS_MIGRATION_COMPLETE — " +
                         "legacy plaintext file deleted; migration finished"
                 )
             } else {
                 Log.e(
                     TAG,
-                    "AIRI_PROOF EXEC_PREFS_MIGRATION_PARTIAL — " +
+                    "AIRI_RUNTIME EXEC_PREFS_MIGRATION_PARTIAL — " +
                         "$verifiedCount/$stagedCount key(s) verified; " +
                         "legacy plaintext file preserved for next-launch retry"
                 )
@@ -334,7 +334,7 @@ class ExecModePreferences(context: Context) {
         } catch (e: Exception) {
             Log.e(
                 TAG,
-                "AIRI_PROOF EXEC_PREFS_MIGRATION_ERROR — unexpected failure; " +
+                "AIRI_RUNTIME EXEC_PREFS_MIGRATION_ERROR — unexpected failure; " +
                     "legacy plaintext file preserved. Cause: ${e.message}"
             )
         }

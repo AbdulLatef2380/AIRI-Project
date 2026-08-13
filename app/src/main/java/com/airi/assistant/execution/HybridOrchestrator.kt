@@ -11,6 +11,7 @@ import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.execution.privacy.SanitizationResult
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.execution.router.RuntimeRouter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -152,10 +153,7 @@ class HybridOrchestrator(
         val decision = router.route(request, context)
 
         if (cancelled.get()) {
-            sessionCancellationCount++
-            updateDiagnostics { copy(isStreaming = false, lastCancelReason = "Cancelled after routing") }
-            onError("Cancelled before execution", ExecOrigin.NONE)
-            return@withLock
+            throw generationCancelled("after routing")
         }
 
         // ── Step 2: Privacy gate (cloud-bound requests only) ───────────────
@@ -183,14 +181,7 @@ class HybridOrchestrator(
 
         for ((idx, backend) in allBackends.withIndex()) {
             if (cancelled.get()) {
-                sessionCancellationCount++
-                updateDiagnostics { copy(
-                    isStreaming = false,
-                    cancellationCount = sessionCancellationCount,
-                    lastCancelReason = "Cancelled during execution on ${backend.id}"
-                )}
-                onError("Cancelled", lastOrigin)
-                return@withLock
+                throw generationCancelled("during execution on ${backend.id}")
             }
 
             if (!backend.isAvailable) {
@@ -250,7 +241,7 @@ class HybridOrchestrator(
                     }
                 },
                 onComplete = { fullText, latencyMs ->
-                    if (genId == currentGenId.get()) {
+                    if (genId == currentGenId.get() && !cancelled.get()) {
                         backendSucceeded = true
                         updateDiagnostics { copy(
                             isStreaming          = false,
@@ -271,6 +262,10 @@ class HybridOrchestrator(
                 }
             )
 
+            if (cancelled.get()) {
+                activeBackend_ = null
+                throw generationCancelled("after backend ${backend.id}")
+            }
             if (backendSucceeded) {
                 activeBackend_ = null
                 return@withLock
@@ -279,6 +274,7 @@ class HybridOrchestrator(
         }
 
         // All backends exhausted.
+        if (cancelled.get()) throw generationCancelled("after backend attempts")
         activeBackend_ = null
         updateDiagnostics { copy(isStreaming = false, lastErrorMessage = lastError) }
         RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.ERROR,
@@ -333,23 +329,48 @@ class HybridOrchestrator(
         onError:    suspend (String, ExecOrigin)       -> Unit
     ) {
         updateDiagnostics { copy(activeBackend = backend.id, activeOrigin = backend.origin) }
-        backend.generateStream(
-            request    = request,
-            onToken    = { token -> if (genId == currentGenId.get() && !cancelled.get()) onToken(token) },
-            onComplete = { fullText, latencyMs ->
-                if (genId == currentGenId.get()) {
-                    updateDiagnostics { copy(isStreaming = false, lastStreamDurationMs = latencyMs) }
-                    onComplete(fullText, latencyMs, backend.origin)
+        activeBackend_ = backend
+        try {
+            backend.generateStream(
+                request    = request,
+                onToken    = { token ->
+                    if (genId == currentGenId.get() && !cancelled.get()) onToken(token)
+                },
+                onComplete = { fullText, latencyMs ->
+                    if (genId == currentGenId.get() && !cancelled.get()) {
+                        updateDiagnostics { copy(isStreaming = false, lastStreamDurationMs = latencyMs) }
+                        onComplete(fullText, latencyMs, backend.origin)
+                    }
+                },
+                onError    = { error ->
+                    if (!cancelled.get()) {
+                        updateDiagnostics { copy(isStreaming = false, lastErrorMessage = error.take(100)) }
+                        onError(error, backend.origin)
+                    }
                 }
-            },
-            onError    = { error ->
-                updateDiagnostics { copy(isStreaming = false, lastErrorMessage = error.take(100)) }
-                onError(error, backend.origin)
-            }
-        )
+            )
+            if (cancelled.get()) throw generationCancelled("during privacy fallback")
+        } finally {
+            if (activeBackend_ === backend) activeBackend_ = null
+        }
     }
 
-    // ── Transition history ────────────────────────────────────────────────────
+    private fun generationCancelled(stage: String): CancellationException {
+        sessionCancellationCount++
+        activeBackend_ = null
+        updateDiagnostics {
+            copy(
+                isStreaming = false,
+                cancellationCount = sessionCancellationCount,
+                lastCancelReason = "Cancelled $stage"
+            )
+        }
+        RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.INFO, "Generation cancelled $stage")
+        return CancellationException("Generation cancelled $stage")
+    }
+
+    // ── Transition history ───────────────────────────────────────────────────
+─
 
     private fun recordTransition(from: String, to: String, reason: String, origin: ExecOrigin) {
         val event = ExecTransitionEvent(

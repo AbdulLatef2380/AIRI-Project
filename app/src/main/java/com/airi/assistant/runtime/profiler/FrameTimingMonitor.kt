@@ -64,13 +64,13 @@ object FrameTimingMonitor {
         running = true
         lastHeartbeatMs = SystemClock.elapsedRealtime()
         scheduleHeartbeat()
-        Log.i(TAG, "AIRI_PROOF FRAME_MONITOR_STARTED")
+        Log.i(TAG, "AIRI_RUNTIME FRAME_MONITOR_STARTED")
     }
 
     fun stop() {
         running = false
         mainHandler.removeCallbacksAndMessages(null)
-        Log.i(TAG, "AIRI_PROOF FRAME_MONITOR_STOPPED")
+        Log.i(TAG, "AIRI_RUNTIME FRAME_MONITOR_STOPPED")
     }
 
     // ── Compose integration ────────────────────────────────────────────────
@@ -83,7 +83,7 @@ object FrameTimingMonitor {
         val counter = recompCounts.getOrPut(key) { AtomicInteger(0) }
         val count = counter.incrementAndGet()
         if (count % RECOMP_WARN_RATE == 0) {
-            Log.w(TAG, "AIRI_PROOF HIGH_RECOMPOSITION key=$key count=$count")
+            Log.w(TAG, "AIRI_RUNTIME HIGH_RECOMPOSITION key=$key count=$count")
         }
     }
 
@@ -96,7 +96,7 @@ object FrameTimingMonitor {
     fun assertNotMainThread(context: String) {
         if (Looper.myLooper() == Looper.getMainLooper()) {
             uiViolations.incrementAndGet()
-            Log.e(TAG, "AIRI_PROOF UI_THREAD_VIOLATION context=$context")
+            Log.e(TAG, "AIRI_RUNTIME UI_THREAD_VIOLATION context=$context")
         }
     }
 
@@ -113,9 +113,9 @@ object FrameTimingMonitor {
             if (delay > JANK_THRESHOLD_MS) {
                 jankFrames.incrementAndGet()
                 if (delay > ANR_THRESHOLD_MS) {
-                    Log.e(TAG, "AIRI_PROOF NEAR_ANR delayMs=$delay")
+                    Log.e(TAG, "AIRI_RUNTIME NEAR_ANR delayMs=$delay")
                 } else {
-                    Log.w(TAG, "AIRI_PROOF JANK_FRAME delayMs=$delay")
+                    Log.w(TAG, "AIRI_RUNTIME JANK_FRAME delayMs=$delay")
                 }
             }
             lastHeartbeatMs = executeTime

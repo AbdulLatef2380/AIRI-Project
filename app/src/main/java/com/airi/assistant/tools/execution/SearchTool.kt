@@ -83,7 +83,7 @@ class SearchTool(
         val url = "https://api.search.brave.com/res/v1/web/search" +
             "?q=${urlEncode(query)}&count=$count&search_lang=en&safesearch=moderate"
 
-        Log.i(TAG, "AIRI_PROOF BRAVE_SEARCH query=${query.take(60)}")
+        Log.i(TAG, "AIRI_RUNTIME BRAVE_SEARCH query=${query.take(60)}")
 
         return@withContext try {
             val response = httpClient.newCall(
@@ -120,7 +120,7 @@ class SearchTool(
                 )
             }
 
-            Log.i(TAG, "AIRI_PROOF BRAVE_SEARCH_OK query=${query.take(60)} results=${results.size}")
+            Log.i(TAG, "AIRI_RUNTIME BRAVE_SEARCH_OK query=${query.take(60)} results=${results.size}")
 
             // Enrich top result with full page content via Jina
             val topContent: String? = if (enrich && results.isNotEmpty()) {
@@ -163,7 +163,7 @@ class SearchTool(
      */
     suspend fun fetchViaJina(url: String, maxChars: Int = 4000): FetchResult =
         withContext(Dispatchers.IO) {
-        Log.d(TAG, "AIRI_PROOF JINA_FETCH url=${url.take(80)}")
+        Log.d(TAG, "AIRI_RUNTIME JINA_FETCH url=${url.take(80)}")
         return@withContext try {
             val jinaUrl = "https://r.jina.ai/${url}"
             val response = httpClient.newCall(
@@ -190,7 +190,7 @@ class SearchTool(
                 .take(maxChars)
                 .trim()
 
-            Log.d(TAG, "AIRI_PROOF JINA_FETCH_OK url=${url.take(60)} chars=${content.length}")
+            Log.d(TAG, "AIRI_RUNTIME JINA_FETCH_OK url=${url.take(60)} chars=${content.length}")
             FetchResult(success = content.isNotBlank(), url = url, content = content)
 
         } catch (e: Exception) {

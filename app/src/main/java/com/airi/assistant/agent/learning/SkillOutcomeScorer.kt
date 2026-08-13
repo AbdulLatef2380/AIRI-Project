@@ -109,7 +109,7 @@ class SkillOutcomeScorer(context: Context) {
         val policy = derivePolicy(newScore)
         _toolPolicy[skillName] = policy
 
-        Log.i(TAG, "AIRI_PROOF SKILL_SCORED skill=$skillName " +
+        Log.i(TAG, "AIRI_RUNTIME SKILL_SCORED skill=$skillName " +
             "success=$success signal=${"%.2f".format(signal)} " +
             "score=${"%.3f".format(newScore)} policy=$policy")
 

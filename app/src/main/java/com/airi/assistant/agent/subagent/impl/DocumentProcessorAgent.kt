@@ -116,7 +116,7 @@ class DocumentProcessorAgent(
 
         val chars  = extracted.length
         val excerpt = extracted.take(MAX_CHARS)
-        Log.i(TAG, "AIRI_PROOF DOC_PROCESSED chars=$chars operation=${operation.name}")
+        Log.i(TAG, "AIRI_RUNTIME DOC_PROCESSED chars=$chars operation=${operation.name}")
 
         emit(AgentEvent.Progress("Processing ${chars} characters…", 55, "process"))
 

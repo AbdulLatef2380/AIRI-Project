@@ -222,6 +222,7 @@
     <string name="profile_delete_failed">Deletion failed</string>
     <string name="profile_saving">Saving…</string>
     <string name="profile_saved_ok">Profile updated</string>
+    <string name="profile_save_failed">Unable to update profile. Please try again.</string>
     <string name="profile_display_name_label">Display Name</string>
     <string name="profile_photo_placeholder">Enter your name</string>
     <string name="profile_handle_placeholder">@username</string>
@@ -1426,5 +1427,48 @@
 
     <!-- welcome -->
     <string name="welcome_greeting">Hello, I\'m AIRI</string>
+
+    <!-- generation -->
+    <string name="err_generation_failed">Unable to generate a response. Please try again.</string>
+
+    <!-- input shortcuts -->
+    <string name="input_saved_knowledge">Saved knowledge</string>
+
+    <!-- chat accessibility -->
+    <string name="cd_send_message">Send message</string>
+    <string name="cd_cancel_generation">Stop generating</string>
+    <string name="cd_start_voice_chat">Start voice chat</string>
+    <string name="cd_add_attachment">Add attachment</string>
+    <string name="cd_start_voice_input">Start voice input</string>
+    <string name="cd_open_connectors">Open connectors</string>
+    <string name="cd_expand_input">Expand input tools</string>
+    <string name="cd_collapse_input">Collapse input tools</string>
+
+    <!-- Zapier OAuth -->
+    <string name="zapier_auth_description">Zapier uses OAuth 2.0. Connecting opens Zapier’s authorization page in your browser.</string>
+    <string name="zapier_authorization_started">Browser opened. Authorize AIRI in Zapier, then return to the app.</string>
+    <string name="zapier_disconnected">Disconnected from Zapier.</string>
+    <string name="zapier_webhook_placeholder">https://hooks.zapier.com/hooks/catch/...</string>
+    <string name="zapier_oauth_not_configured">Zapier connection is not configured in this app build.</string>
+
+    <!-- scheduled-task controls -->
+    <string name="agent_task_repeat">Repeat this task</string>
+    <string name="agent_task_requires_network">Requires internet access</string>
+    <string name="agent_task_periodic_note">Recurring tasks run at least every 15 minutes.</string>
+
+    <!-- scheduled-task outcomes -->
+    <string name="agent_task_status_pending">Scheduled</string>
+    <string name="agent_task_status_retrying">Retrying</string>
+    <string name="agent_task_status_completed">Completed</string>
+    <string name="agent_task_status_failed">Failed</string>
+
+    <!-- voice errors -->
+    <string name="voice_error_unavailable">Voice recognition is unavailable on this device.</string>
+    <string name="voice_error_model_load">The offline speech model could not be loaded.</string>
+    <string name="voice_error_empty_result">No speech was detected. Please try again.</string>
+    <string name="voice_error_network">Speech recognition needs a network connection.</string>
+    <string name="voice_error_microphone">A microphone error occurred. Check microphone access and try again.</string>
+    <string name="voice_error_busy">Speech recognition is busy. Please try again in a moment.</string>
+    <string name="voice_error_generic">Voice recognition could not be completed. Please try again.</string>
 
 </resources>

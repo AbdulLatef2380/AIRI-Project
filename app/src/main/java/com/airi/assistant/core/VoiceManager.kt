@@ -146,7 +146,7 @@ class VoiceManager(
                 when (focusChange) {
                     AudioManager.AUDIOFOCUS_LOSS,
                     AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                        Log.i(TAG, "AIRI_PROOF AUDIO_FOCUS_LOST transient=${focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT}")
+                        Log.i(TAG, "AIRI_RUNTIME AUDIO_FOCUS_LOST transient=${focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT}")
                         audioFocusHeld = false
                         // Stop TTS if focus is permanently lost (another app took over)
                         if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
@@ -154,7 +154,7 @@ class VoiceManager(
                         }
                     }
                     AudioManager.AUDIOFOCUS_GAIN -> {
-                        Log.d(TAG, "AIRI_PROOF AUDIO_FOCUS_REGAINED")
+                        Log.d(TAG, "AIRI_RUNTIME AUDIO_FOCUS_REGAINED")
                         audioFocusHeld = true
                     }
                 }
@@ -246,14 +246,14 @@ class VoiceManager(
     private fun buildUtteranceProgressListener() = object : UtteranceProgressListener() {
 
         override fun onStart(utteranceId: String?) {
-            Log.d(TAG, "AIRI_PROOF TTS_UTTERANCE_START id=$utteranceId")
+            Log.d(TAG, "AIRI_RUNTIME TTS_UTTERANCE_START id=$utteranceId")
             postToMain { listener.onSpeakingStarted() }
         }
 
         override fun onDone(utteranceId: String?) {
             val last = lastQueuedUtteranceId.get()
             val streamDone = !ttsStreamActive  // snapshot before any state changes
-            Log.d(TAG, "AIRI_PROOF TTS_UTTERANCE_DONE id=$utteranceId last=$last streamDone=$streamDone")
+            Log.d(TAG, "AIRI_RUNTIME TTS_UTTERANCE_DONE id=$utteranceId last=$last streamDone=$streamDone")
 
             // Fire onSpeakingDone only when:
             //   (a) this is the final queued utterance, AND
@@ -274,7 +274,7 @@ class VoiceManager(
 
         @Deprecated("Deprecated in Java")
         override fun onError(utteranceId: String?) {
-            Log.w(TAG, "AIRI_PROOF TTS_UTTERANCE_ERROR id=$utteranceId")
+            Log.w(TAG, "AIRI_RUNTIME TTS_UTTERANCE_ERROR id=$utteranceId")
             stopVad("tts_error")
             postToMain {
                 com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "IDLE")
@@ -301,7 +301,7 @@ class VoiceManager(
         tts!!.speak(text.trim(), TextToSpeech.QUEUE_FLUSH, null, utteranceId)
         com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "SPEAKING")
         com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "SPEAKING") }
-        Log.i(TAG, "AIRI_PROOF TTS_SPEAK chars=${text.length} utteranceId=$utteranceId")
+        Log.i(TAG, "AIRI_RUNTIME TTS_SPEAK chars=${text.length} utteranceId=$utteranceId")
         startVad()
     }
 
@@ -313,7 +313,7 @@ class VoiceManager(
         ttsStreamBuffer.setLength(0)
         ttsStreamActive = true
         ttsGeneration.incrementAndGet()
-        Log.i(TAG, "AIRI_PROOF TTS_STREAM_RESET")
+        Log.i(TAG, "AIRI_RUNTIME TTS_STREAM_RESET")
     }
 
     fun ttsStreamAppend(delta: String) {
@@ -351,7 +351,7 @@ class VoiceManager(
             requestAudioFocus()
             com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "SPEAKING")
             com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "SPEAKING") }
-            Log.i(TAG, "AIRI_PROOF TTS_STREAM_FLUSH chunks=$flushed remaining=${ttsStreamBuffer.length}")
+            Log.i(TAG, "AIRI_RUNTIME TTS_STREAM_FLUSH chunks=$flushed remaining=${ttsStreamBuffer.length}")
             startVad()
         }
     }
@@ -377,7 +377,7 @@ class VoiceManager(
         val utteranceId = "airi_stream_tail_${System.currentTimeMillis()}"
         lastQueuedUtteranceId.set(utteranceId)
         tts!!.speak(content, TextToSpeech.QUEUE_ADD, null, utteranceId)
-        Log.i(TAG, "AIRI_PROOF TTS_STREAM_TAIL chars=${content.length} sentinel=${tail.isEmpty()} id=$utteranceId")
+        Log.i(TAG, "AIRI_RUNTIME TTS_STREAM_TAIL chars=${content.length} sentinel=${tail.isEmpty()} id=$utteranceId")
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -397,7 +397,7 @@ class VoiceManager(
         abandonAudioFocus()
         com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "IDLE")
         com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
-        Log.i(TAG, "AIRI_PROOF TTS_STOPPED wasSpeaking=$wasSpeaking")
+        Log.i(TAG, "AIRI_RUNTIME TTS_STOPPED wasSpeaking=$wasSpeaking")
     }
 
     // ── AudioFocus helpers ─────────────────────────────────────────────────────
@@ -411,7 +411,7 @@ class VoiceManager(
             audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
         }
         audioFocusHeld = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        Log.d(TAG, "AIRI_PROOF AUDIO_FOCUS_REQUESTED granted=$audioFocusHeld")
+        Log.d(TAG, "AIRI_RUNTIME AUDIO_FOCUS_REQUESTED granted=$audioFocusHeld")
     }
 
     private fun abandonAudioFocus() {
@@ -423,7 +423,7 @@ class VoiceManager(
             audioManager.abandonAudioFocus(null)
         }
         audioFocusHeld = false
-        Log.d(TAG, "AIRI_PROOF AUDIO_FOCUS_ABANDONED")
+        Log.d(TAG, "AIRI_RUNTIME AUDIO_FOCUS_ABANDONED")
     }
 
     fun isSpeaking(): Boolean = tts?.isSpeaking == true
@@ -455,7 +455,7 @@ class VoiceManager(
         val old = vadEngineRef.getAndSet(null)
         old?.stop()
 
-        Log.i(TAG, "AIRI_PROOF VAD_ARMING")
+        Log.i(TAG, "AIRI_RUNTIME VAD_ARMING")
 
         // Capture `thisEngine` for the identity check inside the callback.
         // The lambda below captures it by reference, and the reference is
@@ -486,7 +486,7 @@ class VoiceManager(
                 }
 
                 vadArmed = false
-                Log.i(TAG, "AIRI_PROOF VAD_INTERRUPT_EXECUTING")
+                Log.i(TAG, "AIRI_RUNTIME VAD_INTERRUPT_EXECUTING")
 
                 // ── Step 1: SYNCHRONOUS mic release ─────────────────────
                 // me.stop() calls AudioRecord.stop() + release() synchronously
@@ -501,7 +501,7 @@ class VoiceManager(
                 ttsStreamBuffer.setLength(0)
                 com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "INTERRUPTING")
                 com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "INTERRUPTING") }
-                Log.i(TAG, "AIRI_PROOF TTS_STOPPED_BY_VAD wasSpeaking=$wasSpeaking")
+                Log.i(TAG, "AIRI_RUNTIME TTS_STOPPED_BY_VAD wasSpeaking=$wasSpeaking")
 
                 // ── Step 3: Notify listener ─────────────────────────────
                 // Mic is guaranteed free. Caller (ChatScreen) will call
@@ -514,7 +514,7 @@ class VoiceManager(
                 val me = thisEngine
                 if (me != null) vadEngineRef.compareAndSet(me, null)
                 vadArmed = false
-                Log.i(TAG, "AIRI_PROOF VAD_STOPPED_NO_INTERRUPT reason=$reason")
+                Log.i(TAG, "AIRI_RUNTIME VAD_STOPPED_NO_INTERRUPT reason=$reason")
             }
         )
 
@@ -534,7 +534,7 @@ class VoiceManager(
         vadArmed = false
         val e = vadEngineRef.getAndSet(null) ?: return
         e.stop()
-        Log.i(TAG, "AIRI_PROOF VAD_STOP reason=$reason")
+        Log.i(TAG, "AIRI_RUNTIME VAD_STOP reason=$reason")
     }
 
     /**
@@ -584,7 +584,7 @@ class VoiceManager(
         stopVad("stt_starting")
 
         val androidAvail = SpeechRecognizer.isRecognitionAvailable(context.applicationContext)
-        Log.i(TAG, "AIRI_PROOF STT_AVAILABILITY android=$androidAvail vosk=${isVoskAvailable()}")
+        Log.i(TAG, "AIRI_RUNTIME STT_AVAILABILITY android=$androidAvail vosk=${isVoskAvailable()}")
 
         if (androidAvail) {
             startPlatformSpeechToText(); return
@@ -743,7 +743,7 @@ class VoiceManager(
         ttsReady = false
         abandonAudioFocus()
 
-        Log.i(TAG, "AIRI_PROOF VOICE_MANAGER_DESTROYED")
+        Log.i(TAG, "AIRI_RUNTIME VOICE_MANAGER_DESTROYED")
     }
 
     // ─────────────────────────────────────────────────────────────────────

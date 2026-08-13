@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.airi.assistant.ui.theme.AiriTheme
+import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.ui.theme.AIRIShapes
 
 /**
@@ -74,10 +75,36 @@ import com.airi.assistant.ui.theme.AIRIShapes
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArtifactPreviewScreen(
-    artifactType:    String,    // "HTML", "MARKDOWN", "CODE", "IMAGE"
-    artifactContent: String,
-    onBack:          () -> Unit
+    artifactId: String,
+    onBack: () -> Unit
 ) {
+    val artifactManager = remember { ServiceLocator.artifactManager }
+    var artifactType by remember(artifactId) { mutableStateOf("UNKNOWN") }
+    var artifactContent by remember(artifactId) { mutableStateOf<String?>(null) }
+    var loadFailed by remember(artifactId) { mutableStateOf(false) }
+
+    LaunchedEffect(artifactId) {
+        val artifact = artifactManager.getArtifact(artifactId)
+        if (artifact == null) {
+            loadFailed = true
+        } else {
+            artifactType = artifact.type.name
+            artifactContent = artifactManager.readContent(artifactId)
+            loadFailed = artifactContent == null
+        }
+    }
+
+    if (artifactContent == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (loadFailed) {
+                Text("Unable to load this artifact.", color = AiriTheme.onBackground)
+            } else {
+                CircularProgressIndicator()
+            }
+        }
+        return
+    }
+
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
@@ -112,9 +139,9 @@ fun ArtifactPreviewScreen(
                 .padding(padding)
         ) {
             when (artifactType.uppercase()) {
-                "HTML" -> HtmlArtifactView(html = artifactContent)
-                "MARKDOWN" -> MarkdownArtifactView(markdown = artifactContent)
-                "CODE" -> CodeArtifactView(code = artifactContent)
+                "HTML", "CODE_HTML", "WEBSITE" -> HtmlArtifactView(html = artifactContent.orEmpty())
+                "MARKDOWN", "PRESENTATION", "REPORT" -> MarkdownArtifactView(markdown = artifactContent.orEmpty())
+                "CODE", "CODE_KOTLIN", "CODE_PYTHON", "CODE_JS", "SHELL_SCRIPT" -> CodeArtifactView(code = artifactContent.orEmpty())
                 else -> UnsupportedArtifactView(type = artifactType)
             }
         }
@@ -161,12 +188,12 @@ private fun HtmlArtifactView(html: String) {
                     ): Boolean {
                         // Block ALL URL navigation — only the initial data: load is allowed.
                         Log.w(HTML_TAG,
-                            "AIRI_PROOF ARTIFACT_PREVIEW_URL_BLOCKED url=${request.url}")
+                            "AIRI_RUNTIME ARTIFACT_PREVIEW_URL_BLOCKED url=${request.url}")
                         return true
                     }
                 }
 
-                Log.i(HTML_TAG, "AIRI_PROOF ARTIFACT_PREVIEW_HTML_LOAD size=${sandboxedHtml.length}")
+                Log.i(HTML_TAG, "AIRI_RUNTIME ARTIFACT_PREVIEW_HTML_LOAD size=${sandboxedHtml.length}")
                 loadDataWithBaseURL(
                     /* baseUrl    = */ null,
                     /* data       = */ sandboxedHtml,

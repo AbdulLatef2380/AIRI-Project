@@ -82,7 +82,7 @@ object UnifiedPolicyGate {
             val policy = outcomeScorer.getPolicy(toolName)
             when (policy) {
                 SkillOutcomeScorer.ToolPolicy.BLOCKED -> {
-                    Log.w(TAG, "AIRI_PROOF POLICY_GATE_DENY tool=$toolName reason=TOOL_BLOCKED")
+                    Log.w(TAG, "AIRI_RUNTIME POLICY_GATE_DENY tool=$toolName reason=TOOL_BLOCKED")
                     return PolicyDecision.Deny(
                         reason      = PolicyDecision.DenyReason.TOOL_BLOCKED,
                         userMessage = "Tool '$toolName' has been automatically blocked due to repeated failures. " +
@@ -90,7 +90,7 @@ object UnifiedPolicyGate {
                     )
                 }
                 SkillOutcomeScorer.ToolPolicy.AVOID -> {
-                    Log.w(TAG, "AIRI_PROOF POLICY_GATE_SOFT_DENY tool=$toolName reason=TOOL_AVOIDED")
+                    Log.w(TAG, "AIRI_RUNTIME POLICY_GATE_SOFT_DENY tool=$toolName reason=TOOL_AVOIDED")
                     return PolicyDecision.Deny(
                         reason      = PolicyDecision.DenyReason.TOOL_AVOIDED,
                         userMessage = "Tool '$toolName' has a low reliability score. Consider a different tool."
@@ -103,7 +103,7 @@ object UnifiedPolicyGate {
         // 2. ── Permission check ───────────────────────────────────────────────
         val missing = requiredPermissions.filter { !permissionService.hasPermission(it) }
         if (missing.isNotEmpty()) {
-            Log.w(TAG, "AIRI_PROOF POLICY_GATE_DENY tool=$toolName reason=MISSING_PERMISSION perms=$missing")
+            Log.w(TAG, "AIRI_RUNTIME POLICY_GATE_DENY tool=$toolName reason=MISSING_PERMISSION perms=$missing")
             return PolicyDecision.Deny(
                 reason      = PolicyDecision.DenyReason.MISSING_PERMISSION,
                 userMessage = "Missing Android permissions for '$toolName': ${missing.joinToString()}. " +
@@ -121,7 +121,7 @@ object UnifiedPolicyGate {
         }
 
         if (creditResult is ConsumeResult.Denied) {
-            Log.w(TAG, "AIRI_PROOF POLICY_GATE_DENY tool=$toolName reason=CREDIT_EXHAUSTED")
+            Log.w(TAG, "AIRI_RUNTIME POLICY_GATE_DENY tool=$toolName reason=CREDIT_EXHAUSTED")
             return PolicyDecision.Deny(
                 reason      = PolicyDecision.DenyReason.CREDIT_EXHAUSTED,
                 userMessage = creditResult.userMessage
@@ -129,7 +129,7 @@ object UnifiedPolicyGate {
         }
 
         val allowed = creditResult as ConsumeResult.Allowed
-        Log.d(TAG, "AIRI_PROOF POLICY_GATE_ALLOW tool=$toolName action=${action.name} " +
+        Log.d(TAG, "AIRI_RUNTIME POLICY_GATE_ALLOW tool=$toolName action=${action.name} " +
             "creditsUsed=${allowed.creditsUsed} remaining=${allowed.remaining}")
 
         return PolicyDecision.Allow(

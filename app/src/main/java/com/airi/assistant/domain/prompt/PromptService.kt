@@ -191,22 +191,22 @@ STRICT RESPONSE RULES — follow every rule exactly:
                         val trimmed = ledger.trimToGranted(rawSkillBlock, granted)
                         append(trimmed)
                         Log.i(TAG,
-                            "AIRI_PROOF SKILL_BLOCK_INJECTED estimated=${estimated}tok " +
+                            "AIRI_RUNTIME SKILL_BLOCK_INJECTED estimated=${estimated}tok " +
                             "granted=${granted}tok chars=${trimmed.length} nCtx=${contextBudget.nCtx}")
                     } else {
                         Log.w(TAG,
-                            "AIRI_PROOF SKILL_BLOCK_OMITTED reason=budget_exhausted " +
+                            "AIRI_RUNTIME SKILL_BLOCK_OMITTED reason=budget_exhausted " +
                             "nCtx=${contextBudget.nCtx} remaining=${ledger.remaining}")
                     }
                 }
             } else if (hasAgentTools) {
                 Log.d(TAG,
-                    "AIRI_PROOF SKILL_BLOCK_SKIPPED reason=has_agent_tools " +
+                    "AIRI_RUNTIME SKILL_BLOCK_SKIPPED reason=has_agent_tools " +
                     "nCtx=${contextBudget.nCtx}")
             }
 
             // SPRINT 2: Log final budget allocation for this prompt build.
-            Log.i(TAG, "AIRI_PROOF PROMPT_BUDGET_REPORT\n${ledger.report()}")
+            Log.i(TAG, "AIRI_RUNTIME PROMPT_BUDGET_REPORT\n${ledger.report()}")
         }
     }
 

@@ -156,7 +156,7 @@ class RecoveryManager {
             )
         }
 
-        Log.i(TAG, "AIRI_PROOF COMPENSATE failed=${failedStep::class.simpleName} " +
+        Log.i(TAG, "AIRI_RUNTIME COMPENSATE failed=${failedStep::class.simpleName} " +
             "replacement=${(replacement as? PlanStep.Custom)?.action ?: replacement::class.simpleName}")
         return replacement
     }
@@ -221,7 +221,7 @@ class RecoveryManager {
             steps       = revised
         )
 
-        Log.i(TAG, "AIRI_PROOF RECOVERY_PLAN created steps=${revised.size} " +
+        Log.i(TAG, "AIRI_RUNTIME RECOVERY_PLAN created steps=${revised.size} " +
             "completedSteps=${completedStepIds.size} failedStep=${failedStep.id}")
         return recoveryGoal
     }

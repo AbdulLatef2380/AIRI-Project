@@ -109,7 +109,7 @@ class CloudBackend(
             if (isFallback) {
                 RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.WARN,
                     "CLOUD_FAILOVER ${providerQueue[attemptIdx - 1].displayName} → ${provider.displayName}")
-                Log.w(TAG, "AIRI_PROOF CLOUD_FAILOVER from=${providerQueue[attemptIdx-1].name} to=${provider.name}")
+                Log.w(TAG, "AIRI_RUNTIME CLOUD_FAILOVER from=${providerQueue[attemptIdx-1].name} to=${provider.name}")
             }
 
             val adapter = CloudAdapterFactory.create(provider, context, request)

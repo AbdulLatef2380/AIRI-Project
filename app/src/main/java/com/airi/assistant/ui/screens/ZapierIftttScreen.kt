@@ -144,19 +144,23 @@ private fun ZapierTab(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(stringResource(R.string.zapier_auth_section), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                     Text(
-                        "Zapier uses OAuth 2.0. Clicking 'Connect' opens Zapier's authorization page in your browser.",
+                        stringResource(R.string.zapier_auth_description),
                         fontSize = 13.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 18.sp
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (!state.connected) {
                             Button(
                                 onClick = {
+                                    if (!connector.isOAuthConfigured()) {
+                                        statusMessage = context.getString(R.string.zapier_oauth_not_configured)
+                                        return@Button
+                                    }
                                     isConnecting = true
                                     val authUrl = connector.buildAuthUrl()
-                                    val intent  = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
                                     context.startActivity(intent)
                                     isConnecting = false
-                                    statusMessage = "Browser opened — authorize AIRI in Zapier, then return."
+                                    statusMessage = context.getString(R.string.zapier_authorization_started)
                                 },
                                 enabled = !isConnecting,
                                 colors  = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4A00))
@@ -168,7 +172,12 @@ private fun ZapierTab(
                             }
                         } else {
                             OutlinedButton(
-                                onClick = { scope.launch { connector.disconnect(); statusMessage = "Disconnected from Zapier." } }
+                                onClick = {
+                                    scope.launch {
+                                        connector.disconnect()
+                                        statusMessage = context.getString(R.string.zapier_disconnected)
+                                    }
+                                }
                             ) {
                                 Icon(Icons.Default.LinkOff, null, Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
@@ -225,7 +234,7 @@ private fun ZapierTab(
                         value         = testHookUrl,
                         onValueChange = { testHookUrl = it },
                         label         = { Text(stringResource(R.string.zapier_hook_url_label)) },
-                        placeholder   = { Text("https://hooks.zapier.com/hooks/catch/...") },
+                        placeholder = { Text(stringResource(R.string.zapier_webhook_placeholder)) },
                         modifier      = Modifier.fillMaxWidth(),
                         singleLine    = true,
                         colors        = inputColors()

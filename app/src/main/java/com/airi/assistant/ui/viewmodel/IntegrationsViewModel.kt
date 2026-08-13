@@ -221,14 +221,12 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
      * Only called from callers that subscribe to [EventBus.events].
      */
     fun handleOAuthCallback(code: String, state: String) {
-        if (!validateOAuthState(state)) {
-            android.util.Log.e("IntegrationsVM",
-                "SECURITY: OAuth callback rejected — state mismatch. Ignoring.")
-            return
+        // Browser callbacks are consumed and routed by MainActivity through
+        // OAuthStateRegistry. This method remains only for legacy callers and
+        // intentionally does not inspect or log authorization codes.
+        if (code.isBlank() || state.isBlank()) {
+            android.util.Log.w("IntegrationsVM", "Ignored incomplete OAuth callback")
         }
-        // Future: route the code to the appropriate provider based on state prefix
-        // e.g. state = "slack_<random>" → SlackOAuthService.exchangeCode(code)
-        android.util.Log.i("IntegrationsVM", "OAuth callback accepted (state validated), code=${code.take(8)}…")
     }
 
     init {

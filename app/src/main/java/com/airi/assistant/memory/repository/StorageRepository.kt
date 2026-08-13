@@ -160,7 +160,7 @@ class StorageRepository(val db: AiriDatabase) {
      *   - context_cache      (transient context snapshots — reproducible but user-tied)
      *   - usage_stats        (feature engagement stats — user behaviour)
      *   - behavior_stats     (agent learning stats — derived from user interactions)
-     *   - audit_log          (AIRI_PROOF events — system events within user sessions)
+     *   - audit_log          (AIRI_RUNTIME events — system events within user sessions)
      *   - workspace_artifact (metadata index for generated files — user-generated persistent data)
      *
      * All workspace_artifact rows are classified as user-generated persistent data:

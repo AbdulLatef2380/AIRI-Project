@@ -118,7 +118,7 @@ class TaskPlanner(private val secureStorage: SecureStorage) {
             }
         }
 
-        Log.i(TAG, "AIRI_PROOF TASK_PLAN_GRAPH goalId=$goalId nodes=${graph.nodeCount()} input='${input.take(60)}'")
+        Log.i(TAG, "AIRI_RUNTIME TASK_PLAN_GRAPH goalId=$goalId nodes=${graph.nodeCount()} input='${input.take(60)}'")
         return graph
     }
 
@@ -131,7 +131,7 @@ class TaskPlanner(private val secureStorage: SecureStorage) {
         val node    = graph.allNodes().firstOrNull { it.id == failedNodeId } ?: return null
         val repaired = selfCorrectNode(node, reason) ?: return null
         graph.patchNode(failedNodeId, repaired.action, repaired.params)
-        Log.i(TAG, "AIRI_PROOF TASK_PLAN_REPAIR nodeId=$failedNodeId newAction=${repaired.action} reason=$reason")
+        Log.i(TAG, "AIRI_RUNTIME TASK_PLAN_REPAIR nodeId=$failedNodeId newAction=${repaired.action} reason=$reason")
         return repaired
     }
 

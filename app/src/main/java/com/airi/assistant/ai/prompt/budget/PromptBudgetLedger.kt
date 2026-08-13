@@ -116,7 +116,7 @@ class PromptBudgetLedger private constructor(val budget: ContextBudget) {
         totalAllocated += granted
         if (granted < requested) {
             Log.w(TAG,
-                "AIRI_PROOF BUDGET_PARTIAL contributor=${contributor.name} " +
+                "AIRI_RUNTIME BUDGET_PARTIAL contributor=${contributor.name} " +
                 "requested=$requested granted=$granted remaining=$remaining nCtx=${budget.nCtx}")
         } else {
             Log.d(TAG,
@@ -148,7 +148,7 @@ class PromptBudgetLedger private constructor(val budget: ContextBudget) {
     }
 
     /**
-     * Human-readable allocation report for AIRI_PROOF logging.
+     * Human-readable allocation report for AIRI_RUNTIME logging.
      */
     fun report(): String = buildString {
         appendLine("PromptBudgetLedger nCtx=${budget.nCtx} claimed=$totalAllocated remaining=$remaining")
@@ -195,7 +195,7 @@ class PromptBudgetLedger private constructor(val budget: ContextBudget) {
             if (thermalFactor < 1.0f) {
                 val wouldHave = (budget.nCtx * (1.0f - thermalFactor)).toInt()
                 Log.w(TAG,
-                    "AIRI_PROOF BUDGET_THERMAL_RESERVE nCtx=${budget.nCtx} " +
+                    "AIRI_RUNTIME BUDGET_THERMAL_RESERVE nCtx=${budget.nCtx} " +
                     "thermalFactor=$thermalFactor would_reserve=$wouldHave " +
                     "actual_ctx_reserve=0 (throttle applied to generation only)")
             }
@@ -207,7 +207,7 @@ class PromptBudgetLedger private constructor(val budget: ContextBudget) {
             ledger.claim(Contributor.SUMMARY, budget.summaryTokens)
             ledger.claim(Contributor.RAG, budget.ragTokens)
             Log.i(TAG,
-                "AIRI_PROOF BUDGET_INIT nCtx=${budget.nCtx} " +
+                "AIRI_RUNTIME BUDGET_INIT nCtx=${budget.nCtx} " +
                 "thermalFactor=$thermalFactor " +
                 "system=$fixedSystem gen=${budget.generationReserve} " +
                 "summary=${budget.summaryTokens} rag=${budget.ragTokens} " +

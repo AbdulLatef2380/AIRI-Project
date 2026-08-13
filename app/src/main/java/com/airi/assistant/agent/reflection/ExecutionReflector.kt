@@ -140,7 +140,7 @@ class ExecutionReflector {
             actionTypeRates     = actionTypeHistory.mapValues { it.value.failureRate }
         )
 
-        Log.i(TAG, "AIRI_PROOF REFLECTION confidence=${"%.2f".format(confidence)} " +
+        Log.i(TAG, "AIRI_RUNTIME REFLECTION confidence=${"%.2f".format(confidence)} " +
             "success=${succeded}/${total} modes=${failureModes.size} " +
             "systematic=${systematicActionTypes.size}")
 

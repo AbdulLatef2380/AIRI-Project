@@ -12,7 +12,7 @@ import com.airi.assistant.domain.verification.VerificationTracker
 
 object DiagnosticsRunner {
 
-    private const val TAG = "AIRI_PROOF"
+    private const val TAG = "AIRI_RUNTIME"
 
     data class TestResult(
         val name: String,

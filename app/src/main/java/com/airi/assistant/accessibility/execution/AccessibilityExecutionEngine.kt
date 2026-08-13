@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  *      loops regardless of LLM plan output.
  *
  *   4. Every action is logged to [executionLog] and to Logcat with tag
- *      AIRI_PROOF_ACCESSIBILITY for audit trails.
+ *      AIRI_RUNTIME_ACCESSIBILITY for audit trails.
  *
  *   5. No blind execution: each action is followed by a VERIFY phase that
  *      checks the accessibility tree for expected state change.
@@ -91,7 +91,7 @@ class AccessibilityExecutionEngine {
         log(ExecutionPhase.EXECUTE, "KILL SWITCH: $reason", success = false)
         killed.set(true)
         _isRunning.value = false
-        Log.w(TAG, "AIRI_PROOF_ACCESSIBILITY KILL_SWITCH reason=$reason")
+        Log.w(TAG, "AIRI_RUNTIME_ACCESSIBILITY KILL_SWITCH reason=$reason")
     }
 
     /** Reset kill switch (required before next [executeTask] call). */
@@ -144,7 +144,7 @@ class AccessibilityExecutionEngine {
 
         _isRunning.value = true
         log(ExecutionPhase.OBSERVE, "Task started: $taskDescription")
-        Log.i(TAG, "AIRI_PROOF_ACCESSIBILITY TASK_START task='$taskDescription'")
+        Log.i(TAG, "AIRI_RUNTIME_ACCESSIBILITY TASK_START task='$taskDescription'")
 
         var actionCount = 0
         var succeeded   = false
@@ -233,7 +233,7 @@ class AccessibilityExecutionEngine {
             return@flow
         } finally {
             _isRunning.value = false
-            Log.i(TAG, "AIRI_PROOF_ACCESSIBILITY TASK_END success=$succeeded actions=$actionCount")
+            Log.i(TAG, "AIRI_RUNTIME_ACCESSIBILITY TASK_END success=$succeeded actions=$actionCount")
         }
 
         emit(ExecutionEvent.Complete(
@@ -495,7 +495,7 @@ No explanation. No markdown. Just the JSON.
         current.add(0, entry)
         if (current.size > 200) current.removeAt(current.size - 1)
         _executionLog.value = current
-        Log.d(TAG, "AIRI_PROOF_ACCESSIBILITY [${phase.name}] $message")
+        Log.d(TAG, "AIRI_RUNTIME_ACCESSIBILITY [${phase.name}] $message")
     }
 
     // ─────────────────────────────────────────────────────────────────────────

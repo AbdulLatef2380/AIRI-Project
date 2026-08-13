@@ -37,6 +37,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.airi.assistant.ai.skills.SkillManifest
+import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.customskill.CustomSkill
@@ -112,6 +114,7 @@ fun SkillBuilderScreen(
 ) {
     val context = LocalContext.current
     val repository = remember { CustomSkillRepository(context) }
+    val skillRegistry = remember { SkillRegistry(context) }
     val existing = remember(skillId) { skillId?.let { repository.getSkillById(it) } }
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -166,13 +169,15 @@ fun SkillBuilderScreen(
 
     fun buildSkill(): CustomSkill? {
         if (name.isBlank()) { show("Skill name is required"); return null }
-        if (!CustomSkillSecurity.isValidEndpoint(endpoint)) {
-            show("Endpoint must be a valid URL starting with https:// or http://")
+        if (description.trim().length < 10) { show("Description must contain at least 10 characters"); return null }
+        if (!endpoint.trim().startsWith("https://") || !CustomSkillSecurity.isValidEndpoint(endpoint)) {
+            show("Endpoint must be a valid HTTPS URL")
             return null
         }
         if (bodyTemplate.isBlank()) { show("Body template cannot be empty"); return null }
         return CustomSkill(
-            id = existing?.id ?: UUID.randomUUID().toString(),
+            id = existing?.id?.takeIf { it.matches(Regex("^[a-z][a-z0-9_-]{2,63}$")) }
+                ?: "custom_${UUID.randomUUID().toString().replace("-", "")}",
             name = name.trim(),
             description = description.trim(),
             type = type,
@@ -198,7 +203,19 @@ fun SkillBuilderScreen(
         isSaving = true
         scope.launch {
             try {
-                repository.saveSkill(skill)
+                val registered = skillRegistry.registerDynamicFromManifest(
+                    manifest = skill.toManifest(),
+                    endpoint = skill.config.endpoint,
+                    method = skill.config.method,
+                    bodyTemplate = skill.config.bodyTemplate,
+                    headers = skill.config.headers,
+                    type = skill.type,
+                    createdAt = skill.createdAt
+                )
+                check(registered) { "The skill manifest or endpoint is not valid." }
+                if (existing != null && existing.id != skill.id) {
+                    repository.deleteSkill(existing.id)
+                }
                 if (existing == null) AnalyticsService.skillCreated(skill.name)
                 snackbarHost.showSnackbar(
                     message = if (existing == null) "Skill created successfully" else "Skill updated successfully",
@@ -808,4 +825,20 @@ private data class HeaderInput(
     val id: String,
     val key: String,
     val value: String
+)
+
+private fun CustomSkill.toManifest(): SkillManifest = SkillManifest(
+    id = id,
+    name = name,
+    description = description,
+    version = "1.0.0",
+    author = "Local user",
+    endpoint = config.endpoint,
+    tools = listOf(
+        SkillManifest.ToolDef(
+            name = "run",
+            description = description,
+            parameters = mapOf("input" to SkillManifest.ParamDef(type = "string"))
+        )
+    )
 )

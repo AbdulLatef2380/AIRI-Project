@@ -104,7 +104,7 @@ object ReferralManager {
         // Clear the plaintext file after successful migration.
         if (migrated > 0) {
             legacy.edit().clear().apply()
-            LoggingService.info(TAG, "AIRI_PROOF REFERRAL_PREFS_MIGRATED keys=$migrated")
+            LoggingService.info(TAG, "AIRI_RUNTIME REFERRAL_PREFS_MIGRATED keys=$migrated")
         }
     }
 
@@ -257,6 +257,6 @@ object ReferralManager {
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
     }.onFailure { e ->
-        Log.w(TAG, "AIRI_PROOF REFERRAL_PREFS_ENCRYPT_FAILED — falling back to plaintext: ${e.message}")
+        Log.w(TAG, "AIRI_RUNTIME REFERRAL_PREFS_ENCRYPT_FAILED — falling back to plaintext: ${e.message}")
     }.getOrNull()
 }

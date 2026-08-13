@@ -216,6 +216,7 @@
     <string name="profile_delete_failed">فشل الحذف</string>
     <string name="profile_saving">جارٍ الحفظ…</string>
     <string name="profile_saved_ok">تم تحديث الملف الشخصي</string>
+    <string name="profile_save_failed">تعذر تحديث الملف الشخصي. حاول مرة أخرى.</string>
     <string name="profile_display_name_label">الاسم المستعار</string>
     <string name="profile_photo_placeholder">أدخل اسمك</string>
     <string name="profile_handle_placeholder">@اسم_المستخدم</string>
@@ -1327,5 +1328,47 @@
 
     <!-- welcome -->
     <string name="welcome_greeting">مرحباً، أنا AIRI</string>
+
+    <!-- input shortcuts -->
+    <string name="input_saved_knowledge">معرفة محفوظة</string>
+
+    <string name="err_generation_failed">تعذّر إنشاء الاستجابة. حاول مرة أخرى.</string>
+
+    <!-- chat accessibility -->
+    <string name="cd_send_message">إرسال الرسالة</string>
+    <string name="cd_cancel_generation">إيقاف التوليد</string>
+    <string name="cd_start_voice_chat">بدء محادثة صوتية</string>
+    <string name="cd_add_attachment">إضافة مرفق</string>
+    <string name="cd_start_voice_input">بدء الإدخال الصوتي</string>
+    <string name="cd_open_connectors">فتح الموصلات</string>
+    <string name="cd_expand_input">توسيع أدوات الإدخال</string>
+    <string name="cd_collapse_input">طي أدوات الإدخال</string>
+
+    <!-- Zapier OAuth -->
+    <string name="zapier_auth_description">يستخدم Zapier بروتوكول OAuth 2.0. عند الاتصال ستفتح صفحة تفويض Zapier في المتصفح.</string>
+    <string name="zapier_authorization_started">تم فتح المتصفح. فوّض AIRI في Zapier ثم عد إلى التطبيق.</string>
+    <string name="zapier_disconnected">تم قطع الاتصال بـ Zapier.</string>
+    <string name="zapier_webhook_placeholder">https://hooks.zapier.com/hooks/catch/...</string>
+    <string name="zapier_oauth_not_configured">اتصال Zapier غير مهيأ في هذه النسخة من التطبيق.</string>
+
+    <!-- scheduled-task controls -->
+    <string name="agent_task_repeat">تكرار هذه المهمة</string>
+    <string name="agent_task_requires_network">تتطلب اتصالاً بالإنترنت</string>
+    <string name="agent_task_periodic_note">تعمل المهام المتكررة كل 15 دقيقة على الأقل.</string>
+
+    <!-- scheduled-task outcomes -->
+    <string name="agent_task_status_pending">مجدولة</string>
+    <string name="agent_task_status_retrying">جارٍ إعادة المحاولة</string>
+    <string name="agent_task_status_completed">مكتملة</string>
+    <string name="agent_task_status_failed">فشلت</string>
+
+    <!-- voice errors -->
+    <string name="voice_error_unavailable">التعرّف على الصوت غير متاح على هذا الجهاز.</string>
+    <string name="voice_error_model_load">تعذّر تحميل نموذج التعرّف على الكلام دون اتصال.</string>
+    <string name="voice_error_empty_result">لم يتم اكتشاف كلام. حاول مرة أخرى.</string>
+    <string name="voice_error_network">يحتاج التعرّف على الصوت إلى اتصال بالإنترنت.</string>
+    <string name="voice_error_microphone">حدث خطأ في الميكروفون. تحقّق من إذن الميكروفون ثم حاول مرة أخرى.</string>
+    <string name="voice_error_busy">التعرّف على الصوت مشغول. حاول مرة أخرى بعد لحظة.</string>
+    <string name="voice_error_generic">تعذّر إكمال التعرّف على الصوت. حاول مرة أخرى.</string>
 
 </resources>

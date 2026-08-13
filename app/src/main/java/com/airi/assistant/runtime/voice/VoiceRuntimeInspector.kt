@@ -82,7 +82,7 @@ class VoiceRuntimeInspector(private val context: Context) {
 
     fun start() {
         scope.launch {
-            Log.i(TAG, "AIRI_PROOF VOICE_INSPECTOR_STARTED")
+            Log.i(TAG, "AIRI_RUNTIME VOICE_INSPECTOR_STARTED")
             while (isActive) {
                 delay(AUDIT_INTERVAL_MS)
                 audit()
@@ -94,44 +94,44 @@ class VoiceRuntimeInspector(private val context: Context) {
 
     fun recordSessionStart() {
         sessionActive.set(true)
-        Log.i(TAG, "AIRI_PROOF VOICE_SESSION_START")
+        Log.i(TAG, "AIRI_RUNTIME VOICE_SESSION_START")
     }
 
     fun recordSessionStop() {
         sessionActive.set(false)
-        Log.i(TAG, "AIRI_PROOF VOICE_SESSION_STOP micOpen=${micOpenCount.get()} focusHeld=${focusHeld.get()}")
+        Log.i(TAG, "AIRI_RUNTIME VOICE_SESSION_STOP micOpen=${micOpenCount.get()} focusHeld=${focusHeld.get()}")
         if (micOpenCount.get() > 0) {
-            Log.e(TAG, "AIRI_PROOF MIC_NOT_RELEASED after session stop. count=${micOpenCount.get()}")
+            Log.e(TAG, "AIRI_RUNTIME MIC_NOT_RELEASED after session stop. count=${micOpenCount.get()}")
         }
         if (focusHeld.get()) {
-            Log.e(TAG, "AIRI_PROOF AUDIO_FOCUS_NOT_RELEASED after session stop")
+            Log.e(TAG, "AIRI_RUNTIME AUDIO_FOCUS_NOT_RELEASED after session stop")
         }
     }
 
     fun recordFocusGained() {
         focusHeld.set(true)
         focusGainedAtMs.set(System.currentTimeMillis())
-        Log.d(TAG, "AIRI_PROOF AUDIO_FOCUS_GAINED")
+        Log.d(TAG, "AIRI_RUNTIME AUDIO_FOCUS_GAINED")
     }
 
     fun recordFocusLost(transient: Boolean) {
         focusHeld.set(false)
-        Log.d(TAG, "AIRI_PROOF AUDIO_FOCUS_LOST transient=$transient")
+        Log.d(TAG, "AIRI_RUNTIME AUDIO_FOCUS_LOST transient=$transient")
     }
 
     fun recordMicOpen() {
         val count = micOpenCount.incrementAndGet()
-        Log.d(TAG, "AIRI_PROOF MIC_OPEN total=$count")
+        Log.d(TAG, "AIRI_RUNTIME MIC_OPEN total=$count")
         if (count > MIC_LEAK_WARN_COUNT) {
-            Log.e(TAG, "AIRI_PROOF MIC_LEAK count=$count — AudioRecord not released")
+            Log.e(TAG, "AIRI_RUNTIME MIC_LEAK count=$count — AudioRecord not released")
         }
     }
 
     fun recordMicClose() {
         val count = micOpenCount.decrementAndGet()
-        Log.d(TAG, "AIRI_PROOF MIC_CLOSE remaining=$count")
+        Log.d(TAG, "AIRI_RUNTIME MIC_CLOSE remaining=$count")
         if (count < 0) {
-            Log.e(TAG, "AIRI_PROOF MIC_CLOSE_MISMATCH count=$count — over-released")
+            Log.e(TAG, "AIRI_RUNTIME MIC_CLOSE_MISMATCH count=$count — over-released")
         }
     }
 
@@ -141,7 +141,7 @@ class VoiceRuntimeInspector(private val context: Context) {
 
     fun recordBargeIn() {
         bargeInCount.incrementAndGet()
-        Log.d(TAG, "AIRI_PROOF BARGE_IN total=${bargeInCount.get()}")
+        Log.d(TAG, "AIRI_RUNTIME BARGE_IN total=${bargeInCount.get()}")
     }
 
     fun recordVadFrame() {
@@ -150,12 +150,12 @@ class VoiceRuntimeInspector(private val context: Context) {
 
     fun recordInterruptionError() {
         interruptErrors.incrementAndGet()
-        Log.w(TAG, "AIRI_PROOF INTERRUPTION_ERROR total=${interruptErrors.get()}")
+        Log.w(TAG, "AIRI_RUNTIME INTERRUPTION_ERROR total=${interruptErrors.get()}")
     }
 
     fun recordTtsHang() {
         ttsHangCount.incrementAndGet()
-        Log.e(TAG, "AIRI_PROOF TTS_HANG total=${ttsHangCount.get()}")
+        Log.e(TAG, "AIRI_RUNTIME TTS_HANG total=${ttsHangCount.get()}")
     }
 
     // ── Audit ──────────────────────────────────────────────────────────────
@@ -190,13 +190,13 @@ class VoiceRuntimeInspector(private val context: Context) {
         )
         _health.value = snap
 
-        if (stuckFocus) Log.e(TAG, "AIRI_PROOF STUCK_AUDIO_FOCUS ageMs=$focusAge")
-        if (micLeak)    Log.e(TAG, "AIRI_PROOF MIC_LEAK_CONFIRMED count=${micOpenCount.get()}")
+        if (stuckFocus) Log.e(TAG, "AIRI_RUNTIME STUCK_AUDIO_FOCUS ageMs=$focusAge")
+        if (micLeak)    Log.e(TAG, "AIRI_RUNTIME MIC_LEAK_CONFIRMED count=${micOpenCount.get()}")
         if (vadRate < 5f && sessionActive.get()) {
-            Log.w(TAG, "AIRI_PROOF VAD_LOW_FRAMERATE rate=$vadRate fps — VAD may be stalled")
+            Log.w(TAG, "AIRI_RUNTIME VAD_LOW_FRAMERATE rate=$vadRate fps — VAD may be stalled")
         }
 
-        Log.i(TAG, "AIRI_PROOF VOICE_AUDIT healthy=$healthy duplexState=$duplexState " +
+        Log.i(TAG, "AIRI_RUNTIME VOICE_AUDIT healthy=$healthy duplexState=$duplexState " +
                 "mic=${micOpenCount.get()} focus=${focusHeld.get()} vadRate=$vadRate")
     }
 }

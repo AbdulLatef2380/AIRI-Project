@@ -37,81 +37,97 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
     internal val embeddingService = EmbeddingService.getInstance(context)
     private val embedScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    fun canStoreImportantMemory(content: String): Boolean =
+        content.trim().isNotBlank() && !MemoryAdmissionPolicy.containsSensitiveData(content)
+
     fun recordInteraction(role: String, content: String, emotion: String? = null) {
-        recordImportantMemory(role, content, emotion)
+        recordImportantMemory(role, content, emotion, explicitlyRequested = false)
     }
 
-    fun recordImportantMemory(role: String, content: String, emotion: String? = null) {
+    /**
+     * Stores long-term memory only when the caller has an explicit user intent.
+     * System, skill and sync callers must not silently promote arbitrary content.
+     */
+    fun recordImportantMemory(
+        role: String,
+        content: String,
+        emotion: String? = null,
+        explicitlyRequested: Boolean = false,
+        sessionId: String = "default"
+    ) {
+        val normalized = content.trim()
+        if (!explicitlyRequested || !canStoreImportantMemory(normalized)) return
         scope.launch {
-            dao.insertMessage(ChatMessage(role = role, content = content, emotionState = emotion, isMemory = true))
+            if (dao.findLongTermMemoryId(sessionId, normalized) == null) {
+                dao.insertMessage(
+                    ChatMessage(
+                        sessionId = sessionId,
+                        role = role,
+                        content = normalized,
+                        emotionState = emotion,
+                        isMemory = true
+                    )
+                )
+                dao.pruneLongTermMemories(sessionId, MAX_LONG_TERM_FACTS_PER_SESSION)
+            }
         }
     }
 
     suspend fun recordChatMessage(sessionId: String, role: String, content: String, emotion: String? = null): ChatMessage {
-        val message = ChatMessage(sessionId = sessionId, role = role, content = content, emotionState = emotion, isMemory = false)
-        // Room's @Insert returns Unit for autoGenerate=true PKs unless we
-        // change the DAO signature; instead we re-read the row's assigned
-        // id by fetching the most recent insert via touchSession's
-        // companion semantics. Cleaner: insert and then look up the row
-        // we know is the newest for this (session, timestamp).
-        dao.insertMessage(message)
+        val draft = ChatMessage(
+            sessionId = sessionId,
+            role = role,
+            content = content,
+            emotionState = emotion,
+            isMemory = false
+        )
+        val messageId = dao.insertMessage(draft)
+        val stored = draft.copy(id = messageId)
         sessionDao.touchSession(sessionId)
-        // Fire-and-forget embedding compute. The dao auto-generates the
-        // PK; we re-fetch the just-inserted row by (sessionId, timestamp)
-        // tail, which is guaranteed unique because timestamp is millis +
-        // we just inserted exactly one row for this session.
-        embedScope.launch {
-            runCatching {
-                val recents = dao.getRecentMessages(sessionId, 1)
-                val stored = recents.firstOrNull() ?: return@launch
-                embeddingService.embedAndStore(stored)
-            }.onFailure {
-                android.util.Log.w("AIRI_MEMORY", "fire-and-forget embed failed: ${it.message}")
+
+        val decision = MemoryAdmissionPolicy.decide(role, content)
+        if (decision.shouldEmbed) {
+            embedScope.launch {
+                runCatching { embeddingService.embedAndStore(stored) }
+                    .onFailure { android.util.Log.w("AIRI_MEMORY", "Embedding failed: ${it.javaClass.simpleName}") }
             }
         }
-        // Issue #10 — sliding window pruning. Without this, episodic_memory
-        // grows unbounded and bloats the DB (the user explicitly called this
-        // out as "stores everything → no pruning"). Prune AFTER inserting so
-        // we always have at least `MAX_MESSAGES_PER_SESSION` recent rows.
-        // Long-term `isMemory = 1` rows are NEVER touched.
+
+        // Keep a bounded session transcript. Long-term rows are separately
+        // admitted below and never become an accidental replacement for history.
         runCatching { dao.pruneOldSessionMessages(sessionId, MAX_MESSAGES_PER_SESSION) }
-            .onFailure { android.util.Log.w("AIRI_MEMORY", "prune failed: ${it.message}") }
-        // Cheap proof log every 25 inserts (mod arithmetic is free).
-        val count = runCatching { dao.countSessionMessages(sessionId) }.getOrDefault(-1)
-        if (count >= 0 && count % 25 == 0) {
-            android.util.Log.i(
-                "AIRI_PROOF",
-                "MEMORY_PRUNE_CHECKPOINT session=$sessionId rows=$count cap=$MAX_MESSAGES_PER_SESSION"
-            )
-        }
+            .onFailure { android.util.Log.w("AIRI_MEMORY", "Session prune failed: ${it.javaClass.simpleName}") }
 
-        // AP-22: Auto-extract facts from user messages.
-        // MemoryExtractor is heuristic (regex-based, not LLM) — safe to run inline.
-        // Facts are stored as long-term isMemory=true rows that survive session pruning.
-        // Only runs on "user" role messages (assistant messages don't contain user facts).
-        if (role == "user" && message.content.isNotBlank()) {
-            val scope = applicationScope ?: this.scope
-            scope.launch {
+        // Durable facts require an explicit memory request and then pass a
+        // second allow-list. Identity, location, employer and credentials are
+        // intentionally excluded from automatic long-term storage.
+        if (decision.shouldExtractFacts) {
+            val writeScope = applicationScope ?: scope
+            writeScope.launch {
                 runCatching {
-                    val facts = MemoryExtractor.extract(message.content)
-                    if (facts.isNotEmpty()) {
-                        android.util.Log.i("AIRI_PROOF", "MEMORY_FACTS_EXTRACTED count=${facts.size} session=$sessionId")
-                        facts.forEach { fact ->
-                            dao.insertMessage(
-                                ChatMessage(
-                                    sessionId    = sessionId,
-                                    role         = "system",
-                                    content      = "[memory] $fact",
-                                    isMemory     = true
+                    MemoryExtractor.extract(content)
+                        .filter(MemoryAdmissionPolicy::allowExtractedFact)
+                        .distinct()
+                        .take(MAX_LONG_TERM_FACTS_PER_TURN)
+                        .forEach { fact ->
+                            val storedFact = "[memory] $fact"
+                            if (dao.findLongTermMemoryId(sessionId, storedFact) == null) {
+                                dao.insertMessage(
+                                    ChatMessage(
+                                        sessionId = sessionId,
+                                        role = "system",
+                                        content = storedFact,
+                                        isMemory = true
+                                    )
                                 )
-                            )
+                            }
                         }
-                    }
-                }.onFailure { android.util.Log.w("AIRI_MEMORY", "AP-22 fact extraction failed: ${it.message}") }
+                    dao.pruneLongTermMemories(sessionId, MAX_LONG_TERM_FACTS_PER_SESSION)
+                }.onFailure { android.util.Log.w("AIRI_MEMORY", "Fact admission failed: ${it.javaClass.simpleName}") }
             }
         }
 
-        return message
+        return stored
     }
 
     fun updatePreference(key: String, value: String, category: String = "personal") {
@@ -163,6 +179,9 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         return dao.getRecentMemories(limit)
     }
 
+    suspend fun getLongTermMemories(sessionId: String, limit: Int = 20): List<ChatMessage> =
+        dao.getRecentLongTermMemories(sessionId, limit)
+
     /**
      * REAL semantic search (Phase 2). Returns the top-k most similar
      * prior messages to [query] for [sessionId], ranked by cosine
@@ -170,7 +189,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
      * model is loaded — caller can then fall back to chronological
      * recall via [getRecentMessages].
      *
-     * Emits AIRI_PROOF VECTOR_SEARCH_HIT (or _SKIPPED / _EMPTY).
+     * Emits AIRI_RUNTIME VECTOR_SEARCH_HIT (or _SKIPPED / _EMPTY).
      */
     suspend fun semanticSearch(sessionId: String, query: String, k: Int = 5):
         List<EmbeddingService.RankedMessage> =
@@ -187,6 +206,11 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
 
     /** Whether the embedding backend is loaded and ready. */
     fun isSemanticMemoryReady(): Boolean = embeddingService.isReady()
+
+    /** Releases the native embedding model under critical memory pressure. */
+    suspend fun releaseEmbeddingResources() {
+        embeddingService.unload()
+    }
 
     suspend fun getRecentMessages(limit: Int = 10): List<ChatMessage> {
         return getSemanticMemories(limit)
@@ -206,5 +230,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         // SQLite ceiling. The in-memory KV window (LlamaManager.maxHistory)
         // is independently capped at 4 turns.
         const val MAX_MESSAGES_PER_SESSION = 200
+        const val MAX_LONG_TERM_FACTS_PER_TURN = 2
+        const val MAX_LONG_TERM_FACTS_PER_SESSION = 50
     }
 }

@@ -172,7 +172,7 @@ class PreferenceCoordinator(
      * excluded — resetting them would require a server-side Firestore delete.
      */
     fun resetAllToDefaults() {
-        Log.i(TAG, "AIRI_PROOF PREFS_RESET_ALL_TO_DEFAULTS")
+        Log.i(TAG, "AIRI_RUNTIME PREFS_RESET_ALL_TO_DEFAULTS")
 
         // ── Execution prefs ───────────────────────────────────────────────────
         execPrefs.executionMode            = ExecutionMode.HYBRID
@@ -210,7 +210,7 @@ class PreferenceCoordinator(
             .putString(KEY_ACCENT_COLOR, "#6C63FF")
             .apply()
 
-        Log.i(TAG, "AIRI_PROOF PREFS_RESET_COMPLETE stores=exec,voice,theme,model_paths")
+        Log.i(TAG, "AIRI_RUNTIME PREFS_RESET_COMPLETE stores=exec,voice,theme,model_paths")
     }
 
     private companion object {

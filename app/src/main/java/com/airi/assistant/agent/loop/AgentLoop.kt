@@ -157,7 +157,7 @@ Do not mix tool_call JSON with prose in the same message.
                     }
                 )
 
-                Log.d(TAG, "Step $stepsUsed response: ${rawResponse.take(120)}")
+                Log.d(TAG, "Agent step completed: step=$stepsUsed responseChars=${rawResponse.length}")
 
                 // Parse: tool_call block or final answer?
                 var toolCall = parseToolCall(rawResponse)
@@ -167,7 +167,7 @@ Do not mix tool_call JSON with prose in the same message.
                 // only the JSON. This handles cases where the model wraps the JSON in
                 // prose or uses a slightly wrong format on the first attempt.
                 if (toolCall == null && rawResponse.contains("tool_call") && stepsUsed < MAX_STEPS) {
-                    Log.w(TAG, "AIRI_PROOF TOOL_CALL_PARSE_RETRY step=$stepsUsed — response had 'tool_call' text but parse failed; retrying")
+                    Log.w(TAG, "AIRI_RUNTIME TOOL_CALL_PARSE_RETRY step=$stepsUsed — response had 'tool_call' text but parse failed; retrying")
                     val retryPrompt = "[SYSTEM] Your previous response contained a tool_call but the JSON was malformed. " +
                         "Reply with ONLY a valid JSON object in this exact format, no other text:\n" +
                         "{\"tool_call\":{\"name\":\"<tool_name>\",\"args\":{\"param\":\"value\"}}}"
@@ -191,7 +191,7 @@ Do not mix tool_call JSON with prose in the same message.
                     if (retryResponse.isNotBlank()) {
                         toolCall = parseToolCall(retryResponse)
                         if (toolCall != null) {
-                            Log.i(TAG, "AIRI_PROOF TOOL_CALL_RETRY_OK step=$stepsUsed tool=${toolCall.first}")
+                            Log.i(TAG, "AIRI_RUNTIME TOOL_CALL_RETRY_OK step=$stepsUsed tool=${toolCall.first}")
                         }
                     }
                 }
@@ -210,7 +210,7 @@ Do not mix tool_call JSON with prose in the same message.
                 val toolArgs = toolCall.second
                 toolsInvoked.add(toolName)
 
-                Log.i(TAG, "AIRI_PROOF TOOL_CALL step=$stepsUsed tool=$toolName args=${toolArgs.keys.joinToString()}")
+                Log.i(TAG, "AIRI_RUNTIME TOOL_CALL step=$stepsUsed tool=$toolName args=${toolArgs.keys.joinToString()}")
                 ExecutionStatusBus.onWaveStarted(listOf("tool_$toolName"), listOf("Tool: $toolName"))
 
                 // : route through AgentSandbox when available so every
@@ -235,7 +235,7 @@ Do not mix tool_call JSON with prose in the same message.
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: com.airi.assistant.security.AgentSandbox.SandboxViolationException) {
-                    Log.w(TAG, "AIRI_PROOF SANDBOX_VIOLATION tool=$toolName: ${e.message}")
+                    Log.w(TAG, "AIRI_RUNTIME SANDBOX_VIOLATION tool=$toolName: ${e.message}")
                     ToolDispatcher.ToolResult.Error("Permission denied for tool: $toolName")
                 } catch (e: Exception) {
                     Log.w(TAG, "Tool $toolName threw: ${e.message}")
@@ -247,7 +247,7 @@ Do not mix tool_call JSON with prose in the same message.
                     is ToolDispatcher.ToolResult.Error   -> "Error: ${toolResult.message}"
                 }
 
-                Log.i(TAG, "AIRI_PROOF TOOL_RESULT tool=$toolName success=${toolResult is ToolDispatcher.ToolResult.Success} len=${resultText.length}")
+                Log.i(TAG, "AIRI_RUNTIME TOOL_RESULT tool=$toolName success=${toolResult is ToolDispatcher.ToolResult.Success} len=${resultText.length}")
 
                 ExecutionStatusBus.onNodeCompleted("tool_$toolName", stepsUsed)
                 // P0-2: onStepComplete may return a non-null String to replace the tool result
@@ -399,7 +399,7 @@ Do not mix tool_call JSON with prose in the same message.
             for (key in argsObj.keys()) args[key] = argsObj.optString(key)
             name to args
         } catch (e: Exception) {
-            Log.w(TAG, "parseToolCall failed: ${e.message} | response=${response.take(80)}")
+            Log.w(TAG, "Tool-call parsing failed: ${e.javaClass.simpleName}")
             null
         }
     }
@@ -433,7 +433,7 @@ Do not mix tool_call JSON with prose in the same message.
             raw
         } else {
             Log.w(TAG,
-                "AIRI_PROOF TOOL_BLOCK_TRIMMED raw=${raw.length}chars max=${maxChars}chars " +
+                "AIRI_RUNTIME TOOL_BLOCK_TRIMMED raw=${raw.length}chars max=${maxChars}chars " +
                 "nCtx=${budget.nCtx} tools=${tools.size}")
             raw.take(maxChars) + "\n[...tools trimmed by ContextBudget]"
         }

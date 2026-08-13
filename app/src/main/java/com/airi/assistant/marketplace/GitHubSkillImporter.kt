@@ -72,7 +72,7 @@ object GitHubSkillImporter {
      * Runs full validation before returning a [CustomSkill] ready to persist.
      */
     suspend fun importFromUrl(url: String): ImportResult = withContext(Dispatchers.IO) {
-        Log.i(TAG, "Importing skill from: $url")
+        Log.i(TAG, "Starting skill manifest import")
 
         val rawUrl = resolveToRawUrl(url)
             ?: return@withContext ImportResult(false, errors = listOf(
@@ -245,7 +245,9 @@ object GitHubSkillImporter {
         }
 
         val endpoint = json.optString("endpoint")
-        if (endpoint.isNotBlank() && !endpoint.startsWith("https://")) {
+        if (endpoint.isBlank()) {
+            errors.add("'endpoint' is required for an executable skill")
+        } else if (!endpoint.startsWith("https://")) {
             errors.add("'endpoint' must use HTTPS (plain HTTP is not allowed)")
         }
 
@@ -259,15 +261,13 @@ object GitHubSkillImporter {
     // ── Conversion ────────────────────────────────────────────────────────────
 
     private fun manifestToCustomSkill(manifest: SkillManifest, sourceUrl: String): CustomSkill {
-        val endpoint = manifest.tools.firstOrNull()?.let { tool ->
-            manifest.toJson().optString("endpoint").ifBlank { null }
-        } ?: sourceUrl
+        val endpoint = requireNotNull(manifest.endpoint) { "Validated manifest is missing an endpoint" }
 
         return CustomSkill(
             id          = manifest.id.ifBlank { UUID.randomUUID().toString() },
             name        = manifest.name,
             description = manifest.description,
-            type        = if (endpoint.contains("webhook")) SkillType.WEBHOOK else SkillType.API,
+            type        = if (endpoint.contains("webhook", ignoreCase = true)) SkillType.WEBHOOK else SkillType.API,
             config      = SkillConfig(
                 endpoint     = endpoint,
                 method       = "POST",

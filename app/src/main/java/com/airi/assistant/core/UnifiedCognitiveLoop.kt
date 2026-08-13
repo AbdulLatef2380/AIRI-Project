@@ -265,7 +265,7 @@ class UnifiedCognitiveLoop {
                     if (result.success) {
                         graph.markDone(node.id, result.message)
                         nodeResults.add(NodeExecutionRecord(node, true, result.message))
-                        Log.i(TAG, "AIRI_PROOF GRAPH_NODE_DONE id=${node.id} latency=${latency}ms")
+                        Log.i(TAG, "AIRI_RUNTIME GRAPH_NODE_DONE id=${node.id} latency=${latency}ms")
                         
                         ExecutionStatusBus.onNodeCompleted(node.id, ++nodesCompleted)
                     } else {

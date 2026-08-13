@@ -1,0 +1,27 @@
+# Android and Gradle local state
+.gradle/
+build/
+app/build/
+local.properties
+
+# Android Studio and IntelliJ
+.idea/
+*.iml
+.cxx/
+.externalNativeBuild/
+
+# Signing material and local secrets
+*.jks
+*.keystore
+keystore.properties
+secrets.properties
+.env
+.env.*
+
+# Node tooling, if the separate web prototype remains local
+node_modules/
+dist/
+
+# Operating system files
+.DS_Store
+Thumbs.db

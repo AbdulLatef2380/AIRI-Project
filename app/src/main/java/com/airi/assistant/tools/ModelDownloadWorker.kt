@@ -35,7 +35,7 @@ import java.security.MessageDigest
  * (the in-app foreground notification path), but new call sites should
  * route through [DownloadCenter.enqueue] which delegates here.
  *
- * AIRI_PROOF tags emitted (per spec):
+ * AIRI_RUNTIME tags emitted (per spec):
  *   DOWNLOAD_START            – resolved URL + dest + resume offset
  *   DOWNLOAD_RESUMED          – partial existed, range request made
  *   DOWNLOAD_PROGRESS         – every ~1 MB
@@ -63,7 +63,7 @@ class ModelDownloadWorker(
         val resumeFrom = if (partFile.exists()) partFile.length() else 0L
 
         Log.i(
-            "AIRI_PROOF",
+            "AIRI_RUNTIME",
             "DOWNLOAD_START fileName=$fileName resume_from=$resumeFrom expected=$expectedSize url=$url"
         )
 
@@ -79,13 +79,13 @@ class ModelDownloadWorker(
             if (!expectedSha.isNullOrBlank()) {
                 val actual = sha256Of(partFile)
                 if (!actual.equals(expectedSha, ignoreCase = true)) {
-                    Log.i("AIRI_PROOF",
+                    Log.i("AIRI_RUNTIME",
                         "DOWNLOAD_VERIFY_FAILED fileName=$fileName expected=$expectedSha actual=$actual")
                     runCatching { partFile.delete() }
                     lastError = "sha_mismatch"
                     return@withContext fail("integrity check failed")
                 }
-                Log.i("AIRI_PROOF", "DOWNLOAD_VERIFIED fileName=$fileName sha256=$actual")
+                Log.i("AIRI_RUNTIME", "DOWNLOAD_VERIFIED fileName=$fileName sha256=$actual")
             }
             // Atomic move into place.
             if (finalFile.exists()) finalFile.delete()
@@ -94,7 +94,7 @@ class ModelDownloadWorker(
                 return@withContext fail("rename failed")
             }
             Log.i(
-                "AIRI_PROOF",
+                "AIRI_RUNTIME",
                 "DOWNLOAD_COMPLETED fileName=$fileName path=${finalFile.absolutePath} sizeBytes=${finalFile.length()}"
             )
             Result.success(workDataOf(
@@ -102,7 +102,7 @@ class ModelDownloadWorker(
                 KEY_RESULT_SIZE to finalFile.length()
             ))
         } catch (ce: kotlinx.coroutines.CancellationException) {
-            Log.i("AIRI_PROOF", "DOWNLOAD_CANCELLED fileName=$fileName partial_bytes=${partFile.length()}")
+            Log.i("AIRI_RUNTIME", "DOWNLOAD_CANCELLED fileName=$fileName partial_bytes=${partFile.length()}")
             lastError = "cancelled"
             // CoroutineWorker contract: rethrow CancellationException so the
             // worker is recorded as CANCELLED rather than FAILED.
@@ -113,7 +113,7 @@ class ModelDownloadWorker(
             return@withContext fail(lastError ?: "unknown")
         } finally {
             Log.i(
-                "AIRI_PROOF",
+                "AIRI_RUNTIME",
                 "DOWNLOAD_WORKER_EXIT fileName=$fileName success=$success reason=${lastError ?: "ok"}"
             )
         }
@@ -142,11 +142,11 @@ class ModelDownloadWorker(
                 return false
             }
             if (resuming) {
-                Log.i("AIRI_PROOF", "DOWNLOAD_RESUMED fileName=${partFile.name} from=$resumeFrom")
+                Log.i("AIRI_RUNTIME", "DOWNLOAD_RESUMED fileName=${partFile.name} from=$resumeFrom")
             } else if (resumeFrom > 0) {
                 // Server didn't honour Range — restart from scratch.
                 runCatching { partFile.delete() }
-                Log.i("AIRI_PROOF", "DOWNLOAD_RESUME_REJECTED fileName=${partFile.name} server_rc=$rc")
+                Log.i("AIRI_RUNTIME", "DOWNLOAD_RESUME_REJECTED fileName=${partFile.name} server_rc=$rc")
             }
             val input = conn.inputStream
             val out   = RandomAccessFile(partFile, "rw")
@@ -157,7 +157,7 @@ class ModelDownloadWorker(
                 var sinceLastReport = 0L
                 while (true) {
                     if (isStopped) {
-                        Log.i("AIRI_PROOF",
+                        Log.i("AIRI_RUNTIME",
                             "DOWNLOAD_CANCEL_REQUESTED fileName=${partFile.name} written=$totalWritten")
                         return false
                     }
@@ -173,7 +173,7 @@ class ModelDownloadWorker(
                             KEY_PROGRESS_TOTAL to expectedSize,
                             KEY_PROGRESS_PCT   to pct
                         ))
-                        Log.i("AIRI_PROOF",
+                        Log.i("AIRI_RUNTIME",
                             "DOWNLOAD_PROGRESS fileName=${partFile.name} bytes=$totalWritten pct=$pct")
                         sinceLastReport = 0L
                     }
@@ -254,7 +254,7 @@ class ModelDownloadWorker(
         fun cancel(context: Context, fileName: String) {
             WorkManager.getInstance(context)
                 .cancelUniqueWork(uniqueWorkName(fileName))
-            Log.i("AIRI_PROOF", "DOWNLOAD_CANCEL_REQUESTED source=workmanager fileName=$fileName")
+            Log.i("AIRI_RUNTIME", "DOWNLOAD_CANCEL_REQUESTED source=workmanager fileName=$fileName")
         }
 
         /** True if this fileName has an active or enqueued worker. */

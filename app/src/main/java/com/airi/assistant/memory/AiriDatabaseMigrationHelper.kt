@@ -115,7 +115,7 @@ object AiriDatabaseMigrationHelper {
                 return
             }
 
-            Log.i(TAG, "AIRI_PROOF DB_ENCRYPTED AP-02 migration successful size=${dbFile.length()}")
+            Log.i(TAG, "AIRI_RUNTIME DB_ENCRYPTED AP-02 migration successful size=${dbFile.length()}")
 
         } catch (e: Exception) {
             Log.e(TAG, "AP-02 migrateIfNeeded: migration FAILED — ${e.message}. " +

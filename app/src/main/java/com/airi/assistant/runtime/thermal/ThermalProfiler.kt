@@ -77,7 +77,7 @@ class ThermalProfiler(private val context: Context) {
 
     fun start() {
         scope.launch {
-            Log.i(TAG, "AIRI_PROOF THERMAL_PROFILER_STARTED")
+            Log.i(TAG, "AIRI_RUNTIME THERMAL_PROFILER_STARTED")
             while (isActive) {
                 poll()
                 delay(POLL_INTERVAL_MS)
@@ -119,13 +119,13 @@ class ThermalProfiler(private val context: Context) {
         }
 
         if (throttle != _throttleLevel.value) {
-            Log.w(TAG, "AIRI_PROOF THROTTLE_CHANGE old=${_throttleLevel.value} " +
+            Log.w(TAG, "AIRI_RUNTIME THROTTLE_CHANGE old=${_throttleLevel.value} " +
                     "new=$throttle thermalStatus=$thermalStatus tempC=$tempC")
             _throttleLevel.value = throttle
         }
 
         if (pct in 1..BATTERY_LOW_PCT && !charging) {
-            Log.w(TAG, "AIRI_PROOF LOW_BATTERY pct=$pct")
+            Log.w(TAG, "AIRI_RUNTIME LOW_BATTERY pct=$pct")
         }
 
         _snapshot.value = ThermalSnapshot(
@@ -137,7 +137,7 @@ class ThermalProfiler(private val context: Context) {
             throttleLevel       = throttle
         )
 
-        Log.d(TAG, "AIRI_PROOF THERMAL_POLL tempC=$tempC pct=$pct " +
+        Log.d(TAG, "AIRI_RUNTIME THERMAL_POLL tempC=$tempC pct=$pct " +
                 "thermalStatus=$thermalStatus throttle=$throttle inferenceW=$inferenceW")
     }
 }

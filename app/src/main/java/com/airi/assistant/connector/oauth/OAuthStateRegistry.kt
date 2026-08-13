@@ -1,6 +1,7 @@
 package com.airi.assistant.connector.oauth
 
 import android.util.Base64
+import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
 
@@ -28,9 +29,20 @@ object OAuthStateRegistry {
     private const val TOKEN_EXPIRY_MS = 5 * 60 * 1_000L  // 5 minutes
     private val rng = SecureRandom()
 
+    data class ConsumedRequest(
+        val connectorId: String,
+        val codeVerifier: String?
+    )
+
+    data class PkceAuthorization(
+        val state: String,
+        val codeChallenge: String
+    )
+
     private data class Entry(
         val connectorId: String,
-        val issuedAtMs:  Long = System.currentTimeMillis()
+        val codeVerifier: String? = null,
+        val issuedAtMs: Long = System.currentTimeMillis()
     )
 
     private val store = ConcurrentHashMap<String, Entry>()
@@ -39,13 +51,33 @@ object OAuthStateRegistry {
      * Issue a fresh CSRF state token for [connectorId].
      * Returns a 144-bit URL-safe Base64 token.
      */
-    fun issue(connectorId: String): String {
+    fun issue(connectorId: String): String = issueEntry(connectorId).first
+
+    fun issuePkce(connectorId: String): PkceAuthorization {
+        val verifierBytes = ByteArray(48).also { rng.nextBytes(it) }
+        val verifier = Base64.encodeToString(
+            verifierBytes,
+            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+        )
+        val state = issueEntry(connectorId, verifier).first
+        val challenge = MessageDigest.getInstance("SHA-256")
+            .digest(verifier.toByteArray(Charsets.US_ASCII))
+        return PkceAuthorization(
+            state = state,
+            codeChallenge = Base64.encodeToString(
+                challenge,
+                Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+            )
+        )
+    }
+
+    private fun issueEntry(connectorId: String, codeVerifier: String? = null): Pair<String, String?> {
+        require(connectorId.isNotBlank()) { "connectorId must not be blank" }
         val bytes = ByteArray(18).also { rng.nextBytes(it) }
         val token = Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
-        // Eagerly evict any expired entries on each issue (bounded store size)
         evictExpired()
-        store[token] = Entry(connectorId)
-        return token
+        store[token] = Entry(connectorId, codeVerifier)
+        return token to codeVerifier
     }
 
     /**
@@ -54,10 +86,16 @@ object OAuthStateRegistry {
      *
      * Thread-safe: the ConcurrentHashMap.remove() is atomic.
      */
-    fun consume(state: String): String? {
+    fun consume(state: String): String? = consumeRequest(state)?.connectorId
+
+    fun consumeRequest(state: String): ConsumedRequest? {
         val entry = store.remove(state) ?: return null
-        val ageMs  = System.currentTimeMillis() - entry.issuedAtMs
-        return if (ageMs <= TOKEN_EXPIRY_MS) entry.connectorId else null
+        val ageMs = System.currentTimeMillis() - entry.issuedAtMs
+        return if (ageMs <= TOKEN_EXPIRY_MS) {
+            ConsumedRequest(entry.connectorId, entry.codeVerifier)
+        } else {
+            null
+        }
     }
 
     /**

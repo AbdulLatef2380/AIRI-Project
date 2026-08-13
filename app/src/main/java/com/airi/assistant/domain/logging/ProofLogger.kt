@@ -4,7 +4,7 @@ import android.util.Log
 
 object ProofLogger {
 
-    private const val TAG = "AIRI_PROOF"
+    private const val TAG = "AIRI_RUNTIME"
 
     fun fastPathUsed(input: String) {
         if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "FAST_PATH_USED input_preview=\"${input.take(40)}\"")

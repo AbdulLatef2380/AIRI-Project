@@ -536,7 +536,10 @@ object ServiceLocator {
     // ── Phase 4: Zapier / IFTTT connectors ───────────────────────────────────
 
     val zapierConnector: com.airi.assistant.connector.app.ZapierConnector by lazy {
-        com.airi.assistant.connector.app.ZapierConnector(connectorAuthManager)
+        requireNotNull(
+            connectorRegistry.get(com.airi.assistant.connector.app.ZapierConnector.CONNECTOR_ID)
+                as? com.airi.assistant.connector.app.ZapierConnector
+        ) { "ZapierConnector was not registered" }
     }
 
     val iftttConnector: com.airi.assistant.connector.app.IftttConnector by lazy {
@@ -673,25 +676,11 @@ object ServiceLocator {
         com.airi.assistant.runtime.voice.VoiceRuntimeInspector(requireContext())
     }
 
-    /**
-     * Minimal no-op [VoiceManager.VoiceListener] for the ServiceLocator-owned
-     * [VoiceManager] instance below. Wake-word/STT callbacks are not relevant
-     * here — this VoiceManager is only used by [voiceAgentRouter] to drive
-     * TTS output (ttsStreamReset/Append/Flush); real session-aware listening
-     * is handled by LiveVoiceService's own VoiceManager + listener.
-     */
-    private val noopVoiceListener = object : com.airi.assistant.core.VoiceManager.VoiceListener {
-        override fun onWakeWordDetected() = Unit
-        override fun onSpeechResult(text: String) = Unit
-        override fun onError(error: String) = Unit
-    }
-
-    /** Task 3.2: VoiceAgentRouter — routes STT results to direct agent or LLM fallback. */
+    /** Routes voice transcripts to agents. The active voice session owns audio I/O. */
     val voiceAgentRouter: com.airi.assistant.voice.VoiceAgentRouter by lazy {
         com.airi.assistant.voice.VoiceAgentRouter(
-            appContext   = requireContext(),
-            orchestrator = productionOrchestrator,
-            voiceManager = com.airi.assistant.core.VoiceManager(requireContext(), noopVoiceListener)
+            appContext = requireContext(),
+            orchestrator = productionOrchestrator
         )
     }
 

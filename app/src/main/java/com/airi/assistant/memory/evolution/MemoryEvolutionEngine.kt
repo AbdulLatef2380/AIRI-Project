@@ -2,6 +2,7 @@ package com.airi.assistant.memory.evolution
 
 import android.content.Context
 import android.util.Log
+import com.airi.assistant.memory.text.MemoryTextNormalizer
 import com.airi.assistant.memory.entity.ChatMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -235,8 +236,8 @@ class MemoryEvolutionEngine(context: Context) {
     }
 
     private fun tokenOverlap(a: String, b: String): Float {
-        val tokensA = a.lowercase().split(Regex("\\W+")).toSet()
-        val tokensB = b.lowercase().split(Regex("\\W+")).toSet()
+        val tokensA = MemoryTextNormalizer.tokens(a)
+        val tokensB = MemoryTextNormalizer.tokens(b)
         if (tokensA.isEmpty() || tokensB.isEmpty()) return 0f
         val intersection = tokensA.intersect(tokensB).size.toFloat()
         val union        = tokensA.union(tokensB).size.toFloat()

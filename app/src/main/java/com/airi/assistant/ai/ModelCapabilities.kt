@@ -16,7 +16,7 @@ import android.util.Log
  * "vision=false" until we add it to [VISION_TAGS]; that is the right
  * default — false negatives are acceptable, false positives are not.
  *
- * Emits AIRI_PROOF MODEL_CAPABILITIES_DETECTED on every population so the
+ * Emits AIRI_RUNTIME MODEL_CAPABILITIES_DETECTED on every population so the
  * decision can be audited from logcat.
  */
 data class ModelCapabilities(
@@ -100,7 +100,7 @@ data class ModelCapabilities(
                 rawDescription = nativeDesc
             )
             Log.i(
-                "AIRI_PROOF",
+                "AIRI_RUNTIME",
                 "MODEL_CAPABILITIES_DETECTED file=${modelInfo.fileName} desc=\"$nativeDesc\" ${caps.summary()}"
             )
             return caps

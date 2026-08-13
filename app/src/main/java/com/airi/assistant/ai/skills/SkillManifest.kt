@@ -78,7 +78,9 @@ data class SkillManifest(
     /** Short changelog text for the current version. */
     val changelog:         String?            = null,
     /** Skill homepage (marketing / documentation landing page). */
-    val homepage:          String?            = null
+    val homepage:          String?            = null,
+    /** HTTPS API endpoint invoked by the runtime for dynamically installed skills. */
+    val endpoint:          String?            = null
 ) {
     data class ToolDef(
         val name:        String,
@@ -138,6 +140,7 @@ data class SkillManifest(
         supportUrl?.let { put("support_url", it) }
         changelog?.let  { put("changelog",   it) }
         homepage?.let   { put("homepage",    it) }
+        endpoint?.let   { put("endpoint",    it) }
         entrypoint?.let    { put("entrypoint",      it) }
         repositoryUrl?.let { put("repository_url",  it) }
     }
@@ -214,7 +217,8 @@ data class SkillManifest(
                 checksum          = json.optString("checksum").ifBlank { null },
                 supportUrl        = json.optString("support_url").ifBlank { null },
                 changelog         = json.optString("changelog").ifBlank { null },
-                homepage          = json.optString("homepage").ifBlank { null }
+                homepage          = json.optString("homepage").ifBlank { null },
+                endpoint          = json.optString("endpoint").ifBlank { null }
             )
         }
 

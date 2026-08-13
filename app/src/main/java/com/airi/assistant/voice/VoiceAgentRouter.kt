@@ -8,7 +8,6 @@ import androidx.core.content.ContextCompat
 import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
 import com.airi.assistant.agent.subagent.SubAgentContext
 import com.airi.assistant.agent.subagent.SubAgentRegistry
-import com.airi.assistant.core.VoiceManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -27,7 +26,7 @@ import kotlinx.coroutines.withContext
  *     ↓ (matched)
  *   ProductionAgentOrchestrator.executeSingle()   ← real tool calls
  *     ↓
- *   speakResult()                   ← VoiceManager TTS stream
+ *   LiveVoiceService speaks the handled response through its session-owned TTS.
  *     ↓
  *   VoiceRouteResult.Handled(text, agentId)
  *
@@ -44,12 +43,11 @@ import kotlinx.coroutines.withContext
  *   [route] is a suspend function. Call it from [LiveVoiceService.serviceScope]
  *   (Main dispatcher). I/O-bound registry lookup and orchestrator execution
  *   are dispatched to [Dispatchers.IO] internally.
- *   [speakResult] calls VoiceManager TTS methods which are thread-safe.
+ *   The caller owns audio output, so routing never opens or releases microphone resources.
  */
 class VoiceAgentRouter(
-    private val appContext:   Context,
-    private val orchestrator: ProductionAgentOrchestrator,
-    private val voiceManager: VoiceManager
+    private val appContext: Context,
+    private val orchestrator: ProductionAgentOrchestrator
 ) {
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -58,8 +56,7 @@ class VoiceAgentRouter(
 
     sealed class VoiceRouteResult {
         /**
-         * An agent handled the request and already started TTS via voiceManager.
-         * LiveVoiceService should update session state to STREAMING_RESPONSE.
+         * An agent handled the request. The calling voice session owns TTS output.
          */
         data class Handled(val spokenText: String, val agentId: String) : VoiceRouteResult()
 
@@ -84,7 +81,7 @@ class VoiceAgentRouter(
     suspend fun route(transcript: String, voiceSessionId: Long): VoiceRouteResult {
         val trimmed = transcript.trim()
         if (trimmed.isBlank()) {
-            Log.d(TAG, "AIRI_PROOF VOICE_ROUTE_SKIP reason=blank")
+            Log.d(TAG, "AIRI_RUNTIME VOICE_ROUTE_SKIP reason=blank")
             return VoiceRouteResult.Fallback
         }
 
@@ -96,18 +93,17 @@ class VoiceAgentRouter(
         }
 
         if (agent == null) {
-            Log.d(TAG, "AIRI_PROOF VOICE_ROUTE_FALLBACK input='${trimmed.take(60)}'")
+            Log.d(TAG, "AIRI_RUNTIME VOICE_ROUTE_FALLBACK inputChars=${trimmed.length}")
             return VoiceRouteResult.Fallback
         }
 
-        Log.i(TAG, "AIRI_PROOF VOICE_ROUTE_MATCH agent=${agent.capability.agentId} " +
-                "input='${trimmed.take(60)}'")
+        Log.i(TAG, "AIRI_RUNTIME VOICE_ROUTE_MATCH agent=${agent.capability.agentId}")
 
         // ── Execute via orchestrator ───────────────────────────────────────────
         return try {
             val result = withContext(Dispatchers.IO) {
                 orchestrator.executeSingle(trimmed, ctx) { event ->
-                    Log.v(TAG, "AIRI_PROOF VOICE_AGENT_EVENT type=${event::class.simpleName}")
+                    Log.v(TAG, "AIRI_RUNTIME VOICE_AGENT_EVENT type=${event::class.simpleName}")
                 }
             }
 
@@ -115,48 +111,30 @@ class VoiceAgentRouter(
                 is ProductionAgentOrchestrator.ExecutionResult.Success -> {
                     val text = result.finalResult.trim()
                     if (text.isNotBlank()) {
-                        speakResult(text)
-                        Log.i(TAG, "AIRI_PROOF VOICE_ROUTE_HANDLED " +
+                        Log.i(TAG, "AIRI_RUNTIME VOICE_ROUTE_HANDLED " +
                                 "agent=${agent.capability.agentId} " +
                                 "chars=${text.length} " +
                                 "durationMs=${result.durationMs}")
                         VoiceRouteResult.Handled(text, agent.capability.agentId)
                     } else {
                         // Agent returned empty result — fall through to LLM
-                        Log.d(TAG, "AIRI_PROOF VOICE_ROUTE_EMPTY_RESULT " +
+                        Log.d(TAG, "AIRI_RUNTIME VOICE_ROUTE_EMPTY_RESULT " +
                                 "agent=${agent.capability.agentId} — fallback")
                         VoiceRouteResult.Fallback
                     }
                 }
 
                 is ProductionAgentOrchestrator.ExecutionResult.PartialFailure -> {
-                    Log.w(TAG, "AIRI_PROOF VOICE_ROUTE_PARTIAL_FAILURE " +
+                    Log.w(TAG, "AIRI_RUNTIME VOICE_ROUTE_PARTIAL_FAILURE " +
                             "errors=${result.taskErrors.size}")
                     VoiceRouteResult.Fallback
                 }
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "AIRI_PROOF VOICE_ROUTE_EXCEPTION " +
-                    "${e.javaClass.simpleName}: ${e.message}")
+            Log.e(TAG, "AIRI_RUNTIME VOICE_ROUTE_EXCEPTION ${e.javaClass.simpleName}")
             VoiceRouteResult.Fallback
         }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // TTS output
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Stream result text to TTS in 120-char chunks so the TTS engine can
-     * pipeline synthesis while the last sentence is still being assembled.
-     */
-    private fun speakResult(text: String) {
-        voiceManager.ttsStreamReset()
-        text.chunked(CHUNK_SIZE).forEach { chunk ->
-            voiceManager.ttsStreamAppend(chunk)
-        }
-        voiceManager.ttsStreamFlush()
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -217,7 +195,6 @@ class VoiceAgentRouter(
     // ─────────────────────────────────────────────────────────────────────────
 
     companion object {
-        private const val TAG        = "VoiceAgentRouter"
-        private const val CHUNK_SIZE = 120
+        private const val TAG = "VoiceAgentRouter"
     }
 }

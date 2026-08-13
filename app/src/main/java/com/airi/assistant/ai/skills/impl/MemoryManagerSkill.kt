@@ -82,7 +82,20 @@ class MemoryManagerSkill(private val context: Context) : AiriSkill {
                     ?: params["input"] as? String
                     ?: return SkillResult(false, "", "No content provided to save.", skillId)
                 try {
-                    manager.recordImportantMemory("user", content)
+                    if (!manager.canStoreImportantMemory(content)) {
+                        return SkillResult(
+                            success = false,
+                            data = "",
+                            error = "This content is sensitive or empty and was not saved to long-term memory.",
+                            skillName = skillId
+                        )
+                    }
+                    manager.recordImportantMemory(
+                        role = "user",
+                        content = content,
+                        explicitlyRequested = true,
+                        sessionId = skillCtx.sessionId.ifBlank { "default" }
+                    )
                     SkillResult(
                         success     = true,
                         data        = "Saved to memory: \"${content.take(100)}${if (content.length > 100) "…" else ""}\"",

@@ -143,18 +143,8 @@ object AiriRoute {
     // ── Phase 2, Task 7: Artifact preview route ───────────────────────────────
     const val ARTIFACT_PREVIEW       = "screen_artifact_preview"
 
-    /**
-     * Build the artifact preview route with encoded type and content.
-     * Content is truncated to [MAX_ROUTE_CONTENT_BYTES] to avoid NavController limits.
-     */
-    fun artifactPreview(type: String, content: String): String {
-        val encoded = java.net.URLEncoder.encode(
-            content.take(MAX_ROUTE_CONTENT_BYTES), "UTF-8"
-        )
-        return "$ARTIFACT_PREVIEW/$type/$encoded"
-    }
-
-    private const val MAX_ROUTE_CONTENT_BYTES = 8_192
+    /** Build the artifact preview route using only an internal artifact identifier. */
+    fun artifactPreview(artifactId: String): String = "$ARTIFACT_PREVIEW/$artifactId"
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 
@@ -217,6 +207,18 @@ fun AiriApp() {
     }
 
     // Map current route to selected nav tab
+    fun navigateAfterAuthentication() {
+        val destination = if (!hasAnyModel() && !hasAnyApiKey()) {
+            AiriRoute.WELCOME
+        } else {
+            AiriRoute.CHAT
+        }
+        navController.navigate(destination) {
+            popUpTo(AiriRoute.LOGIN) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
     val selectedTab = when (currentRoute) {
         AiriRoute.SKILL_MANAGER -> AiriNavTab.SKILLS
         AiriRoute.AGENT_TASKS   -> AiriNavTab.SCHEDULE
@@ -309,14 +311,13 @@ fun AiriApp() {
                                         AnalyticsService.funnelStep("open_to_login")
                                         ReferralManager.completePendingReferral(authService.currentUser()?.uid)
                                         ReferralManager.grantFirstLaunchBonus()  // 
-                                        ExperimentManager.init(
-                                            ServiceLocator.context ?: return@signIn,
-                                            authService.currentUser()?.uid ?: "anonymous"
-                                        )
-                                        navController.navigate(AiriRoute.CHAT) {
-                                            popUpTo(AiriRoute.LOGIN) { inclusive = true }
-                                            launchSingleTop = true
+                                        ServiceLocator.context?.let { appContext ->
+                                            ExperimentManager.init(
+                                                appContext,
+                                                authService.currentUser()?.uid ?: "anonymous"
+                                            )
                                         }
+                                        navigateAfterAuthentication()
                                     }
                                     onResult(error)
                                 }
@@ -328,14 +329,13 @@ fun AiriApp() {
                                         AnalyticsService.funnelStep("open_to_signup")
                                         ReferralManager.completePendingReferral(authService.currentUser()?.uid)
                                         ReferralManager.grantFirstLaunchBonus()  // 
-                                        ExperimentManager.init(
-                                            ServiceLocator.context ?: return@createAccount,
-                                            authService.currentUser()?.uid ?: "anonymous"
-                                        )
-                                        navController.navigate(AiriRoute.CHAT) {
-                                            popUpTo(AiriRoute.LOGIN) { inclusive = true }
-                                            launchSingleTop = true
+                                        ServiceLocator.context?.let { appContext ->
+                                            ExperimentManager.init(
+                                                appContext,
+                                                authService.currentUser()?.uid ?: "anonymous"
+                                            )
                                         }
+                                        navigateAfterAuthentication()
                                     }
                                     onResult(error)
                                 }
@@ -345,10 +345,7 @@ fun AiriApp() {
                                 AnalyticsService.funnelStep("open_to_login")
                                 ReferralManager.completePendingReferral(authService.currentUser()?.uid)
                                 ReferralManager.grantFirstLaunchBonus()  // 
-                                navController.navigate(AiriRoute.CHAT) {
-                                    popUpTo(AiriRoute.LOGIN) { inclusive = true }
-                                    launchSingleTop = true
-                                }
+                                navigateAfterAuthentication()
                             }
                         )
                     }
@@ -698,23 +695,15 @@ fun AiriApp() {
                         )
                     }
 
-                    // ── Phase 2, Task 7: Isolated artifact preview (sandboxed WebView) ──────────
                     composable(
-                        route     = "${AiriRoute.ARTIFACT_PREVIEW}/{type}/{content}",
+                        route = "${AiriRoute.ARTIFACT_PREVIEW}/{artifactId}",
                         arguments = listOf(
-                            androidx.navigation.navArgument("type")    { type = NavType.StringType },
-                            androidx.navigation.navArgument("content") { type = NavType.StringType }
+                            androidx.navigation.navArgument("artifactId") { type = NavType.StringType }
                         )
                     ) { backStack ->
-                        val type    = backStack.arguments?.getString("type")    ?: "CODE"
-                        val encoded = backStack.arguments?.getString("content") ?: ""
-                        val content = runCatching {
-                            java.net.URLDecoder.decode(encoded, "UTF-8")
-                        }.getOrDefault(encoded)
                         ArtifactPreviewScreen(
-                            artifactType    = type,
-                            artifactContent = content,
-                            onBack          = { navController.popBackStack() }
+                            artifactId = backStack.arguments?.getString("artifactId").orEmpty(),
+                            onBack = { navController.popBackStack() }
                         )
                     }
 

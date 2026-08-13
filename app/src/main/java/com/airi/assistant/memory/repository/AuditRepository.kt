@@ -12,11 +12,11 @@ import java.util.concurrent.TimeUnit
 
 /**
  * AuditRepository — single entry point for writing and querying the
- * persistent AIRI_PROOF audit log.
+ * persistent AIRI_RUNTIME audit log.
  *
  * ── Phase 2, Task 5 ────────────────────────────────────────────────────────
- * This class bridges the logcat-only AIRI_PROOF system to Room persistence.
- * All callers that previously only wrote `Log.i(TAG, "AIRI_PROOF …")` can now
+ * This class bridges the logcat-only AIRI_RUNTIME system to Room persistence.
+ * All callers that previously only wrote `Log.i(TAG, "AIRI_RUNTIME …")` can now
  * also call [log] to persist the event to the database for post-mortem analysis.
  *
  * ── Usage ──────────────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ class AuditRepository(private val db: AiriDatabase) {
     /**
      * Persist one audit event. Fire-and-forget — never throws on the caller.
      *
-     * Also emits a logcat line with the canonical AIRI_PROOF prefix so the
+     * Also emits a logcat line with the canonical AIRI_RUNTIME prefix so the
      * existing logcat grep-based debugging workflow continues to work unchanged.
      *
      * @param tag     Module identifier (e.g. "THERMAL", "AUTH", "FIREWALL").
@@ -57,7 +57,7 @@ class AuditRepository(private val db: AiriDatabase) {
         level:   AuditLogEntity.Level = AuditLogEntity.Level.INFO
     ) {
         // Mirror to logcat so existing log-grep workflows continue to work.
-        val logcatMsg = "AIRI_PROOF $tag $message"
+        val logcatMsg = "AIRI_RUNTIME $tag $message"
         when (level) {
             AuditLogEntity.Level.VERBOSE -> Log.v(TAG, logcatMsg)
             AuditLogEntity.Level.DEBUG   -> Log.d(TAG, logcatMsg)

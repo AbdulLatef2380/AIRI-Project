@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit
  *
  * ── Security ───────────────────────────────────────────────────────────────
  * • Token is stored in AES256-GCM EncryptedSharedPreferences (SecureStorage).
- * • No token is ever logged (AIRI_PROOF lines contain only request metadata).
+ * • No token is ever logged (AIRI_RUNTIME lines contain only request metadata).
  * • Handshake calls /v1/users/me to verify the token is valid.
  *
  * ── Rate limits ────────────────────────────────────────────────────────────
@@ -91,7 +91,7 @@ class NotionMcpConnector(
     override suspend fun handshake(): Boolean {
         val token = getToken()
         if (token.isNullOrBlank()) {
-            Log.w(TAG, "AIRI_PROOF NOTION_HANDSHAKE_FAILED reason=no_token_stored")
+            Log.w(TAG, "AIRI_RUNTIME NOTION_HANDSHAKE_FAILED reason=no_token_stored")
             return false
         }
         return runCatching {
@@ -104,18 +104,18 @@ class NotionMcpConnector(
             val response = httpClient.newCall(request).execute()
             val ok = response.isSuccessful
             Log.i(TAG,
-                "AIRI_PROOF NOTION_HANDSHAKE status=${response.code} success=$ok")
+                "AIRI_RUNTIME NOTION_HANDSHAKE status=${response.code} success=$ok")
             response.close()
             ok
         }.getOrElse { e ->
-            Log.e(TAG, "AIRI_PROOF NOTION_HANDSHAKE_EXCEPTION ${e.message}")
+            Log.e(TAG, "AIRI_RUNTIME NOTION_HANDSHAKE_EXCEPTION ${e.message}")
             false
         }
     }
 
     override suspend fun teardown() {
         // OkHttpClient manages its own connection pool; no explicit teardown needed.
-        Log.i(TAG, "AIRI_PROOF NOTION_DISCONNECT")
+        Log.i(TAG, "AIRI_RUNTIME NOTION_DISCONNECT")
     }
 
     /**
@@ -320,14 +320,14 @@ class NotionMcpConnector(
         return runCatching {
             val response = httpClient.newCall(request).execute()
             val bodyStr  = response.body?.string() ?: ""
-            Log.i(TAG, "AIRI_PROOF NOTION_API tool=$toolName status=${response.code}")
+            Log.i(TAG, "AIRI_RUNTIME NOTION_API tool=$toolName status=${response.code}")
             if (response.isSuccessful) {
                 onSuccess(bodyStr)
             } else {
                 val errObj  = runCatching { JSONObject(bodyStr) }.getOrElse { JSONObject() }
                 val errCode = errObj.optString("code", "api_error")
                 val errMsg  = errObj.optString("message", "Notion API error ${response.code}")
-                Log.w(TAG, "AIRI_PROOF NOTION_API_ERROR tool=$toolName code=$errCode")
+                Log.w(TAG, "AIRI_RUNTIME NOTION_API_ERROR tool=$toolName code=$errCode")
                 ConnectorOutput.Failure(
                     code      = errCode,
                     message   = errMsg,
@@ -335,7 +335,7 @@ class NotionMcpConnector(
                 )
             }
         }.getOrElse { e ->
-            Log.e(TAG, "AIRI_PROOF NOTION_NETWORK_ERROR tool=$toolName ${e.message}")
+            Log.e(TAG, "AIRI_RUNTIME NOTION_NETWORK_ERROR tool=$toolName ${e.message}")
             ConnectorOutput.Failure(
                 code      = "network_error",
                 message   = "Network error calling Notion: ${e.message}",

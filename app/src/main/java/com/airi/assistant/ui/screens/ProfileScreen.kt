@@ -115,15 +115,21 @@ fun ProfileScreen(
                     onClick = {
                         isDeleting = true
                         showDeleteConfirm = false
-                        fbUser?.delete()?.addOnCompleteListener { task ->
-                            isDeleting = false
-                            if (task.isSuccessful) {
-                                onSignOut?.invoke()
-                            } else {
-                                scope.launch {
+                        scope.launch {
+                            when (val result = ServiceLocator.dataDeletionCoordinator.deleteAccount()) {
+                                is com.airi.assistant.domain.auth.DataDeletionCoordinator.DeletionResult.Success,
+                                is com.airi.assistant.domain.auth.DataDeletionCoordinator.DeletionResult.PartialSuccess -> {
+                                    isDeleting = false
+                                    onSignOut?.invoke()
+                                }
+                                is com.airi.assistant.domain.auth.DataDeletionCoordinator.DeletionResult.FirebaseAuthFailed -> {
+                                    isDeleting = false
                                     snackbar.showSnackbar(
-                                        task.exception?.message
-                                            ?: context.getString(R.string.profile_delete_failed)
+                                        if (result.requiresReauth) {
+                                            context.getString(R.string.delete_account_reauth_required)
+                                        } else {
+                                            context.getString(R.string.delete_account_error_generic)
+                                        }
                                     )
                                 }
                             }
@@ -155,9 +161,21 @@ fun ProfileScreen(
             .putString(KEY_USERNAME,     username.trim())
             .apply()
         fbUser?.updateProfile(userProfileChangeRequest { displayName = displayName.trim() })
-            ?.addOnCompleteListener { isSaving = false
-                scope.launch { snackbar.showSnackbar(context.getString(R.string.profile_saved_ok)) }
-            } ?: run { isSaving = false }
+            ?.addOnCompleteListener { task ->
+                isSaving = false
+                scope.launch {
+                    snackbar.showSnackbar(
+                        if (task.isSuccessful) {
+                            context.getString(R.string.profile_saved_ok)
+                        } else {
+                            context.getString(R.string.profile_save_failed)
+                        }
+                    )
+                }
+            } ?: run {
+                isSaving = false
+                scope.launch { snackbar.showSnackbar(context.getString(R.string.profile_saved)) }
+            }
     }
 
     Scaffold(
@@ -390,20 +408,42 @@ fun ProfileScreen(
 }
 
 /**
- * Copies the user-picked [uri] into the app's private cache directory and returns
- * the absolute path of the cached file, or null on failure.
- * Using a cached copy ensures the URI remains accessible across sessions.
+ * Copies a user-selected image into private persistent storage. The operation
+ * rejects non-image content and files larger than the profile-image budget.
  */
 private fun cachePhotoLocally(context: Context, uri: Uri): String? {
+    val mimeType = context.contentResolver.getType(uri)
+    if (mimeType?.startsWith("image/") != true) return null
+
+    val directory = File(context.filesDir, "profile").also { it.mkdirs() }
+    val destination = File(directory, "avatar.jpg")
+    val temporary = File(directory, "avatar.tmp")
     return try {
-        val dir = File(context.cacheDir, "profile").also { it.mkdirs() }
-        val dest = File(dir, "avatar.jpg")
         context.contentResolver.openInputStream(uri)?.use { input ->
-            FileOutputStream(dest).use { output -> input.copyTo(output) }
-        }
-        dest.absolutePath
-    } catch (_: Exception) { null }
+            FileOutputStream(temporary).use { output ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                var totalBytes = 0L
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    totalBytes += read
+                    if (totalBytes > MAX_PROFILE_PHOTO_BYTES) {
+                        throw IllegalArgumentException("Profile image is too large")
+                    }
+                    output.write(buffer, 0, read)
+                }
+            }
+        } ?: return null
+        if (destination.exists()) destination.delete()
+        if (!temporary.renameTo(destination)) return null
+        destination.absolutePath
+    } catch (_: Exception) {
+        temporary.delete()
+        null
+    }
 }
+
+private const val MAX_PROFILE_PHOTO_BYTES = 5L * 1024L * 1024L
 
 @Composable
 private fun SectionLabel(text: String) {

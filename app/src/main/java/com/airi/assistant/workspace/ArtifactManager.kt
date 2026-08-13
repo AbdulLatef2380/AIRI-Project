@@ -176,7 +176,7 @@ class ArtifactManager(
         publishAll()
         val artifactsRoot = File(context.filesDir, "workspace/artifacts")
         val deleted = artifactsRoot.deleteRecursively()
-        Log.i(TAG, "AIRI_PROOF GDPR_ARTIFACT_WIPE_COMPLETE deleted=$deleted path=${artifactsRoot.absolutePath}")
+        Log.i(TAG, "AIRI_RUNTIME GDPR_ARTIFACT_WIPE_COMPLETE deleted=$deleted path=${artifactsRoot.absolutePath}")
     }
 
     fun deleteArtifact(id: String) {

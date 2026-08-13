@@ -55,7 +55,7 @@ class UserProfileRepository(private val context: Context) {
             val updated = _profile.value.transform().copy(lastUpdatedAtMs = System.currentTimeMillis())
             _profile.value = updated
             persist(updated)
-            LoggingService.info(TAG, "AIRI_PROOF PROFILE_UPDATED")
+            LoggingService.info(TAG, "AIRI_RUNTIME PROFILE_UPDATED")
         }
     }
 
@@ -67,7 +67,7 @@ class UserProfileRepository(private val context: Context) {
             val updated = _profile.value.transform().copy(lastUpdatedAtMs = System.currentTimeMillis())
             _profile.value = updated
             persist(updated)
-            LoggingService.info(TAG, "AIRI_PROOF PROFILE_UPDATED_SUSPEND")
+            LoggingService.info(TAG, "AIRI_RUNTIME PROFILE_UPDATED_SUSPEND")
         }
     }
 
@@ -99,7 +99,7 @@ class UserProfileRepository(private val context: Context) {
             )
             _profile.value = merged
             persist(merged)
-            LoggingService.info(TAG, "AIRI_PROOF PROFILE_MERGED_FROM_CLOUD")
+            LoggingService.info(TAG, "AIRI_RUNTIME PROFILE_MERGED_FROM_CLOUD")
         }
     }
 
@@ -111,7 +111,7 @@ class UserProfileRepository(private val context: Context) {
             val fresh = UserPreferences()
             _profile.value = fresh
             persist(fresh)
-            LoggingService.info(TAG, "AIRI_PROOF PROFILE_RESET")
+            LoggingService.info(TAG, "AIRI_RUNTIME PROFILE_RESET")
         }
     }
 

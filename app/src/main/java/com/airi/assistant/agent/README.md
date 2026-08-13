@@ -1,45 +1,15 @@
-# agent — Multi-Agent Orchestration
+# Agent package
 
-Owns task planning, sub-agent execution, durable task management, and adaptive learning.
+This package owns planning, sub-agents, execution loops, and durable scheduled work.
 
-## Architecture
+## Active behavior
 
-```
-ProductionAgentOrchestrator
-  ├── SubAgentRegistry        Routes tasks to the right agent
-  ├── PlanGenerator           Converts user intent to ActionPlan (with PlannerAdaptationEngine hints)
-  ├── AgentLoop               Executes planned steps with tool dispatch
-  ├── DurableTaskManager      Checkpoints task state to WorkManager for crash resilience
-  └── adaptation/
-        ├── PlannerAdaptationEngine    Learns plan quality from outcomes
-        ├── StrategyEvolutionEngine    Learns optimal execution strategies
-        └── AdaptiveIntelligenceEngine Records inference outcomes for model selection
-```
+`AgentLoop` delegates model execution to `HybridOrchestrator`. Background tasks are created through `ScheduledJobOrchestrator` and executed by `ScheduledAgentWorker`. One-time and periodic task metadata is persisted locally, including whether network access is required and the last recorded outcome (`PENDING`, `COMPLETED`, or `FAILED`).
 
-## Active Sub-Agents (registered in SubAgentRegistry)
+## Safety and limitations
 
-| Agent | Capability ID | Description |
-|-------|--------------|-------------|
-| `ResearchAgent` | `research` | Web fetch, summarize, fact-check |
-| `AndroidAgent` | `android_automation` | Accessibility-based UI control |
-| `ProductivityAgent` | `productivity` | Calendar, tasks, reminders |
-| `MemoryAgent` | `memory` | Episodic/semantic recall |
-| `CloudBrowserAgent` | `cloud_browser` | Screenshot + browser automation |
+A background task is not an interactive UI session. It has a bounded execution budget and must not assume foreground permissions or user interaction. Worker domain failures are recorded for the task UI; they are not blindly retried as infrastructure failures.
 
-## DurableTaskManager
+## Verification
 
-Backed by WorkManager. When an agent task crosses a tool boundary, the orchestrator calls `durableTaskManager.updateCheckpoint(taskId, stepDescription)`. On process death and restart, incomplete tasks are visible via `activeTasks()`.
-
-## Adaptation Loop
-
-After each task completes or fails:
-1. `StrategyEvolutionEngine.recordNodeOutcome(agentId, recoveryBranch, attempts, success)` — updates strategy scores
-2. `AdaptiveIntelligenceEngine.recordInferenceOutcome(...)` — updates model selection weights
-3. `PlannerAdaptationEngine` injects learned hints into the next `PlanGenerator.createPlan()` call
-
-## Status
-
-- Core orchestration: **Production-ready**
-- DurableTaskManager: **Wired** (checkpoints at every tool boundary)
-- Adaptation engines: **Wired** (all three record outcomes)
-- Sub-agents: 5 of 9 active (4 excluded — delegation shells requiring real backend)
+The scheduler persistence and worker-result paths are covered by the project static verifier. WorkManager behavior, Doze timing, and device reboot restoration still require instrumentation and physical-device testing.

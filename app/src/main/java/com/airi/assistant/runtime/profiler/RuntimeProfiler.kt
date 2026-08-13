@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong
  *   val result = RuntimeProfiler.profile("llama_decode") { nativeDecode(...) }
  *
  * Reports are emitted every [REPORT_INTERVAL_MS] to [report] StateFlow and
- * logged with AIRI_PROOF tags for adb logcat filtering.
+ * logged with AIRI_RUNTIME tags for adb logcat filtering.
  */
 object RuntimeProfiler {
 
@@ -123,7 +123,7 @@ object RuntimeProfiler {
         }
         // Full 30s log interval (unchanged — avoids logcat spam)
         scope.launch {
-            Log.i(TAG, "AIRI_PROOF PROFILER_STARTED")
+            Log.i(TAG, "AIRI_RUNTIME PROFILER_STARTED")
             while (isActive) {
                 delay(REPORT_INTERVAL_MS)
                 emitReport()
@@ -146,21 +146,21 @@ object RuntimeProfiler {
         val acc = accumulators.getOrPut(key) { Accumulator() }
         acc.record(durationMs)
         if (durationMs > SLOW_THRESHOLD_MS) {
-            Log.w(TAG, "AIRI_PROOF SLOW_CALL key=$key durationMs=$durationMs")
+            Log.w(TAG, "AIRI_RUNTIME SLOW_CALL key=$key durationMs=$durationMs")
         }
         if (key.startsWith("jni_") && durationMs > JNI_WARN_MS) {
-            Log.w(TAG, "AIRI_PROOF JNI_LATENCY_SPIKE key=$key durationMs=$durationMs")
+            Log.w(TAG, "AIRI_RUNTIME JNI_LATENCY_SPIKE key=$key durationMs=$durationMs")
         }
     }
 
     fun recordDroppedEvent() {
         droppedEvents.incrementAndGet()
-        Log.w(TAG, "AIRI_PROOF EVENT_DROPPED total=${droppedEvents.get()}")
+        Log.w(TAG, "AIRI_RUNTIME EVENT_DROPPED total=${droppedEvents.get()}")
     }
 
     fun recordFlowPressureWarning(flowName: String) {
         flowPressureWarns.incrementAndGet()
-        Log.w(TAG, "AIRI_PROOF FLOW_PRESSURE flow=$flowName total=${flowPressureWarns.get()}")
+        Log.w(TAG, "AIRI_RUNTIME FLOW_PRESSURE flow=$flowName total=${flowPressureWarns.get()}")
     }
 
     /** AP-12: Build a fresh report without logging. Used by the 5s UI refresh loop. */
@@ -184,7 +184,7 @@ object RuntimeProfiler {
             slowCallCount         = accumulators.values.sumOf { it.slowCt.get() }
         )
         _report.value = rpt
-        Log.i(TAG, "AIRI_PROOF PROFILE_REPORT buckets=${buckets.size} " +
+        Log.i(TAG, "AIRI_RUNTIME PROFILE_REPORT buckets=${buckets.size} " +
                 "dropped=${rpt.droppedEventCount} slowCalls=${rpt.slowCallCount}")
         buckets.forEach { b ->
             Log.i(TAG, "  ${b.key}: count=${b.count} avg=${b.avgMs}ms p95=${b.p95Ms}ms max=${b.maxMs}ms")

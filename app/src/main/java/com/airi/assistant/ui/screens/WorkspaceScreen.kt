@@ -133,22 +133,8 @@ fun WorkspaceScreen(
                                 isSelected = selectedArtifactId == artifact.id,
                                 onClick    = { selectedArtifactId = if (selectedArtifactId == artifact.id) null else artifact.id },
                                 onDelete   = { artifactManager.deleteArtifact(artifact.id) },
-                                // : Navigate to ArtifactPreviewScreen on long-press preview tap.
-                                // Full artifact content is read from filePath on IO dispatcher to
-                                // avoid blocking the main thread; falls back to previewSnippet if the
-                                // file is absent or unreadable (e.g. artifact deleted externally).
-                                onPreview  = { selected ->
-                                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                        val content = try {
-                                            val file = java.io.File(selected.filePath)
-                                            if (file.exists() && file.canRead()) file.readText() else null
-                                        } catch (_: Exception) { null }
-                                            ?: selected.previewSnippet.orEmpty()
-                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                            onNavigate(AiriRoute.artifactPreview(
-                                                selected.type.name.lowercase(), content))
-                                        }
-                                    }
+                                onPreview = { selected ->
+                                    onNavigate(AiriRoute.artifactPreview(selected.id))
                                 }
                             )
                         }

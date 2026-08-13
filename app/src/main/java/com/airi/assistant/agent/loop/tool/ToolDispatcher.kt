@@ -20,7 +20,7 @@ import java.time.format.DateTimeFormatter
  *
  * Every tool here has:
  *   - a real execution body (no placeholders)
- *   - a logged AIRI_PROOF entry for auditing
+ *   - a logged AIRI_RUNTIME entry for auditing
  *   - a timeout enforced by the caller (AgentLoop)
  *
  * Adding a new tool: add it to [BuiltinTools], add dispatch case here.
@@ -51,7 +51,7 @@ class ToolDispatcher(
         args:     Map<String, String>,
         context:  Context
     ): ToolResult {
-        Log.i(TAG, "AIRI_PROOF TOOL_DISPATCH tool=$toolName args=${args.entries.joinToString { "${it.key}=${it.value.take(40)}" }}")
+        Log.i(TAG, "AIRI_RUNTIME TOOL_DISPATCH tool=$toolName args=${args.entries.joinToString { "${it.key}=${it.value.take(40)}" }}")
         AgentActivityBus.emit("Tool: $toolName", ActivityCategory.TOOL)
 
         return when (toolName) {
@@ -73,7 +73,7 @@ class ToolDispatcher(
                             .take(40)
                         val pkg   = service.rootInActiveWindow?.packageName?.toString() ?: "unknown"
                         val summary = "App: $pkg\nVisible text:\n${texts.joinToString("\n").take(800)}"
-                        Log.i(TAG, "AIRI_PROOF READ_SCREEN pkg=$pkg nodes=${nodes.size} textItems=${texts.size}")
+                        Log.i(TAG, "AIRI_RUNTIME READ_SCREEN pkg=$pkg nodes=${nodes.size} textItems=${texts.size}")
                         ToolResult.Success(summary)
                     }
                 }
@@ -122,7 +122,7 @@ class ToolDispatcher(
                 if (!braveKey.isNullOrBlank()) {
                     val brave = searchTool.searchBrave(query, count = 5, enrich = true)
                     if (brave.success) {
-                        Log.i(TAG, "AIRI_PROOF WEB_SEARCH_BRAVE query=${query.take(60)} results=${brave.results.size} hasContent=${brave.topContent != null}")
+                        Log.i(TAG, "AIRI_RUNTIME WEB_SEARCH_BRAVE query=${query.take(60)} results=${brave.results.size} hasContent=${brave.topContent != null}")
                         return ToolResult.Success(brave.toAgentString())
                     }
                     Log.w(TAG, "Brave search failed (${brave.error}), falling back to DDG")
@@ -131,12 +131,12 @@ class ToolDispatcher(
                 // Fallback: DDG Instant Answers (~30% coverage but always free)
                 val ddg = searchTool.searchDuckDuckGo(query)
                 if (ddg.success) {
-                    Log.i(TAG, "AIRI_PROOF WEB_SEARCH_DDG query=${query.take(60)} resultLen=${ddg.summary.length}")
+                    Log.i(TAG, "AIRI_RUNTIME WEB_SEARCH_DDG query=${query.take(60)} resultLen=${ddg.summary.length}")
                     return ToolResult.Success(ddg.summary)
                 }
 
                 // Last resort: open browser (no content returned, but user can see it)
-                Log.w(TAG, "AIRI_PROOF WEB_SEARCH_FALLBACK query=${query.take(60)} — opening browser")
+                Log.w(TAG, "AIRI_RUNTIME WEB_SEARCH_FALLBACK query=${query.take(60)} — opening browser")
                 searchTool.searchViaIntent(query)
                 ToolResult.Success(
                     "Search opened in browser for: $query\n\n" +
@@ -151,12 +151,12 @@ class ToolDispatcher(
                     return ToolResult.Error("Invalid URL — must start with http:// or https://")
                 }
                 val searchTool = SearchTool(context, braveApiKey = braveApiKeyProvider?.invoke())
-                Log.i(TAG, "AIRI_PROOF FETCH_URL url=${url.take(80)}")
+                Log.i(TAG, "AIRI_RUNTIME FETCH_URL url=${url.take(80)}")
 
                 // Try Jina Reader first (clean markdown, handles JS-rendered pages)
                 val jina = searchTool.fetchViaJina(url, maxChars = 4000)
                 if (jina.success && jina.content.isNotBlank()) {
-                    Log.i(TAG, "AIRI_PROOF FETCH_URL_JINA_OK chars=${jina.content.length}")
+                    Log.i(TAG, "AIRI_RUNTIME FETCH_URL_JINA_OK chars=${jina.content.length}")
                     return ToolResult.Success(
                         "Content from ${url}:\n\n${jina.content}"
                     )
@@ -165,7 +165,7 @@ class ToolDispatcher(
                 // Fallback: direct HTTP fetch with HTML stripping
                 val direct = searchTool.fetchPageContent(url)
                 if (direct.success && direct.content.isNotBlank()) {
-                    Log.i(TAG, "AIRI_PROOF FETCH_URL_DIRECT_OK chars=${direct.content.length}")
+                    Log.i(TAG, "AIRI_RUNTIME FETCH_URL_DIRECT_OK chars=${direct.content.length}")
                     return ToolResult.Success("Content from ${url}:\n\n${direct.content}")
                 }
 
@@ -184,7 +184,7 @@ class ToolDispatcher(
                     val sessionId = sessionIdProvider?.invoke().orEmpty()
                     if (manager.isSemanticMemoryReady() && sessionId.isNotEmpty()) {
                         val ranked = manager.semanticSearch(sessionId, query, k = 5)
-                        Log.i(TAG, "AIRI_PROOF MEMORY_RECALL mode=semantic query=${query.take(60)} hits=${ranked.size}")
+                        Log.i(TAG, "AIRI_RUNTIME MEMORY_RECALL mode=semantic query=${query.take(60)} hits=${ranked.size}")
                         if (ranked.isEmpty()) {
                             ToolResult.Success("No memories found for: $query")
                         } else {
@@ -195,7 +195,7 @@ class ToolDispatcher(
                         }
                     } else {
                         val recent = manager.getRecentMessages(5)
-                        Log.i(TAG, "AIRI_PROOF MEMORY_RECALL mode=recent query=${query.take(60)} hits=${recent.size}")
+                        Log.i(TAG, "AIRI_RUNTIME MEMORY_RECALL mode=recent query=${query.take(60)} hits=${recent.size}")
                         if (recent.isEmpty()) {
                             ToolResult.Success("No memories found for: $query")
                         } else {
@@ -215,7 +215,7 @@ class ToolDispatcher(
                     ToolResult.Success("No events found in the next $days days.")
                 } else {
                     val formatted = cal.summarize(events.take(10))
-                    Log.i(TAG, "AIRI_PROOF CALENDAR_READ days=$days events=${events.size}")
+                    Log.i(TAG, "AIRI_RUNTIME CALENDAR_READ days=$days events=${events.size}")
                     ToolResult.Success("Upcoming events:\n$formatted")
                 }
             }
@@ -230,7 +230,7 @@ class ToolDispatcher(
                 val endMs   = startMs + durationMin * 60_000L
                 val eventId = cal.createEvent(title, startMs, endMs)
                 if (eventId != null) {
-                    Log.i(TAG, "AIRI_PROOF CALENDAR_CREATE title=${title.take(40)} startMs=$startMs id=$eventId")
+                    Log.i(TAG, "AIRI_RUNTIME CALENDAR_CREATE title=${title.take(40)} startMs=$startMs id=$eventId")
                     ToolResult.Success("Created event: $title at $startTime")
                 } else {
                     ToolResult.Error("Failed to create calendar event. Calendar permission may be missing.")
@@ -246,7 +246,7 @@ class ToolDispatcher(
                     ?: return ToolResult.Error("Could not parse time '$time'. Use format like '7:30am' or '14:00'")
                 val result = alarm.setAlarmViaIntent(timePair.first, timePair.second, label)
                 if (result.success) {
-                    Log.i(TAG, "AIRI_PROOF SET_ALARM time=$time label=$label")
+                    Log.i(TAG, "AIRI_RUNTIME SET_ALARM time=$time label=$label")
                     ToolResult.Success("Alarm set for $time: $label")
                 } else {
                     ToolResult.Error(result.message)
@@ -259,7 +259,7 @@ class ToolDispatcher(
                 val content = args["content"] ?: return ToolResult.Error("Missing content")
                 val notes   = NotesTool(context)
                 val note    = notes.createNote(title, content)
-                Log.i(TAG, "AIRI_PROOF CREATE_NOTE title=${title.take(40)}")
+                Log.i(TAG, "AIRI_RUNTIME CREATE_NOTE title=${title.take(40)}")
                 ToolResult.Success("Note created: ${note.title}")
             }
 
@@ -280,7 +280,7 @@ class ToolDispatcher(
                 // Route any "skill_*" prefixed tool call through the SkillToolBridge
                 val bridge = skillToolBridge
                 if (bridge != null && bridge.handles(toolName)) {
-                    Log.i(TAG, "AIRI_PROOF SKILL_TOOL_DISPATCH tool=$toolName")
+                    Log.i(TAG, "AIRI_RUNTIME SKILL_TOOL_DISPATCH tool=$toolName")
                     val result = bridge.invoke(toolName, args)
                     ToolResult.Success(result)
                 } else {

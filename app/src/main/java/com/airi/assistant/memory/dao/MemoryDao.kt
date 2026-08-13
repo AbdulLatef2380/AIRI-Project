@@ -29,6 +29,26 @@ interface MemoryDao {
     @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0 ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getRecentMessages(sessionId: String, limit: Int): List<ChatMessage>
 
+    /** Explicitly accepted long-term memories for a single session. */
+    @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 1 ORDER BY timestamp DESC, id DESC LIMIT :limit")
+    suspend fun getRecentLongTermMemories(sessionId: String, limit: Int): List<ChatMessage>
+
+    @Query("SELECT id FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 1 AND content = :content LIMIT 1")
+    suspend fun findLongTermMemoryId(sessionId: String, content: String): Long?
+
+    @Query("""
+        DELETE FROM episodic_memory
+        WHERE sessionId = :sessionId
+          AND isMemory = 1
+          AND id NOT IN (
+              SELECT id FROM episodic_memory
+              WHERE sessionId = :sessionId AND isMemory = 1
+              ORDER BY timestamp DESC, id DESC
+              LIMIT :keepRecent
+          )
+    """)
+    suspend fun pruneLongTermMemories(sessionId: String, keepRecent: Int)
+
     @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0 ORDER BY timestamp ASC")
     suspend fun getSessionMessages(sessionId: String): List<ChatMessage>
 
@@ -53,10 +73,10 @@ interface MemoryDao {
         DELETE FROM episodic_memory
         WHERE sessionId = :sessionId
           AND isMemory = 0
-          AND timestamp NOT IN (
-              SELECT timestamp FROM episodic_memory
+          AND id NOT IN (
+              SELECT id FROM episodic_memory
               WHERE sessionId = :sessionId AND isMemory = 0
-              ORDER BY timestamp DESC
+              ORDER BY timestamp DESC, id DESC
               LIMIT :keepRecent
           )
     """)

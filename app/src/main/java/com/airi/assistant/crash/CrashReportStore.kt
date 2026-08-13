@@ -79,7 +79,7 @@ class CrashReportStore(private val context: Context) {
             agentId      = agentId
         )
         add(report)
-        LoggingService.warn(TAG, "AIRI_PROOF CRASH_RECORDED component=$component id=${report.id} class=${report.errorClass}")
+        LoggingService.warn(TAG, "AIRI_RUNTIME CRASH_RECORDED component=$component id=${report.id} class=${report.errorClass}")
         return report
     }
 
@@ -104,7 +104,7 @@ class CrashReportStore(private val context: Context) {
             agentId      = agentId
         )
         add(report)
-        LoggingService.warn(TAG, "AIRI_PROOF CRASH_RECORDED_MANUAL component=$component id=${report.id}")
+        LoggingService.warn(TAG, "AIRI_RUNTIME CRASH_RECORDED_MANUAL component=$component id=${report.id}")
         return report
     }
 
@@ -112,7 +112,7 @@ class CrashReportStore(private val context: Context) {
     fun clearAll() {
         _reports.value = emptyList()
         runCatching { file.delete() }
-        LoggingService.info(TAG, "AIRI_PROOF CRASH_REPORTS_CLEARED")
+        LoggingService.info(TAG, "AIRI_RUNTIME CRASH_REPORTS_CLEARED")
     }
 
     /** Delete a single report by ID. */

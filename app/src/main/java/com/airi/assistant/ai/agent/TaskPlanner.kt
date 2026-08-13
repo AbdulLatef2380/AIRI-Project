@@ -118,7 +118,7 @@ class TaskPlanner(private val secureStorage: SecureStorage) {
             }
         }
 
-        Log.i(TAG, "AIRI_RUNTIME TASK_PLAN_GRAPH goalId=$goalId nodes=${graph.nodeCount()} input='${input.take(60)}'")
+        Log.i(TAG, "TASK_PLAN_GRAPH_CREATED goalId=$goalId nodeCount=${graph.nodeCount()} inputChars=${input.length}")
         return graph
     }
 

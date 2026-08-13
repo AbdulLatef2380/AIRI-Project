@@ -128,7 +128,7 @@ class TypedPlanGraph(
         nodes[nodeId]?.let {
             it.status = NodeStatus.DONE
             it.output = output
-            Log.i(TAG, "AIRI_RUNTIME GRAPH_NODE_DONE id=$nodeId output=${output?.take(60)}")
+            Log.i(TAG, "GRAPH_NODE_DONE nodeId=$nodeId outputChars=${output?.length ?: 0}")
         }
     }
 

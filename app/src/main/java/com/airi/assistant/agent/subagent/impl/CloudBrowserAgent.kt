@@ -85,7 +85,7 @@ class CloudBrowserAgent(
 
     override fun execute(input: String, context: SubAgentContext): Flow<AgentEvent> = flow {
         val start = System.currentTimeMillis()
-        Log.i(TAG, "CloudBrowserAgent.execute input='${input.take(80)}'")
+        Log.i(TAG, "CLOUD_BROWSER_EXECUTE inputChars=${input.length}")
 
         if (context.privacyLevel == SubAgentContext.PRIVACY_MAXIMUM) {
             emit(AgentEvent.Failed("Cloud browser blocked: privacy=MAXIMUM", recoverable = false))
@@ -95,7 +95,7 @@ class CloudBrowserAgent(
         emit(AgentEvent.Progress("Resolving URL…", 10, "url_resolve"))
 
         val url = extractUrl(input) ?: buildSearchUrl(input)
-        Log.i(TAG, "CloudBrowserAgent fetching url=$url")
+        Log.i(TAG, "CLOUD_BROWSER_FETCH urlChars=${url.length}")
 
         emit(AgentEvent.Progress("Fetching: $url", 25, "fetch"))
         emit(AgentEvent.ToolCall(
@@ -106,7 +106,7 @@ class CloudBrowserAgent(
 
         val bodyText = runCatching { fetchAndExtract(url) }
             .getOrElse { e ->
-                Log.w(TAG, "Fetch failed: ${e.message}")
+                Log.w(TAG, "CLOUD_BROWSER_FETCH_FAILURE causeType=${e::class.simpleName}")
                 null
             }
 
@@ -123,7 +123,7 @@ class CloudBrowserAgent(
             return@flow
         }
 
-        Log.i(TAG, "CloudBrowserAgent extracted ${bodyText.length} chars from $url")
+        Log.i(TAG, "CLOUD_BROWSER_EXTRACT_COMPLETE urlChars=${url.length} contentChars=${bodyText.length}")
         emit(AgentEvent.Progress("Analysing page content…", 70, "analyse"))
 
         emit(AgentEvent.Delegate(
@@ -149,7 +149,7 @@ class CloudBrowserAgent(
             .build()
         httpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                Log.w(TAG, "HTTP ${response.code} for $url")
+                Log.w(TAG, "CLOUD_BROWSER_HTTP_FAILURE code=${response.code}")
                 return ""
             }
             val html = response.body?.string() ?: return ""

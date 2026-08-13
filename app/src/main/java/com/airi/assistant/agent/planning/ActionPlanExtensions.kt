@@ -46,7 +46,7 @@ fun ActionPlan.toTypedPlanGraph(goalId: String = UUID.randomUUID().toString()): 
     )
 
     if (steps.isEmpty()) {
-        Log.w(TAG, "toTypedPlanGraph: ActionPlan has no steps (intent='${intent.take(40)}')")
+        Log.w(TAG, "TYPED_PLAN_GRAPH_EMPTY intentChars=${intent.length}")
         // Create a single no-op node so the graph is not empty.
         // PlanQualityScorer will give this a low confidence score and likely
         // reject it before execution, which is the correct behavior for an
@@ -68,7 +68,7 @@ fun ActionPlan.toTypedPlanGraph(goalId: String = UUID.randomUUID().toString()): 
         graph.addNode(step.toGoalNode())
     }
 
-    Log.d(TAG, "toTypedPlanGraph: goalId=$goalId nodes=${steps.size} intent='${intent.take(40)}'")
+    Log.d(TAG, "TYPED_PLAN_GRAPH_CREATED goalId=$goalId nodeCount=${steps.size} intentChars=${intent.length}")
     return graph
 }
 

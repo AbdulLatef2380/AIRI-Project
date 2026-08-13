@@ -62,7 +62,7 @@ class LocalBrowserOperator(
 
     override fun execute(input: String, context: SubAgentContext): Flow<AgentEvent> = flow {
         val start = System.currentTimeMillis()
-        Log.i(TAG, "LocalBrowserOperator.execute input='${input.take(80)}'")
+        Log.i(TAG, "LOCAL_BROWSER_EXECUTE inputChars=${input.length}")
 
         emit(AgentEvent.Progress("Resolving navigation intent…", 15, "resolve"))
 

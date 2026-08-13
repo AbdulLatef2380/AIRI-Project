@@ -113,11 +113,11 @@ object AiriSkillOrchestrator {
         prompt:  String
     ): ExecutionPlan = withContext(Dispatchers.Default) {
 
-        Log.i(TAG, "Orchestrating prompt: '${prompt.take(80)}'")
+        Log.i(TAG, "SKILL_ORCHESTRATION_STARTED promptChars=${prompt.length}")
 
         // Step 1 — Intent analysis
         val intent = IntentAnalyzer.analyze(prompt)
-        Log.d(TAG, "Intent: $intent")
+        Log.d(TAG, "SKILL_INTENT_ANALYZED type=${intent::class.simpleName}")
 
         // Step 2 — Capability detection: score all skills against the intent
         val candidates = registeredSkills.values.mapNotNull { descriptor ->

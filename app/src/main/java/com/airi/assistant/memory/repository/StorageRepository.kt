@@ -1,6 +1,5 @@
 package com.airi.assistant.memory.repository
 
-import androidx.room.withTransaction
 import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.memory.dao.ArtifactDao
 import com.airi.assistant.memory.dao.AuditLogDao
@@ -67,10 +66,10 @@ import kotlinx.coroutines.withContext
  *   UsageStatsDao / BehaviorStatsDao:
  *     deleteAll               — added to each DAO
  *
- *   Transaction primitive:
- *     db.runInTransaction{}   — replaced with db.withTransaction{} (Room KTX suspend variant)
- *                               runInTransaction takes a plain Runnable; calling suspend DAO
- *                               methods inside it is a compile error.
+ *   Session deletion:
+ *     SessionDao.deleteSessionAndMessages() owns the Room transaction so every
+ *     session-bound message, including explicit memory, is removed before the
+ *     session row itself.
  */
 class StorageRepository(val db: AiriDatabase) {
 
@@ -113,18 +112,9 @@ class StorageRepository(val db: AiriDatabase) {
     suspend fun updateSessionTitle(id: String, title: String) =
         withContext(Dispatchers.IO) { sessions.updateSessionTitle(id, title) }
 
-    /**
-     * Delete a session AND all its messages atomically.
-     * Uses Room's suspend-aware [withTransaction] (from room-ktx) to guarantee
-     * consistency. The previous implementation used [RoomDatabase.runInTransaction]
-     * which takes a plain Runnable — calling suspend DAO methods inside it is
-     * a compile error. [withTransaction] is the correct primitive for suspend callers.
-     */
+    /** Deletes a session and every session-bound message in SessionDao's transaction. */
     suspend fun deleteSession(sessionId: String) = withContext(Dispatchers.IO) {
-        db.withTransaction {
-            messages.deleteMessagesForSession(sessionId)
-            sessions.deleteSessionById(sessionId)
-        }
+        sessions.deleteSessionAndMessages(sessionId)
     }
 
     // ── Audit log ─────────────────────────────────────────────────────────────

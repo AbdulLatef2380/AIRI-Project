@@ -99,7 +99,7 @@ class PermissionGovernanceLayer(
         if (!checkRateLimit(agentId)) {
             Log.w(TAG, "AIRI_RUNTIME GOVERNANCE_RATE_LIMITED agent=$agentId action=$actionType")
             AgentActivityBus.emit(
-                "⏱ Rate limit exceeded [$agentId]: $actionDesc — pausing autonomous actions",
+                "Rate limit exceeded [$agentId]: $actionDesc — pausing autonomous actions",
                 ActivityCategory.SYSTEM,
                 ActivitySeverity.WARN
             )
@@ -120,11 +120,11 @@ class PermissionGovernanceLayer(
                 reason    = "Action '${actionType}' is blocked by governance policy"
             )
             AgentActivityBus.emit(
-                "⛔ BLOCKED [$agentId]: $actionDesc",
+                "Blocked [$agentId]: $actionDesc",
                 ActivityCategory.SYSTEM,
                 ActivitySeverity.ERROR
             )
-            Log.w(TAG, "Blocked action: type=$actionType agent=$agentId payload=${payload.take(80)}")
+            Log.w(TAG, "Blocked action: type=$actionType agent=$agentId payloadChars=${payload.length}")
             return decision
         }
 
@@ -135,9 +135,9 @@ class PermissionGovernanceLayer(
         val firewallPass = runCatching {
             firewall.allows(agentId, actionType)
         }.getOrElse { ex ->
-            Log.e(TAG, "AIRI_RUNTIME FIREWALL_EXCEPTION agent=$agentId action=$actionType — defaulting to DENY. cause=${ex::class.simpleName}: ${ex.message}")
+            Log.e(TAG, "FIREWALL_EXCEPTION agent=$agentId action=$actionType decision=DENY causeType=${ex::class.simpleName}")
             AgentActivityBus.emit(
-                "🚨 Firewall exception — action DENIED [$agentId]: $actionDesc",
+                "Firewall exception — action denied [$agentId]: $actionDesc",
                 ActivityCategory.SYSTEM,
                 ActivitySeverity.ERROR
             )
@@ -146,7 +146,7 @@ class PermissionGovernanceLayer(
 
         if (!firewallPass) {
             AgentActivityBus.emit(
-                "🔥 Firewall blocked [$agentId]: $actionDesc",
+                "Firewall blocked [$agentId]: $actionDesc",
                 ActivityCategory.SYSTEM,
                 ActivitySeverity.WARN
             )
@@ -156,7 +156,7 @@ class PermissionGovernanceLayer(
         // High-risk actions are allowed but logged with WARNING
         if (risk == RiskLevel.HIGH) {
             AgentActivityBus.emit(
-                "⚠ High-risk action [$agentId]: $actionDesc",
+                "High-risk action [$agentId]: $actionDesc",
                 ActivityCategory.SYSTEM,
                 ActivitySeverity.WARN
             )
@@ -284,19 +284,19 @@ class PermissionGovernanceLayer(
         val approval = PendingApproval(id, action, description, riskLevel)
         pending[id] = approval
         _pendingApprovals.value = pending.values.toList()
-        AgentActivityBus.emit("⏳ Awaiting approval: $description", ActivityCategory.SYSTEM, ActivitySeverity.WARN)
+        AgentActivityBus.emit("Awaiting approval: $description", ActivityCategory.SYSTEM, ActivitySeverity.WARN)
         return id
     }
 
     fun approveAction(approvalId: String) {
         pending.remove(approvalId)
         _pendingApprovals.value = pending.values.toList()
-        AgentActivityBus.emit("✅ Action approved: $approvalId", ActivityCategory.SYSTEM)
+        AgentActivityBus.emit("Action approved: $approvalId", ActivityCategory.SYSTEM)
     }
 
     fun denyAction(approvalId: String) {
         pending.remove(approvalId)
         _pendingApprovals.value = pending.values.toList()
-        AgentActivityBus.emit("❌ Action denied: $approvalId", ActivityCategory.SYSTEM, ActivitySeverity.WARN)
+        AgentActivityBus.emit("Action denied: $approvalId", ActivityCategory.SYSTEM, ActivitySeverity.WARN)
     }
 }

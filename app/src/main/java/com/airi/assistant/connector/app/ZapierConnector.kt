@@ -223,7 +223,7 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
             AgentActivityBus.emit("Zapier: ${input.action}", ActivityCategory.CONNECTOR)
             ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
         } catch (e: Exception) {
-            Log.e(TAG, "execute ${input.action} failed: ${e.message}")
+            Log.e(TAG, "ZAPIER_EXECUTION_FAILURE action=${input.action} causeType=${e::class.simpleName}")
             ConnectorOutput.Failure("api_error", e.message ?: "Zapier API error", retryable = true)
         }
     }

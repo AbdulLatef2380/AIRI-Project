@@ -123,7 +123,7 @@ class ChatSharingService(
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(chooser)
-        Log.i(TAG, "Chat shared via intent: $title (${messages.size} messages)")
+        Log.i(TAG, "CHAT_SHARED method=intent titleChars=${title.length} messageCount=${messages.size}")
         EventBus.emitSync(AppEvent.GenericInfo("Chat shared: $title"))
     }
 

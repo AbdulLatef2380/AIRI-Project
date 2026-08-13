@@ -77,7 +77,7 @@ class DocumentProcessorAgent(
 
     override fun execute(input: String, context: SubAgentContext): Flow<AgentEvent> = flow {
         val start = System.currentTimeMillis()
-        Log.i(TAG, "DocumentProcessorAgent.execute input='${input.take(80)}'")
+        Log.i(TAG, "DOCUMENT_PROCESSOR_EXECUTE inputChars=${input.length}")
 
         emit(AgentEvent.Progress("Detecting document operation…", 10, "classify"))
 

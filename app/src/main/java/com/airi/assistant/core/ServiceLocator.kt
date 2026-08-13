@@ -671,11 +671,6 @@ object ServiceLocator {
         )
     }
 
-    /** Runtime voice health inspector — used by ReleaseReadinessReport and diagnostics. */
-    val voiceRuntimeInspector: com.airi.assistant.runtime.voice.VoiceRuntimeInspector by lazy {
-        com.airi.assistant.runtime.voice.VoiceRuntimeInspector(requireContext())
-    }
-
     /** Routes voice transcripts to agents. The active voice session owns audio I/O. */
     val voiceAgentRouter: com.airi.assistant.voice.VoiceAgentRouter by lazy {
         com.airi.assistant.voice.VoiceAgentRouter(

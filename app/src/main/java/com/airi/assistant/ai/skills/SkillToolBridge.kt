@@ -136,14 +136,14 @@ class SkillToolBridge(
                     "ms=$elapsedMs " +
                     "resultLen=${result.data.length} " +
                     "toolOutputs=${result.toolOutputs.size} " +
-                    "metadata=${result.metadata.entries.take(3).joinToString { "${it.key}=${it.value.take(30)}" }}")
+                    "metadataCount=${result.metadata.size}")
                 result.data
             } else {
                 Log.w(TAG, "AIRI_RUNTIME SKILL_ERROR " +
                     "tool=$toolName " +
                     "skillId=${skill.skillId} " +
                     "ms=$elapsedMs " +
-                    "error=${result.error?.take(100)}")
+                    "errorChars=${result.error?.length ?: 0}")
                 "Skill '${skill.name}' error: ${result.error ?: "Unknown error"}"
             }
 
@@ -162,7 +162,7 @@ class SkillToolBridge(
                 "tool=$toolName " +
                 "skillId=${skill.skillId} " +
                 "ms=$elapsedMs " +
-                "error=${e.javaClass.simpleName}:${e.message?.take(120)}")
+                "errorType=${e.javaClass.simpleName}")
             "Skill '${skill.name}' failed: ${e.message ?: "Unexpected error"}"
         }
     }

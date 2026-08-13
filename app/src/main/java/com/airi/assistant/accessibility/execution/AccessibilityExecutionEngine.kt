@@ -337,7 +337,7 @@ No explanation. No markdown. Just the JSON.
                 else              -> null
             }
         } catch (e: Exception) {
-            Log.w(TAG, "parseActionJson failed: ${e.message} input=${clean.take(80)}")
+            Log.w(TAG, "ACTION_JSON_PARSE_FAILURE causeType=${e::class.simpleName} inputChars=${clean.length}")
             null
         }
     }

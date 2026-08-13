@@ -168,7 +168,7 @@ class AgentWorkspace(
                 val value = getRaw(edge.artifactKey)
                 if (value != null) {
                     resolved[edge.artifactKey] = value
-                    if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "RESOLVE $consumerTaskId ← ${edge.artifactKey}=${value.take(60)}")
+                    if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "WORKSPACE_DEPENDENCY_RESOLVED consumer=$consumerTaskId artifact=${edge.artifactKey} valueChars=${value.length}")
                 }
             }
         }

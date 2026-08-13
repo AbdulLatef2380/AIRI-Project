@@ -54,7 +54,7 @@ object ExecutionStatusBus {
             nodesTotal            = totalNodes,
             executionStage        = ExecutionStage.PLANNING
         )
-        Log.i(TAG, "EXEC_STATUS PLANNING goal='${goalDescription.take(60)}' nodes=$totalNodes")
+        Log.i(TAG, "EXEC_STATUS_PLANNING goalChars=${goalDescription.length} nodes=$totalNodes")
     }
 
     /** Signal that a specific node wave has started executing. */
@@ -91,7 +91,7 @@ object ExecutionStatusBus {
                 currentAction  = "Recovering: ${reason.take(60)}"
             )
         }
-        Log.i(TAG, "EXEC_STATUS RECOVERING node=$nodeId attempt=$retryCount reason=${reason.take(60)}")
+        Log.i(TAG, "EXEC_STATUS_RECOVERING node=$nodeId attempt=$retryCount reasonChars=${reason.length}")
     }
 
     /** Signal that reflection is running post-graph. */

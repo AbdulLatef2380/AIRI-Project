@@ -117,7 +117,7 @@ object CloudAdapterFactory {
     private fun buildCustomAdapter(keyStore: SecureApiKeyStore, context: Context): CloudProviderAdapter {
         val remote = RemoteModelRegistry.getActive()
         if (remote != null) {
-            Log.i(TAG, "CUSTOM: using RemoteModel '${remote.name}' at ${remote.serverUrl.take(40)}")
+            Log.i(TAG, "CUSTOM_REMOTE_MODEL_CONFIGURED")
             return object : OpenAIAdapter(keyStore, CloudProvider.CUSTOM, remote.serverUrl, remote.name) {
                 override val isAvailable: Boolean get() = true
 

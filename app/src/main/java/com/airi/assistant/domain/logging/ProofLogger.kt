@@ -7,7 +7,7 @@ object ProofLogger {
     private const val TAG = "AIRI_RUNTIME"
 
     fun fastPathUsed(input: String) {
-        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "FAST_PATH_USED input_preview=\"${input.take(40)}\"")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "FAST_PATH_USED inputChars=${input.length}")
     }
 
     fun streamStarted(queryType: String, model: String, tokens: Int) {
@@ -31,7 +31,7 @@ object ProofLogger {
     }
 
     fun classificationResult(input: String, queryType: String, wordCount: Int) {
-        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "CLASSIFICATION_RESULT type=$queryType words=$wordCount input_preview=\"${input.take(40)}\"")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "CLASSIFICATION_RESULT type=$queryType words=$wordCount inputChars=${input.length}")
     }
 
     fun diagnosticsResult(testName: String, passed: Boolean, detail: String) {

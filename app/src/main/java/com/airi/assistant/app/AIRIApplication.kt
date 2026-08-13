@@ -268,7 +268,7 @@ class AIRIApplication : Application() {
     private val batteryLowReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action != Intent.ACTION_BATTERY_LOW) return
-            LoggingService.warn(TAG, "AIRI_RUNTIME BATTERY_LOW_RECEIVED — invalidating hardware profile cache")
+            LoggingService.warn(TAG, "BATTERY_LOW_RECEIVED action=invalidate_hardware_profile")
             // Invalidate the hardware profiler cache so the next call reflects
             // current battery/power-save state.
             runCatching { ServiceLocator.hardwareProfiler }.getOrNull()
@@ -285,9 +285,9 @@ class AIRIApplication : Application() {
     private fun registerBatteryReceiver() {
         runCatching {
             registerReceiver(batteryLowReceiver, IntentFilter(Intent.ACTION_BATTERY_LOW))
-            LoggingService.info(TAG, "✓ Battery-low receiver registered (AP-36)")
+            LoggingService.info(TAG, "BATTERY_LOW_RECEIVER_REGISTERED")
         }.onFailure { e ->
-            LoggingService.warn(TAG, "Battery-low receiver registration failed: ${e.message}")
+            LoggingService.warn(TAG, "BATTERY_LOW_RECEIVER_REGISTRATION_FAILURE causeType=${e::class.simpleName}")
         }
     }
 }

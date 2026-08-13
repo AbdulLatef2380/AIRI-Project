@@ -77,8 +77,8 @@ class ModelDownloadService : Service() {
                 try {
                     if (tempFile.exists()) tempFile.delete()
                     if (cancelRequested.get()) throw InterruptedException("user_cancel_pre_start")
-                    Log.i(TAG, "START attempt=$attempt file=$fileName expected=$expectedSize url=$url")
-                    Log.i("AIRI_RUNTIME", "DOWNLOAD_START fileName=$fileName expected=$expectedSize attempt=$attempt")
+                    Log.i(TAG, "DOWNLOAD_STARTED attempt=$attempt fileName=$fileName expectedBytes=$expectedSize")
+                    Log.i("AIRI_DOWNLOAD", "DOWNLOAD_STARTED fileName=$fileName expectedBytes=$expectedSize attempt=$attempt")
                     downloadToFile(url, tempFile)
                     val actual = tempFile.length()
                     if (actual < 100_000_000L) throw IllegalStateException("download too small actual=$actual")
@@ -87,9 +87,9 @@ class ModelDownloadService : Service() {
                     }
                     if (finalFile.exists()) finalFile.delete()
                     if (!tempFile.renameTo(finalFile)) throw IllegalStateException("rename failed")
-                    Log.i(TAG, "SUCCESS file=${finalFile.absolutePath} size=${finalFile.length()} attempts=$attempt")
-                    com.airi.assistant.domain.verification.VerificationTracker.recordCheck("DOWNLOAD", true, "file=${finalFile.absolutePath} size=${finalFile.length()}")
-                    Log.i("AIRI_RUNTIME", "DOWNLOAD_COMPLETE fileName=$fileName path=${finalFile.absolutePath} sizeBytes=${finalFile.length()}")
+                    Log.i(TAG, "DOWNLOAD_COMPLETE fileName=$fileName sizeBytes=${finalFile.length()} attempts=$attempt")
+                    com.airi.assistant.domain.verification.VerificationTracker.recordCheck("DOWNLOAD", true, "fileName=$fileName sizeBytes=${finalFile.length()}")
+                    Log.i("AIRI_DOWNLOAD", "DOWNLOAD_COMPLETE fileName=$fileName sizeBytes=${finalFile.length()}")
                     success = true
                     val broadcastIntent = Intent(ACTION_DOWNLOAD_COMPLETE).apply {
                         putExtra(EXTRA_RESULT_FILENAME, fileName)
@@ -103,16 +103,16 @@ class ModelDownloadService : Service() {
                     break
                 } catch (e: InterruptedException) {
                     lastError = "cancelled"
-                    Log.i(TAG, "CANCELLED attempt=$attempt file=$fileName reason=${e.message}")
-                    Log.i("AIRI_RUNTIME", "DOWNLOAD_CANCELLED fileName=$fileName partial_bytes=${tempFile.length()}")
+                    Log.i(TAG, "DOWNLOAD_CANCELLED attempt=$attempt fileName=$fileName")
+                    Log.i("AIRI_DOWNLOAD", "DOWNLOAD_CANCELLED fileName=$fileName partialBytes=${tempFile.length()}")
                     tempFile.delete()
                     break
                 } catch (e: Exception) {
                     lastError = e.message ?: e.javaClass.simpleName
-                    Log.e(TAG, "FAILED reason=$lastError attempt=$attempt file=$fileName", e)
+                    Log.e(TAG, "DOWNLOAD_FAILURE attempt=$attempt fileName=$fileName causeType=${e::class.simpleName}")
                     tempFile.delete()
                     if (cancelRequested.get()) {
-                        Log.i("AIRI_RUNTIME", "DOWNLOAD_CANCELLED fileName=$fileName reason=cancel_during_retry")
+                        Log.i("AIRI_DOWNLOAD", "DOWNLOAD_CANCELLED fileName=$fileName phase=retry")
                         break
                     }
                     if (attempt < 3) kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) { kotlinx.coroutines.delay(1500L * attempt) }
@@ -131,7 +131,7 @@ class ModelDownloadService : Service() {
             // clear the authoritative "in progress" flag so the next caller
             // of cancelActiveDownload() gets the truth.
             isDownloading.set(false)
-            Log.i("AIRI_RUNTIME", "DOWNLOAD_WORKER_EXIT success=$success reason=${lastError ?: "ok"}")
+            Log.i("AIRI_DOWNLOAD", "DOWNLOAD_WORKER_EXIT success=$success cancelled=${cancelRequested.get()}")
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }.start()

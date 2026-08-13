@@ -317,7 +317,7 @@ class UnifiedCognitiveLoop {
         // ── Phase 2: Post-execution reflection ────────────────────────────────
         ExecutionStatusBus.onReflecting()
         val reflection = reflector.reflect(nodeResults, finalSnapshot)
-        Log.i(TAG, "REFLECTION confidence=${reflection.executionConfidence} critique=${reflection.critiqueText.take(80)}")
+        Log.i(TAG, "REFLECTION confidence=${reflection.executionConfidence} critiqueChars=${reflection.critiqueText.length}")
 
         // ── Phase 1–4: Closed-loop adaptation ─────────────────────────────────
         // Ingest every execution result into the persistent adaptation engine so
@@ -438,7 +438,7 @@ class UnifiedCognitiveLoop {
                                 Log.w(TAG, "runNode delegate blocked: nestingDepth=${context.nestingDepth}")
                                 resultText = "delegation blocked (nesting limit)"
                             } else {
-                                Log.i(TAG, "runNode delegating to ${event.targetAgentId}: ${event.subInput.take(60)}")
+                                Log.i(TAG, "runNode delegating target=${event.targetAgentId} inputChars=${event.subInput.length}")
                                 val provider = orchestratorProvider
                                 if (provider != null) {
                                     val accumulated = StringBuilder()

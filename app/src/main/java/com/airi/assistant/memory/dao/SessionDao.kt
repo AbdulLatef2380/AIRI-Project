@@ -33,8 +33,9 @@ interface SessionDao {
     @Query("DELETE FROM chat_sessions WHERE id = :sessionId")
     suspend fun deleteSessionById(sessionId: String)
 
-    @Query("DELETE FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0")
-    suspend fun deleteMessagesForSession(sessionId: String)
+    /** Deletes every message and explicit memory associated with a removed session. */
+    @Query("DELETE FROM episodic_memory WHERE sessionId = :sessionId")
+    suspend fun deleteAllRecordsForSession(sessionId: String)
 
     @Query("SELECT * FROM chat_sessions WHERE id = :sessionId LIMIT 1")
     suspend fun getSession(sessionId: String): ChatSession?
@@ -75,7 +76,7 @@ interface SessionDao {
 
     @Transaction
     suspend fun deleteSessionAndMessages(sessionId: String) {
-        deleteMessagesForSession(sessionId)
+        deleteAllRecordsForSession(sessionId)
         deleteSessionById(sessionId)
     }
 }

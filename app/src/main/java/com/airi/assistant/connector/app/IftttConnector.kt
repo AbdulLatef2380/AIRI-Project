@@ -114,7 +114,7 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
             AgentActivityBus.emit("IFTTT: ${input.action}", ActivityCategory.CONNECTOR)
             ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
         } catch (e: Exception) {
-            Log.e(TAG, "execute ${input.action} failed: ${e.message}")
+            Log.e(TAG, "IFTTT_EXECUTION_FAILURE action=${input.action} causeType=${e::class.simpleName}")
             ConnectorOutput.Failure("api_error", e.message ?: "IFTTT error", retryable = true)
         }
     }

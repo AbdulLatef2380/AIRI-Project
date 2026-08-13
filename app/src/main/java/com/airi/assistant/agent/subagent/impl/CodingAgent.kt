@@ -51,7 +51,7 @@ class CodingAgent : SubAgent {
 
     override fun execute(input: String, context: SubAgentContext): Flow<AgentEvent> = flow {
         val start = System.currentTimeMillis()
-        Log.i(TAG, "CodingAgent.execute input='${input.take(80)}'")
+        Log.i(TAG, "CODING_AGENT_EXECUTE inputChars=${input.length}")
 
         emit(AgentEvent.Progress("Analyzing your coding request…", stepName = "analysis"))
 

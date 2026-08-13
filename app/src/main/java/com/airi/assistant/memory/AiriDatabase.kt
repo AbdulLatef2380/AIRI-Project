@@ -69,7 +69,7 @@ import net.sqlcipher.database.SupportFactory
         ArtifactEntity::class
     ],
     version = 6,
-    exportSchema = false
+    exportSchema = true
 )
 @TypeConverters(AuditLogTypeConverters::class)
 abstract class AiriDatabase : RoomDatabase() {

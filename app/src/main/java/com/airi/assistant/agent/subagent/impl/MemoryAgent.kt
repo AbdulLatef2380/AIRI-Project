@@ -59,7 +59,7 @@ class MemoryAgent(
 
     override fun execute(input: String, context: SubAgentContext): Flow<AgentEvent> = flow {
         val start = System.currentTimeMillis()
-        Log.i(TAG, "MemoryAgent.execute input='${input.take(80)}'")
+        Log.i(TAG, "MEMORY_AGENT_EXECUTE inputChars=${input.length}")
 
         val operation = detectOperation(input.lowercase())
         emit(AgentEvent.Progress("Memory operation: ${operation.name}", 20, "classify"))
@@ -87,7 +87,7 @@ class MemoryAgent(
         val content = cleanMemoryContent(input)
         memoryManager.recordImportantMemory("user", content)
 
-        Log.i(TAG, "AIRI_RUNTIME MEMORY_STORED content='${content.take(80)}'")
+        Log.i(TAG, "MEMORY_STORED contentChars=${content.length}")
         emit(AgentEvent.PartialResult("Got it — I'll remember that.", isFinal = true))
         emit(AgentEvent.Complete(
             result     = "Memory stored: \"${content.take(60)}\"",

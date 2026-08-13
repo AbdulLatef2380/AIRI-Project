@@ -135,7 +135,7 @@ class WorldStateManager(private val context: Context) {
      */
     fun setExpectation(expectation: WorldStateExpectation) {
         pendingExpectation = expectation
-        Log.d(TAG, "WORLD_EXPECTATION_SET action=${expectation.actionId} rationale=${expectation.rationale.take(60)}")
+        Log.d(TAG, "WORLD_EXPECTATION_SET action=${expectation.actionId} rationaleChars=${expectation.rationale.length}")
     }
 
     /**

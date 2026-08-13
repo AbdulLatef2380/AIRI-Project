@@ -473,6 +473,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * `null` for plain text sends, so default behaviour is unchanged.
      */
     private var pendingImageUriForNextSend: String? = null
+    private var pendingAttachmentJsonForNextSend: String? = null
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
     private val _streamingText = MutableStateFlow("")
@@ -1175,7 +1176,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     // silently dropping the transcript or crashing downstream.
                     if (!VoskModelManager.isReady(appContext)) {
                         Log.w("AIRI_RUNTIME",
-                            "VOICE_BUS_NO_VOSK_MODEL transcript='${transcript.take(30)}'")
+                            "VOICE_BUS_NO_VOSK_MODEL transcriptChars=${transcript.length}")
                         _messages.update {
                             it + ChatMessage(
                                 text   = "Voice recognition needs a speech model. " +
@@ -1187,7 +1188,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         return@collect
                     }
                     Log.i("AIRI_RUNTIME",
-                        "VOICE_BUS_LLM_DISPATCH transcript='${transcript.take(60)}'")
+                        "VOICE_BUS_LLM_DISPATCH transcriptChars=${transcript.length}")
                     sendMessage(transcript)
                 }
             }
@@ -1271,7 +1272,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _currentSessionId.value = sessionId
             preferences.edit().putString(KEY_SESSION_ID, sessionId).apply()
             _messages.value = history.map { msg ->
-                ChatMessage(text = msg.content, isUser = msg.role == "user", id = msg.id)
+                ChatMessage(
+                    text = msg.content,
+                    isUser = msg.role == "user",
+                    id = msg.id,
+                    imageUri = attachmentPreviewUri(msg.attachmentJson)
+                )
             }
             llamaManager.setHistory(history.takeLast(12))
             refreshSessions()
@@ -1446,11 +1452,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             generationStartMs = System.currentTimeMillis()
             val perfMode = _performanceMode.value
             val sessionId = currentSessionOrCreate()
-            val wasEmpty   = _messages.value.isEmpty()
+            val wasEmpty = _messages.value.isEmpty()
+            val attachedForBubble = pendingImageUriForNextSend
+            val attachmentJson = pendingAttachmentJsonForNextSend
+            pendingImageUriForNextSend = null
+            pendingAttachmentJsonForNextSend = null
             val rawHistory = memoryManager.loadSession(sessionId)
             val history    = ResponseOptimizer.smartTrim(rawHistory, isAgentMode = true)
             Log.d("AIRI_TRIM", "before=${rawHistory.size} after=${history.size}")
-            val userMessage = memoryManager.recordChatMessage(sessionId, "user", trimmedInput)
+            val userMessage = memoryManager.recordChatMessage(
+                sessionId = sessionId,
+                role = "user",
+                content = trimmedInput,
+                attachmentJson = attachmentJson
+            )
             if (wasEmpty) memoryManager.renameSession(sessionId, trimmedInput.take(48))
             subscriptionManager.recordMessage()
             AnalyticsService.messageSent()
@@ -1463,12 +1478,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val paywallLevel = PaywallTriggerEngine.onMessageSent(subscriptionManager.isPremium())
             val triggerPaywallAfterSend = paywallLevel != UpsellLevel.NONE
             refreshPowerLevel()
-            // Consume the one-shot attachment hand-off (if any) so the
-            // user's bubble can render the picked thumbnail even on the
-            // text-marker fallback path. Cleared in the same step so it
-            // never leaks into a subsequent plain text send.
-            val attachedForBubble = pendingImageUriForNextSend
-            pendingImageUriForNextSend = null
             _messages.update {
                 it + ChatMessage(
                     text = trimmedInput,
@@ -1607,7 +1616,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val requestStart = System.currentTimeMillis()
             var needsResummarize = false
             val olderToFold: List<com.airi.assistant.memory.entity.ChatMessage> = emptyList()
-            Log.i("AIRI_RUNTIME", "AGENT_LOOP_START input='${trimmedInput.take(60)}' queryType=${queryType.name} planMode=${_isPlanModeActive.value}")
+            Log.i("AIRI_RUNTIME", "AGENT_LOOP_START inputChars=${trimmedInput.length} queryType=${queryType.name} planMode=${_isPlanModeActive.value}")
 
             try {
                 val loopResult = agentLoop.run(
@@ -2088,7 +2097,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     activeCloudProvider = resolvedProvider
                 )
             }
-            Log.i("AIRI_CLOUD", "Cloud ready via RemoteModel: ${activeRemote.name} → ${activeRemote.serverUrl.take(40)} provider=${resolvedProvider.name}")
+            Log.i("AIRI_CLOUD", "CLOUD_MODEL_READY provider=${resolvedProvider.name}")
             return
         }
         // Path 2: Built-in provider pref set but no RemoteModel bridged yet
@@ -2460,35 +2469,49 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         if (_modelState.value.isModelLoading) return
 
-        // Persist attachment files to filesDir/attachments/ before sending
-        // Also register each visual attachment in MediaLibrary
+        // Persist attachment bytes before sending. Only a generated local file
+        // name is retained in message metadata; source URIs and absolute paths
+        // are intentionally not written to Room.
         val persistedAttachments = attachments.map { att ->
             runCatching {
-                if (att.uri != null) {
-                    val attachDir = java.io.File(appContext.filesDir, "attachments").also { it.mkdirs() }
-                    val destFile  = java.io.File(attachDir, "${att.uid}_${att.fileName ?: "file"}")
-                    if (!destFile.exists()) {
-                        appContext.contentResolver.openInputStream(att.uri)?.use { input ->
+                val attachDir = File(appContext.filesDir, "attachments").also { it.mkdirs() }
+                val sourceName = att.fileName ?: "file"
+                val safeName = sourceName
+                    .substringAfterLast('/')
+                    .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                    .take(80)
+                    .ifBlank { "file" }
+                val destFile = File(attachDir, "${att.uid}_$safeName")
+                if (!destFile.exists()) {
+                    when {
+                        att.uri != null -> appContext.contentResolver.openInputStream(att.uri)?.use { input ->
                             destFile.outputStream().use { out -> input.copyTo(out) }
                         }
-                    }
-                    // Register in MediaLibrary so it appears in Workspace → Media tab
-                    if (att.isVisualImage && destFile.exists()) {
-                        viewModelScope.launch(Dispatchers.IO) {
-                            runCatching {
-                                ServiceLocator.mediaLibrary.importFile(
-                                    sourceFile  = destFile,
-                                    type        = com.airi.assistant.media.MediaLibrary.MediaType.IMAGE,
-                                    mimeType    = att.mimeType ?: "image/jpeg",
-                                    sessionId   = _currentSessionId.value
-                                )
+                        att.bitmap != null -> destFile.outputStream().use { output ->
+                            check(att.bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)) {
+                                "Camera image could not be encoded"
                             }
                         }
                     }
-                    att.copy(persistedPath = destFile.absolutePath)
-                } else att
+                }
+                if (!destFile.exists() || destFile.length() == 0L) return@runCatching att
+
+                if (att.isVisualImage) {
+                    viewModelScope.launch(Dispatchers.IO) {
+                        runCatching {
+                            ServiceLocator.mediaLibrary.importFile(
+                                sourceFile = destFile,
+                                type = com.airi.assistant.media.MediaLibrary.MediaType.IMAGE,
+                                mimeType = att.mimeType ?: "image/jpeg",
+                                sessionId = _currentSessionId.value
+                            )
+                        }
+                    }
+                }
+                att.copy(persistedPath = destFile.absolutePath)
             }.getOrDefault(att)
         }
+        pendingAttachmentJsonForNextSend = attachmentMetadataJson(persistedAttachments)
 
         val trimmed = input.trim()
         val visionReady = _modelState.value.capabilities.vision &&
@@ -2583,6 +2606,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Branch B: real vision call.
+        val attachmentJson = pendingAttachmentJsonForNextSend
+        pendingAttachmentJsonForNextSend = null
         val current = ModelManager.getCurrent()
         if (current == null || !_modelState.value.isModelReady) {
             _messages.update {
@@ -2607,7 +2632,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // chat history stays text-serializable for memory/export).
             val userMarker = if (trimmedInput.isBlank()) "[image: $attachmentName]"
                              else "$trimmedInput\n\n[image: $attachmentName]"
-            val userMsg = memoryManager.recordChatMessage(sessionId, "user", userMarker)
+            val userMsg = memoryManager.recordChatMessage(
+                sessionId = sessionId,
+                role = "user",
+                content = userMarker,
+                attachmentJson = attachmentJson
+            )
             if (wasEmpty) memoryManager.renameSession(sessionId, "Image: ${attachmentName.take(40)}")
             _messages.update {
                 it + ChatMessage(
@@ -3131,6 +3161,52 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────
+
+    private fun attachmentMetadataJson(
+        attachments: List<com.airi.assistant.domain.ChatAttachment>
+    ): String? {
+        val entries = org.json.JSONArray()
+        attachments.forEach { attachment ->
+            val storedName = attachment.persistedPath
+                ?.let(::File)
+                ?.name
+                ?.takeIf { it.isNotBlank() }
+                ?: return@forEach
+            entries.put(
+                org.json.JSONObject()
+                    .put("file_name", storedName)
+                    .put("kind", attachment.kind.name)
+                    .put("display_name", attachment.displayName.take(120))
+                    .put("mime_type", attachment.mimeType)
+                    .put("size_bytes", attachment.sizeBytes ?: 0L)
+            )
+        }
+        return entries.takeIf { it.length() > 0 }?.toString()
+    }
+
+    private fun attachmentPreviewUri(metadata: String?): String? {
+        if (metadata.isNullOrBlank()) return null
+        val item = runCatching {
+            val entries = org.json.JSONArray(metadata)
+            (0 until entries.length())
+                .asSequence()
+                .map { entries.optJSONObject(it) }
+                .firstOrNull { entry ->
+                    entry != null && (entry.optString("kind") == "IMAGE" || entry.optString("kind") == "CAMERA")
+                }
+        }.getOrNull() ?: return null
+        val storedName = item.optString("file_name")
+        if (storedName.isBlank() || storedName != File(storedName).name) return null
+        val file = File(File(appContext.filesDir, "attachments"), storedName)
+        if (!file.isFile) return null
+        return runCatching {
+            androidx.core.content.FileProvider.getUriForFile(
+                appContext,
+                "${appContext.packageName}.fileprovider",
+                file
+            ).toString()
+        }.getOrNull()
+    }
 
     private suspend fun currentSessionOrCreate(): String {
         val current = _currentSessionId.value

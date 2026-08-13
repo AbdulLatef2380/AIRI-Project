@@ -97,6 +97,8 @@ class VoiceManager(
     private val listener: VoiceListener
 ) {
 
+    @Volatile private var isDestroyed = false
+
     // ─────────────────────────────────────────────────────────────────────
     // Public listener interface
     // ─────────────────────────────────────────────────────────────────────
@@ -642,12 +644,14 @@ class VoiceManager(
     // ─────────────────────────────────────────────────────────────────────
 
     private fun startPlatformSpeechToText() {
+        if (isDestroyed) return
         sttActive = true
         listener.onListeningStarted()
         com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "LISTENING")
         com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "LISTENING") }
 
         mainHandler.post {
+            if (isDestroyed || !sttActive) return@post
             val rec = try {
                 SpeechRecognizer.createSpeechRecognizer(context.applicationContext)
             } catch (t: Throwable) {
@@ -722,6 +726,8 @@ class VoiceManager(
 
     fun destroy() {
         Log.d(TAG, "VoiceManager destroying...")
+        isDestroyed = true
+        mainHandler.removeCallbacksAndMessages(null)
         isListeningForWakeWord = false
 
         sttJob?.cancel()

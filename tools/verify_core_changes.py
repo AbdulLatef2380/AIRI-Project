@@ -28,6 +28,9 @@ oauth_registry = read('app/src/main/java/com/airi/assistant/connector/oauth/OAut
 zapier = read('app/src/main/java/com/airi/assistant/connector/app/ZapierConnector.kt')
 voice_router = read('app/src/main/java/com/airi/assistant/voice/VoiceAgentRouter.kt')
 text_normalizer = read('app/src/main/java/com/airi/assistant/memory/text/MemoryTextNormalizer.kt')
+session_dao = read('app/src/main/java/com/airi/assistant/memory/dao/SessionDao.kt')
+database = read('app/src/main/java/com/airi/assistant/memory/AiriDatabase.kt')
+experience_store = read('app/src/main/java/com/airi/assistant/agent/execution/ExperienceStore.kt')
 
 check('Generation ownership and cleanup', 'activeGenerationId' in chat_vm and 'finishGeneration(generationId)' in chat_vm, 'ViewModel owns and clears a generation id.')
 check('Backend cancellation barrier', 'throw generationCancelled("during privacy fallback")' in hybrid and '!cancelled.get()' in hybrid, 'Callbacks are gated after cancellation.')
@@ -44,6 +47,8 @@ check('Unique WorkManager requests', 'enqueueUniqueWork' in scheduler and 'workR
 check('OAuth PKCE binding', 'issuePkce' in oauth_registry and 'SHA-256' in oauth_registry and 'code_verifier' in zapier, 'OAuth state binds an S256 verifier to token exchange.')
 check('Voice session audio ownership', 'VoiceManager' not in voice_router and 'voiceManager.speak(r.spokenText)' in voice, 'The active live session owns agent-response audio output.')
 check('Arabic memory tokenization', 'MemoryTextNormalizer.tokens' in read('app/src/main/java/com/airi/assistant/memory/evolution/MemoryEvolutionEngine.kt') and '\\p{L}' in text_normalizer, 'Memory overlap retains Unicode and normalized Arabic tokens.')
+check('Session deletion covers explicit memory', 'DELETE FROM episodic_memory WHERE sessionId = :sessionId' in session_dao and 'deleteAllRecordsForSession(sessionId)' in session_dao, 'Removing a session deletes all of its stored messages before its session row.')
+check('Room schema version and export', 'version = 6' in database and 'exportSchema = true' in database and 'version = 1' in experience_store and 'exportSchema = true' in experience_store, 'The current source declares memory Room v6 and experience Room v1 with schema export enabled.')
 
 marker_files = list(SRC.rglob('*.kt'))
 marker_count = sum(path.read_text(encoding='utf-8').count('AIRI_PROOF') for path in marker_files)

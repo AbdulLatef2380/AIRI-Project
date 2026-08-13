@@ -73,13 +73,20 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         }
     }
 
-    suspend fun recordChatMessage(sessionId: String, role: String, content: String, emotion: String? = null): ChatMessage {
+    suspend fun recordChatMessage(
+        sessionId: String,
+        role: String,
+        content: String,
+        emotion: String? = null,
+        attachmentJson: String? = null
+    ): ChatMessage {
         val draft = ChatMessage(
             sessionId = sessionId,
             role = role,
             content = content,
             emotionState = emotion,
-            isMemory = false
+            isMemory = false,
+            attachmentJson = attachmentJson
         )
         val messageId = dao.insertMessage(draft)
         val stored = draft.copy(id = messageId)

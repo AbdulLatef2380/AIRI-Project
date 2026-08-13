@@ -19,7 +19,7 @@ class AdaptiveCheckpointStore {
 
     fun save(checkpoint: AdaptiveCheckpoint) {
         store[checkpoint.planIntent] = checkpoint
-        Log.d(TAG, "Checkpoint saved: intent='${checkpoint.planIntent.take(40)}' completed=${checkpoint.completedNodeIds.size}")
+        Log.d(TAG, "CHECKPOINT_SAVED intentChars=${checkpoint.planIntent.length} completedNodes=${checkpoint.completedNodeIds.size}")
     }
 
     fun load(planIntent: String): AdaptiveCheckpoint? = store[planIntent]

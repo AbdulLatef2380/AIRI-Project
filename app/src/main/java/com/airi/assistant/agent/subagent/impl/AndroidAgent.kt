@@ -88,7 +88,7 @@ class AndroidAgent(
 
     override fun execute(input: String, context: SubAgentContext): Flow<AgentEvent> = flow {
         val start = System.currentTimeMillis()
-        Log.i(TAG, "AndroidAgent.execute input='${input.take(80)}'")
+        Log.i(TAG, "ANDROID_AGENT_EXECUTE inputChars=${input.length}")
 
         // Guard: re-check capability at execution time (token may have been revoked)
         if (!context.grantedPermissions.contains(CAPABILITY_ACCESSIBILITY)) {
@@ -100,8 +100,7 @@ class AndroidAgent(
         }
 
         val actionType = detectAction(input.lowercase())
-        Log.i(TAG, "AIRI_AUDIT ANDROID_AGENT action=${actionType.name} " +
-                "needsConfirm=${actionType.requiresConfirmation} input='${input.take(80)}'")
+        Log.i(TAG, "ANDROID_AGENT action=${actionType.name} needsConfirmation=${actionType.requiresConfirmation} inputChars=${input.length}")
 
         // ── Phase 1: Real blocking confirmation gate ───────────────────────────
         // Previously: emitted Progress("⚠ Confirmation required… Proceeding…") and

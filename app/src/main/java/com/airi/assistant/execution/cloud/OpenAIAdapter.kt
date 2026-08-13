@@ -95,7 +95,7 @@ open class OpenAIAdapter(
             if (httpCode !in 200..299) {
                 val errBody = conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $httpCode"
                 val mapped  = CloudErrorMapper.map(httpCode, errBody)
-                Log.w(TAG, "[$providerId] HTTP $httpCode: ${errBody.take(200)}")
+                Log.w(TAG, "CLOUD_HTTP_FAILURE provider=$providerId code=$httpCode errorType=${mapped.type}")
                 return@withContext CloudProviderAdapter.AdapterResult.Failure(
                     error     = mapped.message,
                     errorType = mapped.type,

@@ -84,8 +84,7 @@ object NetworkGuard {
         }
 
         // ── Allowed ────────────────────────────────────────────────────────────
-        val urlDisplay = if (targetUrl.isNotBlank()) " → ${targetUrl.take(60)}" else ""
-        Log.d(TAG, "NetworkGuard: ALLOW$urlDisplay mode=${prefs.effectiveMode.name}")
+        Log.d(TAG, "NetworkGuard: ALLOW mode=${prefs.effectiveMode.name}")
         return Decision.Allow
     }
 

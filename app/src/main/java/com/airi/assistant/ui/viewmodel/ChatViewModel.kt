@@ -47,7 +47,6 @@ import com.airi.assistant.ai.ModelValidator
 import com.airi.assistant.ai.ValidationResult
 import com.airi.assistant.ai.agent.background.AgentWorker
 import com.airi.assistant.ai.remote.RemoteModel
-import com.airi.assistant.ai.remote.RemoteModelExecutor
 import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.core.ServiceLocator
 // AgentService import removed — no longer used in sendMessage after agent-first migration
@@ -351,7 +350,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     )
     private val downloadManager   = ModelDownloadManager(appContext)
     private val modelConfigManager = ModelConfigManager(appContext)
-    private val remoteExecutor    = RemoteModelExecutor()
     private val gson              = Gson()
 
     // ── Hybrid Execution layer ────────────────────────────────────────────────
@@ -943,11 +941,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     init {
         ModelManager.setLoader(ModelLoader(llamaManager))
         val filter = IntentFilter(ModelDownloadService.ACTION_DOWNLOAD_COMPLETE)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            appContext.registerReceiver(downloadCompleteReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            appContext.registerReceiver(downloadCompleteReceiver, filter)
-        }
+        ContextCompat.registerReceiver(
+            appContext,
+            downloadCompleteReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         loadInitialSession()
         val savedModel = ModelRegistry.getById(_modelState.value.selectedModelId)
         if (savedModel != null && File(savedModel.path).exists()) {
@@ -1205,7 +1204,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         _isCancelled.set(true)
         hybridOrchestrator.cancel()
-        remoteExecutor.cancelCurrentRequest()
         llamaManager.cancelStream()
         activeGenerationId = 0L
         clearHistoryJob?.cancel()
@@ -2714,7 +2712,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 },
                 onError = { errMsg ->
-                    Log.w("AIRI_RUNTIME", "VISION_REPLY_FAILED $errMsg")
+                    Log.w("AIRI_RUNTIME", "VISION_REPLY_FAILED errorChars=${errMsg.length}")
                     viewModelScope.launch {
                         if (!isCurrentGeneration(generationId)) return@launch
                         if (_isCancelled.get()) {
@@ -2722,7 +2720,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             return@launch
                         }
                         _messages.update {
-                            it + ChatMessage(appContext.getString(R.string.err_image_analyze_failed, errMsg), isUser = false)
+                            it + ChatMessage(appContext.getString(R.string.err_image_analyze_failed), isUser = false)
                         }
                         finishGeneration(generationId)
                     }

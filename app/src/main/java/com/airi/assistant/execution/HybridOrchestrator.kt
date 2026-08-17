@@ -176,7 +176,16 @@ class HybridOrchestrator(
 
         // ── Step 3: Execute primary → fallbacks ───────────────────────────
         val allBackends = decision.allBackends
-        var lastError   = "Unknown error"
+        if (!decision.signals.networkAvailable &&
+            decision.primary.origin == ExecOrigin.CLOUD &&
+            decision.fallbacks.none { it.origin == ExecOrigin.LOCAL && it.isAvailable }
+        ) {
+            val message = "No network connection is available and no local fallback model is loaded."
+            updateDiagnostics { copy(isStreaming = false, lastErrorMessage = message) }
+            onError(message, ExecOrigin.NONE)
+            return@withLock
+        }
+        var lastError   = "No eligible execution backend is available."
         var lastOrigin  = decision.primary.origin
 
         for ((idx, backend) in allBackends.withIndex()) {
@@ -370,7 +379,7 @@ class HybridOrchestrator(
     }
 
     // ── Transition history ───────────────────────────────────────────────────
-─
+
 
     private fun recordTransition(from: String, to: String, reason: String, origin: ExecOrigin) {
         val event = ExecTransitionEvent(

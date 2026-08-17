@@ -162,17 +162,26 @@ class CloudBackend(
                 }
                 is CloudProviderAdapter.AdapterResult.Failure -> {
                     lastError = buildUserErrorMessage(result.errorType, result.error, provider)
-                    RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.ERROR,
-                        "${provider.displayName} failed [${result.errorType}]: ${result.error.take(80)}")
-                    Log.w(TAG, "CloudBackend failure on ${provider.name}: type=${result.errorType} http=${result.httpCode} ${result.error}")
+                    RuntimeEventLog.post(
+                        "CLOUD_BACKEND",
+                        EventSeverity.ERROR,
+                        "${provider.displayName} failed type=${result.errorType} http=${result.httpCode} errorChars=${result.error.length}"
+                    )
+                    Log.w(
+                        TAG,
+                        "CloudBackend failure provider=${provider.name} type=${result.errorType} http=${result.httpCode} errorChars=${result.error.length}"
+                    )
                     // Continue to next provider in failover chain
                 }
             }
         }
 
         // All providers in the failover chain failed.
-        RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.ERROR,
-            "All ${providerQueue.size} cloud provider(s) failed. Last: ${lastError.take(80)}")
+        RuntimeEventLog.post(
+            "CLOUD_BACKEND",
+            EventSeverity.ERROR,
+            "All ${providerQueue.size} cloud provider(s) failed. lastErrorChars=${lastError.length}"
+        )
         
         _errorCount.incrementAndGet(); _globalErrorCount.incrementAndGet()
         onError(lastError)
@@ -230,8 +239,8 @@ class CloudBackend(
             CloudErrorType.CONNECTION_LOST  -> "Connection to ${provider.displayName} was lost mid-stream."
             CloudErrorType.CANCELLED        -> "Request cancelled."
             CloudErrorType.SERVER_ERROR     -> "${provider.displayName} is experiencing issues (server error). Try again."
-            CloudErrorType.INVALID_REQUEST  -> "Request error: $raw"
-            CloudErrorType.UNKNOWN          -> "Cloud error: ${raw.take(100)}"
+            CloudErrorType.INVALID_REQUEST  -> "The cloud provider rejected this request. Review the model settings and try again."
+            CloudErrorType.UNKNOWN          -> "The cloud provider returned an unexpected error. Please try again."
         }
 
     companion object {

@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.airi.assistant.auth.SecureStorage
 import com.airi.assistant.execution.CloudProvider
+import java.security.MessageDigest
 
 /**
  * Encrypted API key vault for cloud provider credentials.
@@ -62,6 +63,11 @@ class SecureApiKeyStore(context: Context) {
     fun hasKey(provider: CloudProvider): Boolean =
         !storage.getLlmKey(provider.storageId).isNullOrBlank()
 
+    /** Retrieve the encrypted key for one user-configured custom endpoint. */
+    fun getCustomEndpointKey(endpointId: String): String? =
+        storage.getLlmKey(customEndpointStorageId(endpointId))
+            ?.takeIf { it.isNotBlank() }
+
     // ── Write ─────────────────────────────────────────────────────────────────
 
     /**
@@ -86,6 +92,21 @@ class SecureApiKeyStore(context: Context) {
         Log.i(TAG, "Cleared key for ${provider.displayName}")
     }
 
+    /** Persist a key for one custom endpoint in encrypted storage. */
+    fun saveCustomEndpointKey(endpointId: String, key: String) {
+        val trimmed = key.trim()
+        if (trimmed.isBlank()) {
+            clearCustomEndpointKey(endpointId)
+            return
+        }
+        storage.saveLlmKey(customEndpointStorageId(endpointId), trimmed)
+    }
+
+    /** Remove the encrypted key associated with one custom endpoint. */
+    fun clearCustomEndpointKey(endpointId: String) {
+        storage.clearLlmKey(customEndpointStorageId(endpointId))
+    }
+
     // ── Diagnostics (no key values exposed) ───────────────────────────────────
 
     /**
@@ -94,6 +115,13 @@ class SecureApiKeyStore(context: Context) {
      */
     fun keyPresenceMap(): Map<CloudProvider, Boolean> =
         CloudProvider.entries.associateWith { hasKey(it) }
+
+    private fun customEndpointStorageId(endpointId: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(endpointId.toByteArray(Charsets.UTF_8))
+            .joinToString(separator = "") { byte -> "%02x".format(byte) }
+        return "custom_endpoint_$digest"
+    }
 
     companion object {
         private const val TAG = "AIRI_SecureApiKeyStore"

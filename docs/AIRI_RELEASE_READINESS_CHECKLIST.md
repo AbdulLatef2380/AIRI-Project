@@ -1,53 +1,50 @@
 # قائمة جاهزية إطلاق AIRI
 
-**تاريخ التدقيق:** 17 أغسطس 2026
-**الفرع محل التدقيق:** `architecture-refactor`
-**الالتزام الأساسي:** `a2b06d79` مع أدلة تحقق وتهيئة CI محلية لاحقة قيد التثبيت
-**قاعدة الإثبات:** لا تعني نتيجة فحص ساكن أو مراجعة مصدر أن ميزة ما اجتازت بناء Android أو اختبار جهاز فعلي.
+**تاريخ التحقق:** 17 أغسطس 2026
+**الفرع:** `architecture-refactor`
+**الأساس البعيد:** `73828b26473fa68caeddbe3541c26e948492abfe`، مع إصلاحات محلية موثقة قيد الحفظ.
+**قاعدة الإثبات:** نجاح تحليل المصدر أو اختبار JVM لا يثبت رحلة Android على جهاز فعلي أو إصدار Release موقّع.
 
-> **الحكم الحالي:** لا تستوفي النسخة بوابة الإطلاق. لا يوجد بناء Debug أو Release موثق، ولا APK/AAB للفحص، وتظل مسارات المحادثة والصوت والموفرات والترحيل غير متحققة وقت التشغيل.
+> **الحكم الحالي:** بوابة البناء المحلية لـ Debug مكتملة، لكن بوابة الإطلاق العام غير مكتملة. يلزم AAB Release موقّع، واختبارات جهاز ومسارات مزودين حقيقية، وترحيلات قاعدة بيانات مثبتة قبل أي نشر عام.
 
-| بوابة القبول | الحالة | الدليل | الملفات الرئيسية | الاختبار | التحقق وقت التشغيل | الخطر المتبقي |
-|---|---|---|---|---|---|---|
-| تثبيت خط الأساس | PASS | تم توثيق الفرع والالتزام وGradle 8.5 وAGP 8.2.2 وKotlin 1.9.22 وcompile/target SDK 34 وmin SDK 26 وNDK 25.2.9519653 وCMake 3.22.1. | `app/build.gradle.kts`, `gradle/libs.versions.toml` | مراجعة مصدر | NOT_RUNTIME_VERIFIED | الالتزام المحلي متقدم على الرأس البعيد؛ دُعمت Git credential محلياً للدفع اللاحق. |
-| تجميع Debug | BLOCKED_BY_ENVIRONMENT | المحاولة الحالية لـ `:app:compileDebugKotlin` توقفت عند تهيئة Android لغياب Android SDK و`ANDROID_HOME` و`local.properties` المحلي؛ لم تصل إلى Kotlin أو AGP. | `docs/LOCAL_RELEASE_VERIFICATION_EVIDENCE.md` | `:app:compileDebugKotlin` | NOT_RUNTIME_VERIFIED | أخطاء Kotlin أو الموارد أو JNI قد تبقى غير مكتشفة. |
-| تجميع وحزمة Release | BLOCKED_BY_ENVIRONMENT | لم تبدأ مهمة Release محلياً بعد توقف التهيئة عند غياب Android SDK؛ أضيفت إلى بوابة CI الموسعة. | `app/build.gradle.kts`, `.github/workflows/android_build.yml` | `:app:compileReleaseKotlin`, `:app:assembleRelease`, `:app:bundleRelease` | NOT_RUNTIME_VERIFIED | لا توجد أدلة R8 أو Packaging أو حجم أو ABI للحزمة. |
-| توقيع الإصدار | NOT_VERIFIED | متغيرات `KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` غير موجودة في البيئة. | `app/build.gradle.kts` | فحص حضور المتغيرات فقط | NOT_RUNTIME_VERIFIED | **RELEASE SIGNING NOT CONFIGURED** في بيئة التدقيق. |
-| فحص المصدر الأساسي | PASS_WITH_LIMITATION | الفاحص الساكن يمر 25/25، ويغطي إغلاق التوليد، الذاكرة، حذف الجلسة الكامل، وتصدير مخططات Room. | `tools/verify_core_changes.py` | `python3 tools/verify_core_changes.py` | NOT_RUNTIME_VERIFIED | الفاحص لا يحل محل Gradle أو الاختبارات. |
-| نسب Git وإصدار Room | PASS_WITH_LIMITATION | `a5859d89→397a6662→a2b06d79` سلسلة خطية؛ AiriDatabase الحالية v6 وترحيل 1→6؛ لم يظهر v7/v8/v9 في المراجع المتاحة. | `ROOM_VERSION_LINEAGE_VERIFICATION.md` | أوامر Git القابلة لإعادة التشغيل في الدليل | NOT_RUNTIME_VERIFIED | لا ينفي وجود فرع أو أرشيف غير موجود محلياً؛ يلزم SHA أو مصدر التقرير السابق للمطابقة. |
-| بوابة CI الموسعة | BLOCKED_BY_HOSTED_RUNNER | أضيف Release compile/package وAAB وinstrumentation على محاكي ورفع outputs/reports. شُغلت على `47c2860a` لكنها فشلت قبل checkout أو Gradle بسبب 429/503 عند تنزيل Actions من codeload.github.com. | `.github/workflows/android_build.yml`, `CI_RUN_32042726943_EVIDENCE.md` | تشغيل Actions `32042726943` | NOT_RUNTIME_VERIFIED | أعد التشغيل بعد انقضاء التقييد الخارجي؛ لا يوجد دليل بناء أو اختبار للمشروع من هذا التشغيل. |
-| الحوار والبث والإلغاء | PASS_WITH_LIMITATION | ملكية generation ID وحاجز callbacks ومسار Stop موجودة في المصدر. | `ChatViewModel.kt`, `HybridOrchestrator.kt`, `ChatScreen.kt` | فحص ساكن 25/25 | NOT_RUNTIME_VERIFIED | لا دليل على بث فعلي أو إلغاء موفر أو استعادة واجهة على جهاز. |
-| معالجة أخطاء الحوار | PASS_WITH_LIMITATION | توجد تصنيفات وخريطة واجهة لأخطاء الصوت؛ لم تحاكَ أخطاء موفر أو شبكة حقيقية. | `ChatScreen.kt`, `HybridOrchestrator.kt` | مراجعة مصدر | NOT_RUNTIME_VERIFIED | retry/regenerate وفشل الشبكة بحاجة اختبار جهاز وخدمة حقيقية. |
-| قاعدة البيانات والترحيلات | NOT_RUNTIME_VERIFIED | Room عند الإصدار 6 مع ترحيلات 1→6، وتصدير schemas مفعّل لقاعدتي الذاكرة والخبرة؛ أُوقف SQLCipher افتراضياً لأن مسار الترقية لم يثبت. | `AiriDatabase.kt`, `ExperienceStore.kt`, `AiriDatabaseMigrationHelper.kt`, `app/build.gradle.kts` | مراجعة مصدر وفحص ساكن 25/25 | NOT_RUNTIME_VERIFIED | يجب اختبار تثبيت جديد وترقية كل إصدار سابق واسترجاع بيانات. |
-| الذاكرة وRAG | PASS_WITH_LIMITATION | سياسة قبول، حدود جلسة، ذاكرة طويلة الأجل صريحة، بحث مقيّد بالجلسة، وتطبيع عربي موجودة. | `MemoryAdmissionPolicy.kt`, `MemoryManager.kt`, `EmbeddingService.kt`, `MemoryTextNormalizer.kt` | اختبارات وحدة مصدرية وفحص ساكن | NOT_RUNTIME_VERIFIED | الدقة الدلالية وحذف الذاكرة والتعارض والتحميل الطويل تحتاج جهازاً. |
-| اختيار `@` للمعرفة | PASS_WITH_LIMITATION | اقتراحات وإدراج مراجع وإعادة تحقق قبل التنفيذ موجودة. | `ChatScreen.kt`, `ChatViewModel.kt` | فحص ساكن | NOT_RUNTIME_VERIFIED | لا اختبار واجهة أو وصول السياق إلى موفر حي. |
-| اختيار `/` للمهارة | PASS_WITH_LIMITATION | قائمة الاقتراحات تستبعد المهارات غير المتصلة وتتحقق من المرجع. | `ChatScreen.kt`, `ChatViewModel.kt`, `SkillRegistry.kt` | فحص ساكن | NOT_RUNTIME_VERIFIED | لا اختبار لمسار مستخدم أو تنفيذ مهارة فعلية. |
-| تثبيت المهارات والسوق | PASS_WITH_LIMITATION | التسجيل الديناميكي يطلب endpoint قابل للتنفيذ؛ حُذف MCP التجريبي ذو handshake الوهمي. | `SkillRegistry.kt`, `MarketplaceRepository.kt`, `ConnectorBootstrap.kt`, `McpConnector.kt` | مراجعة مصدر | NOT_RUNTIME_VERIFIED | API السوق والـ manifest البعيد وتدفق الموافقة غير مختبرين. |
-| المهام المجدولة | PASS_WITH_LIMITATION | العمل فريد لكل job ومعرفه محفوظ ونتائج التنفيذ دائمة وواجهة حالات موجودة. | `ScheduledJobOrchestrator.kt`, `ScheduledAgentWorker.kt`, `AgentTasksScreen.kt` | فحص ساكن | NOT_RUNTIME_VERIFIED | WorkManager وDoze وإعادة التشغيل والإشعارات غير مختبرة. |
-| المرفقات | PASS_WITH_LIMITATION | تحفظ bytes في `filesDir/attachments` بأسماء منقّاة، وتُخزن بيانات وصفية بلا URI أو مسار مطلق، ويعاد بناء URI آمن عبر FileProvider. | `ChatViewModel.kt`, `MemoryManager.kt`, `ChatScreen.kt` | مراجعة مصدر | NOT_RUNTIME_VERIFIED | لا اختبار صورة أو ملف أو فشل تحميل أو إلغاء أو معاينة. |
-| الصوت وكلمة التنبيه | PASS_WITH_LIMITATION | تهدئة wake word، حراسة الإيقاف، ملكية TTS واحدة، ورسائل مترجمة موجودة. أزيلت مراقبات ومسارات full-duplex غير موصولة، ويمنع VoiceManager إنشاء STT منصّي مؤخر بعد الإيقاف أو التدمير. | `HotwordService.kt`, `LiveVoiceService.kt`, `VoiceAgentRouter.kt`, `VoiceManager.kt` | فحص ساكن ومراجعة دورة حياة | NOT_RUNTIME_VERIFIED | لا ميكروفون أو Vosk أو TTS أو Bluetooth أو Android audio-focus قيد الاختبار. |
-| الموفرات والخدمات الخارجية | NOT_RUNTIME_VERIFIED | PKCE وحالة OAuth الأحادية موجودان؛ Zapier يرفض بدء OAuth بلا إعداد. | `OAuthStateRegistry.kt`, `ZapierConnector.kt`, `OpenAiProvider.kt` | مراجعة مصدر | NOT_RUNTIME_VERIFIED | مفاتيح وموفرات وFirebase وOAuth وrate limit غير متاحة. |
-| الأمان والخصوصية | PASS_WITH_LIMITATION | لا نمط أسرار واضح في المسح؛ حُذف منفذ shell غير المستخدم وpins غير موثقة؛ التطبيق يمنع النسخ الاحتياطي؛ أزيل طلب BIND_ACCESSIBILITY_SERVICE غير اللازم؛ ونظفت السجلات من المحتوى ومقتطفات أخطاء المزود. | `AndroidManifest.xml`, `network_security_config.xml`, `LlmCertPins.kt`, `PermissionGovernanceLayer.kt`, `ToolExecutor.kt` (محذوف) | مسح ثابت ومراجعة Manifest والسجلات | NOT_RUNTIME_VERIFIED | يلزم تحليل APK واختبار deep link وFileProvider وFirebase وقواعد الشبكة. |
-| التخزين والتنظيف | PASS_WITH_LIMITATION | حدود للرسائل والحقائق وسجلات التدقيق وcache المرفقات ومسارات حذف artifacts موجودة. | `MemoryManager.kt`, `AuditRepository.kt`, `ArtifactManager.kt`, `ChatViewModel.kt` | مراجعة مصدر | NOT_RUNTIME_VERIFIED | لا قياس نمو التخزين أو ضغط الذاكرة على جهاز. |
-| الأداء والذاكرة | NOT_RUNTIME_VERIFIED | توجد تهيئة مؤجلة وتحرير عند ضغط الذاكرة وتحسينات استرجاع؛ وأزيل مراقب jank غير موصول بدلاً من اعتباره دليلاً. لا أرقام مقاسة. | `AIRIApplication.kt`, `ChatViewModel.kt`, `MemoryManager.kt` | مراجعة مصدر | NOT_RUNTIME_VERIFIED | لا cold/warm start أو RAM أو CPU أو jank أو جهاز منخفض المواصفات. |
-| RTL والترجمة | PASS_WITH_LIMITATION | تماثل مفاتيح الإنجليزية والعربية والإسبانية والصينية 100%؛ أضيفت أوصاف وصول أساسية. | `values*/strings.xml`, `ChatScreen.kt` | فحص ساكن 25/25 | NOT_RUNTIME_VERIFIED | الإسبانية والصينية تحتوي احتياطيات إنجليزية، ولا اختبار RTL أو scale خط. |
-| الوصولية | PASS_WITH_LIMITATION | أوصاف لأفعال شريط الدردشة الأساسية موجودة. | `ChatScreen.kt`, `strings.xml` | مراجعة مصدر | NOT_RUNTIME_VERIFIED | لا TalkBack أو focus order أو contrast أو touch-target audit كامل. |
-| APK/AAB | BLOCKED_BY_ENVIRONMENT | لا artifacts في `app/build` بعد فشل Gradle. | `app/build` | فحص ملفات | NOT_RUNTIME_VERIFIED | الحجم، native `.so`، الموارد، debug symbols غير قابلة للفحص. |
-| استقرار/Crash | NOT_RUNTIME_VERIFIED | لا TODO/FIXME في Kotlin حسب المسح، لكن عدد force unwrap/casts يحتاج تحليل lint وتشغيلاً. | شجرة Kotlin | مسح ساكن | NOT_RUNTIME_VERIFIED | JNI وRoom وFirebase وVosk وWorkManager لم تشغل. |
+| بوابة القبول | الحالة | الدليل الموثّق | الحد المتبقي |
+|---|---|---|---|
+| تثبيت خط الأساس | PASS | Gradle 8.5، AGP 8.2.2، Kotlin 1.9.22، SDK 34، minSdk 26، JDK 17، NDK 25.2.9519653، CMake 3.22.1. | يجب تحديث SHA في الدليل بعد حفظ التغييرات الحالية. |
+| تجميع Debug | PASS | `:app:assembleDebug` نجح في 12 ثانية وأنتج `app-debug.apk` بحجم 54,791,137 بايت. | لا يثبت إصدار Release أو تجربة تثبيت على جهاز. |
+| المكتبة الأصلية | PASS | مهمة `airiVerifyNativeInApk` أكدت وجود `lib/arm64-v8a/libairi_native.so` بحجم 3,759,488 بايت. | يجب فحص أداء النموذج المحلي وABI على أجهزة فعلية. |
+| lint Debug | PASS | `:app:lintDebug` نجح في دقيقة و8 ثوانٍ بلا أخطاء. | التحذيرات الخارجية لأدوات SDK وTensorFlow Lite ينبغي مراجعتها قبل Release. |
+| اختبارات JVM | PASS | `:app:testDebugUnitTest`: 15 tests، 0 failures، 0 errors، 0 skipped. | لا توجد instrumentation tests مكتملة على محاكي أو جهاز. |
+| فحص المصدر الأساسي | PASS | `python3 tools/verify_core_changes.py`: 25/25 فحصاً ناجحاً. | المتحقق الثابت لا يحل محل تشغيل Android. |
+| تجميع وحزمة Release | NOT_VERIFIED | لم تنفذ `assembleRelease` أو `bundleRelease` في هذه البيئة. | يجب نجاح R8 والتعبئة وAAB على شجرة الالتزام نفسه. |
+| توقيع الإصدار | NOT_VERIFIED | لم تتوافر بيانات keystore في بيئة التحقق. | توقيع سري في CI وفحص الشهادة وAAB. |
+| الحوار والبث والإلغاء | PASS_WITH_LIMITATION | حواجز generation ID وcallbacks والإلغاء موجودة؛ البناء وlint يمران. | اختبار streaming وStop وretry ومرفقات على جهاز ومع موفر حقيقي. |
+| توجيه النماذج محلي/سحابي | PASS_WITH_LIMITATION | 7 اختبارات `RoutingPolicyTest` تغطي local-only وcloud-only متصل/غير متصل مع وبدون fallback وhybrid والرؤية. | لا اختبار backend محلي أو مزود حقيقي على Android. |
+| endpoint مخصص | PASS_WITH_LIMITATION | اختبار HTTP محلي يقبل 200 ويرفض 401 في `RemoteModelExecutorTest`. | اختبار مفاتيح واعتمادات حقيقية و429 وtimeout وTLS. |
+| تبديل المزود وعزل المفاتيح | PASS_WITH_LIMITATION | مفاتيح الموفرات والنهايات المخصصة انتقلت إلى التخزين المشفر؛ endpoint بلا مفتاح لا يرث اعتماداً سابقاً. | تحقق على جهاز نظيف بتبديل مزودين فعليين. |
+| مساحة العمل والمشاريع | PASS_WITH_LIMITATION | جلسات مساحة العمل تحفظ في `SharedPreferences` وتستعاد عند التهيئة. | اختبار قتل العملية وrestart واستعادة artifact على Android. |
+| الذاكرة وRAG | PASS_WITH_LIMITATION | سياسة قبول، بحث مقيّد بالجلسة، وتطبيع عربي؛ 6 اختبارات JVM للسياسة والتطبيع. | جودة الاسترجاع والحذف والاسترجاع الطويل تحتاج جهازاً وبيانات واقعية. |
+| قاعدة البيانات والترحيلات | NOT_RUNTIME_VERIFIED | Room v6 وschema export موجودان؛ SQLCipher مؤجل عمداً لحين الاختبار. | تثبيت جديد وترقية 1→6 وfixtures واسترجاع بيانات. |
+| اختيار المهارات والمعرفة | PASS_WITH_LIMITATION | اختصارات `/` و`@` والتحقق من المراجع تغطيها الضوابط الثابتة. | اختبار واجهة وتنفيذ مهارة وتدفق موافقة على جهاز. |
+| المهام المجدولة | PASS_WITH_LIMITATION | WorkManager باسم فريد، request ID وحالة نتيجة محفوظة. | اختبار Doze وreboot والمنطقة الزمنية والإشعارات. |
+| الصوت وكلمة التنبيه | PASS_WITH_LIMITATION | حراسة إذن الميكروفون، إيقاف صريح، تهدئة wake word وملكية TTS واحدة. | اختبار RECORD_AUDIO وVosk وTTS وBluetooth وArabic STT وaudio focus. |
+| RTL والترجمة | PASS_WITH_LIMITATION | المتحقق يثبت تماثل مفاتيح الموارد للإنجليزية والعربية والإسبانية والصينية، واتجاه الإدخال منطقي. | لقطات RTL/LTR، font scale، TalkBack، وترجمة أصلية للاحتياطيات الإنجليزية. |
+| الأمان والخصوصية | PASS_WITH_LIMITATION | المفاتيح في مخزن آمن، السجلات لا تسجل أجسام أخطاء مزود خامة، النسخ الاحتياطي معطل وFileProvider غير مصدّر. | تحليل AAB، مراجعة Firebase/Data Safety، deep links وOAuth وFileProvider على جهاز. |
+| الأداء والثبات | NOT_RUNTIME_VERIFIED | لا أخطاء build/lint/JVM معروفة في التحقق المحلي الحالي. | قياس cold/warm start وRAM وCPU وjank واختبار ضغط على جهاز منخفض المواصفات. |
+| APK/AAB للتوزيع | PARTIAL | APK Debug موجود ومفحوص من حيث المكتبة الأصلية. | لا AAB Release أو توقيع أو فحص manifest نهائي. |
 
 ## الشروط غير القابلة للتجاوز قبل النشر العام
 
-| الأولوية | الشرط | سبب الحظر | معيار الخروج |
-|---|---|---|---|
-| P0 | تنفيذ Debug وRelease build وLint واختبارات الوحدة | لا يمكن اعتماد مصدر لم يُجمع. | نجاح الأوامر في CI أو Android Studio متصل. |
-| P0 | توقيع إصدار وناتج AAB/APK وفحصه | لا توجد حزمة قابلة للتوزيع أو توقيع مفعل. | توقيع آمن في CI وفحص artifact. |
-| P0 | مسارات الحوار والإلغاء والمرفقات والذاكرة على جهاز | هذه وظائف المنتج الأساسية، لا دليل Runtime عليها. | اجتياز رحلات المستخدم الموثقة على جهاز. |
-| P0 | ترقية Room واسترداد البيانات | لا يوجد اختبار Migration شامل؛ SQLCipher مؤجل بأمان. | fixtures وترقية 1→6 وفحص البيانات. |
-| P1 | موفرات OAuth/Firebase والصوت والجدولة | الخدمات أو المفاتيح غير متاحة في بيئة التدقيق. | اختبار اتصال وفشل واسترداد وDoze. |
-| P1 | أداء وRTL وإتاحة الوصول | لا توجد قياسات أو اختبارات TalkBack أو جهاز منخفض المواصفات. | تقرير قياس ومرور يدوي موثق. |
+| الأولوية | الشرط | معيار الإغلاق |
+|---|---|---|
+| P0 | بناء AAB Release موقّع | نجاح `bundleRelease` وR8، توقيع قابل للتحقق، وتحليل artifact الناتج. |
+| P0 | رحلة Android كاملة | onboarding، تنزيل/اختيار نموذج، محادثة وبث وإلغاء وإعادة محاولة ومرفق ثم restart. |
+| P0 | ترحيل Room | fixtures لكل مصدر مدعوم، ترقية إلى v6، وعدم فقد بيانات أو انحراف schema. |
+| P1 | موفرات ونهايات حقيقية | تبديل مزودين، اعتماد صحيح وخاطئ، 401/429/timeout، وإثبات عزل المفتاح. |
+| P1 | صوت وجدولة | ميكروفون وTTS/STT وكلمة تنبيه وDoze وreboot وإشعارات. |
+| P1 | أداء وRTL وإتاحة | قياسات أجهزة منخفضة المواصفات، RTL، TalkBack، ترتيب focus وحجم لمس وتباين. |
 
 ## تصنيف القرار
 
-**🔴 NOT READY**
+**غير جاهز للنشر العام بعد.**
 
-القرار ناتج عن حواجز إصدار حرجة غير متحققة: فشل بوابة البناء قبل التهيئة، غياب توقيع الإصدار وAPK/AAB، وغياب اختبار وقت التشغيل لمسارات المنتج الأساسية. لا يغيّر ذلك أن إصلاحات مصدرية مهمة اجتازت فحصاً ساكناً؛ لكنه يمنع أي ادعاء بجاهزية المستخدم الواقعي أو النشر العام.
+الشجرة الحالية **اجتازت بناء Debug وlint واختبارات JVM والفحص الثابت**، لذلك لم تعد حالة البناء محجوبة بالبيئة. لكنها ليست جاهزة بعد لمتجر التطبيقات: لا يوجد إصدار Release/AAB موقّع، ولا تحقق على جهاز لمسارات المستخدم والموفرات وقاعدة البيانات والصوت والأداء. يمكن الانتقال إلى اختبار تجريبي محدود بعد إغلاق بنود P0، وإلى إطلاق عام بعد إغلاق بنود P1 ذات الصلة بالمنتج المستهدف.

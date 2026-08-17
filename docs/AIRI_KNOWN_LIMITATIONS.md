@@ -1,40 +1,45 @@
 # القيود المعروفة قبل إطلاق AIRI
 
 **آخر تحديث:** 17 أغسطس 2026
-**حكم القبول الحالي:** **🔴 NOT READY**
+**حكم القبول الحالي:** **غير جاهز للنشر العام؛ جاهز للانتقال إلى تحقق جهاز وإصدار Release.**
 
-> هذه القيود ليست وعوداً أو افتراضات. كل بند أدناه يصف دليلاً ناقصاً أو اعتماداً خارج بيئة التدقيق ويمنع التصنيف كنسخة جاهزة للنشر العام.
+> كل بند أدناه يمثل دليلاً ناقصاً أو اعتماداً خارج بيئة التحقق. لم تعد بيئة Android المحلية أو بناء Debug قيداً مفتوحاً: نجحت بوابات Debug وlint وJVM وأنتجت APK فعلياً.
 
-| المعرف | الأولوية | القيد | الحالة | الأثر | الإجراء المطلوب قبل النشر |
+| المعرف | الأولوية | القيد | الحالة | الأثر | إجراء الإغلاق |
 |---|---|---|---|---|---|
-| RL-01 | P0 | لا يوجد Android SDK أو `ANDROID_HOME` أو `sdkmanager` محلياً؛ توقفت محاولة Gradle قبل Kotlin أو AGP. | BLOCKED_BY_ENVIRONMENT | لم يبدأ Kotlin أو JNI أو Lint أو الاختبارات في البيئة المحلية. | تشغيل بوابة CI الموسعة أو Android Studio متصل ثم حفظ نتائج Debug وRelease وLint. |
-| RL-02 | P0 | لا توقيع Release في بيئة التدقيق. | NOT_VERIFIED | لا يمكن توزيع APK/AAB موثوق. | حقن keystore في CI عبر secrets والتحقق من التوقيع. |
-| RL-03 | P0 | لا APK/AAB ناتج للفحص. | BLOCKED_BY_ENVIRONMENT | لا فحص حجم أو ABI أو `.so` أو R8 أو symbols. | بناء `assembleRelease` و`bundleRelease` وفحص الناتج. |
-| RL-04 | P0 | Room في الإصدار 6 وتصدير schemas مفعّل، لكن لا اختبار ترقية كامل. | NOT_RUNTIME_VERIFIED | خطر فقد أو تلف البيانات أثناء الترقية غير مقاس. | إضافة fixtures وترحيل 1→6 وتثبيت جديد واسترداد. |
-| RL-05 | P0 | SQLCipher مؤجل افتراضياً. | PASS_WITH_LIMITATION | قاعدة البيانات ليست مشفرة عبر SQLCipher في هذا الإصدار. | لا تفعّل التشفير حتى يمر اختبار plaintext→encrypted واستعادة فشل. |
-| RL-06 | P0 | لا رحلة جهاز للحوار والبث والإلغاء والمرفقات. | NOT_RUNTIME_VERIFIED | لا يمكن إثبات قابلية الاستخدام الأساسية. | تشغيل سيناريوهات chat/Stop/retry/attachment/restart على جهاز. |
-| RL-07 | P1 | موفرات السحابة وFirebase وOAuth لا تملك credentials أو backend متاحاً هنا. | NOT_RUNTIME_VERIFIED | لا دليل اتصال أو callback أو فشل آمن أو حماية token. | اختبار تكامل مع حسابات اختبار ومراقبة logs. |
-| RL-08 | P1 | الصوت المحلي والحَي لم يختبرا على جهاز. | NOT_RUNTIME_VERIFIED | لا دليل Vosk أو TTS أو wake word أو audio-focus. | اختبار permission ورفضه وBluetooth والمقاطعة والعربية والإنجليزية. |
-| RL-09 | P1 | WorkManager لم يختبر في Doze أو reboot أو timezone. | NOT_RUNTIME_VERIFIED | لا دليل جدولة دائمة أو notification. | اختبار one-time/periodic/cancel/retry/Doze/reboot. |
-| RL-10 | P1 | لا قياس للأداء أو التخزين أو جهاز ضعيف. | NOT_RUNTIME_VERIFIED | لا حدود RAM أو startup أو jank أو cache growth. | قياس cold/warm startup وRAM وCPU والتخزين على أجهزة ممثلة. |
-| RL-11 | P1 | TalkBack وfont scale وfocus order وRTL بصرياً غير مختبرة. | NOT_RUNTIME_VERIFIED | لا يمكن اعتماد الإتاحة أو تجربة العربية من المصدر فقط. | مراجعة يدوية ولقطات API 26–34 وسمة فاتحة/داكنة. |
-| RL-12 | P2 | الإسبانية والصينية تتضمنان احتياطيات إنجليزية. | PASS_WITH_LIMITATION | التماثل موجود، لكن الترجمة ليست مكتملة لغوياً. | ترجمة بشرية/مراجعة أصلية لكل الاحتياطيات. |
-| RL-13 | P2 | تثبيت شهادات LLM مؤجل. | PASS_WITH_LIMITATION | TLS النظامي نشط؛ لا تثبيت SPKI إضافي. | لا تفعل pinning حتى التحقق المباشر ودورة تغيير الشهادة. |
+| RL-01 | P0 | لم يُبنَ أو يُفحص إصدار Release أو AAB. | NOT_VERIFIED | لا دليل على R8 أو التعبئة النهائية أو حجم التوزيع. | شغّل `assembleRelease` و`bundleRelease` على الشجرة النهائية واحفظ artifacts والتقارير. |
+| RL-02 | P0 | توقيع Release غير مهيأ في بيئة التحقق. | NOT_VERIFIED | لا توجد حزمة موثوقة قابلة للتوزيع. | حقن keystore في CI من secrets وفحص التوقيع والشهادة. |
+| RL-03 | P0 | APK Debug متاح فقط. | PARTIAL | تأكدت حزمة Debug والمكتبة `libairi_native.so`، لكن لا AAB أو APK Release للفحص. | فحص artifact Release من حيث manifest وABI وR8 وsymbols والحجم. |
+| RL-04 | P0 | Room في الإصدار 6 وتصدير schemas مفعّل، لكن لا اختبار ترقية كامل. | NOT_RUNTIME_VERIFIED | خطر فقد أو تلف البيانات أثناء الترقية غير مقاس. | fixtures وترحيل 1→6 وتثبيت جديد واسترداد بيانات. |
+| RL-05 | P0 | SQLCipher مؤجل افتراضياً. | PASS_WITH_LIMITATION | قاعدة البيانات ليست مشفرة بـ SQLCipher في الإصدار الحالي. | لا تفعّل التشفير حتى يمر اختبار plaintext→encrypted واستعادة الفشل. |
+| RL-06 | P0 | لا رحلة جهاز للحوار والبث والإلغاء والمرفقات أو restart. | NOT_RUNTIME_VERIFIED | لا دليل كامل على قابلية الاستخدام الأساسية أو lifecycle. | تشغيل سيناريوهات chat/Stop/retry/attachment/restart على جهاز وتوثيق النتيجة. |
+| RL-07 | P1 | لا اختبار تكامل لموفر سحابي أو Firebase أو OAuth بمفاتيح اختبار. | NOT_RUNTIME_VERIFIED | لا دليل على الاتصال وcallback وfailing safely أو حماية token في الإنتاج. | اختبار مزودين وendpoint مخصص مع 200 و401 و429 وtimeout وcallback. |
+| RL-08 | P1 | الصوت المحلي والحَي لم يختبرا على جهاز. | NOT_RUNTIME_VERIFIED | لا دليل Vosk أو TTS أو wake word أو audio focus. | اختبار منح ورفض الصلاحية وBluetooth والمقاطعة والعربية والإنجليزية. |
+| RL-09 | P1 | WorkManager لم يختبر في Doze أو reboot أو timezone. | NOT_RUNTIME_VERIFIED | لا دليل على جدولة دائمة أو إشعار موثوق. | اختبار one-time وperiodic وcancel وretry وDoze وreboot. |
+| RL-10 | P1 | لا قياس للأداء أو التخزين أو جهاز منخفض المواصفات. | NOT_RUNTIME_VERIFIED | لا حدود مثبتة لـ RAM أو startup أو jank أو cache growth. | قياس cold/warm startup وRAM وCPU والتخزين على أجهزة ممثلة. |
+| RL-11 | P1 | TalkBack وfont scale وfocus order وRTL المرئي غير مختبرة. | NOT_RUNTIME_VERIFIED | لا يمكن اعتماد الإتاحة أو تجربة العربية من المصدر فقط. | مراجعة يدوية ولقطات API 26–34 في السمتين الفاتحة والداكنة. |
+| RL-12 | P2 | الإسبانية والصينية تحتويان احتياطيات إنجليزية. | PASS_WITH_LIMITATION | تماثل مفاتيح الموارد مكتمل، لكن الترجمة ليست مكتملة لغوياً. | مراجعة أصلية وترجمة بشرية لكل الاحتياطيات. |
+| RL-13 | P2 | تثبيت شهادات LLM مؤجل. | PASS_WITH_LIMITATION | TLS النظامي نشط؛ لا تثبيت SPKI إضافي. | لا تفعل pinning حتى توجد عملية تحقق ودورة تغيير شهادة موثقتان. |
 | RL-14 | P2 | API السوق وMarketplace backend غير متحققين. | NOT_RUNTIME_VERIFIED | لا يمكن تسويق اكتشاف/نشر مهارات كسيناريو جاهز. | تشغيل backend موثق واختبار browse/install/publish/failure. |
-| RL-15 | P0 | شُغلت بوابة CI الموسعة على `47c2860a` لكنها فشلت قبل checkout أو Gradle بسبب 429/503 عند تنزيل Actions من codeload.github.com. | BLOCKED_BY_HOSTED_RUNNER | لا يوجد إثبات Debug/Release/AAB/instrumentation للـ SHA الحالي. | أعد تشغيل Actions بعد انقضاء تقييد codeload ثم احفظ حالة التشغيل وartifacts والتحقق من SHA. |
+| RL-15 | P1 | لا تشغيل CI أخضر مثبت للشجرة النهائية. | NOT_VERIFIED | التشغيل التاريخي السابق فشل قبل checkout بسبب قيود استضافة خارجية؛ لا يغطي الالتزام النهائي. | أعد تشغيل workflow بعد حفظ التغييرات، واحفظ نتيجة وartifacts على SHA نفسه. |
 
-## ملاحظات الإصلاحات الوقائية في التدقيق
+## أدلة أغلقت القيود البيئية السابقة
 
-أُزيل موصل MCP التجريبي الذي كان ينجح من دون خادم، وحُذف منفذ shell غير المستخدم، وحُذف تقرير مصدر قديم يدعي اكتمالاً وبناءً لا دليل عليه. كما أزيلت certificate pins الموصوفة سابقاً كـ placeholders من Network Security Config، وأصبح العميل يعتمد تحقق TLS القياسي إلى أن تتوفر عملية pinning موثقة ومختبرة. كذلك أزيلت مقتطفات محتوى المستخدم وأجسام أخطاء الموفر من السجلات، وحذفت مسارات مراقبة/صوت غير موصولة كي لا تُعد أدلة تشغيلية. هذه الإصلاحات لا تلغي القيود أعلاه.
+استخدم التحقق المحلي JDK 17 وAndroid SDK 34 وGradle 8.5. نجح `:app:assembleDebug` في إنتاج `app-debug.apk` بحجم 54,791,137 بايت، وتحققت المهمة الداخلية من وجود `lib/arm64-v8a/libairi_native.so` بحجم 3,759,488 بايت. كما نجح `:app:lintDebug` بلا أخطاء، ونجحت `:app:testDebugUnitTest` في **15/15** اختباراً بلا إخفاقات أو أخطاء، ونجح المتحقق الثابت في **25/25** فحصاً.
+
+لا تلغي هذه الأدلة القيود التشغيلية أعلاه. فهي تثبت قابلية البناء والتحقق الآلي على JVM، لا صحة التفاعل مع جهاز أو موفر أو خدمة خارجية أو إصدار توزيع موقّع.
+
+## ملاحظات الإصلاحات الوقائية
+
+حُذف موصل MCP التجريبي ومنفذ shell غير المستخدم، ونُظفت السجلات من مقتطفات محتوى المستخدم وأجسام أخطاء الموفر الخام. تنتقل مفاتيح الموفرات والنهايات المخصصة من التفضيلات النصية القديمة إلى التخزين المشفر، ولا يرث endpoint بلا مفتاح اعتماد endpoint سابق. عولجت أيضاً حراسة إذن الميكروفون، علم receiver، توافق API 26 لاتجاه العربية، موارد النصوص، وإعلان الكاميرا الاختياري. هذه إصلاحات دفاعية مهمة، لكنها لا تغلق قيود الجهاز والتكامل أعلاه.
 
 ## إعادة فتح قرار الإطلاق
 
-يمكن إعادة بدء قبول الإنتاج فقط بعد إرفاق نتائج قابلة لإعادة التشغيل للأوامر التالية وحفظ APK/AAB الناتجين:
+يمكن بدء قرار قبول جديد بعد حفظ نتائج قابلة لإعادة التشغيل للأوامر التالية على الالتزام النهائي:
 
 ```bash
-./gradlew :app:compileDebugKotlin :app:assembleDebug :app:lintDebug
-./gradlew :app:testDebugUnitTest :app:connectedDebugAndroidTest
-./gradlew :app:compileReleaseKotlin :app:assembleRelease :app:bundleRelease
+./gradlew :app:assembleRelease :app:bundleRelease
+./gradlew :app:connectedDebugAndroidTest
 ```
 
-بعد ذلك يلزم تنفيذ إجراءات RL-04 وRL-06 وRL-07 وRL-08 وRL-09 وRL-10 وRL-11 قبل أي تصنيف أخضر.
+بعدها يلزم إغلاق RL-04 وRL-06 وRL-07 وRL-08 وRL-09 وRL-10 وRL-11 قبل تصنيف النسخة صالحة للنشر العام.

@@ -1357,6 +1357,7 @@
     <string name="sandbox_cancel_execution">Cancel</string>
     <string name="sandbox_command_placeholder">shell command…</string>
     <string name="sandbox_new_session_button">New session</string>
+    <string name="sandbox_close_session_cd">Close session</string>
     <string name="sandbox_new_session_cd">Create new sandbox session</string>
     <string name="sandbox_no_executions">No executions yet</string>
     <string name="sandbox_no_sessions">No active sessions</string>

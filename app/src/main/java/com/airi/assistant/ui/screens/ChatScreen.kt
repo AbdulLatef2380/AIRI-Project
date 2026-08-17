@@ -99,6 +99,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }

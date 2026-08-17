@@ -12,6 +12,7 @@ import com.airi.assistant.memory.dao.UsageStatsDao
 import com.airi.assistant.memory.entity.AuditLogEntity
 import com.airi.assistant.memory.entity.ChatMessage
 import com.airi.assistant.memory.entity.ChatSession
+import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext

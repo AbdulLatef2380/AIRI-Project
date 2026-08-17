@@ -11,7 +11,6 @@
     <!-- Activity theme: full screen for Compose, no action bar -->
     <style name="Theme.AIRI.NoActionBar" parent="Theme.AIRI">
         <item name="android:windowFullscreen">false</item>
-        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
 </resources>

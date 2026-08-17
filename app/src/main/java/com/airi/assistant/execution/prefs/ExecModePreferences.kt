@@ -8,6 +8,7 @@ import androidx.security.crypto.MasterKey
 import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.PrivacyLevel
+import com.airi.assistant.execution.router.RoutingPreferences
 
 /**
  * Persistent user preferences for the Hybrid Execution layer.
@@ -52,7 +53,7 @@ import com.airi.assistant.execution.PrivacyLevel
  *  - offline fallback = true  — always fall back to local when cloud fails
  *  - max cloud tokens per day = 50 000 (soft limit, UI-visible)
  */
-class ExecModePreferences(context: Context) {
+class ExecModePreferences(context: Context) : RoutingPreferences {
 
     /**
      * True when the underlying store is EncryptedSharedPreferences.
@@ -106,7 +107,7 @@ class ExecModePreferences(context: Context) {
 
     // ── Privacy level ─────────────────────────────────────────────────────────
 
-    var privacyLevel: PrivacyLevel
+    override var privacyLevel: PrivacyLevel
         get() = prefs.getString(KEY_PRIVACY_LEVEL, PrivacyLevel.BALANCED.name)
             ?.let { runCatching { PrivacyLevel.valueOf(it) }.getOrNull() }
             ?: PrivacyLevel.BALANCED
@@ -131,7 +132,7 @@ class ExecModePreferences(context: Context) {
      * Must be true for CLOUD_ONLY and HYBRID modes to actually reach the network.
      * Setting to false acts as an additional safety gate on top of [executionMode].
      */
-    var internetPermissionGranted: Boolean
+    override var internetPermissionGranted: Boolean
         get() = prefs.getBoolean(KEY_INTERNET_PERM, false)
         set(value) {
             prefs.edit().putBoolean(KEY_INTERNET_PERM, value).apply()
@@ -144,7 +145,7 @@ class ExecModePreferences(context: Context) {
      * cloud call fails or times out. When false, the request fails with an
      * explicit error message so the user knows cloud is unavailable.
      */
-    var offlineFallbackEnabled: Boolean
+    override var offlineFallbackEnabled: Boolean
         get() = prefs.getBoolean(KEY_OFFLINE_FALLBACK, true)
         set(value) {
             prefs.edit().putBoolean(KEY_OFFLINE_FALLBACK, value).apply()
@@ -158,14 +159,14 @@ class ExecModePreferences(context: Context) {
      * LOCAL rather than making additional cloud calls.
      * 0 = unlimited.
      */
-    var maxDailyCloudTokens: Int
+    override var maxDailyCloudTokens: Int
         get() = prefs.getInt(KEY_MAX_CLOUD_TOKENS, 50_000)
         set(value) {
             prefs.edit().putInt(KEY_MAX_CLOUD_TOKENS, value.coerceAtLeast(0)).apply()
         }
 
     /** Running tally for the current calendar day. Reset on date change. */
-    var cloudTokensUsedToday: Int
+    override var cloudTokensUsedToday: Int
         get() {
             val dayKey = System.currentTimeMillis() / 86_400_000L
             if (prefs.getLong(KEY_CLOUD_USAGE_DAY, 0L) != dayKey) {
@@ -191,7 +192,7 @@ class ExecModePreferences(context: Context) {
     }
 
     /** True when the daily cloud budget has been exhausted. */
-    val isCloudBudgetExhausted: Boolean
+    override val isCloudBudgetExhausted: Boolean
         get() {
             val cap = maxDailyCloudTokens
             return cap > 0 && cloudTokensUsedToday >= cap
@@ -206,7 +207,7 @@ class ExecModePreferences(context: Context) {
      *  - If daily budget exhausted in CLOUD_ONLY → LOCAL_ONLY (if fallback) or CLOUD_ONLY (error)
      *  - Otherwise → user's chosen [executionMode]
      */
-    val effectiveMode: ExecutionMode
+    override val effectiveMode: ExecutionMode
         get() {
             if (privacyLevel == PrivacyLevel.MAXIMUM) return ExecutionMode.LOCAL_ONLY
             if (!internetPermissionGranted) return ExecutionMode.LOCAL_ONLY

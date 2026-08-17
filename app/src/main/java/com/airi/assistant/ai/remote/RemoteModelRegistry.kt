@@ -2,6 +2,7 @@ package com.airi.assistant.ai.remote
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.airi.assistant.execution.security.SecureApiKeyStore
 
 object RemoteModelRegistry {
 
@@ -10,10 +11,32 @@ object RemoteModelRegistry {
     private const val KEY_ACTIVE  = "active_remote_model_id"
 
     private lateinit var prefs: SharedPreferences
+    private lateinit var keyStore: SecureApiKeyStore
 
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        keyStore = SecureApiKeyStore(context)
+        migrateApiKeysToEncryptedStore()
         migrateStaleModelNames()
+    }
+
+    /**
+     * Moves legacy plaintext keys from the model registry to encrypted storage.
+     * The registry then retains endpoint metadata only. Re-running this migration
+     * is safe because redacted entries no longer contain a key value.
+     */
+    private fun migrateApiKeysToEncryptedStore() {
+        val serialized = prefs.getString(KEY_MODELS, "[]") ?: "[]"
+        val legacyModels = parseList(serialized)
+        val keyedModels = legacyModels.filter { it.apiKey.isNotBlank() }
+        if (keyedModels.isEmpty()) return
+
+        keyedModels.forEach { model ->
+            keyStore.saveCustomEndpointKey(model.id, model.apiKey)
+        }
+        val redacted = legacyModels.map { it.copy(apiKey = "") }
+        prefs.edit().putString(KEY_MODELS, serializeList(redacted)).apply()
+        android.util.Log.i("AIRI_Registry", "Migrated remoteKeyCount=${keyedModels.size}")
     }
 
     /**
@@ -42,18 +65,26 @@ object RemoteModelRegistry {
 
     fun getAll(): List<RemoteModel> {
         val json = prefs.getString(KEY_MODELS, "[]") ?: "[]"
-        return parseList(json)
+        return parseList(json).map { model ->
+            model.copy(apiKey = keyStore.getCustomEndpointKey(model.id).orEmpty())
+        }
     }
 
     fun add(model: RemoteModel) {
         val list = getAll().toMutableList()
         list.removeAll { it.id == model.id }
-        list.add(model)
+        if (model.apiKey.isBlank()) {
+            keyStore.clearCustomEndpointKey(model.id)
+        } else {
+            keyStore.saveCustomEndpointKey(model.id, model.apiKey)
+        }
+        list.add(model.copy(apiKey = ""))
         prefs.edit().putString(KEY_MODELS, serializeList(list)).apply()
     }
 
     fun remove(modelId: String) {
         val list = getAll().filter { it.id != modelId }
+        keyStore.clearCustomEndpointKey(modelId)
         prefs.edit().putString(KEY_MODELS, serializeList(list)).apply()
         if (getActiveId() == modelId) clearActive()
     }
@@ -79,7 +110,6 @@ object RemoteModelRegistry {
             sb.append("\"id\":\"${m.id}\",")
             sb.append("\"name\":\"${m.name.replace("\"","\\\"")}\",")
             sb.append("\"serverUrl\":\"${m.serverUrl.replace("\"","\\\"")}\",")
-            sb.append("\"apiKey\":\"${m.apiKey.replace("\"","\\\"")}\",")
             sb.append("\"isActive\":${m.isActive},")
             // B-07: persist isCustomEndpoint so migration guards survive app restart.
             // Without this, the field reloads as false (default), making every custom

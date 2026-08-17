@@ -88,6 +88,12 @@ class HotwordService : Service() {
     // ── OpenWakeWord engine path ──────────────────────────────────────────
 
     private fun startWithOpenWakeWord(): Int {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "OpenWakeWord start denied: RECORD_AUDIO not granted")
+            stopSelf()
+            return START_NOT_STICKY
+        }
         val modelFile = OpenWakeWordEngine.resolveModelFile(this) ?: run {
             Log.w(TAG, "OWW model resolved to null — stopping")
             stopSelf()
@@ -176,6 +182,12 @@ class HotwordService : Service() {
     // ── Porcupine engine path ─────────────────────────────────────────────
 
     private fun startWithPorcupine(accessKey: String, ppnFile: java.io.File): Int {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "Porcupine start denied: RECORD_AUDIO not granted")
+            stopSelf()
+            return START_NOT_STICKY
+        }
         val pp = try {
             ai.picovoice.porcupine.Porcupine.Builder()
                 .setAccessKey(accessKey)

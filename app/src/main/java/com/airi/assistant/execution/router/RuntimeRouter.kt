@@ -73,8 +73,8 @@ class RuntimeRouter(
     suspend fun route(request: ExecutionRequest, context: Context): RoutingDecision {
         // Read fresh device signals (dispatches to Default internally).
         val signals = runCatching { DeviceSignals.read(context) }
-            .getOrElse { e ->
-                Log.w(TAG, "DeviceSignals.read failed: ${e.message}")
+            .getOrElse { error ->
+                Log.w(TAG, "DeviceSignals.read failed type=${error.javaClass.simpleName}")
                 DeviceSignals(
                     thermalLevel     = com.airi.assistant.core.debug.ThermalLevel.NONE,
                     thermalRaw       = 0,

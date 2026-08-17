@@ -148,23 +148,12 @@ object CloudAdapterFactory {
                             keyStore.saveKey(CloudProvider.CUSTOM, remote.apiKey)
                             Log.i(TAG, "CUSTOM: key written/updated in SecureApiKeyStore")
                         }
-                        !keyStore.hasKey(CloudProvider.CUSTOM) -> {
-                            // Fix B: LOCAL_SERVER providers (Ollama, LM Studio) and any
-                            // keyless custom server have a blank apiKey by design. OpenAIAdapter
-                            // requires a non-null key from SecureApiKeyStore or it returns an
-                            // UNAUTHORIZED failure before opening any socket. We write a sentinel
-                            // value so the null-guard passes. Local servers universally ignore the
-                            // Authorization header, so "Bearer $NO_AUTH_SENTINEL" is harmless.
-                            // The sentinel is overwritten immediately if a real key is provided later.
-                            keyStore.saveKey(CloudProvider.CUSTOM, NO_AUTH_SENTINEL)
-                            Log.i(TAG, "CUSTOM: LOCAL_SERVER or keyless — sentinel written for null-guard bypass")
-                        }
                         else -> {
-                            // SecureApiKeyStore already holds a key (either a real key from a
-                            // previous activateRemoteModel call, or the sentinel from a prior
-                            // local-server session). Reuse it — local servers ignore real keys
-                            // in the Authorization header, so this path is always safe.
-                            Log.d(TAG, "CUSTOM: reusing existing SecureApiKeyStore entry")
+                            // A keyless active endpoint must never inherit a credential that was
+                            // saved for an earlier custom endpoint. The sentinel preserves the
+                            // adapter's non-blank-key contract without disclosing that credential.
+                            keyStore.saveKey(CloudProvider.CUSTOM, NO_AUTH_SENTINEL)
+                            Log.i(TAG, "CUSTOM: keyless endpoint configured")
                         }
                     }
                     // ── Patch 3B: model discovery for LOCAL_SERVER providers ───────────

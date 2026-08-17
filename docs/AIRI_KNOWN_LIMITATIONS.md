@@ -22,6 +22,7 @@
 | RL-13 | P2 | تثبيت شهادات LLM مؤجل. | PASS_WITH_LIMITATION | TLS النظامي نشط؛ لا تثبيت SPKI إضافي. | لا تفعل pinning حتى توجد عملية تحقق ودورة تغيير شهادة موثقتان. |
 | RL-14 | P2 | API السوق وMarketplace backend غير متحققين. | NOT_RUNTIME_VERIFIED | لا يمكن تسويق اكتشاف/نشر مهارات كسيناريو جاهز. | تشغيل backend موثق واختبار browse/install/publish/failure. |
 | RL-15 | P1 | لا تشغيل CI أخضر مثبت للشجرة النهائية. | NOT_VERIFIED | التشغيل التاريخي السابق فشل قبل checkout بسبب قيود استضافة خارجية؛ لا يغطي الالتزام النهائي. | أعد تشغيل workflow بعد حفظ التغييرات، واحفظ نتيجة وartifacts على SHA نفسه. |
+| RL-16 | P0 | المشروع يستهدف API 34، بينما تصبح التطبيقات والتحديثات الجديدة المرسلة إلى Google Play ملزمة بـ Android 16 / API 36 أو أعلى في 31 أغسطس 2026. [1] | NOT_READY_FOR_PLAY_SUBMISSION | قد لا يُقبل AAB جديد في Play بعد تاريخ النفاذ. | تحديث `compileSdk` و`targetSdk` إلى 36، معالجة تغيرات السلوك، ثم إعادة تشغيل بوابات Debug وRelease واختبارات الجهاز. |
 
 ## أدلة أغلقت القيود البيئية السابقة
 
@@ -42,4 +43,8 @@
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-بعدها يلزم إغلاق RL-04 وRL-06 وRL-07 وRL-08 وRL-09 وRL-10 وRL-11 قبل تصنيف النسخة صالحة للنشر العام.
+بعدها يلزم إغلاق RL-04 وRL-06 وRL-07 وRL-08 وRL-09 وRL-10 وRL-11 وRL-16 قبل تصنيف النسخة صالحة للنشر العام.
+
+## المراجع
+
+[1]: https://developer.android.com/google/play/requirements/target-sdk "Google Play target API level requirement"

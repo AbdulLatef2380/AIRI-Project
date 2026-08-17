@@ -128,12 +128,12 @@
 
 أثبتت مراجعة Git أن `a5859d89` ثم `397a6662` ثم `a2b06d79` تقع على lineage خطي واحد. قاعدة الذاكرة الحالية هي Room 6، وسلسلة الترحيل الفعلية هي `1→2→3→4→5→6`. أظهر استخراج جميع نسخ `AiriDatabase.kt` المتاحة تسلسل الإصدارات 1 إلى 6 فقط، ولم يظهر أي إعلان Room 7 أو 8 أو 9 في المراجع المحلية القابلة للوصول. يسجل `docs/ROOM_VERSION_LINEAGE_VERIFICATION.md` الأوامر والـ SHA وحدود هذا الاستنتاج.
 
-توجد بوابة GitHub Actions مفعلة ولها تشغيلات تاريخية ناجحة على الالتزام البعيد `e4f70145`، لكنها لم تتحقق من الالتزامات المحلية الحديثة بعد. وُسعت البوابة لتشمل Release compile/package وAAB واختبار instrumentation على محاكي API 29 ورفع artifacts وتقارير البناء. أوقفت محاولة `:app:compileDebugKotlin` المحلية عند تهيئة Android بسبب غياب Android SDK و`ANDROID_HOME` و`local.properties` في البيئة، ولذلك لم تصل المحاولة إلى تجميع Kotlin أو فحص AGP. لا توجد APK/AAB أو مكتبة native ناتجة محلياً؛ يسجل `docs/LOCAL_RELEASE_VERIFICATION_EVIDENCE.md` الدليل القابل لإعادة التشغيل.
+توجد بوابة GitHub Actions مفعلة ولها تشغيلات تاريخية ناجحة على الالتزام البعيد `e4f70145`. وُسعت البوابة لتشمل Release compile/package وAAB واختبار instrumentation على محاكي API 29 ورفع artifacts وتقارير البناء، ثم شغلت على `47c2860a`. فشل التشغيل `32042726943` أثناء إعداد runner قبل checkout أو Gradle بسبب استجابات `429 Too Many Requests` ثم `503 Service Unavailable` عند تنزيل `actions/setup-java` و`gradle/actions` من codeload.github.com. لذلك لا يقدم هذا التشغيل أي دليل على تجميع المشروع أو اختباره. أوقفت محاولة `:app:compileDebugKotlin` المحلية عند تهيئة Android بسبب غياب Android SDK و`ANDROID_HOME` و`local.properties` في البيئة، ولذلك لم تصل المحاولة إلى تجميع Kotlin أو فحص AGP. لا توجد APK/AAB أو مكتبة native ناتجة محلياً؛ يسجل `docs/LOCAL_RELEASE_VERIFICATION_EVIDENCE.md` و`docs/CI_RUN_32042726943_EVIDENCE.md` الأدلة القابلة لإعادة التشغيل.
 
 | بوابة التحقق التالية | الحالة الحالية | شرط الإغلاق |
 |---|---|---|
 | نسب Git وRoom | PASS_WITH_LIMITATION | مقارنة أي تقرير Room 7/8/9 خارجي مع SHA أو فرع أو أرشيف أصلي. |
-| بوابة CI الموسعة | CONFIGURED_NOT_RUN | دفع الالتزام وتشغيل Actions على SHA المحلي ثم حفظ النتيجة. |
+| بوابة CI الموسعة | BLOCKED_BY_HOSTED_RUNNER | أعِد تشغيل Actions بعد انقضاء عطل/تقييد codeload، ثم احفظ نتيجة ناجحة على SHA نفسه. |
 | Debug/Release/Unit/Lint/Instrumentation | NOT_RUNTIME_VERIFIED | نجاح كل خطوة في Actions على الالتزام نفسه. |
 | APK/AAB وفحصها | NOT_VERIFIED | تنزيل artifacts ثم فحص manifest والتوقيع وABI وnative libraries وR8 والموارد. |
 | جهاز حقيقي والأداء | NOT_RUNTIME_VERIFIED | تنفيذ الرحلات الحرجة وقياسات cold/warm start وRAM وCPU وjank. |

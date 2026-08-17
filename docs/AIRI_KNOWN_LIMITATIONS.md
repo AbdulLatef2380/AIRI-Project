@@ -21,7 +21,7 @@
 | RL-12 | P2 | الإسبانية والصينية تتضمنان احتياطيات إنجليزية. | PASS_WITH_LIMITATION | التماثل موجود، لكن الترجمة ليست مكتملة لغوياً. | ترجمة بشرية/مراجعة أصلية لكل الاحتياطيات. |
 | RL-13 | P2 | تثبيت شهادات LLM مؤجل. | PASS_WITH_LIMITATION | TLS النظامي نشط؛ لا تثبيت SPKI إضافي. | لا تفعل pinning حتى التحقق المباشر ودورة تغيير الشهادة. |
 | RL-14 | P2 | API السوق وMarketplace backend غير متحققين. | NOT_RUNTIME_VERIFIED | لا يمكن تسويق اكتشاف/نشر مهارات كسيناريو جاهز. | تشغيل backend موثق واختبار browse/install/publish/failure. |
-| RL-15 | P0 | بوابة CI الموسعة مهيأة لكن لم تُشغل بعد على الالتزام الحالي. | CONFIGURED_NOT_RUN | لا يوجد إثبات Debug/Release/AAB/instrumentation للـ SHA المحلي. | دفع الالتزام ثم حفظ حالة Actions وartifacts والتحقق من SHA المتحقق. |
+| RL-15 | P0 | شُغلت بوابة CI الموسعة على `47c2860a` لكنها فشلت قبل checkout أو Gradle بسبب 429/503 عند تنزيل Actions من codeload.github.com. | BLOCKED_BY_HOSTED_RUNNER | لا يوجد إثبات Debug/Release/AAB/instrumentation للـ SHA الحالي. | أعد تشغيل Actions بعد انقضاء تقييد codeload ثم احفظ حالة التشغيل وartifacts والتحقق من SHA. |
 
 ## ملاحظات الإصلاحات الوقائية في التدقيق
 

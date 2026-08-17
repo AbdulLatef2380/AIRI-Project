@@ -44,6 +44,18 @@ jobs:
     - name: Run unit tests and Android lint
       run: ./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace
 
+    - name: Compile and package release outputs
+      run: |
+        ./gradlew :app:compileReleaseKotlin :app:assembleRelease :app:bundleRelease --stacktrace
+
+    - name: Run Android instrumentation tests
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 29
+        target: default
+        arch: x86_64
+        script: ./gradlew :app:connectedDebugAndroidTest --stacktrace
+
     - name: Verify native library output
       run: |
         if ! find app/build -name "libairi_native.so" | grep -q .; then
@@ -51,8 +63,15 @@ jobs:
           exit 1
         fi
 
-    - name: Upload APK
+    - name: Upload build outputs and reports
       uses: actions/upload-artifact@v4
       with:
-        name: AIRI-Debug-APK
-        path: app/build/outputs/apk/debug/*.apk
+        name: AIRI-Android-Build-Evidence
+        path: |
+          app/build/outputs/apk/debug/*.apk
+          app/build/outputs/apk/release/*.apk
+          app/build/outputs/bundle/release/*.aab
+          app/build/reports/
+          app/build/test-results/
+          app/build/outputs/androidTest-results/
+        if-no-files-found: warn

@@ -1,19 +1,21 @@
 # قائمة جاهزية إطلاق AIRI
 
-**تاريخ التدقيق:** 14 أغسطس 2026
+**تاريخ التدقيق:** 17 أغسطس 2026
 **الفرع محل التدقيق:** `architecture-refactor`
-**الالتزام الأساسي:** `397a6662` مع إصلاحات تدقيق محلية لاحقة غير مرفوعة بعد
+**الالتزام الأساسي:** `a2b06d79` مع أدلة تحقق وتهيئة CI محلية لاحقة قيد التثبيت
 **قاعدة الإثبات:** لا تعني نتيجة فحص ساكن أو مراجعة مصدر أن ميزة ما اجتازت بناء Android أو اختبار جهاز فعلي.
 
 > **الحكم الحالي:** لا تستوفي النسخة بوابة الإطلاق. لا يوجد بناء Debug أو Release موثق، ولا APK/AAB للفحص، وتظل مسارات المحادثة والصوت والموفرات والترحيل غير متحققة وقت التشغيل.
 
 | بوابة القبول | الحالة | الدليل | الملفات الرئيسية | الاختبار | التحقق وقت التشغيل | الخطر المتبقي |
 |---|---|---|---|---|---|---|
-| تثبيت خط الأساس | PASS | تم توثيق الفرع والالتزام وGradle 8.5 وAGP 8.2.2 وKotlin 1.9.22 وcompile/target SDK 34 وmin SDK 26 وNDK 25.2.9519653 وCMake 3.22.1. | `app/build.gradle.kts`, `gradle/libs.versions.toml` | مراجعة مصدر | NOT_RUNTIME_VERIFIED | التزام التدقيق متقدم محلياً عن البعيد بسبب DNS. |
-| تجميع Debug | BLOCKED_BY_ENVIRONMENT | فشل الغلاف قبل التهيئة بسبب DNS عند تنزيل Gradle؛ وفشل Gradle المحلي قبل التهيئة لأن AGP 8.2.2 غير مخزن محلياً. | `gradle/wrapper`, `build.gradle.kts` | `:app:compileDebugKotlin`, `:app:assembleDebug`, `:app:lintDebug` | NOT_RUNTIME_VERIFIED | أخطاء Kotlin أو الموارد أو JNI قد تبقى غير مكتشفة. |
-| تجميع وحزمة Release | BLOCKED_BY_ENVIRONMENT | لم يبدأ Gradle بسبب AGP غير المتاح. | `app/build.gradle.kts` | `:app:compileReleaseKotlin`, `:app:assembleRelease`, `:app:bundleRelease` | NOT_RUNTIME_VERIFIED | لا توجد أدلة R8 أو Packaging أو حجم أو ABI للحزمة. |
+| تثبيت خط الأساس | PASS | تم توثيق الفرع والالتزام وGradle 8.5 وAGP 8.2.2 وKotlin 1.9.22 وcompile/target SDK 34 وmin SDK 26 وNDK 25.2.9519653 وCMake 3.22.1. | `app/build.gradle.kts`, `gradle/libs.versions.toml` | مراجعة مصدر | NOT_RUNTIME_VERIFIED | الالتزام المحلي متقدم على الرأس البعيد؛ دُعمت Git credential محلياً للدفع اللاحق. |
+| تجميع Debug | BLOCKED_BY_ENVIRONMENT | المحاولة الحالية لـ `:app:compileDebugKotlin` توقفت عند تهيئة Android لغياب Android SDK و`ANDROID_HOME` و`local.properties` المحلي؛ لم تصل إلى Kotlin أو AGP. | `docs/LOCAL_RELEASE_VERIFICATION_EVIDENCE.md` | `:app:compileDebugKotlin` | NOT_RUNTIME_VERIFIED | أخطاء Kotlin أو الموارد أو JNI قد تبقى غير مكتشفة. |
+| تجميع وحزمة Release | BLOCKED_BY_ENVIRONMENT | لم تبدأ مهمة Release محلياً بعد توقف التهيئة عند غياب Android SDK؛ أضيفت إلى بوابة CI الموسعة. | `app/build.gradle.kts`, `.github/workflows/android_build.yml` | `:app:compileReleaseKotlin`, `:app:assembleRelease`, `:app:bundleRelease` | NOT_RUNTIME_VERIFIED | لا توجد أدلة R8 أو Packaging أو حجم أو ABI للحزمة. |
 | توقيع الإصدار | NOT_VERIFIED | متغيرات `KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` غير موجودة في البيئة. | `app/build.gradle.kts` | فحص حضور المتغيرات فقط | NOT_RUNTIME_VERIFIED | **RELEASE SIGNING NOT CONFIGURED** في بيئة التدقيق. |
 | فحص المصدر الأساسي | PASS_WITH_LIMITATION | الفاحص الساكن يمر 25/25، ويغطي إغلاق التوليد، الذاكرة، حذف الجلسة الكامل، وتصدير مخططات Room. | `tools/verify_core_changes.py` | `python3 tools/verify_core_changes.py` | NOT_RUNTIME_VERIFIED | الفاحص لا يحل محل Gradle أو الاختبارات. |
+| نسب Git وإصدار Room | PASS_WITH_LIMITATION | `a5859d89→397a6662→a2b06d79` سلسلة خطية؛ AiriDatabase الحالية v6 وترحيل 1→6؛ لم يظهر v7/v8/v9 في المراجع المتاحة. | `ROOM_VERSION_LINEAGE_VERIFICATION.md` | أوامر Git القابلة لإعادة التشغيل في الدليل | NOT_RUNTIME_VERIFIED | لا ينفي وجود فرع أو أرشيف غير موجود محلياً؛ يلزم SHA أو مصدر التقرير السابق للمطابقة. |
+| بوابة CI الموسعة | CONFIGURED_NOT_RUN | أضيف Release compile/package وAAB وinstrumentation على محاكي ورفع outputs/reports. | `.github/workflows/android_build.yml` | GitHub Actions على SHA المدفوع | NOT_RUNTIME_VERIFIED | لا يمكن اعتمادها قبل تشغيل ناجح على الالتزام الحالي. |
 | الحوار والبث والإلغاء | PASS_WITH_LIMITATION | ملكية generation ID وحاجز callbacks ومسار Stop موجودة في المصدر. | `ChatViewModel.kt`, `HybridOrchestrator.kt`, `ChatScreen.kt` | فحص ساكن 25/25 | NOT_RUNTIME_VERIFIED | لا دليل على بث فعلي أو إلغاء موفر أو استعادة واجهة على جهاز. |
 | معالجة أخطاء الحوار | PASS_WITH_LIMITATION | توجد تصنيفات وخريطة واجهة لأخطاء الصوت؛ لم تحاكَ أخطاء موفر أو شبكة حقيقية. | `ChatScreen.kt`, `HybridOrchestrator.kt` | مراجعة مصدر | NOT_RUNTIME_VERIFIED | retry/regenerate وفشل الشبكة بحاجة اختبار جهاز وخدمة حقيقية. |
 | قاعدة البيانات والترحيلات | NOT_RUNTIME_VERIFIED | Room عند الإصدار 6 مع ترحيلات 1→6، وتصدير schemas مفعّل لقاعدتي الذاكرة والخبرة؛ أُوقف SQLCipher افتراضياً لأن مسار الترقية لم يثبت. | `AiriDatabase.kt`, `ExperienceStore.kt`, `AiriDatabaseMigrationHelper.kt`, `app/build.gradle.kts` | مراجعة مصدر وفحص ساكن 25/25 | NOT_RUNTIME_VERIFIED | يجب اختبار تثبيت جديد وترقية كل إصدار سابق واسترجاع بيانات. |

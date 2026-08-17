@@ -1,13 +1,13 @@
 # القيود المعروفة قبل إطلاق AIRI
 
-**آخر تحديث:** 14 أغسطس 2026
+**آخر تحديث:** 17 أغسطس 2026
 **حكم القبول الحالي:** **🔴 NOT READY**
 
 > هذه القيود ليست وعوداً أو افتراضات. كل بند أدناه يصف دليلاً ناقصاً أو اعتماداً خارج بيئة التدقيق ويمنع التصنيف كنسخة جاهزة للنشر العام.
 
 | المعرف | الأولوية | القيد | الحالة | الأثر | الإجراء المطلوب قبل النشر |
 |---|---|---|---|---|---|
-| RL-01 | P0 | AGP 8.2.2 غير موجود محلياً وDNS يمنع تنزيله. | BLOCKED_BY_ENVIRONMENT | لم يبدأ Kotlin أو JNI أو Lint أو الاختبارات. | تشغيل CI/Android Studio متصل ثم حفظ نتائج Debug وRelease وLint. |
+| RL-01 | P0 | لا يوجد Android SDK أو `ANDROID_HOME` أو `sdkmanager` محلياً؛ توقفت محاولة Gradle قبل Kotlin أو AGP. | BLOCKED_BY_ENVIRONMENT | لم يبدأ Kotlin أو JNI أو Lint أو الاختبارات في البيئة المحلية. | تشغيل بوابة CI الموسعة أو Android Studio متصل ثم حفظ نتائج Debug وRelease وLint. |
 | RL-02 | P0 | لا توقيع Release في بيئة التدقيق. | NOT_VERIFIED | لا يمكن توزيع APK/AAB موثوق. | حقن keystore في CI عبر secrets والتحقق من التوقيع. |
 | RL-03 | P0 | لا APK/AAB ناتج للفحص. | BLOCKED_BY_ENVIRONMENT | لا فحص حجم أو ABI أو `.so` أو R8 أو symbols. | بناء `assembleRelease` و`bundleRelease` وفحص الناتج. |
 | RL-04 | P0 | Room في الإصدار 6 وتصدير schemas مفعّل، لكن لا اختبار ترقية كامل. | NOT_RUNTIME_VERIFIED | خطر فقد أو تلف البيانات أثناء الترقية غير مقاس. | إضافة fixtures وترحيل 1→6 وتثبيت جديد واسترداد. |
@@ -21,6 +21,7 @@
 | RL-12 | P2 | الإسبانية والصينية تتضمنان احتياطيات إنجليزية. | PASS_WITH_LIMITATION | التماثل موجود، لكن الترجمة ليست مكتملة لغوياً. | ترجمة بشرية/مراجعة أصلية لكل الاحتياطيات. |
 | RL-13 | P2 | تثبيت شهادات LLM مؤجل. | PASS_WITH_LIMITATION | TLS النظامي نشط؛ لا تثبيت SPKI إضافي. | لا تفعل pinning حتى التحقق المباشر ودورة تغيير الشهادة. |
 | RL-14 | P2 | API السوق وMarketplace backend غير متحققين. | NOT_RUNTIME_VERIFIED | لا يمكن تسويق اكتشاف/نشر مهارات كسيناريو جاهز. | تشغيل backend موثق واختبار browse/install/publish/failure. |
+| RL-15 | P0 | بوابة CI الموسعة مهيأة لكن لم تُشغل بعد على الالتزام الحالي. | CONFIGURED_NOT_RUN | لا يوجد إثبات Debug/Release/AAB/instrumentation للـ SHA المحلي. | دفع الالتزام ثم حفظ حالة Actions وartifacts والتحقق من SHA المتحقق. |
 
 ## ملاحظات الإصلاحات الوقائية في التدقيق
 

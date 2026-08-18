@@ -51,7 +51,9 @@ jobs:
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: |
-        ./gradlew :app:compileReleaseKotlin :app:assembleRelease :app:bundleRelease --stacktrace
+        ./gradlew --no-daemon --max-workers=1 \
+          '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -XX:+UseSerialGC' \
+          :app:compileReleaseKotlin :app:assembleRelease :app:bundleRelease --stacktrace
 
     - name: Remove temporary signing material
       if: always()

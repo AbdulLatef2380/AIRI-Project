@@ -20,7 +20,7 @@ import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SurfaceRaised
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AIRI Microinteraction components (Phase 10)
+// AIRI Microinteraction components ()
 // All are pure-Compose, recomposition-safe, state-driven.
 // ─────────────────────────────────────────────────────────────────────────────
 

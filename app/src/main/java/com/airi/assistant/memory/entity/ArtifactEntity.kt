@@ -13,7 +13,7 @@ import androidx.room.PrimaryKey
  * This table stores only the metadata (ID, path, type, timestamps) so the
  * artifact list can be reconstructed without scanning the filesystem.
  *
- * ── Part of AiriDatabase v5 migration (Phase 2 Task 26) ──────────────────────
+ * ── Part of AiriDatabase v5 migration (ask 26) ──────────────────────
  */
 @Entity(
     tableName = "workspace_artifact",

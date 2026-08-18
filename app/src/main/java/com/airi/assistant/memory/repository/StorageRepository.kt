@@ -23,7 +23,7 @@ import kotlinx.coroutines.withContext
  * Provides a single entry point for all persistent AIRI state rather than
  * having callers depend directly on individual DAOs. This enables:
  *   - Consistent error handling and logging at the repository boundary
- *   - A mock-friendly interface for tests
+ *   - A testable interface for tests
  *   - Cross-DAO transactions (e.g. delete session + its messages atomically)
  *   - Future migration to a different storage engine without changing callers
  *
@@ -151,7 +151,7 @@ class StorageRepository(val db: AiriDatabase) {
      *   - context_cache      (transient context snapshots — reproducible but user-tied)
      *   - usage_stats        (feature engagement stats — user behaviour)
      *   - behavior_stats     (agent learning stats — derived from user interactions)
-     *   - audit_log          (AIRI_RUNTIME events — system events within user sessions)
+     *   - audit_log          (AIRI events — system events within user sessions)
      *   - workspace_artifact (metadata index for generated files — user-generated persistent data)
      *
      * All workspace_artifact rows are classified as user-generated persistent data:
@@ -179,12 +179,12 @@ class StorageRepository(val db: AiriDatabase) {
      * explicitly invoked alongside the disk wipe by whoever orchestrates the
      * full GDPR deletion.
      */
-    /** Task 1.7: Persist thumbs up/down feedback for a message row. */
+    /** Persist thumbs up/down feedback for a message row. */
     suspend fun updateMessageFeedback(id: Long, feedback: Int) = withContext(Dispatchers.IO) {
         db.memoryDao().updateMessageFeedback(id, feedback)
     }
 
-    /** Task 1.7: Get N most recent messages across all sessions (for feedback matching). */
+    /** Get N most recent messages across all sessions (for feedback matching). */
     suspend fun getRecentMessages(limit: Int): List<com.airi.assistant.memory.entity.ChatMessage> =
         withContext(Dispatchers.IO) {
             db.memoryDao().getRecentMemories(limit)

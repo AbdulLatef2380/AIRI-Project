@@ -148,7 +148,7 @@ fun CreditsScreen(onBack: () -> Unit) {
                     Divider(color = AiriTheme.outline, modifier = Modifier.padding(vertical = 8.dp))
                     StatRow(
                         "Subscription tier",
-                        if (snapshot.budget > 500) "Premium ✓" else "Free"
+                        if (snapshot.budget > 500) "Premium " else "Free"
                     )
                     Divider(color = AiriTheme.outline, modifier = Modifier.padding(vertical = 8.dp))
                     StatRow("Daily budget", "${snapshot.budget} credits")
@@ -245,7 +245,7 @@ private fun UsageAlertsCard(snapshot: MeterSnapshot) {
     val (bgColor, borderColor, icon, title, message) = when (alertLevel) {
         "exhausted" -> listOf(
             SemanticError.copy(0.10f), SemanticError.copy(0.30f),
-            "🚫", "Daily limit reached",
+            "", "Daily limit reached",
             "All ${snapshot.budget} credits have been used. Upgrade to Premium for 10× more credits, or wait until midnight UTC."
         )
         "critical" -> listOf(
@@ -260,7 +260,7 @@ private fun UsageAlertsCard(snapshot: MeterSnapshot) {
         )
         else -> listOf(
             SemanticSuccess.copy(0.07f), SemanticSuccess.copy(0.20f),
-            "✓", "Credits healthy",
+            "", "Credits healthy",
             "${snapshot.remaining} of ${snapshot.budget} credits remain. You're well within your daily limit."
         )
     }
@@ -368,11 +368,11 @@ private fun StatRow(label: String, value: String) {
 }
 
 private fun actionDisplayInfo(action: ActionType): Pair<String, String> = when (action) {
-    ActionType.MESSAGE          -> "💬" to "Messages"
+    ActionType.MESSAGE          -> "" to "Messages"
     ActionType.AGENT_EXECUTION  -> "◈" to "Agent execution"
     ActionType.SKILL_USE        -> "◈" to "Skill use"
-    ActionType.IMAGE_GENERATION -> "🖼" to "Image generation"
-    ActionType.DOCUMENT_PROCESS -> "📄" to "Document processing"
+    ActionType.IMAGE_GENERATION -> "" to "Image generation"
+    ActionType.DOCUMENT_PROCESS -> "" to "Document processing"
     ActionType.BROWSER_FETCH    -> "⊕" to "Web fetch"
     ActionType.SCHEDULED_JOB    -> "⏰" to "Scheduled jobs"
     ActionType.RAG_RETRIEVAL    -> "◉" to "Memory retrieval"

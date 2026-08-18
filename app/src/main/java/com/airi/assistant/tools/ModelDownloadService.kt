@@ -35,7 +35,7 @@ class ModelDownloadService : Service() {
         if (intent?.action == ACTION_CANCEL_DOWNLOAD) {
             cancelRequested.set(true)
             Log.i(TAG, "CANCEL requested via intent")
-            Log.i("AIRI_RUNTIME", "DOWNLOAD_CANCEL_REQUESTED source=intent")
+            Log.i("AIRI", "DOWNLOAD_CANCEL_REQUESTED source=intent")
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
@@ -168,7 +168,7 @@ class ModelDownloadService : Service() {
                         val now = System.currentTimeMillis()
                         if (now - lastProofMs >= 5000) {
                             android.util.Log.i(
-                                "AIRI_RUNTIME",
+                                "AIRI",
                                 "DOWNLOAD_PROGRESS bytes=$totalBytes mb=${totalBytes / 1_048_576}"
                             )
                             lastProofMs = now

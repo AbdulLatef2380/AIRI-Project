@@ -17,30 +17,24 @@
 -keep @androidx.room.Database class * { *; }
 -keepclassmembers class * extends androidx.room.RoomDatabase { *; }
 
-# ── Kotlin serialization / reflection ────────────────────────────────────────
+# ── Reflection metadata ──────────────────────────────────────────────────────
 -keepattributes *Annotation*
 -keepattributes Signature
 -keepattributes InnerClasses
 -keepattributes EnclosingMethod
 -keep class kotlin.Metadata { *; }
--keep class kotlin.reflect.** { *; }
 
 # ── Coroutines ────────────────────────────────────────────────────────────────
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
 
-# ── Compose — keep generated composable infrastructure ───────────────────────
--keep class androidx.compose.** { *; }
--keep @androidx.compose.runtime.Composable class * { *; }
+# Compose, Firebase, and Google Play services ship consumer rules. Keeping every
+# class in these libraries prevents shrinking and substantially increases R8 memory use.
 
 # ── WorkManager — worker classes instantiated by reflection ──────────────────
 -keep class * extends androidx.work.Worker { *; }
 -keep class * extends androidx.work.CoroutineWorker { *; }
 -keep class * extends androidx.work.ListenableWorker { *; }
-
-# ── Firebase / Google Services ────────────────────────────────────────────────
--keep class com.google.firebase.** { *; }
--keep class com.google.android.gms.** { *; }
 
 # ── Accessibility Service — must be kept for system to bind ──────────────────
 -keep class com.airi.assistant.accessibility.service.AiriAccessibilityService { *; }
@@ -72,3 +66,7 @@
 -dontnote kotlinx.coroutines.**
 -dontnote kotlin.reflect.**
 -dontnote androidx.compose.**
+
+# Vosk includes JNA for its native bridge. java.awt.Component is a desktop-only
+# method signature that is unreachable on Android and must not block R8.
+-dontwarn java.awt.Component

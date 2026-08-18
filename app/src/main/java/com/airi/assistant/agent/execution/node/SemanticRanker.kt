@@ -6,7 +6,7 @@ import com.airi.assistant.agent.learning.reinforcement.AdaptivePolicy
 /**
  * SemanticRanker — ε-greedy node selection for the accessibility execution layer.
  *
- * Phase 1 change: DecisionEngine was removed (0 callers in chat path).
+ *  change: DecisionEngine was removed (0 callers in chat path).
  * Its only logic was epsilon-greedy selection — inlined here directly.
  */
 object SemanticRanker {

@@ -145,7 +145,7 @@ class TypedPlanGraph(
             ?: return RecoveryDecision.Abort("Unknown node: $nodeId")
 
         node.failReason = reason
-        Log.w(TAG, "AIRI_RUNTIME GRAPH_NODE_FAILED id=$nodeId reason=$reason attempts=${node.attempts}")
+        Log.w(TAG, "AIRI GRAPH_NODE_FAILED id=$nodeId reason=$reason attempts=${node.attempts}")
 
         return when (val branch = node.recoveryBranch) {
             is RecoveryBranch.Retry -> {
@@ -216,7 +216,7 @@ class TypedPlanGraph(
         nodes[nodeId]?.let { node ->
             if (node.status == NodeStatus.RECOVERING) {
                 node.status = NodeStatus.PENDING
-                Log.i(TAG, "AIRI_RUNTIME GRAPH_RETRY_RESET id=$nodeId attempts=${node.attempts}")
+                Log.i(TAG, "AIRI GRAPH_RETRY_RESET id=$nodeId attempts=${node.attempts}")
             }
         }
     }
@@ -230,7 +230,7 @@ class TypedPlanGraph(
             it.activeParams = newParams
             it.status = NodeStatus.PENDING
             it.attempts = 0
-            Log.i(TAG, "AIRI_RUNTIME GRAPH_NODE_PATCHED id=$nodeId newAction=$newAction")
+            Log.i(TAG, "AIRI GRAPH_NODE_PATCHED id=$nodeId newAction=$newAction")
         }
     }
 

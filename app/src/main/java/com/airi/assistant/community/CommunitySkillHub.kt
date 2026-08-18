@@ -207,7 +207,7 @@ class CommunitySkillHub(private val context: Context) {
                 .header("X-AIRI-Sandbox", "true").build()
             val response = client.newCall(request).execute()
             if (response.isSuccessful) {
-                SandboxTestResult(true, "Endpoint responded with HTTP ${response.code} ✓")
+                SandboxTestResult(true, "Endpoint responded with HTTP ${response.code} ")
             } else {
                 SandboxTestResult(false, "Endpoint returned HTTP ${response.code} ${response.message}")
             }

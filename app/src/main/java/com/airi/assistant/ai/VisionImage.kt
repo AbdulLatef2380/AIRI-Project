@@ -22,7 +22,7 @@ import java.io.InputStream
  *   3. Convert ARGB_8888 → packed RGB888 (width*height*3 bytes, row-major,
  *      top-down) — the exact layout LlamaBridge.cpp/airi_eval_image expects.
  *
- * AIRI_RUNTIME tags emitted on every successful prepare so the prep layer can
+ * AIRI tags emitted on every successful prepare so the prep layer can
  * be audited from logcat without any UI instrumentation:
  *
  *   IMG_PREP_DECODED   uri=… src=WxH inSampleSize=…
@@ -121,7 +121,7 @@ object VisionImage {
             return null
         }
         Log.i(
-            "AIRI_RUNTIME",
+            "AIRI",
             "IMG_PREP_DECODED uri=$uri src=${srcW}x${srcH} inSampleSize=$sampleSize " +
                 "decoded=${sampled.width}x${sampled.height}"
         )
@@ -152,7 +152,7 @@ object VisionImage {
         }
         if (scaled !== src) src.recycle()
         Log.i(
-            "AIRI_RUNTIME",
+            "AIRI",
             "IMG_PREP_SCALED src=${w}x${h} dst=${dstW}x${dstH} bytes=${dstW * dstH * 3}"
         )
         return scaled
@@ -201,7 +201,7 @@ object VisionImage {
             di += 3
             i  += 1
         }
-        Log.i("AIRI_RUNTIME", "IMG_PREP_RGB888 bytes=$needed w=$w h=$h")
+        Log.i("AIRI", "IMG_PREP_RGB888 bytes=$needed w=$w h=$h")
         return out
     }
 }

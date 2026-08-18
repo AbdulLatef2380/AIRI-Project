@@ -38,7 +38,7 @@ class LlamaManager(private val context: Context) {
     private var isLoaded = false
     private var lastLoadFailure: String? = null
 
-    // ── Native-call serialization (Phase 2, finding D) ────────────────────────
+    // ── Native-call serialization (, finding D) ────────────────────────
     // The KV cache, sampler, and llama_context in LlamaBridge.cpp are file-scope
     // statics with NO internal mutex (by design — llama.cpp is not thread-safe
     // per context). Dispatchers.IO is a multi-threaded pool, so prior to this
@@ -345,7 +345,7 @@ class LlamaManager(private val context: Context) {
         runCatching { LlamaNative.cancel() }
         runCatching { LlamaNative.nativeCancel() }
         if (com.airi.assistant.BuildConfig.DEBUG) if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "cancelStream requested")
-        Log.i("AIRI_RUNTIME", "GEN_CANCEL_REQUESTED tid=${Thread.currentThread().id}")
+        Log.i("AIRI", "GEN_CANCEL_REQUESTED tid=${Thread.currentThread().id}")
     }
 
     /**
@@ -368,21 +368,21 @@ class LlamaManager(private val context: Context) {
         // attributed to the requesting reason from a single log scrape.
         val sidBefore = runCatching { LlamaNative.nativeGetSessionId() }.getOrNull() ?: -1L
         val genBefore = runCatching { LlamaNative.nativeGetGenerationId() }.getOrNull() ?: -1L
-        Log.i("AIRI_RUNTIME",
+        Log.i("AIRI",
             "CONTEXT_RESET origin=jvm reason=$reason " +
             "session_id_before=$sidBefore gen_id_before=$genBefore " +
             "primed_history=${primedHistory.size} session_primed=$sessionPrimed")
-        Log.i("AIRI_RUNTIME", "FULL_RESET_REQUESTED reason=$reason")
+        Log.i("AIRI", "FULL_RESET_REQUESTED reason=$reason")
         // 1. Raise the cancel flag in case anything is still mid-decode.
         runCatching { LlamaNative.nativeCancel() }
         // 2. Destroy + rebuild the native context with cached cparams.
         runCatching { LlamaNative.nativeFullReset() }
             .onSuccess  {
                 val sidAfter = runCatching { LlamaNative.nativeGetSessionId() }.getOrNull() ?: -1L
-                Log.i("AIRI_RUNTIME",
+                Log.i("AIRI",
                     "FULL_RESET_OK reason=$reason session_id_after=$sidAfter")
             }
-            .onFailure  { Log.e("AIRI_RUNTIME", "FULL_RESET_FAIL reason=$reason err=${it.message}") }
+            .onFailure  { Log.e("AIRI", "FULL_RESET_FAIL reason=$reason err=${it.message}") }
         // 3. Mark the JVM session as needing a fresh re-prime.
         invalidateSession()
         // 4. Clear the in-flight cancel latch — the next turn starts fresh.
@@ -439,7 +439,7 @@ class LlamaManager(private val context: Context) {
                 // Tokenizer not ready (no model loaded) or vocab failure.
                 // The PREFLIGHT_OVERFLOW path will catch any actual overflow
                 // downstream; do not invent counts.
-                Log.w("AIRI_RUNTIME",
+                Log.w("AIRI",
                     "TRIM_TOKENS_SKIP reason=tokenizer_unavailable status=$n " +
                     "messages=${messages.size}")
                 return messages
@@ -448,7 +448,7 @@ class LlamaManager(private val context: Context) {
             total += n
         }
         if (total <= maxHistoryTokens) {
-            Log.i("AIRI_RUNTIME",
+            Log.i("AIRI",
                 "TRIM_TOKENS_NOOP total=$total budget=$maxHistoryTokens " +
                 "messages=${messages.size}")
             return messages
@@ -461,7 +461,7 @@ class LlamaManager(private val context: Context) {
             firstKept++
         }
         val kept = messages.subList(firstKept, messages.size).toList()
-        Log.i("AIRI_RUNTIME",
+        Log.i("AIRI",
             "TRIM_TOKENS_APPLIED dropped=$firstKept kept=${kept.size} " +
             "total_before=$total total_after=$running budget=$maxHistoryTokens")
         return kept
@@ -569,7 +569,7 @@ class LlamaManager(private val context: Context) {
     fun getLastLoadFailure(): String? = lastLoadFailure
 
     /**
-     * Phase 2, finding E (revised after source audit):
+     * , finding E (revised after source audit):
      *
      * LlamaBridge.cpp exposes NO native unload-model entry point, and project
      * rules forbid modifying it. However, audit of LlamaBridge.cpp:647-648 and
@@ -586,11 +586,11 @@ class LlamaManager(private val context: Context) {
      * LlamaBridge.cpp:655-656), the kernel can page them out under memory
      * pressure, so the practical leak is bounded.
      *
-     * Every step is observable via AIRI_RUNTIME so the test on device can
+     * Every step is observable via AIRI so the test on device can
      * confirm the sequence ran in the expected order.
      */
     fun unloadModel() {
-        Log.i("AIRI_RUNTIME", "UNLOAD_REQUESTED was_loaded=$isLoaded")
+        Log.i("AIRI", "UNLOAD_REQUESTED was_loaded=$isLoaded")
         // Cancel BEFORE the dispatcher hop — the in-flight token loop reads
         // this flag every callback and will exit on the next tick.
         cancelRequested.set(true)
@@ -602,14 +602,14 @@ class LlamaManager(private val context: Context) {
             try {
                 if (LlamaNative.isAvailable()) {
                     runCatching { LlamaNative.resetSession() }
-                        .onSuccess { Log.i("AIRI_RUNTIME", "UNLOAD_KV_CLEARED") }
-                        .onFailure { Log.w("AIRI_RUNTIME", "UNLOAD_KV_CLEAR_FAIL ${it.message}") }
+                        .onSuccess { Log.i("AIRI", "UNLOAD_KV_CLEARED") }
+                        .onFailure { Log.w("AIRI", "UNLOAD_KV_CLEAR_FAIL ${it.message}") }
                 }
             } finally {
                 isLoaded = false
                 chatHistory.clear()
                 invalidateSession()
-                Log.i("AIRI_RUNTIME",
+                Log.i("AIRI",
                     "UNLOAD_COMPLETE kv_cleared=true model_mmap_held=true " +
                     "note=loadModel_will_free_weights")
                 // P1-D: Model unload clears chatHistory and destroys the KV cache.
@@ -728,7 +728,7 @@ class LlamaManager(private val context: Context) {
                 contextBudget = contextBudget,
                 modelPath     = modelPath
             )
-            Log.i("AIRI_RUNTIME", "SESSION_HANDLE_MINTED ${currentSession.toLogString()}")
+            Log.i("AIRI", "SESSION_HANDLE_MINTED ${currentSession.toLogString()}")
             primedHistory.clear()
 
             // Prime system prompt as a non-logits append (Mistral's is empty by design).
@@ -756,7 +756,7 @@ class LlamaManager(private val context: Context) {
                 // next turn re-primes cleanly. This bounds cancellation latency
                 // to O(1 message boundary) rather than O(1 token-chunk).
                 if (cancelRequested.get()) {
-                    Log.i("AIRI_RUNTIME",
+                    Log.i("AIRI",
                         "RECONCILE_CANCELLED phase=hard_reset_replay role=${msg.role}")
                     throw RuntimeException("RECONCILE_CANCELLED")
                 }
@@ -773,7 +773,7 @@ class LlamaManager(private val context: Context) {
             primedSystemPrompt = systemPrompt
             sessionPrimed = true
 
-            Log.i("AIRI_RUNTIME",
+            Log.i("AIRI",
                 "SESSION_REPRIMED model=${primedModelPath} history=${primedHistory.size} kv=${LlamaNative.getKvPosition()}/${LlamaNative.getNCtx()}")
             return chatHistory.size
         }
@@ -789,7 +789,7 @@ class LlamaManager(private val context: Context) {
                 // AtomicBoolean before every JNI hop so a cancelStream() during
                 // incremental replay exits at a clean message boundary.
                 if (cancelRequested.get()) {
-                    Log.i("AIRI_RUNTIME",
+                    Log.i("AIRI",
                         "RECONCILE_CANCELLED phase=incremental_replay role=${msg.role}")
                     throw RuntimeException("RECONCILE_CANCELLED")
                 }
@@ -801,7 +801,7 @@ class LlamaManager(private val context: Context) {
                 if (fragment != null) LlamaNative.appendAssistantTurn(fragment)
             }
             primedHistory.addAll(newTurns)
-            Log.i("AIRI_RUNTIME",
+            Log.i("AIRI",
                 "SESSION_INCREMENT delta=${newTurns.size} kv=${LlamaNative.getKvPosition()}/${LlamaNative.getNCtx()}")
         }
         return newTurns.size
@@ -895,7 +895,7 @@ class LlamaManager(private val context: Context) {
 
         // Inactivity-based watchdog (never a wall-clock total deadline).
         // Also fires a non-fatal stall warning at STALL_WARNING_MS.
-        // Phase 2, finding D: must run on watchdogScope (Dispatchers.Default),
+        // , finding D: must run on watchdogScope (Dispatchers.Default),
         // NOT on `scope` (single-threaded llamaDispatcher), or it will be
         // starved while the native generate() call holds the only worker.
         val stallWarned = AtomicBoolean(false)
@@ -910,7 +910,7 @@ class LlamaManager(private val context: Context) {
                 // Non-fatal stall warning (only AFTER first token has flowed).
                 if (firstSeen && idle >= STALL_WARNING_MS && stallWarned.compareAndSet(false, true)) {
                     Log.w(TAG, "STALL_DETECTED idle=${idle}ms — decode is slow but still alive")
-                    Log.i("AIRI_RUNTIME", "STALL idle_ms=$idle threshold_ms=$STALL_WARNING_MS")
+                    Log.i("AIRI", "STALL idle_ms=$idle threshold_ms=$STALL_WARNING_MS")
                     android.os.Handler(android.os.Looper.getMainLooper()).post { onStallWarning() }
                 }
 
@@ -918,7 +918,7 @@ class LlamaManager(private val context: Context) {
                     if (finished.compareAndSet(false, true)) {
                         val errCode = if (firstSeen) ERR_INACTIVITY_TIMEOUT else ERR_FIRST_TOKEN_TIMEOUT
                         Log.w(TAG, "generateStream timed out: code=$errCode idle=${idle}ms budget=${budget}ms")
-                        Log.i("AIRI_RUNTIME", "TIMEOUT phase=${if (firstSeen) "INACTIVITY" else "FIRST_TOKEN"} idle_ms=$idle budget_ms=$budget")
+                        Log.i("AIRI", "TIMEOUT phase=${if (firstSeen) "INACTIVITY" else "FIRST_TOKEN"} idle_ms=$idle budget_ms=$budget")
                         cancelRequested.set(true)
                         // Call BOTH cancel routes for belt-and-suspenders parity
                         // with cancelStream(). cancel() and nativeCancel() write
@@ -948,11 +948,11 @@ class LlamaManager(private val context: Context) {
 
             
             // so logcat can prove WHERE the pipeline stops if it ever does.
-            // adb logcat | grep AIRI_RUNTIME should show this exact sequence
+            // adb logcat | grep AIRI should show this exact sequence
             // for every successful turn:
             //   GEN_START → CONTEXT_READY → PROMPT_TOKENIZED → FIRST_TOKEN
             //     → GENERATION_SUCCESS → GEN_END
-            Log.i("AIRI_RUNTIME",
+            Log.i("AIRI",
                 "GEN_START model=${model.name} prompt_len=${prompt.length} " +
                 "primed_history=${primedHistory.size} chat_history=${chatHistory.size}")
 
@@ -977,7 +977,7 @@ class LlamaManager(private val context: Context) {
                 // history trim + KV reconcile + preflight overflow check.
                 // On any exception from this block the catch route is taken and
                 // STATE_ERROR is emitted before fullReset.
-                Log.i("AIRI_RUNTIME", "STATE_PREFLIGHT session_primed=$sessionPrimed " +
+                Log.i("AIRI", "STATE_PREFLIGHT session_primed=$sessionPrimed " +
                     "primed_history=${primedHistory.size} chat_history=${chatHistory.size}")
 
                 // ── CANCEL FLAG SANITISE ──────────────────────────────────────
@@ -993,9 +993,9 @@ class LlamaManager(private val context: Context) {
                 // after 1–3 messages.
                 runCatching { LlamaNative.nativeClearCancel() }
                     .onFailure { t ->
-                        Log.w("AIRI_RUNTIME", "CLEAR_CANCEL_FAIL reason=${t.message}")
+                        Log.w("AIRI", "CLEAR_CANCEL_FAIL reason=${t.message}")
                     }
-                Log.i("AIRI_RUNTIME",
+                Log.i("AIRI",
                     "CANCEL_SANITISED session_primed=$sessionPrimed")
 
                 // ── TOKEN-BASED HISTORY BUDGET ────────────────────────────────
@@ -1013,7 +1013,7 @@ class LlamaManager(private val context: Context) {
                 if (trimmedByTokens.size != historyBeforeTrim) {
                     chatHistory.clear()
                     chatHistory.addAll(trimmedByTokens)
-                    Log.i("AIRI_RUNTIME",
+                    Log.i("AIRI",
                         "HISTORY_TOKEN_TRIM dropped=${historyBeforeTrim - chatHistory.size} " +
                         "kept=${chatHistory.size} budget_tokens=$maxHistoryTokens " +
                         "→ invalidating session (KV superset of new history)")
@@ -1027,7 +1027,7 @@ class LlamaManager(private val context: Context) {
                 if (replayedTurns > 0 && com.airi.assistant.BuildConfig.DEBUG) {
                     Log.d("AIRI_STREAM", "session_reconcile replayed_turns=$replayedTurns ms=$reconcileMs")
                 }
-                Log.i("AIRI_RUNTIME",
+                Log.i("AIRI",
                     "CONTEXT_READY replayed_turns=$replayedTurns reconcile_ms=$reconcileMs " +
                     "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
                     "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
@@ -1062,7 +1062,7 @@ class LlamaManager(private val context: Context) {
                                   else Int.MAX_VALUE
 
                 if (nCtxNow > 0 && estNeeded >= freeRoom) {
-                    Log.i("AIRI_RUNTIME",
+                    Log.i("AIRI",
                         "PREFLIGHT_OVERFLOW n_past=$nPastBefore n_ctx=$nCtxNow " +
                         "user_est=$estUserNew reserve=128 needed=$estNeeded " +
                         "free=$freeRoom → fullReset")
@@ -1070,15 +1070,15 @@ class LlamaManager(private val context: Context) {
                     // After a full reset, KV is empty. Re-prime from the last
                     // 3-4 messages (already capped by maxHistory) via the
                     // standard reconcile path. This rebuilds prompt cleanly
-                    // per Phase 3 spec ("rebuild prompt every turn using last
+                    // per  spec ("rebuild prompt every turn using last
                     // 3-4 messages ONLY; discard older history").
                     val replayed2 = reconcileSession(model.path, model.type, systemPrompt)
-                    Log.i("AIRI_RUNTIME",
+                    Log.i("AIRI",
                         "PREFLIGHT_REPRIMED replayed=$replayed2 " +
                         "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
                         "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
                 } else {
-                    if (com.airi.assistant.BuildConfig.DEBUG) if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_RUNTIME",
+                    if (com.airi.assistant.BuildConfig.DEBUG) if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI",
                         "PREFLIGHT_OK n_past=$nPastBefore n_ctx=$nCtxNow " +
                         "user_est=$estUserNew needed=$estNeeded free=$freeRoom")
                 }
@@ -1089,7 +1089,7 @@ class LlamaManager(private val context: Context) {
                 // Kotlin-layer time (<100 ms) for the common "cancel during startup"
                 // case, and prevents leaving the KV in a mid-write state.
                 if (cancelRequested.get()) {
-                    Log.i("AIRI_RUNTIME",
+                    Log.i("AIRI",
                         "PREFILL_CANCELLED_BEFORE_NATIVE reason=pre_jni_check tokens_streamed=0")
                     if (finished.compareAndSet(false, true)) {
                         android.os.Handler(android.os.Looper.getMainLooper()).post {
@@ -1108,7 +1108,7 @@ class LlamaManager(private val context: Context) {
                 // token's logit is ready. Any cancel raised between this log
                 // and STATE_GENERATE will surface as a -2 CANCELLED status
                 // or as a thrown exception routed to STATE_ERROR.
-                Log.i("AIRI_RUNTIME", "STATE_PREFILL fragment_chars=${userFragment.length} " +
+                Log.i("AIRI", "STATE_PREFILL fragment_chars=${userFragment.length} " +
                     "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
                     "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
 
@@ -1124,7 +1124,7 @@ class LlamaManager(private val context: Context) {
                     model = model,
                     systemPrompt = systemPrompt
                 )
-                Log.i("AIRI_RUNTIME",
+                Log.i("AIRI",
                     "PROMPT_TOKENIZED user_fragment_chars=${userFragment.length} " +
                     "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
                     "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
@@ -1175,13 +1175,13 @@ class LlamaManager(private val context: Context) {
                         penaltyLastN      = penaltyLastN
                     )
                 }.onSuccess {
-                    Log.i("AIRI_RUNTIME",
+                    Log.i("AIRI",
                         "SAMPLING_PARAMS_PUSHED temp=$temperature top_k=$topK " +
                         "top_p=$topP min_p=$minP repeat=$repeatPenalty " +
                         "pres=$presencePenalty freq=$frequencyPenalty " +
                         "penalty_last_n=$penaltyLastN")
                 }.onFailure { t ->
-                    Log.w("AIRI_RUNTIME",
+                    Log.w("AIRI",
                         "SAMPLING_PARAMS_PUSH_FAILED ${t.javaClass.simpleName}: ${t.message} " +
                         "— falling back to native defaults")
                 }
@@ -1201,7 +1201,7 @@ class LlamaManager(private val context: Context) {
                     .getOrDefault(-1L)
                 val genIdAtStart = runCatching { LlamaNative.nativeGetGenerationId() }
                     .getOrDefault(-1L)
-                Log.i("AIRI_RUNTIME",
+                Log.i("AIRI",
                     "STATE_GENERATE session_id=$sessionIdAtStart gen_id=$genIdAtStart " +
                     "max_tokens=$maxTokens " +
                     "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
@@ -1219,7 +1219,7 @@ class LlamaManager(private val context: Context) {
                     val sidNow = runCatching { LlamaNative.nativeGetSessionId() }
                         .getOrDefault(sessionIdAtStart)
                     if (sidNow != sessionIdAtStart) {
-                        Log.w("AIRI_RUNTIME",
+                        Log.w("AIRI",
                             "STALE_TOKEN_DROPPED phase=native_callback " +
                             "captured_session=$sessionIdAtStart " +
                             "current_session=$sidNow " +
@@ -1231,7 +1231,7 @@ class LlamaManager(private val context: Context) {
                     if (cancelRequested.get()) {
                         // Log the honored-cancellation exactly once per stream.
                         if (firstTokenLogged.get() && !finished.get()) {
-                            Log.i("AIRI_RUNTIME",
+                            Log.i("AIRI",
                                 "GEN_CANCEL_HONORED tokens_emitted=$nativeTokenCount")
                         }
                         return@tokenCallback
@@ -1266,7 +1266,7 @@ class LlamaManager(private val context: Context) {
                         com.airi.assistant.domain.verification.VerificationTracker.recordCheck(
                             "FIRST_TOKEN", true, "streaming token emitted"
                         )
-                        Log.i("AIRI_RUNTIME", "FIRST_TOKEN token_emitted=true model=${model.name} first_token_ms=$firstTokenMs session_id=$sessionIdAtStart gen_id=$genIdAtStart")
+                        Log.i("AIRI", "FIRST_TOKEN token_emitted=true model=${model.name} first_token_ms=$firstTokenMs session_id=$sessionIdAtStart gen_id=$genIdAtStart")
                     }
 
                     val now = System.currentTimeMillis()
@@ -1307,7 +1307,7 @@ class LlamaManager(private val context: Context) {
                             val genIdOnMain   = runCatching { LlamaNative.nativeGetGenerationId() }
                                 .getOrDefault(genIdExpected)
                             if (sidOnMain != sessionIdAtStart || genIdOnMain != genIdExpected) {
-                                Log.w("AIRI_RUNTIME",
+                                Log.w("AIRI",
                                     "STALE_TOKEN_DROPPED phase=main_dispatch " +
                                     "captured_session=$sessionIdAtStart " +
                                     "current_session=$sidOnMain " +
@@ -1373,9 +1373,9 @@ class LlamaManager(private val context: Context) {
                         // full-reset the native context, then surface onError.
                         // MUST NOT fall through to tail flush / appendAssistantTurn
                         // / onComplete — the context no longer holds valid state.
-                        Log.e("AIRI_RUNTIME",
+                        Log.e("AIRI",
                             "STATE_ERROR status=-1 emitted=$nativeTokenCount → fullReset+onError")
-                        Log.i("AIRI_RUNTIME",
+                        Log.i("AIRI",
                             "STATE_CLEANUP reason=gen_error " +
                             "clearing: tokenBuffer(${tokenBuffer.length}B) " +
                             "nativeTokenCount=$nativeTokenCount")
@@ -1389,7 +1389,7 @@ class LlamaManager(private val context: Context) {
                                 catch (t: Throwable) { Log.w(TAG, "onError(gen_error) threw: \${t.message}", t) }
                             }
                         }
-                        Log.i("AIRI_RUNTIME", "STATE_IDLE after=gen_error")
+                        Log.i("AIRI", "STATE_IDLE after=gen_error")
                     }
 
                     -3 -> {
@@ -1399,11 +1399,11 @@ class LlamaManager(private val context: Context) {
                         // to the UI. Hard-clear streaming state, full-reset,
                         // then surface onError so the caller can show a recovery
                         // message. The next turn will re-prime from trimmed
-                        // chatHistory (which Phase 3 rebuilds every turn).
+                        // chatHistory (which  rebuilds every turn).
                         // MUST NOT call appendAssistantTurn on the just-reset ctx.
-                        Log.w("AIRI_RUNTIME",
+                        Log.w("AIRI",
                             "STATE_ERROR status=-3 overflow emitted=$nativeTokenCount → fullReset+onError")
-                        Log.i("AIRI_RUNTIME",
+                        Log.i("AIRI",
                             "STATE_CLEANUP reason=gen_overflow " +
                             "clearing: tokenBuffer(${tokenBuffer.length}B) " +
                             "nativeTokenCount=$nativeTokenCount")
@@ -1417,7 +1417,7 @@ class LlamaManager(private val context: Context) {
                                 catch (t: Throwable) { Log.w(TAG, "onError(overflow) threw: \${t.message}", t) }
                             }
                         }
-                        Log.i("AIRI_RUNTIME", "STATE_IDLE after=gen_overflow")
+                        Log.i("AIRI", "STATE_IDLE after=gen_overflow")
                     }
 
                     -2 -> {
@@ -1430,12 +1430,12 @@ class LlamaManager(private val context: Context) {
                         // be in the queue; the session-id guard in the dispatch
                         // block will drop it). Do NOT call appendAssistantTurn —
                         // the cancelled context is not at a well-defined KV
-                        // position; Phase 3 will rebuild from scratch next turn.
+                        // position;  will rebuild from scratch next turn.
                         val partialResponse = response.toString()
-                        Log.i("AIRI_RUNTIME",
+                        Log.i("AIRI",
                             "STATE_CANCELLED status=-2 emitted=$nativeTokenCount " +
                             "partial_chars=${partialResponse.length}")
-                        Log.i("AIRI_RUNTIME",
+                        Log.i("AIRI",
                             "STATE_CLEANUP reason=cancelled " +
                             "clearing: tokenBuffer(${tokenBuffer.length}B)")
                         tokenBuffer.clear()
@@ -1453,7 +1453,7 @@ class LlamaManager(private val context: Context) {
                         // no generate can race this write.
                         runCatching { LlamaNative.nativeClearCancel() }
                             .onFailure { t ->
-                                Log.w("AIRI_RUNTIME",
+                                Log.w("AIRI",
                                     "STATE_CANCELLED clear_cancel_fail=${t.message}")
                             }
                         // response is preserved — the UI already rendered it.
@@ -1465,7 +1465,7 @@ class LlamaManager(private val context: Context) {
                                 catch (t: Throwable) { Log.w(TAG, "onComplete(cancelled) threw: \${t.message}", t) }
                             }
                         }
-                        Log.i("AIRI_RUNTIME", "STATE_IDLE after=cancelled")
+                        Log.i("AIRI", "STATE_IDLE after=cancelled")
                     }
 
                     else -> {
@@ -1496,7 +1496,7 @@ class LlamaManager(private val context: Context) {
                                         .getOrDefault(genIdExpectedTail)
                                     if (sidOnMain != sessionIdAtStart ||
                                         genIdOnMain2 != genIdExpectedTail) {
-                                        Log.w("AIRI_RUNTIME",
+                                        Log.w("AIRI",
                                             "STALE_TOKEN_DROPPED phase=tail_dispatch " +
                                             "captured_session=$sessionIdAtStart " +
                                             "current_session=$sidOnMain " +
@@ -1511,7 +1511,7 @@ class LlamaManager(private val context: Context) {
                                     }
                                 }
                             } else {
-                                Log.w("AIRI_RUNTIME",
+                                Log.w("AIRI",
                                     "STALE_TOKEN_DROPPED phase=tail_pre_dispatch " +
                                     "captured_session=$sessionIdAtStart " +
                                     "current_session=$sidForTail " +
@@ -1547,7 +1547,7 @@ class LlamaManager(private val context: Context) {
                                 // on the next turn so reconcileSession rebuilds
                                 // from the trimmed chatHistory.
                                 invalidateSession()
-                                Log.i("AIRI_RUNTIME",
+                                Log.i("AIRI",
                                     "PRIMED_DRIFT primed_was=${primedHistory.size} " +
                                     "chat=${chatHistory.size} " +
                                     "→ invalidated (KV has trimmed-out messages)")
@@ -1567,20 +1567,20 @@ class LlamaManager(private val context: Context) {
                                 com.airi.assistant.domain.verification.VerificationTracker
                                     .recordCheck("GENERATION", true,
                                         "tokens=$nativeTokenCount tps=%.2f".format(tps))
-                                Log.i("AIRI_RUNTIME",
+                                Log.i("AIRI",
                                     "GENERATION_SUCCESS tokens=$nativeTokenCount model=${model.name}")
                             } else {
                                 com.airi.assistant.domain.verification.VerificationTracker
                                     .recordCheck("GENERATION", false, "empty_response")
-                                Log.w("AIRI_RUNTIME", "GENERATION_EMPTY model=${model.name}")
+                                Log.w("AIRI", "GENERATION_EMPTY model=${model.name}")
                             }
                             refreshMetrics()
-                            Log.i("AIRI_RUNTIME",
+                            Log.i("AIRI",
                                 "STATE_COMPLETE tokens=$nativeTokenCount " +
                                 "elapsed_ms=$totalElapsed " +
                                 "first_token_ms=$firstTokenMs " +
                                 "tps=%.2f".format(tps))
-                            Log.i("AIRI_RUNTIME",
+                            Log.i("AIRI",
                                 "GEN_END tokens=$nativeTokenCount elapsed_ms=$totalElapsed " +
                                 "first_token_ms=$firstTokenMs " +
                                 "tps=%.2f cancelled=${cancelRequested.get()}".format(tps))
@@ -1590,7 +1590,7 @@ class LlamaManager(private val context: Context) {
                                 catch (t: Throwable) { Log.w(TAG, "onComplete threw: \${t.message}", t) }
                             }
                         }
-                        Log.i("AIRI_RUNTIME", "STATE_IDLE after=complete")
+                        Log.i("AIRI", "STATE_IDLE after=complete")
                     }
                 }
             } catch (e: Throwable) {
@@ -1627,11 +1627,11 @@ class LlamaManager(private val context: Context) {
                                         nativeStatus == -2    ||
                                         exMsg.contains("CANCELLED")
                 val logTag = if (isCancelException) "STATE_CANCELLED" else "STATE_ERROR"
-                Log.i("AIRI_RUNTIME",
+                Log.i("AIRI",
                     "$logTag origin=exception exc=${e.javaClass.simpleName} " +
                     "msg=$exMsg native_status=$nativeStatus " +
                     "is_cancel=$isCancelException emitted=$nativeTokenCount")
-                Log.i("AIRI_RUNTIME",
+                Log.i("AIRI",
                     "STATE_CLEANUP reason=${if (isCancelException) "cancel_exception" else "exception"} " +
                     "clearing: tokenBuffer(${tokenBuffer.length}B) " +
                     "response(${response.length}B) nativeTokenCount=$nativeTokenCount")
@@ -1646,11 +1646,11 @@ class LlamaManager(private val context: Context) {
                     invalidateSession()
                     runCatching { LlamaNative.nativeClearCancel() }
                         .onFailure { t ->
-                            Log.w("AIRI_RUNTIME",
+                            Log.w("AIRI",
                                 "CANCEL_EXCEPTION clear_cancel_fail=${t.message}")
                         }
                 }
-                Log.i("AIRI_RUNTIME", "STATE_IDLE after=${if (isCancelException) "cancel_exception" else "exception_reset"}")
+                Log.i("AIRI", "STATE_IDLE after=${if (isCancelException) "cancel_exception" else "exception_reset"}")
                 if (finished.compareAndSet(false, true)) {
                     val partialForHandler = partialOnCancel
                     val isCancelForHandler  = isCancelException
@@ -1701,7 +1701,7 @@ class LlamaManager(private val context: Context) {
             // but with a non-zero status, treat it as a hard failure.
             val s = runCatching { LlamaNative.nativeGetLastStatus() }.getOrDefault(0)
             if (s != 0) {
-                Log.w("AIRI_RUNTIME",
+                Log.w("AIRI",
                     "APPEND_STATUS_NONZERO status=$s (treating as overflow if -3, error otherwise)")
                 throw RuntimeException(
                     if (s == -3) "CONTEXT_OVERFLOW"
@@ -1718,12 +1718,12 @@ class LlamaManager(private val context: Context) {
             val isCancelled = status == -2 || msg.contains("CANCELLED")
 
             if (isCancelled) {
-                Log.i("AIRI_RUNTIME", "APPEND_CANCELLED status=$status — propagating clean stop")
+                Log.i("AIRI", "APPEND_CANCELLED status=$status — propagating clean stop")
                 throw e
             }
 
             if (!isOverflow) {
-                Log.e("AIRI_RUNTIME",
+                Log.e("AIRI",
                     "APPEND_ERROR status=$status exc=${e.javaClass.simpleName}: $msg → fullReset+stop")
                 fullReset("APPEND_ERROR")
                 throw e
@@ -1734,7 +1734,7 @@ class LlamaManager(private val context: Context) {
             // current user only, retry exactly ONCE. If the second attempt
             // also fails we surface the original exception so the outer
             // handler can run its CLEANUP path.
-            Log.w("AIRI_RUNTIME",
+            Log.w("AIRI",
                 "APPEND_OVERFLOW status=$status — fullReset+retry (1/1) " +
                 "first_failure=${e.javaClass.simpleName}: $msg")
             fullReset("APPEND_OVERFLOW")
@@ -1753,12 +1753,12 @@ class LlamaManager(private val context: Context) {
                 if (s2 != 0) {
                     throw RuntimeException("APPEND_RETRY_STATUS=$s2")
                 }
-                Log.i("AIRI_RUNTIME",
+                Log.i("AIRI",
                     "APPEND_OVERFLOW_RECOVERED via=fullReset+reprime " +
                     "kv=${runCatching { LlamaNative.getKvPosition() }.getOrDefault(-1)}/" +
                     "${runCatching { LlamaNative.getNCtx() }.getOrDefault(-1)}")
             } catch (e2: Throwable) {
-                Log.e("AIRI_RUNTIME",
+                Log.e("AIRI",
                     "APPEND_OVERFLOW_RETRY_FAILED exc=${e2.javaClass.simpleName}: ${e2.message}")
                 fullReset("APPEND_OVERFLOW_RETRY_FAILED")
                 throw e2
@@ -1857,22 +1857,22 @@ class LlamaManager(private val context: Context) {
      *     RAM loading a projector for a text-only model), or
      *   • a projector is already loaded (idempotent).
      *
-     * Always emits AIRI_RUNTIME MMPROJ_AUTOLOAD_* tags so the decision is
+     * Always emits AIRI MMPROJ_AUTOLOAD_* tags so the decision is
      * visible from logcat without enabling verbose logs.
      */
     fun maybeAutoLoadMmproj(modelPath: String) {
         if (!isLoaded) {
-            Log.i("AIRI_RUNTIME", "MMPROJ_AUTOLOAD_SKIPPED reason=model_not_loaded")
+            Log.i("AIRI", "MMPROJ_AUTOLOAD_SKIPPED reason=model_not_loaded")
             return
         }
         scope.launch {
             try {
                 if (runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)) {
-                    Log.i("AIRI_RUNTIME", "MMPROJ_AUTOLOAD_SKIPPED reason=already_loaded")
+                    Log.i("AIRI", "MMPROJ_AUTOLOAD_SKIPPED reason=already_loaded")
                     return@launch
                 }
                 val parent = File(modelPath).parentFile ?: run {
-                    Log.i("AIRI_RUNTIME", "MMPROJ_AUTOLOAD_SKIPPED reason=no_parent_dir")
+                    Log.i("AIRI", "MMPROJ_AUTOLOAD_SKIPPED reason=no_parent_dir")
                     return@launch
                 }
                 val candidates = parent.listFiles { f ->
@@ -1881,7 +1881,7 @@ class LlamaManager(private val context: Context) {
                         (n.contains("mmproj") || n.contains("mm-proj") || n.contains("projector"))
                 }?.toList().orEmpty()
                 if (candidates.isEmpty()) {
-                    Log.i("AIRI_RUNTIME",
+                    Log.i("AIRI",
                         "MMPROJ_AUTOLOAD_SKIPPED reason=no_sidecar_in dir=${parent.absolutePath}")
                     return@launch
                 }
@@ -1894,17 +1894,17 @@ class LlamaManager(private val context: Context) {
                         else        -> 0
                     }
                 }.first()
-                Log.i("AIRI_RUNTIME",
+                Log.i("AIRI",
                     "MMPROJ_AUTOLOAD_REQUESTED path=${pick.absolutePath} " +
                     "candidates=${candidates.size}")
                 val ok = runCatching { LlamaNative.loadMmproj(pick.absolutePath) }
                     .getOrElse { e ->
                         Log.e(TAG, "MMPROJ_AUTOLOAD threw: ${e.message}", e); false
                     }
-                Log.i("AIRI_RUNTIME", "MMPROJ_AUTOLOAD_RESULT ok=$ok")
+                Log.i("AIRI", "MMPROJ_AUTOLOAD_RESULT ok=$ok")
             } catch (e: Throwable) {
                 Log.w(TAG, "maybeAutoLoadMmproj failed: ${e.message}")
-                Log.i("AIRI_RUNTIME", "MMPROJ_AUTOLOAD_FAILED ${e.javaClass.simpleName}: ${e.message}")
+                Log.i("AIRI", "MMPROJ_AUTOLOAD_FAILED ${e.javaClass.simpleName}: ${e.message}")
             }
         }
     }
@@ -1929,7 +1929,7 @@ class LlamaManager(private val context: Context) {
      * one (see native impl). We still skip if the same path was already
      * loaded successfully in this process.
      *
-     * Emits AIRI_RUNTIME EMBEDDING_AUTOLOAD_* tags so the decision is
+     * Emits AIRI EMBEDDING_AUTOLOAD_* tags so the decision is
      * observable from logcat without verbose logging.
      */
     @Volatile private var loadedEmbeddingPath: String? = null
@@ -1946,11 +1946,11 @@ class LlamaManager(private val context: Context) {
             return@withContext true
         }
         return@withContext try {
-            Log.i(TAG, "AIRI_RUNTIME EMBEDDING_LOAD_REQUESTED path=$path")
+            Log.i(TAG, "AIRI EMBEDDING_LOAD_REQUESTED path=$path")
             val result = LlamaNative.loadEmbeddingModel(path)
             val ok = result == "LOAD_SUCCESS" || result == "Success"
             if (ok) loadedEmbeddingPath = path
-            Log.i(TAG, "AIRI_RUNTIME EMBEDDING_LOAD_RESULT ok=$ok native=$result")
+            Log.i(TAG, "AIRI EMBEDDING_LOAD_RESULT ok=$ok native=$result")
             ok
         } catch (e: Throwable) {
             Log.e(TAG, "loadEmbeddingFromPath threw: ${e.message}", e)
@@ -1960,13 +1960,13 @@ class LlamaManager(private val context: Context) {
 
     fun maybeAutoLoadEmbeddingModel(modelPath: String) {
         if (!isLoaded) {
-            Log.i("AIRI_RUNTIME", "EMBEDDING_AUTOLOAD_SKIPPED reason=model_not_loaded")
+            Log.i("AIRI", "EMBEDDING_AUTOLOAD_SKIPPED reason=model_not_loaded")
             return
         }
         scope.launch {
             try {
                 val parent = File(modelPath).parentFile ?: run {
-                    Log.i("AIRI_RUNTIME", "EMBEDDING_AUTOLOAD_SKIPPED reason=no_parent_dir")
+                    Log.i("AIRI", "EMBEDDING_AUTOLOAD_SKIPPED reason=no_parent_dir")
                     return@launch
                 }
                 // Conservative tag list mirrored from ModelCapabilities so
@@ -1989,7 +1989,7 @@ class LlamaManager(private val context: Context) {
                         tags.any { it in n }
                 }
                 if (candidates.isEmpty()) {
-                    Log.i("AIRI_RUNTIME",
+                    Log.i("AIRI",
                         "EMBEDDING_AUTOLOAD_SKIPPED reason=no_candidate_in dir=${parent.absolutePath}")
                     return@launch
                 }
@@ -2005,11 +2005,11 @@ class LlamaManager(private val context: Context) {
                     }
                 }.first()
                 if (pick.absolutePath == loadedEmbeddingPath) {
-                    Log.i("AIRI_RUNTIME",
+                    Log.i("AIRI",
                         "EMBEDDING_AUTOLOAD_SKIPPED reason=already_loaded path=${pick.absolutePath}")
                     return@launch
                 }
-                Log.i("AIRI_RUNTIME",
+                Log.i("AIRI",
                     "EMBEDDING_AUTOLOAD_REQUESTED path=${pick.absolutePath} " +
                     "candidates=${candidates.size}")
                 val result = runCatching { LlamaNative.loadEmbeddingModel(pick.absolutePath) }
@@ -2019,28 +2019,28 @@ class LlamaManager(private val context: Context) {
                     }
                 val ok = result == "LOAD_SUCCESS" || result == "Success"
                 if (ok) loadedEmbeddingPath = pick.absolutePath
-                Log.i("AIRI_RUNTIME", "EMBEDDING_AUTOLOAD_RESULT ok=$ok native_result=$result")
+                Log.i("AIRI", "EMBEDDING_AUTOLOAD_RESULT ok=$ok native_result=$result")
             } catch (e: Throwable) {
                 Log.w(TAG, "maybeAutoLoadEmbeddingModel failed: ${e.message}")
-                Log.i("AIRI_RUNTIME",
+                Log.i("AIRI",
                     "EMBEDDING_AUTOLOAD_FAILED ${e.javaClass.simpleName}: ${e.message}")
             }
         }
     }
 
     suspend fun loadMmprojSerialized(mmprojPath: String): Boolean = withContext(llamaDispatcher) {
-        Log.i("AIRI_RUNTIME", "MMPROJ_LOAD_REQUESTED path=$mmprojPath")
+        Log.i("AIRI", "MMPROJ_LOAD_REQUESTED path=$mmprojPath")
         val ok = runCatching { LlamaNative.loadMmproj(mmprojPath) }.getOrElse { e ->
             Log.e(TAG, "loadMmproj threw: ${e.message}", e)
             false
         }
-        Log.i("AIRI_RUNTIME", "MMPROJ_LOAD_RESULT ok=$ok")
+        Log.i("AIRI", "MMPROJ_LOAD_RESULT ok=$ok")
         ok
     }
 
     suspend fun unloadMmprojSerialized() = withContext(llamaDispatcher) {
         runCatching { LlamaNative.unloadMmproj() }
-        Log.i("AIRI_RUNTIME", "MMPROJ_UNLOADED via=manager")
+        Log.i("AIRI", "MMPROJ_UNLOADED via=manager")
     }
 
     /**
@@ -2049,7 +2049,7 @@ class LlamaManager(private val context: Context) {
      * We therefore expose `onComplete`/`onError` only (no token callback)
      * and the UI shows an "Analyzing image…" stage hint while we wait.
      *
-     * Serialization, watchdog, and AIRI_RUNTIME logging mirror generateStream
+     * Serialization, watchdog, and AIRI logging mirror generateStream
      * so on-device debugging is identical between the two pipelines.
      *
      * @param prompt      The user's text question about the image.
@@ -2103,7 +2103,7 @@ class LlamaManager(private val context: Context) {
                 if (System.currentTimeMillis() >= deadline) {
                     if (finished.compareAndSet(false, true)) {
                         Log.w(TAG, "generateWithImage timed out after ${timeoutMs}ms")
-                        Log.i("AIRI_RUNTIME", "VISION_TIMEOUT timeout_ms=$timeoutMs")
+                        Log.i("AIRI", "VISION_TIMEOUT timeout_ms=$timeoutMs")
                         cancelRequested.set(true)
                         runCatching { LlamaNative.cancel() }
                         val visionErr = "ERR_VISION_TIMEOUT timeout_ms=$timeoutMs"
@@ -2121,7 +2121,7 @@ class LlamaManager(private val context: Context) {
             cancelRequested.set(false)
             val start = System.currentTimeMillis()
             Log.i(
-                "AIRI_RUNTIME",
+                "AIRI",
                 "VISION_GEN_START prompt_len=${prompt.length} w=$width h=$height " +
                     "bytes=${rgb888.size} max_tokens=$maxTokens"
             )
@@ -2133,7 +2133,7 @@ class LlamaManager(private val context: Context) {
                     val elapsed = System.currentTimeMillis() - start
                     val cancelled = cancelRequested.get()
                     Log.i(
-                        "AIRI_RUNTIME",
+                        "AIRI",
                         "VISION_GEN_END elapsed_ms=$elapsed reply_len=${full.length} cancelled=$cancelled"
                     )
                     // Native side returns "" on internal failure; surface

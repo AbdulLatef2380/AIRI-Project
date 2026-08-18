@@ -93,7 +93,7 @@ class HardwareProfiler(private val context: Context) {
             ).also {
                 cachedProfile = it
                 LoggingService.info(TAG,
-                    "AIRI_RUNTIME HARDWARE_PROFILE tier=${it.tier} ramMb=${it.totalRamMb} " +
+                    "AIRI HARDWARE_PROFILE tier=${it.tier} ramMb=${it.totalRamMb} " +
                     "cores=${it.cpuCoreCount} battery=${it.batteryPct}% powerSave=${it.isPowerSaveMode}")
             }
         }

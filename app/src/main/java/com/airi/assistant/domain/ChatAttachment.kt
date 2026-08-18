@@ -31,7 +31,7 @@ data class ChatAttachment(
     val mimeType: String? = null,
     /** File size in bytes if known (used for "[file: name (12 KB)]" markers). */
     val sizeBytes: Long? = null,
-    /** Task 4.1: Local file path after persistence to filesDir/attachments/. Null until sent. */
+    /** Local file path after persistence to filesDir/attachments/. Null until sent. */
     val persistedPath: String? = null,
     /** Convenience uid alias — used by feedback and chip removal code. */
     val uid: String = id,
@@ -54,7 +54,7 @@ data class ChatAttachment(
 
     /** Marker appended to the user message when the vision pipeline is not
      *  available — gives the assistant honest context about what was
-     *  attached without inventing a fake "[image attached]" string. */
+     *  attached without inventing a fabricated "[image attached]" string. */
     fun toTextMarker(): String {
         val sizeStr = sizeBytes?.let { sz ->
             when {

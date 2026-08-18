@@ -21,7 +21,7 @@ import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 
 /**
- * Task 5.1 – Planning Dashboard Screen.
+ * – Planning Dashboard Screen.
  * Reuses AgentPlanContent inside a full screen, plus history of past plans
  * from ExecutionHistoryStore.
  */

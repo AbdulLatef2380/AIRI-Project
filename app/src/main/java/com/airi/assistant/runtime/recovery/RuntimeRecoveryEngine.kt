@@ -72,9 +72,9 @@ class RuntimeRecoveryEngine(private val context: Context) {
         _status.value = RecoveryStatus(available, crashTs, attempts)
 
         if (available.isNotEmpty()) {
-            Log.w(TAG, "AIRI_RUNTIME RECOVERY_AVAILABLE categories=$available lastCrash=$crashTs")
+            Log.w(TAG, "AIRI RECOVERY_AVAILABLE categories=$available lastCrash=$crashTs")
         } else {
-            Log.i(TAG, "AIRI_RUNTIME NO_RECOVERY_NEEDED")
+            Log.i(TAG, "AIRI NO_RECOVERY_NEEDED")
         }
 
         // Record this startup as a potential recovery attempt
@@ -99,9 +99,9 @@ class RuntimeRecoveryEngine(private val context: Context) {
                 val final = File(checkpointDir, "${category.name}.json")
                 tmp.writeText(json)
                 tmp.renameTo(final)
-                Log.d(TAG, "AIRI_RUNTIME CHECKPOINT_SAVED category=$category size=${json.length}")
+                Log.d(TAG, "AIRI CHECKPOINT_SAVED category=$category size=${json.length}")
             }.onFailure { e ->
-                Log.e(TAG, "AIRI_RUNTIME CHECKPOINT_WRITE_FAILED category=$category", e)
+                Log.e(TAG, "AIRI CHECKPOINT_WRITE_FAILED category=$category", e)
             }
         }
     }
@@ -114,23 +114,23 @@ class RuntimeRecoveryEngine(private val context: Context) {
         return runCatching {
             val json = inMemoryCache[category]
                 ?: File(checkpointDir, "${category.name}.json").readText()
-            Log.i(TAG, "AIRI_RUNTIME CHECKPOINT_RESTORED category=$category")
+            Log.i(TAG, "AIRI CHECKPOINT_RESTORED category=$category")
             JSONObject(json)
         }.onFailure { e ->
-            Log.e(TAG, "AIRI_RUNTIME CHECKPOINT_READ_FAILED category=$category", e)
+            Log.e(TAG, "AIRI CHECKPOINT_READ_FAILED category=$category", e)
         }.getOrNull()
     }
 
     fun clearCheckpoint(category: CheckpointCategory) {
         inMemoryCache.remove(category)
         File(checkpointDir, "${category.name}.json").delete()
-        Log.d(TAG, "AIRI_RUNTIME CHECKPOINT_CLEARED category=$category")
+        Log.d(TAG, "AIRI CHECKPOINT_CLEARED category=$category")
     }
 
     fun clearAllCheckpoints() {
         CheckpointCategory.values().forEach { clearCheckpoint(it) }
         writeRecoveryAttempts(0)
-        Log.i(TAG, "AIRI_RUNTIME ALL_CHECKPOINTS_CLEARED")
+        Log.i(TAG, "AIRI ALL_CHECKPOINTS_CLEARED")
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────

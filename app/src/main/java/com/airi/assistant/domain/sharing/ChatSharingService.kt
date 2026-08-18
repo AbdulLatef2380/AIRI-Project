@@ -175,7 +175,7 @@ class ChatSharingService(
         return runCatching {
             db.collection(COLLECTION).document(shareId).set(doc).await()
             val url = "$DEEP_LINK_BASE/$shareId"
-            Log.i(TAG, "AIRI_RUNTIME CHAT_SHARE_PUBLISHED shareId=$shareId messages=${msgsArr.size}")
+            Log.i(TAG, "AIRI CHAT_SHARE_PUBLISHED shareId=$shareId messages=${msgsArr.size}")
             EventBus.emitSync(AppEvent.GenericInfo("Chat published: $url"))
             url
         }.getOrElse { e ->

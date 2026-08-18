@@ -16,7 +16,7 @@ import android.util.Log
  * "vision=false" until we add it to [VISION_TAGS]; that is the right
  * default — false negatives are acceptable, false positives are not.
  *
- * Emits AIRI_RUNTIME MODEL_CAPABILITIES_DETECTED on every population so the
+ * Emits AIRI MODEL_CAPABILITIES_DETECTED on every population so the
  * decision can be audited from logcat.
  */
 data class ModelCapabilities(
@@ -85,7 +85,7 @@ data class ModelCapabilities(
             // g_mtmd_ctx via airi_load_mmproj. Without (b) we have a vision
             // model file but no projector → cannot do real inference, so the
             // attach-image path stays text-only and the chat still composes
-            // an honest "[image attached]" marker (no fake vision response).
+            // an honest "[image attached]" marker (no fabricated vision response).
             val tagMatch    = VISION_TAGS.any { it in haystack }
             val mmprojLoaded = runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
             val vision     = tagMatch && mmprojLoaded
@@ -100,7 +100,7 @@ data class ModelCapabilities(
                 rawDescription = nativeDesc
             )
             Log.i(
-                "AIRI_RUNTIME",
+                "AIRI",
                 "MODEL_CAPABILITIES_DETECTED file=${modelInfo.fileName} desc=\"$nativeDesc\" ${caps.summary()}"
             )
             return caps

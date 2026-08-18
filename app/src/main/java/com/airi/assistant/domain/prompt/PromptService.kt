@@ -31,7 +31,7 @@ STRICT RESPONSE RULES — follow every rule exactly:
 
     /**
      * Build the system prompt WITHOUT RAG context (legacy path, no memory injection).
-     * Use [buildSystemPromptWithContext] for full Phase 2 dynamic injection.
+     * Use [buildSystemPromptWithContext] for full  dynamic injection.
      */
     fun buildSystemPrompt(
         modePrompt: String,
@@ -52,7 +52,7 @@ STRICT RESPONSE RULES — follow every rule exactly:
     /**
      * Build the fully-dynamic system prompt with RAG memory injection.
      *
-     * Phase 2 upgrade over [buildSystemPrompt]: this variant accepts the
+     *  upgrade over [buildSystemPrompt]: this variant accepts the
      * pre-retrieved semantic memory block from [RagRetriever.buildContextBlock]
      * and the compressed conversation summary from [ConversationSummarizer].
      *
@@ -191,22 +191,22 @@ STRICT RESPONSE RULES — follow every rule exactly:
                         val trimmed = ledger.trimToGranted(rawSkillBlock, granted)
                         append(trimmed)
                         Log.i(TAG,
-                            "AIRI_RUNTIME SKILL_BLOCK_INJECTED estimated=${estimated}tok " +
+                            "AIRI SKILL_BLOCK_INJECTED estimated=${estimated}tok " +
                             "granted=${granted}tok chars=${trimmed.length} nCtx=${contextBudget.nCtx}")
                     } else {
                         Log.w(TAG,
-                            "AIRI_RUNTIME SKILL_BLOCK_OMITTED reason=budget_exhausted " +
+                            "AIRI SKILL_BLOCK_OMITTED reason=budget_exhausted " +
                             "nCtx=${contextBudget.nCtx} remaining=${ledger.remaining}")
                     }
                 }
             } else if (hasAgentTools) {
                 Log.d(TAG,
-                    "AIRI_RUNTIME SKILL_BLOCK_SKIPPED reason=has_agent_tools " +
+                    "AIRI SKILL_BLOCK_SKIPPED reason=has_agent_tools " +
                     "nCtx=${contextBudget.nCtx}")
             }
 
             // SPRINT 2: Log final budget allocation for this prompt build.
-            Log.i(TAG, "AIRI_RUNTIME PROMPT_BUDGET_REPORT\n${ledger.report()}")
+            Log.i(TAG, "AIRI PROMPT_BUDGET_REPORT\n${ledger.report()}")
         }
     }
 

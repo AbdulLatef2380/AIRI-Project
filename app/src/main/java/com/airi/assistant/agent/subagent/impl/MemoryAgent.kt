@@ -112,7 +112,7 @@ class MemoryAgent(
         val memories = if (memoryManager.isSemanticMemoryReady()) {
             emit(AgentEvent.Progress("Running semantic search…", 55, "vector_search"))
             val hits = memoryManager.semanticSearch(context.sessionId, input, k = 10)
-            Log.d(TAG, "AIRI_RUNTIME MEMORY_RECALL semantic hits=${hits.size}")
+            Log.d(TAG, "AIRI MEMORY_RECALL semantic hits=${hits.size}")
             if (hits.isNotEmpty()) {
                 hits.map { it.message }
             } else {
@@ -182,7 +182,7 @@ class MemoryAgent(
 
         memoryManager.clearAll()
 
-        Log.i(TAG, "AIRI_RUNTIME MEMORY_CLEARED all episodic memories deleted")
+        Log.i(TAG, "AIRI MEMORY_CLEARED all episodic memories deleted")
         emit(AgentEvent.PartialResult(
             "All stored memories have been cleared. I no longer have any personal data about you stored locally.",
             isFinal = true

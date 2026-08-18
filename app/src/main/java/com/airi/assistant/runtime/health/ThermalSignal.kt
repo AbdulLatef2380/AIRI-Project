@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * ThermalSignal — process-wide thermal throttle state for prompt budget scaling.
  *
- * ── Phase 2, Task 11: SystemHealthCoordinator Feedback Loop ───────────────────
+ * ── , SystemHealthCoordinator Feedback Loop ───────────────────
  * Previously [SystemHealthCoordinator] emitted [SystemHealthCoordinator.ThrottleAction]
  * but nothing acted on it — the context-window budget was never reduced under
  * thermal load. This singleton closes the open control loop:

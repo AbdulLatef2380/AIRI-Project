@@ -16,7 +16,7 @@ import java.util.UUID
 /**
  * ReferralManager — SHA-256 referral code generation and bonus-credit accounting.
  *
- * ── Phase 2, Task 13: SecureStorage Migration ─────────────────────────────────
+ * ── , SecureStorage Migration ─────────────────────────────────
  * Previously used plaintext [SharedPreferences] (`airi_referrals`). On rooted
  * devices any process can read and modify this file, enabling trivial bonus-message
  * fraud (self-grant or replay).
@@ -104,7 +104,7 @@ object ReferralManager {
         // Clear the plaintext file after successful migration.
         if (migrated > 0) {
             legacy.edit().clear().apply()
-            LoggingService.info(TAG, "AIRI_RUNTIME REFERRAL_PREFS_MIGRATED keys=$migrated")
+            LoggingService.info(TAG, "AIRI REFERRAL_PREFS_MIGRATED keys=$migrated")
         }
     }
 
@@ -257,6 +257,6 @@ object ReferralManager {
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
     }.onFailure { e ->
-        Log.w(TAG, "AIRI_RUNTIME REFERRAL_PREFS_ENCRYPT_FAILED — falling back to plaintext: ${e.message}")
+        Log.w(TAG, "AIRI REFERRAL_PREFS_ENCRYPT_FAILED — falling back to plaintext: ${e.message}")
     }.getOrNull()
 }

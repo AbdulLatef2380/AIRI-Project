@@ -73,7 +73,7 @@ class LiveVoiceSession {
     /** Emit a transcript that no agent claimed. See [pendingTranscript]. */
     fun emitPendingTranscript(text: String) {
         _pendingTranscript.value = text
-        Log.d(TAG, "AIRI_RUNTIME VOICE_PENDING_TRANSCRIPT chars=${text.length}")
+        Log.d(TAG, "AIRI VOICE_PENDING_TRANSCRIPT chars=${text.length}")
     }
 
     /** Clear after the consumer (ChatViewModel / bound client) has handled it. */
@@ -118,7 +118,7 @@ class LiveVoiceSession {
         _metrics.value = SessionMetrics()
         _latency.value = LatencySnapshot()
         transitionTo(VoicePipelineState.LISTENING)
-        Log.i(TAG, "AIRI_RUNTIME VOICE_SESSION_BEGIN id=$id")
+        Log.i(TAG, "AIRI VOICE_SESSION_BEGIN id=$id")
         return id
     }
 
@@ -127,7 +127,7 @@ class LiveVoiceSession {
         _partialTranscript.value = ""
         recoveryAttempts = 0
         transitionTo(VoicePipelineState.IDLE)
-        Log.i(TAG, "AIRI_RUNTIME VOICE_SESSION_END id=$currentSessionId " +
+        Log.i(TAG, "AIRI VOICE_SESSION_END id=$currentSessionId " +
                 "turns=${_metrics.value.completedTurns} " +
                 "interruptions=${_metrics.value.interruptionCount}")
     }
@@ -174,7 +174,7 @@ class LiveVoiceSession {
             completedTurns = _metrics.value.completedTurns + 1
         )
         transitionTo(VoicePipelineState.IDLE)
-        Log.d(TAG, "AIRI_RUNTIME VOICE_TURN_COMPLETE total=${_metrics.value.completedTurns}")
+        Log.d(TAG, "AIRI VOICE_TURN_COMPLETE total=${_metrics.value.completedTurns}")
     }
 
     /**
@@ -187,7 +187,7 @@ class LiveVoiceSession {
             interruptionCount = _metrics.value.interruptionCount + 1
         )
         transitionTo(VoicePipelineState.INTERRUPTED)
-        Log.d(TAG, "AIRI_RUNTIME VOICE_BARGE_IN count=${_metrics.value.interruptionCount}")
+        Log.d(TAG, "AIRI VOICE_BARGE_IN count=${_metrics.value.interruptionCount}")
     }
 
     /** Call after barge-in cleanup is complete and STT is re-armed. */
@@ -244,7 +244,7 @@ class LiveVoiceSession {
         val prev = _state.value
         if (prev == next) return
         _state.value = next
-        Log.d(TAG, "AIRI_RUNTIME VOICE_STATE $prev → $next session=$currentSessionId")
+        Log.d(TAG, "AIRI VOICE_STATE $prev → $next session=$currentSessionId")
     }
 
     // ─────────────────────────────────────────────────────────────────────────

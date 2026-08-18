@@ -1,6 +1,6 @@
 package com.airi.assistant.connector.oauth
 
-import android.util.Base64
+import java.util.Base64
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
@@ -26,8 +26,9 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object OAuthStateRegistry {
 
-    private const val TOKEN_EXPIRY_MS = 5 * 60 * 1_000L  // 5 minutes
+    private const val TOKEN_EXPIRY_MS = 5 * 60 * 1_000L
     private val rng = SecureRandom()
+    private val urlEncoder = Base64.getUrlEncoder().withoutPadding()
 
     data class ConsumedRequest(
         val connectorId: String,
@@ -55,26 +56,20 @@ object OAuthStateRegistry {
 
     fun issuePkce(connectorId: String): PkceAuthorization {
         val verifierBytes = ByteArray(48).also { rng.nextBytes(it) }
-        val verifier = Base64.encodeToString(
-            verifierBytes,
-            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
-        )
+        val verifier = urlEncoder.encodeToString(verifierBytes)
         val state = issueEntry(connectorId, verifier).first
         val challenge = MessageDigest.getInstance("SHA-256")
             .digest(verifier.toByteArray(Charsets.US_ASCII))
         return PkceAuthorization(
             state = state,
-            codeChallenge = Base64.encodeToString(
-                challenge,
-                Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
-            )
+            codeChallenge = urlEncoder.encodeToString(challenge)
         )
     }
 
     private fun issueEntry(connectorId: String, codeVerifier: String? = null): Pair<String, String?> {
         require(connectorId.isNotBlank()) { "connectorId must not be blank" }
         val bytes = ByteArray(18).also { rng.nextBytes(it) }
-        val token = Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+        val token = urlEncoder.encodeToString(bytes)
         evictExpired()
         store[token] = Entry(connectorId, codeVerifier)
         return token to codeVerifier

@@ -30,11 +30,11 @@ object VoicePreferencesStore {
         val rate: Float,
         val description: String
     ) {
-        STANDARD("Standard",  "🤖", 0.95f, 1.05f, "Default AIRI voice — balanced and clear"),
-        CALM    ("Calm",      "🌿", 0.85f, 0.85f, "Slow and measured — great for focus"),
-        ENERGETIC("Energetic","⚡", 1.10f, 1.20f, "Upbeat and fast — best for quick tasks"),
-        FORMAL  ("Formal",   "🎓", 0.90f, 0.90f, "Professional and deliberate"),
-        PLAYFUL ("Playful",  "🎉", 1.20f, 1.10f, "Light and expressive — casual use")
+        STANDARD("Standard",  "", 0.95f, 1.05f, "Default AIRI voice — balanced and clear"),
+        CALM    ("Calm",      "", 0.85f, 0.85f, "Slow and measured — great for focus"),
+        ENERGETIC("Energetic","", 1.10f, 1.20f, "Upbeat and fast — best for quick tasks"),
+        FORMAL  ("Formal",   "", 0.90f, 0.90f, "Professional and deliberate"),
+        PLAYFUL ("Playful",  "", 1.20f, 1.10f, "Light and expressive — casual use")
     }
 
     data class Snapshot(

@@ -73,7 +73,7 @@ object LlmCertPins {
     }
 
     /**
-     * Task 8.1: Exposes pins for inspection by SecurityScannerScreen.
+     * Exposes pins for inspection by SecurityScannerScreen.
      * Value = list of [sha256/...] pin strings for each host.
      */
     val pins: Map<String, List<String>> = mapOf(

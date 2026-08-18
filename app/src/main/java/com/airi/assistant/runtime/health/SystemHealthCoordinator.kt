@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 /**
  * SystemHealthCoordinator — adaptive throttling bridge.
  *
- * ── Phase 2, Task 9 ────────────────────────────────────────────────────────
+ * ── , ────────────────────────────────────────────────────────
  * Previously [ThermalProfiler] collected accurate thermal and battery signals
  * but they were never acted upon: the data was only logged to logcat. The
  * agent could continue at full context-window size even when the device was
@@ -94,7 +94,7 @@ class SystemHealthCoordinator(
      */
     fun start() {
         if (observerJob?.isActive == true) return
-        Log.i(TAG, "AIRI_RUNTIME SYSTEM_HEALTH_COORDINATOR_STARTED")
+        Log.i(TAG, "AIRI SYSTEM_HEALTH_COORDINATOR_STARTED")
 
         observerJob = scope.launch {
             // distinctUntilChanged() is intentionally absent here.
@@ -107,7 +107,7 @@ class SystemHealthCoordinator(
                 .collect { level ->
                     val action = levelToAction(level)
                     Log.i(TAG,
-                        "AIRI_RUNTIME THERMAL_THROTTLE_ACTION level=$level action=${action::class.simpleName}")
+                        "AIRI THERMAL_THROTTLE_ACTION level=$level action=${action::class.simpleName}")
                     onThrottleChange(action)
                 }
         }
@@ -117,7 +117,7 @@ class SystemHealthCoordinator(
     fun stop() {
         observerJob?.cancel()
         observerJob = null
-        Log.i(TAG, "AIRI_RUNTIME SYSTEM_HEALTH_COORDINATOR_STOPPED")
+        Log.i(TAG, "AIRI SYSTEM_HEALTH_COORDINATOR_STOPPED")
     }
 
     // ── Snapshot API ──────────────────────────────────────────────────────────

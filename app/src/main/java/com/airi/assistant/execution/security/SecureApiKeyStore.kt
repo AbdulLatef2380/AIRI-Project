@@ -116,15 +116,15 @@ class SecureApiKeyStore(context: Context) {
     fun keyPresenceMap(): Map<CloudProvider, Boolean> =
         CloudProvider.entries.associateWith { hasKey(it) }
 
-    private fun customEndpointStorageId(endpointId: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-            .digest(endpointId.toByteArray(Charsets.UTF_8))
-            .joinToString(separator = "") { byte -> "%02x".format(byte) }
-        return "custom_endpoint_$digest"
-    }
-
     companion object {
         private const val TAG = "AIRI_SecureApiKeyStore"
+
+        internal fun customEndpointStorageId(endpointId: String): String {
+            val digest = MessageDigest.getInstance("SHA-256")
+                .digest(endpointId.toByteArray(Charsets.UTF_8))
+                .joinToString(separator = "") { byte -> "%02x".format(byte) }
+            return "custom_endpoint_$digest"
+        }
     }
 }
 

@@ -24,7 +24,7 @@ import java.util.UUID
  * TypedPlanGraph default. Callers can override per-node if needed.
  *
  * ## Phase note
- * Created in Phase 2 pre-migration to satisfy the pre-migration checklist.
+ * Created in  pre-migration to satisfy the pre-migration checklist.
  * Previously this conversion was missing, making [UCL.executeGraph] unreachable
  * from any caller even if wired.
  */

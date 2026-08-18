@@ -52,12 +52,12 @@ class MediaLibrary(private val context: Context) {
     // ── Types ─────────────────────────────────────────────────────────────────
 
     enum class MediaType(val folder: String, val emoji: String) {
-        IMAGE     ("images",     "🖼"),
-        DOCUMENT  ("documents",  "📄"),
-        GENERATED ("generated",  "🤖"),
-        AUDIO     ("audio",      "🎵"),
-        VIDEO     ("video",      "🎬"),
-        OTHER     ("other",      "📦")
+        IMAGE     ("images",     ""),
+        DOCUMENT  ("documents",  ""),
+        GENERATED ("generated",  ""),
+        AUDIO     ("audio",      ""),
+        VIDEO     ("video",      ""),
+        OTHER     ("other",      "")
     }
 
     data class MediaItem(
@@ -119,7 +119,7 @@ class MediaLibrary(private val context: Context) {
         )
         commit(item)
         AgentActivityBus.emit("${type.emoji} Media imported: ${item.name} (${kb(dest.length())}KB)", ActivityCategory.MEMORY)
-        Log.i(TAG, "AIRI_RUNTIME MEDIA_IMPORTED id=${item.id} type=${type.name} size=${dest.length()}")
+        Log.i(TAG, "AIRI MEDIA_IMPORTED id=${item.id} type=${type.name} size=${dest.length()}")
         item
     }
 
@@ -149,7 +149,7 @@ class MediaLibrary(private val context: Context) {
             description = description
         )
         commit(item)
-        Log.i(TAG, "AIRI_RUNTIME MEDIA_BYTES_IMPORTED id=${item.id} bytes=${bytes.size}")
+        Log.i(TAG, "AIRI MEDIA_BYTES_IMPORTED id=${item.id} bytes=${bytes.size}")
         item
     }
 
@@ -176,7 +176,7 @@ class MediaLibrary(private val context: Context) {
                 updatedAtMs = artifact.updatedAtMs
             )
             commit(item)
-            Log.i(TAG, "AIRI_RUNTIME MEDIA_ARTIFACT_INDEXED id=${item.id} artifact=${artifact.name}")
+            Log.i(TAG, "AIRI MEDIA_ARTIFACT_INDEXED id=${item.id} artifact=${artifact.name}")
             item
         }
 
@@ -213,7 +213,7 @@ class MediaLibrary(private val context: Context) {
             runCatching { File(item.filePath).delete() }
         }
         publishAll()
-        Log.i(TAG, "AIRI_RUNTIME MEDIA_DELETED id=$id type=${item.type}")
+        Log.i(TAG, "AIRI MEDIA_DELETED id=$id type=${item.type}")
     }
 
     fun deleteAllForSession(sessionId: String) {
@@ -311,7 +311,7 @@ class MediaLibrary(private val context: Context) {
             }
         }
         publishAll()
-        Log.i(TAG, "AIRI_RUNTIME MEDIA_SCAN_COMPLETE discovered=$count total=${index.size}")
+        Log.i(TAG, "AIRI MEDIA_SCAN_COMPLETE discovered=$count total=${index.size}")
     }
 
     // ── Read content ──────────────────────────────────────────────────────────

@@ -396,7 +396,7 @@ class PlanGenerator {
         val longRate   = longPlans.map { it.successRate }.average()
         maxStepsOverride = if (longPlans.size >= 3 && longRate < shortRate - 0.20) 4 else null
 
-        Log.i(TAG, "AIRI_RUNTIME STRATEGY_ADJUSTED " +
+        Log.i(TAG, "AIRI STRATEGY_ADJUSTED " +
             "meanSuccess=$meanSuccess avoidActions=$avoidActions " +
             "preferSimple=$preferSimpleSteps maxSteps=$maxStepsOverride")
     }
@@ -472,7 +472,7 @@ class PlanGenerator {
             }
         }.toMutableList()
 
-        Log.i(TAG, "AIRI_RUNTIME COMPLEXITY_REDUCED originalSteps=${goal.steps.size} reducedSteps=${steps.size}")
+        Log.i(TAG, "AIRI COMPLEXITY_REDUCED originalSteps=${goal.steps.size} reducedSteps=${steps.size}")
         return goal.copy(steps = steps)
     }
 
@@ -511,7 +511,7 @@ class PlanGenerator {
             maxStepsOverride = if (current == null) externalCap else minOf(current, externalCap)
         }
 
-        Log.i(TAG, "AIRI_RUNTIME ADAPTATION_HINTS_APPLIED " +
+        Log.i(TAG, "AIRI ADAPTATION_HINTS_APPLIED " +
             "avoidedTotal=${avoidActions.size} preferSimple=$preferSimpleSteps " +
             "maxSteps=$maxStepsOverride overallConfidence=${hints.overallConfidence}")
     }

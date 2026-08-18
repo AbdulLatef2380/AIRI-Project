@@ -15,13 +15,13 @@ plugins {
 
 android {
     namespace = "com.airi.assistant"
-    compileSdk = 34
+    compileSdk = 36
     ndkVersion = "25.2.9519653"
 
     defaultConfig {
         applicationId = "com.airi.assistant"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -196,10 +196,6 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
-    // AP-02: SQLCipher at-rest encryption for all 9 Room tables
-    implementation("net.zetetic:android-database-sqlcipher:4.5.4")
-    implementation("androidx.sqlite:sqlite-ktx:2.4.0")
-
     // Networking
     implementation(libs.okhttp)
     implementation(libs.gson)
@@ -284,75 +280,41 @@ dependencies {
 // Do not synthesize performance success from fixed values in the build script.
 
 // ─────────────────────────────────────────────────────────────────────────
-// airiVerifyNativeInApk — fails the build if the freshly-assembled APK
-// does NOT contain lib/arm64-v8a/libairi_native.so (or contains a 0-byte
-// stub). This is a hard guard against the failure mode where Gradle
-// silently produces an APK without the JNI library — runtime then falls
-// back to "model did not start in time" and looks like an inference bug
-// when in fact the engine never loaded.
-//
-// Wired as a finalizer of assembleDebug below so it runs after the APK
-// is in place. Use:  ./gradlew assembleDebug
+// Native-library verification is bound to the APK of each assembled variant.
+// This catches missing JNI output without making a Release build depend on a
+// Debug artifact that is not part of that build.
 // ─────────────────────────────────────────────────────────────────────────
-tasks.register("airiVerifyNativeInApk") {
-    group = "verification"
-    description = "Asserts lib/arm64-v8a/libairi_native.so is present in the debug APK."
-    doLast {
-        val apkDir = layout.buildDirectory.dir("outputs/apk/debug").get().asFile
-        val apks = apkDir.listFiles { f -> f.extension == "apk" }
-            ?.toList().orEmpty()
-        if (apks.isEmpty()) {
-            error("AIRI_VERIFY_NATIVE: no APK found at ${apkDir.absolutePath}")
-        }
-        val apk = apks.first()
-        val target = "lib/arm64-v8a/libairi_native.so"
-        ZipFile(apk).use { zf: ZipFile ->
-            val entry: ZipEntry? = zf.getEntry(target)
-            if (entry == null) {
-                error(
-                    "AIRI_VERIFY_NATIVE: ❌ $target is NOT in ${apk.name}.\n" +
-                    "    CMake either did not run or produced no library.\n" +
-                    "    Re-run with --info and look for 'Building CXX object'\n" +
-                    "    lines. If absent, check that NDK 25.2.9519653 + CMake\n" +
-                    "    3.22.1 are installed (Android Studio → SDK Manager →\n" +
-                    "    SDK Tools, or in CI via android-actions/setup-android@v3\n" +
-                    "    with packages='ndk;25.2.9519653 cmake;3.22.1')."
-                )
-            }
-            val bytes = entry.size
-            println("AIRI_VERIFY_NATIVE: found $target size=${bytes} bytes")
-            if (bytes < 1_000_000) {
-                error(
-                    "AIRI_VERIFY_NATIVE: ❌ $target is suspiciously small ($bytes bytes).\n" +
-                    "    A real llama.cpp arm64-v8a build is typically 8-15 MB after strip.\n" +
-                    "    A tiny .so usually means CMake compiled a stub or the wrong target."
-                )
-            }
-            // Print a few sibling .so entries so we can see what else is in there.
-            val entries: List<ZipEntry> = zf.entries().toList()
-            entries
-                .filter { e: ZipEntry -> e.name.startsWith("lib/") && e.name.endsWith(".so") }
-                .forEach { e: ZipEntry ->
-                    println("AIRI_VERIFY_NATIVE: APK contains ${e.name} (${e.size} bytes)")
+fun registerNativeApkVerification(variant: String) {
+    val taskName = "airiVerifyNativeIn${variant.replaceFirstChar { it.titlecase() }}Apk"
+    tasks.register(taskName) {
+        group = "verification"
+        description = "Asserts lib/arm64-v8a/libairi_native.so is present in the $variant APK."
+        doLast {
+            val apkDir = layout.buildDirectory.dir("outputs/apk/$variant").get().asFile
+            val apk = apkDir.listFiles { file -> file.extension == "apk" }
+                ?.maxByOrNull { it.lastModified() }
+                ?: error("AIRI_VERIFY_NATIVE: no $variant APK found at ${apkDir.absolutePath}")
+            val target = "lib/arm64-v8a/libairi_native.so"
+            ZipFile(apk).use { archive ->
+                val entry = archive.getEntry(target)
+                    ?: error("AIRI_VERIFY_NATIVE: $target is absent from ${apk.name}")
+                check(entry.size >= 1_000_000) {
+                    "AIRI_VERIFY_NATIVE: $target is unexpectedly small (${entry.size} bytes)"
                 }
-            println("AIRI_VERIFY_NATIVE: ✅ $target present and non-trivial.")
+                println("AIRI_VERIFY_NATIVE: $variant APK contains $target (${entry.size} bytes)")
+            }
         }
     }
 }
 
-fun <T> java.util.Enumeration<T>.toList(): List<T> {
-    val list = mutableListOf<T>()
-    while (this.hasMoreElements()) {
-        list.add(this.nextElement())
-    }
-    return list
-}
+registerNativeApkVerification("debug")
+registerNativeApkVerification("release")
 
 afterEvaluate {
     tasks.named("assembleDebug").configure {
-        finalizedBy("airiVerifyNativeInApk")
+        finalizedBy("airiVerifyNativeInDebugApk")
     }
     tasks.named("assembleRelease").configure {
-        finalizedBy("airiVerifyNativeInApk")
+        finalizedBy("airiVerifyNativeInReleaseApk")
     }
 }

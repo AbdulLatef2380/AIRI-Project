@@ -4,7 +4,7 @@ import android.util.Log
 
 object ModelRegistry {
     private val models = mutableListOf<ModelInfo>()
-    private const val TAG = "AIRI_RUNTIME"
+    private const val TAG = "AIRI"
 
     fun addModel(model: ModelInfo) {
         models.removeAll { it.id == model.id || it.path == model.path }

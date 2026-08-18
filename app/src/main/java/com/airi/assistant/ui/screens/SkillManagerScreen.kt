@@ -373,7 +373,7 @@ private fun OfficialSkillCard(
     val entry = remember(info.name) { OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.name } }
     val displayName = entry?.manifest?.name
         ?: info.name.split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-    val emoji          = entry?.manifest?.iconEmoji ?: "⚙"
+    val emoji          = entry?.manifest?.iconEmoji ?: ""
     val needsConnector = !info.isConnected
 
     Row(

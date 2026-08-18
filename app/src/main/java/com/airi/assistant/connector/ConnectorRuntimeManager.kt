@@ -59,14 +59,14 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
         for (attempt in 0..maxRetries) {
             last = runCatching { connector.execute(input) }.getOrElse { e -> ConnectorOutput.Failure("exception", e.message ?: "Exception", retryable = true) }
             when {
-                last is ConnectorOutput.Success   -> { AgentActivityBus.emit("✓ '${connector.id}' ${input.action}", ActivityCategory.CONNECTOR); return last }
+                last is ConnectorOutput.Success   -> { AgentActivityBus.emit(" '${connector.id}' ${input.action}", ActivityCategory.CONNECTOR); return last }
                 last is ConnectorOutput.Streaming -> return last
                 last is ConnectorOutput.Failure && last.retryable && attempt < maxRetries -> {
                     val backoffMs = 500L * (attempt + 1)
                     AgentActivityBus.emit("Retrying '${connector.id}' (${attempt + 2}/${maxRetries + 1})", ActivityCategory.CONNECTOR, ActivitySeverity.WARN)
                     delay(backoffMs)
                 }
-                else -> { AgentActivityBus.emit("✕ '${connector.id}' failed: ${(last as? ConnectorOutput.Failure)?.message?.take(60)}", ActivityCategory.CONNECTOR, ActivitySeverity.ERROR); return last }
+                else -> { AgentActivityBus.emit(" '${connector.id}' failed: ${(last as? ConnectorOutput.Failure)?.message?.take(60)}", ActivityCategory.CONNECTOR, ActivitySeverity.ERROR); return last }
             }
         }
         return last

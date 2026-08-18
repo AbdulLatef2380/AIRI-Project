@@ -94,7 +94,7 @@ class SessionManager(
                 if (token != null) {
                     _idToken.value      = token
                     _sessionState.value = SessionState.ACTIVE
-                    LoggingService.info(TAG, "AIRI_RUNTIME SESSION_TOKEN_REFRESHED attempt=$attempt expiresIn=${result.expirationTimestamp}")
+                    LoggingService.info(TAG, "AIRI SESSION_TOKEN_REFRESHED attempt=$attempt expiresIn=${result.expirationTimestamp}")
                     return token
                 }
             }.onFailure { e ->
@@ -104,7 +104,7 @@ class SessionManager(
         }
 
         _sessionState.value = SessionState.EXPIRED
-        LoggingService.warn(TAG, "AIRI_RUNTIME SESSION_EXPIRED — refresh failed after 3 attempts")
+        LoggingService.warn(TAG, "AIRI SESSION_EXPIRED — refresh failed after 3 attempts")
         return null
     }
 
@@ -126,10 +126,10 @@ class SessionManager(
     fun bindToDevice(): Boolean {
         return try {
             deviceBinding.bindOrThrow()
-            LoggingService.info(TAG, "AIRI_RUNTIME SESSION_DEVICE_BOUND")
+            LoggingService.info(TAG, "AIRI SESSION_DEVICE_BOUND")
             true
         } catch (e: DeviceBindingService.DeviceChangedException) {
-            LoggingService.warn(TAG, "AIRI_RUNTIME SESSION_DEVICE_MISMATCH — forcing re-auth")
+            LoggingService.warn(TAG, "AIRI SESSION_DEVICE_MISMATCH — forcing re-auth")
             false
         }
     }
@@ -141,7 +141,7 @@ class SessionManager(
         deviceBinding.clearBinding()
         _sessionState.value = SessionState.UNAUTHENTICATED
         _idToken.value      = null
-        LoggingService.info(TAG, "AIRI_RUNTIME SESSION_CLEARED")
+        LoggingService.info(TAG, "AIRI SESSION_CLEARED")
     }
 
     private fun startRefreshLoop() {
@@ -170,7 +170,7 @@ class SessionManager(
                 var backoffMs = INITIAL_BACKOFF_MS
                 while (auth.currentUser != null) {
                     LoggingService.warn(TAG,
-                        "AIRI_RUNTIME TOKEN_REFRESH_BACKOFF delay=${backoffMs}ms")
+                        "AIRI TOKEN_REFRESH_BACKOFF delay=${backoffMs}ms")
                     delay(backoffMs)
                     backoffMs = minOf(backoffMs * 2, MAX_BACKOFF_MS)
                     if (auth.currentUser == null) break
@@ -179,7 +179,7 @@ class SessionManager(
                     if (retryToken != null) {
                         // Recovered — exit retry loop and resume normal 55m cycle.
                         LoggingService.info(TAG,
-                            "AIRI_RUNTIME TOKEN_REFRESH_RECOVERED — resuming normal cycle")
+                            "AIRI TOKEN_REFRESH_RECOVERED — resuming normal cycle")
                         break
                     }
                 }

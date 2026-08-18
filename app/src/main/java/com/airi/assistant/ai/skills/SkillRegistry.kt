@@ -329,7 +329,7 @@ class SkillRegistry(private val context: Context) {
         setInstalledVersion(info.name, info.version)
         android.util.Log.i(
             "SkillRegistry",
-            "AIRI_RUNTIME SKILL_INSTALLED name=${info.name} version=${info.version} action=$action"
+            "AIRI SKILL_INSTALLED name=${info.name} version=${info.version} action=$action"
         )
         return InstallResult.Success(info.name, info.version, action)
     }
@@ -431,7 +431,7 @@ class SkillRegistry(private val context: Context) {
             setInstalledVersion(skillId, manifest.version)
             android.util.Log.i(
                 "SkillRegistry",
-                "AIRI_RUNTIME SKILL_MANIFEST_REGISTERED id=$skillId version=${manifest.version}"
+                "AIRI SKILL_MANIFEST_REGISTERED id=$skillId version=${manifest.version}"
             )
             true
         }.getOrElse { error ->

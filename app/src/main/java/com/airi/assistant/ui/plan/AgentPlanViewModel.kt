@@ -24,7 +24,7 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
     val isVisible: StateFlow<Boolean>          = tracker.isVisible
 
     /**
-     * Task 1.10: Show ModalBottomSheet for ANY step ≥ 1, or when plan mode is explicitly active.
+     * Show ModalBottomSheet for ANY step ≥ 1, or when plan mode is explicitly active.
      * Previously required ≥ 3 steps which caused panel to not appear for simple 1-2 step tasks.
      */
     val showPanel: StateFlow<Boolean> = steps

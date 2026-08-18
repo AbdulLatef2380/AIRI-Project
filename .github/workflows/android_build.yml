@@ -29,8 +29,8 @@ jobs:
       run: |
         sdkmanager --install "ndk;25.2.9519653"
         sdkmanager --install "cmake;3.22.1"
-        sdkmanager --install "platforms;android-34"
-        sdkmanager --install "build-tools;34.0.0"
+        sdkmanager --install "platforms;android-36"
+        sdkmanager --install "build-tools;36.0.0"
 
     - name: Grant execute permission
       run: chmod +x gradlew
@@ -44,9 +44,18 @@ jobs:
     - name: Run unit tests and Android lint
       run: ./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace
 
-    - name: Compile and package release outputs
+    - name: Compile and package signed release outputs
+      env:
+        KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: |
         ./gradlew :app:compileReleaseKotlin :app:assembleRelease :app:bundleRelease --stacktrace
+
+    - name: Remove temporary signing material
+      if: always()
+      run: rm -f release.keystore
 
     - name: Run Android instrumentation tests
       uses: reactivecircus/android-emulator-runner@v2

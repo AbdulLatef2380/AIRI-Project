@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * ## Previous state
  * This class was referenced by [UnifiedCognitiveLoop.executeGraph] but never
- * existed, making `executeGraph` uncompilable. Created in Phase 2 pre-migration.
+ * existed, making `executeGraph` uncompilable. Created in  pre-migration.
  */
 object WorkspaceRegistry {
 

@@ -202,10 +202,10 @@
     <string name="marketplace_install">Instalar</string>
     <string name="marketplace_installed_badge">Instalada</string>
     <string name="marketplace_update">Actualizar</string>
-    <string name="marketplace_install_success">✓ ¡%1$s instalada!</string>
+    <string name="marketplace_install_success"> ¡%1$s instalada!</string>
     <string name="marketplace_install_failed">Error de instalación — inténtalo de nuevo.</string>
     <string name="marketplace_removed">%1$s eliminada.</string>
-    <string name="marketplace_updated">✓ %1$s actualizada a v%2$s</string>
+    <string name="marketplace_updated"> %1$s actualizada a v%2$s</string>
     <string name="marketplace_submitted">¡Enviada! ID de envío: %1$s</string>
     <string name="marketplace_submit_failed">Error al enviar — revisa tu manifiesto.</string>
     <string name="marketplace_no_installed">No hay habilidades instaladas</string>
@@ -218,7 +218,7 @@
     <string name="marketplace_manifest_label">Manifiesto skill.json</string>
     <string name="marketplace_validate">Validar</string>
     <string name="marketplace_reset">Restablecer</string>
-    <string name="marketplace_manifest_valid">Manifiesto válido ✓</string>
+    <string name="marketplace_manifest_valid">Manifiesto válido </string>
     <string name="marketplace_manifest_invalid">Validación fallida</string>
     <string name="marketplace_terms">Acepto los Términos de Servicio del Mercado AIRI</string>
     <string name="marketplace_submit_review">Enviar para revisión</string>
@@ -271,7 +271,7 @@
     <string name="plan_free_tier">Plan gratuito</string>
     <string name="plan_premium_description">Acceso ilimitado a todas las funciones</string>
     <string name="plan_free_description">30 mensajes / 10 agentes / 5 habilidades por día</string>
-    <string name="plan_badge_active">✓ Activo</string>
+    <string name="plan_badge_active"> Activo</string>
     <string name="plan_badge_free">Gratis</string>
     <string name="today_usage">Uso de hoy</string>
     <string name="usage_messages">Mensajes</string>
@@ -344,8 +344,8 @@
     <string name="stat_available_ram">Disponible</string>
     <string name="stat_used_ram">RAM usada</string>
     <string name="stat_low_memory">Memoria baja</string>
-    <string name="stat_low_memory_yes">Sí ⚠</string>
-    <string name="stat_low_memory_no">No ✓</string>
+    <string name="stat_low_memory_yes">Sí </string>
+    <string name="stat_low_memory_no">No </string>
     <string name="stat_storage">Almacenamiento</string>
     <string name="stat_total_storage">Almacenamiento total</string>
     <string name="stat_free_storage">Almacenamiento libre</string>
@@ -387,9 +387,9 @@
     <string name="spec_acceptance">Tasa de aceptación: %1$d%% (%2$d / %3$d borradores en %4$d ejecuciones)</string>
     <string name="spec_acceptance_empty">Tasa de aceptación: — (aún no hay ejecuciones especulativas)</string>
     <string name="spec_draft_n_label">Tokens en borrador por paso: %1$d</string>
-    <string name="perf_mode_label_fast">⚡ Rápido</string>
-    <string name="perf_mode_label_balanced">⚖ Equilibrado</string>
-    <string name="perf_mode_label_quality">🎯 Calidad</string>
+    <string name="perf_mode_label_fast"> Rápido</string>
+    <string name="perf_mode_label_balanced"> Equilibrado</string>
+    <string name="perf_mode_label_quality"> Calidad</string>
     <string name="perf_footer_note">El modo de rendimiento afecta: ventana de contexto, tokens máximos y estrategia de truncado. Los cambios se aplican al siguiente mensaje.</string>
     <string name="expand">Expandir</string>
     <string name="collapse">Contraer</string>
@@ -530,9 +530,9 @@
     <string name="billing_annual">Anual</string>
     <string name="billing_save_20">Ahorra 20%%</string>
     <string name="subscribe_now">Suscribirse ahora</string>
-    <string name="premium_title">✨ AIRI Premium</string>
+    <string name="premium_title"> AIRI Premium</string>
     <string name="premium_description">Desbloquea todo el potencial de AIRI con 10× más créditos, todos los conectores, acceso al mercado y APIs de desarrollador.</string>
-    <string name="premium_active_message">¡Estás en AIRI Premium! 🎉</string>
+    <string name="premium_active_message">¡Estás en AIRI Premium! </string>
     <string name="premium_active_subtitle">2.000 créditos diarios, todas las funciones desbloqueadas.</string>
     <string name="stripe_footer">Pagos procesados de forma segura por Stripe. AIRI nunca almacena datos de tarjetas.</string>
     <string name="ai_library_routes_auto">AIRI enruta automáticamente</string>
@@ -695,7 +695,7 @@
     <string name="vosk_download_small_desc">Descarga el modelo pequeño en inglés (~40 MB) para activar la voz al instante. Funciona completamente sin conexión.</string>
     <string name="vosk_download_small_btn">Descargar modelo pequeño (inglés, ~40 MB)</string>
     <string name="vosk_downloading_progress">Descargando… %1$d%%</string>
-    <string name="vosk_install_success">✓ Modelo de voz instalado</string>
+    <string name="vosk_install_success"> Modelo de voz instalado</string>
     <string name="take_photo">Tomar foto</string>
     <string name="photo_captured">Foto capturada</string>
     <string name="voice_engine_not_installed">Motor de voz no instalado</string>
@@ -803,9 +803,9 @@
     <string name="payment_annual">Anual</string>
     <string name="payment_save_20">Ahorra 20%</string>
     <string name="payment_subscribe_now">Suscribirse ahora</string>
-    <string name="payment_airi_premium">✨ AIRI Premium</string>
+    <string name="payment_airi_premium"> AIRI Premium</string>
     <string name="payment_premium_desc">Desbloquea todo el poder de AIRI con 10× más créditos, todos los conectores, acceso al mercado y APIs de desarrollador.</string>
-    <string name="payment_premium_active">¡Estás en AIRI Premium! 🎉</string>
+    <string name="payment_premium_active">¡Estás en AIRI Premium! </string>
     <string name="payment_premium_active_desc">2,000 créditos diarios, todas las funciones desbloqueadas.</string>
     <string name="payment_stripe_footer">Pagos procesados de forma segura por Stripe. AIRI nunca almacena datos de la tarjeta.</string>
     <string name="payment_bonus_included">+%1$d%% de bonificación incluida</string>

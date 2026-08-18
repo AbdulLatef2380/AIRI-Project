@@ -25,7 +25,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
     // silently losing all memory writes for the rest of the session.
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     /**
-     * Real semantic-memory backend (Phase 2). The chat path calls
+     * Real semantic-memory backend (). The chat path calls
      * [recordChatMessage] which fires-and-forgets [embeddingService.embedAndStore]
      * on a supervisor scope so a failed embed cannot block the chat insert.
      * If no embedding model is loaded, the embed is a logged no-op.
@@ -190,13 +190,13 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         dao.getRecentLongTermMemories(sessionId, limit)
 
     /**
-     * REAL semantic search (Phase 2). Returns the top-k most similar
+     * REAL semantic search (). Returns the top-k most similar
      * prior messages to [query] for [sessionId], ranked by cosine
      * similarity over L2-normalised vectors. Empty list if no embedding
      * model is loaded — caller can then fall back to chronological
      * recall via [getRecentMessages].
      *
-     * Emits AIRI_RUNTIME VECTOR_SEARCH_HIT (or _SKIPPED / _EMPTY).
+     * Emits AIRI VECTOR_SEARCH_HIT (or _SKIPPED / _EMPTY).
      */
     suspend fun semanticSearch(sessionId: String, query: String, k: Int = 5):
         List<EmbeddingService.RankedMessage> =

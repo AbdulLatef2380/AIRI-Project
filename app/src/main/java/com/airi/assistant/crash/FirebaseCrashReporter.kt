@@ -40,7 +40,7 @@ object FirebaseCrashReporter {
     fun enableCollection() {
         runCatching {
             FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(true)
-            Log.i(TAG, "AIRI_RUNTIME CRASHLYTICS_ENABLED")
+            Log.i(TAG, "AIRI CRASHLYTICS_ENABLED")
         }.onFailure { e ->
             Log.w(TAG, "Crashlytics enableCollection failed: ${e.message}")
         }
@@ -52,7 +52,7 @@ object FirebaseCrashReporter {
     fun disableCollection() {
         runCatching {
             FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(false)
-            Log.i(TAG, "AIRI_RUNTIME CRASHLYTICS_DISABLED")
+            Log.i(TAG, "AIRI CRASHLYTICS_DISABLED")
         }.onFailure { e ->
             Log.w(TAG, "Crashlytics disableCollection failed: ${e.message}")
         }
@@ -132,7 +132,7 @@ object FirebaseCrashReporter {
     fun recordNonFatal(throwable: Throwable) {
         runCatching {
             FirebaseCrashlytics.getInstance().recordException(throwable)
-            Log.w(TAG, "AIRI_RUNTIME NON_FATAL_RECORDED class=${throwable::class.simpleName}")
+            Log.w(TAG, "AIRI NON_FATAL_RECORDED class=${throwable::class.simpleName}")
         }.onFailure { e ->
             Log.w(TAG, "Crashlytics recordException failed: ${e.message}")
         }

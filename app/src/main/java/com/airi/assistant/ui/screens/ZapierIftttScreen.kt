@@ -131,7 +131,7 @@ private fun ZapierTab(
             ConnectorStatusCard(
                 name        = "Zapier",
                 description = "Connect AIRI to 6000+ apps via Zapier automations",
-                iconEmoji   = "⚙",
+                iconEmoji   = "",
                 accentColor = Color(0xFFFF4A00),
                 state       = state
             )
@@ -302,7 +302,7 @@ private fun IftttTab(
             ConnectorStatusCard(
                 name        = "IFTTT",
                 description = "Trigger IFTTT applets and Maker Webhooks from AIRI",
-                iconEmoji   = "🔗",
+                iconEmoji   = "",
                 accentColor = Color(0xFF00C3E3),
                 state       = state
             )
@@ -418,11 +418,11 @@ private fun IftttTab(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.ifttt_how_section), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                     val useCases = listOf(
-                        "📧" to "Send email alerts when an agent task completes",
+                        "" to "Send email alerts when an agent task completes",
                         "•" to "Control smart lights based on AIRI reminders",
                         "•" to "Log AIRI messages to Google Sheets",
                         "•" to "Send iOS/Android push notifications from AIRI",
-                        "🔔" to "Post to Slack when credits run low"
+                        "" to "Post to Slack when credits run low"
                     )
                     useCases.forEach { (emoji, desc) ->
                         Row(verticalAlignment = Alignment.CenterVertically) {

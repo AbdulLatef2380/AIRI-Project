@@ -29,7 +29,7 @@ object GlobalAgentEventDispatcher {
                 ExecutionStage.EXECUTING   -> "Executing: ${state.activeNodeAction.take(60).ifBlank { state.currentAction.take(60) }}" to ActivitySeverity.INFO
                 ExecutionStage.RECOVERING  -> "Recovering (attempt ${state.retryCount}): ${state.recoveryReason.take(60)}" to ActivitySeverity.WARN
                 ExecutionStage.REFLECTING  -> "Analysing results…" to ActivitySeverity.INFO
-                ExecutionStage.COMPLETED   -> "Execution completed ✓" to ActivitySeverity.INFO
+                ExecutionStage.COMPLETED   -> "Execution completed " to ActivitySeverity.INFO
                 ExecutionStage.FAILED      -> "Execution failed — ${state.currentAction.take(60)}" to ActivitySeverity.ERROR
                 ExecutionStage.IDLE        -> return@onEach
             }
@@ -52,11 +52,11 @@ object GlobalAgentEventDispatcher {
         is AppEvent.AgentExecutionCancelled -> ActivityEvent(message = "Agent cancelled: ${event.reason}", category = ActivityCategory.REASONING, severity = ActivitySeverity.WARN)
         is AppEvent.SkillExecutionStarted   -> ActivityEvent(message = "Running skill: ${event.skillName}", category = ActivityCategory.TOOL)
         is AppEvent.SkillExecutionCompleted -> ActivityEvent(
-            message  = "${if (event.success) "✓" else "✕"} Skill ${event.skillName} (${event.durationMs}ms)",
+            message  = "${if (event.success) "" else ""} Skill ${event.skillName} (${event.durationMs}ms)",
             category = ActivityCategory.TOOL,
             severity = if (event.success) ActivitySeverity.INFO else ActivitySeverity.WARN)
         is AppEvent.ToolCallExecuted        -> ActivityEvent(
-            message  = "${if (event.success) "✓" else "✕"} Tool: ${event.toolName}",
+            message  = "${if (event.success) "" else ""} Tool: ${event.toolName}",
             category = ActivityCategory.TOOL,
             severity = if (event.success) ActivitySeverity.INFO else ActivitySeverity.WARN)
         is AppEvent.RagContextBuilt         -> ActivityEvent(message = "Retrieved memory (${event.hitsCount} hits, ${event.chars} chars)", category = ActivityCategory.MEMORY)

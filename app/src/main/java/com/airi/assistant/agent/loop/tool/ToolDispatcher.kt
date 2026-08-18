@@ -20,7 +20,7 @@ import java.time.format.DateTimeFormatter
  *
  * Every tool here has:
  *   - a real execution body (no placeholders)
- *   - a logged AIRI_RUNTIME entry for auditing
+ *   - a logged AIRI entry for auditing
  *   - a timeout enforced by the caller (AgentLoop)
  *
  * Adding a new tool: add it to [BuiltinTools], add dispatch case here.
@@ -73,7 +73,7 @@ class ToolDispatcher(
                             .take(40)
                         val pkg   = service.rootInActiveWindow?.packageName?.toString() ?: "unknown"
                         val summary = "App: $pkg\nVisible text:\n${texts.joinToString("\n").take(800)}"
-                        Log.i(TAG, "AIRI_RUNTIME READ_SCREEN pkg=$pkg nodes=${nodes.size} textItems=${texts.size}")
+                        Log.i(TAG, "AIRI READ_SCREEN pkg=$pkg nodes=${nodes.size} textItems=${texts.size}")
                         ToolResult.Success(summary)
                     }
                 }
@@ -156,7 +156,7 @@ class ToolDispatcher(
                 // Try Jina Reader first (clean markdown, handles JS-rendered pages)
                 val jina = searchTool.fetchViaJina(url, maxChars = 4000)
                 if (jina.success && jina.content.isNotBlank()) {
-                    Log.i(TAG, "AIRI_RUNTIME FETCH_URL_JINA_OK chars=${jina.content.length}")
+                    Log.i(TAG, "AIRI FETCH_URL_JINA_OK chars=${jina.content.length}")
                     return ToolResult.Success(
                         "Content from ${url}:\n\n${jina.content}"
                     )
@@ -165,7 +165,7 @@ class ToolDispatcher(
                 // Fallback: direct HTTP fetch with HTML stripping
                 val direct = searchTool.fetchPageContent(url)
                 if (direct.success && direct.content.isNotBlank()) {
-                    Log.i(TAG, "AIRI_RUNTIME FETCH_URL_DIRECT_OK chars=${direct.content.length}")
+                    Log.i(TAG, "AIRI FETCH_URL_DIRECT_OK chars=${direct.content.length}")
                     return ToolResult.Success("Content from ${url}:\n\n${direct.content}")
                 }
 
@@ -215,7 +215,7 @@ class ToolDispatcher(
                     ToolResult.Success("No events found in the next $days days.")
                 } else {
                     val formatted = cal.summarize(events.take(10))
-                    Log.i(TAG, "AIRI_RUNTIME CALENDAR_READ days=$days events=${events.size}")
+                    Log.i(TAG, "AIRI CALENDAR_READ days=$days events=${events.size}")
                     ToolResult.Success("Upcoming events:\n$formatted")
                 }
             }
@@ -280,7 +280,7 @@ class ToolDispatcher(
                 // Route any "skill_*" prefixed tool call through the SkillToolBridge
                 val bridge = skillToolBridge
                 if (bridge != null && bridge.handles(toolName)) {
-                    Log.i(TAG, "AIRI_RUNTIME SKILL_TOOL_DISPATCH tool=$toolName")
+                    Log.i(TAG, "AIRI SKILL_TOOL_DISPATCH tool=$toolName")
                     val result = bridge.invoke(toolName, args)
                     ToolResult.Success(result)
                 } else {

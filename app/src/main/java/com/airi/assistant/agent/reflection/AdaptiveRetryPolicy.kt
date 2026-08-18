@@ -4,7 +4,7 @@ import android.util.Log
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Recovery strategy enum — moved inline after RecoveryManager deletion (Phase 9).
+ * Recovery strategy enum — moved inline after RecoveryManager deletion ().
  * Used by AdaptiveRetryPolicy and ProductionAgentOrchestrator.
  */
 enum class RecoveryStrategy {

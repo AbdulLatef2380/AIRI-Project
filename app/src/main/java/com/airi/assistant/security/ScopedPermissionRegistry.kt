@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * ── AUDIT ─────────────────────────────────────────────────────────────────
  *
- *   Every grant/revoke/check is logged with the AIRI_RUNTIME proof tag so the
+ *   Every grant/revoke/check is logged with the AIRI proof tag so the
  *   observability layer can reconstruct a permission audit trail.
  */
 class ScopedPermissionRegistry {
@@ -95,7 +95,7 @@ class ScopedPermissionRegistry {
             AgentPermission.SPAWN_SUBAGENT,  AgentPermission.WRITE_NOTES
         )
 
-        LoggingService.info(TAG, "AIRI_RUNTIME PERMISSION_DEFAULTS_INSTALLED agents=${grants.keys}")
+        LoggingService.info(TAG, "AIRI PERMISSION_DEFAULTS_INSTALLED agents=${grants.keys}")
     }
 
     /**
@@ -105,7 +105,7 @@ class ScopedPermissionRegistry {
         val set = grants.getOrPut(agentId) { mutableSetOf() }
         permissions.forEach { p ->
             set.add(p)
-            LoggingService.info(TAG, "AIRI_RUNTIME PERMISSION_GRANTED agent=$agentId permission=$p")
+            LoggingService.info(TAG, "AIRI PERMISSION_GRANTED agent=$agentId permission=$p")
         }
     }
 
@@ -116,7 +116,7 @@ class ScopedPermissionRegistry {
         val set = grants[agentId] ?: return
         permissions.forEach { p ->
             set.remove(p)
-            LoggingService.warn(TAG, "AIRI_RUNTIME PERMISSION_REVOKED agent=$agentId permission=$p")
+            LoggingService.warn(TAG, "AIRI PERMISSION_REVOKED agent=$agentId permission=$p")
         }
     }
 
@@ -125,7 +125,7 @@ class ScopedPermissionRegistry {
      */
     fun revokeAll(agentId: String) {
         grants.remove(agentId)
-        LoggingService.warn(TAG, "AIRI_RUNTIME PERMISSION_ALL_REVOKED agent=$agentId")
+        LoggingService.warn(TAG, "AIRI PERMISSION_ALL_REVOKED agent=$agentId")
     }
 
     /**
@@ -135,7 +135,7 @@ class ScopedPermissionRegistry {
     fun check(agentId: String, permission: AgentPermission): Boolean {
         val has = grants[agentId]?.contains(permission) == true
         if (!has) {
-            LoggingService.warn(TAG, "AIRI_RUNTIME PERMISSION_DENIED agent=$agentId permission=$permission")
+            LoggingService.warn(TAG, "AIRI PERMISSION_DENIED agent=$agentId permission=$permission")
         }
         return has
     }

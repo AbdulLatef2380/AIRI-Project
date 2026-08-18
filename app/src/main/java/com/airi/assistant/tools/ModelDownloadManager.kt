@@ -44,7 +44,7 @@ class ModelDownloadManager(private val context: Context) {
     fun cancelActiveDownload(context: android.content.Context): Boolean {
         val active = ModelDownloadService.isDownloading.get()
         ModelDownloadService.cancel(context)
-        android.util.Log.i("AIRI_RUNTIME", "DOWNLOAD_CANCEL_DISPATCHED was_active=$active")
+        android.util.Log.i("AIRI", "DOWNLOAD_CANCEL_DISPATCHED was_active=$active")
         return active
     }
 

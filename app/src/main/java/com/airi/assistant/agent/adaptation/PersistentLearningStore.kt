@@ -122,7 +122,7 @@ class PersistentLearningStore(context: Context) {
         val current = getAvoidedActions().toMutableSet()
         if (current.add(action)) {
             prefs.edit().putStringSet(KEY_AVOID, current).apply()
-            Log.i(TAG, "AIRI_RUNTIME ACTION_AVOIDED action=$action")
+            Log.i(TAG, "AIRI ACTION_AVOIDED action=$action")
         }
     }
 
@@ -130,7 +130,7 @@ class PersistentLearningStore(context: Context) {
         val current = getAvoidedActions().toMutableSet()
         if (current.remove(action)) {
             prefs.edit().putStringSet(KEY_AVOID, current).apply()
-            Log.i(TAG, "AIRI_RUNTIME ACTION_REHABILITATED action=$action")
+            Log.i(TAG, "AIRI ACTION_REHABILITATED action=$action")
         }
     }
 
@@ -181,7 +181,7 @@ class PersistentLearningStore(context: Context) {
         val current = (prefs.getStringSet(KEY_QUARANTINE, emptySet()) ?: emptySet()).toMutableSet()
         if (current.add(agentId)) {
             prefs.edit().putStringSet(KEY_QUARANTINE, current).apply()
-            Log.w(TAG, "AIRI_RUNTIME AGENT_QUARANTINED agentId=$agentId reason=$reason")
+            Log.w(TAG, "AIRI AGENT_QUARANTINED agentId=$agentId reason=$reason")
         }
     }
 
@@ -189,7 +189,7 @@ class PersistentLearningStore(context: Context) {
         val current = (prefs.getStringSet(KEY_QUARANTINE, emptySet()) ?: emptySet()).toMutableSet()
         if (current.remove(agentId)) {
             prefs.edit().putStringSet(KEY_QUARANTINE, current).apply()
-            Log.i(TAG, "AIRI_RUNTIME AGENT_RELEASED agentId=$agentId")
+            Log.i(TAG, "AIRI AGENT_RELEASED agentId=$agentId")
         }
     }
 
@@ -255,7 +255,7 @@ class PersistentLearningStore(context: Context) {
     // ── Debug / diagnostics ───────────────────────────────────────────────────
 
     fun logSnapshot() {
-        Log.i(TAG, "AIRI_RUNTIME LEARNING_SNAPSHOT " +
+        Log.i(TAG, "AIRI LEARNING_SNAPSHOT " +
             "confidence=${"%.2f".format(getOverallConfidence())} " +
             "avoided=${getAvoidedActions().size} " +
             "quarantined=${getQuarantinedAgents().size} " +

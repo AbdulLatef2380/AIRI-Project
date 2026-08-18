@@ -29,7 +29,7 @@ import com.airi.assistant.ui.theme.AIRIShapes
 /**
  * ArtifactPreviewScreen — isolated, sandboxed rendering for AIRI artifacts.
  *
- * ── Phase 2, Task 7 ────────────────────────────────────────────────────────
+ * ── , ────────────────────────────────────────────────────────
  * Previously [com.airi.assistant.workspace.WorkspaceScreen] attempted to render
  * artifacts using native Compose components only, with no WebView sandbox for
  * HTML/JavaScript content — leaving HTML artifact execution entirely absent
@@ -44,7 +44,7 @@ import com.airi.assistant.ui.theme.AIRIShapes
  *                         confirms), and all URL loads blocked except data: URIs.
  *   • Markdown         — native Compose text rendering (safe: no execution).
  *   • Code             — native monospace text block with syntax highlighting label.
- *   • Image/Binary     — placeholder (full implementation in Phase 3 with Coil).
+ *   • Image/Binary     — placeholder (full implementation in  with Coil).
  *
  * ── WebView Security Hardening ─────────────────────────────────────────────
  * The WebView sandbox applies the following restrictions:
@@ -188,12 +188,12 @@ private fun HtmlArtifactView(html: String) {
                     ): Boolean {
                         // Block ALL URL navigation — only the initial data: load is allowed.
                         Log.w(HTML_TAG,
-                            "AIRI_RUNTIME ARTIFACT_PREVIEW_URL_BLOCKED url=${request.url}")
+                            "AIRI ARTIFACT_PREVIEW_URL_BLOCKED url=${request.url}")
                         return true
                     }
                 }
 
-                Log.i(HTML_TAG, "AIRI_RUNTIME ARTIFACT_PREVIEW_HTML_LOAD size=${sandboxedHtml.length}")
+                Log.i(HTML_TAG, "AIRI ARTIFACT_PREVIEW_HTML_LOAD size=${sandboxedHtml.length}")
                 loadDataWithBaseURL(
                     /* baseUrl    = */ null,
                     /* data       = */ sandboxedHtml,
@@ -243,7 +243,7 @@ private fun buildSandboxedHtmlDocument(rawHtml: String): String = """
 """.trimIndent()
 @Composable
 private fun MarkdownArtifactView(markdown: String) {
-    // Native text rendering. Phase 3 will integrate a real Markdown
+    // Native text rendering.  will integrate a real Markdown
     // parser (e.g. Markwon or CommonMark-Android) for full rendering fidelity.
     // Native rendering is safe — no code execution possible.
     Column(

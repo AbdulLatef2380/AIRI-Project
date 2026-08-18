@@ -5,10 +5,10 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * AuditLogEntity — persistent AIRI_RUNTIME audit record.
+ * AuditLogEntity — persistent AIRI audit record.
  *
- * ── Phase 2, Task 5: Persist AIRI_RUNTIME to Room ────────────────────────────
- * Previously all AIRI_RUNTIME events lived only in logcat and were lost on
+ * ── , Persist AIRI to Room ────────────────────────────
+ * Previously all AIRI events lived only in logcat and were lost on
  * process death, making post-incident forensic analysis impossible without an
  * active ADB connection.
  *
@@ -20,7 +20,7 @@ import androidx.room.PrimaryKey
  * called in [AuditRepository]. This prevents unbounded table growth.
  *
  * Security: the table sits in the same Room database as the rest of AIRI's
- * state. When SQLCipher is enabled (Phase 2, Task future) the entire DB
+ * state. When SQLCipher is enabled (, Task future) the entire DB
  * (including this table) will be encrypted at rest.
  */
 @Entity(
@@ -37,7 +37,7 @@ data class AuditLogEntity(
     /** Module tag, e.g. "THERMAL_PROFILER", "AUTH", "FIREWALL". */
     val tag: String,
 
-    /** Full AIRI_RUNTIME message text. */
+    /** Full AIRI message text. */
     val message: String,
 
     /** Severity level for filtering — mirrors Android log priorities. */

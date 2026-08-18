@@ -81,7 +81,7 @@ object OpenWakeWordEngine {
             app.assets.open(ASSET_MODEL).use { ins ->
                 FileOutputStream(dest).use { out -> ins.copyTo(out) }
             }
-            Log.i(TAG, "AIRI_RUNTIME OWW_EXTRACTED model=${dest.absolutePath} size=${dest.length()}")
+            Log.i(TAG, "AIRI OWW_EXTRACTED model=${dest.absolutePath} size=${dest.length()}")
             dest
         } catch (t: Throwable) {
             Log.e(TAG, "OWW asset extraction failed: ${t.message}", t)

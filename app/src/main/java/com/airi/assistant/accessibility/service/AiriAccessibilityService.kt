@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * AiriAccessibilityService — Android accessibility service powering the AIRI agent layer.
  *
- * ── Phase-3 P0 hardening ──────────────────────────────────────────────────────
+ * ──  hardening ──────────────────────────────────────────────────────
  * Two surgical changes vs. the prior version:
  *
  *   1. Event types narrowed at runtime from `typeAllMask` (declared in
@@ -101,7 +101,7 @@ class AiriAccessibilityService : AccessibilityService() {
             // AiriAccessibilityService.isConnected directly as fallback.
         }
 
-        Log.i(TAG, "AIRI_RUNTIME_ACCESSIBILITY SERVICE_CONNECTED policyMode=${policy.state.value.mode}")
+        Log.i(TAG, "AIRI_ACCESSIBILITY SERVICE_CONNECTED policyMode=${policy.state.value.mode}")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -127,7 +127,7 @@ class AiriAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        Log.w(TAG, "AIRI_RUNTIME_ACCESSIBILITY SERVICE_INTERRUPTED")
+        Log.w(TAG, "AIRI_ACCESSIBILITY SERVICE_INTERRUPTED")
         executionEngine.killSwitch("AccessibilityService interrupted")
     }
 
@@ -142,7 +142,7 @@ class AiriAccessibilityService : AccessibilityService() {
         } catch (_: Exception) { /* ignore if not initialized */ }
 
         _screenContext.value = ScreenState()
-        Log.i(TAG, "AIRI_RUNTIME_ACCESSIBILITY SERVICE_DESTROYED")
+        Log.i(TAG, "AIRI_ACCESSIBILITY SERVICE_DESTROYED")
         super.onDestroy()
     }
 

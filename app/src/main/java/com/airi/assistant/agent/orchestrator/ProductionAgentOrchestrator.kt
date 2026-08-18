@@ -89,7 +89,7 @@ class ProductionAgentOrchestrator {
     @Volatile
     var observabilityHub: com.airi.assistant.agent.observability.AgentObservabilityHub? = null
 
-    /** Task 1.8: DurableTaskManager hook — set by ServiceLocator after construction. */
+    /** DurableTaskManager hook — set by ServiceLocator after construction. */
     @Volatile
     var durableTaskManager: com.airi.assistant.agent.durable.DurableTaskManager? = null
 
@@ -150,7 +150,7 @@ class ProductionAgentOrchestrator {
         val executionId = plan.id
         val startMs     = System.currentTimeMillis()
 
-        Log.i(TAG, "AIRI_RUNTIME PLAN_START id=$executionId tasks=${plan.tasks.size}")
+        Log.i(TAG, "AIRI PLAN_START id=$executionId tasks=${plan.tasks.size}")
         _state.value = OrchestratorState.Running(executionId, plan.tasks.size, 0)
 
         // Per-plan shared tool workspace — agents publish/consume typed artifacts here
@@ -284,7 +284,7 @@ class ProductionAgentOrchestrator {
 
         return if (succeeded) {
             val finalResult = taskResults.values.lastOrNull() ?: ""
-            Log.i(TAG, "AIRI_RUNTIME PLAN_SUCCESS id=$executionId duration=${durationMs}ms")
+            Log.i(TAG, "AIRI PLAN_SUCCESS id=$executionId duration=${durationMs}ms")
             _state.value = OrchestratorState.Idle
             ExecutionResult.Success(
                 planId        = executionId,
@@ -294,7 +294,7 @@ class ProductionAgentOrchestrator {
                 eventsEmitted = allEvents.toList()
             )
         } else {
-            Log.w(TAG, "AIRI_RUNTIME PLAN_PARTIAL id=$executionId errors=${taskErrors.size}")
+            Log.w(TAG, "AIRI PLAN_PARTIAL id=$executionId errors=${taskErrors.size}")
             _state.value = OrchestratorState.Idle
             ExecutionResult.PartialFailure(
                 planId      = executionId,
@@ -334,7 +334,7 @@ class ProductionAgentOrchestrator {
                 ?: return TaskResult.Failure("No agent matched for: '${task.input.take(60)}'")
         }
 
-        Log.i(TAG, "AIRI_RUNTIME TASK_DISPATCH agent=${agent.capability.agentId} task=${task.id}")
+        Log.i(TAG, "AIRI TASK_DISPATCH agent=${agent.capability.agentId} task=${task.id}")
 
         var resultText = ""
         var taskError: String? = null
@@ -366,7 +366,7 @@ class ProductionAgentOrchestrator {
                             is AgentEvent.Complete -> {
                                 resultText   = event.result
                                 toolsUsed.addAll(event.toolsUsed)
-                                Log.i(TAG, "AIRI_RUNTIME TASK_COMPLETE task=${task.id} " +
+                                Log.i(TAG, "AIRI TASK_COMPLETE task=${task.id} " +
                                         "agent=${agent.capability.agentId} " +
                                         "duration=${event.durationMs}ms")
                                 // ── Observability: record success ─────────────
@@ -374,19 +374,19 @@ class ProductionAgentOrchestrator {
                                     agentId    = agent.capability.agentId,
                                     durationMs = event.durationMs
                                 )
-                                // ── Task 11.3: Record success in StrategyEvolutionEngine ──
+                                // ── Record success in StrategyEvolutionEngine ──
                                 com.airi.assistant.core.ServiceLocator.strategyEvolutionEngine
                                     .recordNodeOutcome(agent.capability.agentId, "direct", 1, true)
                             }
                             is AgentEvent.Failed -> {
                                 taskError = event.reason
-                                Log.w(TAG, "AIRI_RUNTIME TASK_FAILED task=${task.id} reason=${event.reason}")
+                                Log.w(TAG, "AIRI TASK_FAILED task=${task.id} reason=${event.reason}")
                                 // ── Observability: record error ───────────────
                                 observabilityHub?.recordAgentError(
                                     agentId = agent.capability.agentId,
                                     reason  = event.reason
                                 )
-                                // ── Task 11.3: Record failure in StrategyEvolutionEngine ──
+                                // ── Record failure in StrategyEvolutionEngine ──
                                 com.airi.assistant.core.ServiceLocator.strategyEvolutionEngine
                                     .recordNodeOutcome(agent.capability.agentId, "direct", 1, false)
                             }
@@ -400,10 +400,10 @@ class ProductionAgentOrchestrator {
                             }
                             is AgentEvent.ToolCall -> {
                                 toolsUsed.add(event.toolName)
-                                Log.d(TAG, "AIRI_RUNTIME TOOL_CALL tool=${event.toolName} task=${task.id}")
+                                Log.d(TAG, "AIRI TOOL_CALL tool=${event.toolName} task=${task.id}")
                                 // ── Observability: record every real tool call ─
                                 observabilityHub?.recordToolCall(event.toolName)
-                                // ── Task 1.8: Checkpoint after each tool call ──
+                                // ── Checkpoint after each tool call ──
                                 durableTaskManager?.updateCheckpoint(
                                     taskId          = task.id,
                                     checkpointData  = "tool:${event.toolName}",

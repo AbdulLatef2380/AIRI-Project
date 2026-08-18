@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit
  * PRIVACY:
  *   - Blocked in PRIVACY_MAXIMUM mode (would send prompt to cloud).
  *   - The image prompt is logged at WARN level (not DEBUG) so it is
- *     visible in the AIRI_RUNTIME stream without being noisy.
+ *     visible in the AIRI stream without being noisy.
  */
 class MediaGenerationAgent(
     private val context: Context

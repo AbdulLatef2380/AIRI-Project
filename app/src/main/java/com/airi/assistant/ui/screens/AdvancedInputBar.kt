@@ -37,7 +37,7 @@ import com.airi.assistant.ui.viewmodel.ChatInputSuggestion
 import com.airi.assistant.ui.viewmodel.ModelUiState
 
 /**
- * AdvancedChatInputBar — Phase 3 replacement for AiriChatInputBar.
+ * AdvancedChatInputBar —  replacement for AiriChatInputBar.
  *
  * Adds a dynamic action toolbar above the existing input bar:
  *  - Tool Picker: quick access to active tools (web, calculator, calendar, code)
@@ -193,9 +193,9 @@ private fun InputActionToolbar(
         )
 
         // Quick dynamic tools — each wired to its own callback
-        QuickToolChip(label = "Web",  emoji = "🌐", onClick = onWebClick)
-        QuickToolChip(label = "Code", emoji = "💻", onClick = onCodeClick)
-        QuickToolChip(label = "Calc", emoji = "🔢", onClick = onCalcClick)
+        QuickToolChip(label = "Web",  emoji = "", onClick = onWebClick)
+        QuickToolChip(label = "Code", emoji = "", onClick = onCodeClick)
+        QuickToolChip(label = "Calc", emoji = "", onClick = onCalcClick)
 
         // Divider
         Box(modifier = Modifier.width(1.dp).height(20.dp).background(DividerColor))
@@ -238,7 +238,7 @@ private fun PlanModeChip(isActive: Boolean, onClick: () -> Unit) {
         verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        Text("🗺️", fontSize = 12.sp)
+        Text("", fontSize = 12.sp)
         Text(
             "Plan",
             fontSize    = 11.sp,

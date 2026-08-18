@@ -162,7 +162,7 @@ class SandboxWorkspace(val goalId: String) {
             snapshots.addLast(snap)
         }
         log(ActionCategory.DECISION, "workspace", "snapshot", mapOf("snapId" to snap.id), "created")
-        Log.i(TAG, "AIRI_RUNTIME WORKSPACE_SNAPSHOT goal=$goalId snapId=${snap.id} files=${snap.files.size}")
+        Log.i(TAG, "AIRI WORKSPACE_SNAPSHOT goal=$goalId snapId=${snap.id} files=${snap.files.size}")
         return snap
     }
 
@@ -185,7 +185,7 @@ class SandboxWorkspace(val goalId: String) {
         files.keys.retainAll(snapKeys)
 
         log(ActionCategory.DECISION, "workspace", "rollback", mapOf("snapId" to snap.id), "restored")
-        Log.w(TAG, "AIRI_RUNTIME WORKSPACE_ROLLBACK goal=$goalId snapId=${snap.id} files=${snap.files.size}")
+        Log.w(TAG, "AIRI WORKSPACE_ROLLBACK goal=$goalId snapId=${snap.id} files=${snap.files.size}")
         return true
     }
 

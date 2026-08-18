@@ -9,7 +9,7 @@ import java.io.File
 /**
  * SandboxExecutor — capability-restricted, argv-exec sandbox runner.
  *
- * Hardened version (Phase-3 P0 security batch):
+ * Hardened version ( security batch):
  *
  *   • The allowlist is now matched on the *first token* of the command after
  *     splitting on whitespace, NOT on `startsWith` — this prevents bypasses

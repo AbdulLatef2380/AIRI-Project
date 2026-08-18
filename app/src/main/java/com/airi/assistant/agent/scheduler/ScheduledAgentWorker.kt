@@ -67,7 +67,7 @@ class ScheduledAgentWorker(
         val payload = inputData.getString(KEY_PAYLOAD)  ?: return Result.failure()
         val label   = inputData.getString(KEY_LABEL)    ?: agentId
 
-        LoggingService.info(TAG, "AIRI_RUNTIME SCHEDULED_JOB_STARTED id=$jobId agent=$agentId label=$label")
+        LoggingService.info(TAG, "AIRI SCHEDULED_JOB_STARTED id=$jobId agent=$agentId label=$label")
 
         // : System maintenance payloads are handled directly — they don't route
         // through the agent/orchestrator stack because they are infrastructure tasks,
@@ -102,7 +102,7 @@ class ScheduledAgentWorker(
             maintenanceResult.exceptionOrNull()?.let { err ->
                 LoggingService.warn(
                     TAG,
-                    "AIRI_RUNTIME SCHEDULED_MAINTENANCE_FAILED id=$jobId error=${err.javaClass.simpleName}"
+                    "AIRI SCHEDULED_MAINTENANCE_FAILED id=$jobId error=${err.javaClass.simpleName}"
                 )
             }
         }
@@ -121,12 +121,12 @@ class ScheduledAgentWorker(
         val result = runCatching {
             val agent = SubAgentRegistry.route(payload, ctx)
             if (agent != null) {
-                Log.i(TAG, "AIRI_RUNTIME SCHEDULED_JOB_ROUTED id=$jobId agent=${agent.capability.agentId}")
+                Log.i(TAG, "AIRI SCHEDULED_JOB_ROUTED id=$jobId agent=${agent.capability.agentId}")
                 // Collect the Flow to drive execution to completion
                 agent.execute(payload, ctx).collect { }
                 "completed"
             } else {
-                Log.i(TAG, "AIRI_RUNTIME SCHEDULED_JOB_ORCHESTRATOR id=$jobId (no agent matched)")
+                Log.i(TAG, "AIRI SCHEDULED_JOB_ORCHESTRATOR id=$jobId (no agent matched)")
                 val orch = runCatching { ServiceLocator.productionOrchestrator }.getOrNull()
                 val execResult = orch?.executeSingle(payload, ctx)
                 execResult?.toString() ?: "Scheduled task dispatched (no agent match)"

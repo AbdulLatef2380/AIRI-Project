@@ -133,7 +133,7 @@ object ResponseOptimizer {
         val isShort = lower.length <= 32 && tokens.size <= 5
         if (!isShort) {
             if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "fast_response BYPASS reason=long_input len=${lower.length} tokens=${tokens.size}")
-            Log.i("AIRI_RUNTIME", "FAST_PATH_BYPASSED reason=long_input len=${lower.length}")
+            Log.i("AIRI", "FAST_PATH_BYPASSED reason=long_input len=${lower.length}")
             return null
         }
 
@@ -158,7 +158,7 @@ object ResponseOptimizer {
             if (matched) {
                 val reply = entry.replies.random()()
                 if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "fast_response matched len=${input.length} reply_len=${reply.length}")
-                Log.i("AIRI_RUNTIME", "FAST_PATH_HIT input_len=${input.length} reply_len=${reply.length}")
+                Log.i("AIRI", "FAST_PATH_HIT input_len=${input.length} reply_len=${reply.length}")
                 return reply
             }
         }

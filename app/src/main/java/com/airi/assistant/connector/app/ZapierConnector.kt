@@ -237,7 +237,7 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
             appendLine("Your Zaps (${zaps.length()}):")
             for (i in 0 until zaps.length()) {
                 val z = zaps.getJSONObject(i)
-                val status = if (z.optBoolean("active", false)) "🟢" else "⏸"
+                val status = if (z.optBoolean("active", false)) "" else "⏸"
                 appendLine("$status ${z.optString("title","Untitled")} [id: ${z.optInt("id")}]")
             }
         }
@@ -251,7 +251,7 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
             .toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url(url).post(body).build()
         val response = client.newCall(request).execute()
-        return if (response.isSuccessful) "Zap #$zapId triggered successfully ✓" else "Trigger failed: HTTP ${response.code}"
+        return if (response.isSuccessful) "Zap #$zapId triggered successfully " else "Trigger failed: HTTP ${response.code}"
     }
 
     private fun patchZap(zapId: String, action: String): String {
@@ -277,7 +277,7 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
             .toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url(hookUrl).post(body).build()
         val response = client.newCall(request).execute()
-        return if (response.isSuccessful) "Webhook sent ✓ (HTTP ${response.code})"
+        return if (response.isSuccessful) "Webhook sent  (HTTP ${response.code})"
                else "Webhook failed: HTTP ${response.code} ${response.message}"
     }
 

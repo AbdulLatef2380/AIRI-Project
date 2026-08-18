@@ -150,7 +150,7 @@ class ScheduledJobOrchestrator(private val context: Context) {
             ExistingPeriodicWorkPolicy.KEEP,
             request
         )
-        Log.i(TAG, "AIRI_RUNTIME PERIODIC_JOB_QUEUED id=${job.id} agent=$agentId intervalMin=$safeInterval")
+        Log.i(TAG, "AIRI PERIODIC_JOB_QUEUED id=${job.id} agent=$agentId intervalMin=$safeInterval")
         return persistedJob
     }
 

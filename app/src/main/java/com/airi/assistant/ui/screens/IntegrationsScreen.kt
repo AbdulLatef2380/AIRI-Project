@@ -184,7 +184,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
         val state = dialog as IntegrationsViewModel.DialogState.Github
         TokenDialog(
             title = stringResource(R.string.integration_github_dialog_title),
-            emoji = "🐙",
+            emoji = "",
             // Token-acquisition steps stay in English because every label they
             // reference (GitHub menu names, scopes) is itself English in the
             // GitHub UI — translating them would make the steps unfollowable.
@@ -203,7 +203,7 @@ fun IntegrationsScreen(onBack: () -> Unit) {
         val state = dialog as IntegrationsViewModel.DialogState.Telegram
         TokenDialog(
             title = stringResource(R.string.integration_telegram_dialog_title),
-            emoji = "✈️",
+            emoji = "",
             steps = stringArrayResource(R.array.integration_telegram_steps).toList(),
             inputLabel = stringResource(R.string.integration_telegram_token_label),
             inputHint = "123456789:AAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",

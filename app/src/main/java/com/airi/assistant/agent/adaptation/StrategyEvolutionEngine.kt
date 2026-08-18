@@ -127,7 +127,7 @@ class StrategyEvolutionEngine(private val store: PersistentLearningStore) {
 
     fun logEvolutionState() {
         val scores = getStrategyScores()
-        Log.i(TAG, "AIRI_RUNTIME STRATEGY_EVOLUTION " +
+        Log.i(TAG, "AIRI STRATEGY_EVOLUTION " +
             scores.entries.joinToString(" ") { "${it.key}=${"%.2f".format(it.value)}" } +
             " overall_confidence=${"%.2f".format(store.getOverallConfidence())}")
     }

@@ -56,19 +56,19 @@ data class MarketplaceSkill(
     )
 
     enum class Category(val label: String, val emoji: String) {
-        PRODUCTIVITY ("Productivity", "📋"),
-        COMMUNICATION("Communication", "💬"),
-        DEVELOPER    ("Developer",     "💻"),
-        DATA         ("Data & Analytics", "📊"),
-        CREATIVITY   ("Creativity",    "🎨"),
-        FINANCE      ("Finance",       "💰"),
-        AUTOMATION   ("Automation",    "🤖"),
-        AI           ("AI & ML",       "🧠"),
-        UTILITY      ("Utilities",     "🔧"),
-        OTHER        ("Other",         "📦")
+        PRODUCTIVITY ("Productivity", ""),
+        COMMUNICATION("Communication", ""),
+        DEVELOPER    ("Developer",     ""),
+        DATA         ("Data & Analytics", ""),
+        CREATIVITY   ("Creativity",    ""),
+        FINANCE      ("Finance",       ""),
+        AUTOMATION   ("Automation",    ""),
+        AI           ("AI & ML",       ""),
+        UTILITY      ("Utilities",     ""),
+        OTHER        ("Other",         "")
     }
 
-    val ratingStars: String get() = "★".repeat(averageRatingInt) + "☆".repeat(5 - averageRatingInt)
+    val ratingStars: String get() = "".repeat(averageRatingInt) + "".repeat(5 - averageRatingInt)
     private val averageRatingInt: Int get() = stats.averageRating.toInt().coerceIn(0, 5)
     val isOutdated: Boolean get() = isInstalled && hasUpdate
     val displayVersion: String get() = "v$version"
@@ -131,5 +131,5 @@ data class SkillReview(
     val helpfulCount:  Int  = 0,
     val isVerifiedPurchase: Boolean = false
 ) {
-    val ratingStars: String get() = "★".repeat(rating.coerceIn(1,5)) + "☆".repeat(5 - rating.coerceIn(1,5))
+    val ratingStars: String get() = "".repeat(rating.coerceIn(1,5)) + "".repeat(5 - rating.coerceIn(1,5))
 }

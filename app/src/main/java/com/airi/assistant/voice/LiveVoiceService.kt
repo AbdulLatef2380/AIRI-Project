@@ -50,7 +50,7 @@ import com.airi.assistant.R
  *     - Routes STT results to HybridOrchestrator
  *
  * ─────────────────────────────────────────────────────────────────────────
- * AUDIO FOCUS POLICY (Task 18)
+ * AUDIO FOCUS POLICY ()
  * ─────────────────────────────────────────────────────────────────────────
  *
  *   [requestListen] acquires AUDIOFOCUS_GAIN_TRANSIENT before starting STT.
@@ -109,7 +109,7 @@ class LiveVoiceService : Service() {
     @Volatile private var listenRequestedByUser = false
     private var recoveryJob: Job? = null
 
-    // ── Audio focus (Task 18) ─────────────────────────────────────────────────
+    // ── Audio focus () ─────────────────────────────────────────────────
 
     private lateinit var audioManager: AudioManager
 
@@ -170,7 +170,7 @@ class LiveVoiceService : Service() {
             appContext = applicationContext,
             orchestrator = ServiceLocator.productionOrchestrator
         )
-        Log.i(TAG, "AIRI_RUNTIME VOICE_AGENT_ROUTER_INIT")
+        Log.i(TAG, "AIRI VOICE_AGENT_ROUTER_INIT")
 
         interruptController.onStopTts          = { voiceManager.stopSpeaking() }
         interruptController.onCancelGeneration = { serviceScope.launch { voiceManager.stopAll() } }
@@ -245,7 +245,7 @@ class LiveVoiceService : Service() {
         if (current == VoicePipelineState.IDLE || current == VoicePipelineState.INTERRUPTED) {
             val focusGranted = requestAudioFocus()
             if (!focusGranted) {
-                Log.w(TAG, "AIRI_RUNTIME AUDIOFOCUS_REQUEST_FAILED — not starting STT")
+                Log.w(TAG, "AIRI AUDIOFOCUS_REQUEST_FAILED — not starting STT")
                 AgentActivityBus.emit("Audio focus denied — another app is using audio",
                     com.airi.assistant.ui.activity.ActivityCategory.VOICE)
                 return
@@ -352,7 +352,7 @@ class LiveVoiceService : Service() {
                 session.onSpeechResult(text)
                 thinkingStartEpochMs = System.currentTimeMillis()
                 updateNotification(VoicePipelineState.THINKING)
-                Log.d(TAG, "AIRI_RUNTIME STT_RESULT sttLatency=${sttMs}ms chars=${text.length}")
+                Log.d(TAG, "AIRI STT_RESULT sttLatency=${sttMs}ms chars=${text.length}")
 
                 serviceScope.launch {
                     when (val r = voiceAgentRouter.route(text, session.currentSessionId)) {
@@ -362,10 +362,10 @@ class LiveVoiceService : Service() {
                             session.onResponseStreaming(ttfb)
                             updateNotification(VoicePipelineState.STREAMING_RESPONSE)
                             voiceManager.speak(r.spokenText)
-                            Log.i(TAG, "AIRI_RUNTIME VOICE_AGENT_SPOKE agent=${r.agentId} ttfb=${ttfb}ms")
+                            Log.i(TAG, "AIRI VOICE_AGENT_SPOKE agent=${r.agentId} ttfb=${ttfb}ms")
                         }
                         VoiceAgentRouter.VoiceRouteResult.Fallback -> {
-                            Log.d(TAG, "AIRI_RUNTIME VOICE_LLM_DISPATCH chars=${text.length}")
+                            Log.d(TAG, "AIRI VOICE_LLM_DISPATCH chars=${text.length}")
                             session.emitPendingTranscript(text)
                             ServiceLocator.voiceTranscriptBus.emit(text)
                         }
@@ -378,13 +378,13 @@ class LiveVoiceService : Service() {
                 session.recordTtsFirstByteLatency(ttfb)
                 session.onResponseStreaming(ttfb)
                 updateNotification(VoicePipelineState.STREAMING_RESPONSE)
-                Log.d(TAG, "AIRI_RUNTIME TTS_START ttfb=${ttfb}ms")
+                Log.d(TAG, "AIRI TTS_START ttfb=${ttfb}ms")
             }
 
             override fun onSpeakingDone() {
                 session.onTurnComplete()
                 updateNotification(VoicePipelineState.IDLE)
-                Log.d(TAG, "AIRI_RUNTIME TTS_DONE — auto-rearming STT")
+                Log.d(TAG, "AIRI TTS_DONE — auto-rearming STT")
                 requestListen()
             }
 

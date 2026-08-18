@@ -20,7 +20,7 @@ class GithubService(private val secureStorage: SecureStorage) {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    // ─── Phase 1: Validate & connect ──────────────────────────────────────────
+    // ─── : Validate & connect ──────────────────────────────────────────
 
     suspend fun validateAndConnect(token: String): Result<String> = withContext(Dispatchers.IO) {
         if (token.isBlank()) {
@@ -52,7 +52,7 @@ class GithubService(private val secureStorage: SecureStorage) {
         }
     }
 
-    // ─── Phase 2: API calls ────────────────────────────────────────────────────
+    // ─── : API calls ────────────────────────────────────────────────────
 
     suspend fun getUser(): ToolResult = withContext(Dispatchers.IO) {
         val token = secureStorage.getGithubToken()
@@ -144,7 +144,7 @@ class GithubService(private val secureStorage: SecureStorage) {
                 }
                 val stars   = repo.optInt("stargazers_count", 0)
                 val lang    = repo.optString("language", "")
-                val private = if (repo.optBoolean("private")) " 🔒" else ""
+                val private = if (repo.optBoolean("private")) " " else ""
                 sb.append("• $repoName$private$desc")
                 if (lang.isNotBlank()) sb.append(" [$lang]")
                 if (stars > 0) sb.append(" ⭐$stars")
@@ -161,7 +161,7 @@ class GithubService(private val secureStorage: SecureStorage) {
     // ─── Internal ─────────────────────────────────────────────────────────────
 
     /**
-     * Task 6.1: List branches for a repository.
+     * List branches for a repository.
      */
     suspend fun listBranches(owner: String, repo: String): ToolResult = withContext(Dispatchers.IO) {
         val token = secureStorage.getGithubToken()
@@ -176,7 +176,7 @@ class GithubService(private val secureStorage: SecureStorage) {
     }
 
     /**
-     * Task 6.1: Get commit history for a branch.
+     * Get commit history for a branch.
      */
     suspend fun getCommitHistory(owner: String, repo: String, branch: String = "main", limit: Int = 20): ToolResult = withContext(Dispatchers.IO) {
         val token = secureStorage.getGithubToken()
@@ -196,7 +196,7 @@ class GithubService(private val secureStorage: SecureStorage) {
     }
 
     /**
-     * Task 6.1: Create or update a file (commit) in a repository.
+     * Create or update a file (commit) in a repository.
      */
     suspend fun createCommit(
         owner: String, repo: String,
@@ -232,7 +232,7 @@ class GithubService(private val secureStorage: SecureStorage) {
     }
 
     /**
-     * Task 6.1: Create a pull request.
+     * Create a pull request.
      */
     suspend fun createPullRequest(
         owner: String, repo: String,

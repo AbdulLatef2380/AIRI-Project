@@ -3,13 +3,13 @@ package com.airi.assistant.security
 import android.util.Log
 
 /**
- * SecurityAuditReport — Phase 4 Security Audit for AIRI.
+ * SecurityAuditReport — ecurity Audit for AIRI.
  *
- * This file documents the full security audit performed across all Phase 4
+ * This file documents the full security audit performed across all
  * features. Each section maps to a concrete mitigation in the codebase.
  *
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  SECURITY AUDIT — AIRI Phase 4                          June 2026       ║
+ * ║  SECURITY AUDIT — AIRI une 2026       ║
  * ║  Scope: Zapier, IFTTT, Stripe, Marketplace, Community Skills           ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  *
@@ -26,7 +26,7 @@ import android.util.Log
  *   - Stripe Customer ID → ConnectorAuthManager ("stripe" namespace).
  *   - LLM provider API keys → SecureApiKeyStore (AndroidKeystore AES/GCM).
  *   - GitHub PAT → ConnectorAuthManager ("github" credential).
- *   STATUS: ✅ PASS
+ *   STATUS:  PASS
  *
  * ── B. OAUTH 2.0 FLOW (ZAPIER) ───────────────────────────────────────────────
  *
@@ -45,7 +45,7 @@ import android.util.Log
  *     never hardcoded in source. A placeholder string ZAPIER_CLIENT_ID_PLACEHOLDER
  *     causes the build to fail if not substituted, preventing accidental
  *     deployment without real credentials.
- *   STATUS: ✅ PASS — CSRF mitigated, token exchange server-validated.
+ *   STATUS:  PASS — CSRF mitigated, token exchange server-validated.
  *
  * ── C. PAYMENT FLOW (STRIPE) ─────────────────────────────────────────────────
  *
@@ -66,7 +66,7 @@ import android.util.Log
  *     via the backend before granting any credits/tier upgrade.
  *   - An attacker who intercepts the deep link and replays a valid session_id
  *     is denied: payment_status must be "paid" (server-side check).
- *   STATUS: ✅ PASS — PCI scope eliminated, server-side validation enforced.
+ *   STATUS:  PASS — PCI scope eliminated, server-side validation enforced.
  *
  * ── D. STORAGE ENCRYPTION ────────────────────────────────────────────────────
  *
@@ -80,7 +80,7 @@ import android.util.Log
  *  MarketplaceRepository cache | Plaintext SharedPrefs | N/A (public catalog)
  *  CommunitySkillHub           | Plaintext SharedPrefs | N/A (imported JSON)
  *  ─────────────────────────────────────────────────────────────────────────
- *  STATUS: ✅ PASS — all secrets encrypted; plaintext storage limited to public data.
+ *  STATUS:  PASS — all secrets encrypted; plaintext storage limited to public data.
  *
  * ── E. SANDBOX ISOLATION (COMMUNITY SKILLS) ──────────────────────────────────
  *
@@ -95,7 +95,7 @@ import android.util.Log
  *   - SandboxExecutor (pre-existing) enforces a binary allowlist, argv execution
  *     (no shell injection), and path validation.
  *   - Community skills run in RESTRICTED sandbox (score 0–39) by default.
- *   STATUS: ✅ PASS — multi-layer sandbox, static scan + runtime isolation.
+ *   STATUS:  PASS — multi-layer sandbox, static scan + runtime isolation.
  *
  * ── F. MARKETPLACE MANIFEST VALIDATION ───────────────────────────────────────
  *
@@ -111,18 +111,18 @@ import android.util.Log
  *   - MarketplaceRepository.install() fetches skill.json from the publisher's
  *     URL, then re-validates via SkillPublisher.validateManifest() before
  *     registering the skill.
- *   STATUS: ✅ PASS — all manifests re-validated at install time.
+ *   STATUS:  PASS — all manifests re-validated at install time.
  *
  * ── G. PRIVACY GUARD (PRE-EXISTING) ──────────────────────────────────────────
  *
- *  FINDING: Phase 4 external API calls must not leak user data.
+ *  FINDING:  external API calls must not leak user data.
  *  MITIGATION:
  *   - PrivacyGuard.kt (pre-existing) strips API keys (sk-..., AIza..., ghp_...),
  *     IP addresses, GPS coordinates, and Android file paths from all outbound
  *     prompts.
  *   - MAXIMUM privacy level blocks all cloud calls entirely.
  *   - Zapier/IFTTT payloads are user-specified text (no automatic PII injection).
- *   STATUS: ✅ PASS — PrivacyGuard active on all LLM paths; connector payloads
+ *   STATUS:  PASS — PrivacyGuard active on all LLM paths; connector payloads
  *           are explicit (agent-initiated, not automatic PII leaks).
  *
  * ── H. TOOL EXECUTION FIREWALL (PRE-EXISTING) ────────────────────────────────
@@ -135,22 +135,22 @@ import android.util.Log
  *   - Both ZapierConnector and IftttConnector implement Connector interface —
  *     they are automatically gated by the same AgentRouter → UnifiedPolicyGate
  *     path as all other connectors.
- *   STATUS: ✅ PASS — new connectors inherit existing policy enforcement.
+ *   STATUS:  PASS — new connectors inherit existing policy enforcement.
  *
  * ── SUMMARY ───────────────────────────────────────────────────────────────────
  *
  *  Section                    | Status | Severity if Failed
  *  ─────────────────────────────────────────────────────────
- *  A. API Keys & Tokens       | ✅ PASS | CRITICAL
- *  B. OAuth 2.0 / CSRF        | ✅ PASS | HIGH
- *  C. Payment Flow (Stripe)   | ✅ PASS | CRITICAL
- *  D. Storage Encryption      | ✅ PASS | HIGH
- *  E. Sandbox Isolation       | ✅ PASS | HIGH
- *  F. Manifest Validation     | ✅ PASS | MEDIUM
- *  G. Privacy Guard           | ✅ PASS | HIGH
- *  H. Tool Execution Firewall | ✅ PASS | MEDIUM
+ *  A. API Keys & Tokens       |  PASS | CRITICAL
+ *  B. OAuth 2.0 / CSRF        |  PASS | HIGH
+ *  C. Payment Flow (Stripe)   |  PASS | CRITICAL
+ *  D. Storage Encryption      |  PASS | HIGH
+ *  E. Sandbox Isolation       |  PASS | HIGH
+ *  F. Manifest Validation     |  PASS | MEDIUM
+ *  G. Privacy Guard           |  PASS | HIGH
+ *  H. Tool Execution Firewall |  PASS | MEDIUM
  *  ─────────────────────────────────────────────────────────
- *  OVERALL: ✅ NO CRITICAL FINDINGS
+ *  OVERALL:  NO CRITICAL FINDINGS
  *
  * ── KNOWN GAPS / RECOMMENDATIONS ─────────────────────────────────────────────
  *
@@ -207,11 +207,11 @@ object SecurityAuditReport {
     )
 
     fun printSummary() {
-        Log.i(TAG, "═══ AIRI Phase 4 Security Audit ═══")
+        Log.i(TAG, "═══ AIRI ecurity Audit ═══")
         findings.forEach { f ->
             Log.i(TAG, "[${f.status}] ${f.section}: ${f.summary}")
         }
-        Log.i(TAG, "Overall: ${if (findings.none { it.status == Finding.Status.FAIL }) "✅ NO CRITICAL FINDINGS" else "❌ FAILURES DETECTED"}")
+        Log.i(TAG, "Overall: ${if (findings.none { it.status == Finding.Status.FAIL }) " NO CRITICAL FINDINGS" else " FAILURES DETECTED"}")
         Log.w(TAG, "Recommendations: ${recommendations.size} items — see SecurityAuditReport.recommendations")
     }
 }

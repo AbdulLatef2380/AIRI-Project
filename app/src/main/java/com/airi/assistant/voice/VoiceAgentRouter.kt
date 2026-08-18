@@ -81,7 +81,7 @@ class VoiceAgentRouter(
     suspend fun route(transcript: String, voiceSessionId: Long): VoiceRouteResult {
         val trimmed = transcript.trim()
         if (trimmed.isBlank()) {
-            Log.d(TAG, "AIRI_RUNTIME VOICE_ROUTE_SKIP reason=blank")
+            Log.d(TAG, "AIRI VOICE_ROUTE_SKIP reason=blank")
             return VoiceRouteResult.Fallback
         }
 
@@ -93,17 +93,17 @@ class VoiceAgentRouter(
         }
 
         if (agent == null) {
-            Log.d(TAG, "AIRI_RUNTIME VOICE_ROUTE_FALLBACK inputChars=${trimmed.length}")
+            Log.d(TAG, "AIRI VOICE_ROUTE_FALLBACK inputChars=${trimmed.length}")
             return VoiceRouteResult.Fallback
         }
 
-        Log.i(TAG, "AIRI_RUNTIME VOICE_ROUTE_MATCH agent=${agent.capability.agentId}")
+        Log.i(TAG, "AIRI VOICE_ROUTE_MATCH agent=${agent.capability.agentId}")
 
         // ── Execute via orchestrator ───────────────────────────────────────────
         return try {
             val result = withContext(Dispatchers.IO) {
                 orchestrator.executeSingle(trimmed, ctx) { event ->
-                    Log.v(TAG, "AIRI_RUNTIME VOICE_AGENT_EVENT type=${event::class.simpleName}")
+                    Log.v(TAG, "AIRI VOICE_AGENT_EVENT type=${event::class.simpleName}")
                 }
             }
 
@@ -111,28 +111,28 @@ class VoiceAgentRouter(
                 is ProductionAgentOrchestrator.ExecutionResult.Success -> {
                     val text = result.finalResult.trim()
                     if (text.isNotBlank()) {
-                        Log.i(TAG, "AIRI_RUNTIME VOICE_ROUTE_HANDLED " +
+                        Log.i(TAG, "AIRI VOICE_ROUTE_HANDLED " +
                                 "agent=${agent.capability.agentId} " +
                                 "chars=${text.length} " +
                                 "durationMs=${result.durationMs}")
                         VoiceRouteResult.Handled(text, agent.capability.agentId)
                     } else {
                         // Agent returned empty result — fall through to LLM
-                        Log.d(TAG, "AIRI_RUNTIME VOICE_ROUTE_EMPTY_RESULT " +
+                        Log.d(TAG, "AIRI VOICE_ROUTE_EMPTY_RESULT " +
                                 "agent=${agent.capability.agentId} — fallback")
                         VoiceRouteResult.Fallback
                     }
                 }
 
                 is ProductionAgentOrchestrator.ExecutionResult.PartialFailure -> {
-                    Log.w(TAG, "AIRI_RUNTIME VOICE_ROUTE_PARTIAL_FAILURE " +
+                    Log.w(TAG, "AIRI VOICE_ROUTE_PARTIAL_FAILURE " +
                             "errors=${result.taskErrors.size}")
                     VoiceRouteResult.Fallback
                 }
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "AIRI_RUNTIME VOICE_ROUTE_EXCEPTION ${e.javaClass.simpleName}")
+            Log.e(TAG, "AIRI VOICE_ROUTE_EXCEPTION ${e.javaClass.simpleName}")
             VoiceRouteResult.Fallback
         }
     }

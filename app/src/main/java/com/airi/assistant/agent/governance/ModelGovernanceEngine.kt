@@ -76,7 +76,7 @@ class ModelGovernanceEngine(
         // ── Safety gate ───────────────────────────────────────────────────────
         val safetyScore = scoreSafety(prompt)
         if (safetyScore >= SAFETY_DENY_SCORE) {
-            Log.w(TAG, "AIRI_RUNTIME GOVERNANCE_SAFETY_BLOCK score=$safetyScore")
+            Log.w(TAG, "AIRI GOVERNANCE_SAFETY_BLOCK score=$safetyScore")
             return ModelDecision(
                 strategy       = ModelStrategy.BLOCK,
                 rationale      = "Content policy: score=$safetyScore",
@@ -139,7 +139,7 @@ class ModelGovernanceEngine(
             else                          -> "Fallback"
         }
 
-        Log.i(TAG, "AIRI_RUNTIME GOVERNANCE_DECISION strategy=${strategy.name} rationale=$rationale")
+        Log.i(TAG, "AIRI GOVERNANCE_DECISION strategy=${strategy.name} rationale=$rationale")
         EventBus.emitSync(AppEvent.GenericInfo("Model governance: $strategy"))
 
         return ModelDecision(

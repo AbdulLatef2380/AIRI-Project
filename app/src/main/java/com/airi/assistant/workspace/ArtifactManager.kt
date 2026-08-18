@@ -44,20 +44,20 @@ class ArtifactManager(
     private val TAG = "ArtifactManager"
 
     enum class ArtifactType(val ext: String, val emoji: String) {
-        CODE_KOTLIN   ("kt",   "🟣"),
-        CODE_PYTHON   ("py",   "🐍"),
-        CODE_HTML     ("html", "🌐"),
-        CODE_JS       ("js",   "📜"),
-        MARKDOWN      ("md",   "📝"),
-        TEXT          ("txt",  "📄"),
-        JSON          ("json", "📊"),
-        SHELL_SCRIPT  ("sh",   "🔧"),
-        WEBSITE       ("html", "🌐"),
-        PRESENTATION  ("md",   "📊"),
-        REPORT        ("md",   "📋"),
-        AUTOMATION    ("json", "🤖"),
-        DIAGRAM       ("mmd",  "🗂"),
-        UNKNOWN       ("bin",  "📦")
+        CODE_KOTLIN   ("kt",   ""),
+        CODE_PYTHON   ("py",   ""),
+        CODE_HTML     ("html", ""),
+        CODE_JS       ("js",   ""),
+        MARKDOWN      ("md",   ""),
+        TEXT          ("txt",  ""),
+        JSON          ("json", ""),
+        SHELL_SCRIPT  ("sh",   ""),
+        WEBSITE       ("html", ""),
+        PRESENTATION  ("md",   ""),
+        REPORT        ("md",   ""),
+        AUTOMATION    ("json", ""),
+        DIAGRAM       ("mmd",  ""),
+        UNKNOWN       ("bin",  "")
     }
 
     data class Artifact(
@@ -176,7 +176,7 @@ class ArtifactManager(
         publishAll()
         val artifactsRoot = File(context.filesDir, "workspace/artifacts")
         val deleted = artifactsRoot.deleteRecursively()
-        Log.i(TAG, "AIRI_RUNTIME GDPR_ARTIFACT_WIPE_COMPLETE deleted=$deleted path=${artifactsRoot.absolutePath}")
+        Log.i(TAG, "AIRI GDPR_ARTIFACT_WIPE_COMPLETE deleted=$deleted path=${artifactsRoot.absolutePath}")
     }
 
     fun deleteArtifact(id: String) {

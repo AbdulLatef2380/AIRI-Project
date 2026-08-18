@@ -91,7 +91,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 id          = "github",
                 name        = ctx.getString(R.string.integration_github_name),
                 description = ctx.getString(R.string.integration_github_description),
-                emoji       = "🐙",
+                emoji       = "",
                 isConnected = secureStorage.isGithubConnected(),
                 connectedAs = secureStorage.getGithubUsername(),
                 lastUpdated = secureStorage.getGithubUpdated()
@@ -100,7 +100,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 id          = "telegram",
                 name        = ctx.getString(R.string.integration_telegram_name),
                 description = ctx.getString(R.string.integration_telegram_description),
-                emoji       = "✈️",
+                emoji       = "",
                 isConnected = secureStorage.isTelegramConnected(),
                 connectedAs = secureStorage.getTelegramUsername(),
                 lastUpdated = secureStorage.getTelegramUpdated()
@@ -109,7 +109,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 id          = "google",
                 name        = ctx.getString(R.string.integration_google_name),
                 description = ctx.getString(R.string.integration_google_description),
-                emoji       = "🔵",
+                emoji       = "",
                 isConnected = secureStorage.isGoogleConnected(),
                 connectedAs = secureStorage.getGoogleEmail() ?: "",
                 lastUpdated = secureStorage.getGoogleUpdated()

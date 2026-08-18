@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * Encrypted storage for OAuth tokens, API keys and device-binding secrets.
  *
- * ── Phase-3 P0 hardening ──────────────────────────────────────────────────────
+ * ──  hardening ──────────────────────────────────────────────────────
  * Previous behavior: if EncryptedSharedPreferences failed to initialise (corrupt
  * keystore, locked device, etc.) the class silently dropped to plaintext
  * SharedPreferences — meaning tokens and API keys were written to a
@@ -195,7 +195,7 @@ class SecureStorage(context: Context) {
 
     fun getInstallUuid(): String? = prefs.getString(KEY_INSTALL_UUID, null)
 
-    // ─── Generic integration token store (Task 8: Notion + future integrations) ─
+    // ─── Generic integration token store (Notion + future integrations) ─
 
     /**
      * Store a Personal Access Token (PAT) for the given integration ID.
@@ -241,7 +241,7 @@ class SecureStorage(context: Context) {
      */
     fun clearAll() {
         prefs.edit().clear().apply()
-        Log.i("SecureStorage", "AIRI_RUNTIME GDPR_CREDENTIAL_WIPE_COMPLETE")
+        Log.i("SecureStorage", "AIRI GDPR_CREDENTIAL_WIPE_COMPLETE")
     }
 
     // ─── Generic disconnect ────────────────────────────────────────────────────

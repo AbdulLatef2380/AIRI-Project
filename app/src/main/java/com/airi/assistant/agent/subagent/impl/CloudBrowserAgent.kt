@@ -158,7 +158,7 @@ class CloudBrowserAgent(
     }
 
     /**
-     * Phase 5: Enhanced structured DOM extraction.
+     * : Enhanced structured DOM extraction.
      *
      * Priority order (highest signal first):
      *   1. JSON-LD blocks (schema.org structured data — most machine-readable)

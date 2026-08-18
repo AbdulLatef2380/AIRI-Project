@@ -225,19 +225,19 @@ class FullDuplexVadEngine(
             if (effect != null) {
                 effect.enabled = true
                 aec = effect
-                Log.i(TAG, "AIRI_RUNTIME AEC_ENABLED sessionId=${rec.audioSessionId}")
+                Log.i(TAG, "AIRI AEC_ENABLED sessionId=${rec.audioSessionId}")
             } else {
-                Log.i(TAG, "AIRI_RUNTIME AEC_UNAVAILABLE (hardware AEC still active via VOICE_COMMUNICATION)")
+                Log.i(TAG, "AIRI AEC_UNAVAILABLE (hardware AEC still active via VOICE_COMMUNICATION)")
             }
         }
 
-        Log.i(TAG, "AIRI_RUNTIME VAD_STARTING speechFrames=$SPEECH_FRAMES baseRms=$BASE_SPEECH_RMS source=VOICE_COMMUNICATION")
+        Log.i(TAG, "AIRI VAD_STARTING speechFrames=$SPEECH_FRAMES baseRms=$BASE_SPEECH_RMS source=VOICE_COMMUNICATION")
 
         captureJob = scope.launch(Dispatchers.IO) {
             var stopReason = "normal"
             try {
                 rec.startRecording()
-                Log.i(TAG, "AIRI_RUNTIME VAD_CAPTURE_STARTED bufSize=$bufSize")
+                Log.i(TAG, "AIRI VAD_CAPTURE_STARTED bufSize=$bufSize")
 
                 val byteFrame = ByteArray(FRAME_BYTES)
                 val shortFrame = ShortArray(FRAME_SAMPLES)
@@ -260,7 +260,7 @@ class FullDuplexVadEngine(
                 // Adaptive threshold: at least BASE_SPEECH_RMS, or 2.5× ambient
                 val speechThreshold = maxOf(BASE_SPEECH_RMS, (ambientRms * 2.5).toInt())
 
-                Log.i(TAG, "AIRI_RUNTIME VAD_NOISE_FLOOR ambientRms=$ambientRms speechThreshold=$speechThreshold noisyEnv=${ambientRms > NOISY_ENV_RMS}")
+                Log.i(TAG, "AIRI VAD_NOISE_FLOOR ambientRms=$ambientRms speechThreshold=$speechThreshold noisyEnv=${ambientRms > NOISY_ENV_RMS}")
 
                 // ── Detection loop ───────────────────────────────────────
                 var consecutiveSpeechFrames = 0
@@ -286,7 +286,7 @@ class FullDuplexVadEngine(
                             // CAS: only the FIRST confirmed speech fires the callback.
                             if (detected.compareAndSet(false, true)) {
                                 stopReason = "voice_detected"
-                                Log.i(TAG, "AIRI_RUNTIME VAD_SPEECH_CONFIRMED rms=$frameRms threshold=$speechThreshold → firing onVoiceDetected on Main")
+                                Log.i(TAG, "AIRI VAD_SPEECH_CONFIRMED rms=$frameRms threshold=$speechThreshold → firing onVoiceDetected on Main")
                                 withContext(Dispatchers.Main) {
                                     onVoiceDetected()
                                 }
@@ -300,7 +300,7 @@ class FullDuplexVadEngine(
 
                 if (!detected.get() && System.currentTimeMillis() >= deadline) {
                     stopReason = "timeout_${MAX_SESSION_MS}ms"
-                    Log.i(TAG, "AIRI_RUNTIME VAD_TIMEOUT — TTS must have finished without interruption")
+                    Log.i(TAG, "AIRI VAD_TIMEOUT — TTS must have finished without interruption")
                 }
 
             } catch (e: CancellationException) {
@@ -320,7 +320,7 @@ class FullDuplexVadEngine(
                 try { aec?.release() } catch (_: Throwable) {}
                 aec = null
 
-                Log.i(TAG, "AIRI_RUNTIME VAD_CAPTURE_STOPPED reason=$stopReason detected=${detected.get()}")
+                Log.i(TAG, "AIRI VAD_CAPTURE_STOPPED reason=$stopReason detected=${detected.get()}")
 
                 if (!detected.get()) {
                     withContext(Dispatchers.Main.immediate) {
@@ -353,7 +353,7 @@ class FullDuplexVadEngine(
         captureJob?.cancel()
         captureJob = null
 
-        Log.i(TAG, "AIRI_RUNTIME VAD_STOP_SYNC mic_released=true")
+        Log.i(TAG, "AIRI VAD_STOP_SYNC mic_released=true")
     }
 
     /** True after [onVoiceDetected] has fired. */

@@ -385,10 +385,10 @@ private fun SandboxInfoStrip(session: SandboxSession, isExecuting: Boolean) {
 @Composable
 private fun SandboxLogRow(entry: SandboxLogEntry) {
     val (levelColor, prefix) = when (entry.level) {
-        "ERROR" -> SandboxErrorText   to "✕"
-        "WARN"  -> SandboxWarnText    to "⚠"
+        "ERROR" -> SandboxErrorText   to ""
+        "WARN"  -> SandboxWarnText    to ""
         "OK",
-        "SUCCESS" -> SandboxSuccessText to "✓"
+        "SUCCESS" -> SandboxSuccessText to ""
         else    -> SandboxInfoText    to "›"
     }
     val time = remember(entry.timestampMs) {

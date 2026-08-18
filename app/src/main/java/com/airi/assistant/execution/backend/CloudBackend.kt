@@ -21,7 +21,7 @@ import kotlinx.coroutines.withContext
 /**
  * Cloud runtime backend.
  *
- * ── Phase-3 P0 hardening (M1) ─────────────────────────────────────────────────
+ * ──  hardening (M1) ─────────────────────────────────────────────────
  * Previous behavior: token-usage was reported via
  *   `runCatching { runBlocking { tokenAccountant?.recordSuccess(...) } }`
  * This blocked the IO dispatcher thread, defeating structured concurrency and
@@ -32,7 +32,7 @@ import kotlinx.coroutines.withContext
  * suspending coroutine that owns the streaming call. No `runBlocking`, no
  * thread-pinning, identical observable behavior to callers.
  *
- * ── Task 21: Multi-cloud provider failover ────────────────────────────────────
+ * ── Multi-cloud provider failover ────────────────────────────────────
  * When the preferred provider exhausts all [MAX_RETRIES] attempts, [generateStream]
  * automatically falls through to alternate available cloud providers in priority
  * order ([FAILOVER_PRIORITY]) before returning a terminal error. Each fallover is
@@ -109,7 +109,7 @@ class CloudBackend(
             if (isFallback) {
                 RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.WARN,
                     "CLOUD_FAILOVER ${providerQueue[attemptIdx - 1].displayName} → ${provider.displayName}")
-                Log.w(TAG, "AIRI_RUNTIME CLOUD_FAILOVER from=${providerQueue[attemptIdx-1].name} to=${provider.name}")
+                Log.w(TAG, "AIRI CLOUD_FAILOVER from=${providerQueue[attemptIdx-1].name} to=${provider.name}")
             }
 
             val adapter = CloudAdapterFactory.create(provider, context, request)

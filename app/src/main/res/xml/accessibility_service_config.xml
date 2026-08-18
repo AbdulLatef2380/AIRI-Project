@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Phase-3 P0 hardening:
+   hardening:
     • Event types narrowed from `typeAllMask` to the specific events the
       AIRI agent layer actually consumes. The runtime configuration in
       AiriAccessibilityService.onServiceConnected() further refines this

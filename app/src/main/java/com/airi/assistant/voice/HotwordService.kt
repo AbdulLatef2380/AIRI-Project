@@ -72,12 +72,12 @@ class HotwordService : Service() {
         val accessKey = PorcupineEngine.accessKey(this)
         val ppnFile   = PorcupineEngine.resolvePpnFile(this)
         if (accessKey.isBlank()) {
-            Log.w(TAG, "AIRI_RUNTIME HOTWORD_DISABLED reason=missing_access_key_and_oww_model — see VoiceSettings")
+            Log.w(TAG, "AIRI HOTWORD_DISABLED reason=missing_access_key_and_oww_model — see VoiceSettings")
             stopSelf()
             return START_NOT_STICKY
         }
         if (ppnFile == null) {
-            Log.w(TAG, "AIRI_RUNTIME HOTWORD_DISABLED reason=missing_ppn_and_oww_model — drop hey_airi.ppn or hey_airi.tflite into assets/voice/")
+            Log.w(TAG, "AIRI HOTWORD_DISABLED reason=missing_ppn_and_oww_model — drop hey_airi.ppn or hey_airi.tflite into assets/voice/")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -147,7 +147,7 @@ class HotwordService : Service() {
         captureThread = kotlin.concurrent.thread(name = "AiriOWW", isDaemon = true) {
             try {
                 rec.startRecording()
-                Log.i(TAG, "AIRI_RUNTIME HOTWORD_STARTED engine=openWakeWord frameLength=$frameLength sampleRate=$sampleRate")
+                Log.i(TAG, "AIRI HOTWORD_STARTED engine=openWakeWord frameLength=$frameLength sampleRate=$sampleRate")
                 val frame   = ShortArray(frameLength)
                 // OWW output: single float score in [0,1]
                 val output  = Array(1) { FloatArray(1) }
@@ -162,7 +162,7 @@ class HotwordService : Service() {
                         interpreter.run(input, output)
                         val score = output[0][0]
                         if (score >= OpenWakeWordEngine.threshold) {
-                            Log.i(TAG, "AIRI_RUNTIME OWW_DETECTION score=$score")
+                            Log.i(TAG, "AIRI OWW_DETECTION score=$score")
                             fireWake(engine = "openWakeWord")
                         }
                     } catch (t: Throwable) {
@@ -238,7 +238,7 @@ class HotwordService : Service() {
         captureThread = kotlin.concurrent.thread(name = "AiriPorcupine", isDaemon = true) {
             try {
                 rec.startRecording()
-                Log.i(TAG, "AIRI_RUNTIME HOTWORD_STARTED engine=porcupine frameLength=$frameLength sampleRate=$sampleRate")
+                Log.i(TAG, "AIRI HOTWORD_STARTED engine=porcupine frameLength=$frameLength sampleRate=$sampleRate")
                 val frame = ShortArray(frameLength)
                 while (running) {
                     val read = rec.read(frame, 0, frameLength)

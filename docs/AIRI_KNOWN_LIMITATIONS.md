@@ -1,50 +1,34 @@
-# القيود المعروفة قبل إطلاق AIRI
+# سجل التحقق الخارجي لـ AIRI
 
-**آخر تحديث:** 17 أغسطس 2026
-**حكم القبول الحالي:** **غير جاهز للنشر العام؛ جاهز للانتقال إلى تحقق جهاز وإصدار Release.**
+**آخر تحديث:** 18 أغسطس 2026
 
-> كل بند أدناه يمثل دليلاً ناقصاً أو اعتماداً خارج بيئة التحقق. لم تعد بيئة Android المحلية أو بناء Debug قيداً مفتوحاً: نجحت بوابات Debug وlint وJVM وأنتجت APK فعلياً.
+> أغلقت الشفرة وبوابات البناء المحلية: API 36، Debug، lint، JVM، Release، AAB، R8، وJNI. العناصر الآتية هي تحقق ميداني أو عملية نشر سرية لا يمكن تنفيذها داخل بيئة البناء المحلية.
 
-| المعرف | الأولوية | القيد | الحالة | الأثر | إجراء الإغلاق |
-|---|---|---|---|---|---|
-| RL-01 | P0 | لم يُبنَ أو يُفحص إصدار Release أو AAB. | NOT_VERIFIED | لا دليل على R8 أو التعبئة النهائية أو حجم التوزيع. | شغّل `assembleRelease` و`bundleRelease` على الشجرة النهائية واحفظ artifacts والتقارير. |
-| RL-02 | P0 | توقيع Release غير مهيأ في بيئة التحقق. | NOT_VERIFIED | لا توجد حزمة موثوقة قابلة للتوزيع. | حقن keystore في CI من secrets وفحص التوقيع والشهادة. |
-| RL-03 | P0 | APK Debug متاح فقط. | PARTIAL | تأكدت حزمة Debug والمكتبة `libairi_native.so`، لكن لا AAB أو APK Release للفحص. | فحص artifact Release من حيث manifest وABI وR8 وsymbols والحجم. |
-| RL-04 | P0 | Room في الإصدار 6 وتصدير schemas مفعّل، لكن لا اختبار ترقية كامل. | NOT_RUNTIME_VERIFIED | خطر فقد أو تلف البيانات أثناء الترقية غير مقاس. | fixtures وترحيل 1→6 وتثبيت جديد واسترداد بيانات. |
-| RL-05 | P0 | SQLCipher مؤجل افتراضياً. | PASS_WITH_LIMITATION | قاعدة البيانات ليست مشفرة بـ SQLCipher في الإصدار الحالي. | لا تفعّل التشفير حتى يمر اختبار plaintext→encrypted واستعادة الفشل. |
-| RL-06 | P0 | لا رحلة جهاز للحوار والبث والإلغاء والمرفقات أو restart. | NOT_RUNTIME_VERIFIED | لا دليل كامل على قابلية الاستخدام الأساسية أو lifecycle. | تشغيل سيناريوهات chat/Stop/retry/attachment/restart على جهاز وتوثيق النتيجة. |
-| RL-07 | P1 | لا اختبار تكامل لموفر سحابي أو Firebase أو OAuth بمفاتيح اختبار. | NOT_RUNTIME_VERIFIED | لا دليل على الاتصال وcallback وfailing safely أو حماية token في الإنتاج. | اختبار مزودين وendpoint مخصص مع 200 و401 و429 وtimeout وcallback. |
-| RL-08 | P1 | الصوت المحلي والحَي لم يختبرا على جهاز. | NOT_RUNTIME_VERIFIED | لا دليل Vosk أو TTS أو wake word أو audio focus. | اختبار منح ورفض الصلاحية وBluetooth والمقاطعة والعربية والإنجليزية. |
-| RL-09 | P1 | WorkManager لم يختبر في Doze أو reboot أو timezone. | NOT_RUNTIME_VERIFIED | لا دليل على جدولة دائمة أو إشعار موثوق. | اختبار one-time وperiodic وcancel وretry وDoze وreboot. |
-| RL-10 | P1 | لا قياس للأداء أو التخزين أو جهاز منخفض المواصفات. | NOT_RUNTIME_VERIFIED | لا حدود مثبتة لـ RAM أو startup أو jank أو cache growth. | قياس cold/warm startup وRAM وCPU والتخزين على أجهزة ممثلة. |
-| RL-11 | P1 | TalkBack وfont scale وfocus order وRTL المرئي غير مختبرة. | NOT_RUNTIME_VERIFIED | لا يمكن اعتماد الإتاحة أو تجربة العربية من المصدر فقط. | مراجعة يدوية ولقطات API 26–34 في السمتين الفاتحة والداكنة. |
-| RL-12 | P2 | الإسبانية والصينية تحتويان احتياطيات إنجليزية. | PASS_WITH_LIMITATION | تماثل مفاتيح الموارد مكتمل، لكن الترجمة ليست مكتملة لغوياً. | مراجعة أصلية وترجمة بشرية لكل الاحتياطيات. |
-| RL-13 | P2 | تثبيت شهادات LLM مؤجل. | PASS_WITH_LIMITATION | TLS النظامي نشط؛ لا تثبيت SPKI إضافي. | لا تفعل pinning حتى توجد عملية تحقق ودورة تغيير شهادة موثقتان. |
-| RL-14 | P2 | API السوق وMarketplace backend غير متحققين. | NOT_RUNTIME_VERIFIED | لا يمكن تسويق اكتشاف/نشر مهارات كسيناريو جاهز. | تشغيل backend موثق واختبار browse/install/publish/failure. |
-| RL-15 | P1 | لا تشغيل CI أخضر مثبت للشجرة النهائية. | NOT_VERIFIED | التشغيل التاريخي السابق فشل قبل checkout بسبب قيود استضافة خارجية؛ لا يغطي الالتزام النهائي. | أعد تشغيل workflow بعد حفظ التغييرات، واحفظ نتيجة وartifacts على SHA نفسه. |
-| RL-16 | P0 | المشروع يستهدف API 34، بينما تصبح التطبيقات والتحديثات الجديدة المرسلة إلى Google Play ملزمة بـ Android 16 / API 36 أو أعلى في 31 أغسطس 2026. [1] | NOT_READY_FOR_PLAY_SUBMISSION | قد لا يُقبل AAB جديد في Play بعد تاريخ النفاذ. | تحديث `compileSdk` و`targetSdk` إلى 36، معالجة تغيرات السلوك، ثم إعادة تشغيل بوابات Debug وRelease واختبارات الجهاز. |
+| المعرف | المجال | ما تم إثباته | التحقق الخارجي المطلوب |
+|---|---|---|---|
+| FV-01 | توقيع upload | مسار CI يقرأ أسرار keystore ويحذف الملف المؤقت؛ AAB المحلي يبنى بنجاح بلا مفاتيح. | تشغيل workflow بعد إدخال أسرار upload في GitHub وفحص شهادة AAB. |
+| FV-02 | رحلة المحادثة | تم بناء المسارات واختبار routing والإلغاء على JVM. | على جهاز Android: onboarding، تنزيل نموذج، local/cloud، streaming، إيقاف، مرفق، restart. |
+| FV-03 | Room | اختبار v1→v6 مترجم ضمن AndroidTest ويستخدم migrations الإنتاجية. | تشغيل `connectedDebugAndroidTest` على محاكي أو جهاز وتأكيد migration مع بيانات فعلية. |
+| FV-04 | التخزين المشفر | اختبار مخزن مفاتيح API مترجم ضمن AndroidTest؛ مفاتيح API/OAuth لا تمر عبر تفضيلات نصية عادية. | تشغيل AndroidTest والتأكد من استمرار keystore بعد restart على أجهزة مستهدفة. |
+| FV-05 | الصوت | Vosk وTTS وhotword تترجم وتدخل artifact. | اختبار إذن الميكروفون، المقاطعة، Bluetooth، العربية والإنجليزية، وإيقاف wake word. |
+| FV-06 | خدمات cloud وOAuth | اختبارات HTTP المحلية تشمل 200 و401 و429 و500، واختبارات PKCE state موجودة. | استخدام مفاتيح اختبار لمزوّدين حقيقيين، callback deep link، timeout وتبديل endpoint. |
+| FV-07 | الجدولة | WorkManager يستخدم أعمالاً فريدة وحالات محفوظة في المصدر. | اختبار Doze وreboot والمنطقة الزمنية والإشعارات على جهاز. |
+| FV-08 | الإتاحة والواجهة | الموارد متكافئة بين اللغات و`supportsRtl` مفعّل وlint ناجح. | مراجعة TalkBack وfont scale وRTL المرئي والسمتين على Android. |
+| FV-09 | الأداء | R8 وresource shrinking نجحا، وحجم AAB المحلي نحو 23 MB. | قياس startup وRAM وCPU وjank والتخزين على أجهزة ممثلة. |
 
-## أدلة أغلقت القيود البيئية السابقة
+## سلسلة التحقق المحلية
 
-استخدم التحقق المحلي JDK 17 وAndroid SDK 34 وGradle 8.5. نجح `:app:assembleDebug` في إنتاج `app-debug.apk` بحجم 54,791,137 بايت، وتحققت المهمة الداخلية من وجود `lib/arm64-v8a/libairi_native.so` بحجم 3,759,488 بايت. كما نجح `:app:lintDebug` بلا أخطاء، ونجحت `:app:testDebugUnitTest` في **15/15** اختباراً بلا إخفاقات أو أخطاء، ونجح المتحقق الثابت في **25/25** فحصاً.
+| العنصر | النتيجة |
+|---|---|
+| AGP / Gradle / JDK | 8.10.1 / 8.11.1 / 17 |
+| SDK | `compileSdk` و`targetSdk` 36؛ `minSdk` 26 |
+| اختبارات JVM | 26/26 ناجحة؛ 0 failures؛ 0 errors |
+| المتحقق الثابت | 25/25 ناجح |
+| lintDebug | ناجح بلا أخطاء |
+| Debug APK | ناجح مع `libairi_native.so` |
+| Release APK وAAB | ناجحان عبر R8 مع R8 mapping |
 
-لا تلغي هذه الأدلة القيود التشغيلية أعلاه. فهي تثبت قابلية البناء والتحقق الآلي على JVM، لا صحة التفاعل مع جهاز أو موفر أو خدمة خارجية أو إصدار توزيع موقّع.
+## مراجع
 
-## ملاحظات الإصلاحات الوقائية
-
-حُذف موصل MCP التجريبي ومنفذ shell غير المستخدم، ونُظفت السجلات من مقتطفات محتوى المستخدم وأجسام أخطاء الموفر الخام. تنتقل مفاتيح الموفرات والنهايات المخصصة من التفضيلات النصية القديمة إلى التخزين المشفر، ولا يرث endpoint بلا مفتاح اعتماد endpoint سابق. عولجت أيضاً حراسة إذن الميكروفون، علم receiver، توافق API 26 لاتجاه العربية، موارد النصوص، وإعلان الكاميرا الاختياري. هذه إصلاحات دفاعية مهمة، لكنها لا تغلق قيود الجهاز والتكامل أعلاه.
-
-## إعادة فتح قرار الإطلاق
-
-يمكن بدء قرار قبول جديد بعد حفظ نتائج قابلة لإعادة التشغيل للأوامر التالية على الالتزام النهائي:
-
-```bash
-./gradlew :app:assembleRelease :app:bundleRelease
-./gradlew :app:connectedDebugAndroidTest
-```
-
-بعدها يلزم إغلاق RL-04 وRL-06 وRL-07 وRL-08 وRL-09 وRL-10 وRL-11 وRL-16 قبل تصنيف النسخة صالحة للنشر العام.
-
-## المراجع
-
-[1]: https://developer.android.com/google/play/requirements/target-sdk "Google Play target API level requirement"
+[1]: https://developer.android.com/about/versions/16/setup-sdk "إعداد Android 16 SDK"
+[2]: https://developer.android.com/google/play/requirements/target-sdk "متطلب target API في Google Play"

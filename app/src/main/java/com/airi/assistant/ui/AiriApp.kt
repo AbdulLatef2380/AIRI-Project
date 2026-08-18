@@ -132,7 +132,7 @@ object AiriRoute {
     const val VOICE_PERSONALIZATION  = "screen_voice_personalization"
     const val LIBRARY                = "screen_library"
 
-    // ── Phase 4 routes ────────────────────────────────────────────────────────
+    // ──  routes ────────────────────────────────────────────────────────
     const val ZAPIER_IFTTT           = "screen_zapier_ifttt"
     const val STRIPE_PAYMENT         = "screen_stripe_payment"
     const val BILLING_HISTORY        = "screen_billing_history"
@@ -140,7 +140,7 @@ object AiriRoute {
     const val COMMUNITY_SKILLS       = "screen_community_skills"
     const val SKILL_CREATION_WIZARD  = "screen_skill_creation_wizard"
 
-    // ── Phase 2, Task 7: Artifact preview route ───────────────────────────────
+    // ── , Artifact preview route ───────────────────────────────
     const val ARTIFACT_PREVIEW       = "screen_artifact_preview"
 
     /** Build the artifact preview route using only an internal artifact identifier. */
@@ -148,7 +148,7 @@ object AiriRoute {
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 
-    // ── Phase 2 new routes (Tasks 1.6, 5.1, 5.2, 5.3, 6.2, 8.1, 9.1) ────────
+    // ──  new routes (Tasks 1.6, 5.1, 5.2, 5.3, 6.2, 8.1, 9.1) ────────
     const val WELCOME              = "screen_welcome"
     const val PLANNING_DASHBOARD   = "screen_planning_dashboard"
     const val PROTOTYPE_BUILDER    = "screen_prototype_builder"
@@ -411,7 +411,7 @@ fun AiriApp() {
                         UpdateScreen(onBack = { navController.popBackStack() })
                     }
 
-                    // ── Phase 4 screens ───────────────────────────────────────
+                    // ──  screens ───────────────────────────────────────
                     composable(AiriRoute.ZAPIER_IFTTT) {
                         val zapier = com.airi.assistant.core.ServiceLocator.zapierConnector
                         val ifttt  = com.airi.assistant.core.ServiceLocator.iftttConnector
@@ -707,14 +707,14 @@ fun AiriApp() {
                         )
                     }
 
-                    // ── Task 5.1: Planning Dashboard ──────────────────────────
+                    // ── Planning Dashboard ──────────────────────────
                     composable(AiriRoute.PLANNING_DASHBOARD) {
                         PlanningDashboardScreen(
                             onBack = { navController.popBackStack() }
                         )
                     }
 
-                    // ── Task 5.2: Prototype Builder ───────────────────────────
+                    // ── Prototype Builder ───────────────────────────
                     composable(AiriRoute.PROTOTYPE_BUILDER) {
                         WorkspaceScreen(
                             sessionType = "prototype",
@@ -723,7 +723,7 @@ fun AiriApp() {
                         )
                     }
 
-                    // ── Task 5.3: Wireframe Builder ───────────────────────────
+                    // ── Wireframe Builder ───────────────────────────
                     composable(AiriRoute.WIREFRAME_BUILDER) {
                         WorkspaceScreen(
                             sessionType = "wireframe",
@@ -732,7 +732,7 @@ fun AiriApp() {
                         )
                     }
 
-                    // ── Task 6.2: Git Repository Browser ─────────────────────
+                    // ── Git Repository Browser ─────────────────────
                     composable(AiriRoute.GIT_REPOSITORY) {
                         GitRepositoryScreen(
                             onBack     = { navController.popBackStack() },
@@ -740,14 +740,14 @@ fun AiriApp() {
                         )
                     }
 
-                    // ── Task 8.1: Security Scanner ────────────────────────────
+                    // ── Security Scanner ────────────────────────────
                     composable(AiriRoute.SECURITY_SCANNER) {
                         SecurityScannerScreen(
                             onBack = { navController.popBackStack() }
                         )
                     }
 
-                    // ── Task 9.1: Secret Manager ──────────────────────────────
+                    // ── Secret Manager ──────────────────────────────
                     composable(AiriRoute.SECRET_MANAGER) {
                         SecretManagerScreen(
                             onBack = { navController.popBackStack() }

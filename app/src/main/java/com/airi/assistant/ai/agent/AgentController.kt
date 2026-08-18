@@ -11,7 +11,7 @@ import com.airi.assistant.memory.entity.ChatMessage
 /**
  * AgentController — legacy skill-dispatch controller.
  *
- * Phase 4 change: [TaskPlanner] and [TaskExecutor] were removed (zero external
+ *  change: [TaskPlanner] and [TaskExecutor] were removed (zero external
  * callers, delegation shells). The multi-step task planning path (Step 2) has
  * been removed. Only the real SkillExecutor path (Step 1) remains — this handles
  * GitHub, Telegram, Gmail, Calendar, Google Drive skill calls.
@@ -60,7 +60,7 @@ class AgentController(private val context: Context) {
         }
 
         // ── Step 2: No agent match — LLM handles ──────────────────────────────
-        // TaskPlanner/TaskExecutor removed in Phase 4 (zero external callers).
+        // TaskPlanner/TaskExecutor removed in  (zero external callers).
         traceManager.finalizeTrace(traceId, "LLM fallback", false)
         return null
     }

@@ -155,7 +155,7 @@ class CreditMeteringEngine(
     fun resetDailyCounters() {
         val meter   = loadMeter()
         saveMeter(meter.copy(dailyTotal = 0, perActionDay = emptyMap(), date = today()))
-        Log.i(TAG, "AIRI_RUNTIME CREDIT_METER_RESET")
+        Log.i(TAG, "AIRI CREDIT_METER_RESET")
     }
 
     // ── Persistence ────────────────────────────────────────────────────────────

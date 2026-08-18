@@ -97,7 +97,7 @@ class PermissionGovernanceLayer(
         // Rate-limit check: deny if the agent has exceeded RATE_LIMIT_MAX
         // governance evaluations within the past RATE_WINDOW_MS.
         if (!checkRateLimit(agentId)) {
-            Log.w(TAG, "AIRI_RUNTIME GOVERNANCE_RATE_LIMITED agent=$agentId action=$actionType")
+            Log.w(TAG, "AIRI GOVERNANCE_RATE_LIMITED agent=$agentId action=$actionType")
             AgentActivityBus.emit(
                 "Rate limit exceeded [$agentId]: $actionDesc — pausing autonomous actions",
                 ActivityCategory.SYSTEM,

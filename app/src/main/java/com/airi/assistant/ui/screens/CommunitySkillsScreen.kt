@@ -90,11 +90,11 @@ fun CommunitySkillsScreen(
                     onSandboxTest = { skill ->
                         scope.launch {
                             val result = hub.sandboxTest(skill)
-                            snackMessage = if (result.passed) "✓ ${result.message}" else "✗ ${result.message}"
+                            snackMessage = if (result.passed) " ${result.message}" else " ${result.message}"
                         }
                     }
                 )
-                1 -> ImportTab(hub = hub, onImported = { snackMessage = "✓ ${it.name} imported!"; selectedSkill = it })
+                1 -> ImportTab(hub = hub, onImported = { snackMessage = " ${it.name} imported!"; selectedSkill = it })
                 2 -> TrustScoreTab(skill = selectedSkill, hub = hub)
             }
         }
@@ -149,7 +149,7 @@ private fun CommunitySkillCard(
                 Box(
                     Modifier.size(40.dp).background(CosmicAccent.copy(0.15f), AIRIShapes.sm),
                     contentAlignment = Alignment.Center
-                ) { Text("🔌", fontSize = 20.sp) }
+                ) { Text("", fontSize = 20.sp) }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(skill.name, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
@@ -262,9 +262,9 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                             isLoading = true
                             result    = "Importing…"
                             when (val r = hub.importFromUrl(importUrl.trim())) {
-                                is CommunitySkillHub.ImportResult.Success -> { result = "✓ ${r.skill.name} imported!"; onImported(r.skill) }
-                                is CommunitySkillHub.ImportResult.Error   -> result = "✗ ${r.message}"
-                                is CommunitySkillHub.ImportResult.SecurityBlocked -> result = "🚫 ${r.reason}"
+                                is CommunitySkillHub.ImportResult.Success -> { result = " ${r.skill.name} imported!"; onImported(r.skill) }
+                                is CommunitySkillHub.ImportResult.Error   -> result = " ${r.message}"
+                                is CommunitySkillHub.ImportResult.SecurityBlocked -> result = " ${r.reason}"
                             }
                             isLoading = false
                         }
@@ -296,9 +296,9 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
                             isLoading = true
                             result    = "Parsing…"
                             when (val r = hub.importFromJson(jsonPaste.trim())) {
-                                is CommunitySkillHub.ImportResult.Success -> { result = "✓ ${r.skill.name} imported!"; onImported(r.skill) }
-                                is CommunitySkillHub.ImportResult.Error   -> result = "✗ ${r.message}"
-                                is CommunitySkillHub.ImportResult.SecurityBlocked -> result = "🚫 ${r.reason}"
+                                is CommunitySkillHub.ImportResult.Success -> { result = " ${r.skill.name} imported!"; onImported(r.skill) }
+                                is CommunitySkillHub.ImportResult.Error   -> result = " ${r.message}"
+                                is CommunitySkillHub.ImportResult.SecurityBlocked -> result = " ${r.reason}"
                             }
                             isLoading = false
                         }
@@ -315,7 +315,7 @@ private fun ImportTab(hub: CommunitySkillHub, onImported: (CommunitySkill) -> Un
 
         result?.let {
             item {
-                val isError = it.startsWith("✗") || it.startsWith("🚫")
+                val isError = it.startsWith("") || it.startsWith("")
                 Card(
                     colors = CardDefaults.cardColors(containerColor = if (isError) SemanticError.copy(0.1f) else SemanticSuccess.copy(0.1f)),
                     shape  = AIRIShapes.md

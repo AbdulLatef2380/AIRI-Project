@@ -139,7 +139,7 @@ class SkillRuntime(
 
             trackEnd(key, result.data)
             AgentActivityBus.emit(
-                "${if (result.success) "✓" else "✕"} Skill ${skill.name}: ${result.data.take(60)}",
+                "${if (result.success) "" else ""} Skill ${skill.name}: ${result.data.take(60)}",
                 ActivityCategory.TOOL
             )
             result

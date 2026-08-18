@@ -153,7 +153,7 @@ class OpenAIRealtimeProvider(
                 webSocket = ws
                 _connected.set(true)
                 _phase.value = Phase.CONNECTED
-                Log.i(TAG, "AIRI_RUNTIME OPENAI_REALTIME_CONNECTED latency=${System.currentTimeMillis() - connectTimeMs}ms")
+                Log.i(TAG, "AIRI OPENAI_REALTIME_CONNECTED latency=${System.currentTimeMillis() - connectTimeMs}ms")
                 sendSessionUpdate(ws)
             }
 

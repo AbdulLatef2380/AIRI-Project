@@ -70,10 +70,10 @@ private fun StepIndicator(status: PlanStepStatus) {
                 color = if (status == PlanStepStatus.RETRYING) SemanticWarn else CosmicAccent)
             PlanStepStatus.COMPLETED -> Box(modifier = Modifier.size(14.dp).clip(CircleShape)
                 .background(SemanticSuccess.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
-                Text("✓", fontSize = 9.sp, color = SemanticSuccess) }
+                Text("", fontSize = 9.sp, color = SemanticSuccess) }
             PlanStepStatus.FAILED -> Box(modifier = Modifier.size(14.dp).clip(CircleShape)
                 .background(SemanticError.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
-                Text("✕", fontSize = 9.sp, color = SemanticError) }
+                Text("", fontSize = 9.sp, color = SemanticError) }
             PlanStepStatus.CANCELLED -> Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(AiriTheme.onSurface.copy(alpha = 0.15f)))
             PlanStepStatus.QUEUED    -> Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(AiriTheme.onSurface.copy(alpha = 0.2f)))
         }

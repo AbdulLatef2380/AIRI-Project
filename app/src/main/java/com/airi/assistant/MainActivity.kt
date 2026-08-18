@@ -60,7 +60,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Phase 2, Task 9: Start SystemHealthCoordinator so thermal + battery signals are
+        // , Start SystemHealthCoordinator so thermal + battery signals are
         // wired to the execution budget before the first inference request is made.
         // Lazy init handles the ThermalProfiler.start() call internally; accessing the
         // property here triggers the lazy chain: thermalProfiler → systemHealthCoordinator.

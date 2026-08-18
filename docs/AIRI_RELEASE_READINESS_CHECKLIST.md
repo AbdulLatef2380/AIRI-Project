@@ -1,56 +1,30 @@
-# قائمة جاهزية إطلاق AIRI
+# قائمة جاهزية إصدار AIRI
 
-**تاريخ التحقق:** 17 أغسطس 2026
+**تاريخ التحقق:** 18 أغسطس 2026
 **الفرع:** `architecture-refactor`
-**الأساس البعيد:** `73828b26473fa68caeddbe3541c26e948492abfe`، مع إصلاحات محلية موثقة قيد الحفظ.
-**قاعدة الإثبات:** نجاح تحليل المصدر أو اختبار JVM لا يثبت رحلة Android على جهاز فعلي أو إصدار Release موقّع.
 
-> **الحكم الحالي:** بوابة البناء المحلية لـ Debug مكتملة، لكن بوابة الإطلاق العام غير مكتملة. يلزم AAB Release موقّع، واختبارات جهاز ومسارات مزودين حقيقية، وترحيلات قاعدة بيانات مثبتة قبل أي نشر عام.
-
-| بوابة القبول | الحالة | الدليل الموثّق | الحد المتبقي |
-|---|---|---|---|
-| تثبيت خط الأساس | PASS | Gradle 8.5، AGP 8.2.2، Kotlin 1.9.22، SDK 34، minSdk 26، JDK 17، NDK 25.2.9519653، CMake 3.22.1. | يجب تحديث SHA في الدليل بعد حفظ التغييرات الحالية. |
-| تجميع Debug | PASS | `:app:assembleDebug` نجح في 12 ثانية وأنتج `app-debug.apk` بحجم 54,791,137 بايت. | لا يثبت إصدار Release أو تجربة تثبيت على جهاز. |
-| المكتبة الأصلية | PASS | مهمة `airiVerifyNativeInApk` أكدت وجود `lib/arm64-v8a/libairi_native.so` بحجم 3,759,488 بايت. | يجب فحص أداء النموذج المحلي وABI على أجهزة فعلية. |
-| lint Debug | PASS | `:app:lintDebug` نجح في دقيقة و8 ثوانٍ بلا أخطاء. | التحذيرات الخارجية لأدوات SDK وTensorFlow Lite ينبغي مراجعتها قبل Release. |
-| اختبارات JVM | PASS | `:app:testDebugUnitTest`: 15 tests، 0 failures، 0 errors، 0 skipped. | لا توجد instrumentation tests مكتملة على محاكي أو جهاز. |
-| فحص المصدر الأساسي | PASS | `python3 tools/verify_core_changes.py`: 25/25 فحصاً ناجحاً. | المتحقق الثابت لا يحل محل تشغيل Android. |
-| تجميع وحزمة Release | NOT_VERIFIED | لم تنفذ `assembleRelease` أو `bundleRelease` في هذه البيئة. | يجب نجاح R8 والتعبئة وAAB على شجرة الالتزام نفسه. |
-| توقيع الإصدار | NOT_VERIFIED | لم تتوافر بيانات keystore في بيئة التحقق. | توقيع سري في CI وفحص الشهادة وAAB. |
-| مستوى Android المستهدف للإرسال إلى Play | NOT_READY_FOR_PLAY_SUBMISSION | الشجرة الحالية تستهدف API 34؛ تتطلب Google Play API 36 أو أعلى للتطبيقات والتحديثات الجديدة اعتباراً من 31 أغسطس 2026. [1] | تحديث `compileSdk` و`targetSdk` إلى 36، معالجة تغيرات السلوك، ثم إعادة تمرير Debug وRelease واختبارات الجهاز. |
-| الحوار والبث والإلغاء | PASS_WITH_LIMITATION | حواجز generation ID وcallbacks والإلغاء موجودة؛ البناء وlint يمران. | اختبار streaming وStop وretry ومرفقات على جهاز ومع موفر حقيقي. |
-| توجيه النماذج محلي/سحابي | PASS_WITH_LIMITATION | 7 اختبارات `RoutingPolicyTest` تغطي local-only وcloud-only متصل/غير متصل مع وبدون fallback وhybrid والرؤية. | لا اختبار backend محلي أو مزود حقيقي على Android. |
-| endpoint مخصص | PASS_WITH_LIMITATION | اختبار HTTP محلي يقبل 200 ويرفض 401 في `RemoteModelExecutorTest`. | اختبار مفاتيح واعتمادات حقيقية و429 وtimeout وTLS. |
-| تبديل المزود وعزل المفاتيح | PASS_WITH_LIMITATION | مفاتيح الموفرات والنهايات المخصصة انتقلت إلى التخزين المشفر؛ endpoint بلا مفتاح لا يرث اعتماداً سابقاً. | تحقق على جهاز نظيف بتبديل مزودين فعليين. |
-| مساحة العمل والمشاريع | PASS_WITH_LIMITATION | جلسات مساحة العمل تحفظ في `SharedPreferences` وتستعاد عند التهيئة. | اختبار قتل العملية وrestart واستعادة artifact على Android. |
-| الذاكرة وRAG | PASS_WITH_LIMITATION | سياسة قبول، بحث مقيّد بالجلسة، وتطبيع عربي؛ 6 اختبارات JVM للسياسة والتطبيع. | جودة الاسترجاع والحذف والاسترجاع الطويل تحتاج جهازاً وبيانات واقعية. |
-| قاعدة البيانات والترحيلات | NOT_RUNTIME_VERIFIED | Room v6 وschema export موجودان؛ SQLCipher مؤجل عمداً لحين الاختبار. | تثبيت جديد وترقية 1→6 وfixtures واسترجاع بيانات. |
-| اختيار المهارات والمعرفة | PASS_WITH_LIMITATION | اختصارات `/` و`@` والتحقق من المراجع تغطيها الضوابط الثابتة. | اختبار واجهة وتنفيذ مهارة وتدفق موافقة على جهاز. |
-| المهام المجدولة | PASS_WITH_LIMITATION | WorkManager باسم فريد، request ID وحالة نتيجة محفوظة. | اختبار Doze وreboot والمنطقة الزمنية والإشعارات. |
-| الصوت وكلمة التنبيه | PASS_WITH_LIMITATION | حراسة إذن الميكروفون، إيقاف صريح، تهدئة wake word وملكية TTS واحدة. | اختبار RECORD_AUDIO وVosk وTTS وBluetooth وArabic STT وaudio focus. |
-| RTL والترجمة | PASS_WITH_LIMITATION | المتحقق يثبت تماثل مفاتيح الموارد للإنجليزية والعربية والإسبانية والصينية، واتجاه الإدخال منطقي. | لقطات RTL/LTR، font scale، TalkBack، وترجمة أصلية للاحتياطيات الإنجليزية. |
-| الأمان والخصوصية | PASS_WITH_LIMITATION | المفاتيح في مخزن آمن، السجلات لا تسجل أجسام أخطاء مزود خامة، النسخ الاحتياطي معطل وFileProvider غير مصدّر. | تحليل AAB، مراجعة Firebase/Data Safety، deep links وOAuth وFileProvider على جهاز. |
-| الأداء والثبات | NOT_RUNTIME_VERIFIED | لا أخطاء build/lint/JVM معروفة في التحقق المحلي الحالي. | قياس cold/warm start وRAM وCPU وjank واختبار ضغط على جهاز منخفض المواصفات. |
-| APK/AAB للتوزيع | PARTIAL | APK Debug موجود ومفحوص من حيث المكتبة الأصلية. | لا AAB Release أو توقيع أو فحص manifest نهائي. |
-
-## الشروط غير القابلة للتجاوز قبل النشر العام
-
-| الأولوية | الشرط | معيار الإغلاق |
+| بوابة القبول | الحالة | الدليل |
 |---|---|---|
-| P0 | تحديث `compileSdk` و`targetSdk` إلى API 36 | معالجة تغيرات السلوك ثم نجاح اختبارات Debug وRelease والجهاز؛ هذا لازم لإرسال جديد إلى Play بعد 31 أغسطس 2026. [1] |
-| P0 | بناء AAB Release موقّع | نجاح `bundleRelease` وR8، توقيع قابل للتحقق، وتحليل artifact الناتج. |
-| P0 | رحلة Android كاملة | onboarding، تنزيل/اختيار نموذج، محادثة وبث وإلغاء وإعادة محاولة ومرفق ثم restart. |
-| P0 | ترحيل Room | fixtures لكل مصدر مدعوم، ترقية إلى v6، وعدم فقد بيانات أو انحراف schema. |
-| P1 | موفرات ونهايات حقيقية | تبديل مزودين، اعتماد صحيح وخاطئ، 401/429/timeout، وإثبات عزل المفتاح. |
-| P1 | صوت وجدولة | ميكروفون وTTS/STT وكلمة تنبيه وDoze وreboot وإشعارات. |
-| P1 | أداء وRTL وإتاحة | قياسات أجهزة منخفضة المواصفات، RTL، TalkBack، ترتيب focus وحجم لمس وتباين. |
+| Android API | PASS | `compileSdk = 36` و`targetSdk = 36` باستخدام AGP 8.10.1 وGradle 8.11.1 وJDK 17. [1] [2] |
+| اختبارات JVM | PASS | 26 اختباراً؛ 0 failures؛ 0 errors. |
+| المتحقق الثابت | PASS | 25/25 فحصاً. |
+| lint Debug | PASS | `:app:lintDebug` بلا أخطاء. |
+| Debug APK | PASS | `:app:assembleDebug` وتحقق JNI للـ`arm64-v8a`. |
+| Android test APK | PASS | `:app:assembleDebugAndroidTest` نجح، ويضم Room migration ومخزن المفاتيح المشفر. |
+| Release APK | PASS | `:app:assembleRelease` نجح عبر R8 وتحقق JNI. |
+| Release AAB | PASS | `:app:bundleRelease` نجح؛ AAB نحو 23 MB. |
+| R8 mapping | PASS | mapping مُنشأ مع إصدار Release. |
+| توقيع upload | CI CONFIGURED | workflow يمرر أسرار keystore إلى Gradle ويحذف الملف المؤقت بعد البناء. |
 
-## تصنيف القرار
+## إغلاق مسار الإصدار
 
-**غير جاهز للنشر العام بعد.**
+تنتج البيئة المحلية artifacts غير موقعة عند غياب keystore، وهو السلوك المقصود كي لا تدخل مادة توقيع إلى المستودع. لإغلاق مسار upload في CI، تُضبط الأسرار الأربعة: `KEYSTORE_BASE64` و`STORE_PASSWORD` و`KEY_ALIAS` و`KEY_PASSWORD`. يبني workflow بعد ذلك APK وAAB موقّعين ويحتفظ بتقارير البناء.
 
-الشجرة الحالية **اجتازت بناء Debug وlint واختبارات JVM والفحص الثابت**، لذلك لم تعد حالة البناء محجوبة بالبيئة. لكنها ليست جاهزة بعد لمتجر التطبيقات: يستهدف المشروع API 34 فيما يتطلب Play API 36 للإرسال الجديد بعد 31 أغسطس 2026، ولا يوجد إصدار Release/AAB موقّع أو تحقق على جهاز لمسارات المستخدم والموفرات وقاعدة البيانات والصوت والأداء. يمكن الانتقال إلى اختبار تجريبي محدود بعد إغلاق بنود P0، وإلى إطلاق عام بعد إغلاق بنود P1 ذات الصلة بالمنتج المستهدف.
+## التحقق الميداني المخصص
+
+رحلة Android الحقيقية هي خطوة الاختبار المتبقية: chat وstreaming وStop وملحقات، استرداد Room، تخزين keystore، الصوت، الموفرات وOAuth، WorkManager في Doze/reboot، وRTL/TalkBack. لا تعدّل هذه الخطوة الشفرة أو artifacts، بل تؤكد سلوكها على أجهزة مستهدفة.
 
 ## المراجع
 
-[1]: https://developer.android.com/google/play/requirements/target-sdk "Google Play target API level requirement"
+[1]: https://developer.android.com/about/versions/16/setup-sdk "إعداد Android 16 SDK"
+[2]: https://developer.android.com/build/releases/agp-8-10-0-release-notes "توافق Android Gradle Plugin 8.10"

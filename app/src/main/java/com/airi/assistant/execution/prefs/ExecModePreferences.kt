@@ -13,7 +13,7 @@ import com.airi.assistant.execution.router.RoutingPreferences
 /**
  * Persistent user preferences for the Hybrid Execution layer.
  *
- * ── Phase 2 Step 2: Security hardening ────────────────────────────────────────
+ * ── tep 2: Security hardening ────────────────────────────────────────
  * Previous behavior: preferences were stored in plain-text SharedPreferences
  * at `airi_exec_prefs`. On a rooted device that file is readable and writable
  * by any process, allowing an attacker to silently change:
@@ -82,7 +82,7 @@ class ExecModePreferences(context: Context) : RoutingPreferences {
         } catch (e: Exception) {
             Log.e(
                 TAG,
-                "AIRI_RUNTIME EXEC_PREFS_ENCRYPT_FAILED — EncryptedSharedPreferences init failed; " +
+                "AIRI EXEC_PREFS_ENCRYPT_FAILED — EncryptedSharedPreferences init failed; " +
                     "falling back to IN-MEMORY only (no plaintext disk writes). " +
                     "Cause: ${e.message}"
             )
@@ -234,7 +234,7 @@ class ExecModePreferences(context: Context) : RoutingPreferences {
      *     file so the migration can be re-attempted on the next launch.
      *
      * Never throws — any unexpected error is caught, logged with an
-     * `AIRI_RUNTIME` tag, and treated as a migration failure.
+     * `AIRI` tag, and treated as a migration failure.
      *
      * Only called when [isEncrypted] is true (i.e., [prefs] is backed by
      * [EncryptedSharedPreferences], not the in-memory fallback).
@@ -250,7 +250,7 @@ class ExecModePreferences(context: Context) : RoutingPreferences {
 
             Log.i(
                 TAG,
-                "AIRI_RUNTIME EXEC_PREFS_MIGRATION_START — " +
+                "AIRI EXEC_PREFS_MIGRATION_START — " +
                     "found ${legacyAll.size} key(s) in legacy plaintext store; " +
                     "migrating to encrypted store"
             )
@@ -279,7 +279,7 @@ class ExecModePreferences(context: Context) : RoutingPreferences {
             if (!committed) {
                 Log.e(
                     TAG,
-                    "AIRI_RUNTIME EXEC_PREFS_MIGRATION_FAILED — commit() returned false; " +
+                    "AIRI EXEC_PREFS_MIGRATION_FAILED — commit() returned false; " +
                         "legacy plaintext file preserved for next-launch retry"
                 )
                 return
@@ -302,7 +302,7 @@ class ExecModePreferences(context: Context) : RoutingPreferences {
                 } else {
                     Log.e(
                         TAG,
-                        "AIRI_RUNTIME EXEC_PREFS_MIGRATION_VERIFY_FAIL — " +
+                        "AIRI EXEC_PREFS_MIGRATION_VERIFY_FAIL — " +
                             "key=\"$key\" did not round-trip correctly"
                     )
                 }
@@ -312,7 +312,7 @@ class ExecModePreferences(context: Context) : RoutingPreferences {
             if (verifiedCount == stagedCount) {
                 Log.i(
                     TAG,
-                    "AIRI_RUNTIME EXEC_PREFS_MIGRATION_VERIFIED — " +
+                    "AIRI EXEC_PREFS_MIGRATION_VERIFIED — " +
                         "$verifiedCount/$stagedCount key(s) verified; " +
                         "clearing legacy plaintext file"
                 )
@@ -321,13 +321,13 @@ class ExecModePreferences(context: Context) : RoutingPreferences {
                 context.deleteSharedPreferences(LEGACY_PREFS_FILE)
                 Log.i(
                     TAG,
-                    "AIRI_RUNTIME EXEC_PREFS_MIGRATION_COMPLETE — " +
+                    "AIRI EXEC_PREFS_MIGRATION_COMPLETE — " +
                         "legacy plaintext file deleted; migration finished"
                 )
             } else {
                 Log.e(
                     TAG,
-                    "AIRI_RUNTIME EXEC_PREFS_MIGRATION_PARTIAL — " +
+                    "AIRI EXEC_PREFS_MIGRATION_PARTIAL — " +
                         "$verifiedCount/$stagedCount key(s) verified; " +
                         "legacy plaintext file preserved for next-launch retry"
                 )
@@ -335,7 +335,7 @@ class ExecModePreferences(context: Context) : RoutingPreferences {
         } catch (e: Exception) {
             Log.e(
                 TAG,
-                "AIRI_RUNTIME EXEC_PREFS_MIGRATION_ERROR — unexpected failure; " +
+                "AIRI EXEC_PREFS_MIGRATION_ERROR — unexpected failure; " +
                     "legacy plaintext file preserved. Cause: ${e.message}"
             )
         }

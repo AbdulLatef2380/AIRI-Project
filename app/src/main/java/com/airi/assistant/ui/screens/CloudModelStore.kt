@@ -598,7 +598,7 @@ private fun AddRemoteModelInlineContent(
         testStatus?.let {
             Surface(
                 shape = AIRIShapes.xs,
-                color = if (it.startsWith("✓")) Color(0xFF1B5E20) else Color(0xFF7F0000)
+                color = if (it.startsWith("")) Color(0xFF1B5E20) else Color(0xFF7F0000)
             ) {
                 Text(it, color = AiriTheme.onBackground, fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
@@ -612,7 +612,7 @@ private fun AddRemoteModelInlineContent(
                         val remote = com.airi.assistant.ai.remote.RemoteModel(
                             id = "test", name = "test", serverUrl = serverUrl, apiKey = apiKey)
                         val ok = executor.testConnection(remote)
-                        testStatus = if (ok) "✓ Connection successful" else "✗ Connection failed"
+                        testStatus = if (ok) " Connection successful" else " Connection failed"
                         isTesting = false
                     }
                 },

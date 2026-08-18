@@ -128,7 +128,7 @@ data class ChatMessage(
     // the lifetime of the in-memory list.
     val uid: String = java.util.UUID.randomUUID().toString(),
     /**
-     * Task 1.7: Persisted thumbs-up/down feedback state (1=liked, -1=disliked, 0=none).
+     * Persisted thumbs-up/down feedback state (1=liked, -1=disliked, 0=none).
      * Mirrors the `feedback` column written by [com.airi.assistant.memory.repository.StorageRepository.updateMessageFeedback].
      */
     val feedback: Int = 0,
@@ -179,7 +179,7 @@ data class AgentState(
     val currentAction:          String  = "",
     val currentStep:            Int     = 0,
     val totalSteps:             Int     = 0,
-    // ── Live graph execution status (Phase 2 / UX maturity) ──────────────────
+    // ── Live graph execution status ( / UX maturity) ──────────────────
     val activeGoalDescription:  String  = "",
     val activeNodeId:           String  = "",
     val activeNodeAction:       String  = "",
@@ -188,7 +188,7 @@ data class AgentState(
     val executionStage:         ExecutionStage = ExecutionStage.IDLE,
     val recoveryReason:         String  = "",
     val retryCount:             Int     = 0,
-    // ── Phase 1: Real confirmation gate ───────────────────────────────────────
+    // ── : Real confirmation gate ───────────────────────────────────────
     // When non-null, the UI MUST show a blocking confirmation dialog and
     // call ChatViewModel.confirmAccessibilityAction(approved) before the
     // AndroidAgent proceeds. The agent suspends on a CompletableDeferred.
@@ -327,7 +327,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         llamaManager = llamaManager,
         modeProvider = { _performanceMode.value },
         modeConsumer = { supervisedMode, reason ->
-            Log.i("AIRI_RUNTIME",
+            Log.i("AIRI",
                 "SUPERVISOR_OVERRIDE mode=${supervisedMode.name} reason=$reason")
             // Derive which subsystem caused the override from the reason string
             // (RuntimeSupervisor.buildReason() formats it as "thermal=X memory=Y").
@@ -383,11 +383,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val productionOrchestrator   = ServiceLocator.productionOrchestrator
     private val orchestratorObsHub       = ServiceLocator.observabilityHub
 
-    // ── Phase 1 — UnifiedCognitiveLoop: wired into the ACTION query path ──────
+    // ──  — UnifiedCognitiveLoop: wired into the ACTION query path ──────
     // Receives the LLM's raw response after generation completes and executes
     // any JSON action plan embedded in it via the TypedPlanGraph DAG engine.
 
-    // ── Phase 9: Real AgentLoop — iterative LLM tool-calling loop ────────────
+    // ── : Real AgentLoop — iterative LLM tool-calling loop ────────────
     // Replaces the regex-DAG (createDAGPlanFromLLM) post-processing path with a
     // genuine iterative loop: LLM sees tool schemas → emits structured JSON →
     // ToolDispatcher executes → result fed back into next LLM turn.
@@ -447,7 +447,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun togglePlanMode() {
         _isPlanModeActive.value = !_isPlanModeActive.value
-        Log.i("AIRI_RUNTIME", "PLAN_MODE_TOGGLED active=${_isPlanModeActive.value}")
+        Log.i("AIRI", "PLAN_MODE_TOGGLED active=${_isPlanModeActive.value}")
     }
 
     // ── Skill tool count — number of skill_* tools the agent can call ─────────
@@ -507,7 +507,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _todayTokens = MutableStateFlow(0L)
     val todayTokens: StateFlow<Long> = _todayTokens.asStateFlow()
 
-    /** Task 1.1: Daily credits remaining from CreditMeteringEngine (correct source for top-bar badge). */
+    /** Daily credits remaining from CreditMeteringEngine (correct source for top-bar badge). */
     private val _dailyCreditsRemaining = MutableStateFlow(200)
     val dailyCreditsRemaining: StateFlow<Int> = _dailyCreditsRemaining.asStateFlow()
 
@@ -603,7 +603,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ── ModelController: owns model lifecycle (loadModel, registry, diagnostics) ──
-    // Extracted from ChatViewModel in Phase 9 ViewModel decomposition.
+    // Extracted from ChatViewModel in iewModel decomposition.
     // State ownership stays here (_modelState); ModelController mutates via .value.
     private val _modelState = MutableStateFlow(ModelUiState())   // placeholder until modelController init
 
@@ -693,7 +693,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (_voiceModeActive.value) {
             _voiceModeActive.value = false
             _voicePipelineState.value = com.airi.assistant.voice.VoicePipelineState.IDLE
-            Log.i("AIRI_RUNTIME", "In-chat voice mode stopped")
+            Log.i("AIRI", "In-chat voice mode stopped")
             return
         }
 
@@ -701,12 +701,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             context, android.Manifest.permission.RECORD_AUDIO
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (!permissionGranted) {
-            Log.w("AIRI_RUNTIME", "In-chat voice mode denied: microphone permission missing")
+            Log.w("AIRI", "In-chat voice mode denied: microphone permission missing")
             return
         }
         _voiceModeActive.value = true
         _voicePipelineState.value = com.airi.assistant.voice.VoicePipelineState.LISTENING
-        Log.i("AIRI_RUNTIME", "In-chat voice mode started")
+        Log.i("AIRI", "In-chat voice mode started")
     }
 
     private val _sessions = MutableStateFlow<List<ChatSessionSummary>>(emptyList())
@@ -919,7 +919,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (intent?.action != ModelDownloadService.ACTION_DOWNLOAD_COMPLETE) return
             val fileName = intent.getStringExtra(ModelDownloadService.EXTRA_RESULT_FILENAME) ?: return
             val filePath = intent.getStringExtra(ModelDownloadService.EXTRA_RESULT_PATH) ?: return
-            Log.i("AIRI_RUNTIME", "DOWNLOAD_BROADCAST_RECEIVED fileName=$fileName path=$filePath")
+            Log.i("AIRI", "DOWNLOAD_BROADCAST_RECEIVED fileName=$fileName path=$filePath")
             viewModelScope.launch(Dispatchers.IO) {
                 val file = File(filePath)
                 if (file.exists() && file.length() > 50_000_000L) {
@@ -976,13 +976,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 .collect { online -> _isOnline.value = online }
         }
 
-        // ── Phase 3: Wire real LLM delegate provider into cognitive loop ───────
+        // ── : Wire real LLM delegate provider into cognitive loop ───────
         // When UCL.runNode() encounters AgentEvent.Delegate (emitted by delegation-
         // shell sub-agents like CodingAgent), it calls this provider to produce a
         // real LLM response rather than returning "[delegated to LLM]".
         //
 
-        // ── Phase 1: Wire real confirmation gate into AndroidAgent ─────────────
+        // ── : Wire real confirmation gate into AndroidAgent ─────────────
         // ServiceLocator.initSubAgentSystem() exposes the AndroidAgent instance.
         // We inject a suspend lambda that surfaces AgentState.ConfirmationRequest
         // to the UI and suspends until the user taps Confirm or Cancel.
@@ -992,7 +992,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             Log.i("AIRI_SECURITY", "AndroidAgent.confirmationGate wired to ChatViewModel")
 
-            // ── Phase 9: Wire real LLM planner into AccessibilityExecutionEngine ──
+            // ── : Wire real LLM planner into AccessibilityExecutionEngine ──
             // The AEE's llmPlanner receives the OBSERVE prompt and returns ONE action
             // JSON from the LLM. Uses hybridOrchestrator so privacy gate + routing
             // remain enforced even for accessibility planning requests.
@@ -1026,7 +1026,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } ?: Log.w("AIRI_SECURITY", "AndroidAgent not yet initialized — gate not wired")
     }
 
-    // ── Phase 1: Real accessibility confirmation gate ──────────────────────────
+    // ── : Real accessibility confirmation gate ──────────────────────────
     @Volatile private var pendingConfirmation: kotlinx.coroutines.CompletableDeferred<Boolean>? = null
 
     /**
@@ -1146,7 +1146,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     val hasActiveConversation = _messages.value.isNotEmpty()
                     if (isNativeReset && hasActiveConversation && _contextResetWarning.value == null) {
                         _contextResetWarning.value = event.message
-                        Log.i("AIRI_RUNTIME",
+                        Log.i("AIRI",
                             "CONTEXT_RESET_BUS_OBSERVED msg='${event.message.take(60)}'")
                     }
                 }
@@ -1174,7 +1174,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     // If no model is installed, surface a download prompt once instead of
                     // silently dropping the transcript or crashing downstream.
                     if (!VoskModelManager.isReady(appContext)) {
-                        Log.w("AIRI_RUNTIME",
+                        Log.w("AIRI",
                             "VOICE_BUS_NO_VOSK_MODEL transcriptChars=${transcript.length}")
                         _messages.update {
                             it + ChatMessage(
@@ -1186,7 +1186,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                         return@collect
                     }
-                    Log.i("AIRI_RUNTIME",
+                    Log.i("AIRI",
                         "VOICE_BUS_LLM_DISPATCH transcriptChars=${transcript.length}")
                     sendMessage(transcript)
                 }
@@ -1256,7 +1256,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
                     detail   = reason
                 )
-                Log.i("AIRI_RUNTIME", "CONTEXT_RESET trigger=new_session hadMessages=true")
+                Log.i("AIRI", "CONTEXT_RESET trigger=new_session hadMessages=true")
             }
         }
     }
@@ -1288,7 +1288,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
                     detail   = reason
                 )
-                Log.i("AIRI_RUNTIME", "CONTEXT_RESET trigger=session_switch from=$previousId to=$sessionId")
+                Log.i("AIRI", "CONTEXT_RESET trigger=session_switch from=$previousId to=$sessionId")
             }
         }
     }
@@ -1370,7 +1370,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }.getOrNull()
             if (fileUri != null) {
-                Log.i("AIRI_RUNTIME", "LONG_TEXT_CONVERSION chars=${trimmedInput.length} -> file=$fileName")
+                Log.i("AIRI", "LONG_TEXT_CONVERSION chars=${trimmedInput.length} -> file=$fileName")
                 // Stage the file via SharedFlow so ChatScreen adds it to pending attachments
                 stageAttachmentUri(fileUri)
                 // Send with a short summary prefix instead of the full text
@@ -1485,7 +1485,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
 
-            // ── Phase 1 & 5 — Soft limit: degrade quality + add delay for free users ──
+            // ──  & 5 — Soft limit: degrade quality + add delay for free users ──
             val softPhase = subscriptionManager.getSoftLimitPhase()
             if (softPhase >= 1 && !subscriptionManager.isPremium()) {
                 val delayMs = PricingConfig.SOFT_LIMIT_DELAY_MS
@@ -1551,7 +1551,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
             // ── Agent execution ───────────────────────────────────────────────
             _isGenerating.value = true
-            // ── Phase 2: RAG memory injection ─────────────────────────────────
+            // ── : RAG memory injection ─────────────────────────────────
             // Retrieve semantically relevant prior context BEFORE assembling the
             // system prompt. RagRetriever falls back to chronological recall when
             // the embedding model is not loaded — never blocks the send path.
@@ -1567,7 +1567,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             if (ragContext.isNotBlank()) {
-                android.util.Log.i("AIRI_RUNTIME", "RAG_INJECTED chars=${ragContext.length} session=${_currentSessionId.value.take(8)}")
+                android.util.Log.i("AIRI", "RAG_INJECTED chars=${ragContext.length} session=${_currentSessionId.value.take(8)}")
             }
             // SPRINT 2: hasAgentTools=true so PromptService skips its narrative skill block.
             // AgentLoop appends its own structured JSON tool schemas (activeTools below),
@@ -1607,14 +1607,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val activeTools = runCatching {
                 com.airi.assistant.agent.loop.tool.BuiltinTools.ALL + skillToolBridge.asToolSchemas()
             }.getOrDefault(com.airi.assistant.agent.loop.tool.BuiltinTools.ALL)
-            Log.i("AIRI_RUNTIME", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${activeTools.size - com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} total=${activeTools.size}")
+            Log.i("AIRI", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${activeTools.size - com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} total=${activeTools.size}")
 
             var tokenCount = 0
             var firstTokenReceived = false
             val requestStart = System.currentTimeMillis()
             var needsResummarize = false
             val olderToFold: List<com.airi.assistant.memory.entity.ChatMessage> = emptyList()
-            Log.i("AIRI_RUNTIME", "AGENT_LOOP_START inputChars=${trimmedInput.length} queryType=${queryType.name} planMode=${_isPlanModeActive.value}")
+            Log.i("AIRI", "AGENT_LOOP_START inputChars=${trimmedInput.length} queryType=${queryType.name} planMode=${_isPlanModeActive.value}")
 
             try {
                 val loopResult = agentLoop.run(
@@ -1640,7 +1640,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     onStepComplete = { stepEvent ->
                         when (stepEvent) {
                             is com.airi.assistant.agent.loop.AgentLoop.StepEvent.ToolExecuted -> {
-                                Log.i("AIRI_RUNTIME", "TOOL_EXEC step=${stepEvent.step} tool=${stepEvent.toolName}")
+                                Log.i("AIRI", "TOOL_EXEC step=${stepEvent.step} tool=${stepEvent.toolName}")
                                 // P0-2: Handle ask_confirmation tool result.
                                 // When the agent calls ask_confirmation, ToolDispatcher returns
                                 // "CONFIRMATION_REQUIRED|action|details". Surface this as a real
@@ -1664,7 +1664,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 }
                             }
                             is com.airi.assistant.agent.loop.AgentLoop.StepEvent.FinalAnswer -> {
-                                Log.i("AIRI_RUNTIME", "AGENT_LOOP_FINAL steps=${stepEvent.steps}")
+                                Log.i("AIRI", "AGENT_LOOP_FINAL steps=${stepEvent.steps}")
                                 null
                             }
                         }
@@ -1761,7 +1761,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     if (triggerPaywallAfterSend) { _paywallTrigger.value = true }
                 }
-                Log.i("AIRI_RUNTIME", "AGENT_LOOP_COMPLETE steps=${loopResult.stepsUsed} tools=${loopResult.toolsInvoked}")
+                Log.i("AIRI", "AGENT_LOOP_COMPLETE steps=${loopResult.stepsUsed} tools=${loopResult.toolsInvoked}")
 
             } catch (_: CancellationException) {
                 if (isCurrentGeneration(generationId)) {
@@ -1863,7 +1863,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // intervals). Feed this directly to the health monitor so the HealthReport
         // reflects actual inference performance, not just system-service polls.
         if (elapsed > SLOW_GENERATION_WARN_MS && _lastExecOrigin.value == com.airi.assistant.execution.ExecOrigin.LOCAL) {
-            Log.w("AIRI_RUNTIME", "SLOW_GENERATION elapsedMs=$elapsed tokenCount=$tokenCount tps=%.2f".format(tps))
+            Log.w("AIRI", "SLOW_GENERATION elapsedMs=$elapsed tokenCount=$tokenCount tps=%.2f".format(tps))
             runCatching { ServiceLocator.runtimeHealthMonitor }.getOrNull()
                 ?.also { monitor ->
                     // Reuse the bus-emit signal as a lightweight "pressure event" counter
@@ -2308,7 +2308,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Expose current execution preferences snapshot (read-only) to the UI. */
     fun getExecModePrefs(): ExecModePreferences = execModePrefs
 
-    // ── Vision pipeline (Phase 3 — wired end-to-end) ─────────────────────────
+    // ── Vision pipeline ( — wired end-to-end) ─────────────────────────
     //
     // Two public entry points:
     //
@@ -2328,7 +2328,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     //     we fall back to the existing text-marker path so the chat still
     //     accepts the user's message with an honest acknowledgement.
     //
-    // Both paths emit AIRI_RUNTIME tags so the on-device debug log can prove
+    // Both paths emit AIRI tags so the on-device debug log can prove
     // exactly which branch ran.
 
     /** UI hook: the vision badge should turn green only when this is true. */
@@ -2337,7 +2337,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun loadMmproj(uri: Uri) {
         val current = ModelManager.getCurrent()
         if (current == null) {
-            Log.w("AIRI_RUNTIME", "MMPROJ_LOAD_REJECTED reason=no_model_loaded")
+            Log.w("AIRI", "MMPROJ_LOAD_REJECTED reason=no_model_loaded")
             _messages.update {
                 it + ChatMessage(appContext.getString(R.string.err_load_text_model_first), isUser = false)
             }
@@ -2353,7 +2353,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     cacheFile.outputStream().use { out -> input.copyTo(out) }
                 } != null
             }.getOrElse { e ->
-                Log.e("AIRI_RUNTIME", "MMPROJ_COPY_FAILED ${e.javaClass.simpleName}: ${e.message}")
+                Log.e("AIRI", "MMPROJ_COPY_FAILED ${e.javaClass.simpleName}: ${e.message}")
                 false
             }
             if (!ok || !cacheFile.exists() || cacheFile.length() < 1_000_000L) {
@@ -2365,10 +2365,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
                 }
-                Log.w("AIRI_RUNTIME", "MMPROJ_COPY_INSUFFICIENT bytes=${cacheFile.length()}")
+                Log.w("AIRI", "MMPROJ_COPY_INSUFFICIENT bytes=${cacheFile.length()}")
                 return@launch
             }
-            Log.i("AIRI_RUNTIME",
+            Log.i("AIRI",
                 "MMPROJ_COPY_OK bytes=${cacheFile.length()} path=${cacheFile.absolutePath}")
 
             // Step 2 — load through the serialized dispatcher (must not race
@@ -2520,7 +2520,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val extras       = persistedAttachments - listOfNotNull(primaryImage).toSet()
 
         Log.i(
-            "AIRI_RUNTIME",
+            "AIRI",
             "ATTACHMENTS_DISPATCH count=${attachments.size} " +
                 "image_primary=${primaryImage?.kind?.name ?: "none"} " +
                 "extras=${extras.size} vision_ready=$visionReady"
@@ -2554,12 +2554,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         if (_modelState.value.isModelLoading || _agentState.value.isWorking) return
 
-        // ── Phase 4: Privacy gate enforcement ─────────────────────────────────
+        // ── : Privacy gate enforcement ─────────────────────────────────
         // generateWithImage always uses the local llama.cpp runtime (no cloud path
         // for multimodal JNI). Explicitly log LOCAL origin so ExecOrigin telemetry
         // is consistent with the text inference path through HybridOrchestrator.
         // Image bytes NEVER leave the device — assert this at the call site.
-        Log.i("AIRI_RUNTIME", "VISION_PRIVACY_GATE origin=LOCAL data=image_bytes_on_device_only")
+        Log.i("AIRI", "VISION_PRIVACY_GATE origin=LOCAL data=image_bytes_on_device_only")
         AnalyticsService.modelLoaded(_modelState.value.selectedModelName, 0L)
 
         val visionReady = _modelState.value.capabilities.vision &&
@@ -2567,7 +2567,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val attachmentName = imageUri?.lastPathSegment ?: "camera_capture"
 
         // Resolve an in-memory displayable URI ONCE so the user's chat
-        // bubble can render the actual thumbnail (Phase 1 spec). For a
+        // bubble can render the actual thumbnail ( spec). For a
         // camera capture we persist the Bitmap to the cache dir as JPEG
         // and use the resulting file URI; for a picker URI we just stringify.
         // Failures are swallowed — a missing thumbnail is degraded UX,
@@ -2589,7 +2589,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         // Branch C: image present but vision NOT wired → marker fallback.
         if (!visionReady) {
-            Log.i("AIRI_RUNTIME",
+            Log.i("AIRI",
                 "VISION_FALLBACK_TEXT_MARKER reason=no_vision_wired name=$attachmentName")
             val finalText = buildString {
                 append(trimmedInput)
@@ -2692,7 +2692,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 maxTokens = visionTokens,
                 onComplete = { fullText ->
                     val elapsed = System.currentTimeMillis() - visionStart
-                    Log.i("AIRI_RUNTIME",
+                    Log.i("AIRI",
                         "VISION_REPLY_DELIVERED elapsed_ms=$elapsed reply_len=${fullText.length}")
                     viewModelScope.launch {
                         if (!isCurrentGeneration(generationId)) return@launch
@@ -2712,7 +2712,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 },
                 onError = { errMsg ->
-                    Log.w("AIRI_RUNTIME", "VISION_REPLY_FAILED errorChars=${errMsg.length}")
+                    Log.w("AIRI", "VISION_REPLY_FAILED errorChars=${errMsg.length}")
                     viewModelScope.launch {
                         if (!isCurrentGeneration(generationId)) return@launch
                         if (_isCancelled.get()) {
@@ -2825,7 +2825,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearMessages()  { createNewSession() }
 
-    // ── Message interaction actions (Phase 6) ─────────────────────────────────
+    // ── Message interaction actions () ─────────────────────────────────
 
     /** Pre-fill the input bar text (for Edit action in user bubble contextual menu). */
     private val _pendingPrefill = MutableStateFlow<String?>(null)
@@ -2839,7 +2839,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Task 1.7: Persist thumbs-up/down feedback for a message.
+     * Persist thumbs-up/down feedback for a message.
      * Looks up the Room row by matching content+timestamp, then writes feedback column.
      * @param messageUid  In-memory uid of the ChatMessage
      * @param liked       true = thumbs up (+1), false = thumbs down (-1)
@@ -2869,7 +2869,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ── Plus Menu orchestration (Phase 6) ─────────────────────────────────────
+    // ── Plus Menu orchestration () ─────────────────────────────────────
 
     fun handlePlusAction(action: com.airi.assistant.ui.input.PlusMenuAction) {
         viewModelScope.launch {
@@ -2971,7 +2971,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectModel(modelId: String) {
         val model = ModelRegistry.getById(modelId) ?: return
-        Log.i("AIRI_RUNTIME", "MODEL_ACTIVATED name=${model.name} id=${model.id} type=${model.type.label} path=${model.path}")
+        Log.i("AIRI", "MODEL_ACTIVATED name=${model.name} id=${model.id} type=${model.type.label} path=${model.path}")
         preferences.edit().putString(ModelController.KEY_MODEL_ID, model.id).putString(ModelController.KEY_MODEL_PATH, model.path).apply()
         modelController.loadModel(model)
     }
@@ -3021,7 +3021,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _messages.update { it + newUiMessages }
             }
             refreshSessions()
-            Log.i("AIRI_RUNTIME", "CHAT_IMPORTED count=$added session=$targetSession")
+            Log.i("AIRI", "CHAT_IMPORTED count=$added session=$targetSession")
             onResult(added)
         }
     }
@@ -3222,7 +3222,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         // KEY_MODEL_ID, KEY_MODEL_PATH, KEY_MODEL_REGISTRY, KEY_SCANNED_IDS
-        // moved to ModelController (Phase 9 ViewModel decomposition).
+        // moved to ModelController (iewModel decomposition).
         const val KEY_SESSION_ID = "current_session_id"
 
         const val SLOW_GENERATION_WARN_MS = 10_000L

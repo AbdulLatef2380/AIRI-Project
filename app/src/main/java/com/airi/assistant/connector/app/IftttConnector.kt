@@ -125,7 +125,7 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
         if (key.isBlank()) return "Webhook key cannot be empty."
         authManager.storeCredential(id, CRED_KEY, key)
         _state.value = ConnectorState(true, true, "Connected (key: ••••${key.takeLast(4)})", System.currentTimeMillis())
-        return "IFTTT Maker Webhook key saved ✓"
+        return "IFTTT Maker Webhook key saved "
     }
 
     fun getWebhookKey(): String? = authManager.getCredential(id, CRED_KEY)
@@ -147,7 +147,7 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
 
         return if (response.isSuccessful) {
             val body = response.body?.string() ?: ""
-            "Applet '$eventName' triggered ✓ — $body"
+            "Applet '$eventName' triggered  — $body"
         } else {
             "Trigger failed: HTTP ${response.code} ${response.message}"
         }

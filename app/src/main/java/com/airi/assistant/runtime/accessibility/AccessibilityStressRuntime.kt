@@ -77,7 +77,7 @@ class AccessibilityStressRuntime {
                 delay(1_000L)
                 _eventRatePerSec.value = eventRate.getAndSet(0)
                 if (_eventRatePerSec.value > 500) {
-                    Log.w(TAG, "AIRI_RUNTIME A11Y_EVENT_FLOOD rate=${_eventRatePerSec.value}/s")
+                    Log.w(TAG, "AIRI A11Y_EVENT_FLOOD rate=${_eventRatePerSec.value}/s")
                 }
             }
         }
@@ -92,11 +92,11 @@ class AccessibilityStressRuntime {
         scope.launch {
             val accumulated = mutableListOf<AccessibilityStressResult>()
             for (scenario in scenarios) {
-                Log.i(TAG, "AIRI_RUNTIME A11Y_STRESS_START scenario=$scenario")
+                Log.i(TAG, "AIRI A11Y_STRESS_START scenario=$scenario")
                 val result = runScenario(engine, scenario)
                 accumulated.add(result)
                 _results.value = accumulated.toList()
-                Log.i(TAG, "AIRI_RUNTIME A11Y_STRESS_DONE scenario=$scenario passed=${result.passed}")
+                Log.i(TAG, "AIRI A11Y_STRESS_DONE scenario=$scenario passed=${result.passed}")
                 delay(2_000L)
             }
         }
@@ -215,7 +215,7 @@ class AccessibilityStressRuntime {
         } catch (e: Exception) {
             failures++
             notes += " | Exception: ${e.message?.take(80)}"
-            Log.e(TAG, "AIRI_RUNTIME A11Y_SCENARIO_ERROR scenario=$scenario", e)
+            Log.e(TAG, "AIRI A11Y_SCENARIO_ERROR scenario=$scenario", e)
         }
 
         return AccessibilityStressResult(

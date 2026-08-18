@@ -244,7 +244,7 @@
     <string name="plan_free_tier">الخطة المجانية</string>
     <string name="plan_premium_description">وصول غير محدود لجميع الميزات</string>
     <string name="plan_free_description">30 رسالة / 10 وكلاء / 5 مهارات يوميًا</string>
-    <string name="plan_badge_active">✓ نشط</string>
+    <string name="plan_badge_active"> نشط</string>
     <string name="plan_badge_free">مجاني</string>
     <string name="today_usage">الاستخدام اليوم</string>
     <string name="usage_messages">الرسائل</string>
@@ -334,8 +334,8 @@
     <string name="stat_available_ram">المتاح</string>
     <string name="stat_used_ram">الذاكرة المستخدمة</string>
     <string name="stat_low_memory">ذاكرة منخفضة</string>
-    <string name="stat_low_memory_yes">نعم ⚠</string>
-    <string name="stat_low_memory_no">لا ✓</string>
+    <string name="stat_low_memory_yes">نعم </string>
+    <string name="stat_low_memory_no">لا </string>
     <string name="stat_storage">التخزين</string>
     <string name="stat_total_storage">إجمالي التخزين</string>
     <string name="stat_free_storage">التخزين المتاح</string>
@@ -380,10 +380,10 @@
     <string name="marketplace_install">تثبيت</string>
     <string name="marketplace_installed_badge">مثبت</string>
     <string name="marketplace_update">تحديث</string>
-    <string name="marketplace_install_success">✓ تم تثبيت %1$s!</string>
+    <string name="marketplace_install_success"> تم تثبيت %1$s!</string>
     <string name="marketplace_install_failed">فشل التثبيت — حاول مجددًا.</string>
     <string name="marketplace_removed">تمت إزالة %1$s.</string>
-    <string name="marketplace_updated">✓ تم تحديث %1$s إلى v%2$s</string>
+    <string name="marketplace_updated"> تم تحديث %1$s إلى v%2$s</string>
     <string name="marketplace_submitted">تم الإرسال! معرف الطلب: %1$s</string>
     <string name="marketplace_submit_failed">فشل الإرسال — تحقق من الملف التعريفي.</string>
     <string name="marketplace_no_installed">لا توجد مهارات مثبتة</string>
@@ -396,7 +396,7 @@
     <string name="marketplace_manifest_label">ملف skill.json التعريفي</string>
     <string name="marketplace_validate">التحقق</string>
     <string name="marketplace_reset">إعادة ضبط</string>
-    <string name="marketplace_manifest_valid">الملف التعريفي صحيح ✓</string>
+    <string name="marketplace_manifest_valid">الملف التعريفي صحيح </string>
     <string name="marketplace_manifest_invalid">فشل التحقق</string>
     <string name="marketplace_terms">أوافق على شروط خدمة سوق AIRI</string>
     <string name="marketplace_submit_review">إرسال للمراجعة</string>
@@ -438,9 +438,9 @@
     <string name="spec_acceptance">معدل القبول: %1$d%% (%2$d / %3$d اقتراحات عبر %4$d تشغيل)</string>
     <string name="spec_acceptance_empty">معدل القبول: — (لا توجد عمليات استباقية بعد)</string>
     <string name="spec_draft_n_label">رموز كل خطوة: %1$d</string>
-    <string name="perf_mode_label_fast">⚡ سريع</string>
-    <string name="perf_mode_label_balanced">⚖ متوازن</string>
-    <string name="perf_mode_label_quality">🎯 جودة</string>
+    <string name="perf_mode_label_fast"> سريع</string>
+    <string name="perf_mode_label_balanced"> متوازن</string>
+    <string name="perf_mode_label_quality"> جودة</string>
     <string name="perf_footer_note">يؤثر وضع الأداء على: نافذة السياق، والحد الأقصى للرموز، واستراتيجية الاقتطاع. تُطبق التغييرات على الرسالة التالية.</string>
     <!-- Model settings content descriptions -->
     <string name="add_model_fab">إضافة نموذج</string>
@@ -617,9 +617,9 @@
     <string name="billing_annual">سنوي</string>
     <string name="billing_save_20">وفّر 20%%</string>
     <string name="subscribe_now">اشترك الآن</string>
-    <string name="premium_title">✨ AIRI Premium</string>
+    <string name="premium_title"> AIRI Premium</string>
     <string name="premium_description">افتح الإمكانات الكاملة لـ AIRI مع 10× المزيد من الرصيد وجميع الموصلات والوصول إلى السوق وواجهات المطورين.</string>
-    <string name="premium_active_message">أنت على AIRI Premium! 🎉</string>
+    <string name="premium_active_message">أنت على AIRI Premium! </string>
     <string name="premium_active_subtitle">2,000 رصيد يومي، جميع الميزات مفتوحة.</string>
     <string name="stripe_footer">المدفوعات مؤمّنة عبر Stripe. لا يحتفظ AIRI ببيانات بطاقتك.</string>
 
@@ -840,7 +840,7 @@
     <string name="vosk_download_small_desc">قم بتنزيل نموذج الإنجليزية الصغير (~40 ميغابايت) لتفعيل الصوت فوراً. يعمل بالكامل بدون إنترنت.</string>
     <string name="vosk_download_small_btn">تنزيل النموذج الصغير (إنجليزي، ~40 ميغابايت)</string>
     <string name="vosk_downloading_progress">جارٍ التنزيل… %1$d%%</string>
-    <string name="vosk_install_success">✓ تم تثبيت النموذج الصوتي</string>
+    <string name="vosk_install_success"> تم تثبيت النموذج الصوتي</string>
 
     <!-- Generic actions / shared -->
     <string name="done">تم</string>
@@ -946,9 +946,9 @@
     <string name="payment_annual">سنوي</string>
     <string name="payment_save_20">وفّر 20%</string>
     <string name="payment_subscribe_now">اشترك الآن</string>
-    <string name="payment_airi_premium">✨ AIRI Premium</string>
+    <string name="payment_airi_premium"> AIRI Premium</string>
     <string name="payment_premium_desc">افتح القوة الكاملة لـ AIRI مع 10 أضعاف الاعتمادات وجميع الموصلات والوصول إلى السوق وواجهات API للمطورين.</string>
-    <string name="payment_premium_active">أنت مشترك في AIRI Premium! 🎉</string>
+    <string name="payment_premium_active">أنت مشترك في AIRI Premium! </string>
     <string name="payment_premium_active_desc">2,000 اعتماد يوميًا، جميع الميزات مفتوحة.</string>
     <string name="payment_stripe_footer">تتم معالجة المدفوعات بأمان بواسطة Stripe. لا يحتفظ AIRI بتفاصيل البطاقة مطلقًا.</string>
     <string name="payment_bonus_included">+%1$d%% مكافأة مضمنة</string>

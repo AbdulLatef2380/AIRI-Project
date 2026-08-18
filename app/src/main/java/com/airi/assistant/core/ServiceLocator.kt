@@ -13,16 +13,16 @@ import com.airi.assistant.connector.api.AnthropicProvider
 import com.airi.assistant.connector.api.GeminiProvider
 import com.airi.assistant.connector.api.OpenAiProvider
 import com.airi.assistant.crash.CrashReportStore
-// ExecutionWatchdog — import preserved for future graph-native execution (Phase 9)
+// ExecutionWatchdog — import preserved for future graph-native execution ()
 // import com.airi.assistant.crash.ExecutionWatchdog
 import com.airi.assistant.crash.OrchestratorCrashReporter
 import com.airi.assistant.crash.RuntimeHealthMonitor
 import com.airi.assistant.domain.auth.AuthService
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.agent.observability.AgentObservabilityHub
-// ExecutionGraphRuntime — preserved as class; not instantiated at startup (Phase 6 dead-code cleanup)
+// ExecutionGraphRuntime — preserved as class; not instantiated at startup ( dead-code cleanup)
 // import com.airi.assistant.agent.execution.runtime.ExecutionGraphRuntime
-// SharedPreferencesSnapshotStore import removed (Phase 6) — no longer referenced by ServiceLocator
+// SharedPreferencesSnapshotStore import removed () — no longer referenced by ServiceLocator
 // import com.airi.assistant.agent.execution.runtime.SharedPreferencesSnapshotStore
 import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
 import com.airi.assistant.agent.scheduler.ScheduledJobOrchestrator
@@ -212,7 +212,7 @@ object ServiceLocator {
 
     // ── Connectors layer ─────────────────────────────────────────────────────
 
-    // ── Connector ecosystem (Phase 7) — declared BEFORE connectorRegistry ─────
+    // ── Connector ecosystem () — declared BEFORE connectorRegistry ─────
     val connectorAuthManager: com.airi.assistant.connector.ConnectorAuthManager by lazy {
         com.airi.assistant.connector.ConnectorAuthManager(requireContext())
     }
@@ -245,7 +245,7 @@ object ServiceLocator {
         com.airi.assistant.connector.ConnectorHealthMonitor(connectorRegistry).also { it.start() }
     }
 
-    // ── Sandbox (Phase 4) ─────────────────────────────────────────────────────
+    // ── Sandbox () ─────────────────────────────────────────────────────
 
     val sandboxManager: com.airi.assistant.agent.sandbox.SandboxManager by lazy {
         com.airi.assistant.agent.sandbox.SandboxManager(requireContext())
@@ -323,13 +323,13 @@ object ServiceLocator {
         }
     }
 
-    // ── REMOVED Phase 6 (dead runtime cleanup) ────────────────────────────────
+    // ── REMOVED  (dead runtime cleanup) ────────────────────────────────
     // executionSnapshotStore, executionGraphRuntime, executionWatchdog
     //
-    // Reason: Phase 4 audit confirmed 0 functional callers for all three.
+    // Reason:  audit confirmed 0 functional callers for all three.
     // ExecutionWatchdog only polled executionGraphRuntime; neither was invoked
     // on any real execution path. Both classes are preserved on disk as
-    // production infrastructure for the Phase 9 graph-native execution roadmap,
+    // production infrastructure for the  graph-native execution roadmap,
     // at which point the ServiceLocator will be restructured to provide them
     // with a real wiring path.
     //
@@ -378,7 +378,7 @@ object ServiceLocator {
         MemoryManager(requireContext(), applicationScope)
     }
 
-    // ── Persistent Audit Log (Phase 2 Task 5) ─────────────────────────────────
+    // ── Persistent Audit Log (ask 5) ─────────────────────────────────
 
     val auditRepository: com.airi.assistant.memory.repository.AuditRepository by lazy {
         com.airi.assistant.memory.repository.AuditRepository(
@@ -423,7 +423,7 @@ object ServiceLocator {
         )
     }
 
-    // ── Unified Preference Coordinator (Phase 2 Task 6) ───────────────────────
+    // ── Unified Preference Coordinator (ask 6) ───────────────────────
 
     val preferenceCoordinator: com.airi.assistant.settings.PreferenceCoordinator by lazy {
         com.airi.assistant.settings.PreferenceCoordinator(
@@ -433,7 +433,7 @@ object ServiceLocator {
     }
 
     /**
-     * Task 12: Single-source accessor for [ExecModePreferences].
+     * Single-source accessor for [ExecModePreferences].
      *
      * All consumers that previously constructed [ExecModePreferences] directly
      * (ChatViewModel, CommandRouter, UnifiedCognitiveLoop, etc.) should obtain
@@ -443,7 +443,7 @@ object ServiceLocator {
     val execModePrefs: com.airi.assistant.execution.prefs.ExecModePreferences
         get() = preferenceCoordinator.rawExecPrefs
 
-    // ── Thermal Profiler + System Health Coordinator (Phase 2 Task 9) ─────────
+    // ── Thermal Profiler + System Health Coordinator (ask 9) ─────────
 
     val thermalProfiler: com.airi.assistant.runtime.thermal.ThermalProfiler by lazy {
         com.airi.assistant.runtime.thermal.ThermalProfiler(requireContext()).also { it.start() }
@@ -533,7 +533,7 @@ object ServiceLocator {
         com.airi.assistant.execution.accounting.TokenAccountant(requireContext())
     }
 
-    // ── Phase 4: Zapier / IFTTT connectors ───────────────────────────────────
+    // ── : Zapier / IFTTT connectors ───────────────────────────────────
 
     val zapierConnector: com.airi.assistant.connector.app.ZapierConnector by lazy {
         requireNotNull(
@@ -546,7 +546,7 @@ object ServiceLocator {
         com.airi.assistant.connector.app.IftttConnector(connectorAuthManager)
     }
 
-    // ── Phase 4: Stripe / Billing ─────────────────────────────────────────────
+    // ── : Stripe / Billing ─────────────────────────────────────────────
 
     val billingHistoryStore: com.airi.assistant.billing.BillingHistoryStore by lazy {
         com.airi.assistant.billing.BillingHistoryStore(requireContext())
@@ -561,7 +561,7 @@ object ServiceLocator {
         )
     }
 
-    // ── Phase 4: Developer Marketplace ────────────────────────────────────────
+    // ── : Developer Marketplace ────────────────────────────────────────
 
     val marketplaceRepository: com.airi.assistant.marketplace.MarketplaceRepository by lazy {
         com.airi.assistant.marketplace.MarketplaceRepository(
@@ -570,7 +570,7 @@ object ServiceLocator {
         )
     }
 
-    // ── Phase 4: Community Skills ─────────────────────────────────────────────
+    // ── : Community Skills ─────────────────────────────────────────────
 
     val communitySkillHub: com.airi.assistant.community.CommunitySkillHub by lazy {
         com.airi.assistant.community.CommunitySkillHub(requireContext())
@@ -627,11 +627,11 @@ object ServiceLocator {
         val androidAgent = AndroidAgent(accessibilityExecutionEngine)
         val agents = listOf(
             // Real agents — verified non-delegation-shell implementations.
-            // CodingAgent REMOVED (Phase 1): intercepted code/implement/write/create queries
+            // CodingAgent REMOVED (): intercepted code/implement/write/create queries
             //   and returned "[CodingAgent delegated to LLM]" placeholder, blocking LLM response.
-            // MediaGenerationAgent REMOVED (Phase 1): delegation shell, no real capability.
-            // DocumentProcessorAgent REMOVED (Phase 1): delegation shell.
-            // LocalBrowserOperator REMOVED (Phase 1): delegation shell, 0 real operations.
+            // MediaGenerationAgent REMOVED (): delegation shell, no real capability.
+            // DocumentProcessorAgent REMOVED (): delegation shell.
+            // LocalBrowserOperator REMOVED (): delegation shell, 0 real operations.
             ResearchAgent(searchTool),
             androidAgent,
             ProductivityAgent(calendarTool, alarmTool, notesTool),
@@ -646,12 +646,12 @@ object ServiceLocator {
         runCatching { skillManagerBackend.reload() }
     }
 
-    /** Task 11.1: AdaptiveIntelligenceEngine — records outcomes for RL-style adaptation. */
+    /** AdaptiveIntelligenceEngine — records outcomes for RL-style adaptation. */
     val adaptiveIntelligenceEngine: com.airi.assistant.agent.learning.AdaptiveIntelligenceEngine by lazy {
         com.airi.assistant.agent.learning.AdaptiveIntelligenceEngine(requireContext())
     }
 
-    /** Task 11.2: PlannerAdaptationEngine — injects learned hints into PlanGenerator. */
+    /** PlannerAdaptationEngine — injects learned hints into PlanGenerator. */
     val plannerAdaptationEngine: com.airi.assistant.agent.adaptation.PlannerAdaptationEngine by lazy {
         com.airi.assistant.agent.adaptation.PlannerAdaptationEngine(requireContext()).also { engine ->
             // Wire adaptations into the shared PlanGenerator instance
@@ -664,7 +664,7 @@ object ServiceLocator {
         com.airi.assistant.agent.planning.PlanGenerator()
     }
 
-    /** Task 11.3: StrategyEvolutionEngine — learns optimal execution strategies over time. */
+    /** StrategyEvolutionEngine — learns optimal execution strategies over time. */
     val strategyEvolutionEngine: com.airi.assistant.agent.adaptation.StrategyEvolutionEngine by lazy {
         com.airi.assistant.agent.adaptation.StrategyEvolutionEngine(
             com.airi.assistant.agent.adaptation.PersistentLearningStore(requireContext())

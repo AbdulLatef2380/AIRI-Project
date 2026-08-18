@@ -136,18 +136,18 @@ class ExecutionFirewall(
         // Rate limit check — before permission check for cheapness.
         if (!bucketFor(agentId).tryConsume()) {
             LoggingService.warn(TAG,
-                "AIRI_RUNTIME FIREWALL_RATE_LIMITED agent=$agentId tool=$toolName")
+                "AIRI FIREWALL_RATE_LIMITED agent=$agentId tool=$toolName")
             throw RateLimitException(agentId, toolName)
         }
 
         val permission = toolPermissionMap[toolName.lowercase()]
             ?: run {
-                LoggingService.warn(TAG, "AIRI_RUNTIME FIREWALL_UNKNOWN_TOOL agent=$agentId tool=$toolName")
+                LoggingService.warn(TAG, "AIRI FIREWALL_UNKNOWN_TOOL agent=$agentId tool=$toolName")
                 throw UnknownToolException(agentId, toolName)
             }
 
         registry.require(agentId, permission)
-        LoggingService.debug(TAG, "AIRI_RUNTIME FIREWALL_ALLOWED agent=$agentId tool=$toolName permission=$permission")
+        LoggingService.debug(TAG, "AIRI FIREWALL_ALLOWED agent=$agentId tool=$toolName permission=$permission")
     }
 
     /**

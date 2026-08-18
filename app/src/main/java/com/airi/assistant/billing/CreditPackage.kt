@@ -24,7 +24,7 @@ enum class CreditPackage(
         displayName     = "Starter Pack",
         credits         = 500,
         priceUsdCents   = 199,
-        emoji           = "🚀",
+        emoji           = "",
         highlight       = null,
         bonusPercent    = 0
     ),
@@ -33,7 +33,7 @@ enum class CreditPackage(
         displayName     = "Basic Pack",
         credits         = 1_500,
         priceUsdCents   = 499,
-        emoji           = "⚡",
+        emoji           = "",
         highlight       = null,
         bonusPercent    = 0
     ),
@@ -42,7 +42,7 @@ enum class CreditPackage(
         displayName     = "Pro Pack",
         credits         = 5_000,
         priceUsdCents   = 1_499,
-        emoji           = "🌟",
+        emoji           = "",
         highlight       = "Best Value",
         bonusPercent    = 25
     ),
@@ -51,7 +51,7 @@ enum class CreditPackage(
         displayName     = "Power Pack",
         credits         = 15_000,
         priceUsdCents   = 3_999,
-        emoji           = "💎",
+        emoji           = "",
         highlight       = "Most Popular",
         bonusPercent    = 50
     ),
@@ -60,7 +60,7 @@ enum class CreditPackage(
         displayName     = "Enterprise Pack",
         credits         = 50_000,
         priceUsdCents   = 9_999,
-        emoji           = "🏢",
+        emoji           = "",
         highlight       = "Maximum",
         bonusPercent    = 100
     );

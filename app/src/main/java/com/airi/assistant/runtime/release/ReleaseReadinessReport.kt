@@ -79,7 +79,7 @@ class ReleaseReadinessReport(private val context: Context) {
 
     fun generate() {
         scope.launch {
-            Log.i(TAG, "AIRI_RUNTIME RELEASE_REPORT_GENERATING")
+            Log.i(TAG, "AIRI RELEASE_REPORT_GENERATING")
             val report = buildReport()
             _report.value = report
             logReport(report)

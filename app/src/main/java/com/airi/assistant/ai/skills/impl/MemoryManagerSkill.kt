@@ -17,7 +17,7 @@ class MemoryManagerSkill(private val context: Context) : AiriSkill {
     override val version    = "1.0.0"
     override val author     = "AIRI Official"
     override val category   = "AI"
-    override val iconEmoji  = "🧠"
+    override val iconEmoji  = ""
     override val isOfficial = true
     override val memoryAccess = SkillMemoryAccess.FULL_ACCESS
     override val modelAccess  = SkillModelAccess.NONE

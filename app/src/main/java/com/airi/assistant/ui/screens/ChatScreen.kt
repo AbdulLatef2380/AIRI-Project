@@ -1820,10 +1820,10 @@ fun ChatMessageList(
                 // Suggestion chips — quick starter prompts
                 Spacer(Modifier.height(28.dp))
                 val suggestions = listOf(
-                    "✍️  Draft an email" to "Help me write a professional email",
-                    "📊  Analyze data" to "Analyze this data and explain the trends",
-                    "💡  Brainstorm ideas" to "Give me 10 creative ideas for",
-                    "🔍  Research topic" to "Research and summarize the topic:"
+                    "  Draft an email" to "Help me write a professional email",
+                    "  Analyze data" to "Analyze this data and explain the trends",
+                    "  Brainstorm ideas" to "Give me 10 creative ideas for",
+                    "  Research topic" to "Research and summarize the topic:"
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     suggestions.chunked(2).forEach { row ->
@@ -2193,7 +2193,7 @@ fun AiBubble(
                                 Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(12.dp))
                                 Spacer(Modifier.width(4.dp))
                                 Text(
-                                    text = "⚙ ${agentTag ?: "Agent"} · ${trace.stepCount} ${if (traceExpanded) "▲" else "▼"}",
+                                    text = " ${agentTag ?: "Agent"} · ${trace.stepCount} ${if (traceExpanded) "▲" else "▼"}",
                                     color = CosmicAccent.copy(0.85f), fontSize = 10.sp, fontWeight = FontWeight.Medium
                                 )
                             }
@@ -2226,7 +2226,7 @@ fun AiBubble(
                         modifier = Modifier.clip(AIRIShapes.xl).background(CosmicAccent.copy(0.12f))
                             .border(0.5.dp, CosmicAccent.copy(0.35f), AIRIShapes.xl).padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
-                        Text("⚙ $agentTag", color = CosmicAccent.copy(0.85f), fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                        Text(" $agentTag", color = CosmicAccent.copy(0.85f), fontSize = 10.sp, fontWeight = FontWeight.Medium)
                     }
                 }
                 if (execOrigin.isVisible) {

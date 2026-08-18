@@ -20,7 +20,7 @@ import org.json.JSONObject
  *   "author":            "AIRI Official",
  *   "category":          "SEARCH",
  *   "is_official":       true,
- *   "icon_emoji":        "🔍",
+ *   "icon_emoji":        "",
  *   "permissions":       ["INTERNET"],
  *   "memory_access":     "READ_WRITE",
  *   "model_access":      "NONE",
@@ -49,7 +49,7 @@ data class SkillManifest(
     val author:            String,
     val category:          String             = "UTILITY",
     val isOfficial:        Boolean            = false,
-    val iconEmoji:         String             = "🔧",
+    val iconEmoji:         String             = "",
     val permissions:       List<String>       = emptyList(),
     val memoryAccess:      SkillMemoryAccess  = SkillMemoryAccess.NONE,
     val modelAccess:       SkillModelAccess   = SkillModelAccess.NONE,
@@ -193,7 +193,7 @@ data class SkillManifest(
                 author            = json.optString("author", "Unknown"),
                 category          = json.optString("category", "UTILITY"),
                 isOfficial        = json.optBoolean("is_official"),
-                iconEmoji         = json.optString("icon_emoji", "🔧"),
+                iconEmoji         = json.optString("icon_emoji", ""),
                 permissions       = parseStringList(json.optJSONArray("permissions")),
                 memoryAccess      = runCatching {
                     SkillMemoryAccess.valueOf(json.optString("memory_access", "NONE").uppercase())

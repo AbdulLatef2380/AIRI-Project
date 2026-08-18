@@ -16,7 +16,7 @@ import com.google.firebase.auth.OAuthProvider
 /**
  * AuthService — canonical authentication facade.
  *
- * ── Phase 2, Task 3: AuthService Enforcement ──────────────────────────────────
+ * ── , AuthService Enforcement ──────────────────────────────────
  * All authentication operations (sign-in, OAuth, sign-out, account deletion)
  * now route through this class. UI layers must never call
  * [FirebaseAuth.getInstance()] directly; instead they depend on this service
@@ -28,13 +28,13 @@ import com.google.firebase.auth.OAuthProvider
  *
  * ── Audit ─────────────────────────────────────────────────────────────────────
  * Every authentication event emits an [AppEvent] to [EventBus], logs an
- * AIRI_RUNTIME line to logcat, AND writes to [AuditRepository] so the persistent
+ * AIRI line to logcat, AND writes to [AuditRepository] so the persistent
  * audit trail (Room DB) captures every session boundary.
  *
- * ── Phase 2, Task 10: AuditRepository Integration ─────────────────────────────
+ * ── , AuditRepository Integration ─────────────────────────────
  * [auditRepository] is injected from [com.airi.assistant.core.ServiceLocator].
  * The default is null so AuthService remains constructable without a DB context
- * (e.g., in unit tests). When null, only the logcat AIRI_RUNTIME line is written.
+ * (e.g., in unit tests). When null, only the logcat AIRI line is written.
  */
 class AuthService(
     private val auditRepository: AuditRepository? = null
@@ -49,7 +49,7 @@ class AuthService(
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     val uid = firebaseAuth.currentUser?.uid ?: "unknown"
-                    Log.i(TAG, "AIRI_RUNTIME AUTH_SIGN_IN provider=email uid=$uid")
+                    Log.i(TAG, "AIRI AUTH_SIGN_IN provider=email uid=$uid")
                     auditRepository?.info("AUTH", "AUTH_SIGN_IN provider=email uid=$uid")
                     EventBus.emitSync(AppEvent.UserSignedIn(uid, "email"))
                     onResult(null)
@@ -60,7 +60,7 @@ class AuthService(
                     )
                     AppErrorHandler.log(error)
                     EventBus.emitSync(AppEvent.AuthFailed(error.message))
-                    Log.w(TAG, "AIRI_RUNTIME AUTH_SIGN_IN_FAILED provider=email reason=${error.message}")
+                    Log.w(TAG, "AIRI AUTH_SIGN_IN_FAILED provider=email reason=${error.message}")
                     auditRepository?.warn("AUTH", "AUTH_SIGN_IN_FAILED provider=email reason=${error.message}")
                     onResult(AppErrorHandler.toUserMessage(error))
                 }
@@ -72,7 +72,7 @@ class AuthService(
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     val uid = firebaseAuth.currentUser?.uid ?: "unknown"
-                    Log.i(TAG, "AIRI_RUNTIME AUTH_CREATE_ACCOUNT provider=email uid=$uid")
+                    Log.i(TAG, "AIRI AUTH_CREATE_ACCOUNT provider=email uid=$uid")
                     auditRepository?.info("AUTH", "AUTH_CREATE_ACCOUNT provider=email uid=$uid")
                     EventBus.emitSync(AppEvent.UserSignedIn(uid, "email_create"))
                     onResult(null)
@@ -83,7 +83,7 @@ class AuthService(
                     )
                     AppErrorHandler.log(error)
                     EventBus.emitSync(AppEvent.AuthFailed(error.message))
-                    Log.w(TAG, "AIRI_RUNTIME AUTH_CREATE_ACCOUNT_FAILED provider=email reason=${error.message}")
+                    Log.w(TAG, "AIRI AUTH_CREATE_ACCOUNT_FAILED provider=email reason=${error.message}")
                     auditRepository?.warn("AUTH", "AUTH_CREATE_ACCOUNT_FAILED provider=email reason=${error.message}")
                     onResult(AppErrorHandler.toUserMessage(error))
                 }
@@ -107,13 +107,13 @@ class AuthService(
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     val uid = firebaseAuth.currentUser?.uid ?: "unknown"
-                    Log.i(TAG, "AIRI_RUNTIME AUTH_SIGN_IN provider=google uid=$uid")
+                    Log.i(TAG, "AIRI AUTH_SIGN_IN provider=google uid=$uid")
                     auditRepository?.info("AUTH", "AUTH_SIGN_IN provider=google uid=$uid")
                     EventBus.emitSync(AppEvent.UserSignedIn(uid, "google"))
                     onResult(null)
                 } else {
                     val msg = task.exception?.localizedMessage ?: "Google sign-in failed"
-                    Log.w(TAG, "AIRI_RUNTIME AUTH_SIGN_IN_FAILED provider=google reason=$msg")
+                    Log.w(TAG, "AIRI AUTH_SIGN_IN_FAILED provider=google reason=$msg")
                     auditRepository?.warn("AUTH", "AUTH_SIGN_IN_FAILED provider=google reason=$msg")
                     EventBus.emitSync(AppEvent.AuthFailed(msg))
                     onResult(msg)
@@ -140,7 +140,7 @@ class AuthService(
         firebaseAuth.startActivityForSignInWithProvider(activity, provider.build())
             .addOnSuccessListener {
                 val uid = firebaseAuth.currentUser?.uid ?: "unknown"
-                Log.i(TAG, "AIRI_RUNTIME AUTH_SIGN_IN provider=github uid=$uid")
+                Log.i(TAG, "AIRI AUTH_SIGN_IN provider=github uid=$uid")
                 auditRepository?.info("AUTH", "AUTH_SIGN_IN provider=github uid=$uid")
                 EventBus.emitSync(AppEvent.UserSignedIn(uid, "github"))
                 onSuccess()
@@ -153,7 +153,7 @@ class AuthService(
                         "Network error. Check your connection."
                     else -> "GitHub sign-in failed: ${e.localizedMessage}"
                 }
-                Log.w(TAG, "AIRI_RUNTIME AUTH_SIGN_IN_FAILED provider=github reason=${e.message}")
+                Log.w(TAG, "AIRI AUTH_SIGN_IN_FAILED provider=github reason=${e.message}")
                 auditRepository?.warn("AUTH", "AUTH_SIGN_IN_FAILED provider=github reason=${e.message}")
                 EventBus.emitSync(AppEvent.AuthFailed(msg))
                 onFailure(msg)
@@ -164,13 +164,13 @@ class AuthService(
 
     fun signOut() {
         val uid = firebaseAuth.currentUser?.uid ?: "unknown"
-        Log.i(TAG, "AIRI_RUNTIME AUTH_SIGN_OUT uid=$uid")
+        Log.i(TAG, "AIRI AUTH_SIGN_OUT uid=$uid")
         auditRepository?.info("AUTH", "AUTH_SIGN_OUT uid=$uid")
         EventBus.emitSync(AppEvent.UserSignedOut())
         firebaseAuth.signOut()
     }
 
-    // ── GDPR Account Deletion (Task 4) ────────────────────────────────────────
+    // ── GDPR Account Deletion () ────────────────────────────────────────
 
     /**
      * Permanently delete the current user's account.
@@ -196,14 +196,14 @@ class AuthService(
     fun deleteAccount(onComplete: (Boolean, String?) -> Unit) {
         val user = firebaseAuth.currentUser
         if (user == null) {
-            Log.w(TAG, "AIRI_RUNTIME AUTH_DELETE_ACCOUNT_FAIL reason=no_current_user")
+            Log.w(TAG, "AIRI AUTH_DELETE_ACCOUNT_FAIL reason=no_current_user")
             auditRepository?.warn("AUTH", "AUTH_DELETE_ACCOUNT_FAIL reason=no_current_user")
             onComplete(false, "No signed-in account to delete.")
             return
         }
 
         val uid = user.uid
-        Log.i(TAG, "AIRI_RUNTIME AUTH_DELETE_ACCOUNT_INITIATED uid=$uid")
+        Log.i(TAG, "AIRI AUTH_DELETE_ACCOUNT_INITIATED uid=$uid")
         auditRepository?.log("AUTH", "AUTH_DELETE_ACCOUNT_INITIATED uid=$uid", AuditLogEntity.Level.WARN)
 
         // Force a token refresh to validate session freshness before deletion.
@@ -211,7 +211,7 @@ class AuthService(
             .addOnCompleteListener { tokenTask ->
                 if (!tokenTask.isSuccessful) {
                     Log.w(TAG,
-                        "AIRI_RUNTIME AUTH_DELETE_ACCOUNT_TOKEN_REFRESH_FAILED uid=$uid " +
+                        "AIRI AUTH_DELETE_ACCOUNT_TOKEN_REFRESH_FAILED uid=$uid " +
                         "reason=${tokenTask.exception?.message}"
                     )
                     auditRepository?.warn("AUTH",
@@ -223,7 +223,7 @@ class AuthService(
                 user.delete()
                     .addOnCompleteListener { deleteTask ->
                         if (deleteTask.isSuccessful) {
-                            Log.i(TAG, "AIRI_RUNTIME AUTH_DELETE_ACCOUNT_SUCCESS uid=$uid")
+                            Log.i(TAG, "AIRI AUTH_DELETE_ACCOUNT_SUCCESS uid=$uid")
                             auditRepository?.log("AUTH",
                                 "AUTH_DELETE_ACCOUNT_SUCCESS uid=$uid",
                                 AuditLogEntity.Level.WARN)
@@ -235,7 +235,7 @@ class AuthService(
                             val msg = deleteTask.exception?.localizedMessage
                                 ?: "Account deletion failed"
                             Log.e(TAG,
-                                "AIRI_RUNTIME AUTH_DELETE_ACCOUNT_FAILED uid=$uid reason=$msg"
+                                "AIRI AUTH_DELETE_ACCOUNT_FAILED uid=$uid reason=$msg"
                             )
                             auditRepository?.error("AUTH",
                                 "AUTH_DELETE_ACCOUNT_FAILED uid=$uid reason=$msg")

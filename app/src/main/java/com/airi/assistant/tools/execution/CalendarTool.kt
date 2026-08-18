@@ -207,7 +207,7 @@ class CalendarTool(private val context: Context) {
         if (events.isEmpty()) return "No events found."
         return events.joinToString("\n") { e ->
             val time = if (e.allDay) "All day" else "${formatTime(e.startMs)} – ${formatTime(e.endMs)}"
-            "• ${e.title}  [$time]${if (e.location.isNotBlank()) "  📍${e.location}" else ""}"
+            "• ${e.title}  [$time]${if (e.location.isNotBlank()) "  ${e.location}" else ""}"
         }
     }
 

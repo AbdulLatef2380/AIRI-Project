@@ -128,7 +128,7 @@ class RuntimeHealthMonitor(
      * Records the event to the health report and logs it for crash triage.
      */
     fun recordMemoryPressure(level: Int) {
-        LoggingService.warn(TAG, "AIRI_RUNTIME MEMORY_PRESSURE level=$level")
+        LoggingService.warn(TAG, "AIRI MEMORY_PRESSURE level=$level")
         runCatching {
             crashReporter.reportManual(
                 component = "AIRIApplication",
@@ -150,7 +150,7 @@ class RuntimeHealthMonitor(
         isRunning = true
         sessionStartMs.set(System.currentTimeMillis())
         scope.launch {
-            LoggingService.info(TAG, "AIRI_RUNTIME HEALTH_MONITOR_STARTED")
+            LoggingService.info(TAG, "AIRI HEALTH_MONITOR_STARTED")
             while (isActive) {
                 runCatching { check() }
                     .onFailure { e ->
@@ -175,11 +175,11 @@ class RuntimeHealthMonitor(
         val lowDisk   = diskFreeMb  < LOW_DISK_MB
 
         if (lowMemory) {
-            LoggingService.warn(TAG, "AIRI_RUNTIME HEALTH_LOW_MEMORY heapAvailMb=$heapAvailMb")
+            LoggingService.warn(TAG, "AIRI HEALTH_LOW_MEMORY heapAvailMb=$heapAvailMb")
             crashReporter.reportManual("health_monitor", "LOW_MEMORY", "Heap available: ${heapAvailMb}MB")
         }
         if (lowDisk) {
-            LoggingService.warn(TAG, "AIRI_RUNTIME HEALTH_LOW_DISK diskFreeMb=$diskFreeMb")
+            LoggingService.warn(TAG, "AIRI HEALTH_LOW_DISK diskFreeMb=$diskFreeMb")
             crashReporter.reportManual("health_monitor", "LOW_DISK", "Free disk: ${diskFreeMb}MB")
         }
 
@@ -187,7 +187,7 @@ class RuntimeHealthMonitor(
         val sessionAge    = now - sessionStartMs.get()
         val sessionWarn   = sessionAge > SESSION_WARN_MS
         if (sessionWarn) {
-            LoggingService.warn(TAG, "AIRI_RUNTIME HEALTH_LONG_SESSION ageMs=$sessionAge")
+            LoggingService.warn(TAG, "AIRI HEALTH_LONG_SESSION ageMs=$sessionAge")
         }
 
         // ── Orphan coroutine detection ─────────────────────────────────────
@@ -199,7 +199,7 @@ class RuntimeHealthMonitor(
         val orphanWarn = liveCoroutines.size > ORPHAN_WARN_COUNT || orphanKeys.isNotEmpty()
         if (orphanWarn) {
             LoggingService.warn(TAG,
-                "AIRI_RUNTIME HEALTH_ORPHAN_COROUTINES count=${liveCoroutines.size} suspects=${orphanKeys.size}")
+                "AIRI HEALTH_ORPHAN_COROUTINES count=${liveCoroutines.size} suspects=${orphanKeys.size}")
             crashReporter.reportManual("health_monitor", "ORPHAN_COROUTINES",
                 "Live=${liveCoroutines.size} suspects=${orphanKeys.take(5)}")
         }
@@ -210,7 +210,7 @@ class RuntimeHealthMonitor(
         }.keys.toList()
         if (stuckAgentIds.isNotEmpty()) {
             LoggingService.warn(TAG,
-                "AIRI_RUNTIME HEALTH_STUCK_AGENTS count=${stuckAgentIds.size} ids=${stuckAgentIds.take(3)}")
+                "AIRI HEALTH_STUCK_AGENTS count=${stuckAgentIds.size} ids=${stuckAgentIds.take(3)}")
             crashReporter.reportManual("health_monitor", "STUCK_AGENTS",
                 "Stuck: ${stuckAgentIds.take(3)}")
         }
@@ -221,7 +221,7 @@ class RuntimeHealthMonitor(
         val saturated = emits > drains * 2 && emits > 100
         if (saturated) {
             LoggingService.warn(TAG,
-                "AIRI_RUNTIME HEALTH_BUS_SATURATION emits=$emits drains=$drains")
+                "AIRI HEALTH_BUS_SATURATION emits=$emits drains=$drains")
         }
 
         val report = HealthReport(
@@ -242,7 +242,7 @@ class RuntimeHealthMonitor(
         _health.value = report
 
         LoggingService.info(TAG,
-            "AIRI_RUNTIME HEALTH_CHECK healthy=${report.isHealthy} " +
+            "AIRI HEALTH_CHECK healthy=${report.isHealthy} " +
             "heap=${heapAvailMb}MB session=${sessionAge/1000}s coroutines=${liveCoroutines.size}")
 
         return report

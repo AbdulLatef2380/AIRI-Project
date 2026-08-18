@@ -3,7 +3,7 @@ package com.airi.assistant.world
 /**
  * WorldState — A snapshot of device + environment state at a point in time.
  *
- * Extended (Phase 5) with causal model fields:
+ * Extended () with causal model fields:
  *   - [expectation]       The planner's predicted state after an action.
  *   - [confidence]        How confident the system is that this snapshot is accurate.
  *   - [causalOrigin]      Which action produced this state (for consequence tracking).
@@ -18,7 +18,7 @@ data class WorldState(
     val topAppPackage:      String?,
     val timestamp:          Long    = System.currentTimeMillis(),
 
-    // ── Causal world model (Phase 5) ─────────────────────────────────────────
+    // ── Causal world model () ─────────────────────────────────────────
     /** Expected state the planner predicted before executing an action. Null on first snapshot. */
     val expectation:        WorldStateExpectation? = null,
     /** Confidence score 0.0–1.0 for this state snapshot (degrades with staleness). */

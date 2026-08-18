@@ -38,10 +38,10 @@ object TrustScoringEngine {
         val description:   String,
         val sandboxLevel:  SandboxLevel
     ) {
-        UNVERIFIED("Unverified",  "⚠️",  0,  "New or unreviewed skill. Runs in restricted sandbox.", SandboxLevel.RESTRICTED),
-        BASIC     ("Basic",       "🔵", 40,  "Community-reviewed. Standard sandbox access.",         SandboxLevel.STANDARD),
-        TRUSTED   ("Trusted",     "✅", 60,  "Well-established skill with strong track record.",     SandboxLevel.RELAXED),
-        VERIFIED  ("Verified",    "🏅", 80,  "Publisher verified by AIRI. Full capabilities.",       SandboxLevel.FULL);
+        UNVERIFIED("Unverified",  "",  0,  "New or unreviewed skill. Runs in restricted sandbox.", SandboxLevel.RESTRICTED),
+        BASIC     ("Basic",       "", 40,  "Community-reviewed. Standard sandbox access.",         SandboxLevel.STANDARD),
+        TRUSTED   ("Trusted",     "", 60,  "Well-established skill with strong track record.",     SandboxLevel.RELAXED),
+        VERIFIED  ("Verified",    "", 80,  "Publisher verified by AIRI. Full capabilities.",       SandboxLevel.FULL);
 
         companion object {
             fun forScore(score: Int): TrustTier =

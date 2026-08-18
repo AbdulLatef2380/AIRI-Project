@@ -171,7 +171,7 @@ object PerceptionFusion {
             sourceIds     = sources
         )
 
-        Log.i(TAG, "AIRI_RUNTIME PERCEPTION_FUSED modalities=${fused.modalityLabel} " +
+        Log.i(TAG, "AIRI PERCEPTION_FUSED modalities=${fused.modalityLabel} " +
             "confidence=${"%.2f".format(confidence)} " +
             "primaryLen=${primaryText.length}")
 

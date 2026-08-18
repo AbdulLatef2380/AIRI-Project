@@ -115,8 +115,12 @@ android {
         debug {
             // Keep debug builds unminified for readable stack traces.
             isMinifyEnabled = false
-            // AIRI_EXECUTE_GRAPH_ENABLED is now enabled globally in defaultConfig (Phase 7).
-            // No per-variant override needed here.
+
+            // CI instrumentation runs on an x86_64 emulator. Release artifacts remain
+            // arm64-v8a-only through the default configuration above.
+            ndk {
+                abiFilters += "x86_64"
+            }
         }
     }
 

@@ -77,9 +77,7 @@ jobs:
           adb wait-for-device
           test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
           test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = "29"
-          ./gradlew --no-daemon --max-workers=1 \
-            '-Dorg.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseSerialGC' \
-            :app:connectedDebugAndroidTest --stacktrace
+          ./gradlew --no-daemon --max-workers=1 '-Dorg.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseSerialGC' :app:connectedDebugAndroidTest --stacktrace
 
     - name: Verify native library output
       run: |

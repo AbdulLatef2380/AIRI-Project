@@ -59,13 +59,27 @@ jobs:
       if: always()
       run: rm -f release.keystore
 
+    - name: Prepare Android instrumentation APKs
+      run: |
+        ./gradlew --no-daemon --max-workers=1 \
+          '-Dorg.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseSerialGC' \
+          :app:assembleDebugAndroidTest --stacktrace
+
     - name: Run Android instrumentation tests
       uses: reactivecircus/android-emulator-runner@v2
       with:
         api-level: 29
         target: default
         arch: x86_64
-        script: ./gradlew :app:connectedDebugAndroidTest --stacktrace
+        disable-animations: true
+        emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+        script: |
+          adb wait-for-device
+          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
+          test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = "29"
+          ./gradlew --no-daemon --max-workers=1 \
+            '-Dorg.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseSerialGC' \
+            :app:connectedDebugAndroidTest --stacktrace
 
     - name: Verify native library output
       run: |

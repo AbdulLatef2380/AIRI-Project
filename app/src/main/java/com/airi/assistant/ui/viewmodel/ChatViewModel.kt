@@ -1769,7 +1769,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 if (isCurrentGeneration(generationId) && !_isCancelled.get()) {
-                    Log.e("AIRI_LOOP", "AgentLoop error: ${e.message}")
+                    Log.e("AIRI_LOOP", "AgentLoop failed type=${e.javaClass.simpleName}")
                     val errMsg = appContext.getString(R.string.err_generation_failed)
                     val errRec = memoryManager.recordChatMessage(sessionId, "assistant", errMsg)
                     _messages.update { it + ChatMessage(errMsg, isUser = false, id = errRec.id) }

@@ -183,9 +183,9 @@ class DataDeletionCoordinator(
         if (authError != null) {
             val needsReauth = authError.contains("requires recent", ignoreCase = true) ||
                               authError.contains("RecentLoginRequired",  ignoreCase = true)
-            Log.w(TAG, "AIRI GDPR_DELETE_FIREBASE_FAILED requiresReauth=$needsReauth reason=$authError")
+            Log.w(TAG, "AIRI GDPR_DELETE_FIREBASE_FAILED requiresReauth=$needsReauth errorChars=${authError.length}")
             auditRepository.error("GDPR",
-                "GDPR_DELETE_FIREBASE_FAILED requiresReauth=$needsReauth reason=$authError")
+                "GDPR_DELETE_FIREBASE_FAILED requiresReauth=$needsReauth errorChars=${authError.length}")
             return DeletionResult.FirebaseAuthFailed(authError, needsReauth)
         }
         completed += Step.FIREBASE_ACCOUNT_DELETION
@@ -311,10 +311,10 @@ class DataDeletionCoordinator(
             }
             .onFailure { t ->
                 failures += StepFailure(step, t)
-                Log.e(TAG, "GDPR_STEP_FAILED step=${step.name} reason=${t.message}", t)
+                Log.e(TAG, "GDPR_STEP_FAILED step=${step.name} type=${t.javaClass.simpleName}")
                 runCatching {
                     auditRepository.error("GDPR",
-                        "GDPR_STEP_FAILED step=${step.name} reason=${t.javaClass.simpleName}: ${t.message}")
+                        "GDPR_STEP_FAILED step=${step.name} type=${t.javaClass.simpleName}")
                 }
             }
     }

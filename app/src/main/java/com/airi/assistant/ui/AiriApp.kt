@@ -148,11 +148,8 @@ object AiriRoute {
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 
-    // ──  new routes (Tasks 1.6, 5.1, 5.2, 5.3, 6.2, 8.1, 9.1) ────────
     const val WELCOME              = "screen_welcome"
     const val PLANNING_DASHBOARD   = "screen_planning_dashboard"
-    const val PROTOTYPE_BUILDER    = "screen_prototype_builder"
-    const val WIREFRAME_BUILDER    = "screen_wireframe_builder"
     const val GIT_REPOSITORY       = "screen_git_repository"
     const val SECURITY_SCANNER     = "screen_security_scanner"
     const val SECRET_MANAGER       = "screen_secret_manager"
@@ -711,24 +708,6 @@ fun AiriApp() {
                     composable(AiriRoute.PLANNING_DASHBOARD) {
                         PlanningDashboardScreen(
                             onBack = { navController.popBackStack() }
-                        )
-                    }
-
-                    // ── Prototype Builder ───────────────────────────
-                    composable(AiriRoute.PROTOTYPE_BUILDER) {
-                        WorkspaceScreen(
-                            sessionType = "prototype",
-                            onBack      = { navController.popBackStack() },
-                            onNavigate  = { route -> navController.navigate(route) }
-                        )
-                    }
-
-                    // ── Wireframe Builder ───────────────────────────
-                    composable(AiriRoute.WIREFRAME_BUILDER) {
-                        WorkspaceScreen(
-                            sessionType = "wireframe",
-                            onBack      = { navController.popBackStack() },
-                            onNavigate  = { route -> navController.navigate(route) }
                         )
                     }
 

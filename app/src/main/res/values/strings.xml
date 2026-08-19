@@ -110,7 +110,6 @@
     <string name="continue_with_github">Continue with GitHub</string>
     <string name="speak_to_airi">Speak to AIRI</string>
     <string name="microphone_permission_required">Microphone permission is required for voice input</string>
-    <string name="export_coming_soon">Export coming soon</string>
     <string name="attach">Attach</string>
     <string name="pick_image">Pick image</string>
     <string name="pick_file">Pick file</string>
@@ -405,9 +404,7 @@
     <string name="light_theme_coming">Light theme coming in next update</string>
     <string name="voice_mode_prepared">Voice mode is wired up for Vosk (speech-to-text) and Picovoice wake-word.</string>
     <string name="export_coming_next_update">Export coming in next update</string>
-    <string name="file_selected_coming_soon">File selected — attachment support coming soon</string>
     <string name="image_selected_coming_soon">Image attachments are not enabled in this build</string>
-    <string name="camera_coming_soon">Camera (coming soon)</string>
 
     <!-- Voice & wake-word (Vosk + Porcupine, fully offline) -->
     <string name="voice_and_wakeword">Voice &amp; Wake Word</string>

@@ -70,13 +70,10 @@
     <string name="sign_out">退出登录</string>
     <string name="speak_to_airi">对 AIRI 说话</string>
     <string name="microphone_permission_required">语音输入需要麦克风权限</string>
-    <string name="file_selected_coming_soon">已选择文件 — 附件支持即将推出</string>
     <string name="image_selected_coming_soon">此版本未启用图片附件功能</string>
-    <string name="export_coming_soon">导出功能即将推出</string>
     <string name="attach">附加</string>
     <string name="pick_image">选择图片</string>
     <string name="pick_file">选择文件</string>
-    <string name="camera_coming_soon">相机（即将推出）</string>
     <string name="menu">菜单</string>
     <string name="app_agent_title">AIRI 助手</string>
     <string name="app_agent_mode_title">AIRI 助手 • %1$s</string>

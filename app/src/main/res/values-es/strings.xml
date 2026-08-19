@@ -70,13 +70,10 @@
     <string name="sign_out">Cerrar sesión</string>
     <string name="speak_to_airi">Habla con AIRI</string>
     <string name="microphone_permission_required">Se requiere permiso de micrófono para la entrada de voz</string>
-    <string name="file_selected_coming_soon">Archivo seleccionado — el soporte de adjuntos llegará pronto</string>
     <string name="image_selected_coming_soon">Los adjuntos de imagen no están habilitados en esta versión</string>
-    <string name="export_coming_soon">La exportación llegará pronto</string>
     <string name="attach">Adjuntar</string>
     <string name="pick_image">Elegir imagen</string>
     <string name="pick_file">Elegir archivo</string>
-    <string name="camera_coming_soon">Cámara (próximamente)</string>
     <string name="menu">Menú</string>
     <string name="app_agent_title">Agente AIRI</string>
     <string name="app_agent_mode_title">Agente AIRI • %1$s</string>

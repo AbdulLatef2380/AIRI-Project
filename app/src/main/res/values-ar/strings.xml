@@ -104,13 +104,10 @@
     <string name="sign_out">تسجيل الخروج</string>
     <string name="speak_to_airi">تحدث إلى AIRI</string>
     <string name="microphone_permission_required">إذن الميكروفون مطلوب للإدخال الصوتي</string>
-    <string name="file_selected_coming_soon">تم اختيار ملف — دعم المرفقات قريبًا</string>
     <string name="image_selected_coming_soon">إرفاق الصور غير مُفعَّل في هذه النسخة</string>
-    <string name="export_coming_soon">التصدير قريبًا</string>
     <string name="attach">إرفاق</string>
     <string name="pick_image">اختيار صورة</string>
     <string name="pick_file">اختيار ملف</string>
-    <string name="camera_coming_soon">الكاميرا (قريبًا)</string>
     <string name="menu">القائمة</string>
     <string name="app_agent_title">وكيل AIRI</string>
     <!-- لا تُضِف %1$s هنا — يُستدعى بدون formatArgs ويظهر اسم النموذج في السطر الفرعي -->

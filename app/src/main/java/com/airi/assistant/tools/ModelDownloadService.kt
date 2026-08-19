@@ -73,7 +73,7 @@ class ModelDownloadService : Service() {
             val tempFile = File(modelsDir, "$fileName.part")
             var success = false
             var lastError: String? = null
-            for (attempt in 1..3) {
+            for (attempt in 1..MAX_DOWNLOAD_ATTEMPTS) {
                 try {
                     if (tempFile.exists()) tempFile.delete()
                     if (cancelRequested.get()) throw InterruptedException("user_cancel_pre_start")
@@ -115,7 +115,7 @@ class ModelDownloadService : Service() {
                         Log.i("AIRI_DOWNLOAD", "DOWNLOAD_CANCELLED fileName=$fileName phase=retry")
                         break
                     }
-                    if (attempt < 3) kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) { kotlinx.coroutines.delay(1500L * attempt) }
+                    if (attempt < MAX_DOWNLOAD_ATTEMPTS && !awaitRetry(attempt)) break
                 }
             }
             if (!success) {
@@ -135,6 +135,14 @@ class ModelDownloadService : Service() {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }.start()
+    }
+
+    private fun awaitRetry(attempt: Int): Boolean = try {
+        Thread.sleep(RETRY_BACKOFF_MS * attempt)
+        !cancelRequested.get()
+    } catch (_: InterruptedException) {
+        Thread.currentThread().interrupt()
+        false
     }
 
     private fun downloadToFile(url: String, destination: File) {
@@ -183,6 +191,9 @@ class ModelDownloadService : Service() {
     }
 
     companion object {
+        private const val MAX_DOWNLOAD_ATTEMPTS = 3
+        private const val RETRY_BACKOFF_MS = 1_500L
+
         const val EXTRA_DOWNLOAD_URL = "download_url"
         const val EXTRA_FILENAME = "download_filename"
         const val EXTRA_EXPECTED_SIZE_BYTES = "download_expected_size_bytes"

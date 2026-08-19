@@ -48,9 +48,7 @@ import com.airi.assistant.R
 fun WorkspaceScreen(
     onBack: () -> Unit,
     onOpenChat: () -> Unit = {},
-    onNavigate: (String) -> Unit = {},
-    
-    sessionType: String? = null
+    onNavigate: (String) -> Unit = {}
 ) {
     val workspaceRuntime = ServiceLocator.workspaceRuntime
     val artifactManager  = ServiceLocator.artifactManager

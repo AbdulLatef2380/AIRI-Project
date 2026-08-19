@@ -32,8 +32,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -608,10 +606,8 @@ fun ChatScreen(
                 onGenSettings     = { showMenu = false; showGenSettings = true },
                 onModeSelected    = { viewModel.setAgentMode(it) },
                 onSwitchModel     = { showMenu = false; onNavigate(AiriRoute.MODELS) },
-                onLongPressTitle  = { onNavigate(AiriRoute.DEBUG_SCREEN) },
                 onExportChat      = { showMenu = false; exportChatLauncher.launch(ChatExporter.buildFileName("md")) },
                 onNewChat         = { viewModel.clearMessages() },
-                onMuteToggle      = {},
                 onPointsClick     = { onNavigate(AiriRoute.CREDITS) },
                 onNavigate        = onNavigate
             )
@@ -1203,10 +1199,8 @@ private fun AiriChatTopBar(
     onGenSettings: () -> Unit,
     onModeSelected: (AgentMode) -> Unit,
     onSwitchModel: () -> Unit,
-    onLongPressTitle: () -> Unit = {},
     onExportChat: () -> Unit,
     onNewChat: () -> Unit,
-    onMuteToggle: () -> Unit,
     onPointsClick: () -> Unit = {},
     onNavigate: (String) -> Unit = {}
 ) {
@@ -1261,8 +1255,7 @@ private fun AiriChatTopBar(
                         .background(ModelPillBg)
                         .border(0.5.dp, ModelPillBorder, AIRIShapes.pill)
                         .clickable { onModelPickerOpen() }
-                        .padding(horizontal = 14.dp, vertical = 7.dp)
-                        .pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPressTitle() }) },
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {

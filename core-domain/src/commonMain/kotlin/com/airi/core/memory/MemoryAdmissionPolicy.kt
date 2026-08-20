@@ -1,14 +1,6 @@
-package com.airi.assistant.memory.repository
+package com.airi.core.memory
 
-/**
- * Admission policy for semantic memory.
- *
- * Conversation history and long-term memory are deliberately separate. A chat
- * turn may be retained for the current session, while only a meaningful,
- * non-sensitive turn is eligible for embedding. Durable facts additionally
- * require an explicit request from the user.
- */
-internal object MemoryAdmissionPolicy {
+object MemoryAdmissionPolicy {
 
     data class MessageDecision(
         val shouldEmbed: Boolean,
@@ -63,7 +55,6 @@ internal object MemoryAdmissionPolicy {
         )
     }
 
-    /** Durable facts are deliberately restrictive; identity and credentials are never auto-saved. */
     fun allowExtractedFact(fact: String): Boolean {
         val key = fact.substringBefore('=').lowercase()
         val value = fact.substringAfter('=', "").trim()

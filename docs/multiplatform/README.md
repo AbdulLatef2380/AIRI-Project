@@ -12,7 +12,7 @@
 | نقطة الاستعادة | `checkpoint/cp-main-preflight` عند `c81ecd6b` | فرع منشور قبل أي عمل متعدد المنصات. |
 | فرع العمل | `cp-foundation` | مشتق من `main` ثم يدمج الخط المرجعي في اتجاه واحد فقط لحفظ إصلاحات Android. |
 | اتجاه الدمج المسموح حالياً | `architecture-refactor` → `cp-foundation` | لا يوجد دمج عكسي أو تعديل للخط المحمي. |
-| النواة متعددة المنصات | `ARCHITECTED` | لا توجد بعد وحدة `commonMain` أو منتج Desktop/Web قابل للبناء. |
+| النواة متعددة المنصات | `BUILDS` لنطاق `core-domain` المحدود | سياسة قبول الذاكرة تبني من `commonMain` لاختبار JVM Desktop وAndroid؛ لا يوجد بعد منتج Desktop/Web أو نواة كاملة. |
 
 ## حالة المنصات
 

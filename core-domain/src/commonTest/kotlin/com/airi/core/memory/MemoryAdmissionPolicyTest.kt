@@ -1,13 +1,13 @@
-package com.airi.assistant.memory.repository
+package com.airi.core.memory
 
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class MemoryAdmissionPolicyTest {
 
     @Test
-    fun `sensitive text is never eligible for embedding`() {
+    fun sensitiveTextIsNeverEligibleForEmbedding() {
         val decision = MemoryAdmissionPolicy.decide(
             role = "user",
             content = "My API key is private-value and should stay private."
@@ -19,7 +19,7 @@ class MemoryAdmissionPolicyTest {
     }
 
     @Test
-    fun `short greeting is excluded from semantic memory`() {
+    fun shortGreetingIsExcludedFromSemanticMemory() {
         val decision = MemoryAdmissionPolicy.decide("user", "مرحبا")
 
         assertFalse(decision.shouldEmbed)
@@ -27,7 +27,7 @@ class MemoryAdmissionPolicyTest {
     }
 
     @Test
-    fun `explicit Arabic memory request is eligible when non-sensitive`() {
+    fun explicitArabicMemoryRequestIsEligibleWhenNonSensitive() {
         val decision = MemoryAdmissionPolicy.decide(
             role = "user",
             content = "تذكر أنني أفضل الإجابات المختصرة باللغة العربية في هذا المشروع."
@@ -38,7 +38,7 @@ class MemoryAdmissionPolicyTest {
     }
 
     @Test
-    fun `only safe durable memory categories are accepted`() {
+    fun onlySafeDurableMemoryCategoriesAreAccepted() {
         assertTrue(MemoryAdmissionPolicy.allowExtractedFact("preference=dark theme"))
         assertTrue(MemoryAdmissionPolicy.allowExtractedFact("language=Arabic"))
         assertFalse(MemoryAdmissionPolicy.allowExtractedFact("email=user@example.com"))

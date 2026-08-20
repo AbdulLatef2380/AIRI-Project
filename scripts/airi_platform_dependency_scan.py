@@ -73,8 +73,9 @@ class FileFinding:
 
 
 def relative_sources(repo: Path) -> Iterable[Path]:
-    for root in SOURCE_ROOTS:
-        source_root = repo / root
+    source_roots = [repo / root for root in SOURCE_ROOTS]
+    source_roots.extend(sorted(repo.glob("core-*/src")))
+    for source_root in source_roots:
         if not source_root.exists():
             continue
         for suffix in ("*.kt", "*.java", "*.c", "*.cc", "*.cpp", "*.h", "CMakeLists.txt"):

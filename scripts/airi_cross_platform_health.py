@@ -61,11 +61,15 @@ def kotlin_files(root: Path) -> list[Path]:
 
 
 def common_source_roots(repo: Path) -> list[Path]:
-    return sorted(path for path in repo.glob("core/**/src/commonMain") if path.is_dir())
+    return sorted(
+        path
+        for path in repo.rglob("commonMain")
+        if path.is_dir() and path.parent.name == "src" and "build" not in path.parts
+    )
 
 
 def project_source_roots(repo: Path) -> list[Path]:
-    return sorted(path for path in repo.glob("core/**/src") if path.is_dir())
+    return sorted({path.parent for path in common_source_roots(repo)})
 
 
 def scan_common_sources(repo: Path, findings: list[Finding]) -> tuple[set[str], set[str]]:

@@ -10,7 +10,7 @@
 | chat streaming | `RUNTIME_VERIFIED` في مسار Android المرجعي | `PLANNED` | `PLANNED` | `PLANNED` | provider test، ظهور chunks، recovery. |
 | إلغاء التنفيذ | `RUNTIME_VERIFIED` لبوابة generation في اختبارات Android/JVM | `PLANNED` | `PLANNED` | `PLANNED` | إلغاء أثناء stream ومنع callback قديم. |
 | agent planning/execution | `IMPLEMENTED` في Android، خارج core حتى الآن | `ARCHITECTED` | `ARCHITECTED` | `ARCHITECTED` | core module tests ثم target integration. |
-| memory admission | `RUNTIME_VERIFIED` بمنطق Android واختبارات policy | `ARCHITECTED` | `ARCHITECTED` | `ARCHITECTED` | extraction إلى common، persistence/restart test. |
+| memory admission | `RUNTIME_VERIFIED` بمنطق Android واختبارات policy | `BUILDS` لمنطق policy فقط | `BUILDS` لمنطق policy فقط | `PLANNED` | اختبار `core-domain:desktopTest` يثبت JVM؛ لا persistence أو تطبيق Desktop بعد. |
 | RAG retrieval/ranking | `IMPLEMENTED` في Android | `PLANNED` | `PLANNED` | `PLANNED` | dataset fixture والاسترجاع على target. |
 | cloud models | `IMPLEMENTED`؛ الاتصال بحسابات حقيقية `EXTERNAL_VERIFICATION_REQUIRED` | `PLANNED` | `PLANNED` | `PLANNED` | provider integration آمن ومثبت لكل target. |
 | local models | `IMPLEMENTED` عبر Android JNI؛ فعالية الأجهزة `EXTERNAL_VERIFICATION_REQUIRED` | `PLANNED` | `PLANNED` | `BLOCKED` حتى تثبت دراسة runtime browser | native build + load + inference small model؛ Web يحتاج feasibility منفصلة. |
@@ -34,7 +34,7 @@
 | نطاق | الحالة الحالية | سبب التسمية |
 | --- | --- | --- |
 | AIRI Android | `RUNTIME_VERIFIED` بصورة جزئية ومحددة بالاختبارات الموجودة | لا يتحول هذا الوصف إلى ضمان شامل للمزودين أو hardware أو الحسابات الخارجية. |
-| AIRI Core | `ARCHITECTED` | لدينا حدود وخطة واكتشافات؛ لم تنشأ وحدة KMP بعد. |
+| AIRI Core | `BUILDS` لنطاق `core-domain` المحدود | سياسة قبول الذاكرة واختباراتها تبني على JVM Desktop وAndroid؛ بقية النواة ما زالت `ARCHITECTED` أو `PLANNED`. |
 | AIRI Desktop | `PLANNED` | لا يوجد build أو runtime artifact. |
 | AIRI Web | `PLANNED` | لا يوجد target أو security architecture منفذة. |
 

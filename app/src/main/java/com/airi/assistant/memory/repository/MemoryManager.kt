@@ -2,6 +2,7 @@ package com.airi.assistant.memory.repository
 
 import android.content.Context
 import com.airi.assistant.ai.prompt.MemoryExtractor
+import com.airi.core.memory.MemoryAdmissionPolicy
 import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.memory.dao.ChatSessionSummary
 import com.airi.assistant.memory.embedding.EmbeddingService

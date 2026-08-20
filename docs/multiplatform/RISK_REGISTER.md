@@ -24,6 +24,7 @@
 | CP-18 | عدم توافر جهاز Windows/Linux أو IdP/provider credentials يمنع runtime proof. | مرتفع | متوسط | عالية | التصنيف `EXTERNAL_VERIFICATION_REQUIRED` وتوفير خطة دليل خارجية. | release owner | log/artifact من بيئة target معتمدة. | مفتوحة |
 | CP-19 | بقاء التغييرات المحلية/binaries من build في commit. | متوسط | متوسط | متوسطة | `.gitignore` و`git status` قبل كل commit. | contributor | tree نظيفة وreview للملفات المتعقبة. | مخففة |
 | CP-20 | دمج مبكر إلى `architecture-refactor` يفقد قابلية rollback ويخلط الخط المرجعي. | منخفض | حرج | عالية | branch rule وmerge gate موثقان. | repository owner | لا PR للخط المحمي قبل تحقق جميع شروط الترقية. | مفتوحة |
+| CP-21 | Kotlin Multiplatform 1.9.22 يحذر أن AGP 8.10.1 أعلى من آخر إصدار AGP مختبر له (8.2). | متوسط | مرتفع | عالية | يبقى التحذير ظاهراً، وتُثبت المهام الأساسية في CI قبل أي ترقية؛ يُقيّم تحديث Kotlin/Compose في milestone منفصل لا ضمن extraction. | build owner | توافق رسمي أو CI مستمر ناجح مع النسخة المعتمدة وخطة upgrade/rollback. | مفتوحة |
 
 ## مخاطر خارجية مشروطة
 

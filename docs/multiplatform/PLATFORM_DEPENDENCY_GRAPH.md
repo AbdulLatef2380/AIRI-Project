@@ -65,9 +65,9 @@ flowchart TD
 
 ## نواة قابلة للاستخراج أولاً
 
-يكشف الفحص عن مجموعة واضحة من ملفات السياسات والنماذج من دون Android أو JVM APIs، بما في ذلك `domain/AttachmentPolicy.kt` و`memory/repository/MemoryAdmissionPolicy.kt` و`memory/text/MemoryTextNormalizer.kt` و`execution/ExecutionGenerationGate.kt` و`execution/router/RoutingPolicy.kt` ونماذج execution/agent. هذه المجموعة هي المرشح الأول لـ `core-domain` لأنها تتضمن منطقاً حقيقياً قابلاً للاختبار ولها اختبارات JVM قائمة، ولا تتطلب حالياً provider أو Room أو JNI أو UI.
+أثبت Gate 2A أن `MemoryAdmissionPolicy` وحدة أولى قابلة للنقل: أصبحت في `core-domain/commonMain` واستخدمها `MemoryManager` في Android، مع اختبار `commonTest` وبناء JVM/Android. تظل `domain/AttachmentPolicy.kt` و`memory/text/MemoryTextNormalizer.kt` و`execution/ExecutionGenerationGate.kt` و`execution/router/RoutingPolicy.kt` ونماذج execution/agent مرشحين لاحقين؛ لكل منها تحليل transitive مستقل قبل النقل لأن تصنيف الملف وحده لا يثبت portability.
 
-لا تُنقل مسارات تبدو "خالصة" بمجرد الاسم؛ يراجع Gate 2 imports، التبعيات transitive، واجهاتها العامة، واختبار `commonTest` قبل نقلها. ملفات accessiblity أو UI models المصنفة آلياً مرشحة للفحص لا للاستخراج المباشر، لأن استخدامها downstream قد يكون Android-specific.
+لا تُنقل مسارات تبدو "خالصة" بمجرد الاسم؛ يراجع كل Gate imports والتبعيات transitive وواجهته العامة واختبار `commonTest` قبل النقل. ملفات accessibility أو نماذج UI models المصنفة آلياً مرشحة للفحص لا للاستخراج المباشر، لأن استخدامها downstream قد يكون Android-specific.
 
 ## حواجز فرض مستمرة
 

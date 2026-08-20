@@ -1,14 +1,9 @@
 {
   "actual_declarations": [],
-  "common_source_roots": [],
-  "expected_declarations": [],
-  "findings": [
-    {
-      "detail": "No commonMain source set exists yet; this is expected before Gate 2.",
-      "level": "INFO",
-      "path": "core",
-      "rule": "Core extraction pending"
-    }
+  "common_source_roots": [
+    "core-domain/src/commonMain"
   ],
+  "expected_declarations": [],
+  "findings": [],
   "schema_version": 1
 }

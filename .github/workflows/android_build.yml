@@ -35,6 +35,9 @@ jobs:
     - name: Grant execute permission
       run: chmod +x gradlew .github/scripts/run-instrumentation.sh
 
+    - name: Build and test shared core
+      run: ./gradlew :core-domain:desktopTest :core-domain:compileDebugKotlinAndroid --stacktrace
+
     - name: Clean, compile, and package debug build
       run: |
         ./gradlew clean :app:assembleDebug \

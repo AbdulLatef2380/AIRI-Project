@@ -1,14 +1,12 @@
-package com.airi.assistant.memory.text
+package com.airi.core.memory.text
 
-import java.util.Locale
-
-internal object MemoryTextNormalizer {
+object MemoryTextNormalizer {
 
     private val separators = Regex("[^\\p{L}\\p{Nd}]+")
     private val arabicMarks = Regex("[\\u064B-\\u065F\\u0670\\u0640]")
 
     fun tokens(value: String): Set<String> = value
-        .lowercase(Locale.ROOT)
+        .lowercase()
         .replace(arabicMarks, "")
         .replace('أ', 'ا')
         .replace('إ', 'ا')

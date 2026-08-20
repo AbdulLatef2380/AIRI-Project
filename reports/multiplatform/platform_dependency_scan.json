@@ -8034,18 +8034,6 @@
       ],
       "language": "kt",
       "native_dependencies": [],
-      "path": "app/src/main/java/com/airi/assistant/memory/text/MemoryTextNormalizer.kt",
-      "platform_boundaries": []
-    },
-    {
-      "android_dependencies": [],
-      "classifications": [
-        "COMMON_CANDIDATE",
-        "DESKTOP_CANDIDATE",
-        "WEB_CANDIDATE"
-      ],
-      "language": "kt",
-      "native_dependencies": [],
       "path": "app/src/main/java/com/airi/assistant/oauth/OAuthStateRegistry.kt",
       "platform_boundaries": []
     },
@@ -10510,18 +10498,6 @@
       ],
       "language": "kt",
       "native_dependencies": [],
-      "path": "app/src/test/java/com/airi/assistant/memory/text/MemoryTextNormalizerTest.kt",
-      "platform_boundaries": []
-    },
-    {
-      "android_dependencies": [],
-      "classifications": [
-        "COMMON_CANDIDATE",
-        "DESKTOP_CANDIDATE",
-        "WEB_CANDIDATE"
-      ],
-      "language": "kt",
-      "native_dependencies": [],
       "path": "core-domain/src/commonMain/kotlin/com/airi/core/memory/MemoryAdmissionPolicy.kt",
       "platform_boundaries": []
     },
@@ -10534,7 +10510,31 @@
       ],
       "language": "kt",
       "native_dependencies": [],
+      "path": "core-domain/src/commonMain/kotlin/com/airi/core/memory/text/MemoryTextNormalizer.kt",
+      "platform_boundaries": []
+    },
+    {
+      "android_dependencies": [],
+      "classifications": [
+        "COMMON_CANDIDATE",
+        "DESKTOP_CANDIDATE",
+        "WEB_CANDIDATE"
+      ],
+      "language": "kt",
+      "native_dependencies": [],
       "path": "core-domain/src/commonTest/kotlin/com/airi/core/memory/MemoryAdmissionPolicyTest.kt",
+      "platform_boundaries": []
+    },
+    {
+      "android_dependencies": [],
+      "classifications": [
+        "COMMON_CANDIDATE",
+        "DESKTOP_CANDIDATE",
+        "WEB_CANDIDATE"
+      ],
+      "language": "kt",
+      "native_dependencies": [],
+      "path": "core-domain/src/commonTest/kotlin/com/airi/core/memory/text/MemoryTextNormalizerTest.kt",
       "platform_boundaries": []
     }
   ],

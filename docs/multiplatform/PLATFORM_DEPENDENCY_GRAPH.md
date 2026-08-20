@@ -65,7 +65,7 @@ flowchart TD
 
 ## نواة قابلة للاستخراج أولاً
 
-أثبت Gate 2A أن `MemoryAdmissionPolicy` وحدة أولى قابلة للنقل: أصبحت في `core-domain/commonMain` واستخدمها `MemoryManager` في Android، مع اختبار `commonTest` وبناء JVM/Android. تظل `domain/AttachmentPolicy.kt` و`memory/text/MemoryTextNormalizer.kt` و`execution/ExecutionGenerationGate.kt` و`execution/router/RoutingPolicy.kt` ونماذج execution/agent مرشحين لاحقين؛ لكل منها تحليل transitive مستقل قبل النقل لأن تصنيف الملف وحده لا يثبت portability.
+أثبت Gate 2A وGate 2B نقل `MemoryAdmissionPolicy` و`MemoryTextNormalizer` إلى `core-domain/commonMain`، ويستهلكهما Android عبر `MemoryManager` و`MemoryEvolutionEngine` مع اختبارات `commonTest` وبناء JVM/Android. تظل `domain/AttachmentPolicy.kt` و`execution/ExecutionGenerationGate.kt` و`execution/router/RoutingPolicy.kt` ونماذج execution/agent مرشحين لاحقين؛ لكل منها تحليل transitive مستقل قبل النقل لأن تصنيف الملف وحده لا يثبت portability.
 
 لا تُنقل مسارات تبدو "خالصة" بمجرد الاسم؛ يراجع كل Gate imports والتبعيات transitive وواجهته العامة واختبار `commonTest` قبل النقل. ملفات accessibility أو نماذج UI models المصنفة آلياً مرشحة للفحص لا للاستخراج المباشر، لأن استخدامها downstream قد يكون Android-specific.
 

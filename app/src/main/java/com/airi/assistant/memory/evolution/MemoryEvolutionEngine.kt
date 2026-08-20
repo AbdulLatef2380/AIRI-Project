@@ -2,7 +2,7 @@ package com.airi.assistant.memory.evolution
 
 import android.content.Context
 import android.util.Log
-import com.airi.assistant.memory.text.MemoryTextNormalizer
+import com.airi.core.memory.text.MemoryTextNormalizer
 import com.airi.assistant.memory.entity.ChatMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

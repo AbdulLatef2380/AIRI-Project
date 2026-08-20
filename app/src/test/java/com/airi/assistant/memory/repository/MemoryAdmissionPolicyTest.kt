@@ -10,7 +10,7 @@ class MemoryAdmissionPolicyTest {
     fun `sensitive text is never eligible for embedding`() {
         val decision = MemoryAdmissionPolicy.decide(
             role = "user",
-            content = "My API key is sk-example-secret-value and should stay private."
+            content = "My API key is private-value and should stay private."
         )
 
         assertFalse(decision.shouldEmbed)

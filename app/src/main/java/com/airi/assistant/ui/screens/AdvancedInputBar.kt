@@ -59,7 +59,8 @@ fun AdvancedChatInputBar(
     onCancel:               () -> Unit              = {},
     onSmartReply:           (String) -> Unit        = {},
     onPickImage:            () -> Unit              = {},
-    onPickMmproj:           () -> Unit              = {},
+    onPickVideo:            () -> Unit              = {},
+    onPickText:             () -> Unit              = {},
     onPickFile:             () -> Unit              = {},
     onTakePhoto:            () -> Unit              = {},
     onMicClick:             () -> Unit,
@@ -80,7 +81,6 @@ fun AdvancedChatInputBar(
     activeSkillCount:       Int                     = 0,
     onWebClick:             () -> Unit              = {},
     onCodeClick:            () -> Unit              = {},
-    onCalcClick:            () -> Unit              = {},
     skillSuggestions:       List<ChatInputSuggestion> = emptyList(),
     knowledgeSuggestions:   List<ChatInputSuggestion> = emptyList(),
     onSkillQueryChanged:    (String) -> Unit         = {},
@@ -108,7 +108,6 @@ fun AdvancedChatInputBar(
                 isGenerating      = isGenerating,
                 onWebClick        = onWebClick,
                 onCodeClick       = onCodeClick,
-                onCalcClick       = onCalcClick,
                 onTakePhoto       = onTakePhoto,
                 onPickFile        = onPickFile
             )
@@ -123,8 +122,9 @@ fun AdvancedChatInputBar(
             onSend                  = onSend,
             onCancel                = onCancel,
             onSmartReply            = onSmartReply,
-            onPickImage             = onPickImage,
-            onPickMmproj            = onPickMmproj,
+                        onPickImage             = onPickImage,
+            onPickVideo             = onPickVideo,
+            onPickText              = onPickText,
             onPickFile              = onPickFile,
             onTakePhoto             = onTakePhoto,
             onMicClick              = onMicClick,
@@ -158,7 +158,6 @@ private fun InputActionToolbar(
     isGenerating:      Boolean,
     onWebClick:        () -> Unit,
     onCodeClick:       () -> Unit,
-    onCalcClick:       () -> Unit,
     // Attachment shortcuts
     onTakePhoto:       () -> Unit = {},
     onPickFile:        () -> Unit = {}
@@ -192,10 +191,8 @@ private fun InputActionToolbar(
             onClick    = onOpenSkillPicker
         )
 
-        // Quick dynamic tools — each wired to its own callback
-        QuickToolChip(label = "Web",  emoji = "", onClick = onWebClick)
-        QuickToolChip(label = "Code", emoji = "", onClick = onCodeClick)
-        QuickToolChip(label = "Calc", emoji = "", onClick = onCalcClick)
+        QuickToolChip(label = "Web", onClick = onWebClick)
+        QuickToolChip(label = "Code", onClick = onCodeClick)
 
         // Divider
         Box(modifier = Modifier.width(1.dp).height(20.dp).background(DividerColor))
@@ -297,7 +294,7 @@ private fun ActionChip(
 }
 
 @Composable
-private fun QuickToolChip(label: String, emoji: String, onClick: () -> Unit = {}) {
+private fun QuickToolChip(label: String, onClick: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .height(30.dp)
@@ -309,7 +306,6 @@ private fun QuickToolChip(label: String, emoji: String, onClick: () -> Unit = {}
         verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(emoji, fontSize = 11.sp)
         Text(label, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
     }
 }

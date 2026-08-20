@@ -32,6 +32,8 @@ text_normalizer = read('app/src/main/java/com/airi/assistant/memory/text/MemoryT
 session_dao = read('app/src/main/java/com/airi/assistant/memory/dao/SessionDao.kt')
 database = read('app/src/main/java/com/airi/assistant/memory/AiriDatabase.kt')
 experience_store = read('app/src/main/java/com/airi/assistant/agent/execution/ExperienceStore.kt')
+attachment_policy = read('app/src/main/java/com/airi/assistant/domain/AttachmentPolicy.kt')
+chat_attachment = read('app/src/main/java/com/airi/assistant/domain/ChatAttachment.kt')
 
 check('Generation ownership and cleanup', 'activeGenerationId' in chat_vm and 'finishGeneration(generationId)' in chat_vm, 'ViewModel owns and clears a generation id.')
 check('Backend cancellation barrier', 'throw generationCancelled("during privacy fallback")' in hybrid and 'generationGate.accepts(genId)' in hybrid and 'fun accepts(candidateGenerationId: Long)' in generation_gate, 'Callbacks are gated after cancellation and generation changes.')
@@ -49,7 +51,10 @@ check('OAuth PKCE binding', 'issuePkce' in oauth_registry and 'SHA-256' in oauth
 check('Voice session audio ownership', 'VoiceManager' not in voice_router and 'voiceManager.speak(r.spokenText)' in voice, 'The active live session owns agent-response audio output.')
 check('Arabic memory tokenization', 'MemoryTextNormalizer.tokens' in read('app/src/main/java/com/airi/assistant/memory/evolution/MemoryEvolutionEngine.kt') and '\\p{L}' in text_normalizer, 'Memory overlap retains Unicode and normalized Arabic tokens.')
 check('Session deletion covers explicit memory', 'DELETE FROM episodic_memory WHERE sessionId = :sessionId' in session_dao and 'deleteAllRecordsForSession(sessionId)' in session_dao, 'Removing a session deletes all of its stored messages before its session row.')
-check('Room schema version and export', 'version = 6' in database and 'exportSchema = true' in database and 'version = 1' in experience_store and 'exportSchema = true' in experience_store, 'The current source declares memory Room v6 and experience Room v1 with schema export enabled.')
+check('Room schema version and export', 'version = 7' in database and 'MIGRATION_6_7' in database and 'exportSchema = true' in database and 'version = 1' in experience_store and 'exportSchema = true' in experience_store, 'The current source declares memory Room v7 and experience Room v1 with schema export enabled.')
+check('Attachment validation and bounded text context', 'MAX_ATTACHMENT_BYTES' in attachment_policy and 'MAX_TEXT_CONTENT_CHARS' in attachment_policy and 'buildTextAttachmentContext' in chat_vm, 'Attachments are size-bounded and textual files receive limited untrusted context.')
+check('Durable session pinning', 'isPinned: Boolean' in session_dao and 'setSessionPinned' in session_dao and 'setSessionPinned' in memory, 'Session pin state is persisted and exposed through the memory layer.')
+check('Attachment metadata boundary', 'Treat attachment content as untrusted data' in chat_attachment and 'safeDisplayName' in chat_attachment, 'Attachment metadata is normalized before it reaches model context or storage.')
 
 marker_files = list(SRC.rglob('*.kt'))
 marker_count = sum(path.read_text(encoding='utf-8').count('AIRI_PROOF') for path in marker_files)

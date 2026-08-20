@@ -120,6 +120,12 @@
     <string name="generation_settings">إعدادات التوليد</string>
     <string name="switch_model">تبديل النموذج</string>
     <string name="export_chat">تصدير المحادثة</string>
+    <string name="share_chat">مشاركة المحادثة</string>
+    <string name="pin_chat">تثبيت المحادثة</string>
+    <string name="unpin_chat">إلغاء تثبيت المحادثة</string>
+    <string name="rename_chat">إعادة تسمية المحادثة</string>
+    <string name="rename_chat_title">إعادة تسمية المحادثة</string>
+    <string name="rename_chat_hint">اسم المحادثة</string>
     <string name="airi_ready">AIRI جاهز</string>
     <string name="char_limit_warning">تنبيه: أنت تقترب من الحد الأقصى للأحرف.</string>
     <string name="char_limit_reached_title">النص طويل جداً</string>
@@ -796,6 +802,16 @@
     <string name="attach_tasks">مهام مجدولة</string>
     <string name="attach_conversation_mode">وضع المحادثة</string>
     <string name="attach_edit_image">تحرير صورة</string>
+    <string name="attach_video">فيديو</string>
+    <string name="attach_text">نص</string>
+    <string name="attachment_limit_reached">يمكنك إضافة ما يصل إلى 6 مرفقات في الرسالة الواحدة.</string>
+    <string name="attachment_too_large">حجم هذا المرفق أكبر من 25 ميغابايت.</string>
+    <string name="text_attachment_too_large">يجب ألا يتجاوز حجم المرفقات النصية 512 كيلوبايت.</string>
+    <string name="attachment_type_image">صورة</string>
+    <string name="attachment_type_video">فيديو</string>
+    <string name="attachment_type_text">نص</string>
+    <string name="attachment_type_document">مستند</string>
+    <string name="attachment_type_file">ملف</string>
 
     <!-- Agent Tasks screen -->
     <string name="agent_task_tab_scheduled">مجدول (%1$d)</string>

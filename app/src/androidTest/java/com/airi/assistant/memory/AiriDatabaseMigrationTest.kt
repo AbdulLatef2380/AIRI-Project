@@ -32,7 +32,7 @@ class AiriDatabaseMigrationTest {
     }
 
     @Test
-    fun migratesVersionOneDataToVersionSixWithoutLoss() = runBlocking {
+    fun migratesVersionOneDataToVersionSevenWithoutLoss() = runBlocking {
         createVersionOneDatabase()
 
         database = Room.databaseBuilder(context, AiriDatabase::class.java, DATABASE_NAME)
@@ -52,6 +52,7 @@ class AiriDatabaseMigrationTest {
         val defaultSession = database!!.sessionDao().getSession("default")
         assertNotNull(defaultSession)
         assertEquals("Previous Chat", defaultSession!!.title)
+        assertEquals(false, defaultSession.isPinned)
 
         val tables = database!!.openHelper.writableDatabase.query(
             "SELECT name FROM sqlite_master WHERE type = 'table'"

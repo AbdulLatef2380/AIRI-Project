@@ -35,7 +35,9 @@ import java.io.File
  *   v2 → v3: Added message_embedding table for semantic memory (RAG).
  *   v3 → v4: Added audit_log table for persistent AIRI event storage (ask 5).
  *   v4 → v5: Added workspace_artifact table for ArtifactManager persistence (ask 26).
- *   v5 → v6: Added feedback column to episodic_memory () and attachmentJson column ().
+ *   v5 → v6: Added feedback and attachment metadata columns to episodic memory.
+ *   v6 → v7: Added durable chat-session pin state.
+
  *
  * [exportBackup] copies the live database file to a destination [File] using
  * Room's WAL checkpoint mechanism to ensure a consistent snapshot.
@@ -52,7 +54,7 @@ import java.io.File
         AuditLogEntity::class,
         ArtifactEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 @TypeConverters(AuditLogTypeConverters::class)
@@ -156,12 +158,19 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_sessions ADD COLUMN isPinned INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         internal fun migrations(): Array<Migration> = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
             MIGRATION_3_4,
             MIGRATION_4_5,
-            MIGRATION_5_6
+            MIGRATION_5_6,
+            MIGRATION_6_7
         )
 
         fun getDatabase(context: Context): AiriDatabase {

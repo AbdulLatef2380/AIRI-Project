@@ -13,6 +13,7 @@ import com.airi.assistant.memory.entity.ChatSession
 data class ChatSessionSummary(
     val id: String,
     val title: String,
+    val isPinned: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
     val lastMessage: String?,
@@ -49,12 +50,15 @@ interface SessionDao {
     @Query("UPDATE chat_sessions SET updatedAt = :updatedAt WHERE id = :sessionId")
     suspend fun touchSession(sessionId: String, updatedAt: Long = System.currentTimeMillis())
 
+    @Query("UPDATE chat_sessions SET isPinned = :isPinned WHERE id = :sessionId")
+    suspend fun setSessionPinned(sessionId: String, isPinned: Boolean)
+
     @Query("""
-        SELECT s.id, s.title, s.createdAt, s.updatedAt,
+        SELECT s.id, s.title, s.isPinned, s.createdAt, s.updatedAt,
             (SELECT m.content FROM episodic_memory m WHERE m.sessionId = s.id AND m.isMemory = 0 ORDER BY m.timestamp DESC LIMIT 1) AS lastMessage,
             (SELECT COUNT(*) FROM episodic_memory m WHERE m.sessionId = s.id AND m.isMemory = 0) AS messageCount
         FROM chat_sessions s
-        ORDER BY s.updatedAt DESC
+        ORDER BY s.isPinned DESC, s.updatedAt DESC
     """)
     suspend fun getAllSessions(): List<ChatSessionSummary>
 
@@ -67,7 +71,7 @@ interface SessionDao {
      * whose public API contract declares List<ChatSession>. Both methods are kept so
      * callers of either DAO path continue to compile.
      */
-    @Query("SELECT * FROM chat_sessions ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM chat_sessions ORDER BY isPinned DESC, updatedAt DESC")
     suspend fun getAllSessionEntities(): List<ChatSession>
 
     /** Full table wipe used by the GDPR deletion flow via StorageRepository.deleteAllData(). */

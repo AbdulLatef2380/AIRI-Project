@@ -50,6 +50,8 @@ import com.airi.assistant.ai.remote.RemoteModel
 import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.core.ServiceLocator
 // AgentService import removed — no longer used in sendMessage after agent-first migration
+import com.airi.assistant.domain.AttachmentPolicy
+import com.airi.assistant.domain.ChatAttachment
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
@@ -1304,6 +1306,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun renameCurrentSession(title: String) {
+        val normalized = title.trim().replace(Regex("[\\r\\n]+"), " ").take(80)
+        val sessionId = _currentSessionId.value
+        if (normalized.isBlank() || sessionId.isBlank()) return
+        viewModelScope.launch {
+            memoryManager.renameSession(sessionId, normalized)
+            refreshSessions()
+        }
+    }
+
+    fun setCurrentSessionPinned(isPinned: Boolean) {
+        val sessionId = _currentSessionId.value
+        if (sessionId.isBlank()) return
+        viewModelScope.launch {
+            memoryManager.setSessionPinned(sessionId, isPinned)
+            refreshSessions()
+        }
+    }
+
     fun loadMemoryEntries() {
         viewModelScope.launch {
             _memoryEntries.value = runCatching { memoryManager.getSemanticMemories(200) }.getOrElse { emptyList() }
@@ -2467,10 +2488,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         if (_modelState.value.isModelLoading) return
 
+        viewModelScope.launch {
         // Persist attachment bytes before sending. Only a generated local file
         // name is retained in message metadata; source URIs and absolute paths
         // are intentionally not written to Room.
-        val persistedAttachments = attachments.map { att ->
+        val persistedAttachments = withContext(Dispatchers.IO) {
+            attachments.map { att ->
             runCatching {
                 val attachDir = File(appContext.filesDir, "attachments").also { it.mkdirs() }
                 val sourceName = att.fileName ?: "file"
@@ -2508,8 +2531,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 att.copy(persistedPath = destFile.absolutePath)
             }.getOrDefault(att)
+            }
         }
         pendingAttachmentJsonForNextSend = attachmentMetadataJson(persistedAttachments)
+        val textAttachmentContext = withContext(Dispatchers.IO) {
+            buildTextAttachmentContext(persistedAttachments)
+        }
 
         val trimmed = input.trim()
         val visionReady = _modelState.value.capabilities.vision &&
@@ -2528,21 +2555,53 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         if (primaryImage != null && visionReady) {
             // Vision path — keep extras visible to the model as text markers.
-            val markers = extras.joinToString(separator = "\n") { it.toTextMarker() }
-            val fullText = if (markers.isBlank()) trimmed
-                           else if (trimmed.isBlank()) markers
-                           else "$trimmed\n\n$markers"
+            val attachmentContext = listOf(
+                extras.joinToString(separator = "\n") { it.toTextMarker() },
+                textAttachmentContext
+            ).filter { it.isNotBlank() }.joinToString(separator = "\n\n")
+            val fullText = if (attachmentContext.isBlank()) trimmed
+                           else if (trimmed.isBlank()) attachmentContext
+                           else "$trimmed\n\n$attachmentContext"
             sendMessageWithImage(fullText, primaryImage.uri, primaryImage.bitmap)
         } else {
             // Text-marker path — every attachment becomes one [image:]/[file:] line.
-            val markers = attachments.joinToString(separator = "\n") { it.toTextMarker() }
-            val fullText = if (trimmed.isBlank()) markers else "$trimmed\n\n$markers"
+            val attachmentContext = listOf(
+                persistedAttachments.joinToString(separator = "\n") { it.toTextMarker() },
+                textAttachmentContext
+            ).filter { it.isNotBlank() }.joinToString(separator = "\n\n")
+            val fullText = if (trimmed.isBlank()) attachmentContext else "$trimmed\n\n$attachmentContext"
             
             // to display the thumbnail, so re-use the existing single-shot
             // pendingImageUriForNextSend hand-off used by the old fallback.
             primaryImage?.uri?.let { pendingImageUriForNextSend = it.toString() }
             sendMessage(fullText)
         }
+        }
+    }
+
+    private fun buildTextAttachmentContext(attachments: List<ChatAttachment>): String {
+        var remaining = AttachmentPolicy.MAX_TEXT_CONTENT_CHARS
+        val context = StringBuilder()
+        attachments.filter { it.isTextual && !it.persistedPath.isNullOrBlank() }.forEach { attachment ->
+            if (remaining <= 0) return@forEach
+            val content = runCatching {
+                File(requireNotNull(attachment.persistedPath)).bufferedReader().use { reader ->
+                    reader.readText()
+                        .replace("\u0000", "")
+                        .take(remaining)
+                        .trim()
+                }
+            }.getOrNull().orEmpty()
+            if (content.isBlank()) return@forEach
+            context.append("BEGIN UNTRUSTED TEXT ATTACHMENT: ")
+                .append(attachment.safeDisplayName)
+                .append('\n')
+                .append(content)
+                .append("\nEND UNTRUSTED TEXT ATTACHMENT")
+                .append("\n\n")
+            remaining -= content.length
+        }
+        return context.toString().trim()
     }
 
     fun sendMessageWithImage(input: String, imageUri: Uri?, capturedBitmap: Bitmap?) {
@@ -3174,8 +3233,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 org.json.JSONObject()
                     .put("file_name", storedName)
                     .put("kind", attachment.kind.name)
-                    .put("display_name", attachment.displayName.take(120))
-                    .put("mime_type", attachment.mimeType)
+                    .put("display_name", attachment.safeDisplayName)
+                    .put("mime_type", attachment.normalizedMimeType)
                     .put("size_bytes", attachment.sizeBytes ?: 0L)
             )
         }

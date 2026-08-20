@@ -132,6 +132,12 @@
     <string name="generation_settings">Generation Settings</string>
     <string name="switch_model">Switch Model</string>
     <string name="export_chat">Export Chat</string>
+    <string name="share_chat">Share Chat</string>
+    <string name="pin_chat">Pin Chat</string>
+    <string name="unpin_chat">Unpin Chat</string>
+    <string name="rename_chat">Rename Chat</string>
+    <string name="rename_chat_title">Rename chat</string>
+    <string name="rename_chat_hint">Chat name</string>
     <string name="airi_ready">AIRI is ready</string>
     <string name="ask_anything_model_active">Ask anything — your model is active</string>
     <string name="activate_model_gallery_first">Activate a model from the Model Gallery first</string>
@@ -797,6 +803,16 @@
     <string name="attach_tasks">Scheduled tasks</string>
     <string name="attach_conversation_mode">Conversation mode</string>
     <string name="attach_edit_image">Edit image</string>
+    <string name="attach_video">Video</string>
+    <string name="attach_text">Text</string>
+    <string name="attachment_limit_reached">You can add up to 6 attachments to one message.</string>
+    <string name="attachment_too_large">This attachment is larger than 25 MB.</string>
+    <string name="text_attachment_too_large">Text attachments must be 512 KB or smaller.</string>
+    <string name="attachment_type_image">Image</string>
+    <string name="attachment_type_video">Video</string>
+    <string name="attachment_type_text">Text</string>
+    <string name="attachment_type_document">Document</string>
+    <string name="attachment_type_file">File</string>
 
     <!-- Agent Tasks screen -->
     <string name="agent_task_tab_scheduled">Scheduled (%1$d)</string>

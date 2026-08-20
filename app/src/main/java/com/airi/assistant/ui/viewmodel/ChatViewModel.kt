@@ -50,7 +50,7 @@ import com.airi.assistant.ai.remote.RemoteModel
 import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.core.ServiceLocator
 // AgentService import removed — no longer used in sendMessage after agent-first migration
-import com.airi.assistant.domain.AttachmentPolicy
+import com.airi.core.attachments.AttachmentPolicy
 import com.airi.assistant.domain.ChatAttachment
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.event.AppEvent

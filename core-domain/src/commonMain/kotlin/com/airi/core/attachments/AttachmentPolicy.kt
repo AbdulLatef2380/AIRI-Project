@@ -1,13 +1,5 @@
-package com.airi.assistant.domain
+package com.airi.core.attachments
 
-import java.util.Locale
-
-/**
- * Central validation and presentation policy for a pending chat attachment.
- *
- * The policy deliberately operates on metadata only. Content is copied into
- * application-private storage before it is persisted or supplied to a model.
- */
 object AttachmentPolicy {
     const val MAX_ATTACHMENTS_PER_MESSAGE = 6
     const val MAX_ATTACHMENT_BYTES = 25L * 1024L * 1024L
@@ -38,7 +30,7 @@ object AttachmentPolicy {
 
     fun contentType(mimeType: String?, fileName: String?): ContentType {
         val mime = normalizedMimeType(mimeType)
-        val extension = fileName.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
+        val extension = fileName.orEmpty().substringAfterLast('.', "").lowercase()
         return when {
             mime.startsWith("image/") -> ContentType.IMAGE
             mime.startsWith("video/") -> ContentType.VIDEO
@@ -58,7 +50,7 @@ object AttachmentPolicy {
 
     fun normalizedMimeType(value: String?): String = value.orEmpty()
         .trim()
-        .lowercase(Locale.ROOT)
+        .lowercase()
         .takeIf { MIME_PATTERN.matches(it) }
         .orEmpty()
 
@@ -68,8 +60,13 @@ object AttachmentPolicy {
         !firstUri.isNullOrBlank() && firstUri == secondUri
 
     private val MIME_PATTERN = Regex("[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+")
-    private val TEXT_EXTENSIONS = setOf("txt", "md", "markdown", "csv", "json", "xml", "yaml", "yml", "log", "kt", "java", "py", "js", "ts", "html", "css", "sql")
-    private val DOCUMENT_EXTENSIONS = setOf("pdf", "doc", "docx", "rtf", "odt", "xls", "xlsx", "ppt", "pptx")
+    private val TEXT_EXTENSIONS = setOf(
+        "txt", "md", "markdown", "csv", "json", "xml", "yaml", "yml", "log", "kt", "java", "py",
+        "js", "ts", "html", "css", "sql"
+    )
+    private val DOCUMENT_EXTENSIONS = setOf(
+        "pdf", "doc", "docx", "rtf", "odt", "xls", "xlsx", "ppt", "pptx"
+    )
     private val DOCUMENT_MIME_TYPES = setOf(
         "application/pdf",
         "application/msword",

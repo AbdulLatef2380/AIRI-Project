@@ -1,5 +1,5 @@
 {
-  "files_scanned": 822,
+  "files_scanned": 823,
   "findings": [
     {
       "android_dependencies": [
@@ -6611,18 +6611,6 @@
       ]
     },
     {
-      "android_dependencies": [],
-      "classifications": [
-        "COMMON_CANDIDATE",
-        "DESKTOP_CANDIDATE",
-        "WEB_CANDIDATE"
-      ],
-      "language": "kt",
-      "native_dependencies": [],
-      "path": "app/src/main/java/com/airi/assistant/domain/AttachmentPolicy.kt",
-      "platform_boundaries": []
-    },
-    {
       "android_dependencies": [
         "android.*",
         "Android filesystem"
@@ -10498,6 +10486,18 @@
       ],
       "language": "kt",
       "native_dependencies": [],
+      "path": "core-domain/src/commonMain/kotlin/com/airi/core/attachments/AttachmentPolicy.kt",
+      "platform_boundaries": []
+    },
+    {
+      "android_dependencies": [],
+      "classifications": [
+        "COMMON_CANDIDATE",
+        "DESKTOP_CANDIDATE",
+        "WEB_CANDIDATE"
+      ],
+      "language": "kt",
+      "native_dependencies": [],
       "path": "core-domain/src/commonMain/kotlin/com/airi/core/memory/MemoryAdmissionPolicy.kt",
       "platform_boundaries": []
     },
@@ -10511,6 +10511,18 @@
       "language": "kt",
       "native_dependencies": [],
       "path": "core-domain/src/commonMain/kotlin/com/airi/core/memory/text/MemoryTextNormalizer.kt",
+      "platform_boundaries": []
+    },
+    {
+      "android_dependencies": [],
+      "classifications": [
+        "COMMON_CANDIDATE",
+        "DESKTOP_CANDIDATE",
+        "WEB_CANDIDATE"
+      ],
+      "language": "kt",
+      "native_dependencies": [],
+      "path": "core-domain/src/commonTest/kotlin/com/airi/core/attachments/AttachmentPolicyTest.kt",
       "platform_boundaries": []
     },
     {

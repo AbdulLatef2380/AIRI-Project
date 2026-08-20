@@ -32,7 +32,7 @@ text_normalizer = read('core-domain/src/commonMain/kotlin/com/airi/core/memory/t
 session_dao = read('app/src/main/java/com/airi/assistant/memory/dao/SessionDao.kt')
 database = read('app/src/main/java/com/airi/assistant/memory/AiriDatabase.kt')
 experience_store = read('app/src/main/java/com/airi/assistant/agent/execution/ExperienceStore.kt')
-attachment_policy = read('app/src/main/java/com/airi/assistant/domain/AttachmentPolicy.kt')
+attachment_policy = read('core-domain/src/commonMain/kotlin/com/airi/core/attachments/AttachmentPolicy.kt')
 chat_attachment = read('app/src/main/java/com/airi/assistant/domain/ChatAttachment.kt')
 model_registry = read('app/src/main/java/com/airi/assistant/ai/ModelRegistry.kt')
 

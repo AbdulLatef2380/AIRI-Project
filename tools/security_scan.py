@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOT = ROOT / "app/src/main"
 MANIFEST = SOURCE_ROOT / "AndroidManifest.xml"
 VIEW_MODEL = SOURCE_ROOT / "java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt"
-ATTACHMENT_POLICY = SOURCE_ROOT / "java/com/airi/assistant/domain/AttachmentPolicy.kt"
+ATTACHMENT_POLICY = ROOT / "core-domain/src/commonMain/kotlin/com/airi/core/attachments/AttachmentPolicy.kt"
 ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
 
 HIGH_CONFIDENCE_SECRET_PATTERNS = {

@@ -2,6 +2,7 @@ package com.airi.assistant.domain
 
 import android.graphics.Bitmap
 import android.net.Uri
+import com.airi.core.attachments.AttachmentPolicy
 import java.util.UUID
 
 /** A pending user attachment that will be copied to application-private storage on send. */

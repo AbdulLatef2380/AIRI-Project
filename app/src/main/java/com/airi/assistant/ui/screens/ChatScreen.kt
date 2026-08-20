@@ -72,7 +72,7 @@ import com.airi.assistant.core.VoiceManager
 import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.*
-import com.airi.assistant.domain.AttachmentPolicy
+import com.airi.core.attachments.AttachmentPolicy
 import com.airi.assistant.domain.ChatAttachment
 import androidx.compose.foundation.lazy.LazyRow
 import com.airi.assistant.util.ChatExporter

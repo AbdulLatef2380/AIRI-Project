@@ -10,14 +10,14 @@
 | chat streaming | `RUNTIME_VERIFIED` في مسار Android المرجعي | `PLANNED` | `PLANNED` | `PLANNED` | provider test، ظهور chunks، recovery. |
 | إلغاء التنفيذ | `RUNTIME_VERIFIED` لبوابة generation في اختبارات Android/JVM | `PLANNED` | `PLANNED` | `PLANNED` | إلغاء أثناء stream ومنع callback قديم. |
 | agent planning/execution | `IMPLEMENTED` في Android، خارج core حتى الآن | `ARCHITECTED` | `ARCHITECTED` | `ARCHITECTED` | core module tests ثم target integration. |
-| memory admission | `RUNTIME_VERIFIED` بمنطق Android واختبارات policy | `BUILDS` لمنطق policy فقط | `BUILDS` لمنطق policy فقط | `PLANNED` | اختبار `core-domain:desktopTest` يثبت JVM؛ لا persistence أو تطبيق Desktop بعد. |
+| memory admission | `RUNTIME_VERIFIED` بمنطق Android واختبارات policy | `ARCHITECTED` | `ARCHITECTED` | `PLANNED` | policy تبني في target JVM عام، لكن لا يوجد تطبيق أو artifact أو تحقق Windows/Linux؛ لذلك لا تُرفع حالة المنصتين. |
 | RAG retrieval/ranking | `IMPLEMENTED` في Android | `PLANNED` | `PLANNED` | `PLANNED` | dataset fixture والاسترجاع على target. |
 | cloud models | `IMPLEMENTED`؛ الاتصال بحسابات حقيقية `EXTERNAL_VERIFICATION_REQUIRED` | `PLANNED` | `PLANNED` | `PLANNED` | provider integration آمن ومثبت لكل target. |
 | local models | `IMPLEMENTED` عبر Android JNI؛ فعالية الأجهزة `EXTERNAL_VERIFICATION_REQUIRED` | `PLANNED` | `PLANNED` | `BLOCKED` حتى تثبت دراسة runtime browser | native build + load + inference small model؛ Web يحتاج feasibility منفصلة. |
 | model routing/fallback | `IMPLEMENTED` في Android | `ARCHITECTED` | `ARCHITECTED` | `ARCHITECTED` | core policy tests ثم provider adapters. |
 | skills registry/validation | `IMPLEMENTED` في Android | `ARCHITECTED` | `ARCHITECTED` | `ARCHITECTED` | capability manifest ورفض skill غير المدعوم. |
 | tools/connectors | `IMPLEMENTED` في Android | `PLANNED` | `PLANNED` | `PLANNED` | صلاحيات منصة واختبارات allowed/denied. |
-| attachments validation | `RUNTIME_VERIFIED` لسياسة المرفقات واختباراتها | `ARCHITECTED` | `ARCHITECTED` | `ARCHITECTED` | نقل policy إلى core + fixture tests. |
+| attachments validation | `RUNTIME_VERIFIED` لسياسة المرفقات واختباراتها | `ARCHITECTED` | `ARCHITECTED` | `ARCHITECTED` | policy في `core-domain` تبني وتختبر على JVM عام وAndroid؛ لا يوجد target product خارجي أو Web target بعد. |
 | attachments acquisition | `IMPLEMENTED` Android picker/content resolver | `PLANNED` | `PLANNED` | `PLANNED` | اختيار ملف وdrag/drop ورفض الحجم/MIME. |
 | artifacts | `IMPLEMENTED` Android | `PLANNED` | `PLANNED` | `PLANNED` | save/open/delete مع permission audit. |
 | persistence | `RUNTIME_VERIFIED` لRoom migrations المحددة | `ARCHITECTED` | `ARCHITECTED` | `ARCHITECTED` | repository contract، migration/restart/encryption tests. |

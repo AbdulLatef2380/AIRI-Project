@@ -29,6 +29,26 @@ interface MemoryDao {
     @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0 ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getRecentMessages(sessionId: String, limit: Int): List<ChatMessage>
 
+    /** Explicitly accepted long-term memories for a single session. */
+    @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 1 ORDER BY timestamp DESC, id DESC LIMIT :limit")
+    suspend fun getRecentLongTermMemories(sessionId: String, limit: Int): List<ChatMessage>
+
+    @Query("SELECT id FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 1 AND content = :content LIMIT 1")
+    suspend fun findLongTermMemoryId(sessionId: String, content: String): Long?
+
+    @Query("""
+        DELETE FROM episodic_memory
+        WHERE sessionId = :sessionId
+          AND isMemory = 1
+          AND id NOT IN (
+              SELECT id FROM episodic_memory
+              WHERE sessionId = :sessionId AND isMemory = 1
+              ORDER BY timestamp DESC, id DESC
+              LIMIT :keepRecent
+          )
+    """)
+    suspend fun pruneLongTermMemories(sessionId: String, keepRecent: Int)
+
     @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0 ORDER BY timestamp ASC")
     suspend fun getSessionMessages(sessionId: String): List<ChatMessage>
 
@@ -53,10 +73,10 @@ interface MemoryDao {
         DELETE FROM episodic_memory
         WHERE sessionId = :sessionId
           AND isMemory = 0
-          AND timestamp NOT IN (
-              SELECT timestamp FROM episodic_memory
+          AND id NOT IN (
+              SELECT id FROM episodic_memory
               WHERE sessionId = :sessionId AND isMemory = 0
-              ORDER BY timestamp DESC
+              ORDER BY timestamp DESC, id DESC
               LIMIT :keepRecent
           )
     """)
@@ -88,11 +108,11 @@ interface MemoryDao {
     @Query("SELECT COUNT(*) FROM episodic_memory")
     suspend fun getMessageCount(): Int
 
-    /** Task 1.7: Persist thumbs up/down feedback for a message (1=like, -1=dislike, 0=none). */
+    /** Persist thumbs up/down feedback for a message (1=like, -1=dislike, 0=none). */
     @Query("UPDATE episodic_memory SET feedback = :feedback WHERE id = :id")
     suspend fun updateMessageFeedback(id: Long, feedback: Int)
 
-    /** Task 1.7: Retrieve feedback for a specific message. */
+    /** Retrieve feedback for a specific message. */
     @Query("SELECT feedback FROM episodic_memory WHERE id = :id LIMIT 1")
     suspend fun getMessageFeedback(id: Long): Int?
 

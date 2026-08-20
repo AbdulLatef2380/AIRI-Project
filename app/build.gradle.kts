@@ -15,15 +15,16 @@ plugins {
 
 android {
     namespace = "com.airi.assistant"
-    compileSdk = 34
+    compileSdk = 36
     ndkVersion = "25.2.9519653"
 
     defaultConfig {
         applicationId = "com.airi.assistant"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -114,8 +115,12 @@ android {
         debug {
             // Keep debug builds unminified for readable stack traces.
             isMinifyEnabled = false
-            // AIRI_EXECUTE_GRAPH_ENABLED is now enabled globally in defaultConfig (Phase 7).
-            // No per-variant override needed here.
+
+            // CI instrumentation runs on an x86_64 emulator. Release artifacts remain
+            // arm64-v8a-only through the default configuration above.
+            ndk {
+                abiFilters += "x86_64"
+            }
         }
     }
 
@@ -140,6 +145,7 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/DebugProbesKt.bin"
         }
     }
 
@@ -153,9 +159,20 @@ android {
     }
 }
 
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     // Core Android
     implementation(libs.androidx.core.ktx)
+
+    // Testing
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test:core:1.5.0")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.room:room-testing:2.6.1")
 
     // Compose
     implementation(platform(libs.androidx.compose.bom))
@@ -184,10 +201,6 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
-    // AP-02: SQLCipher at-rest encryption for all 9 Room tables
-    implementation("net.zetetic:android-database-sqlcipher:4.5.4")
-    implementation("androidx.sqlite:sqlite-ktx:2.4.0")
-
     // Networking
     implementation(libs.okhttp)
     implementation(libs.gson)
@@ -268,154 +281,45 @@ dependencies {
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 }
 
-tasks.register("airiVerifyOptimization") {
-    group = "verification"
-    doLast {
-        data class Case(val name: String, val passed: Boolean, val detail: String)
-        fun percentile(values: List<Long>, p: Int): Long {
-            val sorted = values.sorted()
-            val index = Math.ceil((p.coerceIn(0, 100) / 100.0) * sorted.size).toInt().coerceIn(1, sorted.size) - 1
-            return sorted[index]
-        }
-        fun fastMatch(input: String): Boolean {
-            val lower = input.trim().lowercase()
-            return listOf("hi", "hello", "hey").any { lower == it }
-        }
-        fun classify(input: String): String {
-            val lower = input.lowercase()
-            return when {
-                lower.contains("story") || lower.contains("sci-fi") -> "CREATIVE"
-                lower.contains("explain") || lower.contains("handshake") -> "ANALYTICAL"
-                lower.length < 12 -> "SIMPLE"
-                else -> "UNKNOWN"
-            }
-        }
-        fun lastBoundaryIndex(text: String): Int =
-            listOf('.', '!', '?', '؟', '\n').map { text.lastIndexOf(it) }.maxOrNull() ?: -1
-        fun semanticCut(text: String): Boolean {
-            val boundary = lastBoundaryIndex(text.trim())
-            return boundary >= 80 && boundary < text.trim().lastIndex - 12
-        }
-        fun adaptiveTokens(base: Int, p90: Long, premium: Boolean): Int {
-            val latencyFactor = when {
-                p90 >= 9000L -> 0.55f
-                p90 >= 6000L -> 0.7f
-                p90 >= 4000L -> 0.85f
-                else -> 1.0f
-            }
-            val tierFactor = if (premium) 1.0f else 0.9f
-            return (base * latencyFactor * tierFactor).toInt().coerceAtLeast(96).coerceAtMost(base)
-        }
-        fun upsell(wasCut: Boolean, latencyMs: Long, totalMessages: Int, premium: Boolean): String? =
-            when {
-                premium -> null
-                wasCut -> "response_cut"
-                latencyMs >= 6_000L -> "speed_upsell"
-                totalMessages >= 7 -> "power_user"
-                else -> null
-            }
-
-        val latencies = listOf(80L, 120L, 3000L, 6200L, 9000L)
-        val p50 = percentile(latencies, 50)
-        val p90 = percentile(latencies, 90)
-        val longPartial = "AIRI starts with a clear answer. It keeps the important facts together. It avoids cutting inside a sentence while preserving meaning for the user. Extra trailing text is still generating"
-        val tuned = adaptiveTokens(512, p90, premium = false)
-        val cases = listOf(
-            Case("hi -> FAST_PATH", classify("hi") == "SIMPLE" && fastMatch("hi"), "type=${classify("hi")} fast=${fastMatch("hi")}"),
-            Case("Explain TCP handshake -> STREAM", classify("Explain TCP handshake") == "ANALYTICAL" && !fastMatch("Explain TCP handshake"), "type=${classify("Explain TCP handshake")} fast=${fastMatch("Explain TCP handshake")}"),
-            Case("Semantic cut + P50/P90 + adaptive tuning", p50 == 3000L && p90 == 9000L && semanticCut(longPartial) && tuned < 512, "p50=${p50}ms p90=${p90}ms semanticCut=${semanticCut(longPartial)} tunedTokens=$tuned"),
-            Case("Monetization data triggers", upsell(true, 6_001L, 9, false) == "response_cut" && upsell(false, 6_001L, 1, false) == "speed_upsell" && upsell(false, 1_000L, 9, false) == "power_user", "cut=${upsell(true, 6_001L, 9, false)} slow=${upsell(false, 6_001L, 1, false)} power=${upsell(false, 1_000L, 9, false)}")
-        )
-        println("AIRI_PROOF: DIAGNOSTICS_START running 4 test scenarios")
-        cases.forEach { case ->
-            println("AIRI_VERIFY: ${case.name} ${if (case.passed) "PASS" else "FAIL"} detail=${case.detail}")
-            println("AIRI_PROOF: DIAGNOSTICS ${if (case.passed) "PASS" else "FAIL"} test=\"${case.name}\" detail=\"${case.detail}\"")
-        }
-        println("AIRI_OPTIMIZE: VERIFY semanticCut=${semanticCut(longPartial)} p50=${p50}ms p90=${p90}ms tunedTokens=$tuned")
-        println("AIRI_MONET: VERIFY cut=response_cut slow=speed_upsell power=power_user")
-        val allPassed = cases.all { it.passed }
-        println("AIRI_PROOF: DIAGNOSTICS_COMPLETE allPassed=$allPassed")
-        if (!allPassed) error("AIRI verification failed")
-        println("AIRI_PROOF: SYSTEM FULLY VERIFIED")
-    }
-}
+// Performance verification belongs in device benchmarks and CI test reports.
+// Do not synthesize performance success from fixed values in the build script.
 
 // ─────────────────────────────────────────────────────────────────────────
-// airiVerifyNativeInApk — fails the build if the freshly-assembled APK
-// does NOT contain lib/arm64-v8a/libairi_native.so (or contains a 0-byte
-// stub). This is a hard guard against the failure mode where Gradle
-// silently produces an APK without the JNI library — runtime then falls
-// back to "model did not start in time" and looks like an inference bug
-// when in fact the engine never loaded.
-//
-// Wired as a finalizer of assembleDebug below so it runs after the APK
-// is in place. Use:  ./gradlew assembleDebug
+// Native-library verification is bound to the APK of each assembled variant.
+// This catches missing JNI output without making a Release build depend on a
+// Debug artifact that is not part of that build.
 // ─────────────────────────────────────────────────────────────────────────
-tasks.register("airiVerifyNativeInApk") {
-    group = "verification"
-    description = "Asserts lib/arm64-v8a/libairi_native.so is present in the debug APK."
-    doLast {
-        val apkDir = layout.buildDirectory.dir("outputs/apk/debug").get().asFile
-        val apks = apkDir.listFiles { f -> f.extension == "apk" }
-            ?.toList().orEmpty()
-        if (apks.isEmpty()) {
-            error("AIRI_VERIFY_NATIVE: no APK found at ${apkDir.absolutePath}")
-        }
-        val apk = apks.first()
-        val target = "lib/arm64-v8a/libairi_native.so"
-        ZipFile(apk).use { zf: ZipFile ->
-            val entry: ZipEntry? = zf.getEntry(target)
-            if (entry == null) {
-                error(
-                    "AIRI_VERIFY_NATIVE: ❌ $target is NOT in ${apk.name}.\n" +
-                    "    CMake either did not run or produced no library.\n" +
-                    "    Re-run with --info and look for 'Building CXX object'\n" +
-                    "    lines. If absent, check that NDK 25.2.9519653 + CMake\n" +
-                    "    3.22.1 are installed (Android Studio → SDK Manager →\n" +
-                    "    SDK Tools, or in CI via android-actions/setup-android@v3\n" +
-                    "    with packages='ndk;25.2.9519653 cmake;3.22.1')."
-                )
-            }
-            val bytes = entry.size
-            println("AIRI_VERIFY_NATIVE: found $target size=${bytes} bytes")
-            if (bytes < 1_000_000) {
-                error(
-                    "AIRI_VERIFY_NATIVE: ❌ $target is suspiciously small ($bytes bytes).\n" +
-                    "    A real llama.cpp arm64-v8a build is typically 8-15 MB after strip.\n" +
-                    "    A tiny .so usually means CMake compiled a stub or the wrong target."
-                )
-            }
-            // Print a few sibling .so entries so we can see what else is in there.
-            val entries: List<ZipEntry> = zf.entries().toList()
-            entries
-                .filter { e: ZipEntry -> e.name.startsWith("lib/") && e.name.endsWith(".so") }
-                .forEach { e: ZipEntry ->
-                    println("AIRI_VERIFY_NATIVE: APK contains ${e.name} (${e.size} bytes)")
+fun registerNativeApkVerification(variant: String) {
+    val taskName = "airiVerifyNativeIn${variant.replaceFirstChar { it.titlecase() }}Apk"
+    tasks.register(taskName) {
+        group = "verification"
+        description = "Asserts lib/arm64-v8a/libairi_native.so is present in the $variant APK."
+        doLast {
+            val apkDir = layout.buildDirectory.dir("outputs/apk/$variant").get().asFile
+            val apk = apkDir.listFiles { file -> file.extension == "apk" }
+                ?.maxByOrNull { it.lastModified() }
+                ?: error("AIRI_VERIFY_NATIVE: no $variant APK found at ${apkDir.absolutePath}")
+            val target = "lib/arm64-v8a/libairi_native.so"
+            ZipFile(apk).use { archive ->
+                val entry = archive.getEntry(target)
+                    ?: error("AIRI_VERIFY_NATIVE: $target is absent from ${apk.name}")
+                check(entry.size >= 1_000_000) {
+                    "AIRI_VERIFY_NATIVE: $target is unexpectedly small (${entry.size} bytes)"
                 }
-            println("AIRI_VERIFY_NATIVE: ✅ $target present and non-trivial.")
+                println("AIRI_VERIFY_NATIVE: $variant APK contains $target (${entry.size} bytes)")
+            }
         }
     }
 }
 
-fun <T> java.util.Enumeration<T>.toList(): List<T> {
-    val list = mutableListOf<T>()
-    while (this.hasMoreElements()) {
-        list.add(this.nextElement())
-    }
-    return list
-}
+registerNativeApkVerification("debug")
+registerNativeApkVerification("release")
 
 afterEvaluate {
     tasks.named("assembleDebug").configure {
-        dependsOn("airiVerifyOptimization")
-        // finalizedBy: runs after assembleDebug, even if airiVerifyOptimization
-        // (a dependsOn) succeeded. The verification only makes sense AFTER the
-        // APK is on disk.
-        finalizedBy("airiVerifyNativeInApk")
+        finalizedBy("airiVerifyNativeInDebugApk")
     }
     tasks.named("assembleRelease").configure {
-        // Release path also needs the same guard. assembleRelease intentionally
-        // does NOT depend on airiVerifyOptimization (that's a debug-flow check).
-        finalizedBy("airiVerifyNativeInApk")
+        finalizedBy("airiVerifyNativeInReleaseApk")
     }
 }

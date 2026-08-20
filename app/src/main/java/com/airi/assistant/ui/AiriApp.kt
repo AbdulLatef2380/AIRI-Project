@@ -49,6 +49,7 @@ import com.airi.assistant.ui.screens.ChatScreen
 import com.airi.assistant.ui.screens.CustomizationSettingsScreen
 import com.airi.assistant.ui.screens.GeneralSettingsScreen
 import com.airi.assistant.ui.screens.HistoryScreen
+import com.airi.assistant.ui.screens.LibraryScreen
 import com.airi.assistant.ui.screens.ConnectorsScreen
 import com.airi.assistant.ui.screens.IntegrationsScreen
 import com.airi.assistant.ui.screens.ModelLibraryScreen
@@ -129,8 +130,9 @@ object AiriRoute {
     const val PERMISSIONS_SCREEN     = "screen_permissions"
     const val UPDATE_SCREEN          = "screen_update"
     const val VOICE_PERSONALIZATION  = "screen_voice_personalization"
+    const val LIBRARY                = "screen_library"
 
-    // ── Phase 4 routes ────────────────────────────────────────────────────────
+    // ──  routes ────────────────────────────────────────────────────────
     const val ZAPIER_IFTTT           = "screen_zapier_ifttt"
     const val STRIPE_PAYMENT         = "screen_stripe_payment"
     const val BILLING_HISTORY        = "screen_billing_history"
@@ -138,29 +140,16 @@ object AiriRoute {
     const val COMMUNITY_SKILLS       = "screen_community_skills"
     const val SKILL_CREATION_WIZARD  = "screen_skill_creation_wizard"
 
-    // ── Phase 2, Task 7: Artifact preview route ───────────────────────────────
+    // ── , Artifact preview route ───────────────────────────────
     const val ARTIFACT_PREVIEW       = "screen_artifact_preview"
 
-    /**
-     * Build the artifact preview route with encoded type and content.
-     * Content is truncated to [MAX_ROUTE_CONTENT_BYTES] to avoid NavController limits.
-     */
-    fun artifactPreview(type: String, content: String): String {
-        val encoded = java.net.URLEncoder.encode(
-            content.take(MAX_ROUTE_CONTENT_BYTES), "UTF-8"
-        )
-        return "$ARTIFACT_PREVIEW/$type/$encoded"
-    }
-
-    private const val MAX_ROUTE_CONTENT_BYTES = 8_192
+    /** Build the artifact preview route using only an internal artifact identifier. */
+    fun artifactPreview(artifactId: String): String = "$ARTIFACT_PREVIEW/$artifactId"
 
     fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
 
-    // ── Phase 2 new routes (Tasks 1.6, 5.1, 5.2, 5.3, 6.2, 8.1, 9.1) ────────
     const val WELCOME              = "screen_welcome"
     const val PLANNING_DASHBOARD   = "screen_planning_dashboard"
-    const val PROTOTYPE_BUILDER    = "screen_prototype_builder"
-    const val WIREFRAME_BUILDER    = "screen_wireframe_builder"
     const val GIT_REPOSITORY       = "screen_git_repository"
     const val SECURITY_SCANNER     = "screen_security_scanner"
     const val SECRET_MANAGER       = "screen_secret_manager"
@@ -172,7 +161,8 @@ private val bottomNavRoutes = setOf(
     AiriRoute.SETTINGS,
     AiriRoute.SKILL_MANAGER,
     AiriRoute.AGENT_TASKS,
-    AiriRoute.HISTORY
+    AiriRoute.HISTORY,
+    AiriRoute.LIBRARY
 )
 
 @Composable
@@ -214,9 +204,22 @@ fun AiriApp() {
     }
 
     // Map current route to selected nav tab
+    fun navigateAfterAuthentication() {
+        val destination = if (!hasAnyModel() && !hasAnyApiKey()) {
+            AiriRoute.WELCOME
+        } else {
+            AiriRoute.CHAT
+        }
+        navController.navigate(destination) {
+            popUpTo(AiriRoute.LOGIN) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
     val selectedTab = when (currentRoute) {
         AiriRoute.SKILL_MANAGER -> AiriNavTab.SKILLS
         AiriRoute.AGENT_TASKS   -> AiriNavTab.SCHEDULE
+        AiriRoute.LIBRARY       -> AiriNavTab.LIBRARY
         AiriRoute.SETTINGS      -> AiriNavTab.SETTINGS
         AiriRoute.HISTORY       -> AiriNavTab.CHAT
         else                    -> AiriNavTab.NEW   // CHAT and others
@@ -233,6 +236,7 @@ fun AiriApp() {
                         when (tab) {
                             AiriNavTab.SKILLS   -> navController.navigate(AiriRoute.SKILL_MANAGER) { launchSingleTop = true; restoreState = true }
                             AiriNavTab.SCHEDULE -> navController.navigate(AiriRoute.AGENT_TASKS)   { launchSingleTop = true; restoreState = true }
+                            AiriNavTab.LIBRARY  -> navController.navigate(AiriRoute.LIBRARY)       { launchSingleTop = true; restoreState = true }
                             AiriNavTab.SETTINGS -> navController.navigate(AiriRoute.SETTINGS)      { launchSingleTop = true; restoreState = true }
                             AiriNavTab.CHAT     -> navController.navigate(AiriRoute.HISTORY)       { launchSingleTop = true; restoreState = true }
                             AiriNavTab.NEW      -> {
@@ -304,14 +308,13 @@ fun AiriApp() {
                                         AnalyticsService.funnelStep("open_to_login")
                                         ReferralManager.completePendingReferral(authService.currentUser()?.uid)
                                         ReferralManager.grantFirstLaunchBonus()  // 
-                                        ExperimentManager.init(
-                                            ServiceLocator.context ?: return@signIn,
-                                            authService.currentUser()?.uid ?: "anonymous"
-                                        )
-                                        navController.navigate(AiriRoute.CHAT) {
-                                            popUpTo(AiriRoute.LOGIN) { inclusive = true }
-                                            launchSingleTop = true
+                                        ServiceLocator.context?.let { appContext ->
+                                            ExperimentManager.init(
+                                                appContext,
+                                                authService.currentUser()?.uid ?: "anonymous"
+                                            )
                                         }
+                                        navigateAfterAuthentication()
                                     }
                                     onResult(error)
                                 }
@@ -323,14 +326,13 @@ fun AiriApp() {
                                         AnalyticsService.funnelStep("open_to_signup")
                                         ReferralManager.completePendingReferral(authService.currentUser()?.uid)
                                         ReferralManager.grantFirstLaunchBonus()  // 
-                                        ExperimentManager.init(
-                                            ServiceLocator.context ?: return@createAccount,
-                                            authService.currentUser()?.uid ?: "anonymous"
-                                        )
-                                        navController.navigate(AiriRoute.CHAT) {
-                                            popUpTo(AiriRoute.LOGIN) { inclusive = true }
-                                            launchSingleTop = true
+                                        ServiceLocator.context?.let { appContext ->
+                                            ExperimentManager.init(
+                                                appContext,
+                                                authService.currentUser()?.uid ?: "anonymous"
+                                            )
                                         }
+                                        navigateAfterAuthentication()
                                     }
                                     onResult(error)
                                 }
@@ -340,10 +342,7 @@ fun AiriApp() {
                                 AnalyticsService.funnelStep("open_to_login")
                                 ReferralManager.completePendingReferral(authService.currentUser()?.uid)
                                 ReferralManager.grantFirstLaunchBonus()  // 
-                                navController.navigate(AiriRoute.CHAT) {
-                                    popUpTo(AiriRoute.LOGIN) { inclusive = true }
-                                    launchSingleTop = true
-                                }
+                                navigateAfterAuthentication()
                             }
                         )
                     }
@@ -409,7 +408,7 @@ fun AiriApp() {
                         UpdateScreen(onBack = { navController.popBackStack() })
                     }
 
-                    // ── Phase 4 screens ───────────────────────────────────────
+                    // ──  screens ───────────────────────────────────────
                     composable(AiriRoute.ZAPIER_IFTTT) {
                         val zapier = com.airi.assistant.core.ServiceLocator.zapierConnector
                         val ifttt  = com.airi.assistant.core.ServiceLocator.iftttConnector
@@ -527,7 +526,18 @@ fun AiriApp() {
                     }
 
                     composable(AiriRoute.PROFILE) {
-                        ProfileScreen(onBack = { navController.popBackStack() })
+                        ProfileScreen(
+                            onBack = { navController.popBackStack() },
+                            onSignOut = {
+                                authService.signOut()
+                                chatViewModel.clearMessages()
+                                chatIsActive = false
+                                navController.navigate(AiriRoute.LOGIN) {
+                                    popUpTo(AiriRoute.CHAT) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
                     }
 
                     composable(AiriRoute.AGENT_CONTROL) {
@@ -544,6 +554,12 @@ fun AiriApp() {
                             onNavigateToAgentControl = {
                                 navController.navigate(AiriRoute.AGENT_CONTROL) { launchSingleTop = true }
                             }
+                        )
+                    }
+
+                    composable(AiriRoute.LIBRARY) {
+                        LibraryScreen(
+                            onBack = { navController.popBackStack() }
                         )
                     }
 
@@ -676,52 +692,26 @@ fun AiriApp() {
                         )
                     }
 
-                    // ── Phase 2, Task 7: Isolated artifact preview (sandboxed WebView) ──────────
                     composable(
-                        route     = "${AiriRoute.ARTIFACT_PREVIEW}/{type}/{content}",
+                        route = "${AiriRoute.ARTIFACT_PREVIEW}/{artifactId}",
                         arguments = listOf(
-                            androidx.navigation.navArgument("type")    { type = NavType.StringType },
-                            androidx.navigation.navArgument("content") { type = NavType.StringType }
+                            androidx.navigation.navArgument("artifactId") { type = NavType.StringType }
                         )
                     ) { backStack ->
-                        val type    = backStack.arguments?.getString("type")    ?: "CODE"
-                        val encoded = backStack.arguments?.getString("content") ?: ""
-                        val content = runCatching {
-                            java.net.URLDecoder.decode(encoded, "UTF-8")
-                        }.getOrDefault(encoded)
                         ArtifactPreviewScreen(
-                            artifactType    = type,
-                            artifactContent = content,
-                            onBack          = { navController.popBackStack() }
+                            artifactId = backStack.arguments?.getString("artifactId").orEmpty(),
+                            onBack = { navController.popBackStack() }
                         )
                     }
 
-                    // ── Task 5.1: Planning Dashboard ──────────────────────────
+                    // ── Planning Dashboard ──────────────────────────
                     composable(AiriRoute.PLANNING_DASHBOARD) {
                         PlanningDashboardScreen(
                             onBack = { navController.popBackStack() }
                         )
                     }
 
-                    // ── Task 5.2: Prototype Builder ───────────────────────────
-                    composable(AiriRoute.PROTOTYPE_BUILDER) {
-                        WorkspaceScreen(
-                            sessionType = "prototype",
-                            onBack      = { navController.popBackStack() },
-                            onNavigate  = { route -> navController.navigate(route) }
-                        )
-                    }
-
-                    // ── Task 5.3: Wireframe Builder ───────────────────────────
-                    composable(AiriRoute.WIREFRAME_BUILDER) {
-                        WorkspaceScreen(
-                            sessionType = "wireframe",
-                            onBack      = { navController.popBackStack() },
-                            onNavigate  = { route -> navController.navigate(route) }
-                        )
-                    }
-
-                    // ── Task 6.2: Git Repository Browser ─────────────────────
+                    // ── Git Repository Browser ─────────────────────
                     composable(AiriRoute.GIT_REPOSITORY) {
                         GitRepositoryScreen(
                             onBack     = { navController.popBackStack() },
@@ -729,14 +719,14 @@ fun AiriApp() {
                         )
                     }
 
-                    // ── Task 8.1: Security Scanner ────────────────────────────
+                    // ── Security Scanner ────────────────────────────
                     composable(AiriRoute.SECURITY_SCANNER) {
                         SecurityScannerScreen(
                             onBack = { navController.popBackStack() }
                         )
                     }
 
-                    // ── Task 9.1: Secret Manager ──────────────────────────────
+                    // ── Secret Manager ──────────────────────────────
                     composable(AiriRoute.SECRET_MANAGER) {
                         SecretManagerScreen(
                             onBack = { navController.popBackStack() }

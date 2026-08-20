@@ -44,7 +44,7 @@ interface ExecutionDao {
 @Database(
     entities = [ExecutionRecord::class],
     version = 1,
-    exportSchema = false // ✔️ إصلاح التحذير
+    exportSchema = true
 )
 abstract class ExperienceDatabase : RoomDatabase() {
     abstract fun executionDao(): ExecutionDao

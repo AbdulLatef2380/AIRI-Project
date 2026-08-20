@@ -74,7 +74,7 @@ class SystemControlManager(private val context: Context) {
     }
 
     /**
-     * ✅ الربط الصحيح مع Accessibility Service
+     *  الربط الصحيح مع Accessibility Service
      */
      fun navigateBack() {
         val service = ScreenContextHolder.serviceInstance

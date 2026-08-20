@@ -58,16 +58,16 @@ fun UpdateScreen(onBack: () -> Unit) {
                 date       = "June 2025",
                 isCurrent  = true,
                 highlights = listOf(
-                    "•" to "Phase 2: RAG memory injection into every prompt — AIRI now remembers across sessions",
-                    "☁️" to "Cloud memory sync: long-term memories backed up to Firestore, privacy-gated",
-                    "📚" to "Media Library: unified repository for images, documents, and generated artifacts",
+                    "•" to ": RAG memory injection into every prompt — AIRI now remembers across sessions",
+                    "" to "Cloud memory sync: long-term memories backed up to Firestore, privacy-gated",
+                    "" to "Media Library: unified repository for images, documents, and generated artifacts",
                     "•" to "Skill Registry v2: semver versioning, dependency validation, downgrade protection",
                     "•" to "Dynamic Prompt Engine: 10-slot assembly with token budget enforcement",
-                    "🎙️" to "Phase 3: Voice Personalization — pitch, rate, personality presets",
-                    "🔒" to "Permissions Screen: full rationale view for all 13+ permissions",
-                    "💳" to "Credits Screen: real-time credit metering and token accounting",
-                    "⬆️" to "Update System: this screen — release notes and version tracking",
-                    "⌨️" to "Advanced Input Bar: tool picker, skill picker, plan mode"
+                    "" to ": Voice Personalization — pitch, rate, personality presets",
+                    "" to "Permissions Screen: full rationale view for all 13+ permissions",
+                    "" to "Credits Screen: real-time credit metering and token accounting",
+                    "⬆" to "Update System: this screen — release notes and version tracking",
+                    "⌨" to "Advanced Input Bar: tool picker, skill picker, plan mode"
                 ),
                 fixes = listOf(
                     "DownloadResult.Success bug → .Ok fixed",
@@ -81,10 +81,10 @@ fun UpdateScreen(onBack: () -> Unit) {
                 date       = "May 2025",
                 highlights = listOf(
                     "•" to "ConnectorsScreen: full ViewModel wiring for third-party integrations",
-                    "🎨" to "SkillManagerScreen: 3 import paths (Storage, GitHub, AI-generated)",
+                    "" to "SkillManagerScreen: 3 import paths (Storage, GitHub, AI-generated)",
                     "•" to "Model picker: correct selectModel public API",
                     "•" to "Token counter wired end-to-end ViewModel → ChatScreen → TopBar",
-                    "🌙" to "ThemePreferences.kt: system/dark/light dynamic theming"
+                    "" to "ThemePreferences.kt: system/dark/light dynamic theming"
                 ),
                 fixes = listOf(
                     "StarBackground removed — cleaner Compose layer",
@@ -96,11 +96,11 @@ fun UpdateScreen(onBack: () -> Unit) {
                 version    = "0.8.0",
                 date       = "April 2025",
                 highlights = listOf(
-                    "♿" to "AiriAccessibilityService: full UI tree scanning and action execution",
-                    "🗣️" to "Vosk STT integration with VoskModelManager and model download",
-                    "🔊" to "IncrementalTtsEngine: streaming sentence-level synthesis",
+                    "" to "AiriAccessibilityService: full UI tree scanning and action execution",
+                    "" to "Vosk STT integration with VoskModelManager and model download",
+                    "" to "IncrementalTtsEngine: streaming sentence-level synthesis",
                     "•" to "PlanGenerator: JSON ActionPlan with multi-step execution",
-                    "💾" to "Room database v3: episodic memory + semantic embeddings"
+                    "" to "Room database v3: episodic memory + semantic embeddings"
                 ),
                 fixes = listOf(
                     "Navigation back stack fixed for all deep links",
@@ -272,7 +272,7 @@ private fun UpdateBanner(newVersion: String, onInstall: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("🆕", fontSize = 24.sp)
+            Text("", fontSize = 24.sp)
             Column(modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.updates_available_version, newVersion), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     color = AiriTheme.onBackground)

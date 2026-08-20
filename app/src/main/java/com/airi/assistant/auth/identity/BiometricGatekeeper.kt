@@ -63,7 +63,7 @@ object BiometricGatekeeper {
         val prompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 Log.i(TAG, "Biometric auth succeeded type=${result.authenticationType}")
-                LoggingService.info(TAG, "AIRI_PROOF BIOMETRIC_AUTH_SUCCESS")
+                LoggingService.info(TAG, "AIRI BIOMETRIC_AUTH_SUCCESS")
                 if (cont.isActive) cont.resume(true)
             }
 
@@ -73,7 +73,7 @@ object BiometricGatekeeper {
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 Log.w(TAG, "Biometric auth error code=$errorCode msg=$errString")
-                LoggingService.warn(TAG, "AIRI_PROOF BIOMETRIC_AUTH_ERROR code=$errorCode")
+                LoggingService.warn(TAG, "AIRI BIOMETRIC_AUTH_ERROR code=$errorCode")
                 if (cont.isActive) cont.resume(false)
             }
         })

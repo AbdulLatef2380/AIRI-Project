@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.compose.runtime.DisposableEffect
 import com.airi.assistant.voice.VoskEngine
 import com.airi.assistant.voice.VoskModelManager
@@ -32,8 +33,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -47,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material3.Divider
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -59,6 +59,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.core.content.ContextCompat
 import com.airi.assistant.R
 import com.airi.assistant.WakeWordDispatcher
@@ -67,11 +72,13 @@ import com.airi.assistant.core.VoiceManager
 import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.*
+import com.airi.assistant.domain.AttachmentPolicy
 import com.airi.assistant.domain.ChatAttachment
 import androidx.compose.foundation.lazy.LazyRow
 import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.AgentMode
+import com.airi.assistant.ui.viewmodel.ChatInputSuggestion
 import com.airi.assistant.ui.viewmodel.ChatMessage
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import coil.compose.AsyncImage
@@ -88,10 +95,52 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.airi.assistant.ui.util.MarkdownText
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
 
-@OptIn(ExperimentalMaterial3Api::class)
+private data class AttachmentMetadata(
+    val displayName: String,
+    val mimeType: String?,
+    val sizeBytes: Long?
+)
+
+private fun resolveAttachmentMetadata(
+    context: android.content.Context,
+    uri: Uri,
+    fallbackName: String
+): AttachmentMetadata {
+    val values = runCatching {
+        context.contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (!cursor.moveToFirst()) return@use null
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+            val name = nameIndex.takeIf { it >= 0 }?.let(cursor::getString)
+            val size = sizeIndex.takeIf { it >= 0 }?.let(cursor::getLong)?.takeIf { it >= 0L }
+            name to size
+        }
+    }.getOrNull()
+    return AttachmentMetadata(
+        displayName = AttachmentPolicy.normalizedDisplayName(values?.first ?: fallbackName),
+        mimeType = runCatching { context.contentResolver.getType(uri) }.getOrNull(),
+        sizeBytes = values?.second
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel,
@@ -100,7 +149,6 @@ fun ChatScreen(
     onLogout: () -> Unit = {}
 ) {
     val context       = LocalContext.current
-    val drawerState   = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope         = rememberCoroutineScope()
     val messages      by viewModel.messages.collectAsState()
     val streamingText by viewModel.streamingText.collectAsState()
@@ -108,19 +156,24 @@ fun ChatScreen(
     val modelState    by viewModel.modelState.collectAsState()
     val agentMode     by viewModel.agentMode.collectAsState()
     val smartReplies  by viewModel.smartReplies.collectAsState()
-    val todayTokens            by viewModel.todayTokens.collectAsState()
     val dailyCreditsRemaining  by viewModel.dailyCreditsRemaining.collectAsState()
     // : real-time network state — drives offline banner
     val isOnline      by viewModel.isOnline.collectAsState()
     // LiveVoiceService — voice mode state
     val voiceModeActive    by viewModel.voiceModeActive.collectAsState()
-    val voicePipelineState by viewModel.voicePipelineState.collectAsState()
     val snackbarHost  = remember { SnackbarHostState() }
     val paywallTrigger        by viewModel.paywallTrigger.collectAsState()
     val upgradePrompt         by viewModel.upgradePrompt.collectAsState()
     val systemIntegrityFailed by viewModel.systemIntegrityFailed.collectAsState()
     val contextResetWarning   by viewModel.contextResetWarning.collectAsState()
-    val isSummarizing         by viewModel.isSummarizing.collectAsState()  // 
+    val isSummarizing         by viewModel.isSummarizing.collectAsState()
+    val pendingSummary        by viewModel.pendingSummary.collectAsState()
+    val currentSessionId      by viewModel.currentSessionId.collectAsState()
+    val sessions              by viewModel.sessions.collectAsState()
+    val currentSession = sessions.firstOrNull { it.id == currentSessionId }
+    var skillSuggestions by remember { mutableStateOf<List<ChatInputSuggestion>>(emptyList()) }
+    var knowledgeSuggestions by remember { mutableStateOf<List<ChatInputSuggestion>>(emptyList()) }
+    var knowledgeSearchVersion by remember { mutableStateOf(0) }
 
     // Chat is "active" when there are messages or the AI is responding
     val chatIsActive = messages.isNotEmpty() || streamingText.isNotEmpty() || agentState.isWorking
@@ -207,6 +260,7 @@ fun ChatScreen(
     val activeSkillCount    by viewModel.activeSkillCount.collectAsState()
     var voiceInput          by remember { mutableStateOf("") }
     var voiceChatInput      by remember { mutableStateOf("") }
+    var partialVoiceInput   by remember { mutableStateOf("") }
     var voiceState          by remember { mutableStateOf(VoiceSessionState.IDLE) }
 
     // /C04: AgentPlanViewModel for ModalBottomSheet control
@@ -253,11 +307,15 @@ fun ChatScreen(
             }
             val engine = VoskEngine(context, model)
             voskEngineHolder.value = engine
+            partialVoiceInput = ""
             voiceState = VoiceSessionState.LISTENING
             engine.start(
                 scope     = this,
-                onPartial = {},
+                onPartial = { partial ->
+                    partialVoiceInput = partial
+                },
                 onFinal   = { spoken ->
+                    partialVoiceInput = ""
                     voskEngineHolder.value?.release()
                     voskEngineHolder.value = null
                     if (spoken.isNotBlank()) {
@@ -272,7 +330,8 @@ fun ChatScreen(
                         voiceState = VoiceSessionState.IDLE
                     }
                 },
-                onError = { err ->
+                onError = { _ ->
+                    partialVoiceInput = ""
                     voskEngineHolder.value?.release()
                     voskEngineHolder.value = null
                     voiceState = VoiceSessionState.IDLE
@@ -325,7 +384,7 @@ fun ChatScreen(
             override fun onWakeWordDetected() {}
             override fun onSpeechResult(text: String) {}
             override fun onError(error: String) {
-                scope.launch { snackbarHost.showSnackbar("Voice error: $error") }
+                scope.launch { snackbarHost.showSnackbar(context.userFacingVoiceError(error)) }
                 if (liveChatActiveRef.value) liveChatActiveRef.value = false
             }
             override fun onSpeakingStarted() { voiceStateRef.value = VoiceSessionState.SPEAKING }
@@ -341,6 +400,12 @@ fun ChatScreen(
         })
     }
     DisposableEffect(Unit) { onDispose { voiceManager.destroy() } }
+
+    val exportChatLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/markdown")
+    ) { uri ->
+        uri?.let { ChatExporter.exportToUri(context, it, messages, "text/markdown") }
+    }
 
     var speakNextResponse  by rememberSaveable { mutableStateOf(false) }
     var lastSpokenMsgId    by rememberSaveable { mutableStateOf(-1L) }
@@ -465,40 +530,55 @@ fun ChatScreen(
         mutableStateOf<List<com.airi.assistant.domain.ChatAttachment>>(emptyList())
     }
 
-    fun addAttachment(att: com.airi.assistant.domain.ChatAttachment) {
-        if (pendingAttachments.size >= 6) {
-            scope.launch { snackbarHost.showSnackbar("Maximum 6 attachments per message") }
+    fun addAttachment(att: ChatAttachment) {
+        if (pendingAttachments.any { existing ->
+                AttachmentPolicy.isSameSource(existing.uri?.toString(), att.uri?.toString())
+            }) {
+            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.attachment_already_added)) }
             return
         }
-        pendingAttachments = pendingAttachments + att
+        if (pendingAttachments.size >= AttachmentPolicy.MAX_ATTACHMENTS_PER_MESSAGE) {
+            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.attachment_limit_reached)) }
+            return
+        }
+        when (AttachmentPolicy.validateSize(att.sizeBytes, att.contentType)) {
+            AttachmentPolicy.ValidationResult.Accepted -> pendingAttachments = pendingAttachments + att
+            AttachmentPolicy.ValidationResult.TooLarge -> scope.launch {
+                snackbarHost.showSnackbar(context.getString(R.string.attachment_too_large))
+            }
+            AttachmentPolicy.ValidationResult.TextTooLarge -> scope.launch {
+                snackbarHost.showSnackbar(context.getString(R.string.text_attachment_too_large))
+            }
+        }
     }
     fun removeAttachment(id: String) {
         pendingAttachments = pendingAttachments.filterNot { it.id == id }
     }
 
+    fun stageUriAttachment(uri: Uri, kind: ChatAttachment.Kind, fallbackName: String) {
+        val metadata = resolveAttachmentMetadata(context, uri, fallbackName)
+        addAttachment(
+            ChatAttachment(
+                kind = kind,
+                uri = uri,
+                displayName = metadata.displayName,
+                mimeType = metadata.mimeType,
+                sizeBytes = metadata.sizeBytes
+            )
+        )
+    }
+
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) {
-            val fileName = uri.lastPathSegment ?: uri.toString()
-            val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
-            val size = runCatching { context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } }.getOrNull()?.takeIf { it >= 0 }
-            addAttachment(com.airi.assistant.domain.ChatAttachment(
-                kind = com.airi.assistant.domain.ChatAttachment.Kind.FILE, uri = uri,
-                displayName = fileName, mimeType = mime, sizeBytes = size
-            ))
-        }
+        uri?.let { stageUriAttachment(it, ChatAttachment.Kind.FILE, "file") }
     }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) {
-            val name = uri.lastPathSegment ?: "image_${System.currentTimeMillis()}"
-            val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
-            addAttachment(com.airi.assistant.domain.ChatAttachment(
-                kind = com.airi.assistant.domain.ChatAttachment.Kind.IMAGE, uri = uri,
-                displayName = name, mimeType = mime
-            ))
-        }
+        uri?.let { stageUriAttachment(it, ChatAttachment.Kind.IMAGE, "image") }
     }
-    val mmprojPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) viewModel.loadMmproj(uri)
+    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let { stageUriAttachment(it, ChatAttachment.Kind.FILE, "video") }
+    }
+    val textPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let { stageUriAttachment(it, ChatAttachment.Kind.FILE, "text") }
     }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
         if (bitmap != null) {
@@ -513,9 +593,15 @@ fun ChatScreen(
         if (granted) cameraLauncher.launch(null)
     }
 
-    val exportChatLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
+    val exportMdLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri: Uri? ->
         scope.launch {
-            val success = uri != null && ChatExporter.exportToUri(context, uri, messages)
+            val success = uri != null && ChatExporter.exportToUri(context, uri, messages, "text/markdown")
+            snackbarHost.showSnackbar(if (success) context.getString(R.string.export_success) else context.getString(R.string.export_failed))
+        }
+    }
+    val exportPdfLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri: Uri? ->
+        scope.launch {
+            val success = uri != null && ChatExporter.exportToUri(context, uri, messages, "application/pdf")
             snackbarHost.showSnackbar(if (success) context.getString(R.string.export_success) else context.getString(R.string.export_failed))
         }
     }
@@ -562,7 +648,6 @@ fun ChatScreen(
                 agentState             = agentState,
                 agentMode              = agentMode,
                 showMenu               = showMenu,
-                todayTokens            = todayTokens,
                 dailyCreditsRemaining  = dailyCreditsRemaining,
                 onHistoryOpen     = { showHistoryPanel = true },
                 onModelPickerOpen = { showModelPicker = true },
@@ -571,10 +656,13 @@ fun ChatScreen(
                 onGenSettings     = { showMenu = false; showGenSettings = true },
                 onModeSelected    = { viewModel.setAgentMode(it) },
                 onSwitchModel     = { showMenu = false; onNavigate(AiriRoute.MODELS) },
-                onLongPressTitle  = { onNavigate(AiriRoute.DEBUG_SCREEN) },
-                onExportChat      = { showMenu = false; exportChatLauncher.launch(ChatExporter.buildFileName()) },
+                onExportChat      = { showMenu = false; exportChatLauncher.launch(ChatExporter.buildFileName("md")) },
+                onShareChat       = { showMenu = false; shareChatTranscript(context, messages) },
+                currentSessionTitle = currentSession?.title.orEmpty(),
+                isCurrentSessionPinned = currentSession?.isPinned == true,
+                onSetSessionPinned = { isPinned -> viewModel.setCurrentSessionPinned(isPinned) },
+                onRenameChat      = { title -> viewModel.renameCurrentSession(title) },
                 onNewChat         = { viewModel.clearMessages() },
-                onMuteToggle      = {},
                 onPointsClick     = { onNavigate(AiriRoute.CREDITS) },
                 onNavigate        = onNavigate
             )
@@ -633,10 +721,26 @@ fun ChatScreen(
                     }
                 }
 
+                // Memory acceptance banner
+                AnimatedVisibility(
+                    visible = pendingSummary != null,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    pendingSummary?.let { summary ->
+                        MemoryAcceptanceBanner(
+                            summary = summary,
+                            onAccept = { viewModel.acceptSummary(currentSessionId, summary) },
+                            onReject = { viewModel.rejectSummary() }
+                        )
+                    }
+                }
+
                 AdvancedChatInputBar(
                     modelState    = modelState,
                     isGenerating  = agentState.isWorking,
                     voiceInput    = voiceInput,
+                    voicePartial  = partialVoiceInput,
                     smartReplies  = smartReplies,
                     onSend        = { text ->
                         val toSend = pendingAttachments
@@ -650,8 +754,9 @@ fun ChatScreen(
                     onCancel      = { viewModel.cancelGeneration() },
                     onSmartReply  = { reply -> viewModel.clearSmartReplies(); viewModel.sendMessage(reply) },
                     onPickImage   = { imagePicker.launch("image/*") },
+                    onPickVideo   = { videoPicker.launch("video/*") },
+                    onPickText    = { textPicker.launch("text/*") },
                     onPickFile    = { filePicker.launch("*/*") },
-                    onPickMmproj  = { mmprojPicker.launch("*/*") },
                     onTakePhoto   = {
                         when {
                             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED ->
@@ -685,35 +790,15 @@ fun ChatScreen(
                             if (liveChatActiveRef.value) liveChatActiveRef.value = false
                             stopInAppStt(); return@vc
                         }
-                        // Toggle LiveVoiceService (full-duplex) when Vosk model is available
-                        // Check if cloud realtime provider is selected
-                        val voicePrefs = context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE)
-                        val cloudVoiceProvider = voicePrefs.getString("cloud_voice_provider", "LOCAL") ?: "LOCAL"
+                        // The active voice-chat path is local Vosk STT plus Android TTS.
+                        // Realtime providers remain isolated until their PCM transport is wired end-to-end;
+                        // the UI must never claim a cloud session when it is using local recognition.
                         when {
-                            cloudVoiceProvider != "LOCAL" -> {
-                                // Cloud realtime voice path — route through LiveVoiceService with cloud provider
-                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
-                                    == PackageManager.PERMISSION_GRANTED) {
-                                    viewModel.toggleVoiceMode()
-                                    liveChatActiveRef.value = !voiceModeActive
-                                    if (!voiceModeActive) {
-                                        // Store selected cloud provider so LiveVoiceService picks it up
-                                        android.util.Log.i("AIRI_VOICE", "Cloud voice provider: $cloudVoiceProvider")
-                                        startInAppStt(autoSend = true)
-                                    } else {
-                                        stopInAppStt()
-                                    }
-                                } else {
-                                    voiceChatPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                }
-                            }
                             !VoskModelManager.isReady(context) -> onNavigate(AiriRoute.VOICE_SETTINGS)
                             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
                                 == PackageManager.PERMISSION_GRANTED -> {
-                                // Use LiveVoiceService for full-duplex; fallback to in-app STT
                                 viewModel.toggleVoiceMode()
                                 if (!voiceModeActive) {
-                                    // Also start in-app STT as visual feedback
                                     liveChatActiveRef.value = true
                                     startInAppStt(autoSend = true)
                                 } else {
@@ -744,9 +829,23 @@ fun ChatScreen(
                     onOpenSkillPicker = { onNavigate(AiriRoute.SKILL_MANAGER) },
                     activeToolCount   = com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size,
                     activeSkillCount  = activeSkillCount,
-                    onWebClick        = { viewModel.prefillInput("/web ") },
-                    onCodeClick       = { viewModel.prefillInput("/code ") },
-                    onCalcClick       = { viewModel.prefillInput("/calc ") },
+                    onWebClick        = { viewModel.prefillInput("/skill:web_search ") },
+                    onCodeClick       = { viewModel.prefillInput("/skill:code_assistant ") },
+                    skillSuggestions = skillSuggestions,
+                    knowledgeSuggestions = knowledgeSuggestions,
+                    onSkillQueryChanged = { query ->
+                        skillSuggestions = viewModel.searchSkillsForQuery(query)
+                        knowledgeSuggestions = emptyList()
+                    },
+                    onKnowledgeQueryChanged = { query ->
+                        skillSuggestions = emptyList()
+                        val version = knowledgeSearchVersion + 1
+                        knowledgeSearchVersion = version
+                        scope.launch {
+                            val results = viewModel.searchKnowledgeForQuery(query)
+                            if (version == knowledgeSearchVersion) knowledgeSuggestions = results
+                        }
+                    },
                     // Pass attachments so they render inside the pill
                     attachments         = pendingAttachments,
                     onRemoveAttachment  = { uid -> pendingAttachments = pendingAttachments.filterNot { it.id == uid || it.uid == uid } }
@@ -772,6 +871,8 @@ fun ChatScreen(
                 onSuggestionClick  = { suggestion -> viewModel.sendMessage(suggestion) },
                 onEditMessage      = { text -> viewModel.prefillInput(text) },
                 onDeleteMessage    = { uid  -> viewModel.deleteMessage(uid) },
+                onExportPdf        = { exportPdfLauncher.launch(ChatExporter.buildFileName("pdf")) },
+                onExportMarkdown   = { exportMdLauncher.launch(ChatExporter.buildFileName("md")) },
                 onFeedback         = { uid, liked -> viewModel.submitFeedback(uid, liked) },
                 modifier = Modifier.fillMaxSize()
             )
@@ -793,7 +894,8 @@ fun ChatScreen(
                     border = androidx.compose.foundation.BorderStroke(0.5.dp, AiBubbleBorder),
                 ) {
                     com.airi.assistant.ui.components.ThinkingAnimation(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp)
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+                        stageText = agentState.currentAction.takeIf { it.isNotBlank() }
                     )
                 }
             }
@@ -1072,12 +1174,78 @@ fun ChatScreen(
 // Chat top bar — credits badge | model pill | history | overflow
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun MemoryAcceptanceBanner(
+    summary: String,
+    onAccept: () -> Unit,
+    onReject: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        shape = AIRIShapes.md,
+        color = CosmicAccent.copy(alpha = 0.1f),
+        border = BorderStroke(1.dp, CosmicAccent.copy(alpha = 0.2f))
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.Psychology,
+                    contentDescription = null,
+                    tint = CosmicAccent,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = stringResource(R.string.memory_new_knowledge),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = AiriTheme.onBackground
+                )
+            }
+            
+            Text(
+                text = summary,
+                fontSize = 13.sp,
+                color = AiriTheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onReject) {
+                    Text(stringResource(R.string.memory_reject), color = AiriTheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = onAccept,
+                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+                    shape = AIRIShapes.sm,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
+                ) {
+                    Text(stringResource(R.string.memory_accept), color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun AiriChatTopBar(
     modelState: ModelUiState,
     agentState: AgentState,
     agentMode: AgentMode,
     showMenu: Boolean,
-    todayTokens: Long = 0L,
     dailyCreditsRemaining: Int = 200,
     onHistoryOpen: () -> Unit,
     onModelPickerOpen: () -> Unit,
@@ -1086,10 +1254,13 @@ private fun AiriChatTopBar(
     onGenSettings: () -> Unit,
     onModeSelected: (AgentMode) -> Unit,
     onSwitchModel: () -> Unit,
-    onLongPressTitle: () -> Unit = {},
     onExportChat: () -> Unit,
+    onShareChat: () -> Unit,
+    currentSessionTitle: String,
+    isCurrentSessionPinned: Boolean,
+    onSetSessionPinned: (Boolean) -> Unit,
+    onRenameChat: (String) -> Unit,
     onNewChat: () -> Unit,
-    onMuteToggle: () -> Unit,
     onPointsClick: () -> Unit = {},
     onNavigate: (String) -> Unit = {}
 ) {
@@ -1144,8 +1315,7 @@ private fun AiriChatTopBar(
                         .background(ModelPillBg)
                         .border(0.5.dp, ModelPillBorder, AIRIShapes.pill)
                         .clickable { onModelPickerOpen() }
-                        .padding(horizontal = 14.dp, vertical = 7.dp)
-                        .pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPressTitle() }) },
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
@@ -1188,6 +1358,36 @@ private fun AiriChatTopBar(
             }
         },
         actions = {
+            var showRenameDialog by remember { mutableStateOf(false) }
+            var renameDraft by remember(currentSessionTitle) { mutableStateOf(currentSessionTitle) }
+            if (showRenameDialog) {
+                AlertDialog(
+                    onDismissRequest = { showRenameDialog = false },
+                    title = { Text(stringResource(R.string.rename_chat_title)) },
+                    text = {
+                        OutlinedTextField(
+                            value = renameDraft,
+                            onValueChange = { renameDraft = it.take(80) },
+                            label = { Text(stringResource(R.string.rename_chat_hint)) },
+                            singleLine = true
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                onRenameChat(renameDraft)
+                                showRenameDialog = false
+                            },
+                            enabled = renameDraft.trim().isNotBlank()
+                        ) { Text(stringResource(R.string.save)) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showRenameDialog = false }) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                    }
+                )
+            }
             // History / clock
             IconButton(onClick = onHistoryOpen) {
                 Icon(
@@ -1224,6 +1424,39 @@ private fun AiriChatTopBar(
                         )
                         Divider(color = AiriTheme.outline.copy(alpha = 0.35f))
                         DropdownMenuItem(
+                            text = { Text(stringResource(R.string.share_chat), color = AiriTheme.onBackground) },
+                            leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
+                            onClick = onShareChat
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(if (isCurrentSessionPinned) R.string.unpin_chat else R.string.pin_chat),
+                                    color = AiriTheme.onBackground
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    if (isCurrentSessionPinned) Icons.Outlined.PushPin else Icons.Outlined.PushPin,
+                                    contentDescription = null,
+                                    tint = AiriTheme.onSurfaceVariant
+                                )
+                            },
+                            onClick = {
+                                onSetSessionPinned(!isCurrentSessionPinned)
+                                onDismissDropdown()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.rename_chat), color = AiriTheme.onBackground) },
+                            leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
+                            onClick = {
+                                renameDraft = currentSessionTitle
+                                showRenameDialog = true
+                                onDismissDropdown()
+                            }
+                        )
+                        DropdownMenuItem(
                             text  = { Text(stringResource(R.string.export_chat), color = AiriTheme.onBackground) },
                             leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
                             onClick = onExportChat
@@ -1238,6 +1471,13 @@ private fun AiriChatTopBar(
                             }
                         )
                     }
+                }
+                IconButton(onClick = onToggleDropdown) {
+                    Icon(
+                        Icons.Outlined.MoreVert,
+                        contentDescription = stringResource(R.string.more_options),
+                        tint = AiriTheme.onBackground.copy(alpha = 0.65f)
+                    )
                 }
             }
         }
@@ -1554,7 +1794,8 @@ fun ChatMessageList(
     onSuggestionClick: (String) -> Unit = {},
     onEditMessage: (String) -> Unit = {},
     onDeleteMessage: (String) -> Unit = {},
-    
+    onExportPdf: (String) -> Unit = {},
+    onExportMarkdown: (String) -> Unit = {},
     onFeedback: (uid: String, liked: Boolean) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
@@ -1702,10 +1943,10 @@ fun ChatMessageList(
                 // Suggestion chips — quick starter prompts
                 Spacer(Modifier.height(28.dp))
                 val suggestions = listOf(
-                    "✍️  Draft an email" to "Help me write a professional email",
-                    "📊  Analyze data" to "Analyze this data and explain the trends",
-                    "💡  Brainstorm ideas" to "Give me 10 creative ideas for",
-                    "🔍  Research topic" to "Research and summarize the topic:"
+                    "  Draft an email" to "Help me write a professional email",
+                    "  Analyze data" to "Analyze this data and explain the trends",
+                    "  Brainstorm ideas" to "Give me 10 creative ideas for",
+                    "  Research topic" to "Research and summarize the topic:"
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     suggestions.chunked(2).forEach { row ->
@@ -1740,7 +1981,9 @@ fun ChatMessageList(
         Box(modifier = modifier) {
             LazyColumn(
                 state               = listState,
-                modifier            = Modifier.fillMaxSize(),
+                modifier            = Modifier
+                    .fillMaxSize()
+                    .verticalScrollbar(listState),
                 reverseLayout       = true,
                 contentPadding      = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1753,10 +1996,12 @@ fun ChatMessageList(
                     val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
                     if (msg.isUser) {
                         UserBubble(
-                            text     = msg.text,
-                            imageUri = msg.imageUri,
-                            onEdit   = { onEditMessage(msg.text) },
-                            onDelete = { onDeleteMessage(msg.uid) }
+                            text               = msg.text,
+                            imageUri           = msg.imageUri,
+                            voiceRecordingPath = msg.voiceRecordingPath,
+                            voiceDurationMs    = msg.voiceDurationMs,
+                            onEdit             = { onEditMessage(msg.text) },
+                            onDelete           = { onDeleteMessage(msg.uid) }
                         )
                     } else {
                         AiBubble(
@@ -1768,6 +2013,8 @@ fun ChatMessageList(
                             onSpeak         = onSpeak,
                             execOrigin      = msg.execOrigin,
                             onFeedback      = { liked -> onFeedback(msg.uid, liked) },
+                            onExportPdf     = onExportPdf,
+                            onExportMarkdown = onExportMarkdown,
                             initialFeedback = msg.feedback
                         )
                     }
@@ -1782,13 +2029,38 @@ fun ChatMessageList(
     }
 }
 
+fun Modifier.verticalScrollbar(
+    state: LazyListState,
+    color: Color = Color.White.copy(alpha = 0.2f),
+    width: Dp = 4.dp
+): Modifier = this.drawWithContent {
+    drawContent()
+    
+    val firstVisibleElementIndex = state.layoutInfo.visibleItemsInfo.firstOrNull()?.index
+    val totalItemsCount = state.layoutInfo.totalItemsCount
+    
+    if (firstVisibleElementIndex != null && totalItemsCount > 0) {
+        val elementHeight = size.height / totalItemsCount
+        val scrollbarHeight = state.layoutInfo.visibleItemsInfo.size * elementHeight
+        val scrollbarOffsetY = firstVisibleElementIndex * elementHeight
+        
+        drawRect(
+            color = color,
+            topLeft = Offset(size.width - width.toPx(), scrollbarOffsetY),
+            size = Size(width.toPx(), scrollbarHeight)
+        )
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun UserBubble(
     text: String,
     imageUri: String? = null,
     onEdit: () -> Unit = {},
-    onDelete: () -> Unit = {}
+    onDelete: () -> Unit = {},
+    voiceRecordingPath: String? = null,
+    voiceDurationMs: Long = 0L
 ) {
     val displayText = remember(text, imageUri) {
         if (imageUri != null) text.replace(Regex("""\s*\n*\[image:[^\]]*\]\s*$"""), "").trim()
@@ -1801,8 +2073,19 @@ fun UserBubble(
         androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
     }
 
-    // Contextual menu state — shown on long-press (not on immediate tap)
     var showContextMenu by remember { mutableStateOf(false) }
+    var isSelectingText by remember { mutableStateOf(false) }
+    val bubbleGesture = if (isSelectingText) {
+        Modifier
+    } else {
+        Modifier.combinedClickable(
+            onClick = { },
+            onLongClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                showContextMenu = true
+            }
+        )
+    }
 
     AnimatedVisibility(
         visibleState = transition,
@@ -1816,16 +2099,20 @@ fun UserBubble(
                         .widthIn(max = 320.dp)
                         .clip(AIRIShapes.userBubble)
                         .background(UserBubbleSurface)
-                        .combinedClickable(
-                            onClick    = { /* tap does nothing — no auto-copy */ },
-                            onLongClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                showContextMenu = true
-                            }
-                        )
+                        .then(bubbleGesture)
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     horizontalAlignment = Alignment.End
                 ) {
+                    // Voice message display
+                    if (voiceRecordingPath != null && voiceDurationMs > 0) {
+                        com.airi.assistant.ui.components.VoiceMessageBubble(
+                            durationMs  = voiceDurationMs,
+                            isPlaying   = false,
+                            progress    = 0f,
+                            onPlayPause = { /* playback handled by parent */ },
+                            modifier    = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
                     if (imageUri != null) {
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current).data(imageUri).crossfade(true).build(),
@@ -1837,7 +2124,13 @@ fun UserBubble(
                         if (displayText.isNotBlank()) Spacer(Modifier.height(8.dp))
                     }
                     if (displayText.isNotBlank() || imageUri == null) {
-                        Text(text = displayText, color = AiriTheme.onBackground, fontSize = 15.sp, lineHeight = 23.sp)
+                        if (isSelectingText) {
+                            SelectionContainer {
+                                Text(text = displayText, color = AiriTheme.onBackground, fontSize = 15.sp, lineHeight = 23.sp)
+                            }
+                        } else {
+                            Text(text = displayText, color = AiriTheme.onBackground, fontSize = 15.sp, lineHeight = 23.sp)
+                        }
                     }
                 }
 
@@ -1864,7 +2157,10 @@ fun UserBubble(
                     DropdownMenuItem(
                         text         = { Text(stringResource(R.string.select_text), color = AiriTheme.onBackground, fontSize = 14.sp) },
                         leadingIcon  = { Icon(Icons.Outlined.TextFields, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                        onClick      = { showContextMenu = false /* text selection handled by system */ }
+                        onClick      = {
+                            showContextMenu = false
+                            isSelectingText = true
+                        }
                     )
                     DropdownMenuItem(
                         text         = { Text(stringResource(R.string.share), color = AiriTheme.onBackground, fontSize = 14.sp) },
@@ -1883,6 +2179,7 @@ fun UserBubble(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AiBubble(
     text: String,
@@ -1895,7 +2192,9 @@ fun AiBubble(
     
     initialFeedback: Int = 0,
     
-    onFeedback: (liked: Boolean) -> Unit = {}
+    onFeedback: (liked: Boolean) -> Unit = {},
+    onExportPdf: (String) -> Unit = {},
+    onExportMarkdown: (String) -> Unit = {}
 ) {
     val context   = LocalContext.current
     val haptic    = LocalHapticFeedback.current
@@ -1904,6 +2203,19 @@ fun AiBubble(
         if (traceId != null) allTraces.find { it.id == traceId } else null
     }
     var traceExpanded by remember { mutableStateOf(false) }
+    var showContextMenu by remember { mutableStateOf(false) }
+    var isSelectingText by remember { mutableStateOf(false) }
+    val responseGesture = if (isSelectingText) {
+        Modifier
+    } else {
+        Modifier.combinedClickable(
+            onClick = { },
+            onLongClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                showContextMenu = true
+            }
+        )
+    }
 
     val transition = remember {
         androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
@@ -1935,15 +2247,64 @@ fun AiBubble(
             }
 
             Column {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                        .background(AiBubbleSurface)
-                        .border(1.dp, AiBubbleBorder, RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
-                ) {
-                    MarkdownText(rawText = text, modifier = Modifier.fillMaxWidth(), baseFontSp = 15f, lineHeightSp = 23f)
+                Box {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
+                            .background(AiBubbleSurface)
+                            .border(1.dp, AiBubbleBorder, RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
+                            .then(responseGesture)
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        if (isSelectingText) {
+                            SelectionContainer {
+                                MarkdownText(rawText = text, modifier = Modifier.fillMaxWidth(), baseFontSp = 15f, lineHeightSp = 23f)
+                            }
+                        } else {
+                            MarkdownText(rawText = text, modifier = Modifier.fillMaxWidth(), baseFontSp = 15f, lineHeightSp = 23f)
+                        }
+                    }
+
+                    DropdownMenu(
+                        expanded = showContextMenu,
+                        onDismissRequest = { showContextMenu = false },
+                        modifier = Modifier.background(AiriTheme.surfaceVariant)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.copy), color = AiriTheme.onBackground) },
+                            leadingIcon = { Icon(Icons.Outlined.ContentCopy, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                            onClick = {
+                                showContextMenu = false
+                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.select_text), color = AiriTheme.onBackground) },
+                            leadingIcon = { Icon(Icons.Outlined.TextFields, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                            onClick = {
+                                showContextMenu = false
+                                isSelectingText = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.share), color = AiriTheme.onBackground) },
+                            leadingIcon = { Icon(Icons.Outlined.Share, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                            onClick = { showContextMenu = false; onShare(text) }
+                        )
+                        Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
+                        DropdownMenuItem(
+                            text = { Text("Export as PDF", color = AiriTheme.onBackground) },
+                            leadingIcon = { Icon(Icons.Outlined.PictureAsPdf, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                            onClick = { showContextMenu = false; onExportPdf(text) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Export as Markdown", color = AiriTheme.onBackground) },
+                            leadingIcon = { Icon(Icons.Outlined.Description, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                            onClick = { showContextMenu = false; onExportMarkdown(text) }
+                        )
+                    }
                 }
 
                 // Action row
@@ -2004,7 +2365,7 @@ fun AiBubble(
                                 Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(12.dp))
                                 Spacer(Modifier.width(4.dp))
                                 Text(
-                                    text = "⚙ ${agentTag ?: "Agent"} · ${trace.stepCount} ${if (traceExpanded) "▲" else "▼"}",
+                                    text = " ${agentTag ?: "Agent"} · ${trace.stepCount} ${if (traceExpanded) "▲" else "▼"}",
                                     color = CosmicAccent.copy(0.85f), fontSize = 10.sp, fontWeight = FontWeight.Medium
                                 )
                             }
@@ -2037,7 +2398,7 @@ fun AiBubble(
                         modifier = Modifier.clip(AIRIShapes.xl).background(CosmicAccent.copy(0.12f))
                             .border(0.5.dp, CosmicAccent.copy(0.35f), AIRIShapes.xl).padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
-                        Text("⚙ $agentTag", color = CosmicAccent.copy(0.85f), fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                        Text(" $agentTag", color = CosmicAccent.copy(0.85f), fontSize = 10.sp, fontWeight = FontWeight.Medium)
                     }
                 }
                 if (execOrigin.isVisible) {
@@ -2107,12 +2468,15 @@ private fun AttachmentChip(
     attachment: com.airi.assistant.domain.ChatAttachment,
     onRemove: () -> Unit
 ) {
-    val accent   = CosmicAccent
-    val subtitle = when (attachment.kind) {
-        com.airi.assistant.domain.ChatAttachment.Kind.IMAGE,
-        com.airi.assistant.domain.ChatAttachment.Kind.CAMERA -> attachment.mimeType ?: "image"
-        com.airi.assistant.domain.ChatAttachment.Kind.FILE   -> attachment.mimeType ?: "file"
+    val accent = CosmicAccent
+    val typeLabel = when (attachment.contentType) {
+        AttachmentPolicy.ContentType.IMAGE -> stringResource(R.string.attachment_type_image)
+        AttachmentPolicy.ContentType.VIDEO -> stringResource(R.string.attachment_type_video)
+        AttachmentPolicy.ContentType.TEXT -> stringResource(R.string.attachment_type_text)
+        AttachmentPolicy.ContentType.DOCUMENT -> stringResource(R.string.attachment_type_document)
+        AttachmentPolicy.ContentType.FILE -> stringResource(R.string.attachment_type_file)
     }
+    val subtitle = listOfNotNull(typeLabel, attachment.displaySize).joinToString(" • ")
     Row(
         modifier = Modifier.widthIn(min = 140.dp, max = 240.dp)
             .clip(AIRIShapes.md)
@@ -2122,10 +2486,12 @@ private fun AttachmentChip(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(modifier = Modifier.size(36.dp).clip(AIRIShapes.xs).background(accent.copy(0.18f)), contentAlignment = Alignment.Center) {
-            val fallback = when (attachment.kind) {
-                com.airi.assistant.domain.ChatAttachment.Kind.IMAGE,
-                com.airi.assistant.domain.ChatAttachment.Kind.CAMERA -> Icons.Default.Image
-                com.airi.assistant.domain.ChatAttachment.Kind.FILE   -> Icons.Default.AttachFile
+            val fallback = when (attachment.contentType) {
+                AttachmentPolicy.ContentType.IMAGE -> Icons.Default.Image
+                AttachmentPolicy.ContentType.VIDEO -> Icons.Outlined.Videocam
+                AttachmentPolicy.ContentType.TEXT -> Icons.Outlined.Description
+                AttachmentPolicy.ContentType.DOCUMENT -> Icons.Outlined.Article
+                AttachmentPolicy.ContentType.FILE -> Icons.Default.AttachFile
             }
             Icon(fallback, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
             val thumbModel: Any? = attachment.uri ?: attachment.bitmap
@@ -2140,7 +2506,7 @@ private fun AttachmentChip(
         }
         Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(attachment.displayName, color = AiriTheme.onBackground, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(attachment.safeDisplayName, color = AiriTheme.onBackground, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(subtitle, color = AiriTheme.onBackground.copy(0.55f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
@@ -2168,6 +2534,7 @@ fun AiriChatInputBar(
     modelState: ModelUiState,
     isGenerating: Boolean,
     voiceInput: String,
+    voicePartial: String = "",
     voiceState: VoiceSessionState = VoiceSessionState.IDLE,
     isVadInterrupting: Boolean = false,
     smartReplies: List<String> = emptyList(),
@@ -2175,7 +2542,8 @@ fun AiriChatInputBar(
     onCancel: () -> Unit = {},
     onSmartReply: (String) -> Unit = {},
     onPickImage: () -> Unit = {},
-    onPickMmproj: () -> Unit = {},
+    onPickVideo: () -> Unit = {},
+    onPickText: () -> Unit = {},
     onPickFile: () -> Unit = {},
     onTakePhoto: () -> Unit = {},
     onMicClick: () -> Unit,
@@ -2191,7 +2559,11 @@ fun AiriChatInputBar(
     onUserStartedTyping: () -> Unit = {},
     
     onFocusChanged: (Boolean) -> Unit = {},
-    
+    skillSuggestions: List<ChatInputSuggestion> = emptyList(),
+    knowledgeSuggestions: List<ChatInputSuggestion> = emptyList(),
+    onSkillQueryChanged: (String) -> Unit = {},
+    onKnowledgeQueryChanged: (String) -> Unit = {},
+
     attachments: List<ChatAttachment> = emptyList(),
     onRemoveAttachment: (String) -> Unit = {}
 ) {
@@ -2203,9 +2575,21 @@ fun AiriChatInputBar(
     val isInferenceReady = modelState.isModelReady || modelState.isCloudReady
     val canSend = text.isNotBlank() && isInferenceReady && !modelState.isModelLoading && !isGenerating
     val isTyping = text.isNotBlank()
+    val shortcutInput = text.trimStart()
+    val showingSkillShortcuts = shortcutInput.startsWith("/")
+    val showingKnowledgeShortcuts = shortcutInput.startsWith("@")
+    val activeSuggestions = when {
+        showingSkillShortcuts -> skillSuggestions
+        showingKnowledgeShortcuts -> knowledgeSuggestions
+        else -> emptyList()
+    }
 
-    // : Large prompt detection (>2000 chars)
-    val showConvertBanner = text.length > 2_000
+    // : Large prompt detection
+    val showWarningBanner = text.length in 2001..2999
+    val showLimitBottomSheet = text.length >= 3000
+    var hasDismissedBottomSheet by remember(text.length < 3000) { mutableStateOf(false) }
+
+    val limitSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Apply external pre-fill (e.g. from Edit bubble action)
     LaunchedEffect(externalInputText) {
@@ -2220,7 +2604,7 @@ fun AiriChatInputBar(
     val micPulse = remember { androidx.compose.animation.core.Animatable(1f) }
     LaunchedEffect(voiceState) {
         when (voiceState) {
-            VoiceSessionState.LISTENING   -> while (true) { micPulse.animateTo(1.30f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOW)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOW)) }
+            VoiceSessionState.LISTENING   -> while (true) { micPulse.animateTo(1.30f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) }
             VoiceSessionState.PROCESSING  -> while (true) { micPulse.animateTo(1.18f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOWER)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOWER)) }
             VoiceSessionState.SPEAKING    -> while (true) { micPulse.animateTo(1.22f, animationSpec = androidx.compose.animation.core.tween(700)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(700)) }
             else -> micPulse.snapTo(1f)
@@ -2234,59 +2618,97 @@ fun AiriChatInputBar(
         }
     }
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-
-        // : Large prompt convert-to-file banner
-        AnimatedVisibility(
-            visible = showConvertBanner,
-            enter   = fadeIn() + expandVertically(),
-            exit    = fadeOut() + shrinkVertically()
+    if (showLimitBottomSheet && !hasDismissedBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { hasDismissedBottomSheet = true },
+            sheetState = limitSheetState,
+            containerColor = AiriTheme.surface,
+            scrimColor = Color.Black.copy(alpha = 0.32f)
         ) {
-            val ctx = androidx.compose.ui.platform.LocalContext.current
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(CosmicAccent.copy(alpha = 0.10f))
-                    .padding(horizontal = 12.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    .padding(24.dp)
+                    .padding(bottom = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                androidx.compose.material3.Icon(
-                    androidx.compose.material.icons.Icons.Outlined.Info, null,
-                    tint     = CosmicAccent,
-                    modifier = Modifier.size(14.dp)
+                Icon(
+                    Icons.Outlined.WarningAmber, null,
+                    tint = Color(0xFFFFB347),
+                    modifier = Modifier.size(48.dp)
                 )
                 Text(
-                    "Long text (${text.length} chars). Convert to file?",
-                    fontSize = 11.sp,
-                    color    = CosmicAccent.copy(0.85f),
-                    modifier = Modifier.weight(1f)
+                    stringResource(R.string.char_limit_reached_title),
+                    style = AiriTheme.typography.headlineSmall,
+                    color = AiriTheme.onSurface,
+                    fontWeight = FontWeight.Bold
                 )
-                androidx.compose.material3.TextButton(
+                Text(
+                    stringResource(R.string.char_limit_reached_desc),
+                    style = AiriTheme.typography.bodyMedium,
+                    color = AiriTheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Button(
                     onClick = {
                         val uri = runCatching {
-                            val dir = java.io.File(ctx.cacheDir, "chat_attachments").apply { mkdirs() }
+                            val dir = java.io.File(context.cacheDir, "chat_attachments").apply { mkdirs() }
                             val file = java.io.File(dir, "prompt_${System.currentTimeMillis()}.txt")
                             file.writeText(text)
                             androidx.core.content.FileProvider.getUriForFile(
-                                ctx, "${ctx.packageName}.fileprovider", file
+                                context, "${context.packageName}.fileprovider", file
                             )
                         }.getOrNull()
                         if (uri != null) {
                             onStageFile(uri)
                             text = ""
+                            hasDismissedBottomSheet = true
                         }
                     },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+                    shape = AIRIShapes.md
                 ) {
-                    Text(stringResource(R.string.chat_convert), fontSize = 11.sp, color = CosmicAccent, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.auto_convert), color = Color.White)
                 }
-                androidx.compose.material3.TextButton(
-                    onClick = { /* user chooses to keep text as-is, banner dismisses when <2000 chars */ },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                TextButton(
+                    onClick = { hasDismissedBottomSheet = true },
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(stringResource(R.string.chat_keep), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant.copy(0.6f))
+                    Text(stringResource(R.string.chat_keep), color = AiriTheme.onSurfaceVariant)
                 }
+            }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+
+        // : Warning banner for 2000-3000 chars
+        AnimatedVisibility(
+            visible = showWarningBanner,
+            enter   = fadeIn() + expandVertically(),
+            exit    = fadeOut() + shrinkVertically()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFFFB347).copy(alpha = 0.10f))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.Info, null,
+                    tint     = Color(0xFFFFB347),
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    stringResource(R.string.char_limit_warning),
+                    fontSize = 12.sp,
+                    color    = Color(0xFFFFB347),
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
 
@@ -2327,7 +2749,18 @@ fun AiriChatInputBar(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                 VoiceWaveformBars(active = voiceState == VoiceSessionState.LISTENING || isVadInterrupting, color = waveColor)
                 Spacer(Modifier.width(8.dp))
-                Text(label, color = waveColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(label, color = waveColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    if (voiceState == VoiceSessionState.LISTENING && voicePartial.isNotBlank()) {
+                        Text(
+                            text = voicePartial,
+                            color = AiriTheme.onBackground.copy(alpha = 0.72f),
+                            fontSize = 12.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
         }
 
@@ -2363,6 +2796,69 @@ fun AiriChatInputBar(
                 }
                 Divider(color = AiriTheme.outline, thickness = 0.5.dp)
             }
+            AnimatedVisibility(
+                visible = activeSuggestions.isNotEmpty() && !isGenerating,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .clip(AIRIShapes.md)
+                        .background(AiriTheme.surfaceVariant)
+                ) {
+                    activeSuggestions.forEach { suggestion ->
+                        Surface(
+                            onClick = {
+                                text = if (suggestion.isKnowledge) {
+                                    "@knowledge:${suggestion.id} "
+                                } else {
+                                    "/skill:${suggestion.id} "
+                                }
+                                onSkillQueryChanged("")
+                                onKnowledgeQueryChanged("")
+                            },
+                            color = Color.Transparent,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (suggestion.isKnowledge) Icons.Outlined.Lightbulb else Icons.Outlined.AutoAwesome,
+                                    contentDescription = suggestion.title,
+                                    tint = if (suggestion.isKnowledge) Color(0xFFFFB347) else CosmicAccent,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        suggestion.title,
+                                        color = AiriTheme.onSurface,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        if (suggestion.subtitle.isBlank() && suggestion.isKnowledge) {
+                                            stringResource(R.string.input_saved_knowledge)
+                                        } else {
+                                            suggestion.subtitle
+                                        },
+                                        color = AiriTheme.onSurfaceVariant,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             Box(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
@@ -2371,6 +2867,23 @@ fun AiriChatInputBar(
                     onValueChange = { newValue ->
                         if (text.isEmpty() && newValue.isNotEmpty()) onUserStartedTyping()
                         text = newValue
+                        val query = newValue.trimStart()
+                        when {
+                            query.startsWith("/skill:") || query.startsWith("@knowledge:") -> {
+                                onSkillQueryChanged("")
+                                onKnowledgeQueryChanged("")
+                            }
+                            query.startsWith("/") -> {
+                                onSkillQueryChanged(query.drop(1).takeWhile { !it.isWhitespace() })
+                            }
+                            query.startsWith("@") -> {
+                                onKnowledgeQueryChanged(query.drop(1).takeWhile { !it.isWhitespace() })
+                            }
+                            else -> {
+                                onSkillQueryChanged("")
+                                onKnowledgeQueryChanged("")
+                            }
+                        }
                     },
                     enabled = isInferenceReady && !isGenerating,
                     modifier = Modifier
@@ -2382,7 +2895,7 @@ fun AiriChatInputBar(
                         },
                     textStyle = androidx.compose.ui.text.TextStyle(
                         color = AiriTheme.onBackground, fontSize = 15.sp,
-                        textAlign = TextAlign.End   // RTL default
+                        textAlign = TextAlign.Start
                     ),
                     cursorBrush = androidx.compose.ui.graphics.SolidColor(CosmicAccent),
                     maxLines = if (isExpanded) 8 else 3,
@@ -2398,7 +2911,7 @@ fun AiriChatInputBar(
                                     color = AiriTheme.onBackground.copy(0.35f),
                                     fontSize = 15.sp,
                                     modifier = Modifier.fillMaxWidth(),
-                                    textAlign = TextAlign.End
+                                    textAlign = TextAlign.Start
                                 )
                             }
                             inner()
@@ -2412,6 +2925,17 @@ fun AiriChatInputBar(
             ) {
                 // Send / LiveChat / Stop circle button
                 val mainScale = if (!showSend && voiceState != VoiceSessionState.IDLE) micPulse.value else 1f
+                val mainActionDescription = when {
+                    isGenerating -> stringResource(R.string.cd_cancel_generation)
+                    showSend -> stringResource(R.string.cd_send_message)
+                    else -> stringResource(R.string.cd_start_voice_chat)
+                }
+                val attachmentDescription = stringResource(R.string.cd_add_attachment)
+                val voiceInputDescription = stringResource(R.string.cd_start_voice_input)
+                val connectorsDescription = stringResource(R.string.cd_open_connectors)
+                val expansionDescription = stringResource(
+                    if (isExpanded) R.string.cd_collapse_input else R.string.cd_expand_input
+                )
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -2423,6 +2947,10 @@ fun AiriChatInputBar(
                             isInferenceReady || showSend -> CosmicAccent
                             else -> CosmicAccent.copy(0.30f)
                         })
+                        .semantics {
+                            contentDescription = mainActionDescription
+                            role = Role.Button
+                        }
                         .clickable(enabled = isInferenceReady || isGenerating) {
                             when {
                                 isGenerating -> onCancel()
@@ -2445,9 +2973,9 @@ fun AiriChatInputBar(
                         label = "main_btn"
                     ) { state ->
                         when (state) {
-                            "stop" -> Icon(Icons.Default.Stop, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
-                            "send" -> Icon(Icons.Default.ArrowUpward, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
-                            else   -> Icon(Icons.Default.GraphicEq, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                            "stop" -> Icon(Icons.Default.Stop, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                            "send" -> Icon(Icons.Default.ArrowUpward, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                            else -> Icon(Icons.Default.GraphicEq, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -2458,22 +2986,31 @@ fun AiriChatInputBar(
                 Box(
                     modifier = Modifier
                         .size(36.dp).clip(CircleShape)
+                        .semantics {
+                            contentDescription = attachmentDescription
+                            role = Role.Button
+                        }
                         .clickable(enabled = !isGenerating) { showAttachPopup = true },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Add, null, tint = AiriTheme.onBackground.copy(if (!isGenerating) 0.7f else 0.3f), modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Add, attachmentDescription, tint = AiriTheme.onBackground.copy(if (!isGenerating) 0.7f else 0.3f), modifier = Modifier.size(20.dp))
                 }
 
                 // Mic button
                 AnimatedVisibility(visible = !isTyping && !isGenerating, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
                     Box(
-                        modifier = Modifier.size(36.dp).clip(CircleShape).clickable(enabled = isInferenceReady) { onMicClick() },
+                        modifier = Modifier.size(36.dp).clip(CircleShape)
+                            .semantics {
+                                contentDescription = voiceInputDescription
+                                role = Role.Button
+                            }
+                            .clickable(enabled = isInferenceReady) { onMicClick() },
                         contentAlignment = Alignment.Center
                     ) {
                         if (voiceState != VoiceSessionState.IDLE) {
                             Box(modifier = Modifier.size((28 * micPulse.value).dp).clip(CircleShape).background(CosmicAccent.copy(0.18f)))
                         }
-                        Icon(Icons.Outlined.Mic, null,
+                        Icon(Icons.Outlined.Mic, voiceInputDescription,
                             tint = when (voiceState) {
                                 VoiceSessionState.IDLE -> if (isInferenceReady) Color.White.copy(0.70f) else Color.White.copy(0.30f)
                                 else -> CosmicAccent
@@ -2490,6 +3027,10 @@ fun AiriChatInputBar(
                             .clip(AIRIShapes.xl)
                             .background(AiriTheme.surfaceVariant)
                             .border(1.dp, Color.White.copy(0.12f), AIRIShapes.xl)
+                            .semantics {
+                                contentDescription = connectorsDescription
+                                role = Role.Button
+                            }
                             .clickable { onNavigate(AiriRoute.CONNECTORS) }
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
@@ -2503,10 +3044,13 @@ fun AiriChatInputBar(
                 Spacer(Modifier.weight(1f))
 
                 // Expand / collapse toggle
-                IconButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.size(32.dp)) {
+                IconButton(
+                    onClick = { isExpanded = !isExpanded },
+                    modifier = Modifier.size(32.dp)
+                ) {
                     Icon(
                         if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                        null,
+                        expansionDescription,
                         tint = AiriTheme.onBackground.copy(0.45f),
                         modifier = Modifier.size(18.dp)
                     )
@@ -2566,10 +3110,29 @@ fun AiriChatInputBar(
                         modifier = Modifier.weight(1f)
                     ) { showAttachPopup = false; onTakePhoto() }
                     AttachCard(
+                        icon = Icons.Outlined.Videocam,
+                        label = stringResource(R.string.attach_video),
+                        modifier = Modifier.weight(1f)
+                    ) { showAttachPopup = false; onPickVideo() }
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    AttachCard(
+                        icon = Icons.Outlined.Description,
+                        label = stringResource(R.string.attach_text),
+                        modifier = Modifier.weight(1f)
+                    ) { showAttachPopup = false; onPickText() }
+                    AttachCard(
                         icon = Icons.Outlined.AttachFile,
                         label = stringResource(R.string.attach_files),
                         modifier = Modifier.weight(1f)
                     ) { showAttachPopup = false; onPickFile() }
+                    Spacer(modifier = Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(12.dp))
                 Text(
@@ -2762,10 +3325,32 @@ fun AiriDrawer(
 }
 
 private fun shareAiResponse(context: android.content.Context, response: String) {
-    val shareText = "${response.trim()}\n\nGenerated by AIRI"
+    val shareText = response.trim()
+    if (shareText.isBlank()) return
     AnalyticsService.shareableOutputShared("android_share")
-    val intent = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, shareText) }
-    context.startActivity(Intent.createChooser(intent, "Share AIRI response"))
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, shareText)
+    }
+    context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_chat)))
+}
+
+private fun shareChatTranscript(context: android.content.Context, messages: List<ChatMessage>) {
+    val transcript = messages
+        .takeLast(100)
+        .joinToString(separator = "\n\n") { message ->
+            val speaker = if (message.isUser) "You" else "AIRI"
+            "$speaker:\n${message.text.trim()}"
+        }
+        .take(250_000)
+        .trim()
+    if (transcript.isBlank()) return
+    AnalyticsService.shareableOutputShared("android_chat_share")
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, transcript)
+    }
+    context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_chat)))
 }
 
 @Composable
@@ -2893,4 +3478,29 @@ private fun ScrollToBottomFab(visible: Boolean, onClick: () -> Unit, modifier: M
             Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(20.dp))
         }
     }
+}
+
+private fun android.content.Context.userFacingVoiceError(error: String): String {
+    val platformCode = error.removePrefix("stt_platform_error_").toIntOrNull()
+    val resourceId = when {
+        error == "stt_unavailable" -> R.string.voice_error_unavailable
+        error == "vosk_model_load_failed" -> R.string.voice_error_model_load
+        error == "stt_empty_result" -> R.string.voice_error_empty_result
+        platformCode in setOf(
+            android.speech.SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
+            android.speech.SpeechRecognizer.ERROR_NETWORK,
+            android.speech.SpeechRecognizer.ERROR_SERVER
+        ) -> R.string.voice_error_network
+        platformCode in setOf(
+            android.speech.SpeechRecognizer.ERROR_AUDIO,
+            android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS
+        ) -> R.string.voice_error_microphone
+        platformCode == android.speech.SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> R.string.voice_error_busy
+        platformCode in setOf(
+            android.speech.SpeechRecognizer.ERROR_NO_MATCH,
+            android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+        ) -> R.string.voice_error_empty_result
+        else -> R.string.voice_error_generic
+    }
+    return getString(resourceId)
 }

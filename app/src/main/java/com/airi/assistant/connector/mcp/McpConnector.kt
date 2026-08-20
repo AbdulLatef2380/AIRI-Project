@@ -18,9 +18,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * (state flow, lifecycle, action dispatch) so concrete subclasses only
  * implement the transport (stdio, http+sse, etc.).
  *
- * The default [InMemoryMcpConnector] subclass is provided so the UI tab
- * is never empty — users can see the MCP capability is wired in even
- * before they configure a real MCP server.
+ * Concrete implementations must provide a real authenticated transport and
+ * may be registered only after their configuration is available.
  */
 abstract class McpConnector(
     final override val id: String,
@@ -111,30 +110,5 @@ abstract class McpConnector(
         val name: String,
         val description: String,
         val schema: Map<String, String> = emptyMap(),
-    )
-}
-
-/**
- * Built-in placeholder MCP connector. Always handshake-succeeds and
- * exposes a tiny `echo` tool so users can verify the MCP plumbing
- * end-to-end without configuring an external server.
- */
-class InMemoryMcpConnector : McpConnector(
-    id = "mcp_local_demo",
-    name = "Local MCP (demo)",
-    description = "Built-in MCP demo with an `echo` tool. Replace with a real MCP server.",
-    tools = listOf(
-        McpTool(name = "echo", description = "Echoes the provided text back.")
-    ),
-) {
-    override suspend fun handshake(): Boolean = true
-    override suspend fun teardown() { /* no-op */ }
-    override suspend fun invoke(
-        tool: McpTool,
-        text: String,
-        params: Map<String, String>,
-    ): ConnectorOutput = ConnectorOutput.Success(
-        text = text,
-        data = mapOf("tool" to tool.name, "params_count" to params.size.toString()),
     )
 }

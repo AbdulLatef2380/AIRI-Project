@@ -42,7 +42,7 @@ import com.airi.assistant.domain.auth.AuthService
 import androidx.compose.ui.res.stringResource
 
 /**
- * LoginScreen — Phase 2 Task 3: AuthService enforcement.
+ * LoginScreen — ask 3: AuthService enforcement.
  *
  * All Firebase calls are now routed through [AuthService] injected via the
  * [authService] parameter. No direct [FirebaseAuth.getInstance()] calls remain

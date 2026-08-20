@@ -22,12 +22,16 @@ import com.airi.assistant.domain.customskill.CustomSkillExecutor
 import com.airi.assistant.domain.customskill.CustomSkillRepository
 import com.airi.assistant.domain.customskill.SkillConfig
 import com.airi.assistant.domain.customskill.SkillType
+import java.net.URI
 import java.util.UUID
+import kotlinx.coroutines.flow.StateFlow
 
 class SkillRegistry(private val context: Context) {
 
     // AP-04: Use ServiceLocator singleton to prevent split-brain on Keystore failure.
     private val secureStorage get() = ServiceLocator.secureStorage
+    val connectorAvailability: StateFlow<com.airi.assistant.auth.SecureStorage.IntegrationConnections>
+        get() = secureStorage.integrationConnections
     private val customSkillRepository = CustomSkillRepository(context)
 
     /** Shared executor instance for custom-skill adapters returned from [getAvailableSkills]. */
@@ -250,7 +254,7 @@ class SkillRegistry(private val context: Context) {
         // agent loop, because getAvailableSkills() is the sole routing source for
         // SkillToolBridge.invoke() and ToolDispatcher.
         customSkillRepository.getAllSkills()
-            .filter { isSkillEnabled(it.id) }
+            .filter { isSkillEnabled(it.id) && hasRunnableEndpoint(it) }
             .forEach { customSkill ->
                 skills.add(CustomSkillAiriSkillAdapter(customSkill, customSkillExecutor))
             }
@@ -265,7 +269,8 @@ class SkillRegistry(private val context: Context) {
         val isEnabled:    Boolean,
         val version:      String       = "1.0.0",
         val dependencies: List<String> = emptyList(),
-        val author:       String       = "builtin"
+        val author:       String       = "builtin",
+        val id:           String       = name
     )
 
     // ── Version registry (persisted in SharedPreferences) ─────────────────────
@@ -324,7 +329,7 @@ class SkillRegistry(private val context: Context) {
         setInstalledVersion(info.name, info.version)
         android.util.Log.i(
             "SkillRegistry",
-            "AIRI_PROOF SKILL_INSTALLED name=${info.name} version=${info.version} action=$action"
+            "AIRI SKILL_INSTALLED name=${info.name} version=${info.version} action=$action"
         )
         return InstallResult.Success(info.name, info.version, action)
     }
@@ -338,11 +343,11 @@ class SkillRegistry(private val context: Context) {
      */
     fun validateDependencies(dependencies: List<String>): DependencyValidation {
         if (dependencies.isEmpty()) return DependencyValidation(satisfied = true, missing = emptyList())
-        val enabledNames = getAllSkillInfos()
+        val enabledIds = getAllSkillInfos()
             .filter { it.isEnabled }
-            .map { it.name }
+            .map { it.id }
             .toSet()
-        val missing = dependencies.filter { dep -> dep !in enabledNames }
+        val missing = dependencies.filter { dep -> dep !in enabledIds }
         return DependencyValidation(satisfied = missing.isEmpty(), missing = missing)
     }
 
@@ -362,7 +367,7 @@ class SkillRegistry(private val context: Context) {
 
     private fun detectCircularDeps(skillId: String, chain: List<String>): List<String> {
         if (skillId in chain) return chain + skillId        // cycle found
-        val info = getAllSkillInfos().firstOrNull { it.name == skillId } ?: return emptyList()
+        val info = getAllSkillInfos().firstOrNull { it.id == skillId } ?: return emptyList()
         for (dep in info.dependencies) {
             val result = detectCircularDeps(dep, chain + skillId)
             if (result.isNotEmpty()) return result
@@ -385,39 +390,77 @@ class SkillRegistry(private val context: Context) {
      *                   Falls back to [SkillManifest.homepage] or [SkillManifest.repositoryUrl].
      * @return           true on success, false if persistence or validation fails.
      */
-    fun registerDynamicFromManifest(manifest: SkillManifest, endpoint: String = ""): Boolean {
+    fun registerDynamicFromManifest(
+        manifest: SkillManifest,
+        endpoint: String,
+        method: String = "POST",
+        bodyTemplate: String = """{"input": "{{input}}"}""",
+        headers: Map<String, String> = emptyMap(),
+        type: SkillType = SkillType.API,
+        createdAt: Long = System.currentTimeMillis()
+    ): Boolean {
+        val skillId = manifest.id.trim()
+        val resolvedEndpoint = endpoint.trim()
+        val resolvedMethod = method.trim().uppercase()
+        if (
+            !isValidDynamicManifest(manifest) ||
+            !isTrustedHttpsEndpoint(resolvedEndpoint) ||
+            resolvedMethod !in SUPPORTED_HTTP_METHODS ||
+            bodyTemplate.isBlank() ||
+            type !in REMOTE_SKILL_TYPES
+        ) {
+            android.util.Log.w("SkillRegistry", "Rejected dynamic skill registration id=$skillId")
+            return false
+        }
         return runCatching {
-            val resolvedEndpoint = when {
-                endpoint.startsWith("https://")                    -> endpoint
-                !manifest.homepage.isNullOrBlank()                 -> manifest.homepage!!
-                !manifest.repositoryUrl.isNullOrBlank()            -> manifest.repositoryUrl!!
-                else -> "https://placeholder.airi.app/skill/${manifest.id}"
-            }
             val customSkill = CustomSkill(
-                id          = manifest.id.ifBlank { UUID.randomUUID().toString() },
-                name        = manifest.name,
-                description = manifest.description,
-                type        = SkillType.API,
-                config      = SkillConfig(
-                    endpoint     = resolvedEndpoint,
-                    method       = "POST",
-                    bodyTemplate = """{"input": "{{input}}"}"""
+                id = skillId,
+                name = manifest.name.trim(),
+                description = manifest.description.trim(),
+                type = type,
+                config = SkillConfig(
+                    endpoint = resolvedEndpoint,
+                    method = resolvedMethod,
+                    headers = headers,
+                    bodyTemplate = bodyTemplate
                 ),
-                createdAt   = System.currentTimeMillis()
+                createdAt = createdAt
             )
             customSkillRepository.saveSkill(customSkill)
-            setSkillEnabled(manifest.id, true)
-            setInstalledVersion(manifest.id, manifest.version)
+            setSkillEnabled(skillId, true)
+            setInstalledVersion(skillId, manifest.version)
             android.util.Log.i(
                 "SkillRegistry",
-                "AIRI_PROOF SKILL_MANIFEST_REGISTERED id=${manifest.id} v=${manifest.version} endpoint=$resolvedEndpoint"
+                "AIRI SKILL_MANIFEST_REGISTERED id=$skillId version=${manifest.version}"
             )
             true
-        }.getOrElse { e ->
-            android.util.Log.e("SkillRegistry", "registerDynamicFromManifest failed for '${manifest.id}': ${e.message}")
+        }.getOrElse { error ->
+            android.util.Log.e(
+                "SkillRegistry",
+                "Dynamic skill registration failed id=$skillId error=${error.javaClass.simpleName}"
+            )
             false
         }
     }
+
+    fun isCustomSkillAvailable(skill: CustomSkill): Boolean =
+        isSkillEnabled(skill.id) && hasRunnableEndpoint(skill)
+
+    private fun isValidDynamicManifest(manifest: SkillManifest): Boolean =
+        manifest.id.matches(Regex("^[a-z][a-z0-9_-]{2,63}$")) &&
+            manifest.name.trim().length in 3..80 &&
+            manifest.description.trim().length in 10..500 &&
+            manifest.version.matches(Regex("^\\d+\\.\\d+\\.\\d+(-[A-Za-z0-9.]+)?(\\+[A-Za-z0-9.]+)?$"))
+
+    private fun hasRunnableEndpoint(skill: CustomSkill): Boolean =
+        isTrustedHttpsEndpoint(skill.config.endpoint)
+
+    private fun isTrustedHttpsEndpoint(value: String): Boolean = runCatching {
+        val uri = URI(value)
+        uri.scheme.equals("https", ignoreCase = true) &&
+            !uri.host.isNullOrBlank() &&
+            uri.userInfo.isNullOrBlank()
+    }.getOrDefault(false)
 
     /** Result of [installSkillWithVersion]. */
     sealed class InstallResult {
@@ -461,14 +504,19 @@ class SkillRegistry(private val context: Context) {
         add(SkillInfo("calendar_events",    "Get upcoming Google Calendar events",          isConnected = secureStorage.isGoogleConnected(),   isEnabled = isSkillEnabled("calendar_events"),    author = "AIRI Official"))
         // ── Custom / user-installed skills ────────────────────────────────────
         addAll(customSkillRepository.getAllSkills().map { skill ->
-            SkillInfo(name = skill.name, description = skill.description, isConnected = true, isEnabled = true)
+            SkillInfo(
+                id = skill.id,
+                name = skill.name,
+                description = skill.description,
+                isConnected = hasRunnableEndpoint(skill),
+                isEnabled = isSkillEnabled(skill.id)
+            )
         })
     }
 
     fun buildSkillDescriptionBlock(): String {
         val available = getAvailableSkills()
-        val customSkills = customSkillRepository.getAllSkills()
-        if (available.isEmpty() && customSkills.isEmpty()) return ""
+        if (available.isEmpty()) return ""
         return buildString {
             append("\n\nYou have access to the following Skills for high-level tasks:")
             for (skill in available) {
@@ -480,13 +528,6 @@ class SkillRegistry(private val context: Context) {
                     append("\n  Expected input: ${meta.expectedInput}")
                 }
             }
-            for (skill in customSkills) {
-                append("\n\n- CustomSkill: ${skill.name}")
-                append("\n  Description: ${skill.description}")
-                append("\n  Type: ${skill.type.name}")
-                append("\n  When to use: Use this skill when the user's request matches '${skill.name}' or its description.")
-                append("\n  Expected input: user_input (the user's request or message)")
-            }
             append(
                 "\n\nUse these skills intelligently when the user's intent matches them. " +
                         "Skills are separate from Tools — prefer skills for known integration tasks."
@@ -497,6 +538,9 @@ class SkillRegistry(private val context: Context) {
     private data class SkillMeta(val whenToUse: String, val expectedInput: String)
 
     private companion object {
+        private val SUPPORTED_HTTP_METHODS = setOf("GET", "POST", "PUT", "PATCH", "DELETE")
+        private val REMOTE_SKILL_TYPES = setOf(SkillType.API, SkillType.WEBHOOK)
+
         private val SKILL_METADATA = mapOf(
             "web_search" to SkillMeta(
                 whenToUse = "When user asks about current events, facts, news, or needs information from the internet",

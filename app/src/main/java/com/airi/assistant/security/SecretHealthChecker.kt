@@ -29,7 +29,7 @@ import com.airi.assistant.domain.logging.LoggingService
  * - A [HealthResult.CRITICAL] failure logs an error. The app continues to
  *   start so the user can diagnose the issue, but cloud features degrade.
  * - A [HealthResult.WARNING] is logged only; no user-visible action is taken.
- * - [HealthResult.OK] is silent beyond the AIRI_PROOF log tag.
+ * - [HealthResult.OK] is silent beyond the AIRI log tag.
  *
  * This runs synchronously on the calling thread — call from a background
  * coroutine in Application.onCreate, NOT on Main.
@@ -151,7 +151,7 @@ class SecretHealthChecker(
     // ── Logging ───────────────────────────────────────────────────────────────
 
     private fun logReport(report: HealthReport) {
-        val airiTag = "AIRI_PROOF"
+        val airiTag = "AIRI"
         when (report.overallResult) {
             HealthResult.OK -> {
                 LoggingService.info(TAG, "$airiTag SECRET_HEALTH_OK checks=${report.checks.size}")

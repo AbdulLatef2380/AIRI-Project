@@ -45,7 +45,7 @@ class OrchestratorCrashReporter(
     ) {
         // B-11: Truncate goal text to GOAL_SNIPPET_CHARS before it appears anywhere
         // in structured output. The original throwable.message may be long; we log
-        // the sanitized goal separately in the AIRI_PROOF line so operators can
+        // the sanitized goal separately in the AIRI line so operators can
         // correlate crashes with user intent without capturing the full input.
         val sanitizedGoal = goalDescription?.take(GOAL_SNIPPET_CHARS)
         val report = crashStore.record(
@@ -66,7 +66,7 @@ class OrchestratorCrashReporter(
         // contains the standard errorMessage from throwable (already truncated to
         // 200 chars by CrashReportStore.record). This keeps PII out of disk/telemetry
         // while giving operators a short context marker in log analysis.
-        LoggingService.error(TAG, "AIRI_PROOF AGENT_CRASH agent=$agentId id=${report.id} " +
+        LoggingService.error(TAG, "AIRI AGENT_CRASH agent=$agentId id=${report.id} " +
             "goal_snippet=${sanitizedGoal ?: "<none>"} " +
             "error=${throwable.javaClass.simpleName}: ${throwable.message}")
     }
@@ -96,7 +96,7 @@ class OrchestratorCrashReporter(
                 errorTag  = throwable.javaClass.simpleName
             )
         )
-        LoggingService.error(TAG, "AIRI_PROOF DAG_CRASH planId=$planId node=$nodeId id=${report.id} error=${throwable.javaClass.simpleName}")
+        LoggingService.error(TAG, "AIRI DAG_CRASH planId=$planId node=$nodeId id=${report.id} error=${throwable.javaClass.simpleName}")
     }
 
     /**
@@ -121,7 +121,7 @@ class OrchestratorCrashReporter(
         telemetry.report(
             AgentTelemetryEvent.CrashRecorded(component = component, errorTag = errorTag)
         )
-        LoggingService.warn(TAG, "AIRI_PROOF MANUAL_CRASH component=$component tag=$errorTag id=${report.id}")
+        LoggingService.warn(TAG, "AIRI MANUAL_CRASH component=$component tag=$errorTag id=${report.id}")
     }
 
     /**
@@ -143,6 +143,6 @@ class OrchestratorCrashReporter(
                 errorTag  = throwable.javaClass.simpleName
             )
         )
-        LoggingService.error(TAG, "AIRI_PROOF DURABLE_CRASH taskId=$taskId agent=$agentId id=${report.id}")
+        LoggingService.error(TAG, "AIRI DURABLE_CRASH taskId=$taskId agent=$agentId id=${report.id}")
     }
 }

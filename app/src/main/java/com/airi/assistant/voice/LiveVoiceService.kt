@@ -22,6 +22,7 @@ import com.airi.assistant.voice.realtime.LocalVoicePipeline
 import com.airi.assistant.voice.realtime.RealtimeVoiceProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -49,7 +50,7 @@ import com.airi.assistant.R
  *     - Routes STT results to HybridOrchestrator
  *
  * ─────────────────────────────────────────────────────────────────────────
- * AUDIO FOCUS POLICY (Task 18)
+ * AUDIO FOCUS POLICY ()
  * ─────────────────────────────────────────────────────────────────────────
  *
  *   [requestListen] acquires AUDIOFOCUS_GAIN_TRANSIENT before starting STT.
@@ -105,8 +106,10 @@ class LiveVoiceService : Service() {
     private val incrementalTts by lazy { IncrementalTtsEngine(applicationContext) }
 
     @Volatile var realtimeProvider: RealtimeVoiceProvider = LocalVoicePipeline
+    @Volatile private var listenRequestedByUser = false
+    private var recoveryJob: Job? = null
 
-    // ── Audio focus (Task 18) ─────────────────────────────────────────────────
+    // ── Audio focus () ─────────────────────────────────────────────────
 
     private lateinit var audioManager: AudioManager
 
@@ -121,12 +124,14 @@ class LiveVoiceService : Service() {
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                Log.i(TAG, "AIRI_PROOF AUDIO_FOCUS_LOST — stopping voice")
-                requestStop()
+                Log.i(TAG, "Audio focus lost; pausing voice")
+                pauseForFocusLoss()
             }
             AudioManager.AUDIOFOCUS_GAIN -> {
-                Log.i(TAG, "AIRI_PROOF AUDIO_FOCUS_GAINED — re-arming STT")
-                requestListen()
+                if (listenRequestedByUser) {
+                    Log.i(TAG, "Audio focus regained; resuming requested voice session")
+                    requestListen()
+                }
             }
         }
     }
@@ -162,16 +167,16 @@ class LiveVoiceService : Service() {
 
         voiceManager = VoiceManager(applicationContext, buildVoiceListener())
         voiceAgentRouter = VoiceAgentRouter(
-            appContext   = applicationContext,
-            orchestrator = ServiceLocator.productionOrchestrator,
-            voiceManager = voiceManager
+            appContext = applicationContext,
+            orchestrator = ServiceLocator.productionOrchestrator
         )
-        Log.i(TAG, "AIRI_PROOF VOICE_AGENT_ROUTER_INIT")
+        Log.i(TAG, "AIRI VOICE_AGENT_ROUTER_INIT")
 
         interruptController.onStopTts          = { voiceManager.stopSpeaking() }
         interruptController.onCancelGeneration = { serviceScope.launch { voiceManager.stopAll() } }
         interruptController.onRearmStt         = {
             serviceScope.launch {
+                if (!listenRequestedByUser) return@launch
                 session.onResumeListening()
                 sttStartEpochMs = System.currentTimeMillis()
                 voiceManager.startSpeechToText()
@@ -179,11 +184,6 @@ class LiveVoiceService : Service() {
             }
         }
         interruptController.onTransitionTo = { state ->
-            when (state) {
-                VoicePipelineState.LISTENING -> session.onResumeListening()
-                VoicePipelineState.IDLE      -> session.endSession()
-                else                          -> session.onBargeIn()
-            }
             updateNotification(state)
         }
         incrementalTts.init()
@@ -209,33 +209,15 @@ class LiveVoiceService : Service() {
      * persisted selection — even after process death and recreation.
      */
     private fun restoreProviderPreference() {
-        val prefs = getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE)
-        val providerId = prefs.getString("cloud_voice_provider", "LOCAL") ?: "LOCAL"
-        val keyStore = com.airi.assistant.execution.security.SecureApiKeyStore(this)
-
-        val provider: com.airi.assistant.voice.realtime.RealtimeVoiceProvider? = when (providerId) {
-            "GEMINI_LIVE" -> {
-                val key = keyStore.getKey(com.airi.assistant.execution.CloudProvider.GEMINI)
-                if (key != null) {
-                    com.airi.assistant.voice.realtime.GeminiLiveProvider().also { it.storedApiKey = key }
-                } else {
-                    Log.w(TAG, "GEMINI_LIVE selected but no Gemini key — falling back to local")
-                    null
-                }
-            }
-            "OPENAI_REALTIME" -> {
-                val key = keyStore.getKey(com.airi.assistant.execution.CloudProvider.OPENAI)
-                if (key != null) {
-                    com.airi.assistant.voice.realtime.OpenAIRealtimeProvider().also { it.storedApiKey = key }
-                } else {
-                    Log.w(TAG, "OPENAI_REALTIME selected but no OpenAI key — falling back to local")
-                    null
-                }
-            }
-            else -> null // "LOCAL"
+        val requested = getSharedPreferences("airi_voice", Context.MODE_PRIVATE)
+            .getString("cloud_voice_provider", "LOCAL") ?: "LOCAL"
+        // Realtime providers define a transport contract but are not yet connected
+        // to microphone capture and AudioTrack playback in this service. Keep the
+        // operational path local until that end-to-end transport is implemented.
+        if (requested != "LOCAL") {
+            Log.w(TAG, "Realtime provider '$requested' is not enabled in the live pipeline; using local voice")
         }
-        realtimeProvider = provider ?: com.airi.assistant.voice.realtime.LocalVoicePipeline
-        Log.i(TAG, "Voice provider restored: ${realtimeProvider.name}")
+        realtimeProvider = LocalVoicePipeline
     }
 
     override fun onDestroy() {
@@ -257,12 +239,13 @@ class LiveVoiceService : Service() {
      * currently holds exclusive audio access.
      */
     fun requestListen() {
+        listenRequestedByUser = true
         val current = session.state.value
         Log.d(TAG, "requestListen current=$current")
         if (current == VoicePipelineState.IDLE || current == VoicePipelineState.INTERRUPTED) {
             val focusGranted = requestAudioFocus()
             if (!focusGranted) {
-                Log.w(TAG, "AIRI_PROOF AUDIOFOCUS_REQUEST_FAILED — not starting STT")
+                Log.w(TAG, "AIRI AUDIOFOCUS_REQUEST_FAILED — not starting STT")
                 AgentActivityBus.emit("Audio focus denied — another app is using audio",
                     com.airi.assistant.ui.activity.ActivityCategory.VOICE)
                 return
@@ -276,7 +259,18 @@ class LiveVoiceService : Service() {
 
     fun requestStop() {
         Log.d(TAG, "requestStop")
+        listenRequestedByUser = false
+        recoveryJob?.cancel()
+        recoveryJob = null
         abandonAudioFocus()
+        voiceManager.stopAll()
+        session.endSession()
+        updateNotification(VoicePipelineState.IDLE)
+    }
+
+    private fun pauseForFocusLoss() {
+        recoveryJob?.cancel()
+        recoveryJob = null
         voiceManager.stopAll()
         session.endSession()
         updateNotification(VoicePipelineState.IDLE)
@@ -358,7 +352,7 @@ class LiveVoiceService : Service() {
                 session.onSpeechResult(text)
                 thinkingStartEpochMs = System.currentTimeMillis()
                 updateNotification(VoicePipelineState.THINKING)
-                Log.d(TAG, "AIRI_PROOF STT_RESULT sttLatency=${sttMs}ms text='${text.take(60)}'")
+                Log.d(TAG, "AIRI STT_RESULT sttLatency=${sttMs}ms chars=${text.length}")
 
                 serviceScope.launch {
                     when (val r = voiceAgentRouter.route(text, session.currentSessionId)) {
@@ -367,10 +361,11 @@ class LiveVoiceService : Service() {
                             session.recordTtsFirstByteLatency(ttfb)
                             session.onResponseStreaming(ttfb)
                             updateNotification(VoicePipelineState.STREAMING_RESPONSE)
-                            Log.i(TAG, "AIRI_PROOF VOICE_AGENT_SPOKE agent=${r.agentId} ttfb=${ttfb}ms")
+                            voiceManager.speak(r.spokenText)
+                            Log.i(TAG, "AIRI VOICE_AGENT_SPOKE agent=${r.agentId} ttfb=${ttfb}ms")
                         }
                         VoiceAgentRouter.VoiceRouteResult.Fallback -> {
-                            Log.d(TAG, "AIRI_PROOF VOICE_LLM_DISPATCH text='${text.take(60)}'")
+                            Log.d(TAG, "AIRI VOICE_LLM_DISPATCH chars=${text.length}")
                             session.emitPendingTranscript(text)
                             ServiceLocator.voiceTranscriptBus.emit(text)
                         }
@@ -383,18 +378,20 @@ class LiveVoiceService : Service() {
                 session.recordTtsFirstByteLatency(ttfb)
                 session.onResponseStreaming(ttfb)
                 updateNotification(VoicePipelineState.STREAMING_RESPONSE)
-                Log.d(TAG, "AIRI_PROOF TTS_START ttfb=${ttfb}ms")
+                Log.d(TAG, "AIRI TTS_START ttfb=${ttfb}ms")
             }
 
             override fun onSpeakingDone() {
                 session.onTurnComplete()
                 updateNotification(VoicePipelineState.IDLE)
-                Log.d(TAG, "AIRI_PROOF TTS_DONE — auto-rearming STT")
+                Log.d(TAG, "AIRI TTS_DONE — auto-rearming STT")
                 requestListen()
             }
 
             override fun onVadInterrupted() {
                 val interruptStart = System.currentTimeMillis()
+                session.onBargeIn()
+                updateNotification(VoicePipelineState.INTERRUPTED)
                 interruptController.onVadSpeechDetected()
                 AgentActivityBus.emit("Barge-in via VAD", com.airi.assistant.ui.activity.ActivityCategory.VOICE)
                 serviceScope.launch {
@@ -410,9 +407,11 @@ class LiveVoiceService : Service() {
             override fun onError(error: String) {
                 Log.w(TAG, "VoiceManager error: $error")
                 val shouldRecover = session.onError(error)
-                if (shouldRecover) {
-                    serviceScope.launch {
+                if (shouldRecover && listenRequestedByUser) {
+                    recoveryJob?.cancel()
+                    recoveryJob = serviceScope.launch {
                         delay(1_500L)
+                        if (!listenRequestedByUser) return@launch
                         Log.i(TAG, "Recovery attempt ${session.recoveryAttempts}")
                         voiceManager.stopAll()
                         delay(200L)

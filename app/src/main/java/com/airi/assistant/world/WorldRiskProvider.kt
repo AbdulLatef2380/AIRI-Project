@@ -10,7 +10,7 @@ class WorldRiskProvider : RiskProvider {
 
     override fun estimate(action: String): RiskResult {
 
-        // 🔥 Rule-based fallback بدل AI (مؤقت)
+        //  Rule-based fallback بدل AI (مؤقت)
         val riskScore = when (action) {
             "shutdown" -> 0.9f
             "delete_data" -> 0.8f

@@ -18,7 +18,7 @@ class TelegramService(private val secureStorage: SecureStorage) {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    // ─── Phase 1: Validate & connect ──────────────────────────────────────────
+    // ─── : Validate & connect ──────────────────────────────────────────
 
     suspend fun validateAndConnect(token: String): Result<String> = withContext(Dispatchers.IO) {
         if (token.isBlank()) {
@@ -49,7 +49,7 @@ class TelegramService(private val secureStorage: SecureStorage) {
         }
     }
 
-    // ─── Phase 2: API calls ────────────────────────────────────────────────────
+    // ─── : API calls ────────────────────────────────────────────────────
 
     suspend fun sendMessage(chatId: String, text: String): ToolResult = withContext(Dispatchers.IO) {
         val token = secureStorage.getTelegramToken()

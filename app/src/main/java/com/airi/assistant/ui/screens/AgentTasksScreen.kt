@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.agent.scheduler.ScheduledJob
 import com.airi.assistant.agent.scheduler.ScheduledJobOrchestrator
 import com.airi.assistant.agent.scheduler.ScheduleType
+import com.airi.assistant.agent.scheduler.ScheduledJobOutcome
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
@@ -64,16 +65,6 @@ fun AgentTasksScreen(
     val context = LocalContext.current
     val orchestrator = remember { ScheduledJobOrchestrator(context) }
 
-    // : SCHEDULE_EXACT_ALARM — required on API 31+ for exact WorkManager timing.
-    val canScheduleExact = remember {
-        mutableStateOf(
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                (context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager)
-                    .canScheduleExactAlarms()
-            } else true
-        )
-    }
-
     var selectedTab    by remember { mutableStateOf(0) }
     var showAddDialog  by remember { mutableStateOf(false) }
     var jobs           by remember { mutableStateOf(orchestrator.listJobs()) }
@@ -81,9 +72,15 @@ fun AgentTasksScreen(
 
     fun reload() { jobs = orchestrator.listJobs() }
 
-    val now = remember { System.currentTimeMillis() }
-    val pending   = jobs.filter { it.triggerAtMs > now || it.type == ScheduleType.PERIODIC }
-    val completed = jobs.filter { it.triggerAtMs <= now && it.type == ScheduleType.ONE_TIME }
+    val pending = jobs.filter {
+        it.type == ScheduleType.PERIODIC ||
+            it.lastOutcome == ScheduledJobOutcome.PENDING ||
+            it.lastOutcome == ScheduledJobOutcome.RETRYING
+    }
+    val completed = jobs.filter {
+        it.type == ScheduleType.ONE_TIME &&
+            (it.lastOutcome == ScheduledJobOutcome.COMPLETED || it.lastOutcome == ScheduledJobOutcome.FAILED)
+    }
 
     Scaffold(
         containerColor = AiriTheme.background,
@@ -173,43 +170,6 @@ fun AgentTasksScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)
                 ) {
-                    // : Warn if SCHEDULE_EXACT_ALARM not granted (API 31+)
-                    if (!canScheduleExact.value && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                        item {
-                            Surface(
-                                shape = AIRIShapes.sm,
-                                color = Color(0xFF2A2010),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Warning,
-                                        contentDescription = null,
-                                        tint = Color(0xFFFFD60A),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(stringResource(R.string.exact_alarms_title), fontSize = 12.sp,
-                                            color = Color(0xFFFFD60A), fontWeight = FontWeight.SemiBold)
-                                        Text(stringResource(R.string.exact_alarms_body),
-                                            fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
-                                    }
-                                    TextButton(onClick = {
-                                        val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                                            android.content.Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                                        } else null
-                                        intent?.let { context.startActivity(it) }
-                                        canScheduleExact.value = (context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager).canScheduleExactAlarms()
-                                    }) { Text(stringResource(R.string.fix), color = Color(0xFF0A84FF), fontSize = 12.sp) }
-                                }
-                            }
-                        }
-                    }
-
                     items(displayJobs, key = { it.id }) { job ->
                         RealTaskItem(
                             job      = job,
@@ -227,19 +187,29 @@ fun AgentTasksScreen(
     if (showAddDialog) {
         AddTaskDialog(
             onDismiss = { showAddDialog = false },
-            onAdd     = { label, delayMinutes ->
+            onAdd     = { label, delayMinutes, isPeriodic, requiresNetwork ->
                 if (label.isBlank()) {
                     errorMessage = context.getString(R.string.agent_task_name_required)
                     return@AddTaskDialog
                 }
                 runCatching {
-                    orchestrator.scheduleOnce(
-                        agentId     = "productivity",
-                        payload     = label,
-                        label       = label,
-                        delayMs     = delayMinutes * 60_000L,
-                        requiresNet = false
-                    )
+                    if (isPeriodic) {
+                        orchestrator.schedulePeriodic(
+                            agentId = "productivity",
+                            payload = label,
+                            label = label,
+                            intervalMinutes = delayMinutes,
+                            requiresNet = requiresNetwork
+                        )
+                    } else {
+                        orchestrator.scheduleOnce(
+                            agentId = "productivity",
+                            payload = label,
+                            label = label,
+                            delayMs = delayMinutes * 60_000L,
+                            requiresNet = requiresNetwork
+                        )
+                    }
                 }.onSuccess {
                     reload()
                     showAddDialog = false
@@ -279,7 +249,26 @@ private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
         ScheduleType.ONE_TIME -> stringResource(R.string.agent_task_type_once)
         ScheduleType.PERIODIC -> stringResource(R.string.agent_task_type_periodic, (job.intervalMs ?: 0) / 60_000)
     }
-    val isPast = job.triggerAtMs <= System.currentTimeMillis() && job.type == ScheduleType.ONE_TIME
+    val isCancellable = job.type == ScheduleType.PERIODIC ||
+        job.lastOutcome == ScheduledJobOutcome.PENDING ||
+        job.lastOutcome == ScheduledJobOutcome.RETRYING
+    val statusLabel = when (job.lastOutcome) {
+        ScheduledJobOutcome.PENDING -> stringResource(R.string.agent_task_status_pending)
+        ScheduledJobOutcome.RETRYING -> stringResource(R.string.agent_task_status_retrying)
+        ScheduledJobOutcome.COMPLETED -> stringResource(R.string.agent_task_status_completed)
+        ScheduledJobOutcome.FAILED -> stringResource(R.string.agent_task_status_failed)
+    }
+    val statusIcon = when (job.lastOutcome) {
+        ScheduledJobOutcome.PENDING, ScheduledJobOutcome.RETRYING -> Icons.Outlined.Schedule
+        ScheduledJobOutcome.COMPLETED -> Icons.Outlined.CheckCircle
+        ScheduledJobOutcome.FAILED -> Icons.Outlined.ErrorOutline
+    }
+    val statusTint = when (job.lastOutcome) {
+        ScheduledJobOutcome.PENDING -> CosmicAccent
+        ScheduledJobOutcome.RETRYING -> Color(0xFFFFB74D)
+        ScheduledJobOutcome.COMPLETED -> Color(0xFF4CAF50)
+        ScheduledJobOutcome.FAILED -> Color(0xFFFF6B6B)
+    }
 
     Row(
         modifier = Modifier
@@ -288,17 +277,21 @@ private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
             .background(AiriTheme.surface)
             .border(
                 1.dp,
-                if (!isPast) CosmicAccent.copy(0.15f) else AiriTheme.onSurface.copy(0.06f),
+                if (isCancellable) CosmicAccent.copy(0.15f) else AiriTheme.onSurface.copy(0.06f),
                 AIRIShapes.md
             )
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Cancel button (visible only for pending jobs)
-        if (!isPast) {
+        if (isCancellable) {
             IconButton(onClick = onCancel, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Outlined.Close, null, tint = Color(0xFFFF6B6B), modifier = Modifier.size(18.dp))
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = stringResource(R.string.cancel),
+                    tint = Color(0xFFFF6B6B),
+                    modifier = Modifier.size(18.dp)
+                )
             }
         } else {
             Box(
@@ -316,6 +309,7 @@ private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
             Spacer(Modifier.height(2.dp))
             Text(triggerDate, color = CosmicAccent.copy(0.8f), fontSize = 12.sp)
             Text(typeLabel, color = AiriTheme.onBackground.copy(0.45f), fontSize = 11.sp)
+            Text(statusLabel, color = statusTint.copy(0.85f), fontSize = 11.sp)
         }
 
         Spacer(Modifier.width(10.dp))
@@ -328,9 +322,9 @@ private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                if (!isPast) Icons.Outlined.Schedule else Icons.Outlined.CheckCircle,
-                null,
-                tint = if (!isPast) CosmicAccent else Color(0xFF4CAF50),
+                statusIcon,
+                contentDescription = null,
+                tint = statusTint,
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -339,9 +333,14 @@ private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMinutes: Long) -> Unit) {
-    var taskName    by remember { mutableStateOf("") }
-    var delayInput  by remember { mutableStateOf("60") }
+private fun AddTaskDialog(
+    onDismiss: () -> Unit,
+    onAdd: (label: String, delayMinutes: Long, isPeriodic: Boolean, requiresNetwork: Boolean) -> Unit
+) {
+    var taskName by remember { mutableStateOf("") }
+    var delayInput by remember { mutableStateOf("60") }
+    var isPeriodic by remember { mutableStateOf(false) }
+    var requiresNetwork by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -382,8 +381,24 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
                     ),
                     textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.End)
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(stringResource(R.string.agent_task_repeat), color = AiriTheme.onSurface, fontSize = 13.sp)
+                    Switch(checked = isPeriodic, onCheckedChange = { isPeriodic = it })
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(stringResource(R.string.agent_task_requires_network), color = AiriTheme.onSurface, fontSize = 13.sp)
+                    Switch(checked = requiresNetwork, onCheckedChange = { requiresNetwork = it })
+                }
                 Text(
-                    stringResource(R.string.agent_task_delay_note),
+                    stringResource(if (isPeriodic) R.string.agent_task_periodic_note else R.string.agent_task_delay_note),
                     color = AiriTheme.onBackground.copy(0.3f), fontSize = 11.sp, lineHeight = 15.sp
                 )
             }
@@ -391,8 +406,9 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (label: String, delayMin
         confirmButton = {
             Button(
                 onClick = {
-                    val delay = delayInput.toLongOrNull()?.coerceAtLeast(1L) ?: 1L
-                    onAdd(taskName.trim(), delay)
+                    val minimumDelay = if (isPeriodic) 15L else 1L
+                    val delay = delayInput.toLongOrNull()?.coerceAtLeast(minimumDelay) ?: minimumDelay
+                    onAdd(taskName.trim(), delay, isPeriodic, requiresNetwork)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = AiriTheme.onBackground),
                 shape  = AIRIShapes.md,

@@ -38,7 +38,7 @@ class CoTEngine {
      * [expandStep] and [ingestLlmResponse] until [isComplete] returns true.
      */
     fun seed(goal: String, priorContext: String = ""): CoTSession {
-        Log.i(TAG, "CoT seed goal='${goal.take(80)}'")
+        Log.i(TAG, "COT_SESSION_SEEDED goalChars=${goal.length}")
         val anchor = buildAnchorThought(goal, priorContext)
         return CoTSession(
             goal         = goal,

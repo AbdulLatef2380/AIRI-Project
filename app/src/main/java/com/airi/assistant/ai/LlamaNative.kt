@@ -11,24 +11,24 @@ object LlamaNative {
             System.loadLibrary("airi_native")
             available = true
             Log.i("LlamaNative", "Native library airi_native loaded")
-            // AIRI_PROOF: this single line, present in logcat at app start,
+            // AIRI: this single line, present in logcat at app start,
             // is a positive proof that lib/arm64-v8a/libairi_native.so is in
             // the installed APK and dlopen() succeeded. If it is MISSING from
             // logcat, the failure is at the build/packaging layer — not in
             // any of the runtime code paths. See:
             //   .github/workflows/android_build.yml (CI verification)
             //   app/build.gradle.kts task airiVerifyNativeInApk
-            Log.i("AIRI_PROOF", "NATIVE_LIB_LOADED lib=airi_native abi=arm64-v8a")
+            Log.i("AIRI", "NATIVE_LIB_LOADED lib=airi_native abi=arm64-v8a")
         } catch (e: UnsatisfiedLinkError) {
             available = false
             loadFailure = e.message
             Log.e("LlamaNative", "Native library airi_native not found: ${e.message}", e)
-            // AIRI_PROOF: explicit failure tag so the user (or test harness)
+            // AIRI: explicit failure tag so the user (or test harness)
             // can grep logcat for ONE string and decide which layer is broken.
             // If you see this line, no inference path will ever work — the
             // .so is missing from the installed APK. Fix the BUILD, not the
             // runtime code.
-            Log.e("AIRI_PROOF",
+            Log.e("AIRI",
                 "NATIVE_LIB_MISSING lib=airi_native abi=arm64-v8a reason=${e.message}")
         }
     }
@@ -209,7 +209,7 @@ object LlamaNative {
     external fun getSpecStats(): LongArray
     external fun resetSpecStats()
 
-    // ── Embedding API (semantic memory, Phase 2) ─────────────────────────────
+    // ── Embedding API (semantic memory, ) ─────────────────────────────
     // Uses a SECOND llama_model + llama_context inside the native bridge,
     // initialised with `embeddings = true` and `pooling_type = MEAN`. This
     // is independent of the chat context — calling these methods does NOT
@@ -230,7 +230,7 @@ object LlamaNative {
     external fun unloadEmbeddingModel()
     external fun getEmbeddingDim(): Int
 
-    // ── Vision / multimodal API (mmproj + mtmd, Phase 3) ─────────────────────
+    // ── Vision / multimodal API (mmproj + mtmd, ) ─────────────────────
     // Wraps the upstream `tools/mtmd` library that we vendored under
     //   app/src/main/cpp/llama/tools/mtmd/
     // and gated behind the AIRI_HAS_MTMD CMake switch. The native bridge
@@ -244,7 +244,7 @@ object LlamaNative {
     // responsible for downscaling to a sensible dimension first — there is
     // no internal cap, so passing a 12 MP camera bitmap will OOM.
     //
-    // AIRI_PROOF tags emitted from the native side:
+    // AIRI tags emitted from the native side:
     //   MMPROJ_LOADED / MMPROJ_LOAD_FAILED
     //   MMPROJ_UNLOADED
     //   MMPROJ_EVAL_OK / MMPROJ_EVAL_FAILED

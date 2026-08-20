@@ -1,47 +1,15 @@
-# security — Security Enforcement
+# Security package
 
-## Components
+This package contains application security and privacy controls.
 
-### SecretHealthChecker
-Scans all stored API keys for validity indicators (format, placeholder values, length). Returns `HealthResult` enum: `OK`, `WARNING`, or `CRITICAL`. Used by `SecurityScannerScreen`.
+## Current principles
 
-**Constructor:** `SecretHealthChecker(SecureStorage)` — not `Context`.
+Credentials must be stored through the project encrypted-storage path. Dynamic custom skills require an explicit HTTPS endpoint; a placeholder endpoint is rejected. The profile deletion flow uses `DataDeletionCoordinator`, which coordinates background-work cancellation, account deletion, local data cleanup, credential cleanup, preference reset, cache cleanup, and sign-out.
 
-### ExecutionFirewall
-Prevents the agent from executing dangerous system operations (e.g. deleting system files, accessing restricted packages, exfiltrating data). Called by `AgentLoop` before every tool dispatch.
+## Limits
 
-### LlmCertPins
-Hardcoded SHA-256 SPKI pins for:
-- `api.openai.com`
-- `api.anthropic.com`
-- `generativelanguage.googleapis.com`
-- `openrouter.ai`
+Security depends on correct Android Keystore availability, external-provider restrictions, and runtime tests. Do not claim that a provider key, SQLCipher migration, Play Integrity result, or network transport is secure solely because code paths exist. Verify them on release candidates.
 
-**⚠️ Maintenance required:** Re-verify pins with `openssl s_client` before each production release. Current pin expiry: **June 2027** (in `network_security_config.xml`).
+## Verification
 
-## Encryption
-
-API keys are stored in `EncryptedSharedPreferences` with:
-- Key encryption: AES256_SIV
-- Value encryption: AES256_GCM
-- Key stored in Android Keystore (hardware-backed on supported devices)
-
-Fallback: if `EncryptedSharedPreferences` fails to initialize (e.g. after OS upgrade corrupting the keystore), `SecureStorage` falls back to in-memory storage only — no unencrypted disk writes.
-
-## FileProvider
-
-Configured in `AndroidManifest.xml` with authority `${applicationId}.fileprovider`. Paths defined in `res/xml/file_paths.xml`:
-- `files-path/attachments/` — persisted chat attachments
-- `cache-path/` — temporary shares
-- `external-cache-path/` — external cache
-
-All URIs require explicit `FLAG_GRANT_READ_URI_PERMISSION` — the provider is not exported.
-
-## Status
-
-- API key encryption: **Production-ready**
-- SSL pinning: **Active** (expires June 2027)
-- FileProvider: **Configured** (manifest + paths + correct authority)
-- PendingIntents: **All use FLAG_IMMUTABLE**
-- WebView: **Hardened** (JS off, file access off)
-- SQL: **Safe** (all Room queries parameterized)
+Static checks confirm that the profile screen does not call Firebase-only deletion directly and that dynamic-skill registration rejects a missing HTTPS endpoint.

@@ -187,7 +187,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                 }
             }
             item {
-                VoiceCard(title = "Voice Pitch", icon = "🎵") {
+                VoiceCard(title = "Voice Pitch", icon = "") {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -249,7 +249,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                 }
             }
             item {
-                VoiceCard(title = "TTS Voice", icon = "🗣️") {
+                VoiceCard(title = "TTS Voice", icon = "") {
                     if (availableVoices.isEmpty()) {
                         Text(
                             "No offline English voices found. Install language packs in Android Settings → Text-to-Speech.",
@@ -277,7 +277,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                 }
             }
             item {
-                VoiceCard(title = "Voice Features", icon = "🎛️") {
+                VoiceCard(title = "Voice Features", icon = "") {
                     ToggleRow(
                         label       = "Enable Voice Input & Output",
                         description = "Allow AIRI to listen and speak",

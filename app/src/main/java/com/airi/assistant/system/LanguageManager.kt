@@ -17,10 +17,10 @@ object LanguageManager {
     private const val KEY_WARNING_PREFIX = "warning_shown_"
 
     val supportedLanguages = listOf(
-        LanguageOption(LANGUAGE_ENGLISH, "English", "English", "🇺🇸"),
-        LanguageOption(LANGUAGE_ARABIC, "Arabic", "العربية", "🇸🇦"),
-        LanguageOption(LANGUAGE_CHINESE, "Chinese", "中文", "🇨🇳"),
-        LanguageOption(LANGUAGE_SPANISH, "Spanish", "Español", "🇪🇸")
+        LanguageOption(LANGUAGE_ENGLISH, "English", "English", ""),
+        LanguageOption(LANGUAGE_ARABIC, "Arabic", "العربية", ""),
+        LanguageOption(LANGUAGE_CHINESE, "Chinese", "中文", ""),
+        LanguageOption(LANGUAGE_SPANISH, "Spanish", "Español", "")
     )
 
     fun getCurrentLanguage(context: Context): String {

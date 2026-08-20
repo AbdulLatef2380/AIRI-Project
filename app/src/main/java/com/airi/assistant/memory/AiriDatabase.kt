@@ -26,7 +26,6 @@ import com.airi.assistant.memory.entity.MessageEmbedding
 import com.airi.assistant.memory.entity.UsageStatEntity
 import com.airi.assistant.memory.entity.UserPreference
 import java.io.File
-import net.sqlcipher.database.SupportFactory
 
 /**
  * AiriDatabase — Room database for all persistent AIRI state.
@@ -34,27 +33,14 @@ import net.sqlcipher.database.SupportFactory
  * Version history:
  *   v1 → v2: Added sessionId/isMemory columns to episodic_memory; created chat_sessions table.
  *   v2 → v3: Added message_embedding table for semantic memory (RAG).
- *   v3 → v4: Added audit_log table for persistent AIRI_PROOF event storage (Phase 2 Task 5).
- *   v4 → v5: Added workspace_artifact table for ArtifactManager persistence (Phase 2 Task 26).
- *   v5 → v6: Added feedback column to episodic_memory (Task 1.7) and attachmentJson column (Task 4.1).
+ *   v3 → v4: Added audit_log table for persistent AIRI event storage (ask 5).
+ *   v4 → v5: Added workspace_artifact table for ArtifactManager persistence (ask 26).
+ *   v5 → v6: Added feedback and attachment metadata columns to episodic memory.
+ *   v6 → v7: Added durable chat-session pin state.
+
  *
- * ── Task 27: Database backup ──────────────────────────────────────────────────
  * [exportBackup] copies the live database file to a destination [File] using
  * Room's WAL checkpoint mechanism to ensure a consistent snapshot.
- *
- * ── Task 28: SQLCipher at-rest encryption ─────────────────────────────────────
- * ⚠️  AWAITING RUNTIME VERIFICATION — Enabling SQLCipher requires:
- *   1. Add to app/build.gradle:
- *        implementation("net.zetetic:android-database-sqlcipher:4.5.4")
- *        implementation("androidx.sqlite:sqlite-ktx:2.4.0")
- *   2. Generate a 32-byte passphrase via Android Keystore (see [buildEncryptedDatabase]).
- *   3. Set [ENCRYPTION_ENABLED] = true.
- *   4. Test on a real device — SQLCipher migration is destructive if the existing
- *      DB is unencrypted and there is no migration path provided.
- *
- * Do NOT enable [ENCRYPTION_ENABLED] in production builds until a device test
- * confirms the upgrade path (plain → encrypted) behaves correctly on your
- * target API levels and device families.
  */
 @Database(
     entities = [
@@ -68,8 +54,8 @@ import net.sqlcipher.database.SupportFactory
         AuditLogEntity::class,
         ArtifactEntity::class
     ],
-    version = 6,
-    exportSchema = false
+    version = 7,
+    exportSchema = true
 )
 @TypeConverters(AuditLogTypeConverters::class)
 abstract class AiriDatabase : RoomDatabase() {
@@ -84,19 +70,6 @@ abstract class AiriDatabase : RoomDatabase() {
 
     companion object {
         private const val TAG = "AiriDatabase"
-
-        /**
-         * AP-02: SQLCipher at-rest encryption — ENABLED.
-         *
-         * Requires in app/build.gradle.kts (added by AP-02):
-         *   implementation("net.zetetic:android-database-sqlcipher:4.5.4")
-         *   implementation("androidx.sqlite:sqlite-ktx:2.4.0")
-         *
-         * Migration: [AiriDatabaseMigrationHelper.migrateIfNeeded] runs before
-         * Room opens the database. Existing plaintext installs are upgraded
-         * automatically via ATTACH/sqlcipher_export without data loss.
-         */
-        private const val ENCRYPTION_ENABLED = true
 
         @Volatile
         private var INSTANCE: AiriDatabase? = null
@@ -151,7 +124,7 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
-        // ── v4 → v5: workspace_artifact table (Task 26) ──────────────────────
+        // ── v4 → v5: workspace_artifact table () ──────────────────────
         private val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -185,6 +158,21 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_sessions ADD COLUMN isPinned INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        internal fun migrations(): Array<Migration> = arrayOf(
+            MIGRATION_1_2,
+            MIGRATION_2_3,
+            MIGRATION_3_4,
+            MIGRATION_4_5,
+            MIGRATION_5_6,
+            MIGRATION_6_7
+        )
+
         fun getDatabase(context: Context): AiriDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = buildDatabase(context)
@@ -193,84 +181,16 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
-        private fun buildDatabase(context: Context): AiriDatabase {
-            // AP-02: Run plaintext→encrypted migration BEFORE Room opens the file.
-            // Safe to call on every launch — idempotent (no-op if already encrypted
-            // or if this is a fresh install with no plaintext DB).
-            if (ENCRYPTION_ENABLED) {
-                val factory = buildSqlCipherFactory(context)
-                val key = getSqlCipherKey(context)
-                AiriDatabaseMigrationHelper.migrateIfNeeded(context, key)
-                return Room.databaseBuilder(
-                    context.applicationContext,
-                    AiriDatabase::class.java,
-                    "airi_memory_db"
-                )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
-                    .openHelperFactory(factory)
-                    .build()
-            }
-
-            return Room.databaseBuilder(
+        private fun buildDatabase(context: Context): AiriDatabase =
+            Room.databaseBuilder(
                 context.applicationContext,
                 AiriDatabase::class.java,
                 "airi_memory_db"
-            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+            )
+                .addMigrations(*migrations())
                 .build()
-        }
 
-        /**
-         * AP-02: Returns the SQLCipher passphrase from EncryptedSharedPreferences.
-         * Key is generated on first call (32 random bytes, base64-encoded) and
-         * reused on all subsequent calls. The key storage uses the same
-         * AES-256-GCM scheme as SecureStorage.
-         */
-        private fun getSqlCipherKey(context: Context): String {
-            val KEY_PREFS = "airi_db_key_prefs"
-            val KEY_ALIAS = "airi_db_passphrase"
-            val prefs = try {
-                androidx.security.crypto.EncryptedSharedPreferences.create(
-                    KEY_PREFS,
-                    KEY_ALIAS,
-                    context.applicationContext,
-                    androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                    androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-                )
-            } catch (e: Exception) {
-                Log.e(TAG, "SQLCipher: EncryptedSharedPreferences unavailable: ${e.message}")
-                throw IllegalStateException("SQLCipher passphrase storage unavailable", e)
-            }
-            val existing = prefs.getString(KEY_ALIAS, null)
-            if (existing != null) return existing
-            val key = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
-            val encoded = android.util.Base64.encodeToString(key, android.util.Base64.NO_WRAP)
-            prefs.edit().putString(KEY_ALIAS, encoded).apply()
-            Log.i(TAG, "AIRI_PROOF DB_KEY_GENERATED new SQLCipher passphrase stored")
-            return encoded
-        }
-
-        /**
-         * Build a SQLCipher [SupportSQLiteOpenHelper.Factory] using a passphrase
-         * derived from the Android Keystore.
-         *
-         * ⚠️  AWAITING RUNTIME VERIFICATION — DO NOT enable in production without device test.
-         *
-         * This method references `net.zetetic.database.sqlcipher.SupportFactory` which
-         * requires the SQLCipher dependency in build.gradle:
-         *   implementation("net.zetetic:android-database-sqlcipher:4.5.4")
-         *   implementation("androidx.sqlite:sqlite-ktx:2.4.0")
-         *
-         * The passphrase is a 32-byte random key stored in EncryptedSharedPreferences
-         * (itself backed by Android Keystore AES-256-GCM). On first run the key is
-         * generated; on subsequent runs it is loaded and reused.
-         */
-        private fun buildSqlCipherFactory(context: Context): androidx.sqlite.db.SupportSQLiteOpenHelper.Factory {
-            val passphrase = getSqlCipherKey(context).toByteArray(Charsets.UTF_8)
-            // net.zetetic:android-database-sqlcipher:4.5.4 — added by AP-02 in build.gradle.kts
-            return SupportFactory(passphrase)
-        }
-
-        // ── Task 27: Database backup ──────────────────────────────────────────
+        // ── Database backup ──────────────────────────────────────────
 
         /**
          * Export a consistent snapshot of the database to [destFile].
@@ -303,10 +223,10 @@ abstract class AiriDatabase : RoomDatabase() {
                 destFile.parentFile?.mkdirs()
                 dbFile.copyTo(destFile, overwrite = true)
 
-                Log.i(TAG, "AIRI_PROOF DB_BACKUP_OK dest=${destFile.absolutePath} size=${destFile.length()}")
+                Log.i(TAG, "AIRI DB_BACKUP_OK dest=${destFile.absolutePath} size=${destFile.length()}")
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "AIRI_PROOF DB_BACKUP_FAILED: ${e.message}", e)
+                Log.e(TAG, "AIRI DB_BACKUP_FAILED: ${e.message}", e)
                 false
             }
         }

@@ -29,10 +29,11 @@ import java.util.concurrent.TimeUnit
 object LlmCertPins {
 
     /**
-     * Master switch for certificate pinning.
-     * Enabled: real SPKI hashes verified against live connections (Q2 2026 audit).
+     * Pinning stays disabled until every pin is verified against the current
+     * production certificate chain and exercised on supported Android versions.
+     * OkHttp still enforces standard platform TLS validation while it is off.
      */
-    const val PINNING_ENABLED = true
+    const val PINNING_ENABLED = false
 
     // ── OpenAI (api.openai.com) ───────────────────────────────────────────────
     // Primary:  DigiCert SHA-2 Secure Server CA intermediate (expires 2027-02)
@@ -72,7 +73,7 @@ object LlmCertPins {
     }
 
     /**
-     * Task 8.1: Exposes pins for inspection by SecurityScannerScreen.
+     * Exposes pins for inspection by SecurityScannerScreen.
      * Value = list of [sha256/...] pin strings for each host.
      */
     val pins: Map<String, List<String>> = mapOf(

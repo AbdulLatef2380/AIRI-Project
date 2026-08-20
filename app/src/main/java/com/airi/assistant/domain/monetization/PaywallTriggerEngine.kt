@@ -137,7 +137,7 @@ object PaywallTriggerEngine {
     }
 
     /**
-     * Phase 2 — success_moment trigger.
+     *  — success_moment trigger.
      * Call after each successful AI response for free users.
      * Fires once after [PricingConfig.SUCCESS_TRIGGER_COUNT] consecutive successes.
      */
@@ -154,7 +154,7 @@ object PaywallTriggerEngine {
     }
 
     /**
-     * Phase 5 — speed_upsell trigger.
+     *  — speed_upsell trigger.
      * Call after a slow response is detected for a free user.
      */
     fun onSlowResponse(latencyMs: Long, isPremium: Boolean): UpsellLevel {
@@ -200,7 +200,7 @@ object PaywallTriggerEngine {
         }
     }
 
-    // ── Phase 4 — Value-based dynamic messaging ────────────────────────────────
+    // ──  — Value-based dynamic messaging ────────────────────────────────
 
     fun getPaywallMessage(reason: String): String = when (reason) {
         TriggerReason.LimitReached.source ->

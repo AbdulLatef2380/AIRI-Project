@@ -12,6 +12,9 @@ import com.airi.assistant.domain.event.EventBus
 import com.airi.assistant.domain.logging.LoggingService
 import com.airi.assistant.memory.AiriDatabase
 import kotlinx.coroutines.flow.collect
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 /**
  * ScheduledAgentWorker — WorkManager [CoroutineWorker] that executes a
@@ -30,8 +33,8 @@ import kotlinx.coroutines.flow.collect
  *   2. Executes the payload as a [SubAgentContext] with BACKGROUND priority.
  *   3. Emits [AppEvent.GenericInfo] on completion so the UI and
  *      [GlobalAgentEventDispatcher] can surface the result.
- *   4. Always returns [Result.success] (failures are logged, not retried,
- *      to avoid WorkManager infinite loops from bad task definitions).
+ *   4. Returns success for completed work, retries bounded transient failures,
+ *      and records terminal failures for the task-management UI.
  *
  * ## Missing dispatch gap (previous state)
  *
@@ -52,6 +55,10 @@ class ScheduledAgentWorker(
         const val KEY_AGENT_ID = "agent_id"
         const val KEY_PAYLOAD  = "payload"
         const val KEY_LABEL    = "label"
+        private const val MAX_RETRY_ATTEMPTS = 3
+
+        private fun Throwable.isTransientFailure(): Boolean =
+            this is IOException || this is UnknownHostException || this is SocketTimeoutException
     }
 
     override suspend fun doWork(): Result {
@@ -60,7 +67,7 @@ class ScheduledAgentWorker(
         val payload = inputData.getString(KEY_PAYLOAD)  ?: return Result.failure()
         val label   = inputData.getString(KEY_LABEL)    ?: agentId
 
-        LoggingService.info(TAG, "AIRI_PROOF SCHEDULED_JOB_STARTED id=$jobId agent=$agentId label=$label")
+        LoggingService.info(TAG, "AIRI SCHEDULED_JOB_STARTED id=$jobId agent=$agentId label=$label")
 
         // : System maintenance payloads are handled directly — they don't route
         // through the agent/orchestrator stack because they are infrastructure tasks,
@@ -87,11 +94,16 @@ class ScheduledAgentWorker(
             }
             val handled = maintenanceResult.getOrNull()
             if (handled != null) {
-                LoggingService.info(TAG, "AIRI_PROOF SCHEDULED_JOB_DONE id=$jobId output=$handled")
+                ScheduledJobOrchestrator(applicationContext)
+                    .recordRunResult(jobId, ScheduledJobOutcome.COMPLETED)
+                LoggingService.info(TAG, "Scheduled job completed id=$jobId")
                 return Result.success()
             }
             maintenanceResult.exceptionOrNull()?.let { err ->
-                LoggingService.warn(TAG, "AIRI_PROOF SCHEDULED_MAINTENANCE_FAILED id=$jobId payload=$payload error=${err.message}")
+                LoggingService.warn(
+                    TAG,
+                    "AIRI SCHEDULED_MAINTENANCE_FAILED id=$jobId error=${err.javaClass.simpleName}"
+                )
             }
         }
 
@@ -109,36 +121,45 @@ class ScheduledAgentWorker(
         val result = runCatching {
             val agent = SubAgentRegistry.route(payload, ctx)
             if (agent != null) {
-                Log.i(TAG, "AIRI_PROOF SCHEDULED_JOB_ROUTED id=$jobId agent=${agent.capability.agentId}")
+                Log.i(TAG, "AIRI SCHEDULED_JOB_ROUTED id=$jobId agent=${agent.capability.agentId}")
                 // Collect the Flow to drive execution to completion
-                var lastOutput = ""
-                agent.execute(payload, ctx).collect { event ->
-                    lastOutput = event.toString().take(200)
-                }
-                lastOutput
+                agent.execute(payload, ctx).collect { }
+                "completed"
             } else {
-                Log.i(TAG, "AIRI_PROOF SCHEDULED_JOB_ORCHESTRATOR id=$jobId (no agent matched)")
+                Log.i(TAG, "AIRI SCHEDULED_JOB_ORCHESTRATOR id=$jobId (no agent matched)")
                 val orch = runCatching { ServiceLocator.productionOrchestrator }.getOrNull()
                 val execResult = orch?.executeSingle(payload, ctx)
                 execResult?.toString() ?: "Scheduled task dispatched (no agent match)"
             }
         }
 
-        result.onSuccess { output ->
-            LoggingService.info(TAG, "AIRI_PROOF SCHEDULED_JOB_DONE id=$jobId output=${output?.toString()?.take(120)}")
-            EventBus.emitSync(
-                AppEvent.GenericInfo("✓ Scheduled task complete: $label")
-            )
-        }.onFailure { err ->
-            LoggingService.warn(TAG, "AIRI_PROOF SCHEDULED_JOB_FAILED id=$jobId error=${err.message}")
-            EventBus.emitSync(
-                AppEvent.GenericInfo("⚠ Scheduled task failed: $label — ${err.message?.take(80)}")
-            )
-        }
-
-        // Always succeed from WorkManager's perspective — task failures are
-        // domain errors, not infrastructure failures. Returning Result.retry()
-        // here would cause infinite loops for malformed task payloads.
-        return Result.success()
+        return result.fold(
+            onSuccess = { output ->
+                ScheduledJobOrchestrator(applicationContext)
+                    .recordRunResult(jobId, ScheduledJobOutcome.COMPLETED)
+                LoggingService.info(TAG, "Scheduled job completed id=$jobId")
+                EventBus.emitSync(AppEvent.GenericInfo("Scheduled task complete: $label"))
+                Result.success()
+            },
+            onFailure = { error ->
+                val transient = error.isTransientFailure()
+                val canRetry = transient && runAttemptCount < MAX_RETRY_ATTEMPTS
+                ScheduledJobOrchestrator(applicationContext).recordRunResult(
+                    jobId,
+                    if (canRetry) ScheduledJobOutcome.RETRYING else ScheduledJobOutcome.FAILED
+                )
+                LoggingService.warn(
+                    TAG,
+                    "Scheduled job failed id=$jobId transient=$transient attempt=$runAttemptCount error=${error.javaClass.simpleName}"
+                )
+                EventBus.emitSync(
+                    AppEvent.GenericInfo(
+                        if (canRetry) "Scheduled task will retry: $label"
+                        else "Scheduled task failed: $label"
+                    )
+                )
+                if (canRetry) Result.retry() else Result.failure()
+            }
+        )
     }
 }

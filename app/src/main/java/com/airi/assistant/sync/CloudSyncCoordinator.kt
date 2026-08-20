@@ -27,7 +27,7 @@ import kotlinx.coroutines.tasks.await
  *   users/{uid}/profile              — UserPreferences fields
  *   users/{uid}/sync_meta            — lastSyncMs, deviceId, appVersion
  *   users/{uid}/memory/{messageId}   — Long-term ChatMessage rows (isMemory=true)
- *                                      Phase 2: incremental memory sync.
+ *                                      : incremental memory sync.
  *
  * ── SYNC STRATEGY ─────────────────────────────────────────────────────────
  *
@@ -115,10 +115,10 @@ class CloudSyncCoordinator(
 
             _lastSyncMs.value = System.currentTimeMillis()
             _syncStatus.value = SyncStatus.SUCCESS
-            LoggingService.info(TAG, "AIRI_PROOF CLOUD_SYNC_PUSH_OK uid=${uid.take(8)}…")
+            LoggingService.info(TAG, "AIRI CLOUD_SYNC_PUSH_OK uid=${uid.take(8)}…")
         }.onFailure { e ->
             _syncStatus.value = SyncStatus.FAILED
-            LoggingService.warn(TAG, "AIRI_PROOF CLOUD_SYNC_PUSH_FAILED: ${e.message}")
+            LoggingService.warn(TAG, "AIRI CLOUD_SYNC_PUSH_FAILED: ${e.message}")
         }
     }
 
@@ -147,14 +147,14 @@ class CloudSyncCoordinator(
             profileRepo.merge(remote)
             _lastSyncMs.value = System.currentTimeMillis()
             _syncStatus.value  = SyncStatus.SUCCESS
-            LoggingService.info(TAG, "AIRI_PROOF CLOUD_SYNC_PULL_OK uid=${uid.take(8)}…")
+            LoggingService.info(TAG, "AIRI CLOUD_SYNC_PULL_OK uid=${uid.take(8)}…")
         }.onFailure { e ->
             _syncStatus.value = SyncStatus.FAILED
-            LoggingService.warn(TAG, "AIRI_PROOF CLOUD_SYNC_PULL_FAILED: ${e.message}")
+            LoggingService.warn(TAG, "AIRI CLOUD_SYNC_PULL_FAILED: ${e.message}")
         }
     }
 
-    // ── Memory Sync (Phase 2) ─────────────────────────────────────────────────
+    // ── Memory Sync () ─────────────────────────────────────────────────
 
     /**
      * Incremental push of long-term memories to Firestore.
@@ -185,7 +185,7 @@ class CloudSyncCoordinator(
             .take(MAX_MEMORY_BATCH)
 
         if (memories.isEmpty()) {
-            Log.d(TAG, "AIRI_PROOF MEMORY_PUSH_SKIPPED reason=no_new_rows since=$since")
+            Log.d(TAG, "AIRI MEMORY_PUSH_SKIPPED reason=no_new_rows since=$since")
             return
         }
 
@@ -200,10 +200,10 @@ class CloudSyncCoordinator(
             batch.commit().await()
             _lastMemorySyncMs.value = System.currentTimeMillis()
             _syncStatus.value = SyncStatus.SUCCESS
-            LoggingService.info(TAG, "AIRI_PROOF MEMORY_PUSH_OK uid=${uid.take(8)}… rows=${memories.size}")
+            LoggingService.info(TAG, "AIRI MEMORY_PUSH_OK uid=${uid.take(8)}… rows=${memories.size}")
         }.onFailure { e ->
             _syncStatus.value = SyncStatus.FAILED
-            LoggingService.warn(TAG, "AIRI_PROOF MEMORY_PUSH_FAILED: ${e.message}")
+            LoggingService.warn(TAG, "AIRI MEMORY_PUSH_FAILED: ${e.message}")
         }
     }
 
@@ -249,10 +249,10 @@ class CloudSyncCoordinator(
             }
 
             _syncStatus.value = SyncStatus.SUCCESS
-            LoggingService.info(TAG, "AIRI_PROOF MEMORY_PULL_OK uid=${uid.take(8)}… restored=$restored total=${snap.size()}")
+            LoggingService.info(TAG, "AIRI MEMORY_PULL_OK uid=${uid.take(8)}… restored=$restored total=${snap.size()}")
         }.onFailure { e ->
             _syncStatus.value = SyncStatus.FAILED
-            LoggingService.warn(TAG, "AIRI_PROOF MEMORY_PULL_FAILED: ${e.message}")
+            LoggingService.warn(TAG, "AIRI MEMORY_PULL_FAILED: ${e.message}")
         }
     }
 
@@ -302,7 +302,7 @@ class CloudSyncCoordinator(
                     scope.launch {
                         val remote = documentToPrefs(snap.data ?: emptyMap(), profileRepo.current)
                         profileRepo.merge(remote)
-                        LoggingService.info(TAG, "AIRI_PROOF CLOUD_SYNC_REMOTE_UPDATE")
+                        LoggingService.info(TAG, "AIRI CLOUD_SYNC_REMOTE_UPDATE")
                     }
                 }
         }
@@ -360,6 +360,6 @@ class CloudSyncCoordinator(
     }
 }
 
-// Extension: Task 4.4 — placeholder until full conversation sync schema is approved
+// Extension: — placeholder until full conversation sync schema is approved
 // These are called by CloudSyncWorker but default to no-op in current build.
 // Actual implementation requires Firestore security rules + privacy review.

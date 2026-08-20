@@ -54,7 +54,7 @@ object LoggingService {
         durationMs: Long
     ) {
         if (!BuildConfig.DEBUG) return
-        val status = if (success) "✓" else "✗"
-        Log.d(tag, "$status Executed '${input.take(80)}' in ${durationMs}ms")
+        val status = if (success) "SUCCESS" else "FAILURE"
+        Log.d(tag, "EXECUTION status=$status inputChars=${input.length} durationMs=$durationMs")
     }
 }

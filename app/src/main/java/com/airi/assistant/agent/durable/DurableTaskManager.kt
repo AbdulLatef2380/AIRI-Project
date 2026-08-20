@@ -85,7 +85,7 @@ class DurableTaskManager(private val context: Context) {
         val queued = task.copy(status = DurableTaskStatus.QUEUED)
         putTask(queued)
         submitToWorkManager(queued)
-        Log.i(TAG, "AIRI_PROOF DURABLE_TASK_ENQUEUED id=${task.id} title='${task.title}'")
+        Log.i(TAG, "AIRI DURABLE_TASK_ENQUEUED id=${task.id} title='${task.title}'")
         return task.id
     }
 
@@ -95,7 +95,7 @@ class DurableTaskManager(private val context: Context) {
     fun cancel(taskId: String) {
         WorkManager.getInstance(context).cancelUniqueWork(workName(taskId))
         updateTask(taskId) { copy(status = DurableTaskStatus.CANCELLED) }
-        Log.i(TAG, "AIRI_PROOF DURABLE_TASK_CANCELLED id=$taskId")
+        Log.i(TAG, "AIRI DURABLE_TASK_CANCELLED id=$taskId")
     }
 
     /**
@@ -125,7 +125,7 @@ class DurableTaskManager(private val context: Context) {
             )
         }
         postCompletionNotification(taskId)
-        Log.i(TAG, "AIRI_PROOF DURABLE_TASK_COMPLETED id=$taskId")
+        Log.i(TAG, "AIRI DURABLE_TASK_COMPLETED id=$taskId")
     }
 
     /**
@@ -139,7 +139,7 @@ class DurableTaskManager(private val context: Context) {
                 finishedAtMs = System.currentTimeMillis()
             )
         }
-        Log.w(TAG, "AIRI_PROOF DURABLE_TASK_FAILED id=$taskId reason=$reason")
+        Log.w(TAG, "AIRI DURABLE_TASK_FAILED id=$taskId reason=$reason")
     }
 
     /** Get a task by ID. */
@@ -329,7 +329,7 @@ class DurableTaskWorker(
 
             if (finalResult.isNotBlank()) {
                 manager.markCompleted(taskId, finalResult)
-                Log.i(TAG, "AIRI_PROOF DURABLE_TASK_DONE taskId=$taskId")
+                Log.i(TAG, "AIRI DURABLE_TASK_DONE taskId=$taskId")
             }
             Result.success()
         }.getOrElse { e ->

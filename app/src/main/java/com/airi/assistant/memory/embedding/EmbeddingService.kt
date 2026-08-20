@@ -42,9 +42,9 @@ import java.nio.ByteOrder
  * Honest limitation: requires the user to have downloaded a small
  * embedding GGUF (e.g. bge-small-en-v1.5.Q4_K_M.gguf, ~30 MB). When no
  * embedding model is loaded, [topKSimilar] returns an empty list and
- * logs an explicit AIRI_PROOF EMBEDDING_NOT_LOADED — the chat path then
+ * logs an explicit AIRI EMBEDDING_NOT_LOADED — the chat path then
  * falls back to chronological recall via MemoryManager.getRecentMessages.
- * No silent fallback to fake similarity scores.
+ * No silent fallback to fabricated similarity scores.
  */
 class EmbeddingService(context: Context) {
 
@@ -68,7 +68,7 @@ class EmbeddingService(context: Context) {
 
     /**
      * Load (or replace) the embedding model. Returns the dimensionality on
-     * success, or null on failure (with an AIRI_PROOF entry explaining
+     * success, or null on failure (with an AIRI entry explaining
      * why). Safe to call repeatedly — replacing the model invalidates all
      * previously stored vectors of a different dim, but the search path
      * already filters by dim so stale rows are simply ignored until they
@@ -78,31 +78,31 @@ class EmbeddingService(context: Context) {
         nativeLock.withLock {
             val f = File(modelPath)
             if (!f.exists()) {
-                Log.i("AIRI_PROOF", "EMBEDDING_MODEL_LOAD_FAILED reason=file_not_found path=$modelPath")
+                Log.i("AIRI", "EMBEDDING_MODEL_LOAD_FAILED reason=file_not_found path=$modelPath")
                 return@withLock null
             }
             if (!LlamaNative.isAvailable()) {
-                Log.i("AIRI_PROOF", "EMBEDDING_MODEL_LOAD_FAILED reason=native_lib_missing")
+                Log.i("AIRI", "EMBEDDING_MODEL_LOAD_FAILED reason=native_lib_missing")
                 return@withLock null
             }
             val rc = runCatching { LlamaNative.loadEmbeddingModel(modelPath) }
                 .getOrElse {
-                    Log.i("AIRI_PROOF", "EMBEDDING_MODEL_LOAD_FAILED reason=jni_throw msg=${it.message}")
+                    Log.i("AIRI", "EMBEDDING_MODEL_LOAD_FAILED reason=jni_throw msg=${it.message}")
                     return@withLock null
                 }
             // Native returns "OK dim=NNN" on success, "ERR_*" on failure.
             if (!rc.startsWith("OK")) {
-                Log.i("AIRI_PROOF", "EMBEDDING_MODEL_LOAD_FAILED reason=$rc")
+                Log.i("AIRI", "EMBEDDING_MODEL_LOAD_FAILED reason=$rc")
                 return@withLock null
             }
             val parsedDim = rc.substringAfter("dim=", "0").toIntOrNull() ?: 0
             if (parsedDim <= 0) {
-                Log.i("AIRI_PROOF", "EMBEDDING_MODEL_LOAD_FAILED reason=bad_dim raw=$rc")
+                Log.i("AIRI", "EMBEDDING_MODEL_LOAD_FAILED reason=bad_dim raw=$rc")
                 return@withLock null
             }
             loadedPath = modelPath
             dim = parsedDim
-            Log.i("AIRI_PROOF", "EMBEDDING_MODEL_LOADED dim=$parsedDim path=${f.name}")
+            Log.i("AIRI", "EMBEDDING_MODEL_LOADED dim=$parsedDim path=${f.name}")
             parsedDim
         }
     }
@@ -112,7 +112,7 @@ class EmbeddingService(context: Context) {
         nativeLock.withLock {
             if (loadedPath != null) {
                 runCatching { LlamaNative.unloadEmbeddingModel() }
-                Log.i("AIRI_PROOF", "EMBEDDING_MODEL_UNLOADED path=${loadedPath?.substringAfterLast('/')}")
+                Log.i("AIRI", "EMBEDDING_MODEL_UNLOADED path=${loadedPath?.substringAfterLast('/')}")
             }
             loadedPath = null
             dim = 0
@@ -126,7 +126,7 @@ class EmbeddingService(context: Context) {
      */
     suspend fun embedAndStore(message: ChatMessage): Boolean {
         if (!isReady()) {
-            Log.i("AIRI_PROOF", "EMBEDDING_SKIPPED reason=not_loaded msg_id=${message.id}")
+            Log.i("AIRI", "EMBEDDING_SKIPPED reason=not_loaded msg_id=${message.id}")
             return false
         }
         val text = message.content.trim()
@@ -148,7 +148,7 @@ class EmbeddingService(context: Context) {
             return false
         }
         Log.i(
-            "AIRI_PROOF",
+            "AIRI",
             "EMBEDDING_CREATED msg_id=${message.id} session=${message.sessionId} dim=${vec.size} bytes=${bytes.size}"
         )
         return true
@@ -173,7 +173,7 @@ class EmbeddingService(context: Context) {
      *
      * Brute-force linear scan over the per-session row set (≤ 200 rows by AIRI's
      * per-session prune cap). Returns empty list if embedding model not loaded —
-     * caller falls back to chronological recall. No silent fallback to fake scores.
+     * caller falls back to chronological recall. No silent fallback to fabricated scores.
      *
      * @param halfLifeHours  Temporal decay half-life. Default 24h (yesterday = 50%).
      */
@@ -185,20 +185,17 @@ class EmbeddingService(context: Context) {
         halfLifeHours: Float = 24f
     ): List<RankedMessage> {
         if (!isReady()) {
-            Log.i("AIRI_PROOF", "VECTOR_SEARCH_SKIPPED reason=not_loaded session=$sessionId")
+            Log.i("AIRI", "VECTOR_SEARCH_SKIPPED reason=not_loaded session=$sessionId")
             return emptyList()
         }
         if (query.isBlank() || k <= 0) return emptyList()
         val qVec = computeRaw(query) ?: return emptyList()
-        // AP-51: Use cross-session bounded scan (getRecent) so semantic search
-        // is not confined to the current session. Rows are filtered by vector
-        // dimension after retrieval — same approach as getAllForSession, which
-        // already did an in-memory scan. The 5000-row cap prevents unbounded
-        // DB reads on large installations.
-        val allRecent = dao.getRecent(limit = 5000)
-        val rows = allRecent.filter { it.dim == qVec.size }
+        // Semantic recall is session-scoped by default. This keeps unrelated
+        // conversations out of the prompt and bounds the in-memory cosine scan
+        // to the session transcript cap instead of the whole installation.
+        val rows = dao.getAllForSession(sessionId, qVec.size)
         if (rows.isEmpty()) {
-            Log.i("AIRI_PROOF", "VECTOR_SEARCH_NO_INDEX session=$sessionId dim=${qVec.size} scanned=${allRecent.size}")
+            Log.i("AIRI_MEMORY", "VECTOR_SEARCH_NO_INDEX session=$sessionId dim=${qVec.size}")
             return emptyList()
         }
 
@@ -212,7 +209,7 @@ class EmbeddingService(context: Context) {
             if (dot >= minSimilarity) scored.add(Scored(row.messageId, dot))
         }
         if (scored.isEmpty()) {
-            Log.i("AIRI_PROOF", "VECTOR_SEARCH_EMPTY session=$sessionId candidates=${rows.size} threshold=$minSimilarity")
+            Log.i("AIRI_MEMORY", "VECTOR_SEARCH_EMPTY session=$sessionId candidates=${rows.size} threshold=$minSimilarity")
             return emptyList()
         }
 
@@ -234,12 +231,12 @@ class EmbeddingService(context: Context) {
         }
 
         if (out.isEmpty()) {
-            Log.i("AIRI_PROOF", "VECTOR_SEARCH_EMPTY_POST_SALIENCE session=$sessionId pool=${rawPairs.size}")
+            Log.i("AIRI_MEMORY", "VECTOR_SEARCH_EMPTY_POST_SALIENCE session=$sessionId pool=${rawPairs.size}")
             return emptyList()
         }
 
         Log.i(
-            "AIRI_PROOF",
+            "AIRI_MEMORY",
             "VECTOR_SEARCH_HIT session=$sessionId candidates=${rows.size} pool=${rawPairs.size} " +
             "returned=${out.size} top_salience=${"%.3f".format(out.first().score)}"
         )
@@ -260,7 +257,7 @@ class EmbeddingService(context: Context) {
             append(lines)
             append("\n")
         }.also {
-            Log.i("AIRI_PROOF", "CONTEXT_AUGMENTED hits=${hits.size} bytes=${it.length}")
+            Log.i("AIRI", "CONTEXT_AUGMENTED hits=${hits.size} bytes=${it.length}")
         }
     }
 
@@ -281,7 +278,7 @@ class EmbeddingService(context: Context) {
      * Token estimation deliberately matches PromptCompressor.estimateTokens:
      * `chars / 4` rounded up. We pad by +8 for the header line.
      *
-     * Emits AIRI_PROOF CONTEXT_INJECTED hits=X tokens=Y on success,
+     * Emits AIRI CONTEXT_INJECTED hits=X tokens=Y on success,
      * CONTEXT_INJECTION_SKIPPED reason=… on the empty/over-budget paths.
      */
     fun formatContextWithBudget(
@@ -290,7 +287,7 @@ class EmbeddingService(context: Context) {
         maxCharsPerHit: Int = 220
     ): Triple<String, Int, Int> {
         if (hits.isEmpty() || maxTokens <= 0) {
-            Log.i("AIRI_PROOF",
+            Log.i("AIRI",
                 "CONTEXT_INJECTION_SKIPPED reason=${if (hits.isEmpty()) "no_hits" else "no_budget"} " +
                 "hits=${hits.size} maxTokens=$maxTokens")
             return Triple("", 0, 0)
@@ -298,7 +295,7 @@ class EmbeddingService(context: Context) {
         val header = "Relevant prior context (semantic memory):\n"
         val headerTokens = (header.length + 3) / 4
         if (headerTokens >= maxTokens) {
-            Log.i("AIRI_PROOF",
+            Log.i("AIRI",
                 "CONTEXT_INJECTION_SKIPPED reason=header_exceeds_budget " +
                 "headerTokens=$headerTokens maxTokens=$maxTokens")
             return Triple("", 0, 0)
@@ -316,12 +313,12 @@ class EmbeddingService(context: Context) {
             used++
         }
         if (used == 0) {
-            Log.i("AIRI_PROOF",
+            Log.i("AIRI",
                 "CONTEXT_INJECTION_SKIPPED reason=first_hit_over_budget " +
                 "maxTokens=$maxTokens header=$headerTokens")
             return Triple("", 0, 0)
         }
-        Log.i("AIRI_PROOF",
+        Log.i("AIRI",
             "CONTEXT_INJECTED hits=$used tokens=$totalTokens budget=$maxTokens bytes=${sb.length}")
         return Triple(sb.toString(), used, totalTokens)
     }
@@ -332,11 +329,11 @@ class EmbeddingService(context: Context) {
             if (!isReady()) return@withLock null
             val raw = runCatching { LlamaNative.computeEmbedding(text) }
                 .getOrElse {
-                    Log.i("AIRI_PROOF", "EMBEDDING_FAILED reason=jni_throw msg=${it.message}")
+                    Log.i("AIRI", "EMBEDDING_FAILED reason=jni_throw msg=${it.message}")
                     return@withLock null
                 }
             if (raw == null || raw.isEmpty()) {
-                Log.i("AIRI_PROOF", "EMBEDDING_FAILED reason=null_or_empty")
+                Log.i("AIRI", "EMBEDDING_FAILED reason=null_or_empty")
                 return@withLock null
             }
             raw

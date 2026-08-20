@@ -51,6 +51,9 @@
     <string name="style_balanced">متوازن</string>
     <string name="style_detailed">مفصل</string>
     <string name="memory">الذاكرة</string>
+    <string name="memory_new_knowledge">تم استخراج معرفة جديدة</string>
+    <string name="memory_accept">قبول</string>
+    <string name="memory_reject">رفض</string>
     <string name="view_stored_memory">عرض الذاكرة المحفوظة</string>
     <string name="browse_conversation_history">تصفح سجل المحادثات الكامل</string>
     <string name="clear_all_memory">مسح كل الذاكرة</string>
@@ -101,13 +104,10 @@
     <string name="sign_out">تسجيل الخروج</string>
     <string name="speak_to_airi">تحدث إلى AIRI</string>
     <string name="microphone_permission_required">إذن الميكروفون مطلوب للإدخال الصوتي</string>
-    <string name="file_selected_coming_soon">تم اختيار ملف — دعم المرفقات قريبًا</string>
     <string name="image_selected_coming_soon">إرفاق الصور غير مُفعَّل في هذه النسخة</string>
-    <string name="export_coming_soon">التصدير قريبًا</string>
     <string name="attach">إرفاق</string>
     <string name="pick_image">اختيار صورة</string>
     <string name="pick_file">اختيار ملف</string>
-    <string name="camera_coming_soon">الكاميرا (قريبًا)</string>
     <string name="menu">القائمة</string>
     <string name="app_agent_title">وكيل AIRI</string>
     <!-- لا تُضِف %1$s هنا — يُستدعى بدون formatArgs ويظهر اسم النموذج في السطر الفرعي -->
@@ -120,7 +120,17 @@
     <string name="generation_settings">إعدادات التوليد</string>
     <string name="switch_model">تبديل النموذج</string>
     <string name="export_chat">تصدير المحادثة</string>
+    <string name="share_chat">مشاركة المحادثة</string>
+    <string name="pin_chat">تثبيت المحادثة</string>
+    <string name="unpin_chat">إلغاء تثبيت المحادثة</string>
+    <string name="rename_chat">إعادة تسمية المحادثة</string>
+    <string name="rename_chat_title">إعادة تسمية المحادثة</string>
+    <string name="rename_chat_hint">اسم المحادثة</string>
     <string name="airi_ready">AIRI جاهز</string>
+    <string name="char_limit_warning">تنبيه: أنت تقترب من الحد الأقصى للأحرف.</string>
+    <string name="char_limit_reached_title">النص طويل جداً</string>
+    <string name="char_limit_reached_desc">أصبح النص طويلاً جداً وقد يؤدي إلى أخطاء، هل تريد تحويله إلى ملف؟</string>
+    <string name="auto_convert">تحويل تلقائي</string>
     <string name="ask_anything_model_active">اسأل أي شيء — النموذج نشط</string>
     <string name="activate_model_gallery_first">فعّل نموذجًا من معرض النماذج أولًا</string>
     <string name="no_model_tap_select">لا يوجد نموذج نشط — اضغط للاختيار</string>
@@ -201,6 +211,29 @@
     <string name="email_read_only">البريد الإلكتروني (للقراءة فقط)</string>
     <string name="profile_saved">تم حفظ الملف الشخصي</string>
     <string name="edit_profile">تعديل الملف الشخصي</string>
+    <string name="profile_photo_saved">تم حفظ الصورة</string>
+    <string name="profile_photo_removed">تمت إزالة الصورة</string>
+    <string name="profile_delete_confirm_title">حذف الحساب؟</string>
+    <string name="profile_delete_confirm_body">سيؤدي هذا إلى حذف حسابك وجميع البيانات المرتبطة به نهائيًا. لا يمكن التراجع عن هذا الإجراء.</string>
+    <string name="profile_delete_confirm_action">حذف نهائي</string>
+    <string name="profile_delete_failed">فشل الحذف</string>
+    <string name="profile_saving">جارٍ الحفظ…</string>
+    <string name="profile_saved_ok">تم تحديث الملف الشخصي</string>
+    <string name="profile_save_failed">تعذر تحديث الملف الشخصي. حاول مرة أخرى.</string>
+    <string name="profile_display_name_label">الاسم المستعار</string>
+    <string name="profile_photo_placeholder">أدخل اسمك</string>
+    <string name="profile_handle_placeholder">@اسم_المستخدم</string>
+    <string name="profile_email_label">البريد الإلكتروني</string>
+    <string name="profile_account_section">معلومات الحساب</string>
+    <string name="profile_session_section">الجلسة والإجراءات</string>
+    <string name="profile_sign_out">تسجيل الخروج</string>
+    <string name="profile_delete_account">حذف الحساب</string>
+    <string name="profile_login_provider">مزود تسجيل الدخول</string>
+    <string name="profile_member_since">عضو منذ</string>
+    <string name="profile_photo_cd">صورة الملف الشخصي</string>
+    <string name="profile_change_photo">تغيير الصورة</string>
+    <string name="profile_remove_photo">إزالة الصورة</string>
+    <string name="profile_title">الملف الشخصي</string>
     <string name="report_a_problem">الإبلاغ عن مشكلة</string>
     <string name="report_a_problem_sublabel">أرسل ملاحظة أو بلاغ عن خطأ عبر البريد الإلكتروني</string>
     <string name="report_email_subject">تقرير خطأ AIRI — v1.0.0-alpha</string>
@@ -214,7 +247,7 @@
     <string name="plan_free_tier">الخطة المجانية</string>
     <string name="plan_premium_description">وصول غير محدود لجميع الميزات</string>
     <string name="plan_free_description">30 رسالة / 10 وكلاء / 5 مهارات يوميًا</string>
-    <string name="plan_badge_active">✓ نشط</string>
+    <string name="plan_badge_active"> نشط</string>
     <string name="plan_badge_free">مجاني</string>
     <string name="today_usage">الاستخدام اليوم</string>
     <string name="usage_messages">الرسائل</string>
@@ -304,8 +337,8 @@
     <string name="stat_available_ram">المتاح</string>
     <string name="stat_used_ram">الذاكرة المستخدمة</string>
     <string name="stat_low_memory">ذاكرة منخفضة</string>
-    <string name="stat_low_memory_yes">نعم ⚠</string>
-    <string name="stat_low_memory_no">لا ✓</string>
+    <string name="stat_low_memory_yes">نعم </string>
+    <string name="stat_low_memory_no">لا </string>
     <string name="stat_storage">التخزين</string>
     <string name="stat_total_storage">إجمالي التخزين</string>
     <string name="stat_free_storage">التخزين المتاح</string>
@@ -350,10 +383,10 @@
     <string name="marketplace_install">تثبيت</string>
     <string name="marketplace_installed_badge">مثبت</string>
     <string name="marketplace_update">تحديث</string>
-    <string name="marketplace_install_success">✓ تم تثبيت %1$s!</string>
+    <string name="marketplace_install_success"> تم تثبيت %1$s!</string>
     <string name="marketplace_install_failed">فشل التثبيت — حاول مجددًا.</string>
     <string name="marketplace_removed">تمت إزالة %1$s.</string>
-    <string name="marketplace_updated">✓ تم تحديث %1$s إلى v%2$s</string>
+    <string name="marketplace_updated"> تم تحديث %1$s إلى v%2$s</string>
     <string name="marketplace_submitted">تم الإرسال! معرف الطلب: %1$s</string>
     <string name="marketplace_submit_failed">فشل الإرسال — تحقق من الملف التعريفي.</string>
     <string name="marketplace_no_installed">لا توجد مهارات مثبتة</string>
@@ -366,7 +399,7 @@
     <string name="marketplace_manifest_label">ملف skill.json التعريفي</string>
     <string name="marketplace_validate">التحقق</string>
     <string name="marketplace_reset">إعادة ضبط</string>
-    <string name="marketplace_manifest_valid">الملف التعريفي صحيح ✓</string>
+    <string name="marketplace_manifest_valid">الملف التعريفي صحيح </string>
     <string name="marketplace_manifest_invalid">فشل التحقق</string>
     <string name="marketplace_terms">أوافق على شروط خدمة سوق AIRI</string>
     <string name="marketplace_submit_review">إرسال للمراجعة</string>
@@ -408,9 +441,9 @@
     <string name="spec_acceptance">معدل القبول: %1$d%% (%2$d / %3$d اقتراحات عبر %4$d تشغيل)</string>
     <string name="spec_acceptance_empty">معدل القبول: — (لا توجد عمليات استباقية بعد)</string>
     <string name="spec_draft_n_label">رموز كل خطوة: %1$d</string>
-    <string name="perf_mode_label_fast">⚡ سريع</string>
-    <string name="perf_mode_label_balanced">⚖ متوازن</string>
-    <string name="perf_mode_label_quality">🎯 جودة</string>
+    <string name="perf_mode_label_fast"> سريع</string>
+    <string name="perf_mode_label_balanced"> متوازن</string>
+    <string name="perf_mode_label_quality"> جودة</string>
     <string name="perf_footer_note">يؤثر وضع الأداء على: نافذة السياق، والحد الأقصى للرموز، واستراتيجية الاقتطاع. تُطبق التغييرات على الرسالة التالية.</string>
     <!-- Model settings content descriptions -->
     <string name="add_model_fab">إضافة نموذج</string>
@@ -470,6 +503,7 @@
     <string name="suggestion_brainstorm">ساعدني في توليد أفكار</string>
     <string name="nav_chat">دردشة</string>
     <string name="nav_new">جديد</string>
+    <string name="nav_library">المكتبة</string>
     <string name="nav_schedule">مجدول</string>
     <string name="nav_settings">إعدادات</string>
     <string name="nav_skills">مهارات</string>
@@ -586,9 +620,9 @@
     <string name="billing_annual">سنوي</string>
     <string name="billing_save_20">وفّر 20%%</string>
     <string name="subscribe_now">اشترك الآن</string>
-    <string name="premium_title">✨ AIRI Premium</string>
+    <string name="premium_title"> AIRI Premium</string>
     <string name="premium_description">افتح الإمكانات الكاملة لـ AIRI مع 10× المزيد من الرصيد وجميع الموصلات والوصول إلى السوق وواجهات المطورين.</string>
-    <string name="premium_active_message">أنت على AIRI Premium! 🎉</string>
+    <string name="premium_active_message">أنت على AIRI Premium! </string>
     <string name="premium_active_subtitle">2,000 رصيد يومي، جميع الميزات مفتوحة.</string>
     <string name="stripe_footer">المدفوعات مؤمّنة عبر Stripe. لا يحتفظ AIRI ببيانات بطاقتك.</string>
 
@@ -768,6 +802,17 @@
     <string name="attach_tasks">مهام مجدولة</string>
     <string name="attach_conversation_mode">وضع المحادثة</string>
     <string name="attach_edit_image">تحرير صورة</string>
+    <string name="attach_video">فيديو</string>
+    <string name="attach_text">نص</string>
+    <string name="attachment_limit_reached">يمكنك إضافة ما يصل إلى 6 مرفقات في الرسالة الواحدة.</string>
+    <string name="attachment_already_added">هذا المرفق موجود بالفعل في الرسالة.</string>
+    <string name="attachment_too_large">حجم هذا المرفق أكبر من 25 ميغابايت.</string>
+    <string name="text_attachment_too_large">يجب ألا يتجاوز حجم المرفقات النصية 512 كيلوبايت.</string>
+    <string name="attachment_type_image">صورة</string>
+    <string name="attachment_type_video">فيديو</string>
+    <string name="attachment_type_text">نص</string>
+    <string name="attachment_type_document">مستند</string>
+    <string name="attachment_type_file">ملف</string>
 
     <!-- Agent Tasks screen -->
     <string name="agent_task_tab_scheduled">مجدول (%1$d)</string>
@@ -809,7 +854,7 @@
     <string name="vosk_download_small_desc">قم بتنزيل نموذج الإنجليزية الصغير (~40 ميغابايت) لتفعيل الصوت فوراً. يعمل بالكامل بدون إنترنت.</string>
     <string name="vosk_download_small_btn">تنزيل النموذج الصغير (إنجليزي، ~40 ميغابايت)</string>
     <string name="vosk_downloading_progress">جارٍ التنزيل… %1$d%%</string>
-    <string name="vosk_install_success">✓ تم تثبيت النموذج الصوتي</string>
+    <string name="vosk_install_success"> تم تثبيت النموذج الصوتي</string>
 
     <!-- Generic actions / shared -->
     <string name="done">تم</string>
@@ -915,9 +960,9 @@
     <string name="payment_annual">سنوي</string>
     <string name="payment_save_20">وفّر 20%</string>
     <string name="payment_subscribe_now">اشترك الآن</string>
-    <string name="payment_airi_premium">✨ AIRI Premium</string>
+    <string name="payment_airi_premium"> AIRI Premium</string>
     <string name="payment_premium_desc">افتح القوة الكاملة لـ AIRI مع 10 أضعاف الاعتمادات وجميع الموصلات والوصول إلى السوق وواجهات API للمطورين.</string>
-    <string name="payment_premium_active">أنت مشترك في AIRI Premium! 🎉</string>
+    <string name="payment_premium_active">أنت مشترك في AIRI Premium! </string>
     <string name="payment_premium_active_desc">2,000 اعتماد يوميًا، جميع الميزات مفتوحة.</string>
     <string name="payment_stripe_footer">تتم معالجة المدفوعات بأمان بواسطة Stripe. لا يحتفظ AIRI بتفاصيل البطاقة مطلقًا.</string>
     <string name="payment_bonus_included">+%1$d%% مكافأة مضمنة</string>
@@ -1236,28 +1281,6 @@
     <string name="permissions_enable_label">تفعيل</string>
 
     <!-- profile -->
-    <string name="profile_account_section">الحساب</string>
-    <string name="profile_change_photo">تغيير الصورة</string>
-    <string name="profile_delete_account">حذف الحساب</string>
-    <string name="profile_delete_confirm_action">حذف الحساب</string>
-    <string name="profile_delete_confirm_body">سيؤدي هذا إلى حذف حساب AIRI وجميع البيانات المحلية نهائياً. لا يمكن التراجع عن هذا الإجراء.</string>
-    <string name="profile_delete_confirm_title">هل تريد حذف حسابك؟</string>
-    <string name="profile_delete_failed">تعذّر حذف الحساب. يرجى المحاولة مجدداً.</string>
-    <string name="profile_display_name_label">الاسم المعروض</string>
-    <string name="profile_email_label">البريد الإلكتروني</string>
-    <string name="profile_handle_placeholder">@معرف</string>
-    <string name="profile_login_provider">طريقة تسجيل الدخول</string>
-    <string name="profile_member_since">عضو منذ</string>
-    <string name="profile_photo_cd">صورة الملف الشخصي</string>
-    <string name="profile_photo_placeholder">اسمك</string>
-    <string name="profile_photo_removed">تم إزالة صورة الملف الشخصي</string>
-    <string name="profile_photo_saved">تم تحديث صورة الملف الشخصي</string>
-    <string name="profile_remove_photo">إزالة الصورة</string>
-    <string name="profile_saved_ok">تم حفظ الملف الشخصي</string>
-    <string name="profile_saving">جارٍ الحفظ…</string>
-    <string name="profile_session_section">الجلسة</string>
-    <string name="profile_sign_out">تسجيل الخروج</string>
-    <string name="profile_title">الملف الشخصي</string>
 
     <!-- sandbox -->
     <string name="sandbox_cancel_confirm">تم إلغاء التنفيذ</string>
@@ -1320,4 +1343,48 @@
     <!-- welcome -->
     <string name="welcome_greeting">مرحباً، أنا AIRI</string>
 
+    <!-- input shortcuts -->
+    <string name="input_saved_knowledge">معرفة محفوظة</string>
+
+    <string name="err_generation_failed">تعذّر إنشاء الاستجابة. حاول مرة أخرى.</string>
+
+    <!-- chat accessibility -->
+    <string name="cd_send_message">إرسال الرسالة</string>
+    <string name="cd_cancel_generation">إيقاف التوليد</string>
+    <string name="cd_start_voice_chat">بدء محادثة صوتية</string>
+    <string name="cd_add_attachment">إضافة مرفق</string>
+    <string name="cd_start_voice_input">بدء الإدخال الصوتي</string>
+    <string name="cd_open_connectors">فتح الموصلات</string>
+    <string name="cd_expand_input">توسيع أدوات الإدخال</string>
+    <string name="cd_collapse_input">طي أدوات الإدخال</string>
+
+    <!-- Zapier OAuth -->
+    <string name="zapier_auth_description">يستخدم Zapier بروتوكول OAuth 2.0. عند الاتصال ستفتح صفحة تفويض Zapier في المتصفح.</string>
+    <string name="zapier_authorization_started">تم فتح المتصفح. فوّض AIRI في Zapier ثم عد إلى التطبيق.</string>
+    <string name="zapier_disconnected">تم قطع الاتصال بـ Zapier.</string>
+    <string name="zapier_webhook_placeholder">https://hooks.zapier.com/hooks/catch/...</string>
+    <string name="zapier_oauth_not_configured">اتصال Zapier غير مهيأ في هذه النسخة من التطبيق.</string>
+
+    <!-- scheduled-task controls -->
+    <string name="agent_task_repeat">تكرار هذه المهمة</string>
+    <string name="agent_task_requires_network">تتطلب اتصالاً بالإنترنت</string>
+    <string name="agent_task_periodic_note">تعمل المهام المتكررة كل 15 دقيقة على الأقل.</string>
+
+    <!-- scheduled-task outcomes -->
+    <string name="agent_task_status_pending">مجدولة</string>
+    <string name="agent_task_status_retrying">جارٍ إعادة المحاولة</string>
+    <string name="agent_task_status_completed">مكتملة</string>
+    <string name="agent_task_status_failed">فشلت</string>
+
+    <!-- voice errors -->
+    <string name="voice_error_unavailable">التعرّف على الصوت غير متاح على هذا الجهاز.</string>
+    <string name="voice_error_model_load">تعذّر تحميل نموذج التعرّف على الكلام دون اتصال.</string>
+    <string name="voice_error_empty_result">لم يتم اكتشاف كلام. حاول مرة أخرى.</string>
+    <string name="voice_error_network">يحتاج التعرّف على الصوت إلى اتصال بالإنترنت.</string>
+    <string name="voice_error_microphone">حدث خطأ في الميكروفون. تحقّق من إذن الميكروفون ثم حاول مرة أخرى.</string>
+    <string name="voice_error_busy">التعرّف على الصوت مشغول. حاول مرة أخرى بعد لحظة.</string>
+    <string name="voice_error_generic">تعذّر إكمال التعرّف على الصوت. حاول مرة أخرى.</string>
+
+    <string name="dev_cert_pinning_deferred">التحقق القياسي من TLS مفعّل؛ تثبيت الشهادات مؤجل حتى التحقق.</string>
+    <string name="dev_cert_pinning_active">تثبيت الشهادات مفعّل.</string>
 </resources>

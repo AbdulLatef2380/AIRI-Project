@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.flow
  *      [CAPABILITY_ACCESSIBILITY] — the token granted by AiriAccessibilityService
  *      when it binds. If the service is not enabled, canHandle() returns false.
  *
- *   2. Every action is logged to Logcat tag AIRI_PROOF_ACCESSIBILITY.
+ *   2. Every action is logged to Logcat tag AIRI_ACCESSIBILITY.
  *
  *   3. The engine enforces: maxActions=20, maxRetries=3, 8s timeout/action.
  *
@@ -43,7 +43,7 @@ class AndroidAgent(
     }
 
     /**
-     * Phase 1: Real confirmation gate for destructive actions.
+     * : Real confirmation gate for destructive actions.
      *
      * Set by [ServiceLocator.initSubAgentSystem] after ChatViewModel creates the
      * ViewModel. When non-null, destructive actions (send, post, delete, share)
@@ -88,7 +88,7 @@ class AndroidAgent(
 
     override fun execute(input: String, context: SubAgentContext): Flow<AgentEvent> = flow {
         val start = System.currentTimeMillis()
-        Log.i(TAG, "AndroidAgent.execute input='${input.take(80)}'")
+        Log.i(TAG, "ANDROID_AGENT_EXECUTE inputChars=${input.length}")
 
         // Guard: re-check capability at execution time (token may have been revoked)
         if (!context.grantedPermissions.contains(CAPABILITY_ACCESSIBILITY)) {
@@ -100,11 +100,10 @@ class AndroidAgent(
         }
 
         val actionType = detectAction(input.lowercase())
-        Log.i(TAG, "AIRI_AUDIT ANDROID_AGENT action=${actionType.name} " +
-                "needsConfirm=${actionType.requiresConfirmation} input='${input.take(80)}'")
+        Log.i(TAG, "ANDROID_AGENT action=${actionType.name} needsConfirmation=${actionType.requiresConfirmation} inputChars=${input.length}")
 
-        // ── Phase 1: Real blocking confirmation gate ───────────────────────────
-        // Previously: emitted Progress("⚠ Confirmation required… Proceeding…") and
+        // ── : Real blocking confirmation gate ───────────────────────────
+        // Previously: emitted Progress(" Confirmation required… Proceeding…") and
         // immediately continued — no actual user gate.
         // Now: suspends until the UI resolves the confirmation dialog.
         // If no gate is wired (background context), BLOCK the action — fail-safe.
@@ -168,7 +167,7 @@ class AndroidAgent(
                 }
                 is AccessibilityExecutionEngine.ExecutionEvent.ActionExecuted -> {
                     emit(AgentEvent.Progress(
-                        "${if (event.success) "✓" else "✗"} ${event.action}: ${event.result}",
+                        "${if (event.success) "" else ""} ${event.action}: ${event.result}",
                         65, "action"
                     ))
                 }

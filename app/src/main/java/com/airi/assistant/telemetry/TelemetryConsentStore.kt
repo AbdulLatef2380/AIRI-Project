@@ -70,7 +70,7 @@ class TelemetryConsentStore(context: Context) {
             .putBoolean(KEY_AGENT_TEL, false)
             .apply()
         _consentState.value = ConsentState()
-        LoggingService.info(TAG, "AIRI_PROOF TELEMETRY_ALL_REVOKED")
+        LoggingService.info(TAG, "AIRI TELEMETRY_ALL_REVOKED")
     }
 
     private fun load(): ConsentState = ConsentState(
@@ -80,7 +80,7 @@ class TelemetryConsentStore(context: Context) {
     )
 
     private fun log(category: String, enabled: Boolean) {
-        LoggingService.info(TAG, "AIRI_PROOF TELEMETRY_CONSENT category=$category enabled=$enabled")
+        LoggingService.info(TAG, "AIRI TELEMETRY_CONSENT category=$category enabled=$enabled")
     }
 
     companion object {

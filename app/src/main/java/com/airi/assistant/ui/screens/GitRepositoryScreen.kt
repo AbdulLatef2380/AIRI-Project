@@ -29,7 +29,7 @@ import com.airi.assistant.ui.theme.CosmicAccent
 import kotlinx.coroutines.launch
 
 /**
- * Task 6.2 – Git Repository Browser.
+ * – Git Repository Browser.
  * Lists repos, branches, and commit history via GithubService.
  */
 @OptIn(ExperimentalMaterial3Api::class)

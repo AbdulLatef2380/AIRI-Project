@@ -172,7 +172,7 @@ object SubAgentRegistry {
             .sortedByDescending { (_, score) -> score }
 
         if (scored.isEmpty()) {
-            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "No keyword match for input='${input.take(60)}'")
+            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "NO_KEYWORD_MATCH inputChars=${input.length}")
             return null
         }
 
@@ -186,7 +186,7 @@ object SubAgentRegistry {
             }
         }
 
-        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "No agent confirmed canHandle for input='${input.take(60)}'")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "NO_AGENT_CONFIRMED inputChars=${input.length}")
         return null
     }
 

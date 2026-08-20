@@ -85,6 +85,8 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
 
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
+    fun isOAuthConfigured(): Boolean = CLIENT_ID != "ZAPIER_CLIENT_ID_PLACEHOLDER"
+
     // ── Auth URL ──────────────────────────────────────────────────────────────
 
     /**
@@ -93,14 +95,17 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
      * stored in [OAuthStateRegistry] and will be validated in [handleCallback].
      */
     fun buildAuthUrl(): String {
-        val state = OAuthStateRegistry.issue(id)
+        check(isOAuthConfigured()) { "Zapier OAuth client ID is not configured" }
+        val authorization = OAuthStateRegistry.issuePkce(id)
         return buildString {
             append(AUTH_URL)
             append("?response_type=code")
             append("&client_id=$CLIENT_ID")
             append("&redirect_uri=${java.net.URLEncoder.encode(REDIRECT_URI, "UTF-8")}")
-            append("&scope=$SCOPE")
-            append("&state=$state")
+            append("&scope=${java.net.URLEncoder.encode(SCOPE, "UTF-8")}")
+            append("&state=${authorization.state}")
+            append("&code_challenge=${authorization.codeChallenge}")
+            append("&code_challenge_method=S256")
         }
     }
 
@@ -120,20 +125,27 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
             return@withContext false
         }
 
-        // Validate CSRF state
-        val connectorId = OAuthStateRegistry.consume(state)
-        if (connectorId != id) {
-            Log.w(TAG, "OAuth state mismatch — possible CSRF attempt (expected $id, got $connectorId)")
+        val request = OAuthStateRegistry.consumeRequest(state)
+            ?: return@withContext false
+        return@withContext handleCallback(code, request)
+    }
+
+    suspend fun handleCallback(
+        code: String,
+        requestContext: OAuthStateRegistry.ConsumedRequest
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (requestContext.connectorId != id || requestContext.codeVerifier.isNullOrBlank()) {
+            Log.w(TAG, "Rejected OAuth callback with invalid request context")
             return@withContext false
         }
 
-        // Exchange code for tokens
         try {
             val body = FormBody.Builder()
                 .add("grant_type",   "authorization_code")
                 .add("code",         code)
                 .add("redirect_uri", REDIRECT_URI)
-                .add("client_id",    CLIENT_ID)
+                .add("client_id", CLIENT_ID)
+                .add("code_verifier", requestContext.codeVerifier)
                 .build()
 
             val request = Request.Builder().url(TOKEN_URL).post(body).build()
@@ -211,7 +223,7 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
             AgentActivityBus.emit("Zapier: ${input.action}", ActivityCategory.CONNECTOR)
             ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
         } catch (e: Exception) {
-            Log.e(TAG, "execute ${input.action} failed: ${e.message}")
+            Log.e(TAG, "ZAPIER_EXECUTION_FAILURE action=${input.action} causeType=${e::class.simpleName}")
             ConnectorOutput.Failure("api_error", e.message ?: "Zapier API error", retryable = true)
         }
     }
@@ -225,7 +237,7 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
             appendLine("Your Zaps (${zaps.length()}):")
             for (i in 0 until zaps.length()) {
                 val z = zaps.getJSONObject(i)
-                val status = if (z.optBoolean("active", false)) "🟢" else "⏸"
+                val status = if (z.optBoolean("active", false)) "" else "⏸"
                 appendLine("$status ${z.optString("title","Untitled")} [id: ${z.optInt("id")}]")
             }
         }
@@ -239,7 +251,7 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
             .toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url(url).post(body).build()
         val response = client.newCall(request).execute()
-        return if (response.isSuccessful) "Zap #$zapId triggered successfully ✓" else "Trigger failed: HTTP ${response.code}"
+        return if (response.isSuccessful) "Zap #$zapId triggered successfully " else "Trigger failed: HTTP ${response.code}"
     }
 
     private fun patchZap(zapId: String, action: String): String {
@@ -265,7 +277,7 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
             .toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url(hookUrl).post(body).build()
         val response = client.newCall(request).execute()
-        return if (response.isSuccessful) "Webhook sent ✓ (HTTP ${response.code})"
+        return if (response.isSuccessful) "Webhook sent  (HTTP ${response.code})"
                else "Webhook failed: HTTP ${response.code} ${response.message}"
     }
 

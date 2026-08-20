@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.theme.*
 
 /**
- * Task 1.6: WelcomeScreen — shown to signed-in users with no model and no API key.
+ * WelcomeScreen — shown to signed-in users with no model and no API key.
  * Provides guided CTAs to set up a model or enter an API key before using the app.
  */
 @Composable

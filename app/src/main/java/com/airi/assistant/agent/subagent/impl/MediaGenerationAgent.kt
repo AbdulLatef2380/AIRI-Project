@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit
  * PRIVACY:
  *   - Blocked in PRIVACY_MAXIMUM mode (would send prompt to cloud).
  *   - The image prompt is logged at WARN level (not DEBUG) so it is
- *     visible in the AIRI_PROOF stream without being noisy.
+ *     visible in the AIRI stream without being noisy.
  */
 class MediaGenerationAgent(
     private val context: Context
@@ -83,7 +83,7 @@ class MediaGenerationAgent(
 
     override fun execute(input: String, context: SubAgentContext): Flow<AgentEvent> = flow {
         val start = System.currentTimeMillis()
-        Log.w(TAG, "AIRI_PROOF MEDIA_GEN_START prompt='${input.take(80)}'")
+        Log.i(TAG, "MEDIA_GENERATION_STARTED inputChars=${input.length}")
 
         if (context.privacyLevel == SubAgentContext.PRIVACY_MAXIMUM) {
             emit(AgentEvent.Failed("Image generation blocked: privacy=MAXIMUM", recoverable = false))
@@ -109,14 +109,14 @@ class MediaGenerationAgent(
 
         val imageUrl = runCatching { generateImage(prompt, width, height) }
             .getOrElse { e ->
-                Log.w(TAG, "Image generation failed: ${e.message}")
+                Log.w(TAG, "MEDIA_GENERATION_FAILURE causeType=${e::class.simpleName}")
                 null
             }
 
         val durationMs = System.currentTimeMillis() - start
 
         if (imageUrl != null) {
-            Log.w(TAG, "AIRI_PROOF MEDIA_GEN_COMPLETE url=$imageUrl durationMs=$durationMs")
+            Log.i(TAG, "MEDIA_GENERATION_COMPLETE success=true durationMs=$durationMs")
             emit(AgentEvent.PartialResult(
                 "Here is your generated image:\n$imageUrl\n\nTap the link to view the full image.",
                 isFinal = true
@@ -146,7 +146,7 @@ class MediaGenerationAgent(
         val request = Request.Builder().url(url).head().build()
         val response = httpClient.newCall(request).execute()
         if (!response.isSuccessful && response.code != 405) {
-            Log.w(TAG, "Pollinations HEAD ${response.code} for url=$url")
+            Log.w(TAG, "MEDIA_PROVIDER_HTTP_FAILURE provider=pollinations code=${response.code}")
         }
         response.close()
         return url

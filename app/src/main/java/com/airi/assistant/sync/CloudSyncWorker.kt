@@ -47,14 +47,14 @@ class CloudSyncWorker(
 
         val prefs = ServiceLocator.userProfileRepository.current
         if (!prefs.cloudSyncEnabled) {
-            LoggingService.info(TAG, "AIRI_PROOF CLOUD_SYNC_WORKER_SKIPPED — sync disabled")
+            LoggingService.info(TAG, "AIRI CLOUD_SYNC_WORKER_SKIPPED — sync disabled")
             return Result.success()
         }
 
         return runCatching {
             ServiceLocator.cloudSyncCoordinator.pull()
             ServiceLocator.cloudSyncCoordinator.push()
-            LoggingService.info(TAG, "AIRI_PROOF CLOUD_SYNC_WORKER_OK")
+            LoggingService.info(TAG, "AIRI CLOUD_SYNC_WORKER_OK")
             Result.success()
         }.getOrElse { e ->
             Log.w(TAG, "CloudSyncWorker failed: ${e.message}")
@@ -85,12 +85,12 @@ class CloudSyncWorker(
                 ExistingPeriodicWorkPolicy.UPDATE,
                 request
             )
-            LoggingService.info(TAG, "AIRI_PROOF CLOUD_SYNC_WORKER_ENQUEUED period=${SYNC_PERIOD_HOURS}h")
+            LoggingService.info(TAG, "AIRI CLOUD_SYNC_WORKER_ENQUEUED period=${SYNC_PERIOD_HOURS}h")
         }
 
         fun cancel(context: Context) {
             WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
-            LoggingService.info(TAG, "AIRI_PROOF CLOUD_SYNC_WORKER_CANCELLED")
+            LoggingService.info(TAG, "AIRI CLOUD_SYNC_WORKER_CANCELLED")
         }
     }
 }

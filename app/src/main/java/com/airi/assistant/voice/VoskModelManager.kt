@@ -155,7 +155,7 @@ object VoskModelManager {
             return
         }
 
-        Log.i(TAG, "AIRI_PROOF VOSK_BUNDLE_EXTRACT extracting $assetPath → $finalDir")
+        Log.i(TAG, "AIRI VOSK_BUNDLE_EXTRACT extracting $assetPath → $finalDir")
         try {
             rootDir(context).mkdirs()
             finalDir.deleteRecursively()
@@ -193,7 +193,7 @@ object VoskModelManager {
             if (isValidVoskModel(finalDir)) {
                 refreshInstalled(context)
                 if (_activeModelId.value == null) setActive(context, targetId)
-                Log.i(TAG, "AIRI_PROOF VOSK_BUNDLE_OK model=$targetId")
+                Log.i(TAG, "AIRI VOSK_BUNDLE_OK model=$targetId")
             } else {
                 finalDir.deleteRecursively()
                 Log.w(TAG, "Bundled zip extracted but model validation failed — deleted")
@@ -297,7 +297,7 @@ object VoskModelManager {
     ): Boolean {
         if (_installed.value.isNotEmpty()) return false   // already have a model
 
-        Log.i(TAG, "AIRI_PROOF VOSK_FIRST_RUN_DOWNLOAD no bundled asset found — downloading small model")
+        Log.i(TAG, "AIRI VOSK_FIRST_RUN_DOWNLOAD no bundled asset found — downloading small model")
         val preset = PRESETS.firstOrNull { it.id.contains("small-en") }
             ?: return false   // no preset available
 

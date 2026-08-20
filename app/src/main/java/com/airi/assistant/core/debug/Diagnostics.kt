@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 object Diagnostics {
 
-    private const val TAG = "AIRI_PROOF"
+    private const val TAG = "AIRI"
 
     private val _systemHealthy = MutableStateFlow(true)
     val systemHealthy: StateFlow<Boolean> = _systemHealthy

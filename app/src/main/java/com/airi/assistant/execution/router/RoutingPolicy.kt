@@ -4,10 +4,7 @@ import com.airi.assistant.ai.QueryType
 import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.PrivacyLevel
-import com.airi.assistant.execution.backend.CloudBackend
-import com.airi.assistant.execution.backend.LocalLlamaBackend
 import com.airi.assistant.execution.backend.RuntimeBackend
-import com.airi.assistant.execution.prefs.ExecModePreferences
 
 /**
  * Pure-function routing rule engine.
@@ -61,9 +58,9 @@ object RoutingPolicy {
     fun select(
         request:  ExecutionRequest,
         signals:  DeviceSignals,
-        prefs:    ExecModePreferences,
-        local:    LocalLlamaBackend,
-        cloud:    CloudBackend
+        prefs:    RoutingPreferences,
+        local:    RuntimeBackend,
+        cloud:    RuntimeBackend
     ): Selection {
 
         val mode    = prefs.effectiveMode    // already applies privacy + perm gates
@@ -159,7 +156,7 @@ object RoutingPolicy {
     private fun isCloudPreferred(
         request: ExecutionRequest,
         signals: DeviceSignals,
-        prefs:   ExecModePreferences
+        prefs:   RoutingPreferences
     ): Boolean {
         // Budget gate: if we're within 10% of the daily cloud token cap,
         // stop preferring cloud and fall back to local to avoid quota exhaustion

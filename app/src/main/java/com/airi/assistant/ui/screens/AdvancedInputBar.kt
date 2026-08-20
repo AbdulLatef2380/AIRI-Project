@@ -33,10 +33,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.theme.*
+import com.airi.assistant.ui.viewmodel.ChatInputSuggestion
 import com.airi.assistant.ui.viewmodel.ModelUiState
 
 /**
- * AdvancedChatInputBar — Phase 3 replacement for AiriChatInputBar.
+ * AdvancedChatInputBar —  replacement for AiriChatInputBar.
  *
  * Adds a dynamic action toolbar above the existing input bar:
  *  - Tool Picker: quick access to active tools (web, calculator, calendar, code)
@@ -51,6 +52,7 @@ fun AdvancedChatInputBar(
     modelState:             ModelUiState,
     isGenerating:           Boolean,
     voiceInput:             String,
+    voicePartial:           String                  = "",
     voiceState:             VoiceSessionState       = VoiceSessionState.IDLE,
     isVadInterrupting:      Boolean                 = false,
     smartReplies:           List<String>            = emptyList(),
@@ -58,7 +60,8 @@ fun AdvancedChatInputBar(
     onCancel:               () -> Unit              = {},
     onSmartReply:           (String) -> Unit        = {},
     onPickImage:            () -> Unit              = {},
-    onPickMmproj:           () -> Unit              = {},
+    onPickVideo:            () -> Unit              = {},
+    onPickText:             () -> Unit              = {},
     onPickFile:             () -> Unit              = {},
     onTakePhoto:            () -> Unit              = {},
     onMicClick:             () -> Unit,
@@ -79,7 +82,10 @@ fun AdvancedChatInputBar(
     activeSkillCount:       Int                     = 0,
     onWebClick:             () -> Unit              = {},
     onCodeClick:            () -> Unit              = {},
-    onCalcClick:            () -> Unit              = {},
+    skillSuggestions:       List<ChatInputSuggestion> = emptyList(),
+    knowledgeSuggestions:   List<ChatInputSuggestion> = emptyList(),
+    onSkillQueryChanged:    (String) -> Unit         = {},
+    onKnowledgeQueryChanged:(String) -> Unit         = {},
     // Attachments inside the pill
     attachments:            List<com.airi.assistant.domain.ChatAttachment> = emptyList(),
     onRemoveAttachment:     (String) -> Unit        = {}
@@ -103,21 +109,24 @@ fun AdvancedChatInputBar(
                 isGenerating      = isGenerating,
                 onWebClick        = onWebClick,
                 onCodeClick       = onCodeClick,
-                onCalcClick       = onCalcClick
+                onTakePhoto       = onTakePhoto,
+                onPickFile        = onPickFile
             )
         }
         AiriChatInputBar(
             modelState              = modelState,
             isGenerating            = isGenerating,
             voiceInput              = voiceInput,
+            voicePartial            = voicePartial,
             voiceState              = voiceState,
             isVadInterrupting       = isVadInterrupting,
             smartReplies            = smartReplies,
             onSend                  = onSend,
             onCancel                = onCancel,
             onSmartReply            = onSmartReply,
-            onPickImage             = onPickImage,
-            onPickMmproj            = onPickMmproj,
+                        onPickImage             = onPickImage,
+            onPickVideo             = onPickVideo,
+            onPickText              = onPickText,
             onPickFile              = onPickFile,
             onTakePhoto             = onTakePhoto,
             onMicClick              = onMicClick,
@@ -130,6 +139,10 @@ fun AdvancedChatInputBar(
             onExternalInputConsumed = onExternalInputConsumed,
             onUserStartedTyping     = onUserStartedTyping,
             onFocusChanged          = { hasFocus = it },
+            skillSuggestions         = skillSuggestions,
+            knowledgeSuggestions     = knowledgeSuggestions,
+            onSkillQueryChanged      = onSkillQueryChanged,
+            onKnowledgeQueryChanged  = onKnowledgeQueryChanged,
             attachments             = attachments,
             onRemoveAttachment      = onRemoveAttachment
         )
@@ -147,7 +160,9 @@ private fun InputActionToolbar(
     isGenerating:      Boolean,
     onWebClick:        () -> Unit,
     onCodeClick:       () -> Unit,
-    onCalcClick:       () -> Unit
+    // Attachment shortcuts
+    onTakePhoto:       () -> Unit = {},
+    onPickFile:        () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -178,10 +193,28 @@ private fun InputActionToolbar(
             onClick    = onOpenSkillPicker
         )
 
-        // Quick dynamic tools — each wired to its own callback
-        QuickToolChip(label = "Web",  emoji = "⊕", onClick = onWebClick)
-        QuickToolChip(label = "Code", emoji = "⌨", onClick = onCodeClick)
-        QuickToolChip(label = "Calc", emoji = "🧮", onClick = onCalcClick)
+        QuickToolChip(label = "Web", onClick = onWebClick)
+        QuickToolChip(label = "Code", onClick = onCodeClick)
+
+        // Divider
+        Box(modifier = Modifier.width(1.dp).height(20.dp).background(DividerColor))
+
+        // Attachment shortcuts
+        ActionChip(
+            label = "Camera",
+            icon = Icons.Outlined.PhotoCamera,
+            iconTint = AiriTheme.onSurfaceVariant,
+            isActive = false,
+            onClick = onTakePhoto
+        )
+
+        ActionChip(
+            label = "File",
+            icon = Icons.Outlined.AttachFile,
+            iconTint = AiriTheme.onSurfaceVariant,
+            isActive = false,
+            onClick = onPickFile
+        )
     }
 }
 
@@ -204,7 +237,7 @@ private fun PlanModeChip(isActive: Boolean, onClick: () -> Unit) {
         verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        Text("🗺️", fontSize = 12.sp)
+        Text("", fontSize = 12.sp)
         Text(
             "Plan",
             fontSize    = 11.sp,
@@ -263,7 +296,7 @@ private fun ActionChip(
 }
 
 @Composable
-private fun QuickToolChip(label: String, emoji: String, onClick: () -> Unit = {}) {
+private fun QuickToolChip(label: String, onClick: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .height(30.dp)
@@ -275,7 +308,6 @@ private fun QuickToolChip(label: String, emoji: String, onClick: () -> Unit = {}
         verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(emoji, fontSize = 11.sp)
         Text(label, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
     }
 }

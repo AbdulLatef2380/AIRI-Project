@@ -180,15 +180,14 @@ class MarketplaceRepository(
                 return@withContext MarketplaceResult.Error("Invalid skill manifest: ${validation.errors.joinToString("; ")}")
             }
 
-            // 3. Register with SkillRegistry so the agent loop can invoke this skill (Phase A+B)
-            runCatching {
-                val manifestObj = JSONObject(defJson)
-                val manifest    = SkillManifest.fromJson(manifestObj)
-                val endpoint    = manifestObj.optString("endpoint").ifBlank { skill.skillJsonUrl }
-                skillRegistry.registerDynamicFromManifest(manifest, endpoint)
-                Log.d(TAG, "Skill '${skill.name}' registered in SkillRegistry for agent-loop routing")
-            }.onFailure { e ->
-                Log.w(TAG, "registerDynamicFromManifest failed (install still recorded): ${e.message}")
+            // 3. Register the executable skill before recording the marketplace install.
+            val manifest = runCatching { SkillManifest.fromJson(JSONObject(defJson)) }
+                .getOrElse { return@withContext MarketplaceResult.Error("Skill manifest could not be parsed") }
+            val endpoint = manifest.endpoint
+                ?: return@withContext MarketplaceResult.Error("Skill manifest does not declare an executable endpoint")
+            val registered = skillRegistry.registerDynamicFromManifest(manifest, endpoint)
+            if (!registered) {
+                return@withContext MarketplaceResult.Error("Skill manifest or endpoint could not be registered")
             }
 
             // 4. Record install

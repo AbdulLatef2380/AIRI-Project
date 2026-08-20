@@ -32,7 +32,7 @@ import kotlin.math.abs
  *     [WorldStateExpectation] describing what the world should look like after.
  *     After execution, [captureAndValidate] compares the actual state to the
  *     expectation and sets [WorldState.mismatchDetected] if they diverge.
- *     Mismatches are logged as AIRI_PROOF WORLD_MISMATCH events.
+ *     Mismatches are logged as AIRI WORLD_MISMATCH events.
  *
  *  3. CAUSAL CONSEQUENCE TRACKING
  *     Each snapshot records [WorldState.causalOrigin] — the action that triggered
@@ -86,7 +86,7 @@ class WorldStateManager(private val context: Context) {
         val mismatch = if (expectation != null) {
             val m = detectMismatch(expectation, raw)
             if (m != null) {
-                Log.w(TAG, "AIRI_PROOF WORLD_MISMATCH action=${expectation.actionId} detail=$m")
+                Log.w(TAG, "AIRI WORLD_MISMATCH action=${expectation.actionId} detail=$m")
             }
             m != null
         } else false
@@ -135,7 +135,7 @@ class WorldStateManager(private val context: Context) {
      */
     fun setExpectation(expectation: WorldStateExpectation) {
         pendingExpectation = expectation
-        Log.d(TAG, "WORLD_EXPECTATION_SET action=${expectation.actionId} rationale=${expectation.rationale.take(60)}")
+        Log.d(TAG, "WORLD_EXPECTATION_SET action=${expectation.actionId} rationaleChars=${expectation.rationale.length}")
     }
 
     /**
@@ -198,7 +198,7 @@ class WorldStateManager(private val context: Context) {
             append(", confidence=${"%.0f".format(currentConfidence() * 100)}%")
             val trend = memoryTrend()
             if (trend != MemoryTrend.STABLE) append(", memory=$trend")
-            if (state.mismatchDetected) append(" ⚠ MISMATCH vs prior expectation")
+            if (state.mismatchDetected) append("  MISMATCH vs prior expectation")
         }
     }
 

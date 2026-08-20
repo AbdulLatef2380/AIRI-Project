@@ -63,13 +63,13 @@ object CloudAdapterFactory {
 
         return when (provider) {
             CloudProvider.GEMINI     -> {
-                // BUG-FIX: RemoteModelRegistry is a shared cross-provider registry.
+                // RemoteModelRegistry is shared across providers.
                 // Using RemoteModelRegistry.getActive()?.name here caused cross-provider
                 // contamination: if the user had Groq ("llama-3.3-70b-versatile") active
                 // before switching to Gemini, GeminiAdapter received "llama-3.3-70b-versatile"
                 // as its model — causing Gemini API 404 manifesting as spurious timeouts.
                 //
-                // Resolution: read model name from EmbeddedProviderConfig which is scoped
+                // Read the model name from EmbeddedProviderConfig, which is scoped
                 // to the provider type, not from the shared RemoteModelRegistry.
                 val geminiModel = EmbeddedProviderConfig.getActiveProvider(context)
                     ?.takeIf { it.provider == CloudProvider.GEMINI }
@@ -117,11 +117,11 @@ object CloudAdapterFactory {
     private fun buildCustomAdapter(keyStore: SecureApiKeyStore, context: Context): CloudProviderAdapter {
         val remote = RemoteModelRegistry.getActive()
         if (remote != null) {
-            Log.i(TAG, "CUSTOM: using RemoteModel '${remote.name}' at ${remote.serverUrl.take(40)}")
+            Log.i(TAG, "CUSTOM_REMOTE_MODEL_CONFIGURED")
             return object : OpenAIAdapter(keyStore, CloudProvider.CUSTOM, remote.serverUrl, remote.name) {
                 override val isAvailable: Boolean get() = true
 
-                // Patch 3B: runtime model discovery for LOCAL_SERVER providers.
+                // Discover the active model for local OpenAI-compatible providers.
                 // effectiveModel starts as remote.name (= config.defaultModel after Fix C,
                 // e.g. "llama3.2" for Ollama, "local-model" for LM Studio ≤0.2.x). On
                 // every keyless request we query GET /v1/models to get the actual loaded
@@ -138,36 +138,25 @@ object CloudAdapterFactory {
                     onToken: suspend (String) -> Unit,
                     onUsage: suspend (Int, Int) -> Unit
                 ): CloudProviderAdapter.AdapterResult {
-                    // ── Key handling (Fix B) ──────────────────────────────────────────
+                    // ── Credential handling ───────────────────────────────────────────
                     when {
                         remote.apiKey.isNotBlank() -> {
-                            // Fix B / legacy migration: always write the active remote's key so
+                            // Always write the active remote key so
                             // it overwrites any previously-stored sentinel or stale key. Ensures
                             // that switching between providers (e.g. Groq → custom server) always
                             // uses the correct credential without requiring an app restart.
                             keyStore.saveKey(CloudProvider.CUSTOM, remote.apiKey)
                             Log.i(TAG, "CUSTOM: key written/updated in SecureApiKeyStore")
                         }
-                        !keyStore.hasKey(CloudProvider.CUSTOM) -> {
-                            // Fix B: LOCAL_SERVER providers (Ollama, LM Studio) and any
-                            // keyless custom server have a blank apiKey by design. OpenAIAdapter
-                            // requires a non-null key from SecureApiKeyStore or it returns an
-                            // UNAUTHORIZED failure before opening any socket. We write a sentinel
-                            // value so the null-guard passes. Local servers universally ignore the
-                            // Authorization header, so "Bearer $NO_AUTH_SENTINEL" is harmless.
-                            // The sentinel is overwritten immediately if a real key is provided later.
-                            keyStore.saveKey(CloudProvider.CUSTOM, NO_AUTH_SENTINEL)
-                            Log.i(TAG, "CUSTOM: LOCAL_SERVER or keyless — sentinel written for null-guard bypass")
-                        }
                         else -> {
-                            // SecureApiKeyStore already holds a key (either a real key from a
-                            // previous activateRemoteModel call, or the sentinel from a prior
-                            // local-server session). Reuse it — local servers ignore real keys
-                            // in the Authorization header, so this path is always safe.
-                            Log.d(TAG, "CUSTOM: reusing existing SecureApiKeyStore entry")
+                            // A keyless active endpoint must never inherit a credential that was
+                            // saved for an earlier custom endpoint. The sentinel preserves the
+                            // adapter's non-blank-key contract without disclosing that credential.
+                            keyStore.saveKey(CloudProvider.CUSTOM, NO_AUTH_SENTINEL)
+                            Log.i(TAG, "CUSTOM: keyless endpoint configured")
                         }
                     }
-                    // ── Patch 3B: model discovery for LOCAL_SERVER providers ───────────
+                    // ── Model discovery for local providers ───────────────────────────
                     // When the server has no API key it is a LOCAL_SERVER (Ollama, LM
                     // Studio). Discover the first currently-loaded model via GET /v1/models
                     // and use it in the request, overriding the catalog placeholder.
@@ -187,7 +176,7 @@ object CloudAdapterFactory {
                 }
             }
         }
-        // No remote configured — return an unavailable stub
+        // No remote provider is configured; expose an unavailable backend.
         Log.w(TAG, "CUSTOM: no RemoteModel configured")
         return object : OpenAIAdapter(keyStore, CloudProvider.CUSTOM) {
             override val isAvailable: Boolean get() = false
@@ -195,7 +184,7 @@ object CloudAdapterFactory {
     }
 
     /**
-     * Patch 3B: Query the OpenAI-compatible `/v1/models` endpoint to discover
+     * Query the OpenAI-compatible `/v1/models` endpoint to discover
      * the first model currently loaded on a local server.
      *
      * Used by [buildCustomAdapter] for LOCAL_SERVER providers (Ollama, LM Studio)

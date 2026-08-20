@@ -83,7 +83,7 @@ class SearchTool(
         val url = "https://api.search.brave.com/res/v1/web/search" +
             "?q=${urlEncode(query)}&count=$count&search_lang=en&safesearch=moderate"
 
-        Log.i(TAG, "AIRI_PROOF BRAVE_SEARCH query=${query.take(60)}")
+        Log.i(TAG, "BRAVE_SEARCH queryChars=${query.length}")
 
         return@withContext try {
             val response = httpClient.newCall(
@@ -97,8 +97,8 @@ class SearchTool(
 
             if (!response.isSuccessful) {
                 val code = response.code
-                val body = response.body?.string()?.take(200) ?: ""
-                Log.w(TAG, "Brave search HTTP $code: $body")
+                response.body?.close()
+                Log.w(TAG, "BRAVE_SEARCH_HTTP_FAILURE code=$code")
                 return@withContext BraveSearchResult(
                     success = false, query = query, results = emptyList(),
                     error = "Brave search HTTP $code"
@@ -120,7 +120,7 @@ class SearchTool(
                 )
             }
 
-            Log.i(TAG, "AIRI_PROOF BRAVE_SEARCH_OK query=${query.take(60)} results=${results.size}")
+            Log.i(TAG, "BRAVE_SEARCH_COMPLETE queryChars=${query.length} results=${results.size}")
 
             // Enrich top result with full page content via Jina
             val topContent: String? = if (enrich && results.isNotEmpty()) {
@@ -138,7 +138,7 @@ class SearchTool(
             )
 
         } catch (e: Exception) {
-            Log.e(TAG, "Brave search failed: ${e.message}")
+            Log.e(TAG, "BRAVE_SEARCH_FAILURE causeType=${e::class.simpleName}")
             BraveSearchResult(success = false, query = query, results = emptyList(),
                 error = "Search error: ${e.message?.take(100)}")
         }
@@ -163,7 +163,7 @@ class SearchTool(
      */
     suspend fun fetchViaJina(url: String, maxChars: Int = 4000): FetchResult =
         withContext(Dispatchers.IO) {
-        Log.d(TAG, "AIRI_PROOF JINA_FETCH url=${url.take(80)}")
+        Log.d(TAG, "JINA_FETCH urlChars=${url.length}")
         return@withContext try {
             val jinaUrl = "https://r.jina.ai/${url}"
             val response = httpClient.newCall(
@@ -190,11 +190,11 @@ class SearchTool(
                 .take(maxChars)
                 .trim()
 
-            Log.d(TAG, "AIRI_PROOF JINA_FETCH_OK url=${url.take(60)} chars=${content.length}")
+            Log.d(TAG, "JINA_FETCH_COMPLETE urlChars=${url.length} contentChars=${content.length}")
             FetchResult(success = content.isNotBlank(), url = url, content = content)
 
         } catch (e: Exception) {
-            Log.e(TAG, "Jina fetch failed for $url: ${e.message}")
+            Log.e(TAG, "JINA_FETCH_FAILURE causeType=${e::class.simpleName}")
             FetchResult(success = false, url = url, content = "Fetch error: ${e.message?.take(80)}")
         }
     }
@@ -210,7 +210,7 @@ class SearchTool(
      */
     suspend fun searchDuckDuckGo(query: String): SearchResult = withContext(Dispatchers.IO) {
         val url = "https://api.duckduckgo.com/?q=${urlEncode(query)}&format=json&no_html=1&skip_disambig=1"
-        Log.d(TAG, "DDG query: ${query.take(60)}")
+        Log.d(TAG, "DUCKDUCKGO_SEARCH queryChars=${query.length}")
         return@withContext try {
             val response = httpClient.newCall(Request.Builder().url(url).build()).execute()
             val body     = response.body?.string() ?: return@withContext noResult(query)

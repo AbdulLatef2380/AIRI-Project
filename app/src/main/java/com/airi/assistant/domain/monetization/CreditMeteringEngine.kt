@@ -155,7 +155,7 @@ class CreditMeteringEngine(
     fun resetDailyCounters() {
         val meter   = loadMeter()
         saveMeter(meter.copy(dailyTotal = 0, perActionDay = emptyMap(), date = today()))
-        Log.i(TAG, "AIRI_PROOF CREDIT_METER_RESET")
+        Log.i(TAG, "AIRI CREDIT_METER_RESET")
     }
 
     // ── Persistence ────────────────────────────────────────────────────────────
@@ -198,8 +198,30 @@ class CreditMeteringEngine(
         prefs.edit().putString(KEY_DATA, json.toString()).apply()
     }
 
-    private fun today(): String = SimpleDateFormat(DATE_FMT, Locale.getDefault()).format(Date())
+        /**
+     * Record token-based credit cost after a completed inference.
+     * This is separate from the per-action [consume] call — it tracks the
+     * actual token volume impact on the user's daily budget.
+     *
+     * Local inference: 1000 token cost (cheap, runs on device)
+     * Cloud inference: 200-300 token cost (proportional to response length)
+     */
+    @Synchronized
+    fun recordTokenCost(origin: com.airi.assistant.execution.ExecOrigin, tokens: Int, credits: Int) {
+        val meter = loadMeter()
+        val updated = meter.copy(
+            dailyTotal    = meter.dailyTotal + credits,
+            lifetimeTotal = meter.lifetimeTotal + credits.toLong(),
+            perActionDay  = meter.perActionDay.toMutableMap().also { m ->
+                val key = if (origin == com.airi.assistant.execution.ExecOrigin.CLOUD) "CLOUD_TOKENS" else "LOCAL_TOKENS"
+                m[key] = (m[key] ?: 0) + credits
+            }
+        )
+        saveMeter(updated)
+        Log.d(TAG, "Token cost recorded origin=$origin tokens=$tokens credits=$credits total=${updated.dailyTotal}")
+    }
 
+    private fun today(): String = SimpleDateFormat(DATE_FMT, Locale.getDefault()).format(Date())
     private data class MeterData(
         val date:          String,
         val dailyTotal:    Int             = 0,

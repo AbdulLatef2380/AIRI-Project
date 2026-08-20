@@ -5,11 +5,14 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Encrypted storage for OAuth tokens, API keys and device-binding secrets.
  *
- * ── Phase-3 P0 hardening ──────────────────────────────────────────────────────
+ * ──  hardening ──────────────────────────────────────────────────────
  * Previous behavior: if EncryptedSharedPreferences failed to initialise (corrupt
  * keystore, locked device, etc.) the class silently dropped to plaintext
  * SharedPreferences — meaning tokens and API keys were written to a
@@ -28,6 +31,15 @@ import androidx.security.crypto.MasterKey
  * to compile and run unchanged. The only addition is the [isEncrypted] property.
  */
 class SecureStorage(context: Context) {
+
+    data class IntegrationConnections(
+        val github: Boolean = false,
+        val google: Boolean = false,
+        val telegram: Boolean = false
+    )
+
+    private val _integrationConnections = MutableStateFlow(IntegrationConnections())
+    val integrationConnections: StateFlow<IntegrationConnections> = _integrationConnections.asStateFlow()
 
     /**
      * True when the underlying store is EncryptedSharedPreferences.
@@ -62,6 +74,15 @@ class SecureStorage(context: Context) {
             InMemorySharedPreferences()
         }
         isEncrypted = encrypted
+        publishIntegrationConnections()
+    }
+
+    private fun publishIntegrationConnections() {
+        _integrationConnections.value = IntegrationConnections(
+            github = prefs.getBoolean(KEY_GITHUB_CONNECTED, false),
+            google = prefs.getBoolean(KEY_GOOGLE_CONNECTED, false),
+            telegram = prefs.getBoolean(KEY_TELEGRAM_CONNECTED, false)
+        )
     }
 
     /**
@@ -99,6 +120,7 @@ class SecureStorage(context: Context) {
             .safePutString(KEY_GITHUB_USERNAME, username)
             .putLong(KEY_GITHUB_UPDATED, System.currentTimeMillis())
             .apply()
+        publishIntegrationConnections()
     }
 
     fun isGithubConnected(): Boolean = prefs.getBoolean(KEY_GITHUB_CONNECTED, false)
@@ -118,6 +140,7 @@ class SecureStorage(context: Context) {
             .safePutString(KEY_TELEGRAM_USERNAME, username)
             .putLong(KEY_TELEGRAM_UPDATED, System.currentTimeMillis())
             .apply()
+        publishIntegrationConnections()
     }
 
     fun isTelegramConnected(): Boolean = prefs.getBoolean(KEY_TELEGRAM_CONNECTED, false)
@@ -132,6 +155,7 @@ class SecureStorage(context: Context) {
             .safePutString(KEY_GOOGLE_EMAIL, email)
             .putLong(KEY_GOOGLE_UPDATED, System.currentTimeMillis())
             .apply()
+        publishIntegrationConnections()
     }
 
     fun saveGoogleIdToken(token: String) =
@@ -171,7 +195,7 @@ class SecureStorage(context: Context) {
 
     fun getInstallUuid(): String? = prefs.getString(KEY_INSTALL_UUID, null)
 
-    // ─── Generic integration token store (Task 8: Notion + future integrations) ─
+    // ─── Generic integration token store (Notion + future integrations) ─
 
     /**
      * Store a Personal Access Token (PAT) for the given integration ID.
@@ -217,7 +241,7 @@ class SecureStorage(context: Context) {
      */
     fun clearAll() {
         prefs.edit().clear().apply()
-        Log.i("SecureStorage", "AIRI_PROOF GDPR_CREDENTIAL_WIPE_COMPLETE")
+        Log.i("SecureStorage", "AIRI GDPR_CREDENTIAL_WIPE_COMPLETE")
     }
 
     // ─── Generic disconnect ────────────────────────────────────────────────────

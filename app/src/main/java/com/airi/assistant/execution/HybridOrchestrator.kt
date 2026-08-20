@@ -11,13 +11,12 @@ import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.execution.privacy.SanitizationResult
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.execution.router.RuntimeRouter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Top-level entry point for the Hybrid Execution layer — production-hardened.
@@ -68,11 +67,8 @@ class HybridOrchestrator(
      */
     private val executionLock = Mutex()
 
-    /** Monotonically increasing generation ID for stale-token detection. */
-    private val currentGenId = AtomicLong(0L)
-
-    /** Belt-and-suspenders cancellation flag. Thread-safe. */
-    private val cancelled = AtomicBoolean(false)
+    /** Owns the active generation and rejects stale or cancelled callbacks. */
+    private val generationGate = ExecutionGenerationGate()
 
     // ── Observability ─────────────────────────────────────────────────────────
 
@@ -100,21 +96,21 @@ class HybridOrchestrator(
      * within one llama_decode chunk, preventing unbounded JNI blocking.
      */
     fun cancel() {
-        cancelled.set(true)
+        generationGate.cancel()
         val backend = activeBackend_
         if (backend != null) {
-            Log.i(TAG, "cancel() → ${backend.id} genId=${currentGenId.get()}")
+            Log.i(TAG, "cancel() → ${backend.id} genId=${generationGate.currentGenerationId()}")
             runCatching { backend.cancelStream() }
                 .onFailure { e -> Log.w(TAG, "cancelStream threw: ${e.message}") }
         } else {
-            Log.i(TAG, "cancel() — no active backend genId=${currentGenId.get()}")
+            Log.i(TAG, "cancel() — no active backend genId=${generationGate.currentGenerationId()}")
         }
         RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.WARN, "Cancel requested")
         updateDiagnostics { copy(isStreaming = false, lastCancelReason = "User cancel") }
     }
 
     /** Clear cancel flag before starting a new generation. */
-    fun resetCancel() { cancelled.set(false) }
+    fun resetCancel() = generationGate.resetCancel()
 
     // ── Primary API ───────────────────────────────────────────────────────────
 
@@ -139,8 +135,7 @@ class HybridOrchestrator(
         onComplete: suspend (String, Long, ExecOrigin) -> Unit,
         onError:    suspend (String, ExecOrigin)       -> Unit
     ) = executionLock.withLock {
-        val genId = currentGenId.incrementAndGet()
-        cancelled.set(false)
+        val genId = generationGate.beginGeneration()
 
         RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.INFO,
             "gen#$genId EXECUTE ${request.queryType.name} mode=${prefs.effectiveMode.name} " +
@@ -151,11 +146,8 @@ class HybridOrchestrator(
         // ── Step 1: Route ──────────────────────────────────────────────────
         val decision = router.route(request, context)
 
-        if (cancelled.get()) {
-            sessionCancellationCount++
-            updateDiagnostics { copy(isStreaming = false, lastCancelReason = "Cancelled after routing") }
-            onError("Cancelled before execution", ExecOrigin.NONE)
-            return@withLock
+        if (generationGate.isCancelled()) {
+            throw generationCancelled("after routing")
         }
 
         // ── Step 2: Privacy gate (cloud-bound requests only) ───────────────
@@ -178,19 +170,21 @@ class HybridOrchestrator(
 
         // ── Step 3: Execute primary → fallbacks ───────────────────────────
         val allBackends = decision.allBackends
-        var lastError   = "Unknown error"
+        if (!decision.signals.networkAvailable &&
+            decision.primary.origin == ExecOrigin.CLOUD &&
+            decision.fallbacks.none { it.origin == ExecOrigin.LOCAL && it.isAvailable }
+        ) {
+            val message = "No network connection is available and no local fallback model is loaded."
+            updateDiagnostics { copy(isStreaming = false, lastErrorMessage = message) }
+            onError(message, ExecOrigin.NONE)
+            return@withLock
+        }
+        var lastError   = "No eligible execution backend is available."
         var lastOrigin  = decision.primary.origin
 
         for ((idx, backend) in allBackends.withIndex()) {
-            if (cancelled.get()) {
-                sessionCancellationCount++
-                updateDiagnostics { copy(
-                    isStreaming = false,
-                    cancellationCount = sessionCancellationCount,
-                    lastCancelReason = "Cancelled during execution on ${backend.id}"
-                )}
-                onError("Cancelled", lastOrigin)
-                return@withLock
+            if (generationGate.isCancelled()) {
+                throw generationCancelled("during execution on ${backend.id}")
             }
 
             if (!backend.isAvailable) {
@@ -245,12 +239,12 @@ class HybridOrchestrator(
             backend.generateStream(
                 request    = req,
                 onToken    = { token ->
-                    if (genId == currentGenId.get() && !cancelled.get()) {
+                    if (generationGate.accepts(genId)) {
                         onToken(token)
                     }
                 },
                 onComplete = { fullText, latencyMs ->
-                    if (genId == currentGenId.get()) {
+                    if (generationGate.accepts(genId)) {
                         backendSucceeded = true
                         updateDiagnostics { copy(
                             isStreaming          = false,
@@ -271,6 +265,10 @@ class HybridOrchestrator(
                 }
             )
 
+            if (generationGate.isCancelled()) {
+                activeBackend_ = null
+                throw generationCancelled("after backend ${backend.id}")
+            }
             if (backendSucceeded) {
                 activeBackend_ = null
                 return@withLock
@@ -279,6 +277,7 @@ class HybridOrchestrator(
         }
 
         // All backends exhausted.
+        if (generationGate.isCancelled()) throw generationCancelled("after backend attempts")
         activeBackend_ = null
         updateDiagnostics { copy(isStreaming = false, lastErrorMessage = lastError) }
         RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.ERROR,
@@ -333,23 +332,48 @@ class HybridOrchestrator(
         onError:    suspend (String, ExecOrigin)       -> Unit
     ) {
         updateDiagnostics { copy(activeBackend = backend.id, activeOrigin = backend.origin) }
-        backend.generateStream(
-            request    = request,
-            onToken    = { token -> if (genId == currentGenId.get() && !cancelled.get()) onToken(token) },
-            onComplete = { fullText, latencyMs ->
-                if (genId == currentGenId.get()) {
-                    updateDiagnostics { copy(isStreaming = false, lastStreamDurationMs = latencyMs) }
-                    onComplete(fullText, latencyMs, backend.origin)
+        activeBackend_ = backend
+        try {
+            backend.generateStream(
+                request    = request,
+                onToken    = { token ->
+                    if (generationGate.accepts(genId)) onToken(token)
+                },
+                onComplete = { fullText, latencyMs ->
+                    if (generationGate.accepts(genId)) {
+                        updateDiagnostics { copy(isStreaming = false, lastStreamDurationMs = latencyMs) }
+                        onComplete(fullText, latencyMs, backend.origin)
+                    }
+                },
+                onError    = { error ->
+                    if (!generationGate.isCancelled()) {
+                        updateDiagnostics { copy(isStreaming = false, lastErrorMessage = error.take(100)) }
+                        onError(error, backend.origin)
+                    }
                 }
-            },
-            onError    = { error ->
-                updateDiagnostics { copy(isStreaming = false, lastErrorMessage = error.take(100)) }
-                onError(error, backend.origin)
-            }
-        )
+            )
+            if (generationGate.isCancelled()) throw generationCancelled("during privacy fallback")
+        } finally {
+            if (activeBackend_ === backend) activeBackend_ = null
+        }
     }
 
-    // ── Transition history ────────────────────────────────────────────────────
+    private fun generationCancelled(stage: String): CancellationException {
+        sessionCancellationCount++
+        activeBackend_ = null
+        updateDiagnostics {
+            copy(
+                isStreaming = false,
+                cancellationCount = sessionCancellationCount,
+                lastCancelReason = "Cancelled $stage"
+            )
+        }
+        RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.INFO, "Generation cancelled $stage")
+        return CancellationException("Generation cancelled $stage")
+    }
+
+    // ── Transition history ───────────────────────────────────────────────────
+
 
     private fun recordTransition(from: String, to: String, reason: String, origin: ExecOrigin) {
         val event = ExecTransitionEvent(

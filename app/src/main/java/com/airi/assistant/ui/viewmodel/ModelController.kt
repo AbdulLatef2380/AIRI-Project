@@ -65,7 +65,7 @@ internal class ModelController(
 ) {
     companion object {
         private const val TAG       = "AIRI_ModelController"
-        private const val PROOF_TAG = "AIRI_PROOF"
+        private const val PROOF_TAG = "AIRI"
         const val KEY_MODEL_ID       = "selected_model_id"
         const val KEY_MODEL_PATH     = "selected_model_path"
         const val KEY_MODEL_REGISTRY = "model_registry_json"

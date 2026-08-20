@@ -74,7 +74,7 @@ fun AgentPlanOverlay(
                 Text(if (isExpanded) "⌃" else "⌄", fontSize = 14.sp, color = AiriTheme.onSurface.copy(alpha = 0.5f))
                 Spacer(Modifier.width(10.dp))
                 if (stage == ExecutionStage.COMPLETED || stage == ExecutionStage.FAILED || stage == ExecutionStage.IDLE)
-                    Text("✕", fontSize = 12.sp, color = AiriTheme.onSurface.copy(alpha = 0.3f),
+                    Text("", fontSize = 12.sp, color = AiriTheme.onSurface.copy(alpha = 0.3f),
                         modifier = Modifier.clickable { planViewModel.dismissPanel() })
             }
             // Steps

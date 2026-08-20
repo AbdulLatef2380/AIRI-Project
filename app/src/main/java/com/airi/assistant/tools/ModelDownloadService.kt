@@ -35,7 +35,7 @@ class ModelDownloadService : Service() {
         if (intent?.action == ACTION_CANCEL_DOWNLOAD) {
             cancelRequested.set(true)
             Log.i(TAG, "CANCEL requested via intent")
-            Log.i("AIRI_PROOF", "DOWNLOAD_CANCEL_REQUESTED source=intent")
+            Log.i("AIRI", "DOWNLOAD_CANCEL_REQUESTED source=intent")
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
@@ -73,12 +73,12 @@ class ModelDownloadService : Service() {
             val tempFile = File(modelsDir, "$fileName.part")
             var success = false
             var lastError: String? = null
-            for (attempt in 1..3) {
+            for (attempt in 1..MAX_DOWNLOAD_ATTEMPTS) {
                 try {
                     if (tempFile.exists()) tempFile.delete()
                     if (cancelRequested.get()) throw InterruptedException("user_cancel_pre_start")
-                    Log.i(TAG, "START attempt=$attempt file=$fileName expected=$expectedSize url=$url")
-                    Log.i("AIRI_PROOF", "DOWNLOAD_START fileName=$fileName expected=$expectedSize attempt=$attempt")
+                    Log.i(TAG, "DOWNLOAD_STARTED attempt=$attempt fileName=$fileName expectedBytes=$expectedSize")
+                    Log.i("AIRI_DOWNLOAD", "DOWNLOAD_STARTED fileName=$fileName expectedBytes=$expectedSize attempt=$attempt")
                     downloadToFile(url, tempFile)
                     val actual = tempFile.length()
                     if (actual < 100_000_000L) throw IllegalStateException("download too small actual=$actual")
@@ -87,9 +87,9 @@ class ModelDownloadService : Service() {
                     }
                     if (finalFile.exists()) finalFile.delete()
                     if (!tempFile.renameTo(finalFile)) throw IllegalStateException("rename failed")
-                    Log.i(TAG, "SUCCESS file=${finalFile.absolutePath} size=${finalFile.length()} attempts=$attempt")
-                    com.airi.assistant.domain.verification.VerificationTracker.recordCheck("DOWNLOAD", true, "file=${finalFile.absolutePath} size=${finalFile.length()}")
-                    Log.i("AIRI_PROOF", "DOWNLOAD_COMPLETE fileName=$fileName path=${finalFile.absolutePath} sizeBytes=${finalFile.length()}")
+                    Log.i(TAG, "DOWNLOAD_COMPLETE fileName=$fileName sizeBytes=${finalFile.length()} attempts=$attempt")
+                    com.airi.assistant.domain.verification.VerificationTracker.recordCheck("DOWNLOAD", true, "fileName=$fileName sizeBytes=${finalFile.length()}")
+                    Log.i("AIRI_DOWNLOAD", "DOWNLOAD_COMPLETE fileName=$fileName sizeBytes=${finalFile.length()}")
                     success = true
                     val broadcastIntent = Intent(ACTION_DOWNLOAD_COMPLETE).apply {
                         putExtra(EXTRA_RESULT_FILENAME, fileName)
@@ -103,19 +103,19 @@ class ModelDownloadService : Service() {
                     break
                 } catch (e: InterruptedException) {
                     lastError = "cancelled"
-                    Log.i(TAG, "CANCELLED attempt=$attempt file=$fileName reason=${e.message}")
-                    Log.i("AIRI_PROOF", "DOWNLOAD_CANCELLED fileName=$fileName partial_bytes=${tempFile.length()}")
+                    Log.i(TAG, "DOWNLOAD_CANCELLED attempt=$attempt fileName=$fileName")
+                    Log.i("AIRI_DOWNLOAD", "DOWNLOAD_CANCELLED fileName=$fileName partialBytes=${tempFile.length()}")
                     tempFile.delete()
                     break
                 } catch (e: Exception) {
                     lastError = e.message ?: e.javaClass.simpleName
-                    Log.e(TAG, "FAILED reason=$lastError attempt=$attempt file=$fileName", e)
+                    Log.e(TAG, "DOWNLOAD_FAILURE attempt=$attempt fileName=$fileName causeType=${e::class.simpleName}")
                     tempFile.delete()
                     if (cancelRequested.get()) {
-                        Log.i("AIRI_PROOF", "DOWNLOAD_CANCELLED fileName=$fileName reason=cancel_during_retry")
+                        Log.i("AIRI_DOWNLOAD", "DOWNLOAD_CANCELLED fileName=$fileName phase=retry")
                         break
                     }
-                    if (attempt < 3) kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) { kotlinx.coroutines.delay(1500L * attempt) }
+                    if (attempt < MAX_DOWNLOAD_ATTEMPTS && !awaitRetry(attempt)) break
                 }
             }
             if (!success) {
@@ -131,10 +131,18 @@ class ModelDownloadService : Service() {
             // clear the authoritative "in progress" flag so the next caller
             // of cancelActiveDownload() gets the truth.
             isDownloading.set(false)
-            Log.i("AIRI_PROOF", "DOWNLOAD_WORKER_EXIT success=$success reason=${lastError ?: "ok"}")
+            Log.i("AIRI_DOWNLOAD", "DOWNLOAD_WORKER_EXIT success=$success cancelled=${cancelRequested.get()}")
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }.start()
+    }
+
+    private fun awaitRetry(attempt: Int): Boolean = try {
+        Thread.sleep(RETRY_BACKOFF_MS * attempt)
+        !cancelRequested.get()
+    } catch (_: InterruptedException) {
+        Thread.currentThread().interrupt()
+        false
     }
 
     private fun downloadToFile(url: String, destination: File) {
@@ -168,7 +176,7 @@ class ModelDownloadService : Service() {
                         val now = System.currentTimeMillis()
                         if (now - lastProofMs >= 5000) {
                             android.util.Log.i(
-                                "AIRI_PROOF",
+                                "AIRI",
                                 "DOWNLOAD_PROGRESS bytes=$totalBytes mb=${totalBytes / 1_048_576}"
                             )
                             lastProofMs = now
@@ -183,6 +191,9 @@ class ModelDownloadService : Service() {
     }
 
     companion object {
+        private const val MAX_DOWNLOAD_ATTEMPTS = 3
+        private const val RETRY_BACKOFF_MS = 1_500L
+
         const val EXTRA_DOWNLOAD_URL = "download_url"
         const val EXTRA_FILENAME = "download_filename"
         const val EXTRA_EXPECTED_SIZE_BYTES = "download_expected_size_bytes"

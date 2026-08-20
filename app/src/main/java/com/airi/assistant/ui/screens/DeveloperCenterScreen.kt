@@ -40,7 +40,7 @@ import com.airi.assistant.connector.api.LlmCertPins
  *  2. Connectors  — health states for all registered connectors
  *  3. Memory      — token usage, cache size, embedding count
  *  4. Diagnostics — latest diagnostic report from AiriDiagnosticEngine
- *  5. Health      — RuntimeHealthMonitor live report (Task 24)
+ *  5. Health      — RuntimeHealthMonitor live report ()
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -134,13 +134,19 @@ private fun ConnectorsTab() {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(modifier = Modifier.size(9.dp).clip(CircleShape)
-                        .background(if (LlmCertPins.PINNING_ENABLED) SemanticSuccess else SemanticError))
+                        .background(if (LlmCertPins.PINNING_ENABLED) SemanticSuccess else AiriTheme.outline))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.dev_cert_pinning), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
                         Text(
-                            if (LlmCertPins.PINNING_ENABLED) "Active — MitM protection enabled" else "DISABLED — traffic unprotected",
+                            stringResource(
+                                if (LlmCertPins.PINNING_ENABLED) {
+                                    R.string.dev_cert_pinning_active
+                                } else {
+                                    R.string.dev_cert_pinning_deferred
+                                }
+                            ),
                             fontSize = 11.sp,
-                            color = if (LlmCertPins.PINNING_ENABLED) SemanticSuccess.copy(0.8f) else SemanticError.copy(0.7f)
+                            color = if (LlmCertPins.PINNING_ENABLED) SemanticSuccess.copy(0.8f) else AiriTheme.onSurfaceVariant
                         )
                     }
                     Text("cert-pins", fontSize = 10.sp, color = AiriTheme.outline.copy(alpha = 0.25f), fontFamily = FontFamily.Monospace)
@@ -202,8 +208,8 @@ private fun MemoryTab() {
             DevRow("Messages stored", memoryCount?.toString() ?: "loading…")
             DevRow("Sessions",        sessionCount?.toString() ?: "loading…")
             DevRow("Semantic search", when (embeddingReady) {
-                true  -> "✓ Active — embedding model loaded"
-                false -> "✗ Inactive — no embedding model"
+                true  -> " Active — embedding model loaded"
+                false -> " Inactive — no embedding model"
                 null  -> "loading…"
             })
         }
@@ -237,7 +243,7 @@ private fun DiagnosticsTab() {
             Text(stringResource(R.string.developer_diagnostics), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
             if (running) Text(stringResource(R.string.developer_running), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
             else report?.let { r ->
-                Text(if (r.allPassed) "✓ All passed" else "✗ ${r.results.count { !it.passed }} failed",
+                Text(if (r.allPassed) " All passed" else " ${r.results.count { !it.passed }} failed",
                     fontSize = 11.sp, color = if (r.allPassed) Color(0xFF30D158) else Color(0xFFFF453A))
             }
         }
@@ -245,7 +251,7 @@ private fun DiagnosticsTab() {
             Surface(shape = AIRIShapes.xs, color = if (test.passed) Color(0xFF1A251A) else Color(0xFF251A1A), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (test.passed) "✓" else "✗", fontSize = 12.sp, color = if (test.passed) Color(0xFF30D158) else Color(0xFFFF453A), fontWeight = FontWeight.Bold)
+                        Text(if (test.passed) "" else "", fontSize = 12.sp, color = if (test.passed) Color(0xFF30D158) else Color(0xFFFF453A), fontWeight = FontWeight.Bold)
                         Text(test.name, fontSize = 11.sp, color = AiriTheme.onBackground, fontWeight = FontWeight.Medium)
                     }
                     Text(test.detail, fontSize = 10.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 13.sp, modifier = Modifier.padding(start = 18.dp))
@@ -284,13 +290,13 @@ private fun HealthTab() {
                 if (health.heapAvailableMb >= 0) "${health.heapAvailableMb} MB" else "—")
             DevRow("Disk free",
                 if (health.diskFreeMb >= 0) "${health.diskFreeMb} MB" else "—")
-            DevRow("Network", if (health.networkConnected) "✓ Online" else "✗ Offline")
+            DevRow("Network", if (health.networkConnected) " Online" else " Offline")
             if (health.lowMemoryWarning) {
-                Text("⚠ Low heap memory", fontSize = 11.sp, color = SemanticError,
+                Text(" Low heap memory", fontSize = 11.sp, color = SemanticError,
                     modifier = Modifier.padding(top = 4.dp))
             }
             if (health.lowDiskWarning) {
-                Text("⚠ Low disk space", fontSize = 11.sp, color = SemanticError,
+                Text(" Low disk space", fontSize = 11.sp, color = SemanticError,
                     modifier = Modifier.padding(top = 2.dp))
             }
         }
@@ -298,36 +304,36 @@ private fun HealthTab() {
             val ageMin = health.sessionAgeMs / 60_000L
             DevRow("Session age", "${ageMin} min")
             if (health.sessionAgeWarning) {
-                Text("⚠ Long session — consider restarting", fontSize = 11.sp,
+                Text(" Long session — consider restarting", fontSize = 11.sp,
                     color = Color(0xFFFFB340), modifier = Modifier.padding(top = 2.dp))
             }
         }
         DevCard(title = "Coroutines") {
             DevRow("Live coroutines", health.liveCoroutineCount.toString())
             if (health.orphanCoroutineWarning) {
-                Text("⚠ Potential orphans: ${health.orphanKeys.take(3).joinToString()}",
+                Text(" Potential orphans: ${health.orphanKeys.take(3).joinToString()}",
                     fontSize = 11.sp, color = SemanticError, modifier = Modifier.padding(top = 2.dp))
             } else {
-                Text("✓ No orphan coroutines detected", fontSize = 11.sp, color = SemanticSuccess,
+                Text(" No orphan coroutines detected", fontSize = 11.sp, color = SemanticSuccess,
                     modifier = Modifier.padding(top = 2.dp))
             }
         }
         DevCard(title = "Agent Tasks") {
             DevRow("Stuck agents", health.stuckAgentCount.toString())
             if (health.stuckAgentCount > 0) {
-                Text("⚠ Stuck: ${health.stuckAgentIds.take(3).joinToString()}",
+                Text(" Stuck: ${health.stuckAgentIds.take(3).joinToString()}",
                     fontSize = 11.sp, color = SemanticError, modifier = Modifier.padding(top = 2.dp))
             } else {
-                Text("✓ All agents responding", fontSize = 11.sp, color = SemanticSuccess,
+                Text(" All agents responding", fontSize = 11.sp, color = SemanticSuccess,
                     modifier = Modifier.padding(top = 2.dp))
             }
         }
         DevCard(title = "Event Bus") {
             if (health.eventBusSaturated) {
-                Text("⚠ Event bus saturated — drain rate lagging behind emit rate",
+                Text(" Event bus saturated — drain rate lagging behind emit rate",
                     fontSize = 11.sp, color = SemanticError)
             } else {
-                Text("✓ Event bus flowing normally", fontSize = 11.sp, color = SemanticSuccess)
+                Text(" Event bus flowing normally", fontSize = 11.sp, color = SemanticSuccess)
             }
         }
         val throttleLevel by ServiceLocator.systemHealthCoordinator.throttleLevel
@@ -337,10 +343,10 @@ private fun HealthTab() {
         DevCard(title = "Thermal Throttle") {
             DevRow("Throttle level", throttleLevel.name)
             DevRow("Context budget",  "${(budgetFraction * 100).toInt()}%")
-            DevRow("Emergency stop",  if (isEmergency) "⚠ YES" else "✓ No")
+            DevRow("Emergency stop",  if (isEmergency) " YES" else " No")
             if (isEmergency) {
                 Text(
-                    "⚠ Emergency throttle active — model execution paused",
+                    " Emergency throttle active — model execution paused",
                     fontSize = 11.sp,
                     color    = SemanticError,
                     modifier = Modifier.padding(top = 2.dp)

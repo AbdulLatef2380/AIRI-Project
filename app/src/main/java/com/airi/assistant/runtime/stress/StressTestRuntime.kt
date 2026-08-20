@@ -79,16 +79,16 @@ class StressTestRuntime(
             val accumulated = mutableListOf<StressResult>()
             for (phase in phases) {
                 if (!isActive) break
-                Log.i(TAG, "AIRI_PROOF STRESS_PHASE_START phase=$phase")
+                Log.i(TAG, "AIRI STRESS_PHASE_START phase=$phase")
                 val result = runPhase(phase)
                 accumulated.add(result)
                 _results.value = accumulated.toList()
-                Log.i(TAG, "AIRI_PROOF STRESS_PHASE_DONE phase=$phase " +
+                Log.i(TAG, "AIRI STRESS_PHASE_DONE phase=$phase " +
                         "passed=${result.passed} errors=${result.errorCount} ms=${result.durationMs}")
                 delay(2_000L) // cool-down between phases
             }
             running = false
-            Log.i(TAG, "AIRI_PROOF STRESS_SUITE_COMPLETE phases=${phases.size} " +
+            Log.i(TAG, "AIRI STRESS_SUITE_COMPLETE phases=${phases.size} " +
                     "failures=${accumulated.count { !it.passed }}")
         }
     }
@@ -175,7 +175,7 @@ class StressTestRuntime(
                 StressPhase.RAPID_NAVIGATION -> {
                     // This phase validates that navigation state doesn't corrupt under spam.
                     // Actual navigation is driven from the UI layer; here we just log the intent.
-                    Log.i(TAG, "AIRI_PROOF STRESS_NAVIGATION_INTENT 30 rapid switches")
+                    Log.i(TAG, "AIRI STRESS_NAVIGATION_INTENT 30 rapid switches")
                     repeat(30) { i ->
                         emitActivityEvent?.invoke("NAV_SWITCH_$i")
                         delay(100)
@@ -215,7 +215,7 @@ class StressTestRuntime(
         } catch (e: Exception) {
             errors++
             notes = "Phase threw: ${e.message}"
-            Log.e(TAG, "AIRI_PROOF STRESS_PHASE_ERROR phase=$phase", e)
+            Log.e(TAG, "AIRI STRESS_PHASE_ERROR phase=$phase", e)
         }
 
         val durationMs = System.currentTimeMillis() - t0

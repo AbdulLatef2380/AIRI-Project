@@ -31,7 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Task 8.1 – Security Scanner Screen.
+ * – Security Scanner Screen.
  * Runs SecretHealthChecker, displays pass/fail cards for stored secrets,
  * Play integrity, and runtime permissions.
  */

@@ -24,7 +24,7 @@ class FileManagerSkill(private val context: Context) : AiriSkill {
     override val version    = "1.0.0"
     override val author     = "AIRI Official"
     override val category   = "PRODUCTIVITY"
-    override val iconEmoji  = "📁"
+    override val iconEmoji  = ""
     override val isOfficial = true
     override val memoryAccess = SkillMemoryAccess.NONE
     override val modelAccess  = SkillModelAccess.NONE
@@ -121,7 +121,7 @@ class FileManagerSkill(private val context: Context) : AiriSkill {
             sorted.forEach { f ->
                 val size = formatSize(f.length())
                 val date = Date(f.lastModified())
-                val icon = if (f.isDirectory) "📁" else getFileIcon(f.extension)
+                val icon = if (f.isDirectory) "" else getFileIcon(f.extension)
                 append("$icon ${f.name} ($size) — $date\n")
             }
             if (filtered.size > 50) append("\n...and ${filtered.size - 50} more files.")
@@ -168,7 +168,7 @@ class FileManagerSkill(private val context: Context) : AiriSkill {
         val output = buildString {
             append("Files matching \"$query\":\n\n")
             results.forEach { f ->
-                val icon = if (f.isDirectory) "📁" else getFileIcon(f.extension)
+                val icon = if (f.isDirectory) "" else getFileIcon(f.extension)
                 append("$icon ${f.name}\n   ${f.absolutePath}\n")
             }
         }
@@ -214,14 +214,14 @@ class FileManagerSkill(private val context: Context) : AiriSkill {
     }
 
     private fun getFileIcon(ext: String): String = when (ext.lowercase()) {
-        "pdf"  -> "📕"; "doc", "docx" -> "📝"; "xls", "xlsx" -> "📊"
-        "jpg", "jpeg", "png", "gif", "webp" -> "🖼️"
-        "mp4", "mkv", "avi", "mov" -> "🎬"
-        "mp3", "m4a", "wav", "flac" -> "🎵"
-        "zip", "rar", "7z", "tar" -> "🗜️"
-        "apk" -> "📦"; "txt", "md" -> "📄"; "json" -> "🔧"
-        "kt", "java", "py", "js", "ts" -> "💻"
-        else   -> "📄"
+        "pdf"  -> ""; "doc", "docx" -> ""; "xls", "xlsx" -> ""
+        "jpg", "jpeg", "png", "gif", "webp" -> ""
+        "mp4", "mkv", "avi", "mov" -> ""
+        "mp3", "m4a", "wav", "flac" -> ""
+        "zip", "rar", "7z", "tar" -> ""
+        "apk" -> ""; "txt", "md" -> ""; "json" -> ""
+        "kt", "java", "py", "js", "ts" -> ""
+        else   -> ""
     }
 
     private fun detectAction(input: String): String {

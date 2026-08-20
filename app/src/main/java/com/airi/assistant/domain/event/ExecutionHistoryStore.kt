@@ -79,7 +79,7 @@ class ExecutionHistoryStore(private val context: Context) {
         is AppEvent.AgentExecutionCancelled ->
             HistoryEntry("AgentCancelled", timestamp, reason,                     null)
         is AppEvent.PolicyChecked ->
-            HistoryEntry("Policy", timestamp, "$rule: ${if (passed) "✓" else "✗"}${reason?.let { " — $it" } ?: ""}", passed)
+            HistoryEntry("Policy", timestamp, "$rule: ${if (passed) "" else ""}${reason?.let { " — $it" } ?: ""}", passed)
         is AppEvent.SkillExecutionStarted ->
             HistoryEntry("SkillStarted", timestamp, skillName, null)
         is AppEvent.SkillExecutionCompleted ->

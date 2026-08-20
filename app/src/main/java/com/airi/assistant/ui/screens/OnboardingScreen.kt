@@ -273,7 +273,7 @@ private fun AccessibilityPermissionCard(context: android.content.Context) {
     }
 
     PermissionCard(
-        title      = if (isEnabled.value) "Accessibility: Enabled ✓" else "Accessibility: Not enabled",
+        title      = if (isEnabled.value) "Accessibility: Enabled " else "Accessibility: Not enabled",
         body       = if (isEnabled.value)
             "AIRI can control apps and automate tasks on your behalf."
         else
@@ -297,7 +297,7 @@ private fun MicrophonePermissionCard(
 ) {
     val granted = micState.status.isGranted
     PermissionCard(
-        title      = if (granted) "Microphone: Enabled ✓" else "Microphone: Not enabled",
+        title      = if (granted) "Microphone: Enabled " else "Microphone: Not enabled",
         body       = if (granted)
             "Voice mode is available. Speak to AIRI hands-free."
         else
@@ -381,7 +381,7 @@ private fun NotificationsPermissionCard(
     // On API < 33, notifications are granted at install time — show as enabled.
     val granted = permissionState?.status?.isGranted ?: true
     PermissionCard(
-        title      = if (granted) "Notifications: Enabled ✓" else "Notifications: Not enabled",
+        title      = if (granted) "Notifications: Enabled " else "Notifications: Not enabled",
         body       = if (granted)
             "AIRI can send you task alerts, reminders, and agent status updates."
         else
@@ -400,7 +400,7 @@ private fun CalendarPermissionCard(
 ) {
     val granted = permissionsState.allPermissionsGranted
     PermissionCard(
-        title      = if (granted) "Calendar: Enabled ✓" else "Calendar: Not enabled",
+        title      = if (granted) "Calendar: Enabled " else "Calendar: Not enabled",
         body       = if (granted)
             "AIRI can read your schedule and create events when you ask."
         else

@@ -68,7 +68,7 @@ class ProductivityAgent(
 
     override fun execute(input: String, context: SubAgentContext): Flow<AgentEvent> = flow {
         val start = System.currentTimeMillis()
-        Log.i(TAG, "ProductivityAgent.execute input='${input.take(80)}'")
+        Log.i(TAG, "PRODUCTIVITY_AGENT_EXECUTE inputChars=${input.length}")
 
         emit(AgentEvent.Progress("Understanding your request…", 10, "parse"))
 

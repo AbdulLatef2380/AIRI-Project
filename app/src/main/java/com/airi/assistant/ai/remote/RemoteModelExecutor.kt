@@ -78,7 +78,7 @@ class RemoteModelExecutor {
                     executeRequest(model, prompt, systemPrompt, maxTokens, temperature)
                 }.getOrElse { e ->
                     if (e is CancellationException) throw e
-                    lastError = e.message ?: "Request failed"
+                    lastError = e.javaClass.simpleName
                     null
                 }
             }
@@ -88,12 +88,12 @@ class RemoteModelExecutor {
                 return@withContext RemoteResult.Success(result, latency)
             }
             if (attempt < MAX_RETRIES) {
-                Log.w(TAG, "Attempt ${attempt + 1} failed, retrying in ${RETRY_DELAY_MS}ms: $lastError")
+                Log.w(TAG, "Remote attempt ${attempt + 1} failed type=$lastError; retrying in ${RETRY_DELAY_MS}ms")
                 delay(RETRY_DELAY_MS)
             }
         }
-        LoggingService.error(TAG, "Remote model failed after $MAX_RETRIES retries: $lastError")
-        RemoteResult.Failure(lastError)
+        LoggingService.error(TAG, "Remote model failed after $MAX_RETRIES retries type=$lastError")
+        RemoteResult.Failure("Remote request failed")
     }
 
     suspend fun generateStream(
@@ -133,7 +133,7 @@ class RemoteModelExecutor {
                     }
                     conn.connect()
                     val code = conn.responseCode
-                    code in 200..299 || code == 401
+                    code in 200..299
                 } finally {
                     conn.disconnect()
                 }

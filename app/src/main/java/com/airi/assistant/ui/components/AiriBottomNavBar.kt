@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,6 +57,7 @@ import com.airi.assistant.ui.theme.SurfaceRaised
 enum class AiriNavTab {
     SKILLS,
     SCHEDULE,
+    LIBRARY,
     SETTINGS,
     CHAT,
     NEW
@@ -76,6 +78,7 @@ fun AiriBottomNavBar(
     val items = listOf(
         AiriNavItem(AiriNavTab.SKILLS,   Icons.Outlined.Star,             R.string.nav_skills),
         AiriNavItem(AiriNavTab.SCHEDULE, Icons.Outlined.History,    R.string.nav_schedule),
+        AiriNavItem(AiriNavTab.LIBRARY,  Icons.Outlined.CollectionsBookmark, R.string.nav_library),
         AiriNavItem(AiriNavTab.SETTINGS, Icons.Outlined.Settings,         R.string.nav_settings),
         AiriNavItem(AiriNavTab.CHAT,     Icons.Outlined.AutoAwesome,       R.string.nav_chat),
         AiriNavItem(AiriNavTab.NEW,      Icons.Outlined.Forum, R.string.nav_new),

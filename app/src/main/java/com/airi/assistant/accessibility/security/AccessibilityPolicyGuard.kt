@@ -85,7 +85,7 @@ object AccessibilityPolicyGuard {
         val denied = DENIED_PACKAGE_PREFIXES.any { pkg.startsWith(it) }
                   || DENIED_PACKAGE_EXACT.contains(pkg)
         return if (denied) {
-            Log.w(TAG, "AIRI_PROOF PACKAGE_DENIED pkg=$packageName")
+            Log.w(TAG, "AIRI PACKAGE_DENIED pkg=$packageName")
             PolicyDecision.Denied("AIRI cannot automate actions inside $packageName for security reasons.")
         } else {
             PolicyDecision.Allowed
@@ -164,7 +164,7 @@ object AccessibilityPolicyGuard {
             result = result.replace(pattern, "[CONTENT REMOVED BY SECURITY POLICY]")
         }
         if (result != content) {
-            Log.w(TAG, "AIRI_PROOF INJECTION_STRIPPED originalLen=${content.length} strippedLen=${result.length}")
+            Log.w(TAG, "AIRI INJECTION_STRIPPED originalLen=${content.length} strippedLen=${result.length}")
         }
         return result
     }

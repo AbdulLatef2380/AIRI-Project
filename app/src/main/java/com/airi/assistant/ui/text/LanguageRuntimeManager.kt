@@ -24,13 +24,13 @@ object LanguageRuntimeManager {
     /** Analyse a string and return its dominant text direction. */
     fun analyseDirection(text: String): DominantDirection {
         if (text.isBlank()) return DominantDirection.NEUTRAL
-        val arabicChars  = ARABIC_RANGE .matcher(text).results().count()
-        val englishChars = ENGLISH_RANGE.matcher(text).results().count()
+        val hasArabic = ARABIC_RANGE.matcher(text).find()
+        val hasEnglish = ENGLISH_RANGE.matcher(text).find()
         return when {
-            arabicChars > 0 && englishChars == 0L -> DominantDirection.RTL
-            englishChars > 0 && arabicChars == 0L -> DominantDirection.LTR
-            arabicChars > 0 && englishChars > 0   -> DominantDirection.MIXED
-            else                                   -> DominantDirection.NEUTRAL
+            hasArabic && !hasEnglish -> DominantDirection.RTL
+            hasEnglish && !hasArabic -> DominantDirection.LTR
+            hasArabic && hasEnglish  -> DominantDirection.MIXED
+            else                     -> DominantDirection.NEUTRAL
         }
     }
 

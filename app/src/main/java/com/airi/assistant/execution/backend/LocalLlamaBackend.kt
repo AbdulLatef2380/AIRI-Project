@@ -21,7 +21,7 @@ import kotlinx.coroutines.channels.Channel
  * identically to cloud inference — both as interchangeable capability-declared
  * backends.
  *
- * ## Token Accounting (Task 20)
+ * ## Token Accounting ()
  * When [tokenAccountant] is provided, each successful generation is recorded via
  * [TokenAccountant.recordLocal]. The character length of the full generated text
  * is used as the token count input (estimation mode); the actual native
@@ -220,7 +220,9 @@ class LocalLlamaBackend(
                     code   = "local_error"
                 ))
             },
-            onStallWarning = {}
+            onStallWarning = {
+                Log.w(TAG, "generate: stall warning")
+            }
         )
 
         // Await the result in suspend context — this is the correct place to call

@@ -61,6 +61,9 @@ if(ANDROID_ABI STREQUAL "arm64-v8a")
     include_directories(${LLAMA_DIR}/ggml/src/ggml-cpu/arch/arm)
 else()
     set(GGML_ARCH_SOURCES "")
+    # The vendored tree does not include x86 SIMD translation units. Use the
+    # GGML scalar fallback for emulator-only x86_64 builds.
+    add_compile_definitions(GGML_CPU_GENERIC)
 endif()
 
 # Threading

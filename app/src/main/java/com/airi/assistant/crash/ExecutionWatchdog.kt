@@ -58,7 +58,7 @@ class ExecutionWatchdog(
         if (isRunning) return
         isRunning = true
         scope.launch {
-            LoggingService.info(TAG, "AIRI_PROOF WATCHDOG_STARTED interval=${SCAN_INTERVAL_MS}ms threshold=${STUCK_THRESHOLD_MS}ms")
+            LoggingService.info(TAG, "AIRI WATCHDOG_STARTED interval=${SCAN_INTERVAL_MS}ms threshold=${STUCK_THRESHOLD_MS}ms")
             while (isActive) {
                 delay(SCAN_INTERVAL_MS)
                 scan()
@@ -83,7 +83,7 @@ class ExecutionWatchdog(
             val age = now - snap.startedAtMs
             if (age < STUCK_THRESHOLD_MS) continue
 
-            LoggingService.warn(TAG, "AIRI_PROOF WATCHDOG_STUCK_DETECTED planId=${snap.planId} ageMs=$age")
+            LoggingService.warn(TAG, "AIRI WATCHDOG_STUCK_DETECTED planId=${snap.planId} ageMs=$age")
 
             telemetry.report(
                 AgentTelemetryEvent.WatchdogAlert(
@@ -101,7 +101,7 @@ class ExecutionWatchdog(
             )
 
             if (autoCancelStuck) {
-                LoggingService.warn(TAG, "AIRI_PROOF WATCHDOG_AUTO_CANCEL planId=${snap.planId}")
+                LoggingService.warn(TAG, "AIRI WATCHDOG_AUTO_CANCEL planId=${snap.planId}")
                 runtime.cancel(snap.planId)
                 healthMonitor?.recordAgentEnd(snap.planId)
             }

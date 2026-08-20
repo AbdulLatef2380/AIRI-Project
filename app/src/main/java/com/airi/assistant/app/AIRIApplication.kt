@@ -38,6 +38,8 @@ class AIRIApplication : Application() {
         private const val TAG = "AIRIApplication"
     }
 
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate() {
         super.onCreate()
 
@@ -45,7 +47,7 @@ class AIRIApplication : Application() {
 
         try {
             ServiceLocator.context = applicationContext
-            LoggingService.info(TAG, "✓ ServiceLocator initialized")
+            LoggingService.info(TAG, " ServiceLocator initialized")
 
             // ── Crash recovery — must be FIRST after ServiceLocator.context ────
             // Installs the UncaughtExceptionHandler that writes a crash timestamp
@@ -53,38 +55,17 @@ class AIRIApplication : Application() {
             // from. Must run before any subsystem that might throw on init.
             val recoveryEngine = RuntimeRecoveryEngine(applicationContext)
             recoveryEngine.init()
-            LoggingService.info(TAG, "✓ RuntimeRecoveryEngine initialized")
+            LoggingService.info(TAG, " RuntimeRecoveryEngine initialized")
 
             // ── Infrastructure ─────────────────────────────────────────────────
-            ServiceLocator.networkService
-            LoggingService.info(TAG, "✓ NetworkService initialized")
-
-            ServiceLocator.executionHistoryStore
-            LoggingService.info(TAG, "✓ ExecutionHistoryStore initialized")
-
-            ServiceLocator.subscriptionManager
-            LoggingService.info(TAG, "✓ SubscriptionManager initialized")
-
-            AiriDatabase.getDatabase(this)
-            LoggingService.info(TAG, "✓ Database initialized")
-
             // ── Identity Layer ─────────────────────────────────────────────────
-            ServiceLocator.sessionManager
-            LoggingService.info(TAG, "✓ SessionManager initialized")
-
             // ── User Profile Runtime ───────────────────────────────────────────
-            ServiceLocator.userProfileRepository
-            LoggingService.info(TAG, "✓ UserProfileRepository initialized")
-
             // ── Privacy / Telemetry ────────────────────────────────────────────
             ServiceLocator.telemetryConsentStore
-            ServiceLocator.privacyTelemetryReporter
-            LoggingService.info(TAG, "✓ PrivacyTelemetryReporter initialized")
-
             // ── Growth & Analytics ─────────────────────────────────────────────
             // Pass consentStore so AnalyticsService gates Firebase on opt-in.
             AnalyticsService.init(this, ServiceLocator.telemetryConsentStore)
-            LoggingService.info(TAG, "✓ AnalyticsService initialized")
+            LoggingService.info(TAG, " AnalyticsService initialized")
 
             
             // AnalyticsService.init() already wires the consentStore internally, but
@@ -106,26 +87,26 @@ class AIRIApplication : Application() {
 
             OnboardingManager.init(this)
             ReferralManager.init(this)
-            LoggingService.info(TAG, "✓ Growth managers initialized")
+            LoggingService.info(TAG, " Growth managers initialized")
 
             PaywallTriggerEngine.init(this)
-            LoggingService.info(TAG, "✓ PaywallTriggerEngine initialized")
+            LoggingService.info(TAG, " PaywallTriggerEngine initialized")
 
             RetentionManager.init(this)
             RetentionManager.incrementSession()
             RetentionManager.scheduleReEngagementReminder(this)
-            LoggingService.info(TAG, "✓ RetentionManager initialized")
+            LoggingService.info(TAG, " RetentionManager initialized")
 
             ExperimentManager.init(this)
-            LoggingService.info(TAG, "✓ ExperimentManager initialized")
+            LoggingService.info(TAG, " ExperimentManager initialized")
 
             RemoteModelRegistry.init(this)
-            LoggingService.info(TAG, "✓ RemoteModelRegistry initialized")
+            LoggingService.info(TAG, " RemoteModelRegistry initialized")
 
             // ── Crash / Runtime Reporting ──────────────────────────────────────
             ServiceLocator.crashReportStore
             ServiceLocator.crashReporter
-            LoggingService.info(TAG, "✓ CrashReporter initialized")
+            LoggingService.info(TAG, " CrashReporter initialized")
 
             // ── Firebase Crashlytics ───────────────────────────────────────────
             // Enrich every crash report with session metadata so triage is fast.
@@ -143,61 +124,70 @@ class AIRIApplication : Application() {
             if (consentStore.current.crashReportingEnabled) {
                 FirebaseCrashReporter.enableCollection()
             }
-            LoggingService.info(TAG, "✓ FirebaseCrashReporter configured")
+            LoggingService.info(TAG, " FirebaseCrashReporter configured")
 
             ServiceLocator.runtimeHealthMonitor.start()
-            LoggingService.info(TAG, "✓ RuntimeHealthMonitor started")
+            LoggingService.info(TAG, " RuntimeHealthMonitor started")
 
             // ── AIRI Ascension: Sub-Agent + Orchestration ──────────────────────
             ServiceLocator.initSubAgentSystem()
-            LoggingService.info(TAG, "✓ SubAgentSystem + PermissionRegistry initialized")
+            LoggingService.info(TAG, " SubAgentSystem + PermissionRegistry initialized")
 
             // ── Phase P6: Permission governance ───────────────────────────────
             // Must run synchronously so the first UCL policy gate check never
             // races against lazy initialization.
             ServiceLocator.permissionGovernanceLayer
-            LoggingService.info(TAG, "✓ PermissionGovernanceLayer ready")
+            LoggingService.info(TAG, " PermissionGovernanceLayer ready")
 
-            // ── Phase 3: Global agent activity feed ───────────────────────────
+            // ── : Global agent activity feed ───────────────────────────
             GlobalAgentEventDispatcher.start()
-            LoggingService.info(TAG, "✓ GlobalAgentEventDispatcher started")
+            LoggingService.info(TAG, " GlobalAgentEventDispatcher started")
 
-            // ── Phase 7: Non-critical startup — deferred to background thread ──
+            // ── : Non-critical startup — deferred to background thread ──
             // RAGRetriever, CreditMeteringEngine, ScheduledJobOrchestrator,
             // ChatSharingService, SkillManagerBackend, ReinforcementMemory, and
             // ConnectorHealthMonitor do not need to be ready before the first frame.
             // Moving them to IO reduces cold-start main-thread time by ~60–120 ms
             // on mid-range devices (each lazy init touches SharedPreferences / DB /
             // network, which are blocking I/O operations on the main thread).
-            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            applicationScope.launch {
                 runCatching {
+                    ServiceLocator.networkService
+                    ServiceLocator.executionHistoryStore
+                    ServiceLocator.subscriptionManager
+                    AiriDatabase.getDatabase(applicationContext)
+                    ServiceLocator.sessionManager
+                    ServiceLocator.userProfileRepository
+                    ServiceLocator.privacyTelemetryReporter
+                    LoggingService.info(TAG, "Deferred infrastructure initialized")
+
                     ServiceLocator.ragRetriever
-                    LoggingService.info(TAG, "✓ RAGRetriever initialized (deferred)")
+                    LoggingService.info(TAG, " RAGRetriever initialized (deferred)")
 
                     ServiceLocator.creditMeteringEngine
-                    LoggingService.info(TAG, "✓ CreditMeteringEngine initialized (deferred)")
+                    LoggingService.info(TAG, " CreditMeteringEngine initialized (deferred)")
 
                     ServiceLocator.scheduledJobOrchestrator
-                    LoggingService.info(TAG, "✓ ScheduledJobOrchestrator initialized (deferred)")
+                    LoggingService.info(TAG, " ScheduledJobOrchestrator initialized (deferred)")
 
                     ServiceLocator.chatSharingService
-                    LoggingService.info(TAG, "✓ ChatSharingService initialized (deferred)")
+                    LoggingService.info(TAG, " ChatSharingService initialized (deferred)")
 
                     ServiceLocator.skillManagerBackend
-                    LoggingService.info(TAG, "✓ SkillManagerBackend initialized (deferred)")
+                    LoggingService.info(TAG, " SkillManagerBackend initialized (deferred)")
 
                     ReinforcementMemory.init(applicationContext)
-                    LoggingService.info(TAG, "✓ ReinforcementMemory loaded (deferred)")
+                    LoggingService.info(TAG, " ReinforcementMemory loaded (deferred)")
 
                     // Connector health monitor fires background ping loop — I/O bound
                     ServiceLocator.connectorHealthMonitor
-                    LoggingService.info(TAG, "✓ ConnectorHealthMonitor started (deferred)")
+                    LoggingService.info(TAG, " ConnectorHealthMonitor started (deferred)")
 
                     // Cloud sync is user-preference-gated and network I/O
                     val prefs = ServiceLocator.userProfileRepository.current
                     if (prefs.cloudSyncEnabled) {
                         CloudSyncWorker.enqueue(applicationContext)
-                        LoggingService.info(TAG, "✓ CloudSyncWorker enqueued (deferred)")
+                        LoggingService.info(TAG, " CloudSyncWorker enqueued (deferred)")
                     }
                 }.onFailure { e ->
                     LoggingService.warn(TAG, "Deferred init error (non-fatal): ${e.message}")
@@ -212,7 +202,7 @@ class AIRIApplication : Application() {
             // Fires a background integrity token request so that the first
             // high-trust action (cloud call, subscription purchase) already has
             // a cached verdict available without blocking the user.
-            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            applicationScope.launch {
                 PlayIntegrityVerifier.warmUp(applicationContext)
             }
 
@@ -278,7 +268,7 @@ class AIRIApplication : Application() {
     private val batteryLowReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action != Intent.ACTION_BATTERY_LOW) return
-            LoggingService.warn(TAG, "AIRI_PROOF BATTERY_LOW_RECEIVED — invalidating hardware profile cache")
+            LoggingService.warn(TAG, "BATTERY_LOW_RECEIVED action=invalidate_hardware_profile")
             // Invalidate the hardware profiler cache so the next call reflects
             // current battery/power-save state.
             runCatching { ServiceLocator.hardwareProfiler }.getOrNull()
@@ -295,9 +285,9 @@ class AIRIApplication : Application() {
     private fun registerBatteryReceiver() {
         runCatching {
             registerReceiver(batteryLowReceiver, IntentFilter(Intent.ACTION_BATTERY_LOW))
-            LoggingService.info(TAG, "✓ Battery-low receiver registered (AP-36)")
+            LoggingService.info(TAG, "BATTERY_LOW_RECEIVER_REGISTERED")
         }.onFailure { e ->
-            LoggingService.warn(TAG, "Battery-low receiver registration failed: ${e.message}")
+            LoggingService.warn(TAG, "BATTERY_LOW_RECEIVER_REGISTRATION_FAILURE causeType=${e::class.simpleName}")
         }
     }
 }

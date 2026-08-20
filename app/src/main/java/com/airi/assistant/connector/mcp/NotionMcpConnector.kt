@@ -14,8 +14,8 @@ import java.util.concurrent.TimeUnit
 /**
  * NotionMcpConnector — functional Notion API connector via McpConnector.
  *
- * ── Phase 2, Task 8 ────────────────────────────────────────────────────────
- * Replaces the legacy [com.airi.assistant.integration.NotionIntegration] stub
+ * ── , ────────────────────────────────────────────────────────
+ * Replaces the legacy [com.airi.assistant.integration.NotionIntegration] deprecated implementation
  * (which stored only a boolean flag in plaintext SharedPreferences and made
  * no API calls) with a real HTTP client that speaks the Notion REST API v1.
  *
@@ -41,13 +41,13 @@ import java.util.concurrent.TimeUnit
  *
  * ── Security ───────────────────────────────────────────────────────────────
  * • Token is stored in AES256-GCM EncryptedSharedPreferences (SecureStorage).
- * • No token is ever logged (AIRI_PROOF lines contain only request metadata).
+ * • No token is ever logged (AIRI lines contain only request metadata).
  * • Handshake calls /v1/users/me to verify the token is valid.
  *
  * ── Rate limits ────────────────────────────────────────────────────────────
  * Notion API enforces ~3 requests/sec. This connector does not implement
  * client-side rate limiting; that is delegated to the agent orchestrator via
- * the adaptive throttling system (Task 9 / SystemHealthCoordinator).
+ * the adaptive throttling system (/ SystemHealthCoordinator).
  */
 class NotionMcpConnector(
     private val secureStorage: SecureStorage
@@ -91,7 +91,7 @@ class NotionMcpConnector(
     override suspend fun handshake(): Boolean {
         val token = getToken()
         if (token.isNullOrBlank()) {
-            Log.w(TAG, "AIRI_PROOF NOTION_HANDSHAKE_FAILED reason=no_token_stored")
+            Log.w(TAG, "AIRI NOTION_HANDSHAKE_FAILED reason=no_token_stored")
             return false
         }
         return runCatching {
@@ -104,18 +104,18 @@ class NotionMcpConnector(
             val response = httpClient.newCall(request).execute()
             val ok = response.isSuccessful
             Log.i(TAG,
-                "AIRI_PROOF NOTION_HANDSHAKE status=${response.code} success=$ok")
+                "AIRI NOTION_HANDSHAKE status=${response.code} success=$ok")
             response.close()
             ok
         }.getOrElse { e ->
-            Log.e(TAG, "AIRI_PROOF NOTION_HANDSHAKE_EXCEPTION ${e.message}")
+            Log.e(TAG, "AIRI NOTION_HANDSHAKE_EXCEPTION ${e.message}")
             false
         }
     }
 
     override suspend fun teardown() {
         // OkHttpClient manages its own connection pool; no explicit teardown needed.
-        Log.i(TAG, "AIRI_PROOF NOTION_DISCONNECT")
+        Log.i(TAG, "AIRI NOTION_DISCONNECT")
     }
 
     /**
@@ -320,14 +320,14 @@ class NotionMcpConnector(
         return runCatching {
             val response = httpClient.newCall(request).execute()
             val bodyStr  = response.body?.string() ?: ""
-            Log.i(TAG, "AIRI_PROOF NOTION_API tool=$toolName status=${response.code}")
+            Log.i(TAG, "AIRI NOTION_API tool=$toolName status=${response.code}")
             if (response.isSuccessful) {
                 onSuccess(bodyStr)
             } else {
                 val errObj  = runCatching { JSONObject(bodyStr) }.getOrElse { JSONObject() }
                 val errCode = errObj.optString("code", "api_error")
                 val errMsg  = errObj.optString("message", "Notion API error ${response.code}")
-                Log.w(TAG, "AIRI_PROOF NOTION_API_ERROR tool=$toolName code=$errCode")
+                Log.w(TAG, "AIRI NOTION_API_ERROR tool=$toolName code=$errCode")
                 ConnectorOutput.Failure(
                     code      = errCode,
                     message   = errMsg,
@@ -335,7 +335,7 @@ class NotionMcpConnector(
                 )
             }
         }.getOrElse { e ->
-            Log.e(TAG, "AIRI_PROOF NOTION_NETWORK_ERROR tool=$toolName ${e.message}")
+            Log.e(TAG, "AIRI NOTION_NETWORK_ERROR tool=$toolName ${e.message}")
             ConnectorOutput.Failure(
                 code      = "network_error",
                 message   = "Network error calling Notion: ${e.message}",

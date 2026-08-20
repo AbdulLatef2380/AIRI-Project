@@ -1,6 +1,5 @@
 package com.airi.assistant.memory.repository
 
-import androidx.room.withTransaction
 import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.memory.dao.ArtifactDao
 import com.airi.assistant.memory.dao.AuditLogDao
@@ -13,6 +12,7 @@ import com.airi.assistant.memory.dao.UsageStatsDao
 import com.airi.assistant.memory.entity.AuditLogEntity
 import com.airi.assistant.memory.entity.ChatMessage
 import com.airi.assistant.memory.entity.ChatSession
+import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -23,7 +23,7 @@ import kotlinx.coroutines.withContext
  * Provides a single entry point for all persistent AIRI state rather than
  * having callers depend directly on individual DAOs. This enables:
  *   - Consistent error handling and logging at the repository boundary
- *   - A mock-friendly interface for tests
+ *   - A testable interface for tests
  *   - Cross-DAO transactions (e.g. delete session + its messages atomically)
  *   - Future migration to a different storage engine without changing callers
  *
@@ -67,10 +67,10 @@ import kotlinx.coroutines.withContext
  *   UsageStatsDao / BehaviorStatsDao:
  *     deleteAll               — added to each DAO
  *
- *   Transaction primitive:
- *     db.runInTransaction{}   — replaced with db.withTransaction{} (Room KTX suspend variant)
- *                               runInTransaction takes a plain Runnable; calling suspend DAO
- *                               methods inside it is a compile error.
+ *   Session deletion:
+ *     SessionDao.deleteSessionAndMessages() owns the Room transaction so every
+ *     session-bound message, including explicit memory, is removed before the
+ *     session row itself.
  */
 class StorageRepository(val db: AiriDatabase) {
 
@@ -113,18 +113,9 @@ class StorageRepository(val db: AiriDatabase) {
     suspend fun updateSessionTitle(id: String, title: String) =
         withContext(Dispatchers.IO) { sessions.updateSessionTitle(id, title) }
 
-    /**
-     * Delete a session AND all its messages atomically.
-     * Uses Room's suspend-aware [withTransaction] (from room-ktx) to guarantee
-     * consistency. The previous implementation used [RoomDatabase.runInTransaction]
-     * which takes a plain Runnable — calling suspend DAO methods inside it is
-     * a compile error. [withTransaction] is the correct primitive for suspend callers.
-     */
+    /** Deletes a session and every session-bound message in SessionDao's transaction. */
     suspend fun deleteSession(sessionId: String) = withContext(Dispatchers.IO) {
-        db.withTransaction {
-            messages.deleteMessagesForSession(sessionId)
-            sessions.deleteSessionById(sessionId)
-        }
+        sessions.deleteSessionAndMessages(sessionId)
     }
 
     // ── Audit log ─────────────────────────────────────────────────────────────
@@ -160,7 +151,7 @@ class StorageRepository(val db: AiriDatabase) {
      *   - context_cache      (transient context snapshots — reproducible but user-tied)
      *   - usage_stats        (feature engagement stats — user behaviour)
      *   - behavior_stats     (agent learning stats — derived from user interactions)
-     *   - audit_log          (AIRI_PROOF events — system events within user sessions)
+     *   - audit_log          (AIRI events — system events within user sessions)
      *   - workspace_artifact (metadata index for generated files — user-generated persistent data)
      *
      * All workspace_artifact rows are classified as user-generated persistent data:
@@ -188,12 +179,12 @@ class StorageRepository(val db: AiriDatabase) {
      * explicitly invoked alongside the disk wipe by whoever orchestrates the
      * full GDPR deletion.
      */
-    /** Task 1.7: Persist thumbs up/down feedback for a message row. */
+    /** Persist thumbs up/down feedback for a message row. */
     suspend fun updateMessageFeedback(id: Long, feedback: Int) = withContext(Dispatchers.IO) {
         db.memoryDao().updateMessageFeedback(id, feedback)
     }
 
-    /** Task 1.7: Get N most recent messages across all sessions (for feedback matching). */
+    /** Get N most recent messages across all sessions (for feedback matching). */
     suspend fun getRecentMessages(limit: Int): List<com.airi.assistant.memory.entity.ChatMessage> =
         withContext(Dispatchers.IO) {
             db.memoryDao().getRecentMemories(limit)

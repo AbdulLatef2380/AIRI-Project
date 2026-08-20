@@ -17,7 +17,7 @@ class CodeAssistantSkill(private val context: Context) : AiriSkill {
     override val version    = "1.0.0"
     override val author     = "AIRI Official"
     override val category   = "DEVELOPER"
-    override val iconEmoji  = "💻"
+    override val iconEmoji  = ""
     override val isOfficial = true
     override val memoryAccess = SkillMemoryAccess.READ_ONLY
     override val modelAccess  = SkillModelAccess.CHAT

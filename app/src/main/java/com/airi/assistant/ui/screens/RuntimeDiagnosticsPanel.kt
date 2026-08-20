@@ -88,7 +88,7 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
         )
         DiagRow(
             label = "Available RAM",
-            value = "${diagnostics.availRamMb} MB" + if (diagnostics.isLowMemory) " ⚠ LOW" else "",
+            value = "${diagnostics.availRamMb} MB" + if (diagnostics.isLowMemory) "  LOW" else "",
             valueColor = when {
                 diagnostics.isLowMemory         -> ErrorColor
                 diagnostics.availRamMb < 300L   -> ErrorColor

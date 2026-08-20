@@ -70,7 +70,7 @@ object FlowPressureMonitor {
                 publishStats()
             }
         }
-        Log.i(TAG, "AIRI_PROOF FLOW_PRESSURE_MONITOR_STARTED")
+        Log.i(TAG, "AIRI FLOW_PRESSURE_MONITOR_STARTED")
     }
 
     /** Wrap a Flow to detect slow collectors. */
@@ -84,7 +84,7 @@ object FlowPressureMonitor {
                 tracker.pressureCount.incrementAndGet()
                 if (elapsed > tracker.maxBacklogMs.get()) tracker.maxBacklogMs.set(elapsed)
                 RuntimeProfiler.recordFlowPressureWarning(key)
-                Log.w(TAG, "AIRI_PROOF SLOW_COLLECTOR key=$key delayMs=$elapsed")
+                Log.w(TAG, "AIRI SLOW_COLLECTOR key=$key delayMs=$elapsed")
             }
         }
     }
@@ -98,7 +98,7 @@ object FlowPressureMonitor {
         auditedFlows.forEach { (key, flow) ->
             val cacheSize = flow.replayCache.size
             if (cacheSize > 0) {
-                Log.w(TAG, "AIRI_PROOF REPLAY_CACHE_NONEMPTY key=$key size=$cacheSize")
+                Log.w(TAG, "AIRI REPLAY_CACHE_NONEMPTY key=$key size=$cacheSize")
             }
         }
     }

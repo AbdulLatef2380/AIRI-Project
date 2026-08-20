@@ -180,7 +180,7 @@ class NotesTool(private val context: Context) {
         return notes.take(20).joinToString("\n\n") { note ->
             val time = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
                 .format(Date(note.updatedAtMs))
-            val pinMark = if (note.pinned) " 📌" else ""
+            val pinMark = if (note.pinned) " " else ""
             val tagStr  = if (note.tags.isNotEmpty()) "  [${note.tags.joinToString(", ")}]" else ""
             "── ${note.title}$pinMark$tagStr  ($time) ──\n${note.body.take(200)}"
         }

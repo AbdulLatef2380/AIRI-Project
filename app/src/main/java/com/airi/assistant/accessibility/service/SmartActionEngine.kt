@@ -22,7 +22,7 @@ object SmartActionEngine {
         val packageName =
             root.packageName?.toString() ?: ""
 
-        /* 🟢 المرحلة 0
+        /*  المرحلة 0
            محاولة عبر محرك التعلم */
         val learnedId = UILearningEngine.recallElement(
             service,
@@ -42,7 +42,7 @@ object SmartActionEngine {
             }
         }
 
-        /* 1️⃣ المرحلة الأولى
+        /* 1⃣ المرحلة الأولى
            الذاكرة السابقة */
         val memoryId = UIMemory.recallNode(service, target)
 
@@ -57,7 +57,7 @@ object SmartActionEngine {
             }
         }
 
-        /* 2️⃣ المرحلة الثانية
+        /* 2⃣ المرحلة الثانية
            البحث بالنص */
         val textNodes =
             root.findAccessibilityNodeInfosByText(label)
@@ -71,7 +71,7 @@ object SmartActionEngine {
             }
         }
 
-        /* 3️⃣ المرحلة الثالثة
+        /* 3⃣ المرحلة الثالثة
            البحث الدلالي */
         val semanticNode =
             findSemantic(root, target)
@@ -83,7 +83,7 @@ object SmartActionEngine {
             return true
         }
 
-        /* 4️⃣ المرحلة الرابعة
+        /* 4⃣ المرحلة الرابعة
            التنبؤ */
         val predicted =
             IntentPredictor.predictNode(root, target)

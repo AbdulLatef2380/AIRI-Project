@@ -9,7 +9,7 @@ import java.io.File
 /**
  * SandboxExecutor — capability-restricted, argv-exec sandbox runner.
  *
- * Hardened version (Phase-3 P0 security batch):
+ * Hardened version ( security batch):
  *
  *   • The allowlist is now matched on the *first token* of the command after
  *     splitting on whitespace, NOT on `startsWith` — this prevents bypasses
@@ -140,7 +140,7 @@ class SandboxExecutor(private val session: SandboxSession) {
         if (restriction != null) {
             val firstPathArg = argv.drop(1).firstOrNull { !it.startsWith("-") }
             if (firstPathArg != null && !restriction.containsMatchIn(firstPathArg)) {
-                Log.w(TAG, "AIRI_PROOF SANDBOX_ARG_VIOLATION binary=$binary arg=${firstPathArg.take(60)}")
+                Log.w(TAG, "SANDBOX_ARG_VIOLATION binary=$binary argChars=${firstPathArg.length}")
                 return ExecutionResult.SecurityViolation(
                     "Argument scope violation: '$binary $firstPathArg' — only relative paths permitted ()"
                 )

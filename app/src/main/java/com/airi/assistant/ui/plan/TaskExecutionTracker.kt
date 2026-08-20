@@ -11,6 +11,20 @@ import kotlinx.coroutines.flow.onEach
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
+/**
+ * TaskExecutionTracker — builds a live step-by-step plan view from the
+ * [ExecutionStatusBus] events emitted during agent loop execution.
+ *
+ * This bridges the gap between the AgentLoop's internal step tracking
+ * (callLLM, parseToolCall, executeTool, onStepComplete) and the UI
+ * planning dashboard shown in the ModalBottomSheet.
+ *
+ * The tracker listens to two event streams:
+ *   1. [ExecutionStatusBus.status] — high-level stage changes
+ *   2. Direct callbacks from AgentLoop (via start with scope)
+ *
+ * Each step has a clear lifecycle: QUEUED → RUNNING → COMPLETED/FAILED/RETRYING
+ */
 class TaskExecutionTracker {
 
     private val stepRegistry = ConcurrentHashMap<String, PlanStepModel>()

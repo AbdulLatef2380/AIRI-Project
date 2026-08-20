@@ -66,7 +66,7 @@ private val CATEGORIES = listOf(
 )
 
 private val ICON_EMOJIS = listOf(
-    "⚙", "⊙", "⊕", "▤", "⌨", "◳", "◈", "◎",
+    "", "⊙", "⊕", "▤", "⌨", "◳", "◈", "◎",
     "◉", "◫", "▣", "◉", "⊞", "◧", "▤", "⊡"
 )
 
@@ -86,7 +86,7 @@ fun SkillCreationWizardScreen(onBack: () -> Unit) {
     var version      by remember { mutableStateOf("1.0.0") }
     var author       by remember { mutableStateOf("") }
     var category     by remember { mutableStateOf("UTILITY") }
-    var iconEmoji    by remember { mutableStateOf("⚙") }
+    var iconEmoji    by remember { mutableStateOf("") }
     var tags         by remember { mutableStateOf("") }
     var repositoryUrl by remember { mutableStateOf("") }
     var license      by remember { mutableStateOf("MIT") }

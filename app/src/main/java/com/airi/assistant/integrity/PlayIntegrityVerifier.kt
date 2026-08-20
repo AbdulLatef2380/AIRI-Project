@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * PlayIntegrityVerifier — thin wrapper around Google Play Integrity.
  *
- * ── Phase-3 P0 hardening ──────────────────────────────────────────────────────
+ * ──  hardening ──────────────────────────────────────────────────────
  * Previous behavior:
  *   • A successful token request set `_lastVerdict = MEETS_BASIC_INTEGRITY`
  *     even though the JWS was never decrypted by a backend. Callers reading
@@ -114,7 +114,7 @@ object PlayIntegrityVerifier {
                 // SECURITY: do NOT promote to BASIC_INTEGRITY locally — the JWS
                 // hasn't been decrypted. Callers gating sensitive flows on
                 // isVerified will correctly see "not verified".
-                Log.i(TAG, "AIRI_PROOF INTEGRITY_TOKEN_OBTAINED verdict=UNVERIFIED (no backend)")
+                Log.i(TAG, "AIRI INTEGRITY_TOKEN_OBTAINED verdict=UNVERIFIED (no backend)")
                 IntegrityVerdict.UNVERIFIED
             } else {
                 runCatching { backend.verify(token, nonce) }
@@ -147,7 +147,7 @@ object PlayIntegrityVerifier {
         val last = lastLogMs[category] ?: 0L
         if (now - last >= LOG_RATE_LIMIT_MS) {
             lastLogMs[category] = now
-            Log.w(TAG, "AIRI_PROOF $message")
+            Log.w(TAG, "AIRI $message")
         }
     }
 }

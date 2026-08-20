@@ -57,15 +57,15 @@ class DeviceBindingService(private val context: Context) {
         return when {
             stored == null -> {
                 secureStorage.saveDeviceFingerprint(current)
-                LoggingService.info(TAG, "AIRI_PROOF DEVICE_BIND_INITIAL fingerprint=${current.take(12)}…")
+                LoggingService.info(TAG, "AIRI DEVICE_BIND_INITIAL fingerprint=${current.take(12)}…")
                 current
             }
             stored == current -> {
-                LoggingService.info(TAG, "AIRI_PROOF DEVICE_BIND_OK fingerprint=${current.take(12)}…")
+                LoggingService.info(TAG, "AIRI DEVICE_BIND_OK fingerprint=${current.take(12)}…")
                 current
             }
             else -> {
-                LoggingService.warn(TAG, "AIRI_PROOF DEVICE_BIND_MISMATCH stored=${stored.take(12)}… current=${current.take(12)}…")
+                LoggingService.warn(TAG, "AIRI DEVICE_BIND_MISMATCH stored=${stored.take(12)}… current=${current.take(12)}…")
                 throw DeviceChangedException(stored, current)
             }
         }
@@ -83,7 +83,7 @@ class DeviceBindingService(private val context: Context) {
      */
     fun clearBinding() {
         secureStorage.clearDeviceFingerprint()
-        LoggingService.info(TAG, "AIRI_PROOF DEVICE_BIND_CLEARED")
+        LoggingService.info(TAG, "AIRI DEVICE_BIND_CLEARED")
     }
 
     @SuppressLint("HardwareIds")

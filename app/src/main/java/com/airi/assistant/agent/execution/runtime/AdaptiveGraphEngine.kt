@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger
  *  - Self-correction loops (auto-retry with revised plan on failure)
  *  - Memory-driven routing (past success/failure weights tool selection)
  *
- * Note: ReActPlanner reference removed in Phase 1 — task decomposition now
+ * Note: ReActPlanner reference removed in  — task decomposition now
  * delegated to [UnifiedCognitiveLoop.executeGraph] via TypedPlanGraph.
  *
  * Design:
@@ -114,7 +114,7 @@ class AdaptiveGraphEngine(
             val result = executeFromNode(resolvedStart, context, executor, plan)
             _engineState.value = EngineState.COMPLETED
             checkpointStore.clear(plan.intent)
-            AgentActivityBus.emit("Graph completed ✓", ActivityCategory.ORCHESTRATION)
+            AgentActivityBus.emit("Graph completed ", ActivityCategory.ORCHESTRATION)
             result
         } catch (e: CancellationException) {
             _engineState.value = EngineState.IDLE
@@ -220,7 +220,7 @@ class AdaptiveGraphEngine(
 
             if (lastResult.success) {
                 ExecutionStatusBus.onNodeCompleted(nodeId = node.nodeId, nodesCompleted = completedIds.size + 1)
-                AgentActivityBus.emit("✓ ${node.label} (${lastResult.durationMs}ms)", ActivityCategory.ORCHESTRATION)
+                AgentActivityBus.emit(" ${node.label} (${lastResult.durationMs}ms)", ActivityCategory.ORCHESTRATION)
                 return lastResult
             }
             ExecutionStatusBus.onNodeRecovering(node.nodeId, lastResult.output, attempt + 1)

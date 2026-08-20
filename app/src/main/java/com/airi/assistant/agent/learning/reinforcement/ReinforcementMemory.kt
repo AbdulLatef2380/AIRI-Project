@@ -70,7 +70,7 @@ object ReinforcementMemory {
     fun recordUserFeedback(context: String, key: String, positive: Boolean) {
         val weight = if (positive) FEEDBACK_POS else FEEDBACK_NEG
         update(context, key, weight)
-        Log.i(TAG, "USER_FEEDBACK ${if (positive) "👍" else "👎"} recorded: ${context}_$key")
+        Log.i(TAG, "USER_FEEDBACK ${if (positive) "" else ""} recorded: ${context}_$key")
     }
 
     /**

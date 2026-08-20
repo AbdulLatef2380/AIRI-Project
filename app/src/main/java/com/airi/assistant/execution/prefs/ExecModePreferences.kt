@@ -8,11 +8,12 @@ import androidx.security.crypto.MasterKey
 import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.PrivacyLevel
+import com.airi.assistant.execution.router.RoutingPreferences
 
 /**
  * Persistent user preferences for the Hybrid Execution layer.
  *
- * ── Phase 2 Step 2: Security hardening ────────────────────────────────────────
+ * ── tep 2: Security hardening ────────────────────────────────────────
  * Previous behavior: preferences were stored in plain-text SharedPreferences
  * at `airi_exec_prefs`. On a rooted device that file is readable and writable
  * by any process, allowing an attacker to silently change:
@@ -52,7 +53,7 @@ import com.airi.assistant.execution.PrivacyLevel
  *  - offline fallback = true  — always fall back to local when cloud fails
  *  - max cloud tokens per day = 50 000 (soft limit, UI-visible)
  */
-class ExecModePreferences(context: Context) {
+class ExecModePreferences(context: Context) : RoutingPreferences {
 
     /**
      * True when the underlying store is EncryptedSharedPreferences.
@@ -81,7 +82,7 @@ class ExecModePreferences(context: Context) {
         } catch (e: Exception) {
             Log.e(
                 TAG,
-                "AIRI_PROOF EXEC_PREFS_ENCRYPT_FAILED — EncryptedSharedPreferences init failed; " +
+                "AIRI EXEC_PREFS_ENCRYPT_FAILED — EncryptedSharedPreferences init failed; " +
                     "falling back to IN-MEMORY only (no plaintext disk writes). " +
                     "Cause: ${e.message}"
             )
@@ -106,7 +107,7 @@ class ExecModePreferences(context: Context) {
 
     // ── Privacy level ─────────────────────────────────────────────────────────
 
-    var privacyLevel: PrivacyLevel
+    override var privacyLevel: PrivacyLevel
         get() = prefs.getString(KEY_PRIVACY_LEVEL, PrivacyLevel.BALANCED.name)
             ?.let { runCatching { PrivacyLevel.valueOf(it) }.getOrNull() }
             ?: PrivacyLevel.BALANCED
@@ -131,7 +132,7 @@ class ExecModePreferences(context: Context) {
      * Must be true for CLOUD_ONLY and HYBRID modes to actually reach the network.
      * Setting to false acts as an additional safety gate on top of [executionMode].
      */
-    var internetPermissionGranted: Boolean
+    override var internetPermissionGranted: Boolean
         get() = prefs.getBoolean(KEY_INTERNET_PERM, false)
         set(value) {
             prefs.edit().putBoolean(KEY_INTERNET_PERM, value).apply()
@@ -144,7 +145,7 @@ class ExecModePreferences(context: Context) {
      * cloud call fails or times out. When false, the request fails with an
      * explicit error message so the user knows cloud is unavailable.
      */
-    var offlineFallbackEnabled: Boolean
+    override var offlineFallbackEnabled: Boolean
         get() = prefs.getBoolean(KEY_OFFLINE_FALLBACK, true)
         set(value) {
             prefs.edit().putBoolean(KEY_OFFLINE_FALLBACK, value).apply()
@@ -158,14 +159,14 @@ class ExecModePreferences(context: Context) {
      * LOCAL rather than making additional cloud calls.
      * 0 = unlimited.
      */
-    var maxDailyCloudTokens: Int
+    override var maxDailyCloudTokens: Int
         get() = prefs.getInt(KEY_MAX_CLOUD_TOKENS, 50_000)
         set(value) {
             prefs.edit().putInt(KEY_MAX_CLOUD_TOKENS, value.coerceAtLeast(0)).apply()
         }
 
     /** Running tally for the current calendar day. Reset on date change. */
-    var cloudTokensUsedToday: Int
+    override var cloudTokensUsedToday: Int
         get() {
             val dayKey = System.currentTimeMillis() / 86_400_000L
             if (prefs.getLong(KEY_CLOUD_USAGE_DAY, 0L) != dayKey) {
@@ -191,7 +192,7 @@ class ExecModePreferences(context: Context) {
     }
 
     /** True when the daily cloud budget has been exhausted. */
-    val isCloudBudgetExhausted: Boolean
+    override val isCloudBudgetExhausted: Boolean
         get() {
             val cap = maxDailyCloudTokens
             return cap > 0 && cloudTokensUsedToday >= cap
@@ -206,7 +207,7 @@ class ExecModePreferences(context: Context) {
      *  - If daily budget exhausted in CLOUD_ONLY → LOCAL_ONLY (if fallback) or CLOUD_ONLY (error)
      *  - Otherwise → user's chosen [executionMode]
      */
-    val effectiveMode: ExecutionMode
+    override val effectiveMode: ExecutionMode
         get() {
             if (privacyLevel == PrivacyLevel.MAXIMUM) return ExecutionMode.LOCAL_ONLY
             if (!internetPermissionGranted) return ExecutionMode.LOCAL_ONLY
@@ -233,7 +234,7 @@ class ExecModePreferences(context: Context) {
      *     file so the migration can be re-attempted on the next launch.
      *
      * Never throws — any unexpected error is caught, logged with an
-     * `AIRI_PROOF` tag, and treated as a migration failure.
+     * `AIRI` tag, and treated as a migration failure.
      *
      * Only called when [isEncrypted] is true (i.e., [prefs] is backed by
      * [EncryptedSharedPreferences], not the in-memory fallback).
@@ -249,7 +250,7 @@ class ExecModePreferences(context: Context) {
 
             Log.i(
                 TAG,
-                "AIRI_PROOF EXEC_PREFS_MIGRATION_START — " +
+                "AIRI EXEC_PREFS_MIGRATION_START — " +
                     "found ${legacyAll.size} key(s) in legacy plaintext store; " +
                     "migrating to encrypted store"
             )
@@ -278,7 +279,7 @@ class ExecModePreferences(context: Context) {
             if (!committed) {
                 Log.e(
                     TAG,
-                    "AIRI_PROOF EXEC_PREFS_MIGRATION_FAILED — commit() returned false; " +
+                    "AIRI EXEC_PREFS_MIGRATION_FAILED — commit() returned false; " +
                         "legacy plaintext file preserved for next-launch retry"
                 )
                 return
@@ -301,7 +302,7 @@ class ExecModePreferences(context: Context) {
                 } else {
                     Log.e(
                         TAG,
-                        "AIRI_PROOF EXEC_PREFS_MIGRATION_VERIFY_FAIL — " +
+                        "AIRI EXEC_PREFS_MIGRATION_VERIFY_FAIL — " +
                             "key=\"$key\" did not round-trip correctly"
                     )
                 }
@@ -311,7 +312,7 @@ class ExecModePreferences(context: Context) {
             if (verifiedCount == stagedCount) {
                 Log.i(
                     TAG,
-                    "AIRI_PROOF EXEC_PREFS_MIGRATION_VERIFIED — " +
+                    "AIRI EXEC_PREFS_MIGRATION_VERIFIED — " +
                         "$verifiedCount/$stagedCount key(s) verified; " +
                         "clearing legacy plaintext file"
                 )
@@ -320,13 +321,13 @@ class ExecModePreferences(context: Context) {
                 context.deleteSharedPreferences(LEGACY_PREFS_FILE)
                 Log.i(
                     TAG,
-                    "AIRI_PROOF EXEC_PREFS_MIGRATION_COMPLETE — " +
+                    "AIRI EXEC_PREFS_MIGRATION_COMPLETE — " +
                         "legacy plaintext file deleted; migration finished"
                 )
             } else {
                 Log.e(
                     TAG,
-                    "AIRI_PROOF EXEC_PREFS_MIGRATION_PARTIAL — " +
+                    "AIRI EXEC_PREFS_MIGRATION_PARTIAL — " +
                         "$verifiedCount/$stagedCount key(s) verified; " +
                         "legacy plaintext file preserved for next-launch retry"
                 )
@@ -334,7 +335,7 @@ class ExecModePreferences(context: Context) {
         } catch (e: Exception) {
             Log.e(
                 TAG,
-                "AIRI_PROOF EXEC_PREFS_MIGRATION_ERROR — unexpected failure; " +
+                "AIRI EXEC_PREFS_MIGRATION_ERROR — unexpected failure; " +
                     "legacy plaintext file preserved. Cause: ${e.message}"
             )
         }

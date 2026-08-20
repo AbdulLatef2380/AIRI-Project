@@ -104,7 +104,7 @@ class PlannerAdaptationEngine(context: Context) {
         }
         store.setMaxStepsHint(maxSteps)
 
-        Log.i(TAG, "AIRI_PROOF ADAPTATION_INGESTED goalId=$goalId " +
+        Log.i(TAG, "AIRI ADAPTATION_INGESTED goalId=$goalId " +
             "confidence=${"%.2f".format(report.executionConfidence)} " +
             "overall=${"%.2f".format(overallConfidence)} " +
             "preferSimple=${store.getPreferSimpleSteps()} " +

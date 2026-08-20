@@ -40,6 +40,7 @@ class HotwordService : Service() {
     @Volatile private var audioRecord: AudioRecord? = null
     @Volatile private var captureThread: Thread? = null
     @Volatile private var running = false
+    @Volatile private var lastWakeAtMs = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -71,12 +72,12 @@ class HotwordService : Service() {
         val accessKey = PorcupineEngine.accessKey(this)
         val ppnFile   = PorcupineEngine.resolvePpnFile(this)
         if (accessKey.isBlank()) {
-            Log.w(TAG, "AIRI_PROOF HOTWORD_DISABLED reason=missing_access_key_and_oww_model — see VoiceSettings")
+            Log.w(TAG, "AIRI HOTWORD_DISABLED reason=missing_access_key_and_oww_model — see VoiceSettings")
             stopSelf()
             return START_NOT_STICKY
         }
         if (ppnFile == null) {
-            Log.w(TAG, "AIRI_PROOF HOTWORD_DISABLED reason=missing_ppn_and_oww_model — drop hey_airi.ppn or hey_airi.tflite into assets/voice/")
+            Log.w(TAG, "AIRI HOTWORD_DISABLED reason=missing_ppn_and_oww_model — drop hey_airi.ppn or hey_airi.tflite into assets/voice/")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -87,6 +88,12 @@ class HotwordService : Service() {
     // ── OpenWakeWord engine path ──────────────────────────────────────────
 
     private fun startWithOpenWakeWord(): Int {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "OpenWakeWord start denied: RECORD_AUDIO not granted")
+            stopSelf()
+            return START_NOT_STICKY
+        }
         val modelFile = OpenWakeWordEngine.resolveModelFile(this) ?: run {
             Log.w(TAG, "OWW model resolved to null — stopping")
             stopSelf()
@@ -140,7 +147,7 @@ class HotwordService : Service() {
         captureThread = kotlin.concurrent.thread(name = "AiriOWW", isDaemon = true) {
             try {
                 rec.startRecording()
-                Log.i(TAG, "AIRI_PROOF HOTWORD_STARTED engine=openWakeWord frameLength=$frameLength sampleRate=$sampleRate")
+                Log.i(TAG, "AIRI HOTWORD_STARTED engine=openWakeWord frameLength=$frameLength sampleRate=$sampleRate")
                 val frame   = ShortArray(frameLength)
                 // OWW output: single float score in [0,1]
                 val output  = Array(1) { FloatArray(1) }
@@ -155,7 +162,7 @@ class HotwordService : Service() {
                         interpreter.run(input, output)
                         val score = output[0][0]
                         if (score >= OpenWakeWordEngine.threshold) {
-                            Log.i(TAG, "AIRI_PROOF OWW_DETECTION score=$score")
+                            Log.i(TAG, "AIRI OWW_DETECTION score=$score")
                             fireWake(engine = "openWakeWord")
                         }
                     } catch (t: Throwable) {
@@ -175,6 +182,12 @@ class HotwordService : Service() {
     // ── Porcupine engine path ─────────────────────────────────────────────
 
     private fun startWithPorcupine(accessKey: String, ppnFile: java.io.File): Int {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "Porcupine start denied: RECORD_AUDIO not granted")
+            stopSelf()
+            return START_NOT_STICKY
+        }
         val pp = try {
             ai.picovoice.porcupine.Porcupine.Builder()
                 .setAccessKey(accessKey)
@@ -225,7 +238,7 @@ class HotwordService : Service() {
         captureThread = kotlin.concurrent.thread(name = "AiriPorcupine", isDaemon = true) {
             try {
                 rec.startRecording()
-                Log.i(TAG, "AIRI_PROOF HOTWORD_STARTED engine=porcupine frameLength=$frameLength sampleRate=$sampleRate")
+                Log.i(TAG, "AIRI HOTWORD_STARTED engine=porcupine frameLength=$frameLength sampleRate=$sampleRate")
                 val frame = ShortArray(frameLength)
                 while (running) {
                     val read = rec.read(frame, 0, frameLength)
@@ -245,15 +258,23 @@ class HotwordService : Service() {
     }
 
     private fun fireWake(engine: String = "unknown") {
-        Log.i(TAG, "AIRI_PROOF HOTWORD_DETECTED engine=$engine")
+        val now = System.currentTimeMillis()
+        synchronized(this) {
+            if (now - lastWakeAtMs < WAKE_COOLDOWN_MS) {
+                Log.d(TAG, "Hotword ignored during cooldown")
+                return
+            }
+            lastWakeAtMs = now
+        }
+        Log.i(TAG, "Hotword detected: engine=$engine")
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            action = ACTION_WAKE_WORD_TRIGGERED
             putExtra(EXTRA_FROM_WAKE_WORD, true)
         }
         if (launchIntent != null) {
             try { startActivity(launchIntent) } catch (_: Throwable) {}
         }
-        sendBroadcast(Intent(ACTION_WAKE_WORD).setPackage(packageName))
     }
 
     private fun startInForeground() {
@@ -297,9 +318,11 @@ class HotwordService : Service() {
     companion object {
         private const val TAG = "AIRI_VOICE"
         private const val CHANNEL_ID = "airi_hotword"
-        private const val NOTIF_ID   = 4711
+        private         const val NOTIF_ID   = 4711
+        private const val WAKE_COOLDOWN_MS = 2_500L
 
-        const val ACTION_WAKE_WORD     = "com.airi.assistant.HOTWORD_DETECTED"
+
+        const val ACTION_WAKE_WORD_TRIGGERED = "com.airi.assistant.action.WAKE_WORD_TRIGGERED"
         const val EXTRA_FROM_WAKE_WORD = "com.airi.assistant.FROM_WAKE_WORD"
 
         fun start(ctx: Context) {

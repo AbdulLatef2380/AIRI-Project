@@ -31,7 +31,7 @@ object VerificationTracker {
         proofChecks[normalized] = passed
         if (!proofEmitted && requiredProofChecks.all { proofChecks[it] == true }) {
             proofEmitted = true
-            Log.d("AIRI_PROOF", "SYSTEM FULLY VERIFIED")
+            Log.d("AIRI", "SYSTEM FULLY VERIFIED")
         }
     }
 

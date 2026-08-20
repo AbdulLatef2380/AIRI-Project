@@ -35,7 +35,7 @@ import kotlinx.coroutines.supervisorScope
 /**
  * UnifiedCognitiveLoop — the primary execution engine for TypedPlanGraph DAGs.
  *
- * ── PARALLEL WAVE EXECUTION (Phase 3 upgrade) ────────────────────────────────
+ * ── PARALLEL WAVE EXECUTION ( upgrade) ────────────────────────────────
  * Previously the inner loop was sequential (`for (node in ready) { ... }`),
  * meaning even independent DAG nodes ran one at a time.
  *
@@ -61,7 +61,7 @@ import kotlinx.coroutines.supervisorScope
  *   returning, so the early-exit happens AFTER all wave results are processed
  *   (prevents races where a slow node overwrites a fast node's Abort decision).
  *
- * ── REFLECTION LOOP (Phase 2) ─────────────────────────────────────────────────
+ * ── REFLECTION LOOP () ─────────────────────────────────────────────────
  * - [PlanQualityScorer.score] runs before the first wave. Plans scoring below
  *   the confidence threshold are rejected and the caller receives a failure
  *   result with a self-critique message, avoiding wasted execution of bad plans.
@@ -69,7 +69,7 @@ import kotlinx.coroutines.supervisorScope
  *   produces a [ReflectionReport] — failure pattern analysis, action-type
  *   success rates, self-critique text, and an updated confidence score.
  *
- * ── EXECUTION STATUS BUS (Phase 5) ───────────────────────────────────────────
+ * ── EXECUTION STATUS BUS () ───────────────────────────────────────────
  * [ExecutionStatusBus] is updated at every major lifecycle boundary so the UI
  * (ChatViewModel → ChatScreen) can render a live execution progress indicator
  * without polling or direct coupling to UCL.
@@ -106,21 +106,6 @@ class UnifiedCognitiveLoop {
      */
     @Volatile
     var orchestratorProvider: (suspend (String, (String) -> Unit, (String) -> Unit) -> Unit)? = null
-
-    /**
-     * Adaptation engine — DISABLED in Phase 1.
-     *
-     * [PlannerAdaptationEngine] was removed in the Phase 1 dead-architecture
-     * cleanup. The adaptation feedback loop will be re-introduced in Phase 3.
-     * Typed as the interface it implemented so all existing ?. call sites compile.
-     */
-    private val adaptationEngine: AdaptationEngineStub? = null
-
-    /** Minimal interface stub so adaptationEngine?. call sites compile after Phase 1 deletion. */
-    private interface AdaptationEngineStub {
-        fun ingest(report: Any?, nodeResults: Any?, goalId: String) {}
-        fun applyToGenerator(generator: PlanGenerator) {}
-    }
 
     // ── Public entry points ───────────────────────────────────────────────────
 
@@ -169,7 +154,7 @@ class UnifiedCognitiveLoop {
         graph:     TypedPlanGraph,
         workspace: SandboxWorkspace = WorkspaceRegistry.get(graph.goalId)
     ): GraphExecutionResult {
-        // ── Phase 2: Pre-execution plan quality gate ──────────────────────────
+        // ── : Pre-execution plan quality gate ──────────────────────────
         val qualityScore = planQualityScorer.score(graph)
         if (qualityScore.confidence < MIN_PLAN_CONFIDENCE) {
             Log.w(TAG, "PLAN_QUALITY_GATE_REJECT confidence=${qualityScore.confidence} reason=${qualityScore.critique}")
@@ -186,7 +171,7 @@ class UnifiedCognitiveLoop {
             )
         }
 
-        // ── Phase 5: Signal graph start to UI ────────────────────────────────
+        // ── : Signal graph start to UI ────────────────────────────────
         val initialSnapshot = graph.snapshot()
         ExecutionStatusBus.onGraphStarted(
             goalDescription = graph.description.ifBlank { graph.goalId },
@@ -229,7 +214,7 @@ class UnifiedCognitiveLoop {
 
                 Log.i(TAG, "WAVE_START nodes=${waveNodes.size} ids=${waveNodes.map { it.id }}")
 
-                // ── Phase 5: Signal wave start to UI ─────────────────────────
+                // ── : Signal wave start to UI ─────────────────────────
                 ExecutionStatusBus.onWaveStarted(
                     nodeIds     = waveNodes.map { it.id },
                     nodeActions = waveNodes.map { it.activeAction }
@@ -265,7 +250,7 @@ class UnifiedCognitiveLoop {
                     if (result.success) {
                         graph.markDone(node.id, result.message)
                         nodeResults.add(NodeExecutionRecord(node, true, result.message))
-                        Log.i(TAG, "AIRI_PROOF GRAPH_NODE_DONE id=${node.id} latency=${latency}ms")
+                        Log.i(TAG, "AIRI GRAPH_NODE_DONE id=${node.id} latency=${latency}ms")
                         
                         ExecutionStatusBus.onNodeCompleted(node.id, ++nodesCompleted)
                     } else {
@@ -314,26 +299,12 @@ class UnifiedCognitiveLoop {
         val finalSnapshot = graph.snapshot()
         hub?.updateGraphSnapshot(finalSnapshot)
 
-        // ── Phase 2: Post-execution reflection ────────────────────────────────
+        // ── : Post-execution reflection ────────────────────────────────
         ExecutionStatusBus.onReflecting()
         val reflection = reflector.reflect(nodeResults, finalSnapshot)
-        Log.i(TAG, "REFLECTION confidence=${reflection.executionConfidence} critique=${reflection.critiqueText.take(80)}")
+        Log.i(TAG, "REFLECTION confidence=${reflection.executionConfidence} critiqueChars=${reflection.critiqueText.length}")
 
-        // ── Phase 1–4: Closed-loop adaptation ─────────────────────────────────
-        // Ingest every execution result into the persistent adaptation engine so
-        // future plans avoid failed action types, quarantine unreliable agents,
-        // prefer effective recovery strategies, and cap complexity under stress.
-        adaptationEngine?.ingest(
-            report      = reflection,
-            nodeResults = nodeResults,
-            goalId      = graph.goalId
-        )
-        // Immediately push updated hints back into the planGenerator so the NEXT
-        // call to createDAGPlanFromLLM on this UCL instance already reflects
-        // what was just learned (not just after the next restart).
-        adaptationEngine?.applyToGenerator(planGenerator)
-
-        // ── Phase 5: Signal graph completion to UI ────────────────────────────
+        // ── : Signal graph completion to UI ────────────────────────────
         val graphSuccess = finalSnapshot.failedNodes == 0
         ExecutionStatusBus.onGraphCompleted(graphSuccess)
 
@@ -352,10 +323,6 @@ class UnifiedCognitiveLoop {
     private suspend fun processPercept(input: CognitiveInput): CognitiveResult {
         val worldState = captureWorldState()
         val promptJson = buildPromptJson(input)
-        // Inject all accumulated learning into planGenerator before each plan.
-        // Covers the cross-session case: if the engine is loaded from SharedPreferences,
-        // the first plan of a new session already reflects prior failure history.
-        adaptationEngine?.applyToGenerator(planGenerator)
         val actionPlan = planGenerator.createDAGPlanFromLLM(promptJson, input.primaryText)
         return executeActionPlan(actionPlan, worldState)
     }
@@ -422,7 +389,7 @@ class UnifiedCognitiveLoop {
                         is AgentEvent.Complete      -> resultText = event.result
                         is AgentEvent.PartialResult -> resultText += event.text
 
-                        // ── Phase 3: Real Delegate handler ────────────────────────
+                        // ── : Real Delegate handler ────────────────────────
                         // Previously this branch was `else -> Unit` — Delegate events
                         // were silently dropped, leaving resultText = "" and the
                         // node completing with "[delegated to LLM]".
@@ -438,7 +405,7 @@ class UnifiedCognitiveLoop {
                                 Log.w(TAG, "runNode delegate blocked: nestingDepth=${context.nestingDepth}")
                                 resultText = "delegation blocked (nesting limit)"
                             } else {
-                                Log.i(TAG, "runNode delegating to ${event.targetAgentId}: ${event.subInput.take(60)}")
+                                Log.i(TAG, "runNode delegating target=${event.targetAgentId} inputChars=${event.subInput.length}")
                                 val provider = orchestratorProvider
                                 if (provider != null) {
                                     val accumulated = StringBuilder()

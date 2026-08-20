@@ -26,8 +26,8 @@ import kotlinx.coroutines.launch
  * any mode change is applied. This prevents single-spike false downgrades
  * caused by transient GC or OS scheduling bursts.
  *
- * All decisions emit AIRI_PROOF log tags so they are visible in the standard
- * `adb logcat | grep AIRI_PROOF` audit stream used throughout the project.
+ * All decisions emit AIRI log tags so they are visible in the standard
+ * `adb logcat | grep AIRI` audit stream used throughout the project.
  *
  * ── Serialization contract ──────────────────────────────────────────────────
  * [applyRuntimeMode] is called on [LlamaManager.scope] (single-threaded
@@ -103,7 +103,7 @@ class RuntimeSupervisor(
             Log.d(TAG, "SUPERVISOR_START_SKIPPED reason=already_running")
             return
         }
-        Log.i("AIRI_PROOF",
+        Log.i("AIRI",
             "SUPERVISOR_START poll_interval_ms=$POLL_INTERVAL_MS " +
             "confirm_cycles=$CONFIRM_CYCLES " +
             "mem_critical_mb=$MEM_CRITICAL_MB mem_low_mb=$MEM_LOW_MB")
@@ -127,7 +127,7 @@ class RuntimeSupervisor(
                         // No change needed. If we had been building confirmation,
                         // the pressure has resolved — reset the counter.
                         if (pendingMode != null) {
-                            Log.i("AIRI_PROOF",
+                            Log.i("AIRI",
                                 "SUPERVISOR_PRESSURE_RESOLVED " +
                                 "was_pending=${pendingMode?.name} " +
                                 "current_effective=${lastAppliedMode?.name}")
@@ -141,7 +141,7 @@ class RuntimeSupervisor(
                     if (target == pendingMode) {
                         // Same pressure level as last poll — accumulate.
                         pressureCycles++
-                        Log.i("AIRI_PROOF",
+                        Log.i("AIRI",
                             "SUPERVISOR_PRESSURE_CONFIRM " +
                             "cycle=$pressureCycles/$CONFIRM_CYCLES " +
                             "pending=${target.name} " +
@@ -151,7 +151,7 @@ class RuntimeSupervisor(
                         // New pressure level observed (or first observation).
                         pressureCycles = 1
                         pendingMode = target
-                        Log.i("AIRI_PROOF",
+                        Log.i("AIRI",
                             "SUPERVISOR_PRESSURE_DETECTED " +
                             "mode=${target.name} " +
                             "user=${userMode.name} " +
@@ -160,7 +160,7 @@ class RuntimeSupervisor(
 
                     if (pressureCycles >= CONFIRM_CYCLES) {
                         val reason = buildReason()
-                        Log.i("AIRI_PROOF",
+                        Log.i("AIRI",
                             "SUPERVISOR_MODE_CHANGE " +
                             "from=${lastAppliedMode?.name ?: "none"} " +
                             "to=${target.name} " +
@@ -194,7 +194,7 @@ class RuntimeSupervisor(
         pollJob?.cancel()
         pollJob = null
         lastAppliedMode = null
-        Log.i("AIRI_PROOF", "SUPERVISOR_STOP was_active=$wasActive")
+        Log.i("AIRI", "SUPERVISOR_STOP was_active=$wasActive")
     }
 
     // ── Sampling helpers ──────────────────────────────────────────────────────
@@ -227,7 +227,7 @@ class RuntimeSupervisor(
         return try {
             val pm     = context.getSystemService(Context.POWER_SERVICE) as PowerManager
             val status = pm.currentThermalStatus
-            Log.i("AIRI_PROOF", "SUPERVISOR_THERMAL status=$status")
+            Log.i("AIRI", "SUPERVISOR_THERMAL status=$status")
             when {
                 status >= THERMAL_SEVERE   -> PerformanceMode.FAST
                 status >= THERMAL_MODERATE -> PerformanceMode.BALANCED
@@ -251,7 +251,7 @@ class RuntimeSupervisor(
             am.getMemoryInfo(info)
             val availMb = (info.availMem / (1024L * 1024L)).toInt()
             val lowMem  = info.lowMemory
-            Log.i("AIRI_PROOF",
+            Log.i("AIRI",
                 "SUPERVISOR_MEMORY avail_mb=$availMb low_mem=$lowMem")
             when {
                 lowMem || availMb < MEM_CRITICAL_MB -> PerformanceMode.FAST
@@ -266,7 +266,7 @@ class RuntimeSupervisor(
 
     /**
      * Build a concise reason string for the current poll cycle that surfaces
-     * in AIRI_PROOF logs and in the consumer callback. Re-samples the
+     * in AIRI logs and in the consumer callback. Re-samples the
      * subsystems so the reason reflects the confirmed state, not the initial
      * detection state.
      */

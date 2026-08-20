@@ -61,7 +61,7 @@ class ResearchAgent(
 
     override fun execute(input: String, context: SubAgentContext): Flow<AgentEvent> = flow {
         val start = System.currentTimeMillis()
-        Log.i(TAG, "ResearchAgent.execute input='${input.take(80)}'")
+        Log.i(TAG, "RESEARCH_AGENT_EXECUTE inputChars=${input.length}")
 
         emit(AgentEvent.Progress("Understanding your research request…", 5, "parse"))
 
@@ -98,7 +98,7 @@ class ResearchAgent(
 
         if (searchResult.success && searchResult.summary.isNotBlank() &&
             !searchResult.summary.startsWith("No instant answer")) {
-            Log.i(TAG, "DuckDuckGo hit: ${searchResult.summary.take(80)}")
+            Log.i(TAG, "RESEARCH_SEARCH_RESULT provider=duckduckgo summaryChars=${searchResult.summary.length}")
             emit(AgentEvent.Progress("Search result retrieved.", 65, "search_done"))
 
             // Synthesize with real search data injected

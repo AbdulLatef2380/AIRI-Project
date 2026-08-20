@@ -13,16 +13,16 @@ data class ActivityEvent(
 
 enum class ActivityCategory(val label: String, val emoji: String) {
     REASONING    ("Reasoning",     "◉"),
-    TOOL         ("Tool",          "⚙"),
-    CONNECTOR    ("Connector",     "🔌"),
-    VOICE        ("Voice",         "🎙"),
-    ROUTING      ("Routing",       "🔀"),
-    MEMORY       ("Memory",        "💾"),
-    SANDBOX      ("Sandbox",       "📦"),
-    ORCHESTRATION("Orchestration", "⚙"),
+    TOOL         ("Tool",          ""),
+    CONNECTOR    ("Connector",     ""),
+    VOICE        ("Voice",         ""),
+    ROUTING      ("Routing",       ""),
+    MEMORY       ("Memory",        ""),
+    SANDBOX      ("Sandbox",       ""),
+    ORCHESTRATION("Orchestration", ""),
     MODEL        ("Model",         "◈"),
-    ACCESSIBILITY("Accessibility", "♿"),
-    SYSTEM       ("System",        "📡"),
+    ACCESSIBILITY("Accessibility", ""),
+    SYSTEM       ("System",        ""),
     CONTEXT_RESET("Context Reset", "!")
 }
 

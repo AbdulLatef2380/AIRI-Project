@@ -34,7 +34,7 @@ interface AiriSkill {
     val category: String get() = "UTILITY"
 
     /** Emoji icon for the UI card. */
-    val iconEmoji: String get() = "🔧"
+    val iconEmoji: String get() = ""
 
     // ── Status ────────────────────────────────────────────────────────────────
 

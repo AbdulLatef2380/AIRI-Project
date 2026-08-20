@@ -79,7 +79,7 @@ class ReleaseReadinessReport(private val context: Context) {
 
     fun generate() {
         scope.launch {
-            Log.i(TAG, "AIRI_PROOF RELEASE_REPORT_GENERATING")
+            Log.i(TAG, "AIRI RELEASE_REPORT_GENERATING")
             val report = buildReport()
             _report.value = report
             logReport(report)
@@ -134,8 +134,9 @@ class ReleaseReadinessReport(private val context: Context) {
         }
 
         // ── Voice (15 pts) ─────────────────────────────────────────────────
-        val voiceHealthy = com.airi.assistant.core.ServiceLocator.voiceRuntimeInspector
-            .health.value?.healthy != false
+        val voiceHealthy = false
+        score -= 15
+        warnings.add("Voice runtime health is not measured in this build")
 
         // ── Thermal (10 pts) ───────────────────────────────────────────────
         // Wire ThermalProfiler singleton when available

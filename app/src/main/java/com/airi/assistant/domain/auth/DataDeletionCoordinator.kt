@@ -167,7 +167,7 @@ class DataDeletionCoordinator(
         val failures  = mutableListOf<StepFailure>()
         val completed = mutableListOf<Step>()
 
-        Log.i(TAG, "AIRI_PROOF GDPR_DELETE_INITIATED")
+        Log.i(TAG, "AIRI GDPR_DELETE_INITIATED")
         auditRepository.log("GDPR", "GDPR_DELETE_INITIATED", AuditLogEntity.Level.WARN)
 
         // ── Step 1: Stop background workers ──────────────────────────────────
@@ -183,13 +183,13 @@ class DataDeletionCoordinator(
         if (authError != null) {
             val needsReauth = authError.contains("requires recent", ignoreCase = true) ||
                               authError.contains("RecentLoginRequired",  ignoreCase = true)
-            Log.w(TAG, "AIRI_PROOF GDPR_DELETE_FIREBASE_FAILED requiresReauth=$needsReauth reason=$authError")
+            Log.w(TAG, "AIRI GDPR_DELETE_FIREBASE_FAILED requiresReauth=$needsReauth errorChars=${authError.length}")
             auditRepository.error("GDPR",
-                "GDPR_DELETE_FIREBASE_FAILED requiresReauth=$needsReauth reason=$authError")
+                "GDPR_DELETE_FIREBASE_FAILED requiresReauth=$needsReauth errorChars=${authError.length}")
             return DeletionResult.FirebaseAuthFailed(authError, needsReauth)
         }
         completed += Step.FIREBASE_ACCOUNT_DELETION
-        Log.i(TAG, "AIRI_PROOF GDPR_DELETE_FIREBASE_SUCCESS")
+        Log.i(TAG, "AIRI GDPR_DELETE_FIREBASE_SUCCESS")
         auditRepository.log("GDPR", "GDPR_DELETE_FIREBASE_SUCCESS", AuditLogEntity.Level.WARN)
 
         // ── Steps 3–8: Best-effort local cleanup ──────────────────────────────
@@ -255,14 +255,14 @@ class DataDeletionCoordinator(
         }
 
         return if (failures.isEmpty()) {
-            Log.i(TAG, "AIRI_PROOF GDPR_DELETE_SUCCESS steps=${completed.size}")
+            Log.i(TAG, "AIRI GDPR_DELETE_SUCCESS steps=${completed.size}")
             auditRepository.log("GDPR", "GDPR_DELETE_SUCCESS steps=${completed.size}",
                 AuditLogEntity.Level.WARN)
             DeletionResult.Success
         } else {
             val failedNames  = failures.joinToString { it.step.name }
             val successCount = completed.size
-            Log.w(TAG, "AIRI_PROOF GDPR_DELETE_PARTIAL succeeded=$successCount failed=${failures.size} steps=$failedNames")
+            Log.w(TAG, "AIRI GDPR_DELETE_PARTIAL succeeded=$successCount failed=${failures.size} steps=$failedNames")
             auditRepository.warn("GDPR",
                 "GDPR_DELETE_PARTIAL succeeded=$successCount failed=${failures.size} failedSteps=$failedNames")
             DeletionResult.PartialSuccess(completed, failures)
@@ -311,10 +311,10 @@ class DataDeletionCoordinator(
             }
             .onFailure { t ->
                 failures += StepFailure(step, t)
-                Log.e(TAG, "GDPR_STEP_FAILED step=${step.name} reason=${t.message}", t)
+                Log.e(TAG, "GDPR_STEP_FAILED step=${step.name} type=${t.javaClass.simpleName}")
                 runCatching {
                     auditRepository.error("GDPR",
-                        "GDPR_STEP_FAILED step=${step.name} reason=${t.javaClass.simpleName}: ${t.message}")
+                        "GDPR_STEP_FAILED step=${step.name} type=${t.javaClass.simpleName}")
                 }
             }
     }

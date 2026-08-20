@@ -231,26 +231,36 @@ object EmbeddedProviderConfig {
      * True when the user has stored a key for [config].
      * Keyless providers ([ProviderTier.LOCAL_SERVER]) always return true.
      */
-    fun hasKeyFor(context: Context, config: ProviderConfig): Boolean {
-        if (config.tier == ProviderTier.LOCAL_SERVER) return true
-        if (config.keyPrefsKey.isBlank()) return false
-        val stored = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(config.keyPrefsKey, null)
-        return !stored.isNullOrBlank()
-    }
+    fun hasKeyFor(context: Context, config: ProviderConfig): Boolean =
+        config.tier == ProviderTier.LOCAL_SERVER || !getKey(context, config).isNullOrBlank()
 
     fun saveKey(context: Context, config: ProviderConfig, key: String) {
         if (config.keyPrefsKey.isBlank()) return
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(config.keyPrefsKey, key.trim())
-            .apply()
+        val store = com.airi.assistant.execution.security.SecureApiKeyStore(context)
+        store.saveCustomEndpointKey(keyStorageId(config), key)
+        clearLegacyKey(context, config)
     }
 
     fun getKey(context: Context, config: ProviderConfig): String? {
         if (config.keyPrefsKey.isBlank()) return null
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val store = com.airi.assistant.execution.security.SecureApiKeyStore(context)
+        store.getCustomEndpointKey(keyStorageId(config))?.let { return it }
+
+        val legacy = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(config.keyPrefsKey, null)
             ?.takeIf { it.isNotBlank() }
+            ?: return null
+        store.saveCustomEndpointKey(keyStorageId(config), legacy)
+        clearLegacyKey(context, config)
+        return legacy
+    }
+
+    private fun keyStorageId(config: ProviderConfig): String = "builtin_${config.id}"
+
+    private fun clearLegacyKey(context: Context, config: ProviderConfig) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .remove(config.keyPrefsKey)
+            .apply()
     }
 }

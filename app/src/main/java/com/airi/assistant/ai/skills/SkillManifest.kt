@@ -20,7 +20,7 @@ import org.json.JSONObject
  *   "author":            "AIRI Official",
  *   "category":          "SEARCH",
  *   "is_official":       true,
- *   "icon_emoji":        "🔍",
+ *   "icon_emoji":        "",
  *   "permissions":       ["INTERNET"],
  *   "memory_access":     "READ_WRITE",
  *   "model_access":      "NONE",
@@ -49,7 +49,7 @@ data class SkillManifest(
     val author:            String,
     val category:          String             = "UTILITY",
     val isOfficial:        Boolean            = false,
-    val iconEmoji:         String             = "🔧",
+    val iconEmoji:         String             = "",
     val permissions:       List<String>       = emptyList(),
     val memoryAccess:      SkillMemoryAccess  = SkillMemoryAccess.NONE,
     val modelAccess:       SkillModelAccess   = SkillModelAccess.NONE,
@@ -78,7 +78,9 @@ data class SkillManifest(
     /** Short changelog text for the current version. */
     val changelog:         String?            = null,
     /** Skill homepage (marketing / documentation landing page). */
-    val homepage:          String?            = null
+    val homepage:          String?            = null,
+    /** HTTPS API endpoint invoked by the runtime for dynamically installed skills. */
+    val endpoint:          String?            = null
 ) {
     data class ToolDef(
         val name:        String,
@@ -138,6 +140,7 @@ data class SkillManifest(
         supportUrl?.let { put("support_url", it) }
         changelog?.let  { put("changelog",   it) }
         homepage?.let   { put("homepage",    it) }
+        endpoint?.let   { put("endpoint",    it) }
         entrypoint?.let    { put("entrypoint",      it) }
         repositoryUrl?.let { put("repository_url",  it) }
     }
@@ -190,7 +193,7 @@ data class SkillManifest(
                 author            = json.optString("author", "Unknown"),
                 category          = json.optString("category", "UTILITY"),
                 isOfficial        = json.optBoolean("is_official"),
-                iconEmoji         = json.optString("icon_emoji", "🔧"),
+                iconEmoji         = json.optString("icon_emoji", ""),
                 permissions       = parseStringList(json.optJSONArray("permissions")),
                 memoryAccess      = runCatching {
                     SkillMemoryAccess.valueOf(json.optString("memory_access", "NONE").uppercase())
@@ -214,7 +217,8 @@ data class SkillManifest(
                 checksum          = json.optString("checksum").ifBlank { null },
                 supportUrl        = json.optString("support_url").ifBlank { null },
                 changelog         = json.optString("changelog").ifBlank { null },
-                homepage          = json.optString("homepage").ifBlank { null }
+                homepage          = json.optString("homepage").ifBlank { null },
+                endpoint          = json.optString("endpoint").ifBlank { null }
             )
         }
 

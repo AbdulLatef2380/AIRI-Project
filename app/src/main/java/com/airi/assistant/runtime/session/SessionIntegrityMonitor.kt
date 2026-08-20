@@ -72,7 +72,7 @@ object SessionIntegrityMonitor {
         sessionStartMs.set(System.currentTimeMillis())
         lastHeapMb = heapUsedMb()
         heartbeatJob = scope.launch {
-            Log.i(TAG, "AIRI_PROOF SESSION_MONITOR_STARTED")
+            Log.i(TAG, "AIRI SESSION_MONITOR_STARTED")
             while (isActive) {
                 val t0 = System.currentTimeMillis()
                 delay(HEARTBEAT_INTERVAL_MS)
@@ -84,7 +84,7 @@ object SessionIntegrityMonitor {
 
     fun stop() {
         heartbeatJob?.cancel()
-        Log.i(TAG, "AIRI_PROOF SESSION_MONITOR_STOPPED age=${sessionAgeMs()}ms")
+        Log.i(TAG, "AIRI SESSION_MONITOR_STOPPED age=${sessionAgeMs()}ms")
     }
 
     // ── Coroutine tracking ─────────────────────────────────────────────────
@@ -153,15 +153,15 @@ object SessionIntegrityMonitor {
         _snapshot.value = snap
 
         if (!healthy) {
-            Log.w(TAG, "AIRI_PROOF SESSION_DEGRADATION heartbeatLag=${heartbeatLatencyMs}ms " +
+            Log.w(TAG, "AIRI SESSION_DEGRADATION heartbeatLag=${heartbeatLatencyMs}ms " +
                     "heapDelta=${delta}MB orphans=${orphans.size} stuckAgents=${stuckAgents.size} " +
                     "saturated=$saturated")
         } else {
-            Log.i(TAG, "AIRI_PROOF SESSION_HEALTHY age=${sessionAgeMs()}ms heap=${heapMb}MB")
+            Log.i(TAG, "AIRI SESSION_HEALTHY age=${sessionAgeMs()}ms heap=${heapMb}MB")
         }
 
         if (liveCoroutines.size > ORPHAN_WARN_COUNT) {
-            Log.w(TAG, "AIRI_PROOF HIGH_COROUTINE_COUNT count=${liveCoroutines.size}")
+            Log.w(TAG, "AIRI HIGH_COROUTINE_COUNT count=${liveCoroutines.size}")
         }
     }
 

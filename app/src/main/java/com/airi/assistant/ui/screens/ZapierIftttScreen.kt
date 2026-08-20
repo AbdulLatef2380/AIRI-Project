@@ -131,7 +131,7 @@ private fun ZapierTab(
             ConnectorStatusCard(
                 name        = "Zapier",
                 description = "Connect AIRI to 6000+ apps via Zapier automations",
-                iconEmoji   = "⚙",
+                iconEmoji   = "",
                 accentColor = Color(0xFFFF4A00),
                 state       = state
             )
@@ -144,19 +144,23 @@ private fun ZapierTab(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(stringResource(R.string.zapier_auth_section), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                     Text(
-                        "Zapier uses OAuth 2.0. Clicking 'Connect' opens Zapier's authorization page in your browser.",
+                        stringResource(R.string.zapier_auth_description),
                         fontSize = 13.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 18.sp
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (!state.connected) {
                             Button(
                                 onClick = {
+                                    if (!connector.isOAuthConfigured()) {
+                                        statusMessage = context.getString(R.string.zapier_oauth_not_configured)
+                                        return@Button
+                                    }
                                     isConnecting = true
                                     val authUrl = connector.buildAuthUrl()
-                                    val intent  = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
                                     context.startActivity(intent)
                                     isConnecting = false
-                                    statusMessage = "Browser opened — authorize AIRI in Zapier, then return."
+                                    statusMessage = context.getString(R.string.zapier_authorization_started)
                                 },
                                 enabled = !isConnecting,
                                 colors  = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4A00))
@@ -168,7 +172,12 @@ private fun ZapierTab(
                             }
                         } else {
                             OutlinedButton(
-                                onClick = { scope.launch { connector.disconnect(); statusMessage = "Disconnected from Zapier." } }
+                                onClick = {
+                                    scope.launch {
+                                        connector.disconnect()
+                                        statusMessage = context.getString(R.string.zapier_disconnected)
+                                    }
+                                }
                             ) {
                                 Icon(Icons.Default.LinkOff, null, Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
@@ -225,7 +234,7 @@ private fun ZapierTab(
                         value         = testHookUrl,
                         onValueChange = { testHookUrl = it },
                         label         = { Text(stringResource(R.string.zapier_hook_url_label)) },
-                        placeholder   = { Text("https://hooks.zapier.com/hooks/catch/...") },
+                        placeholder = { Text(stringResource(R.string.zapier_webhook_placeholder)) },
                         modifier      = Modifier.fillMaxWidth(),
                         singleLine    = true,
                         colors        = inputColors()
@@ -293,7 +302,7 @@ private fun IftttTab(
             ConnectorStatusCard(
                 name        = "IFTTT",
                 description = "Trigger IFTTT applets and Maker Webhooks from AIRI",
-                iconEmoji   = "🔗",
+                iconEmoji   = "",
                 accentColor = Color(0xFF00C3E3),
                 state       = state
             )
@@ -409,11 +418,11 @@ private fun IftttTab(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.ifttt_how_section), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                     val useCases = listOf(
-                        "📧" to "Send email alerts when an agent task completes",
+                        "" to "Send email alerts when an agent task completes",
                         "•" to "Control smart lights based on AIRI reminders",
                         "•" to "Log AIRI messages to Google Sheets",
                         "•" to "Send iOS/Android push notifications from AIRI",
-                        "🔔" to "Post to Slack when credits run low"
+                        "" to "Post to Slack when credits run low"
                     )
                     useCases.forEach { (emoji, desc) ->
                         Row(verticalAlignment = Alignment.CenterVertically) {

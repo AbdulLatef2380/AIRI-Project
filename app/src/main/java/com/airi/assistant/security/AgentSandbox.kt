@@ -21,7 +21,7 @@ import com.airi.assistant.telemetry.PrivacyTelemetryReporter
  *      can be rolled back on [SandboxViolationException].
  *   4. Catches security violations, emits telemetry, rolls back workspace,
  *      and re-throws as [SandboxViolationException].
- *   5. Logs every entry/exit with AIRI_PROOF tag for audit.
+ *   5. Logs every entry/exit with AIRI tag for audit.
  *
  * ── WORKSPACE ─────────────────────────────────────────────────────────────
  *
@@ -65,12 +65,12 @@ class AgentSandbox(
         requiredPermissions: Set<ScopedPermissionRegistry.AgentPermission> = emptySet(),
         block:               suspend (SandboxContext) -> T
     ): T {
-        LoggingService.info(TAG, "AIRI_PROOF SANDBOX_ENTER agent=$agentId goal=$goalId required=$requiredPermissions")
+        LoggingService.info(TAG, "AIRI SANDBOX_ENTER agent=$agentId goal=$goalId required=$requiredPermissions")
 
         requiredPermissions.forEach { perm ->
             if (!registry.check(agentId, perm)) {
                 val msg = "Sandbox denied: agent=$agentId missing permission=$perm"
-                LoggingService.warn(TAG, "AIRI_PROOF SANDBOX_DENIED agent=$agentId perm=$perm")
+                LoggingService.warn(TAG, "AIRI SANDBOX_DENIED agent=$agentId perm=$perm")
                 telemetry.report(AgentTelemetryEvent.AgentFailed(agentId, "PERMISSION_DENIED_$perm"))
                 throw SandboxViolationException(msg)
             }
@@ -88,16 +88,16 @@ class AgentSandbox(
         return try {
             val result = block(ctx)
             workspace.log(ActionCategory.DECISION, agentId, "sandbox_exit_ok")
-            LoggingService.info(TAG, "AIRI_PROOF SANDBOX_EXIT_OK agent=$agentId goal=$goalId")
+            LoggingService.info(TAG, "AIRI SANDBOX_EXIT_OK agent=$agentId goal=$goalId")
             result
         } catch (e: ScopedPermissionRegistry.PermissionDeniedException) {
-            LoggingService.warn(TAG, "AIRI_PROOF SANDBOX_RUNTIME_VIOLATION agent=$agentId msg=${e.message}")
+            LoggingService.warn(TAG, "AIRI SANDBOX_RUNTIME_VIOLATION agent=$agentId msg=${e.message}")
             telemetry.report(AgentTelemetryEvent.AgentFailed(agentId, "RUNTIME_PERMISSION_DENIED"))
             workspace.logError(agentId, "RUNTIME_PERMISSION_DENIED: ${e.message}")
             workspace.rollback(snap.id)
             throw SandboxViolationException("Runtime permission violation in agent=$agentId", e)
         } catch (e: ExecutionFirewall.UnknownToolException) {
-            LoggingService.warn(TAG, "AIRI_PROOF SANDBOX_UNKNOWN_TOOL agent=$agentId msg=${e.message}")
+            LoggingService.warn(TAG, "AIRI SANDBOX_UNKNOWN_TOOL agent=$agentId msg=${e.message}")
             telemetry.report(AgentTelemetryEvent.AgentFailed(agentId, "UNKNOWN_TOOL"))
             workspace.logError(agentId, "UNKNOWN_TOOL: ${e.message}")
             workspace.rollback(snap.id)

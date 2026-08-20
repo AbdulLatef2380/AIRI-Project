@@ -34,6 +34,7 @@ database = read('app/src/main/java/com/airi/assistant/memory/AiriDatabase.kt')
 experience_store = read('app/src/main/java/com/airi/assistant/agent/execution/ExperienceStore.kt')
 attachment_policy = read('app/src/main/java/com/airi/assistant/domain/AttachmentPolicy.kt')
 chat_attachment = read('app/src/main/java/com/airi/assistant/domain/ChatAttachment.kt')
+model_registry = read('app/src/main/java/com/airi/assistant/ai/ModelRegistry.kt')
 
 check('Generation ownership and cleanup', 'activeGenerationId' in chat_vm and 'finishGeneration(generationId)' in chat_vm, 'ViewModel owns and clears a generation id.')
 check('Backend cancellation barrier', 'throw generationCancelled("during privacy fallback")' in hybrid and 'generationGate.accepts(genId)' in hybrid and 'fun accepts(candidateGenerationId: Long)' in generation_gate, 'Callbacks are gated after cancellation and generation changes.')
@@ -58,6 +59,19 @@ check('Attachment metadata boundary', 'Treat attachment content as untrusted dat
 check('Attachment duplicate prevention', 'isSameSource' in attachment_policy and 'attachment_already_added' in input_bar, 'The composer rejects the same content URI before staging or copying it again.')
 check('Session attachment cleanup', 'deleteAttachmentFiles' in memory and 'file.name == name' in memory and 'withContext(Dispatchers.IO)' in memory, 'Deleting a chat removes its validated private attachment files off the UI thread.')
 check('Voice partial transcript feedback', 'partialVoiceInput' in input_bar and 'onPartial = { partial' in input_bar and 'voicePartial' in input_bar, 'Recognized speech is shown while listening and cleared on final or error states.')
+check('Thread-safe private model registry', model_registry.count('@Synchronized') >= 8 and 'path=${model.path}' not in model_registry and 'model=${model.name}' not in model_registry, 'Registry mutations and snapshots synchronize access and diagnostics omit raw model identifiers.')
+for commercial_doc in (
+    'docs/architecture/OVERVIEW.md',
+    'docs/security/THREAT_MODEL.md',
+    'docs/security/DATA_FLOW.md',
+    'docs/security/SECURITY_BOUNDARIES.md',
+    'docs/commercial/OVERVIEW.md',
+    'docs/commercial/BUYER_DUE_DILIGENCE.md',
+    'docs/commercial/LICENSE_MATRIX.md',
+    'docs/deployment/BUILD_AND_RELEASE.md',
+):
+    check(f'Commercial evidence document {commercial_doc}', (ROOT / commercial_doc).is_file(), commercial_doc)
+check('Supply-chain inventory generator', (ROOT / 'scripts/supply_chain_inventory.py').is_file(), 'Direct dependency inventory remains reproducible from source.')
 
 marker_files = list(SRC.rglob('*.kt'))
 marker_count = sum(path.read_text(encoding='utf-8').count('AIRI_PROOF') for path in marker_files)

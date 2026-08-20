@@ -668,6 +668,7 @@
     <string name="attach_video">视频</string>
     <string name="attach_text">文本</string>
     <string name="attachment_limit_reached">每条消息最多可添加 6 个附件。</string>
+    <string name="attachment_already_added">此附件已添加到消息中。</string>
     <string name="attachment_too_large">此附件超过 25 MB。</string>
     <string name="text_attachment_too_large">文本附件不得超过 512 KB。</string>
     <string name="attachment_type_image">图片</string>

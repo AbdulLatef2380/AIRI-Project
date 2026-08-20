@@ -805,6 +805,7 @@
     <string name="attach_video">فيديو</string>
     <string name="attach_text">نص</string>
     <string name="attachment_limit_reached">يمكنك إضافة ما يصل إلى 6 مرفقات في الرسالة الواحدة.</string>
+    <string name="attachment_already_added">هذا المرفق موجود بالفعل في الرسالة.</string>
     <string name="attachment_too_large">حجم هذا المرفق أكبر من 25 ميغابايت.</string>
     <string name="text_attachment_too_large">يجب ألا يتجاوز حجم المرفقات النصية 512 كيلوبايت.</string>
     <string name="attachment_type_image">صورة</string>

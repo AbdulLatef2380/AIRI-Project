@@ -41,6 +41,18 @@ class AttachmentPolicyTest {
     }
 
     @Test
+    fun recognizesOnlyTheSameNonBlankUriAsADuplicateSource() {
+        assertTrue(
+            AttachmentPolicy.isSameSource(
+                "content://provider/document/42",
+                "content://provider/document/42"
+            )
+        )
+        assertTrue(!AttachmentPolicy.isSameSource("content://provider/document/42", "content://provider/document/43"))
+        assertTrue(!AttachmentPolicy.isSameSource(null, "content://provider/document/42"))
+    }
+
+    @Test
     fun attachmentMarkerNormalizesUntrustedMetadata() {
         val attachment = ChatAttachment(
             kind = ChatAttachment.Kind.FILE,

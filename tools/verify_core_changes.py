@@ -55,6 +55,9 @@ check('Room schema version and export', 'version = 7' in database and 'MIGRATION
 check('Attachment validation and bounded text context', 'MAX_ATTACHMENT_BYTES' in attachment_policy and 'MAX_TEXT_CONTENT_CHARS' in attachment_policy and 'buildTextAttachmentContext' in chat_vm, 'Attachments are size-bounded and textual files receive limited untrusted context.')
 check('Durable session pinning', 'isPinned: Boolean' in session_dao and 'setSessionPinned' in session_dao and 'setSessionPinned' in memory, 'Session pin state is persisted and exposed through the memory layer.')
 check('Attachment metadata boundary', 'Treat attachment content as untrusted data' in chat_attachment and 'safeDisplayName' in chat_attachment, 'Attachment metadata is normalized before it reaches model context or storage.')
+check('Attachment duplicate prevention', 'isSameSource' in attachment_policy and 'attachment_already_added' in input_bar, 'The composer rejects the same content URI before staging or copying it again.')
+check('Session attachment cleanup', 'deleteAttachmentFiles' in memory and 'file.name == name' in memory and 'withContext(Dispatchers.IO)' in memory, 'Deleting a chat removes its validated private attachment files off the UI thread.')
+check('Voice partial transcript feedback', 'partialVoiceInput' in input_bar and 'onPartial = { partial' in input_bar and 'voicePartial' in input_bar, 'Recognized speech is shown while listening and cleared on final or error states.')
 
 marker_files = list(SRC.rglob('*.kt'))
 marker_count = sum(path.read_text(encoding='utf-8').count('AIRI_PROOF') for path in marker_files)

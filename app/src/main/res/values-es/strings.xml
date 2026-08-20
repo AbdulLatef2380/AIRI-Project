@@ -668,6 +668,7 @@
     <string name="attach_video">Vídeo</string>
     <string name="attach_text">Texto</string>
     <string name="attachment_limit_reached">Puedes añadir hasta 6 archivos adjuntos a un mensaje.</string>
+    <string name="attachment_already_added">Este archivo ya está incluido en el mensaje.</string>
     <string name="attachment_too_large">Este archivo adjunto supera los 25 MB.</string>
     <string name="text_attachment_too_large">Los archivos de texto deben tener un tamaño máximo de 512 KB.</string>
     <string name="attachment_type_image">Imagen</string>

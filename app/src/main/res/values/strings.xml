@@ -806,6 +806,7 @@
     <string name="attach_video">Video</string>
     <string name="attach_text">Text</string>
     <string name="attachment_limit_reached">You can add up to 6 attachments to one message.</string>
+    <string name="attachment_already_added">This attachment is already in the message.</string>
     <string name="attachment_too_large">This attachment is larger than 25 MB.</string>
     <string name="text_attachment_too_large">Text attachments must be 512 KB or smaller.</string>
     <string name="attachment_type_image">Image</string>

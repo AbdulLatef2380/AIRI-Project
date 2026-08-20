@@ -260,6 +260,7 @@ fun ChatScreen(
     val activeSkillCount    by viewModel.activeSkillCount.collectAsState()
     var voiceInput          by remember { mutableStateOf("") }
     var voiceChatInput      by remember { mutableStateOf("") }
+    var partialVoiceInput   by remember { mutableStateOf("") }
     var voiceState          by remember { mutableStateOf(VoiceSessionState.IDLE) }
 
     // /C04: AgentPlanViewModel for ModalBottomSheet control
@@ -306,11 +307,15 @@ fun ChatScreen(
             }
             val engine = VoskEngine(context, model)
             voskEngineHolder.value = engine
+            partialVoiceInput = ""
             voiceState = VoiceSessionState.LISTENING
             engine.start(
                 scope     = this,
-                onPartial = {},
+                onPartial = { partial ->
+                    partialVoiceInput = partial
+                },
                 onFinal   = { spoken ->
+                    partialVoiceInput = ""
                     voskEngineHolder.value?.release()
                     voskEngineHolder.value = null
                     if (spoken.isNotBlank()) {
@@ -325,7 +330,8 @@ fun ChatScreen(
                         voiceState = VoiceSessionState.IDLE
                     }
                 },
-                onError = { err ->
+                onError = { _ ->
+                    partialVoiceInput = ""
                     voskEngineHolder.value?.release()
                     voskEngineHolder.value = null
                     voiceState = VoiceSessionState.IDLE
@@ -525,6 +531,12 @@ fun ChatScreen(
     }
 
     fun addAttachment(att: ChatAttachment) {
+        if (pendingAttachments.any { existing ->
+                AttachmentPolicy.isSameSource(existing.uri?.toString(), att.uri?.toString())
+            }) {
+            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.attachment_already_added)) }
+            return
+        }
         if (pendingAttachments.size >= AttachmentPolicy.MAX_ATTACHMENTS_PER_MESSAGE) {
             scope.launch { snackbarHost.showSnackbar(context.getString(R.string.attachment_limit_reached)) }
             return
@@ -728,6 +740,7 @@ fun ChatScreen(
                     modelState    = modelState,
                     isGenerating  = agentState.isWorking,
                     voiceInput    = voiceInput,
+                    voicePartial  = partialVoiceInput,
                     smartReplies  = smartReplies,
                     onSend        = { text ->
                         val toSend = pendingAttachments
@@ -2521,6 +2534,7 @@ fun AiriChatInputBar(
     modelState: ModelUiState,
     isGenerating: Boolean,
     voiceInput: String,
+    voicePartial: String = "",
     voiceState: VoiceSessionState = VoiceSessionState.IDLE,
     isVadInterrupting: Boolean = false,
     smartReplies: List<String> = emptyList(),
@@ -2735,7 +2749,18 @@ fun AiriChatInputBar(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                 VoiceWaveformBars(active = voiceState == VoiceSessionState.LISTENING || isVadInterrupting, color = waveColor)
                 Spacer(Modifier.width(8.dp))
-                Text(label, color = waveColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(label, color = waveColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    if (voiceState == VoiceSessionState.LISTENING && voicePartial.isNotBlank()) {
+                        Text(
+                            text = voicePartial,
+                            color = AiriTheme.onBackground.copy(alpha = 0.72f),
+                            fontSize = 12.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
         }
 

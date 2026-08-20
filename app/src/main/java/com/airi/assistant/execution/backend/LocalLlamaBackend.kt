@@ -220,7 +220,9 @@ class LocalLlamaBackend(
                     code   = "local_error"
                 ))
             },
-            onStallWarning = {}
+            onStallWarning = {
+                Log.w(TAG, "generate: stall warning")
+            }
         )
 
         // Await the result in suspend context — this is the correct place to call

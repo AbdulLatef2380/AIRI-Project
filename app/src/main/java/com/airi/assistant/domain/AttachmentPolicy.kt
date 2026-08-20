@@ -64,6 +64,9 @@ object AttachmentPolicy {
 
     fun isTextual(contentType: ContentType): Boolean = contentType == ContentType.TEXT
 
+    fun isSameSource(firstUri: String?, secondUri: String?): Boolean =
+        !firstUri.isNullOrBlank() && firstUri == secondUri
+
     private val MIME_PATTERN = Regex("[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+")
     private val TEXT_EXTENSIONS = setOf("txt", "md", "markdown", "csv", "json", "xml", "yaml", "yml", "log", "kt", "java", "py", "js", "ts", "html", "css", "sql")
     private val DOCUMENT_EXTENSIONS = setOf("pdf", "doc", "docx", "rtf", "odt", "xls", "xlsx", "ppt", "pptx")

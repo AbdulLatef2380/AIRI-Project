@@ -12,12 +12,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
+import org.json.JSONArray
 
 // AP-18: applicationScope injected from ServiceLocator so summarization tasks survive
 // screen rotation without relying on a ViewModel lifecycle.
 class MemoryManager(context: Context, private val applicationScope: CoroutineScope? = null) {
-    private val db = AiriDatabase.getDatabase(context)
+    private val appContext = context.applicationContext
+    private val db = AiriDatabase.getDatabase(appContext)
     private val dao = db.memoryDao()
     private val sessionDao = db.sessionDao()
     // SupervisorJob required: without it, a single child exception cancels the
@@ -162,7 +166,33 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
     }
 
     suspend fun deleteSession(sessionId: String) {
+        val attachments = sessionDao.getMessagesForSession(sessionId)
+            .mapNotNull { it.attachmentJson }
         sessionDao.deleteSessionAndMessages(sessionId)
+        withContext(Dispatchers.IO) { deleteAttachmentFiles(attachments) }
+    }
+
+    private fun deleteAttachmentFiles(metadataEntries: List<String>) {
+        val attachmentDirectory = File(appContext.filesDir, "attachments")
+        metadataEntries.forEach { metadata ->
+            val names = runCatching {
+                val entries = JSONArray(metadata)
+                buildList {
+                    for (index in 0 until entries.length()) {
+                        entries.optJSONObject(index)
+                            ?.optString("file_name")
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let(::add)
+                    }
+                }
+            }.getOrDefault(emptyList())
+            names.forEach { name ->
+                val file = File(attachmentDirectory, name)
+                if (file.name == name && file.isFile && !file.delete()) {
+                    android.util.Log.w("AIRI_MEMORY", "Attachment cleanup failed")
+                }
+            }
+        }
     }
 
     suspend fun getAllSessions(): List<ChatSessionSummary> {

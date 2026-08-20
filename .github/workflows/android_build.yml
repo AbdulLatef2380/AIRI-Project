@@ -33,7 +33,7 @@ jobs:
         sdkmanager --install "build-tools;36.0.0"
 
     - name: Grant execute permission
-      run: chmod +x gradlew
+      run: chmod +x gradlew .github/scripts/run-instrumentation.sh
 
     - name: Clean, compile, and package debug build
       run: |
@@ -73,25 +73,7 @@ jobs:
         arch: x86_64
         disable-animations: true
         emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 2048
-        script: |
-          ./gradlew --stop
-          adb wait-for-device
-          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
-          test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = "29"
-          for attempt in $(seq 1 60); do
-            if adb shell cmd package list packages >/dev/null 2>&1; then
-              break
-            fi
-            sleep 3
-          done
-          adb shell cmd package list packages >/dev/null
-          run_instrumentation() { ./gradlew --no-daemon --max-workers=1 '-Dorg.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseSerialGC' :app:connectedDebugAndroidTest --stacktrace; }
-          if ! run_instrumentation; then
-            adb reconnect
-            sleep 15
-            adb shell cmd package list packages >/dev/null
-            run_instrumentation
-          fi
+        script: bash .github/scripts/run-instrumentation.sh
 
     - name: Verify native library output
       run: |

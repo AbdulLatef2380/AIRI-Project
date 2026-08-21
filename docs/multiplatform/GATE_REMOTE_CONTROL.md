@@ -11,6 +11,7 @@ AIRI will not expose arbitrary Windows control. Android will control **only AIRI
 | Capability allowlist | `BUILD_VERIFIED` | Commands outside the Desktop manifest are rejected |
 | Pairing transport and secret exchange | `PLANNED` | Requires an authenticated, platform-specific channel and secure token storage |
 | Android controller UI | `PLANNED` | No Android controller adapter is connected yet |
+| Desktop command dispatcher | `BUILD_VERIFIED` | Dispatches only validated AIRI-owned commands to a platform target; it accepts no transport directly |
 | Desktop pairing approval UI | `PLANNED` | No local user approval adapter is connected yet |
 | Windows end-to-end control | `EXTERNAL_VERIFICATION_REQUIRED` | Requires a real Android device and interactive Windows host after transport implementation |
 
@@ -30,7 +31,7 @@ The later platform adapters must use authenticated encrypted transport, short-li
 # BUILD SUCCESSFUL — 11 actionable tasks
 ```
 
-The shared tests cover acceptance from the paired controller, rejection of replayed commands, expired/revoked/unavailable sessions, and text payload shape/size validation. This is not a runtime pairing, network, or Windows-control claim.
+The shared tests cover acceptance from the paired controller, rejection of replayed commands, expired/revoked/unavailable sessions, and text payload shape/size validation. Desktop dispatcher tests also prove that only a validated command reaches an AIRI-owned target, replay is rejected, cancellation cannot report success without an owned request, and revocation blocks subsequent dispatch. This is not a runtime pairing, network, or Windows-control claim.
 
 ## References
 

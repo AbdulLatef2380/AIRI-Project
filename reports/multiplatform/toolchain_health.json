@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "checks": [
+    {
+      "name": "Core module included",
+      "status": "PASS",
+      "detail": "core-domain is registered in Gradle settings."
+    },
+    {
+      "name": "Shared core CI gate",
+      "status": "PASS",
+      "detail": "CI builds and tests core before Android."
+    },
+    {
+      "name": "No KMP compatibility suppression",
+      "status": "PASS",
+      "detail": "KMP/AGP compatibility warnings remain visible."
+    },
+    {
+      "name": "Version catalog has Kotlin",
+      "status": "PASS",
+      "detail": "Kotlin version is catalog-managed."
+    },
+    {
+      "name": "Required document docs/multiplatform/TOOLCHAIN_COMPATIBILITY_MATRIX.md",
+      "status": "PASS",
+      "detail": "Required toolchain governance document exists."
+    },
+    {
+      "name": "Required document docs/multiplatform/TOOLCHAIN_UPGRADE_PLAN.md",
+      "status": "PASS",
+      "detail": "Required toolchain governance document exists."
+    },
+    {
+      "name": "Required document docs/multiplatform/TOOLCHAIN_RISK_REGISTER.md",
+      "status": "PASS",
+      "detail": "Required toolchain governance document exists."
+    },
+    {
+      "name": "Required document docs/multiplatform/TOOLCHAIN_ROLLBACK_PLAN.md",
+      "status": "PASS",
+      "detail": "Required toolchain governance document exists."
+    },
+    {
+      "name": "Shared core discovered",
+      "status": "PASS",
+      "detail": "Found 3 common Kotlin source file(s)."
+    },
+    {
+      "name": "No common platform leakage",
+      "status": "PASS",
+      "detail": "No forbidden platform APIs found in commonMain."
+    }
+  ],
+  "common_source_count": 3,
+  "leakage_findings": []
+}

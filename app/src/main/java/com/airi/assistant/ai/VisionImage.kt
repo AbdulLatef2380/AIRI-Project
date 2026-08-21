@@ -3,6 +3,8 @@ package com.airi.assistant.ai
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import android.util.Log
 import com.airi.core.attachments.ImageAttachmentPolicy
@@ -65,6 +67,14 @@ object VisionImage {
      */
     fun decodeAndDownscale(ctx: Context, uri: Uri): Bitmap? {
         val resolver = ctx.contentResolver
+        val orientation = runCatching {
+            resolver.openInputStream(uri)?.use { input ->
+                ExifInterface(input).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL
+                )
+            } ?: ExifInterface.ORIENTATION_NORMAL
+        }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
         // ── Pass 1: bounds only ──────────────────────────────────────────
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         try {
@@ -136,7 +146,35 @@ object VisionImage {
         // The sample step rounds down; for awkward source ratios the long
         // side may still exceed our cap. Apply an exact bilinear downscale
         // as a final guarantee.
-        return downscaleBitmap(sampled)
+        return rotateToUpright(downscaleBitmap(sampled), orientation)
+    }
+
+    private fun rotateToUpright(source: Bitmap, orientation: Int): Bitmap {
+        if (orientation == ExifInterface.ORIENTATION_NORMAL || orientation == ExifInterface.ORIENTATION_UNDEFINED) {
+            return source
+        }
+        val transform = Matrix().apply {
+            when (orientation) {
+                ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> setScale(-1f, 1f)
+                ExifInterface.ORIENTATION_ROTATE_180 -> setRotate(180f)
+                ExifInterface.ORIENTATION_FLIP_VERTICAL -> setScale(1f, -1f)
+                ExifInterface.ORIENTATION_TRANSPOSE -> {
+                    setRotate(90f)
+                    postScale(-1f, 1f)
+                }
+                ExifInterface.ORIENTATION_ROTATE_90 -> setRotate(90f)
+                ExifInterface.ORIENTATION_TRANSVERSE -> {
+                    setRotate(-90f)
+                    postScale(-1f, 1f)
+                }
+                ExifInterface.ORIENTATION_ROTATE_270 -> setRotate(-90f)
+            }
+        }
+        return runCatching {
+            Bitmap.createBitmap(source, 0, 0, source.width, source.height, transform, true)
+        }.onSuccess { rotated ->
+            if (rotated !== source) source.recycle()
+        }.getOrDefault(source)
     }
 
     /**

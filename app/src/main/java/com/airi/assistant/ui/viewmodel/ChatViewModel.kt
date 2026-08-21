@@ -2591,10 +2591,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (remaining <= 0) return@forEach
             val content = runCatching {
                 File(requireNotNull(attachment.persistedPath)).bufferedReader().use { reader ->
-                    reader.readText()
-                        .replace("\u0000", "")
-                        .take(remaining)
-                        .trim()
+                    val bounded = StringBuilder()
+                    val buffer = CharArray(minOf(2_048, remaining))
+                    while (bounded.length < remaining) {
+                        val read = reader.read(buffer, 0, minOf(buffer.size, remaining - bounded.length))
+                        if (read <= 0) break
+                        bounded.append(buffer, 0, read)
+                    }
+                    bounded.toString().replace("\u0000", "").trim()
                 }
             }.getOrNull().orEmpty()
             if (content.isBlank()) return@forEach

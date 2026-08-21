@@ -35,8 +35,8 @@
 | --- | --- | --- |
 | AIRI Android | `RUNTIME_VERIFIED` بصورة جزئية ومحددة بالاختبارات الموجودة | لا يتحول هذا الوصف إلى ضمان شامل للمزودين أو hardware أو الحسابات الخارجية. |
 | AIRI Core | `BUILDS` لنطاق `core-domain` المحدود | سياسات الذاكرة والمرفقات وعقود التخطيط المشتركة واختباراتها تبني على JVM Desktop وAndroid؛ بقية النواة ما زالت `ARCHITECTED` أو `PLANNED`. |
-| AIRI Desktop Linux foundation | `RUNTIME_VERIFIED` لنطاق نافذة محلية محدود | حزمة DEB والنافذة ودورة العملية متحققة؛ الحالة الحالية تصرح بعدم وجود نموذج Desktop جاهز ولا تدعي رداً مولداً. راجع بوابات Desktop الجديدة. |
-| AIRI Desktop Windows | `BUILDS` | MSI واختبارات Desktop نجحت على runner Windows؛ launch/render/input/response/persistence على جهاز Windows `EXTERNAL_VERIFICATION_REQUIRED`. راجع `GATE_DESKTOP_WINDOWS.md`. |
+| AIRI Desktop Linux foundation | `RUNTIME_VERIFIED` لنطاق نافذة محلية محدود | نجح في revision `111db507` كل من `:app-desktop:test` و`:app-desktop:packageDeb` وأنتج `airi_1.0.0-1_amd64.deb` بحجم 85,129,104 bytes. الحالة لا تدعي نموذج Desktop جاهزاً أو رداً مولداً. |
+| AIRI Desktop Windows | `BUILDS` مع `PROCESS_VERIFIED` | أنشأ runner Windows MSI وشغّل smoke install/process بنجاح في [run #32503760476](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32503760476). لا يُنتج Linux ملف MSI حتى إن نجحت مهمة Gradle الاسمية؛ launch/render/input/response/persistence على جهاز Windows تبقى `EXTERNAL_VERIFICATION_REQUIRED`. راجع `GATE_DESKTOP_WINDOWS.md`. |
 | AIRI Web | `PLANNED` | لا يوجد target أو artifact أو قبول متصفح؛ مسار Wasm/Compose والحدود الأمنية موثقان في `WEB_FEASIBILITY_DECISION.md`. |
 
 ## ضوابط منع الدعم الوهمي

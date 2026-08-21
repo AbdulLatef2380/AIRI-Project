@@ -7,10 +7,10 @@
 | القدرة في Windows | الحالة | الدليل |
 | --- | --- | --- |
 | Gradle wrapper Windows | `IMPLEMENTED` | أضيف `gradlew.bat` لاستدعاء `gradle-wrapper.jar` نفسه المستعمل في Linux. |
-| اختبار adapter Desktop | `TESTED` | [AIRI Desktop Windows #32442555546](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32442555546) نجح في `:app-desktop:test`. |
-| حزمة MSI | `BUILDS` | workflow نفسه نجح في `:app-desktop:packageMsi` ورفع artifact `airi-desktop-windows-msi`. |
-| artifact Windows | `BUILDS` | GitHub Actions سجّل artifact غير منتهي الصلاحية بحجم 92,077,656 bytes وقت التحقق. |
-| [MSI install/process smoke test #32446833717](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32446833717) | `PROCESS_VERIFIED` | ثُبّت `AIRI-1.0.0.msi` بصمت بنجاح، وسُجل launcher في `%LOCALAPPDATA%\\AIRI\\AIRI.exe`، وبقيت العملية حية خلال 8 ثوانٍ ثم أُزيلت الحزمة بنجاح. |
+| اختبار adapter Desktop | `TESTED` | [AIRI Desktop Windows #32503760476](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32503760476) نجح في `:app-desktop:test` على revision `e7f60857`. |
+| حزمة MSI | `BUILDS` | [workflow نفسه](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32503760476) نجح في `:app-desktop:packageMsi` ورفع artifact `airi-desktop-windows-msi`. |
+| artifact Windows | `BUILDS` | GitHub Actions سجّل artifact MSI في تنفيذ Windows الناجح؛ فحص artifact أو توقيعه للإصدار العام يحتاج بوابة الإصدار. |
+| [MSI install/process smoke test #32503760476](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32503760476) | `PROCESS_VERIFIED` | ثُبّت MSI بصمت بنجاح، وسُجل launcher في registry/install location، وبقيت العملية حية خلال 8 ثوانٍ ثم أُزيلت الحزمة بنجاح. |
 | [AIRI Android CI #32442548721](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32442548721) | `TESTED` | نجح مسار Android الكامل على revision الذي أضاف wrapper Windows. |
 | [AIRI Deep Audit #32442548714](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32442548714) | `TESTED` | نجح تدقيق lint والنواة على revision wrapper. |
 | [AIRI Architecture Audit #32442548730](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32442548730) | `TESTED` | نجح تدقيق البنية واتجاه التبعيات على revision wrapper. |

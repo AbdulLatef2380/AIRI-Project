@@ -13,6 +13,9 @@
 | تخزين واستعادة سجل محدود | `RUNTIME_VERIFIED` | كتب التطبيق أربعة records في `~/.airi-desktop/foundation-session.log`، ثم أعاد عرض الرسالتين الأوليين بعد إغلاق النافذة وتشغيل جديد. |
 | حزمة Linux | `BUILDS` | `app-desktop/build/compose/binaries/main/deb/airi_1.0.0-1_amd64.deb`، بحجم 84,920,590 bytes عند التحقق. |
 | اختبارات adapter Desktop | `TESTED` | `:app-desktop:test` نجح؛ يغطي الاستجابة الحتمية والتخزين والاستعادة في `DesktopAgentTest`. |
+| [AIRI Android CI](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32440326111) | `TESTED` | نجح بناء/اختبار النواة وAndroid debug وunit/lint وrelease وinstrumentation والتحقق native بعد إضافة وحدة Desktop. |
+| [AIRI Deep Audit](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32440326311) | `TESTED` | نجح lint وتحقق النواة بعد إضافة الوحدة. |
+| [AIRI Architecture Audit](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32440326146) | `TESTED` | نجح تدقيق اتجاه التبعيات وبنية المشروع بعد إضافة `app-desktop`. |
 
 ## أوامر التحقق
 

@@ -76,8 +76,8 @@
     <string name="wake_word">كلمة التنبيه</string>
     <string name="wake_word_value">Hey AIRI</string>
     <string name="data_controls">التحكم في البيانات</string>
-    <string name="export_chats">تصدير المحادثات</string>
-    <string name="download_chat_history">حفظ المحادثة الحالية كـ JSON في Downloads/AIRI/</string>
+    <string name="export_chats">تصدير المحادثة الحالية</string>
+    <string name="download_chat_history">حفظ المحادثة الحالية كملف JSON في Downloads/AIRI/</string>
     <string name="import_chats">استيراد المحادثات</string>
     <string name="import_chat_history">تحميل ملف JSON محادثة سبق تصديره</string>
     <string name="import_success">تم استيراد %1$d رسالة</string>

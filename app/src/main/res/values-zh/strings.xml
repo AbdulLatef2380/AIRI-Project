@@ -42,8 +42,8 @@
     <string name="wake_word">唤醒词</string>
     <string name="wake_word_value">即将推出</string>
     <string name="data_controls">数据控制</string>
-    <string name="export_chats">导出聊天</string>
-    <string name="download_chat_history">下载你的聊天历史</string>
+    <string name="export_chats">导出当前对话</string>
+    <string name="download_chat_history">将当前对话以 JSON 保存到 Downloads/AIRI/</string>
     <string name="import_chats">导入聊天</string>
     <string name="import_chat_history">加载之前导出的 JSON 聊天文件</string>
     <string name="import_success">已导入 %1$d 条消息</string>

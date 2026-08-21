@@ -75,8 +75,8 @@
     <string name="wake_word">Wake word</string>
     <string name="wake_word_value">Hey AIRI</string>
     <string name="data_controls">Data Controls</string>
-    <string name="export_chats">Export Chats</string>
-    <string name="download_chat_history">Save current chat as JSON to Downloads/AIRI/</string>
+    <string name="export_chats">Export Current Conversation</string>
+    <string name="download_chat_history">Save the current conversation as JSON to Downloads/AIRI/</string>
     <string name="export_success">Chat exported to Downloads/AIRI/</string>
     <string name="export_failed">Export failed — check storage permissions</string>
     <string name="import_chats">Import Chats</string>

@@ -81,7 +81,7 @@ fun UpdateScreen(onBack: () -> Unit) {
                 date       = "May 2025",
                 highlights = listOf(
                     "•" to "ConnectorsScreen: full ViewModel wiring for third-party integrations",
-                    "" to "SkillManagerScreen: 3 import paths (Storage, GitHub, AI-generated)",
+                    "" to "SkillManagerScreen: three sources for skills: storage, GitHub, and in-app creation",
                     "•" to "Model picker: correct selectModel public API",
                     "•" to "Token counter wired end-to-end ViewModel → ChatScreen → TopBar",
                     "" to "ThemePreferences.kt: system/dark/light dynamic theming"

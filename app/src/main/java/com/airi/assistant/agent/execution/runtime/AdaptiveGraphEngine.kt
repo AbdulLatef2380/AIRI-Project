@@ -1,8 +1,8 @@
 package com.airi.assistant.agent.execution.runtime
 
 import android.util.Log
-import com.airi.assistant.agent.planning.ActionPlan
-import com.airi.assistant.agent.planning.PlanStep
+import com.airi.core.planning.ActionPlan
+import com.airi.core.planning.PlanStep
 import com.airi.assistant.agent.subagent.SubAgentContext
 import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.ui.activity.ActivityCategory

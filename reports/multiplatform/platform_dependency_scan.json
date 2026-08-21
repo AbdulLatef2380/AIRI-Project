@@ -1,5 +1,5 @@
 {
-  "files_scanned": 823,
+  "files_scanned": 824,
   "findings": [
     {
       "android_dependencies": [
@@ -4306,18 +4306,6 @@
       "platform_boundaries": []
     },
     {
-      "android_dependencies": [],
-      "classifications": [
-        "COMMON_CANDIDATE",
-        "DESKTOP_CANDIDATE",
-        "WEB_CANDIDATE"
-      ],
-      "language": "kt",
-      "native_dependencies": [],
-      "path": "app/src/main/java/com/airi/assistant/agent/planning/ActionPlan.kt",
-      "platform_boundaries": []
-    },
-    {
       "android_dependencies": [
         "android.*"
       ],
@@ -4327,18 +4315,6 @@
       "language": "kt",
       "native_dependencies": [],
       "path": "app/src/main/java/com/airi/assistant/agent/planning/ActionPlanExtensions.kt",
-      "platform_boundaries": []
-    },
-    {
-      "android_dependencies": [],
-      "classifications": [
-        "COMMON_CANDIDATE",
-        "DESKTOP_CANDIDATE",
-        "WEB_CANDIDATE"
-      ],
-      "language": "kt",
-      "native_dependencies": [],
-      "path": "app/src/main/java/com/airi/assistant/agent/planning/AgentGoal.kt",
       "platform_boundaries": []
     },
     {
@@ -4435,18 +4411,6 @@
       "language": "kt",
       "native_dependencies": [],
       "path": "app/src/main/java/com/airi/assistant/agent/planning/PlanScorer.kt",
-      "platform_boundaries": []
-    },
-    {
-      "android_dependencies": [],
-      "classifications": [
-        "COMMON_CANDIDATE",
-        "DESKTOP_CANDIDATE",
-        "WEB_CANDIDATE"
-      ],
-      "language": "kt",
-      "native_dependencies": [],
-      "path": "app/src/main/java/com/airi/assistant/agent/planning/PlanStep.kt",
       "platform_boundaries": []
     },
     {
@@ -10522,6 +10486,42 @@
       ],
       "language": "kt",
       "native_dependencies": [],
+      "path": "core-domain/src/commonMain/kotlin/com/airi/core/planning/ActionPlan.kt",
+      "platform_boundaries": []
+    },
+    {
+      "android_dependencies": [],
+      "classifications": [
+        "COMMON_CANDIDATE",
+        "DESKTOP_CANDIDATE",
+        "WEB_CANDIDATE"
+      ],
+      "language": "kt",
+      "native_dependencies": [],
+      "path": "core-domain/src/commonMain/kotlin/com/airi/core/planning/AgentGoal.kt",
+      "platform_boundaries": []
+    },
+    {
+      "android_dependencies": [],
+      "classifications": [
+        "COMMON_CANDIDATE",
+        "DESKTOP_CANDIDATE",
+        "WEB_CANDIDATE"
+      ],
+      "language": "kt",
+      "native_dependencies": [],
+      "path": "core-domain/src/commonMain/kotlin/com/airi/core/planning/PlanStep.kt",
+      "platform_boundaries": []
+    },
+    {
+      "android_dependencies": [],
+      "classifications": [
+        "COMMON_CANDIDATE",
+        "DESKTOP_CANDIDATE",
+        "WEB_CANDIDATE"
+      ],
+      "language": "kt",
+      "native_dependencies": [],
       "path": "core-domain/src/commonTest/kotlin/com/airi/core/attachments/AttachmentPolicyTest.kt",
       "platform_boundaries": []
     },
@@ -10547,6 +10547,18 @@
       "language": "kt",
       "native_dependencies": [],
       "path": "core-domain/src/commonTest/kotlin/com/airi/core/memory/text/MemoryTextNormalizerTest.kt",
+      "platform_boundaries": []
+    },
+    {
+      "android_dependencies": [],
+      "classifications": [
+        "COMMON_CANDIDATE",
+        "DESKTOP_CANDIDATE",
+        "WEB_CANDIDATE"
+      ],
+      "language": "kt",
+      "native_dependencies": [],
+      "path": "core-domain/src/commonTest/kotlin/com/airi/core/planning/PlanningContractsTest.kt",
       "platform_boundaries": []
     }
   ],

@@ -2,7 +2,7 @@
 
 ## نتيجة الفحص الآلي
 
-شغّل `scripts/airi_platform_dependency_scan.py` على `cp-foundation` بعد دمج خط Android المرجعي. فحص التقرير **822 ملف مصدر**: `412` ملفاً يحمل إشارات Android مباشرة، و`290` ملفاً يحمل إشارات native/JNI/C++، و`132` مرشحاً أولياً للمشاركة، و`5` ملفات تتطلب عزل API خاص بالـJVM. هذه أرقام كشف أولي وليست نسب إعادة استخدام نهائية؛ الملف المصنف `COMMON_CANDIDATE` لا يصبح مشتركاً قبل أن يترجم في `commonMain` ويجتاز اختباراته.
+شغّل `scripts/airi_platform_dependency_scan.py` على `cp-foundation` بعد Gates استخراج النواة. فحص التقرير **824 ملف مصدر**: `412` ملفاً يحمل إشارات Android مباشرة، و`290` ملفاً يحمل إشارات native/JNI/C++، و`134` مرشحاً أولياً للمشاركة، و`5` ملفات تتطلب عزل API خاص بالـJVM. هذه أرقام كشف أولي وليست نسب إعادة استخدام نهائية؛ الملف المصنف `COMMON_CANDIDATE` لا يصبح مشتركاً قبل أن يترجم في `commonMain` ويجتاز اختباراته.
 
 | إشارة حد المنصة | عدد الملفات | القراءة المعمارية |
 | --- | ---: | --- |
@@ -65,7 +65,7 @@ flowchart TD
 
 ## نواة قابلة للاستخراج أولاً
 
-أثبت Gate 2A وGate 2B وGate 2C نقل `MemoryAdmissionPolicy` و`MemoryTextNormalizer` و`AttachmentPolicy` إلى `core-domain/commonMain`. يستهلك Android هذه السياسات عبر `MemoryManager` و`MemoryEvolutionEngine` وطبقات domain/UI/ViewModel مع اختبارات `commonTest` وبناء JVM/Android. تظل `execution/ExecutionGenerationGate.kt` و`execution/router/RoutingPolicy.kt` ونماذج execution/agent مرشحين لاحقين؛ لكل منها تحليل transitive مستقل قبل النقل لأن تصنيف الملف وحده لا يثبت portability.
+أثبت Gate 2A وGate 2B وGate 2C نقل `MemoryAdmissionPolicy` و`MemoryTextNormalizer` و`AttachmentPolicy` إلى `core-domain/commonMain`. وأضاف Gate 2D عقود التخطيط الخالصة `ActionPlan` و`AgentGoal` و`PlanStep` مع اختبارات مشتركة؛ يستهلك Android هذه العقود من generator والتنفيذ القائمين من دون نسخة نموذج موازية. يستهلك Android السياسات عبر `MemoryManager` و`MemoryEvolutionEngine` وطبقات domain/UI/ViewModel مع اختبارات `commonTest` وبناء JVM/Android. تظل `PlanGenerator` و`CommandRouter` و`execution/ExecutionGenerationGate.kt` و`execution/router/RoutingPolicy.kt` ونماذج execution/agent مرشحين لاحقين؛ لكل منها تحليل transitive مستقل قبل النقل لأن تصنيف الملف وحده لا يثبت portability.
 
 لا تُنقل مسارات تبدو "خالصة" بمجرد الاسم؛ يراجع كل Gate imports والتبعيات transitive وواجهته العامة واختبار `commonTest` قبل النقل. ملفات accessibility أو نماذج UI models المصنفة آلياً مرشحة للفحص لا للاستخراج المباشر، لأن استخدامها downstream قد يكون Android-specific.
 

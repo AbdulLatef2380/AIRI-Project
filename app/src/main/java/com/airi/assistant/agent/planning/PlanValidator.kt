@@ -1,4 +1,5 @@
 package com.airi.assistant.agent.planning
+import com.airi.core.planning.AgentGoal
 
 class PlanValidator {
 

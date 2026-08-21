@@ -44,7 +44,7 @@
     {
       "name": "Shared core discovered",
       "status": "PASS",
-      "detail": "Found 3 common Kotlin source file(s)."
+      "detail": "Found 6 common Kotlin source file(s)."
     },
     {
       "name": "No common platform leakage",
@@ -52,6 +52,6 @@
       "detail": "No forbidden platform APIs found in commonMain."
     }
   ],
-  "common_source_count": 3,
+  "common_source_count": 6,
   "leakage_findings": []
 }

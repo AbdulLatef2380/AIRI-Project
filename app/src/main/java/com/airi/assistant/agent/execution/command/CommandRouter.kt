@@ -1,7 +1,7 @@
 package com.airi.assistant.agent.execution.command
 
 import android.util.Log
-import com.airi.assistant.agent.planning.PlanStep
+import com.airi.core.planning.PlanStep
 import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgentContext
 import com.airi.assistant.agent.subagent.SubAgentRegistry

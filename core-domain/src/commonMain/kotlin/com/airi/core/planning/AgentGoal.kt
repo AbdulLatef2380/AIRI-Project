@@ -1,4 +1,4 @@
-package com.airi.assistant.agent.planning
+package com.airi.core.planning
 
 data class AgentGoal(
     val id: String,

@@ -1,4 +1,4 @@
-package com.airi.assistant.agent.planning
+package com.airi.core.planning
 
 sealed class PlanStep {
     abstract val id: String
@@ -43,7 +43,9 @@ sealed class PlanStep {
         override val expectedOutcome: String? = null
     ) : PlanStep() {
         enum class NavigationDirection {
-            BACK, HOME, RECENTS
+            BACK,
+            HOME,
+            RECENTS
         }
     }
 
@@ -63,7 +65,10 @@ sealed class PlanStep {
         override val expectedOutcome: String? = null
     ) : PlanStep() {
         enum class ScrollDirection {
-            UP, DOWN, LEFT, RIGHT
+            UP,
+            DOWN,
+            LEFT,
+            RIGHT
         }
     }
 

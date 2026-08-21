@@ -1,4 +1,7 @@
 package com.airi.assistant.agent.planning
+import com.airi.core.planning.ActionPlan
+import com.airi.core.planning.AgentGoal
+import com.airi.core.planning.PlanStep
 
 import android.util.Log
 import java.util.UUID

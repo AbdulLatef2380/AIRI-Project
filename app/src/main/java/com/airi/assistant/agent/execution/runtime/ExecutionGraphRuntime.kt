@@ -3,8 +3,8 @@ package com.airi.assistant.agent.execution.runtime
 import android.util.Log
 import com.airi.assistant.agent.durable.DurableTaskManager
 import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
-import com.airi.assistant.agent.planning.ActionPlan
-import com.airi.assistant.agent.planning.PlanStep
+import com.airi.core.planning.ActionPlan
+import com.airi.core.planning.PlanStep
 import com.airi.assistant.agent.subagent.SubAgentContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope

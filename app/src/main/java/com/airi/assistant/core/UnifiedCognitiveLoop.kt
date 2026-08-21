@@ -5,11 +5,11 @@ import com.airi.assistant.BuildConfig
 import com.airi.assistant.agent.execution.command.CommandResult
 import com.airi.assistant.agent.execution.command.CommandRouter
 import com.airi.assistant.agent.learning.SkillOutcomeScorer
-import com.airi.assistant.agent.planning.ActionPlan
+import com.airi.core.planning.ActionPlan
 import com.airi.assistant.agent.planning.BrainInput
 import com.airi.assistant.agent.planning.GoalNode
 import com.airi.assistant.agent.planning.PlanGenerator
-import com.airi.assistant.agent.planning.PlanStep
+import com.airi.core.planning.PlanStep
 import com.airi.assistant.agent.planning.RecoveryDecision
 import com.airi.assistant.agent.planning.TypedPlanGraph
 import com.airi.assistant.agent.reflection.ExecutionReflector

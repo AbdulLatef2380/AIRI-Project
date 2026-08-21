@@ -122,6 +122,14 @@ fun ProfileScreen(
                                     isDeleting = false
                                     onSignOut?.invoke()
                                 }
+                                is com.airi.assistant.domain.auth.DataDeletionCoordinator.DeletionResult.RemoteDataDeletionUnavailable -> {
+                                    isDeleting = false
+                                    snackbar.showSnackbar(result.message)
+                                }
+                                is com.airi.assistant.domain.auth.DataDeletionCoordinator.DeletionResult.RemoteDataDeletionFailed -> {
+                                    isDeleting = false
+                                    snackbar.showSnackbar(result.message)
+                                }
                                 is com.airi.assistant.domain.auth.DataDeletionCoordinator.DeletionResult.FirebaseAuthFailed -> {
                                     isDeleting = false
                                     snackbar.showSnackbar(

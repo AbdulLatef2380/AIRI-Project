@@ -173,11 +173,9 @@ class StorageRepository(val db: AiriDatabase) {
      * ArtifactManager.deleteSession() already does both for per-session deletes.
      * A full wipe requires the directory-level recursive delete shown above.
      *
-     * ── Note: deleteAllData() is currently not called from the GDPR flow ───────
-     * PrivacyDataSettingsScreen → AuthService.deleteAccount() handles only the
-     * Firebase Auth layer (server-side token revocation). This method must be
-     * explicitly invoked alongside the disk wipe by whoever orchestrates the
-     * full GDPR deletion.
+     * [DataDeletionCoordinator] invokes this method before it removes the disk
+     * layer through [ArtifactManager]. UI screens must delegate account deletion
+     * to that coordinator rather than calling [AuthService.deleteAccount] directly.
      */
     /** Persist thumbs up/down feedback for a message row. */
     suspend fun updateMessageFeedback(id: Long, feedback: Int) = withContext(Dispatchers.IO) {

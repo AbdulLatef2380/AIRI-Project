@@ -191,6 +191,24 @@ fun PrivacyDataSettingsScreen(
                                     // Partial local failure is non-blocking for the user.
                                     onLogout()
                                 }
+                                is DataDeletionCoordinator.DeletionResult.RemoteDataDeletionUnavailable -> {
+                                    snackbarHost.showSnackbar(
+                                        message = result.message.ifBlank {
+                                            context.getString(R.string.delete_account_error_generic)
+                                        },
+                                        actionLabel = context.getString(R.string.ok),
+                                        duration = SnackbarDuration.Long
+                                    )
+                                }
+                                is DataDeletionCoordinator.DeletionResult.RemoteDataDeletionFailed -> {
+                                    snackbarHost.showSnackbar(
+                                        message = result.message.ifBlank {
+                                            context.getString(R.string.delete_account_error_generic)
+                                        },
+                                        actionLabel = context.getString(R.string.ok),
+                                        duration = SnackbarDuration.Long
+                                    )
+                                }
                                 is DataDeletionCoordinator.DeletionResult.FirebaseAuthFailed -> {
                                     val msg = if (result.requiresReauth)
                                         context.getString(R.string.delete_account_reauth_required)

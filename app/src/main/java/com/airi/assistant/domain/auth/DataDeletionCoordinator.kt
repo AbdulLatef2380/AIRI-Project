@@ -34,31 +34,33 @@ import kotlin.coroutines.resume
  *     Cancel all WorkManager jobs BEFORE any deletion so no running worker can
  *     re-write data being wiped.
  *
- *   Step 2: FIREBASE_ACCOUNT_DELETION  [terminal on failure]
+ *   Step 2: REMOTE_DATA_WIPE  [terminal on failure]
+ *     A trusted backend removes cloud data owned by the authenticated account.
+ *     If no trusted deletion path confirms completion, Firebase Auth and local
+ *     data remain intact so the product never reports a partial account deletion.
+ *
+ *   Step 3: FIREBASE_ACCOUNT_DELETION  [terminal on failure]
  *     Server-side token revocation and account removal via Firebase Auth.
  *     If this step fails, execution is aborted and NO local data is touched.
- *     Rationale: the account still exists on the server. Wiping credentials
- *     locally at this point would lock the user out permanently with no
- *     re-authentication path.
  *
- *   Step 3: ROOM_DATA_WIPE
+ *   Step 4: ROOM_DATA_WIPE
  *     All 9 Room tables wiped in a single atomic Room transaction:
  *       episodic_memory, chat_sessions, message_embedding, context_cache,
  *       usage_stats, behavior_stats, audit_log, workspace_artifact.
  *
- *   Step 4: FILESYSTEM_WIPE
+ *   Step 5: FILESYSTEM_WIPE
  *     - Artifact files under <filesDir>/workspace/artifacts/ (in-memory map
  *       cleared; disk directory deleted recursively).
  *     - Chat attachment cache under cacheDir/chat_attachments/.
  *     - Multimodal projection model cache cacheDir/mmproj_active.gguf.
  *
- *   Step 5: CREDENTIAL_WIPE
+ *   Step 6: CREDENTIAL_WIPE
  *     All entries in EncryptedSharedPreferences cleared atomically via
  *     SecureStorage.clearAll(). Covers OAuth tokens (GitHub, Telegram, Google),
  *     LLM provider API keys, device fingerprint, install UUID, and all
  *     integration PATs (Notion, etc.).
  *
- *   Step 6: PREFERENCE_RESET
+ *   Step 7: PREFERENCE_RESET
  *     PreferenceCoordinator.resetAllToDefaults() covers execution mode, voice,
  *     and theme stores. Additionally, every SharedPreferences file in the app's
  *     data directory is deleted — this covers agent learning state, adaptation
@@ -67,23 +69,24 @@ import kotlin.coroutines.resume
  *     PreferenceCoordinator. Safe to do after account deletion: all stores are
  *     re-initialised to factory defaults on the next cold start.
  *
- *   Step 7: CACHE_WIPE
+ *   Step 8: CACHE_WIPE
  *     system cacheDir deleted recursively, then recreated as an empty directory
  *     (the OS expects cacheDir to exist; deletion alone may cause crashes on
  *     some devices).
  *
- *   Step 8: LOCAL_SIGN_OUT
+ *   Step 9: LOCAL_SIGN_OUT
  *     Clears the in-process Firebase credential state. This is done last so
  *     the audit repository remains writable throughout steps 3–7.
  *
  * ── Idempotency ───────────────────────────────────────────────────────────────
- * All steps 3–8 are idempotent: deleteAll() on an empty Room table, and
- * deleteRecursively() on a nonexistent directory, are both safe no-ops.
+ * All local cleanup steps are idempotent: deleteAll() on an empty Room table,
+ * and deleteRecursively() on a nonexistent directory, are both safe no-ops.
  * The coordinator can be re-invoked after a PartialSuccess without risk.
  *
  * ── Failure handling ──────────────────────────────────────────────────────────
- * Only Step 2 is terminal. Steps 3–8 are best-effort: each [Throwable] is
- * captured in [DeletionResult.PartialSuccess.failures] and logged to the audit
+ * Remote data deletion and Firebase Auth deletion are terminal. Local cleanup
+ * steps are best-effort: each [Throwable] is captured in
+ * [DeletionResult.PartialSuccess.failures] and logged to the audit
  * repository, but execution continues so the maximum amount of data is removed
  * even if a single step encounters an unexpected error.
  *
@@ -100,15 +103,28 @@ class DataDeletionCoordinator(
     private val artifactManager:       ArtifactManager,
     private val preferenceCoordinator: PreferenceCoordinator,
     private val secureStorage:         SecureStorage,
-    private val auditRepository:       AuditRepository
+    private val auditRepository:       AuditRepository,
+    private val remoteAccountDataDeletion: RemoteAccountDataDeletion = UnavailableRemoteAccountDataDeletion
 ) {
 
     // ── Public result type ────────────────────────────────────────────────────
 
     sealed class DeletionResult {
 
-        /** All 8 steps completed without error. */
+        /** All deletion steps completed without error. */
         object Success : DeletionResult()
+
+        /**
+         * Remote data could not be deleted, so Firebase Auth and local stores
+         * were intentionally left untouched.
+         */
+        data class RemoteDataDeletionUnavailable(val message: String) : DeletionResult()
+
+        /**
+         * The configured remote deletion service rejected or failed the request.
+         * Firebase Auth and local stores remain intact for a safe retry.
+         */
+        data class RemoteDataDeletionFailed(val message: String) : DeletionResult()
 
         /**
          * Firebase account deletion failed before any local data was touched.
@@ -138,6 +154,7 @@ class DataDeletionCoordinator(
     /** Ordered enumeration of each deletion step. */
     enum class Step {
         STOP_BACKGROUND_WORK,
+        REMOTE_DATA_WIPE,
         FIREBASE_ACCOUNT_DELETION,
         ROOM_DATA_WIPE,
         FILESYSTEM_WIPE,
@@ -177,7 +194,27 @@ class DataDeletionCoordinator(
             WorkManager.getInstance(context.applicationContext).cancelAllWork()
         }
 
-        // ── Step 2: Firebase account deletion — TERMINAL ──────────────────────
+        // ── Step 2: Remote data deletion — TERMINAL ───────────────────────────
+        // Firebase Auth is not removed until a trusted backend confirms that all
+        // cloud data owned by this account has been removed.
+        val ownerId = authService.currentUserId
+            ?: return DeletionResult.FirebaseAuthFailed("Sign in is required before deleting an account.")
+        when (val remoteResult = remoteAccountDataDeletion.deleteOwnedData(ownerId)) {
+            RemoteAccountDataDeletionResult.Deleted -> {
+                completed += Step.REMOTE_DATA_WIPE
+                auditRepository.log("GDPR", "GDPR_DELETE_REMOTE_DATA_SUCCESS", AuditLogEntity.Level.WARN)
+            }
+            is RemoteAccountDataDeletionResult.Unavailable -> {
+                auditRepository.warn("GDPR", "GDPR_DELETE_REMOTE_DATA_UNAVAILABLE")
+                return DeletionResult.RemoteDataDeletionUnavailable(remoteResult.message)
+            }
+            is RemoteAccountDataDeletionResult.Failed -> {
+                auditRepository.error("GDPR", "GDPR_DELETE_REMOTE_DATA_FAILED")
+                return DeletionResult.RemoteDataDeletionFailed(remoteResult.message)
+            }
+        }
+
+        // ── Step 3: Firebase account deletion — TERMINAL ──────────────────────
         // If Firebase fails we return immediately without touching local data.
         val authError = deleteFirebaseAccount()
         if (authError != null) {
@@ -192,7 +229,7 @@ class DataDeletionCoordinator(
         Log.i(TAG, "AIRI GDPR_DELETE_FIREBASE_SUCCESS")
         auditRepository.log("GDPR", "GDPR_DELETE_FIREBASE_SUCCESS", AuditLogEntity.Level.WARN)
 
-        // ── Steps 3–8: Best-effort local cleanup ──────────────────────────────
+        // ── Remaining local cleanup: best-effort ───────────────────────────────
         // Each step is independent. A failure in one does not skip the others.
 
         // Step 3 — Room: all 9 tables in a single atomic transaction.

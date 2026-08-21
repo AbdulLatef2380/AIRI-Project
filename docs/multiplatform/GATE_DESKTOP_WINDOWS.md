@@ -10,6 +10,9 @@
 | اختبار adapter Desktop | `TESTED` | [AIRI Desktop Windows #32442555546](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32442555546) نجح في `:app-desktop:test`. |
 | حزمة MSI | `BUILDS` | workflow نفسه نجح في `:app-desktop:packageMsi` ورفع artifact `airi-desktop-windows-msi`. |
 | artifact Windows | `BUILDS` | GitHub Actions سجّل artifact غير منتهي الصلاحية بحجم 92,077,656 bytes وقت التحقق. |
+| [AIRI Android CI #32442548721](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32442548721) | `TESTED` | نجح مسار Android الكامل على revision الذي أضاف wrapper Windows. |
+| [AIRI Deep Audit #32442548714](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32442548714) | `TESTED` | نجح تدقيق lint والنواة على revision wrapper. |
+| [AIRI Architecture Audit #32442548730](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32442548730) | `TESTED` | نجح تدقيق البنية واتجاه التبعيات على revision wrapper. |
 | نافذة وتفاعل واستجابة واستعادة | `EXTERNAL_VERIFICATION_REQUIRED` | يتطلب Windows host تفاعلياً لتشغيل النافذة وإدخال keyboard/mouse والتحقق من الاستجابة والسجل بعد restart. |
 
 يبني Compose Multiplatform صيغ `.msi` و`.exe` على Windows فقط؛ لا يدعم plugin cross-compilation لحزم المنصات الأخرى. يحتاج `jpackage` إلى JDK 17 أو أحدث، ويوفر runner `windows-2025` JDK 17 وWiX Toolset في بيئته المنشورة. [1] [2]

@@ -8,7 +8,7 @@
 | TC-04 | R8 release المحلي قد يُقتل عند حد sandbox 3.8GiB. | مرتفع | متوسط | حفظ logs، عدم تعطيل minify، استخدام remote CI كدليل release، وإعادة المحاولة فقط في مورد مناسب. | release محلي أو CI remote ناجح مع R8. | مخففة: CI release نجح؛ القيد المحلي باقٍ |
 | TC-05 | JNI/NDK وllama.cpp قد يتأثران بتغير Kotlin/AGP. | منخفض | حرج | إبقاء AGP/NDK/CMake ثابتة، والتحقق من native library في debug/CI. | `airiVerifyNativeInDebugApk` وCI native check ينجحان. | مغلقة: CI نجح |
 | TC-06 | plugin Compose Multiplatform يسبب churn في Compose Android. | متوسط | مرتفع | أضيف بعد Kotlin compiler gate في وحدة Desktop مستقلة، مع بناء واختبارات Desktop وتشغيل بوابات Android منفصلة. | Android compile/unit/AndroidTest APK وDesktop test/package تنجح محلياً، ثم نجحت Android CI وDeep/Architecture Audit بعد commit. | مغلقة: CI بعد إضافة Desktop نجح |
-| TC-07 | حزم Windows/Linux تتطلب بيئات OS مستقلة. | مرتفع | متوسط | Linux runtime هنا؛ Windows CI أو host حقيقي قبل رفع الحالة. | artifact وruntime evidence لكل OS. | Linux مغلقة بالدليل؛ Windows مفتوحة |
+| TC-07 | حزم Windows/Linux تتطلب بيئات OS مستقلة. | مرتفع | متوسط | Linux runtime هنا؛ Windows CI يبني MSI، وWindows host حقيقي مطلوب للقبول التفاعلي. | artifact وruntime evidence لكل OS. | Linux مغلقة بالدليل؛ Windows package مغلق وruntime `EXTERNAL_VERIFICATION_REQUIRED` |
 | TC-08 | فقد rollback أو خلط تغييرات متعددة. | منخفض | حرج | checkpoint منشور وcommit لكل gate وlogs baseline. | branch/checkpoint صالحان وworktree نظيفة. | مخففة |
 
 ## أدلة baseline ذات الصلة

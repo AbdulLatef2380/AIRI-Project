@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
+import com.airi.core.attachments.ImageAttachmentPolicy
 import java.io.InputStream
 
 /**
@@ -85,6 +86,13 @@ object VisionImage {
         }
         val srcW = bounds.outWidth
         val srcH = bounds.outHeight
+        when (val validation = ImageAttachmentPolicy.validate(srcW, srcH)) {
+            ImageAttachmentPolicy.ValidationResult.Accepted -> Unit
+            else -> {
+                Log.w(TAG, "decodeAndDownscale: rejected source bounds ${srcW}x${srcH} reason=$validation")
+                return null
+            }
+        }
 
         // Compute the smallest power-of-two inSampleSize that brings the
         // long side ≤ MAX_LONGEST_SIDE_PX. This is what BitmapFactory wants

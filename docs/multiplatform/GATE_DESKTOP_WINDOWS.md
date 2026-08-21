@@ -10,6 +10,7 @@
 | اختبار adapter Desktop | `TESTED` | [AIRI Desktop Windows #32442555546](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32442555546) نجح في `:app-desktop:test`. |
 | حزمة MSI | `BUILDS` | workflow نفسه نجح في `:app-desktop:packageMsi` ورفع artifact `airi-desktop-windows-msi`. |
 | artifact Windows | `BUILDS` | GitHub Actions سجّل artifact غير منتهي الصلاحية بحجم 92,077,656 bytes وقت التحقق. |
+| [MSI install/process smoke test #32446833717](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32446833717) | `PROCESS_VERIFIED` | ثُبّت `AIRI-1.0.0.msi` بصمت بنجاح، وسُجل launcher في `%LOCALAPPDATA%\\AIRI\\AIRI.exe`، وبقيت العملية حية خلال 8 ثوانٍ ثم أُزيلت الحزمة بنجاح. |
 | [AIRI Android CI #32442548721](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32442548721) | `TESTED` | نجح مسار Android الكامل على revision الذي أضاف wrapper Windows. |
 | [AIRI Deep Audit #32442548714](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32442548714) | `TESTED` | نجح تدقيق lint والنواة على revision wrapper. |
 | [AIRI Architecture Audit #32442548730](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32442548730) | `TESTED` | نجح تدقيق البنية واتجاه التبعيات على revision wrapper. |
@@ -19,9 +20,9 @@
 
 ## إصلاحات التوافق التي ظهرت في التحقق
 
-أظهر أول تشغيل أن مسار `.github/workflows/oracle.yml.` غير صالح على Windows بسبب النقطة الختامية؛ أعيدت تسميته إلى `oracle.yml` من دون تغيير محتواه. ثم أظهر التشغيل التالي غياب `gradlew.bat`، فأضيف wrapper Windows مطابق للـwrapper الموجود. بعد هذين الإصلاحين نجح checkout وWiX وGradle والاختبارات وتغليف MSI ورفع artifact في التشغيل المشار إليه أعلاه.
+أظهر أول تشغيل أن مسار `.github/workflows/oracle.yml.` غير صالح على Windows بسبب النقطة الختامية؛ أعيدت تسميته إلى `oracle.yml` من دون تغيير محتواه. ثم أظهر التشغيل التالي غياب `gradlew.bat`، فأضيف wrapper Windows مطابق للـwrapper الموجود. بعد هذين الإصلاحين نجح checkout وWiX وGradle والاختبارات وتغليف MSI ورفع artifact. أضيف smoke test لاحق يثبت MSI بصمت، يكتشف launcher من registry/install location، يشغله مدة محدودة، ثم ينظف التثبيت؛ نجح هذا الاختبار في runner Windows.
 
-> **لا تعني حزمة MSI نجاح runtime Windows.** تبقى حالة واجهة AIRI Desktop على Windows `BUILDS` فقط إلى أن يثبت اختبار قبول على جهاز Windows: launch، render، إدخال keyboard/mouse، رد محلي، وسجل يعاد تحميله بعد تشغيل جديد.
+> **لا يعني تثبيت MSI أو بقاء العملية حية نجاح runtime Windows التفاعلي.** يثبت smoke test أن الحزمة والlauncher ومسار process يعملون في CI، لكنه لا يثبت render أو DPI أو input أو response أو persistence. تبقى واجهة AIRI Desktop على Windows `BUILDS` مع `PROCESS_VERIFIED` إلى أن يثبت اختبار قبول على جهاز Windows: launch، render، إدخال keyboard/mouse، رد محلي، وسجل يعاد تحميله بعد تشغيل جديد.
 
 ## قبول خارجي مطلوب
 

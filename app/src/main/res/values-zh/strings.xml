@@ -1066,6 +1066,7 @@
     <string name="memory_clear_confirm_title">Clear all memories?</string>
     <string name="memory_cleared_snack">记忆已清除</string>
     <string name="memory_clear_failed_snack">无法清除记忆，请重试。</string>
+    <string name="message_delete_failed">无法删除消息，请重试。</string>
     <string name="memory_empty_subtitle">Start a conversation and AIRI will remember what matters</string>
     <string name="memory_empty_title">No memories yet</string>
     <string name="memory_search_hint">Search memories…</string>

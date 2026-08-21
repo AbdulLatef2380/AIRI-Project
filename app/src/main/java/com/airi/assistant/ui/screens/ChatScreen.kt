@@ -870,7 +870,13 @@ fun ChatScreen(
                 },
                 onSuggestionClick  = { suggestion -> viewModel.sendMessage(suggestion) },
                 onEditMessage      = { text -> viewModel.prefillInput(text) },
-                onDeleteMessage    = { uid  -> viewModel.deleteMessage(uid) },
+                onDeleteMessage    = { message ->
+                    scope.launch {
+                        viewModel.deleteMessage(message).onFailure {
+                            snackbarHost.showSnackbar(context.getString(R.string.message_delete_failed))
+                        }
+                    }
+                },
                 onExportPdf        = { exportPdfLauncher.launch(ChatExporter.buildFileName("pdf")) },
                 onExportMarkdown   = { exportMdLauncher.launch(ChatExporter.buildFileName("md")) },
                 onFeedback         = { uid, liked -> viewModel.submitFeedback(uid, liked) },
@@ -1793,7 +1799,7 @@ fun ChatMessageList(
     onSpeak: (String) -> Unit = {},
     onSuggestionClick: (String) -> Unit = {},
     onEditMessage: (String) -> Unit = {},
-    onDeleteMessage: (String) -> Unit = {},
+    onDeleteMessage: (ChatMessage) -> Unit = {},
     onExportPdf: (String) -> Unit = {},
     onExportMarkdown: (String) -> Unit = {},
     onFeedback: (uid: String, liked: Boolean) -> Unit = { _, _ -> },
@@ -2001,7 +2007,7 @@ fun ChatMessageList(
                             voiceRecordingPath = msg.voiceRecordingPath,
                             voiceDurationMs    = msg.voiceDurationMs,
                             onEdit             = { onEditMessage(msg.text) },
-                            onDelete           = { onDeleteMessage(msg.uid) }
+                            onDelete           = { onDeleteMessage(msg) }
                         )
                     } else {
                         AiBubble(

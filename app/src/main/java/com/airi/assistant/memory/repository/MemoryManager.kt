@@ -1,6 +1,7 @@
 package com.airi.assistant.memory.repository
 
 import android.content.Context
+import androidx.room.withTransaction
 import com.airi.assistant.ai.prompt.MemoryExtractor
 import com.airi.core.memory.MemoryAdmissionPolicy
 import com.airi.assistant.memory.AiriDatabase
@@ -171,6 +172,19 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
             .mapNotNull { it.attachmentJson }
         sessionDao.deleteSessionAndMessages(sessionId)
         withContext(Dispatchers.IO) { deleteAttachmentFiles(attachments) }
+    }
+
+    suspend fun deleteMessage(messageId: Long): Boolean {
+        val attachmentJson = db.withTransaction {
+            val message = dao.getMessageById(messageId) ?: return@withTransaction null
+            dao.deleteMessageById(messageId)
+            message.attachmentJson.orEmpty()
+        } ?: return false
+
+        if (attachmentJson.isNotBlank()) {
+            withContext(Dispatchers.IO) { deleteAttachmentFiles(listOf(attachmentJson)) }
+        }
+        return true
     }
 
     private fun deleteAttachmentFiles(metadataEntries: List<String>) {

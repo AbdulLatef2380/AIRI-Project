@@ -91,6 +91,12 @@ interface MemoryDao {
     @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0 ORDER BY timestamp ASC")
     suspend fun getMessagesForSession(sessionId: String): List<ChatMessage>
 
+    @Query("SELECT * FROM episodic_memory WHERE id = :messageId LIMIT 1")
+    suspend fun getMessageById(messageId: Long): ChatMessage?
+
+    @Query("DELETE FROM episodic_memory WHERE id = :messageId")
+    suspend fun deleteMessageById(messageId: Long)
+
     /**
      * Delete all non-memory rows for a session. Mirrors the method in SessionDao
      * that was used as a cross-table helper; MemoryDao owns the table so the

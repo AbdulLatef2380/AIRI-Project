@@ -2935,9 +2935,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun prefillInput(text: String) { _pendingPrefill.value = text }
     fun consumePrefill() { _pendingPrefill.value = null }
 
-    /** Delete a message by uid. No-op if uid not found. Updates in-memory state only. */
-    fun deleteMessage(uid: String) {
-        _messages.value = _messages.value.filter { it.uid != uid }
+    suspend fun deleteMessage(message: ChatMessage): Result<Unit> = try {
+        if (!memoryManager.deleteMessage(message.id)) {
+            Result.failure(IllegalStateException("The stored message could not be found."))
+        } else {
+            _messages.value = _messages.value.filter { it.uid != message.uid }
+            Result.success(Unit)
+        }
+    } catch (error: Exception) {
+        Result.failure(error)
     }
 
     /**

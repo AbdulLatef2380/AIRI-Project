@@ -1064,7 +1064,8 @@
     <string name="marketplace_update_available">New version available: v%1$s</string>
     <string name="marketplace_version_prefix">v%1$s</string>
     <string name="memory_clear_confirm_title">Clear all memories?</string>
-    <string name="memory_cleared_snack">Memory cleared</string>
+    <string name="memory_cleared_snack">Memoria borrada</string>
+    <string name="memory_clear_failed_snack">No se pudo borrar la memoria. Inténtalo de nuevo.</string>
     <string name="memory_empty_subtitle">Start a conversation and AIRI will remember what matters</string>
     <string name="memory_empty_title">No memories yet</string>
     <string name="memory_search_hint">Search memories…</string>

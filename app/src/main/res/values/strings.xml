@@ -1347,6 +1347,7 @@
     <!-- memory -->
     <string name="memory_clear_confirm_title">Clear all memories?</string>
     <string name="memory_cleared_snack">Memory cleared</string>
+    <string name="memory_clear_failed_snack">Memory could not be cleared. Please try again.</string>
     <string name="memory_empty_subtitle">Start a conversation and AIRI will remember what matters</string>
     <string name="memory_empty_title">No memories yet</string>
     <string name="memory_search_hint">Search memories…</string>

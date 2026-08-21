@@ -202,7 +202,7 @@ fun CustomizationSettingsScreen(
                     label       = stringResource(R.string.clear_all_memory),
                     sublabel    = stringResource(R.string.reset_ai_context),
                     destructive = true
-                ) { viewModel.clearMemory() }
+                ) { onNavigate(AiriRoute.MEMORY) }
             }
 
             Spacer(Modifier.height(8.dp))

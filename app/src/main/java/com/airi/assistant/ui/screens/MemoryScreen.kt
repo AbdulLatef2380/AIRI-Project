@@ -69,9 +69,16 @@ fun MemoryScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.clearMemory()
                         showConfirm = false
-                        scope.launch { snackbarHost.showSnackbar(context.getString(R.string.memory_cleared_snack)) }
+                        scope.launch {
+                            viewModel.clearMemory()
+                                .onSuccess {
+                                    snackbarHost.showSnackbar(context.getString(R.string.memory_cleared_snack))
+                                }
+                                .onFailure {
+                                    snackbarHost.showSnackbar(context.getString(R.string.memory_clear_failed_snack))
+                                }
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = SemanticError),
                     shape  = AIRIShapes.md

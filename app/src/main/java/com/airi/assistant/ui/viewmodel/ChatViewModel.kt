@@ -3019,12 +3019,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     enum class PlusPickerRequest { IMAGE, CAMERA, FILE, SKILLS, SANDBOX, WORKSPACE, TERMINAL }
 
-    fun clearMemory() {
-        viewModelScope.launch {
-            runCatching { memoryManager.clearAll() }
-            _memoryEntries.value = emptyList()
-            _memoryCount.value   = 0
-        }
+    suspend fun clearMemory(): Result<Unit> = try {
+        memoryManager.clearAll()
+        _memoryEntries.value = emptyList()
+        _memoryCount.value = 0
+        Result.success(Unit)
+    } catch (error: Exception) {
+        Result.failure(error)
     }
 
     // ── Model import / selection ──────────────────────────────────────────────

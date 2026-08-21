@@ -1263,6 +1263,7 @@
     <!-- memory -->
     <string name="memory_clear_confirm_title">مسح جميع الذكريات؟</string>
     <string name="memory_cleared_snack">تم مسح الذاكرة</string>
+    <string name="memory_clear_failed_snack">تعذر مسح الذاكرة. يرجى المحاولة مجددًا.</string>
     <string name="memory_empty_subtitle">ابدأ محادثة وسيتذكر AIRI ما يهمك</string>
     <string name="memory_empty_title">لا توجد ذكريات بعد</string>
     <string name="memory_search_hint">البحث في الذكريات…</string>

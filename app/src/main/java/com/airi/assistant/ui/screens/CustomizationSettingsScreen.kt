@@ -103,6 +103,8 @@ fun CustomizationSettingsScreen(
                                 labelColor             = AiriTheme.onSurface.copy(alpha = 0.6f)
                             ),
                             border = FilterChipDefaults.filterChipBorder(
+                                enabled             = true,
+                                selected            = themeMode == mode,
                                 borderColor         = AiriTheme.onSurface.copy(alpha = 0.1f),
                                 selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
                             )
@@ -172,6 +174,8 @@ fun CustomizationSettingsScreen(
                                 labelColor             = AiriTheme.onSurface.copy(alpha = 0.6f)
                             ),
                             border = FilterChipDefaults.filterChipBorder(
+                                enabled             = true,
+                                selected            = selected,
                                 borderColor         = AiriTheme.onSurface.copy(alpha = 0.1f),
                                 selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
                             )

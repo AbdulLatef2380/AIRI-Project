@@ -11,7 +11,7 @@
 | `androidx.biometric:biometric` | `1.1.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.compose.material3:material3` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.compose.material:material-icons-extended` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
-| `androidx.compose.ui:ui-text-google-fonts` | `1.6.1` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `androidx.compose.ui:ui-text-google-fonts` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.compose.ui:ui-tooling-preview` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.compose.ui:ui` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.core:core-ktx` | `1.12.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
@@ -20,10 +20,10 @@
 | `androidx.lifecycle:lifecycle-viewmodel-compose` | `2.7.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.lifecycle:lifecycle-viewmodel-ktx` | `2.7.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.navigation:navigation-compose` | `2.7.7` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
-| `androidx.room:room-compiler` | `2.6.1` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
-| `androidx.room:room-ktx` | `2.6.1` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
-| `androidx.room:room-runtime` | `2.6.1` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
-| `androidx.room:room-testing` | `2.6.1` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `androidx.room:room-compiler` | `2.8.4` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `androidx.room:room-ktx` | `2.8.4` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `androidx.room:room-runtime` | `2.8.4` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `androidx.room:room-testing` | `${libs.versions.room.get()}` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.security:security-crypto` | `1.1.0-alpha06` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.test.ext:junit` | `1.1.5` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.test:core` | `1.5.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |

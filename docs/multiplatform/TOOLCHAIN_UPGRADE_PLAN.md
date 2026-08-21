@@ -7,7 +7,7 @@
 | الخطوة | التغيير المعزول | الاختبارات المحلية | شرط التقدم | rollback |
 | --- | --- | --- | --- | --- |
 | A | baseline + وثائق + حراس | Gradle metadata، core، unit، lint، debug، AndroidTest APK، release حيث تسمح الموارد | أدلة baseline ومسار CI سابق ناجح | `cp-toolchain-baseline` |
-| B | Kotlin/KMP 2.2.21 + KSP 2.2.21-2.0.5 + Compose Compiler plugin 2.2.21 | core، Android unit/lint/debug/release/AndroidTest APK، static/security | Android وcore ينجحان؛ تحذير KMP/AGP القديم يختفي | commit A/checkpoint |
+| B | Kotlin/KMP 2.2.21 + KSP 2.2.21-2.0.5 + Compose Compiler plugin 2.2.21 + Room 2.8.4 + Compose BOM 2025.08 | core، Android unit/lint/debug/release/AndroidTest APK، static/security | Android وcore ينجحان؛ تحذير KMP/AGP القديم يختفي | commit A/checkpoint |
 | C | تحديث CI لأي syntax/toolchain لازم | نفس البوابات + CI remote | Android CI وDeep/Architecture Audit تنجح | commit B |
 | D | إضافة Compose Multiplatform 1.8.2 و`app-desktop` minimal | compile/package Desktop + Android gates | لا regression Android وDesktop artifact يبني | commit C |
 | E | Linux runtime acceptance | launch/render/input/deterministic response/basic persistence | دليل runtime Linux محفوظ | commit D |
@@ -15,14 +15,17 @@
 
 ## B: التغيير المقترن الأدنى
 
-Kotlin 2.0+ يطلب Compose Compiler Gradle plugin في Android [1]؛ لذلك تبقى العناصر الثلاثة Kotlin/KSP/Compose Compiler في **commit واحد مقترن**، لا كقفزة واسعة لباقي dependencies. يبقى Gradle وAGP وCompose BOM وRoom وSDK وNDK وCMake ثابتة. قبل تعديل الكتالوج، تحفظ نسخة الملفات والمخرجات في checkpoint؛ بعد التعديل لا تنتقل خطوة C أو D إلا عند اجتياز جميع gates.
+Kotlin 2.0+ يطلب Compose Compiler Gradle plugin في Android [1]؛ لذلك بدأت الخطوة بالعناصر Kotlin/KSP/Compose Compiler. أثبتت البوابة أن Room 2.6.1 ينهار مع KSP2 وأن Compose BOM 2024.01 لا يستطيع lint فيها قراءة metadata Kotlin 2.2، فأضيف Room 2.8.4 وCompose BOM 2025.08 كعلاجات مباشرة مثبتة. بقي Gradle وAGP وSDK وNDK وCMake ثابتة. قبل تعديل الكتالوج، تحفظ نسخة الملفات والمخرجات في checkpoint؛ بعد التعديل لا تنتقل خطوة C أو D إلا عند اجتياز جميع gates.
 
 ## gates بعد كل خطوة toolchain
 
 ```bash
 python3 scripts/airi_toolchain_health.py
 ./gradlew :core-domain:desktopTest :core-domain:compileDebugKotlinAndroid
-./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest
+./gradlew :app:compileDebugKotlin :app:lintDebug
+./gradlew :app:testDebugUnitTest
+./gradlew :app:assembleDebug
+./gradlew :app:assembleDebugAndroidTest
 python3 tools/verify_core_changes.py
 python3 tools/security_scan.py
 python3 scripts/airi_cross_platform_health.py

@@ -4,14 +4,14 @@
 
 هذه الخطة تفصل **إثبات toolchain** عن **إضافة Desktop**. لا يتغير `architecture-refactor`، وتعمل جميع commits على `cp-foundation` مع checkpoint `cp-toolchain-baseline` كمرجع رجوع منشور. لا ينتقل Android UI أو Room schema أو JNI/llama.cpp أو providers إلى النواة ضمن هذا المسار.
 
-| الخطوة | التغيير المعزول | الاختبارات المحلية | شرط التقدم | rollback |
-| --- | --- | --- | --- | --- |
-| A | baseline + وثائق + حراس | Gradle metadata، core، unit، lint، debug، AndroidTest APK، release حيث تسمح الموارد | أدلة baseline ومسار CI سابق ناجح | `cp-toolchain-baseline` |
-| B | Kotlin/KMP 2.2.21 + KSP 2.2.21-2.0.5 + Compose Compiler plugin 2.2.21 + Room 2.8.4 + Compose BOM 2025.08 | core، Android unit/lint/debug/release/AndroidTest APK، static/security | Android وcore ينجحان؛ تحذير KMP/AGP القديم يختفي | commit A/checkpoint |
-| C | تحديث CI لأي syntax/toolchain لازم | نفس البوابات + CI remote | Android CI وDeep/Architecture Audit تنجح | commit B |
-| D | إضافة Compose Multiplatform 1.8.2 و`app-desktop` minimal | compile/package Desktop + Android gates | لا regression Android وDesktop artifact يبني | commit C |
-| E | Linux runtime acceptance | launch/render/input/deterministic response/basic persistence | دليل runtime Linux محفوظ | commit D |
-| F | Windows CI/package وexternal runtime proof | package وchecks platform | evidence Windows أو `EXTERNAL_VERIFICATION_REQUIRED` صريح | commit E |
+| الخطوة | التغيير المعزول | الاختبارات المحلية | شرط التقدم | rollback | الحالة |
+| --- | --- | --- | --- | --- | --- |
+| A | baseline + وثائق + حراس | Gradle metadata، core، unit، lint، debug، AndroidTest APK، release حيث تسمح الموارد | أدلة baseline ومسار CI سابق ناجح | `cp-toolchain-baseline` | `COMPLETED` |
+| B | Kotlin/KMP 2.2.21 + KSP 2.2.21-2.0.5 + Compose Compiler plugin 2.2.21 + Room 2.8.4 + Compose BOM 2025.08 | core، Android unit/lint/debug/release/AndroidTest APK، static/security | Android وcore ينجحان؛ تحذير KMP/AGP القديم يختفي | commit A/checkpoint | `COMPLETED` |
+| C | تحديث CI لأي syntax/toolchain لازم | نفس البوابات + CI remote | Android CI وDeep/Architecture Audit تنجح | commit B | `COMPLETED` |
+| D | إضافة Compose Multiplatform 1.8.2 و`app-desktop` minimal | compile/package Desktop + Android gates | لا regression Android وDesktop artifact يبني | commit C | `COMPLETED`؛ راجع `GATE_DESKTOP_LINUX.md` |
+| E | Linux runtime acceptance | launch/render/input/deterministic response/basic persistence | دليل runtime Linux محفوظ | commit D | `COMPLETED`؛ Linux `RUNTIME_VERIFIED` لنطاق محلي محدود |
+| F | Windows CI/package وexternal runtime proof | package وchecks platform | evidence Windows أو `EXTERNAL_VERIFICATION_REQUIRED` صريح | commit E | `COMPLETED` للحزمة؛ runtime Windows `EXTERNAL_VERIFICATION_REQUIRED` |
 
 ## B: التغيير المقترن الأدنى
 

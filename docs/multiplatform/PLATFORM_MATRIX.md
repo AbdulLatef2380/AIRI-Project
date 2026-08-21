@@ -37,7 +37,7 @@
 | AIRI Core | `BUILDS` لنطاق `core-domain` المحدود | سياسات الذاكرة والمرفقات وعقود التخطيط المشتركة واختباراتها تبني على JVM Desktop وAndroid؛ بقية النواة ما زالت `ARCHITECTED` أو `PLANNED`. |
 | AIRI Desktop Linux foundation | `RUNTIME_VERIFIED` لنطاق نافذة محلية محدود | حزمة DEB تبني، والنافذة تقبل keyboard/mouse وتعرض رداً حتمياً وتعيد تحميل سجل جلسة؛ راجع `GATE_DESKTOP_LINUX.md`. |
 | AIRI Desktop Windows | `BUILDS` | MSI واختبارات Desktop نجحت على runner Windows؛ launch/render/input/response/persistence على جهاز Windows `EXTERNAL_VERIFICATION_REQUIRED`. راجع `GATE_DESKTOP_WINDOWS.md`. |
-| AIRI Web | `PLANNED` | لا يوجد target أو security architecture منفذة. |
+| AIRI Web | `PLANNED` | لا يوجد target أو artifact أو قبول متصفح؛ مسار Wasm/Compose والحدود الأمنية موثقان في `WEB_FEASIBILITY_DECISION.md`. |
 
 ## ضوابط منع الدعم الوهمي
 

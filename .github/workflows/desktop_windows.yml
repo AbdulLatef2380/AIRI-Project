@@ -9,6 +9,7 @@ on:
       - "gradle/**"
       - "build.gradle.kts"
       - "settings.gradle.kts"
+      - "gradlew.bat"
       - ".github/workflows/desktop_windows.yml"
   workflow_dispatch:
 
@@ -46,12 +47,75 @@ jobs:
             "-Dkotlin.daemon.jvmargs=-Xmx1024m" `
             :app-desktop:test :app-desktop:packageMsi --stacktrace
 
+      - name: Install and process-smoke-test MSI
+        shell: pwsh
+        run: |
+          $logFile = "app-desktop/build/windows-msi-smoke-test.log"
+          $msi = Get-ChildItem "app-desktop/build/compose/binaries/main/msi/*.msi" | Select-Object -First 1
+          if ($null -eq $msi) {
+            throw "MSI artifact was not found."
+          }
+
+          $install = Start-Process msiexec.exe -ArgumentList @("/i", $msi.FullName, "/qn", "/norestart") -Wait -PassThru
+          if ($install.ExitCode -notin @(0, 3010)) {
+            throw "MSI installation failed with exit code $($install.ExitCode)."
+          }
+
+          $uninstallRoots = @(
+            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*"
+          )
+          $entry = Get-ItemProperty $uninstallRoots -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -eq "AIRI" } |
+            Select-Object -First 1
+          if ($null -eq $entry) {
+            throw "AIRI was not registered after MSI installation."
+          }
+
+          $searchRoots = @($entry.InstallLocation, $env:LOCALAPPDATA, $env:ProgramFiles) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path $_) }
+          $launcher = Get-ChildItem -Path $searchRoots -Filter "AIRI.exe" -File -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if ($null -eq $launcher) {
+            throw "Installed AIRI launcher was not found."
+          }
+
+          $process = Start-Process -FilePath $launcher.FullName -PassThru
+          Start-Sleep -Seconds 8
+          $running = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+          $result = @(
+            "msi=$($msi.FullName)",
+            "launcher=$($launcher.FullName)",
+            "installExitCode=$($install.ExitCode)",
+            "processId=$($process.Id)",
+            "processRunning=$($null -ne $running)"
+          )
+          $result | Set-Content -Path $logFile
+          if ($null -eq $running) {
+            throw "AIRI process did not remain running during the smoke interval."
+          }
+
+          Stop-Process -Id $process.Id -Force
+          $uninstall = Start-Process msiexec.exe -ArgumentList @("/x", $entry.PSChildName, "/qn", "/norestart") -Wait -PassThru
+          if ($uninstall.ExitCode -notin @(0, 3010, 1605)) {
+            throw "MSI uninstall failed with exit code $($uninstall.ExitCode)."
+          }
+
       - name: Upload Windows MSI
         uses: actions/upload-artifact@v4
         with:
           name: airi-desktop-windows-msi
           path: app-desktop/build/compose/binaries/main/msi/*.msi
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload MSI smoke-test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: airi-desktop-windows-msi-smoke-test
+          path: app-desktop/build/windows-msi-smoke-test.log
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload Desktop test results

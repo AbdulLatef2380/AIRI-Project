@@ -2534,11 +2534,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         pendingAttachmentJsonForNextSend = attachmentMetadataJson(persistedAttachments)
+        val trimmed = input.trim()
         val textAttachmentContext = withContext(Dispatchers.IO) {
-            buildTextAttachmentContext(persistedAttachments)
+            buildTextAttachmentContext(persistedAttachments, trimmed)
         }
 
-        val trimmed = input.trim()
         val visionReady = _modelState.value.capabilities.vision &&
             runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
 
@@ -2584,31 +2584,48 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun buildTextAttachmentContext(attachments: List<ChatAttachment>): String {
-        var remaining = AttachmentPolicy.MAX_TEXT_CONTENT_CHARS
+    private fun buildTextAttachmentContext(attachments: List<ChatAttachment>, query: String): String {
+        var remainingChars = AttachmentPolicy.MAX_TEXT_CONTENT_CHARS
+        val textualAttachments = attachments.filter { it.isTextual && !it.persistedPath.isNullOrBlank() }
         val context = StringBuilder()
-        attachments.filter { it.isTextual && !it.persistedPath.isNullOrBlank() }.forEach { attachment ->
-            if (remaining <= 0) return@forEach
+        textualAttachments.forEachIndexed { index, attachment ->
+            if (remainingChars <= 0) return@forEachIndexed
+            val attachmentsRemaining = textualAttachments.size - index
+            val readLimit = (remainingChars / attachmentsRemaining).coerceAtLeast(1)
             val content = runCatching {
                 File(requireNotNull(attachment.persistedPath)).bufferedReader().use { reader ->
                     val bounded = StringBuilder()
-                    val buffer = CharArray(minOf(2_048, remaining))
-                    while (bounded.length < remaining) {
-                        val read = reader.read(buffer, 0, minOf(buffer.size, remaining - bounded.length))
+                    val buffer = CharArray(minOf(2_048, readLimit))
+                    while (bounded.length < readLimit) {
+                        val read = reader.read(buffer, 0, minOf(buffer.size, readLimit - bounded.length))
                         if (read <= 0) break
                         bounded.append(buffer, 0, read)
                     }
                     bounded.toString().replace("\u0000", "").trim()
                 }
             }.getOrNull().orEmpty()
-            if (content.isBlank()) return@forEach
-            context.append("BEGIN UNTRUSTED TEXT ATTACHMENT: ")
-                .append(attachment.safeDisplayName)
-                .append('\n')
-                .append(content)
-                .append("\nEND UNTRUSTED TEXT ATTACHMENT")
-                .append("\n\n")
-            remaining -= content.length
+            if (content.isBlank()) return@forEachIndexed
+
+            val chunks = com.airi.core.attachments.StructuredTextChunker.split(
+                attachmentId = attachment.id,
+                text = content,
+                mimeType = attachment.normalizedMimeType.ifBlank { "text/plain" },
+                maxChunkChars = 2_000
+            )
+            val selected = com.airi.core.attachments.TextChunkSelector.select(
+                query = query,
+                chunks = chunks,
+                tokenBudget = (remainingChars / 4).coerceAtLeast(1),
+                estimateTokens = com.airi.assistant.ai.prompt.budget.PromptBudgetLedger::estimateTokens
+            )
+            selected.forEach { selectedChunk ->
+                context.append("BEGIN UNTRUSTED TEXT ATTACHMENT: ")
+                    .append(attachment.safeDisplayName)
+                    .append(" [").append(selectedChunk.chunk.chunkId).append("]\n")
+                    .append(selectedChunk.chunk.text)
+                    .append("\nEND UNTRUSTED TEXT ATTACHMENT\n\n")
+                remainingChars -= selectedChunk.chunk.text.length
+            }
         }
         return context.toString().trim()
     }

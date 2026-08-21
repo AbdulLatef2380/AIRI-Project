@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownsUser(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function devicePath(userId, deviceId) {
+      return /databases/$(database)/documents/users/$(userId)/devices/$(deviceId);
+    }
+
+    function deviceExists(userId, deviceId) {
+      return exists(devicePath(userId, deviceId));
+    }
+
+    function activeSession(userId, deviceId, sessionId) {
+      return exists(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)/sessions/$(sessionId))
+        && get(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)/sessions/$(sessionId)).data.ownerId == userId
+        && get(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)/sessions/$(sessionId)).data.desktopDeviceId == deviceId
+        && get(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)/sessions/$(sessionId)).data.revoked == false
+        && get(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)/sessions/$(sessionId)).data.expiresAt > request.time;
+    }
+
+    function validDevice(userId, deviceId) {
+      return request.resource.data.keys().hasOnly([
+          'deviceId', 'ownerId', 'displayName', 'platform', 'createdAt', 'lastSeenAt', 'status', 'capabilities'
+        ])
+        && request.resource.data.deviceId == deviceId
+        && request.resource.data.ownerId == userId
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.displayName.size() <= 80
+        && request.resource.data.platform in ['ANDROID', 'DESKTOP']
+        && request.resource.data.status in ['PENDING', 'PAIRED', 'REVOKED', 'OFFLINE']
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.lastSeenAt is timestamp
+        && request.resource.data.capabilities is list
+        && request.resource.data.capabilities.size() <= 8;
+    }
+
+    function commandPayloadIsValid() {
+      let payload = request.resource.data.payload;
+      let text = payload.get('text', '');
+      return (
+          request.resource.data.commandType == 'SUBMIT_TEXT_REQUEST'
+          && payload.keys().hasOnly(['text'])
+          && text is string
+          && text.size() > 0
+          && text.size() <= 8000
+        ) || (
+          request.resource.data.commandType in ['REQUEST_STATUS', 'SYNC_STATE', 'START_NEW_DRAFT', 'CANCEL_OWNED_REQUEST']
+          && payload.keys().hasOnly([])
+        );
+    }
+
+    function validCommand(userId, deviceId, commandId) {
+      return request.resource.data.keys().hasOnly([
+          'commandId', 'ownerId', 'desktopDeviceId', 'controllerDeviceId', 'sessionId', 'commandType', 'payload', 'sequence', 'createdAt', 'expiresAt', 'correlationId'
+        ])
+        && request.resource.data.commandId == commandId
+        && request.resource.data.ownerId == userId
+        && request.resource.data.desktopDeviceId == deviceId
+        && request.resource.data.controllerDeviceId is string
+        && request.resource.data.sessionId is string
+        && request.resource.data.sequence is int
+        && request.resource.data.sequence > 0
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(10, 'm')
+        && request.resource.data.correlationId is string
+        && request.resource.data.correlationId.size() <= 128
+        && request.resource.data.commandType in ['REQUEST_STATUS', 'SYNC_STATE', 'START_NEW_DRAFT', 'SUBMIT_TEXT_REQUEST', 'CANCEL_OWNED_REQUEST']
+        && request.resource.data.payload is map
+        && deviceExists(userId, request.resource.data.controllerDeviceId)
+        && activeSession(userId, deviceId, request.resource.data.sessionId)
+        && commandPayloadIsValid();
+    }
+
+    match /users/{userId}/devices/{deviceId} {
+      allow read: if ownsUser(userId);
+      allow create: if ownsUser(userId) && validDevice(userId, deviceId);
+      allow update: if ownsUser(userId)
+        && validDevice(userId, deviceId)
+        && request.resource.data.deviceId == resource.data.deviceId
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if false;
+
+      match /sessions/{sessionId} {
+        allow read: if ownsUser(userId);
+        allow create, update, delete: if false;
+      }
+
+      match /commands/{commandId} {
+        allow read: if ownsUser(userId);
+        allow create: if ownsUser(userId) && validCommand(userId, deviceId, commandId);
+        allow update, delete: if false;
+      }
+
+      match /events/{eventId} {
+        allow read: if ownsUser(userId);
+        allow create, update, delete: if false;
+      }
+    }
+  }
+}

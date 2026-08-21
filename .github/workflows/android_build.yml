@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_SIGNING_READY: ${{ secrets.KEYSTORE_BASE64 != '' && secrets.STORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
 
     steps:
     - name: Checkout Repository
@@ -47,7 +49,11 @@ jobs:
     - name: Run unit tests and Android lint
       run: ./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace
 
-    - name: Compile and package signed release outputs
+    - name: Compile release sources
+      run: ./gradlew :app:compileReleaseKotlin --stacktrace
+
+    - name: Package signed release outputs
+      if: github.ref == 'refs/heads/main' && env.RELEASE_SIGNING_READY == 'true'
       env:
         KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
@@ -56,7 +62,13 @@ jobs:
       run: |
         ./gradlew --no-daemon --max-workers=1 \
           '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -XX:+UseSerialGC' \
-          :app:compileReleaseKotlin :app:assembleRelease :app:bundleRelease --stacktrace
+          :app:assembleRelease :app:bundleRelease --stacktrace
+
+    - name: Report unavailable release signing
+      if: github.ref == 'refs/heads/main' && env.RELEASE_SIGNING_READY != 'true'
+      run: |
+        echo 'Release packaging was skipped because the required signing secrets are not configured.'
+        echo 'Set KEYSTORE_BASE64, STORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD before publishing.'
 
     - name: Remove temporary signing material
       if: always()

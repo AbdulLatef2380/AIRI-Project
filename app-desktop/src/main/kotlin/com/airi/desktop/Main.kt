@@ -338,9 +338,55 @@ private fun Composer(input: String, inputFocused: Boolean, focusRequester: Focus
 
 @Composable
 private fun StagedAttachments(attachments: List<DesktopAttachment>, onRemoveAttachment: (String) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(DesktopSpacing.small), verticalArrangement = Arrangement.spacedBy(DesktopSpacing.xSmall)) {
-        attachments.forEach { attachment -> TextButton(onClick = { onRemoveAttachment(attachment.id) }) { Text("${attachment.displayName} · remove") } }
+    Column(verticalArrangement = Arrangement.spacedBy(DesktopSpacing.xSmall)) {
+        Text(
+            "Staged locally · content is not sent until a compatible model is configured",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(DesktopSpacing.small),
+            verticalArrangement = Arrangement.spacedBy(DesktopSpacing.xSmall)
+        ) {
+            attachments.forEach { attachment ->
+                Surface(
+                    shape = DesktopShapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.width(240.dp).border(1.dp, MaterialTheme.colorScheme.outline, DesktopShapes.medium)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(DesktopSpacing.small),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(attachment.displayName, maxLines = 1, style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "${attachmentTypeLabel(attachment.contentType)} · ${formatAttachmentSize(attachment.sizeBytes)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                        TextButton(onClick = { onRemoveAttachment(attachment.id) }) { Text("Remove") }
+                    }
+                }
+            }
+        }
     }
+}
+
+private fun attachmentTypeLabel(contentType: com.airi.core.attachments.AttachmentPolicy.ContentType): String = when (contentType) {
+    com.airi.core.attachments.AttachmentPolicy.ContentType.IMAGE -> "Image"
+    com.airi.core.attachments.AttachmentPolicy.ContentType.VIDEO -> "Video"
+    com.airi.core.attachments.AttachmentPolicy.ContentType.TEXT -> "Text"
+    com.airi.core.attachments.AttachmentPolicy.ContentType.DOCUMENT -> "Document"
+    com.airi.core.attachments.AttachmentPolicy.ContentType.FILE -> "File"
+}
+
+private fun formatAttachmentSize(bytes: Long): String = when {
+    bytes >= 1024L * 1024L -> "${"%.1f".format(bytes / (1024.0 * 1024.0))} MB"
+    bytes >= 1024L -> "${bytes / 1024L} KB"
+    else -> "$bytes B"
 }
 
 @Composable

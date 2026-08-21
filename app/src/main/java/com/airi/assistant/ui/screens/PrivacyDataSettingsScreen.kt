@@ -129,7 +129,17 @@ fun PrivacyDataSettingsScreen(
                 SettingsActionRow(
                     label    = stringResource(R.string.clear_chat_history),
                     sublabel = stringResource(R.string.remove_from_display)
-                ) { viewModel.clearMessages() }
+                ) {
+                    scope.launch {
+                        viewModel.clearCurrentSessionForPrivacy().onFailure {
+                            snackbarHost.showSnackbar(
+                                message = context.getString(R.string.delete_account_error_generic),
+                                actionLabel = context.getString(R.string.ok),
+                                duration = SnackbarDuration.Long
+                            )
+                        }
+                    }
+                }
                 Divider(
                     color    = AiriTheme.onBackground.copy(alpha = 0.06f),
                     modifier = Modifier.padding(vertical = 8.dp)

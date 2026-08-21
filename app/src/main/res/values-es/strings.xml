@@ -50,7 +50,7 @@
     <string name="import_failed">Error al importar — archivo vacío o JSON inválido</string>
     <string name="export_coming_next_update">La exportación llegará en la próxima actualización</string>
     <string name="clear_chat_history">Borrar historial de chat</string>
-    <string name="remove_from_display">Eliminar mensajes de la vista actual</string>
+    <string name="remove_from_display">Eliminar esta conversación y sus archivos adjuntos privados de este dispositivo</string>
     <string name="delete_account">Eliminar cuenta</string>
     <string name="delete_account_sublabel">Eliminar el usuario actual de Firebase</string>
     <string name="delete_account_message">Esto intentará eliminar tu cuenta de Firebase. El historial y la memoria local también se eliminarán de este dispositivo.</string>

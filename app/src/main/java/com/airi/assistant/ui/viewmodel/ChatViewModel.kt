@@ -1263,6 +1263,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    suspend fun clearCurrentSessionForPrivacy(): Result<Unit> {
+        val sessionId = _currentSessionId.value
+        if (sessionId.isBlank()) {
+            return Result.failure(IllegalStateException("No active conversation is available to delete."))
+        }
+        return try {
+            memoryManager.deleteSession(sessionId)
+            val replacement = memoryManager.createSession()
+            _currentSessionId.value = replacement.id
+            preferences.edit().putString(KEY_SESSION_ID, replacement.id).apply()
+            _messages.value = emptyList()
+            streamAccumulator.setLength(0)
+            _streamingText.value = ""
+            _agentState.value = AgentState()
+            llamaManager.setHistory(emptyList())
+            refreshSessions()
+            Result.success(Unit)
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
+    }
+
     fun loadSession(sessionId: String) {
         viewModelScope.launch {
             val previousId      = _currentSessionId.value

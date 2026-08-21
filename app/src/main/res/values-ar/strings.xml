@@ -84,7 +84,7 @@
     <string name="import_failed">فشل الاستيراد — الملف فارغ أو ليس JSON صالح</string>
     <string name="export_coming_next_update">التصدير قادم في التحديث القادم</string>
     <string name="clear_chat_history">مسح سجل المحادثة</string>
-    <string name="remove_from_display">إزالة من العرض (وليس من قاعدة البيانات)</string>
+    <string name="remove_from_display">حذف هذه المحادثة ومرفقاتها الخاصة من هذا الجهاز</string>
     <string name="delete_account">حذف الحساب</string>
     <string name="delete_account_sublabel">إزالة حساب Firebase نهائيًا</string>
     <string name="delete_account_message">سيؤدي هذا إلى حذف حساب Firebase نهائيًا وتسجيل خروجك. لن يتم حذف ملفات النماذج المحلية أو الذاكرة.</string>

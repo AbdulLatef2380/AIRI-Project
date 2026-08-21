@@ -84,7 +84,7 @@
     <string name="import_success">Imported %1$d messages</string>
     <string name="import_failed">Import failed — file is empty or not valid JSON</string>
     <string name="clear_chat_history">Clear Chat History</string>
-    <string name="remove_from_display">Remove from display (not from DB)</string>
+    <string name="remove_from_display">Delete this conversation and its private attachments from this device</string>
     <string name="delete_account">Delete Account</string>
     <string name="delete_account_sublabel">Permanently remove your Firebase account</string>
     <string name="delete_account_message">This will permanently delete your Firebase account and sign you out. Your local model files and memory will NOT be deleted.</string>

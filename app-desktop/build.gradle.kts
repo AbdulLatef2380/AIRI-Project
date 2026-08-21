@@ -24,11 +24,17 @@ compose.desktop {
         mainClass = "com.airi.desktop.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Deb)
+            targetFormats(TargetFormat.Deb, TargetFormat.Msi)
             packageName = "AIRI"
             packageVersion = "1.0.0"
             description = "AIRI desktop foundation"
             vendor = "AIRI"
+
+            windows {
+                dirChooser = true
+                perUserInstall = true
+                menuGroup = "AIRI"
+            }
 
             linux {
                 debMaintainer = "maintainers@airi.local"

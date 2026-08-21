@@ -34,6 +34,6 @@
 | AndroidTest APK | `BUILDS` | `:app:assembleDebugAndroidTest` نجح مستقلاً. |
 | static/security/platform | `TESTED` | toolchain/cross-platform/platform/core health و41/41 وsecurity scan نجحت. |
 | local release R8 | `EXTERNAL_VERIFICATION_REQUIRED` | حد ذاكرة sandbox قتل daemon أثناء `minifyReleaseWithR8`؛ لا تخفيف R8. |
-| remote CI | `IMPLEMENTED` | يبدأ بعد دفع commit gate؛ لا ترقية حالة remote قبل نتيجته. |
+| remote CI | `RUNTIME_VERIFIED` لـAndroid فقط | [Android CI](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32435349886) نجح، بما في ذلك release وinstrumentation وnative verification؛ نجح أيضاً [Deep Audit](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32435349833) و[Architecture Audit](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32435349919). |
 
-لا يمثل `desktopTest` أو compile JVM دعماً لمنتج Linux أو Windows. يظل Desktop `ARCHITECTED` إلى أن توجد نافذة وتشغيل وتفاعل وحزمة مثبتة لكل نظام.
+لا يمثل `desktopTest` أو compile JVM دعماً لمنتج Linux أو Windows. يظل Desktop `ARCHITECTED` إلى أن توجد نافذة وتشغيل وتفاعل وحزمة مثبتة لكل نظام. نجح Android CI البعيد بمرحلة release وinstrumentation، لذلك أصبحت Android بعد Gate B `RUNTIME_VERIFIED` ضمن نطاق الترقية فقط.

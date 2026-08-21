@@ -1,30 +1,36 @@
 package com.airi.assistant.execution
 
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
+import com.airi.core.agent.AgentExecutionLifecycle
+import java.util.concurrent.atomic.AtomicReference
 
 internal class ExecutionGenerationGate {
 
-    private val generationId = AtomicLong(0L)
-    private val cancelled = AtomicBoolean(false)
+    private val lifecycle = AtomicReference(AgentExecutionLifecycle())
 
-    fun beginGeneration(): Long {
-        cancelled.set(false)
-        return generationId.incrementAndGet()
-    }
+    fun beginGeneration(): Long = update { it.beginGeneration() }.generationId
 
     fun cancel() {
-        cancelled.set(true)
+        update { it.requestCancellation() }
     }
 
     fun resetCancel() {
-        cancelled.set(false)
+        update { it.resumeCurrentGeneration() }
     }
 
-    fun currentGenerationId(): Long = generationId.get()
+    fun currentGenerationId(): Long = lifecycle.get().generationId
 
-    fun isCancelled(): Boolean = cancelled.get()
+    fun isCancelled(): Boolean = lifecycle.get().isCancellationRequested
 
     fun accepts(candidateGenerationId: Long): Boolean =
-        candidateGenerationId == generationId.get() && !cancelled.get()
+        lifecycle.get().accepts(candidateGenerationId)
+
+    private fun update(
+        transform: (AgentExecutionLifecycle) -> AgentExecutionLifecycle
+    ): AgentExecutionLifecycle {
+        while (true) {
+            val current = lifecycle.get()
+            val updated = transform(current)
+            if (lifecycle.compareAndSet(current, updated)) return updated
+        }
+    }
 }

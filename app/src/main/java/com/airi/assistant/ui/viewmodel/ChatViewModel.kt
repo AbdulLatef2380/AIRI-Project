@@ -2553,8 +2553,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "extras=${extras.size} vision_ready=$visionReady"
         )
 
-        if (primaryImage != null && visionReady) {
-            // Vision path — keep extras visible to the model as text markers.
+        if (primaryImage != null && !visionReady) {
+            pendingAttachmentJsonForNextSend = null
+            _messages.update {
+                it + ChatMessage(
+                    "لا يوجد نموذج رؤية جاهز لتحليل الصورة. لم تُرسل الصورة إلى نموذج نصي؛ اختر نموذجاً يدعم الرؤية ثم أعد المحاولة.",
+                    isUser = false
+                )
+            }
+            return@launch
+        }
+
+        if (primaryImage != null) {
             val attachmentContext = listOf(
                 extras.joinToString(separator = "\n") { it.toTextMarker() },
                 textAttachmentContext
@@ -2564,16 +2574,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                            else "$trimmed\n\n$attachmentContext"
             sendMessageWithImage(fullText, primaryImage.uri, primaryImage.bitmap)
         } else {
-            // Text-marker path — every attachment becomes one [image:]/[file:] line.
             val attachmentContext = listOf(
                 persistedAttachments.joinToString(separator = "\n") { it.toTextMarker() },
                 textAttachmentContext
             ).filter { it.isNotBlank() }.joinToString(separator = "\n\n")
             val fullText = if (trimmed.isBlank()) attachmentContext else "$trimmed\n\n$attachmentContext"
-            
-            // to display the thumbnail, so re-use the existing single-shot
-            // pendingImageUriForNextSend hand-off used by the old fallback.
-            primaryImage?.uri?.let { pendingImageUriForNextSend = it.toString() }
             sendMessage(fullText)
         }
         }
@@ -2646,19 +2651,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }.getOrNull()
 
-        // Branch C: image present but vision NOT wired → marker fallback.
         if (!visionReady) {
-            Log.i("AIRI",
-                "VISION_FALLBACK_TEXT_MARKER reason=no_vision_wired name=$attachmentName")
-            val finalText = buildString {
-                append(trimmedInput)
-                append("\n\n[ATTACHMENT: image: ").append(attachmentName)
-                append("] (vision model not loaded — respond based on filename only)")
+            Log.i("AIRI", "VISION_REQUEST_REJECTED reason=no_vision_wired name=$attachmentName")
+            _messages.update {
+                it + ChatMessage(
+                    "لا يوجد نموذج رؤية جاهز لتحليل الصورة. لم تُرسل الصورة إلى نموذج نصي؛ اختر نموذجاً يدعم الرؤية ثم أعد المحاولة.",
+                    isUser = false
+                )
             }
-            // Hand off the thumbnail to sendMessage so the user's bubble
-            // still shows the picked image (consumed exactly once).
-            pendingImageUriForNextSend = displayableUri
-            sendMessage(finalText)
             return
         }
 

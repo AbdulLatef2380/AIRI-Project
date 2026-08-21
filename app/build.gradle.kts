@@ -94,6 +94,12 @@ android {
         }
     }
 
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
+
     buildTypes {
         release {
             // R8 full-mode: dead-code elimination, shrinking, obfuscation.

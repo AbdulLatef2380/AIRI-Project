@@ -7,8 +7,8 @@
 | TC-03 | Compose Android قد يفشل بعد Kotlin 2.x. | متوسط | مرتفع | Compose Compiler 2.2.21 وBOM 2025.08؛ BOM 2026.08 رفض بسبب AGP/SDK أعلى من النطاق. | compile/lint/UI tests Android وCI تنجح. | مغلقة: CI نجح |
 | TC-04 | R8 release المحلي قد يُقتل عند حد sandbox 3.8GiB. | مرتفع | متوسط | حفظ logs، عدم تعطيل minify، استخدام remote CI كدليل release، وإعادة المحاولة فقط في مورد مناسب. | release محلي أو CI remote ناجح مع R8. | مخففة: CI release نجح؛ القيد المحلي باقٍ |
 | TC-05 | JNI/NDK وllama.cpp قد يتأثران بتغير Kotlin/AGP. | منخفض | حرج | إبقاء AGP/NDK/CMake ثابتة، والتحقق من native library في debug/CI. | `airiVerifyNativeInDebugApk` وCI native check ينجحان. | مغلقة: CI نجح |
-| TC-06 | plugin Compose Multiplatform يسبب churn في Compose Android. | متوسط | مرتفع | لا يضاف قبل نجاح Kotlin compiler gate؛ milestone مستقل. | Android gates وDesktop compile ينجحان. | مفتوحة |
-| TC-07 | حزم Windows/Linux تتطلب بيئات OS مستقلة. | مرتفع | متوسط | Linux runtime هنا؛ Windows CI أو host حقيقي قبل رفع الحالة. | artifact وruntime evidence لكل OS. | مفتوحة |
+| TC-06 | plugin Compose Multiplatform يسبب churn في Compose Android. | متوسط | مرتفع | أضيف بعد Kotlin compiler gate في وحدة Desktop مستقلة، مع بناء واختبارات Desktop وتشغيل بوابات Android منفصلة. | Android compile/unit/AndroidTest APK وDesktop test/package تنجح محلياً ثم CI بعد commit. | مخففة محلياً؛ CI بعد إضافة Desktop مطلوب |
+| TC-07 | حزم Windows/Linux تتطلب بيئات OS مستقلة. | مرتفع | متوسط | Linux runtime هنا؛ Windows CI أو host حقيقي قبل رفع الحالة. | artifact وruntime evidence لكل OS. | Linux مغلقة بالدليل؛ Windows مفتوحة |
 | TC-08 | فقد rollback أو خلط تغييرات متعددة. | منخفض | حرج | checkpoint منشور وcommit لكل gate وlogs baseline. | branch/checkpoint صالحان وworktree نظيفة. | مخففة |
 
 ## أدلة baseline ذات الصلة

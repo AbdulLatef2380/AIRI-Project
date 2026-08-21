@@ -19,3 +19,4 @@ dependencyResolutionManagement {
 rootProject.name = "AIRI"
 include(":app")
 include(":core-domain")
+include(":app-desktop")

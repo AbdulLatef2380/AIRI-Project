@@ -9,6 +9,7 @@ activityCompose = "1.8.2"
 
 composeBom = "2025.08.00"
 composeCompiler = "1.5.10"
+composeMultiplatform = "1.8.2"
 
 coroutines = "1.7.3"
 room = "2.8.4"
@@ -63,6 +64,8 @@ porcupineAndroid = { group = "ai.picovoice", name = "porcupine-android", version
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }

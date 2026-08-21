@@ -6,10 +6,10 @@
 
 | القدرة | Android | Windows | Linux | Web | الدليل المطلوب للترقية |
 | --- | --- | --- | --- | --- | --- |
-| بدء التطبيق وواجهة الدردشة | `RUNTIME_VERIFIED` | `PLANNED` | `PLANNED` | `PLANNED` | artifact، تشغيل، إرسال/عرض رد. |
+| بدء التطبيق وواجهة الدردشة | `RUNTIME_VERIFIED` | `PLANNED` | `RUNTIME_VERIFIED` لأساس محلي محدود | `PLANNED` | Linux: نافذة وkeyboard/mouse وإرسال/عرض رد محلي واستعادة سجل؛ Windows/Web ما زالا يحتاجان artifact وتشغيل مستقلين. |
 | chat streaming | `RUNTIME_VERIFIED` في مسار Android المرجعي | `PLANNED` | `PLANNED` | `PLANNED` | provider test، ظهور chunks، recovery. |
 | إلغاء التنفيذ | `RUNTIME_VERIFIED` لبوابة generation في اختبارات Android/JVM | `PLANNED` | `PLANNED` | `PLANNED` | إلغاء أثناء stream ومنع callback قديم. |
-| agent planning/execution | `IMPLEMENTED` في Android؛ عقود الخطة المشتركة تبني في `core-domain` | `ARCHITECTED` | `ARCHITECTED` | `ARCHITECTED` | عقود `ActionPlan` و`AgentGoal` و`PlanStep` اجتازت اختبارات JVM/Android؛ التنفيذ وtarget integration ما زالا مطلوبين. |
+| agent planning/execution | `IMPLEMENTED` في Android؛ عقود الخطة المشتركة تبني في `core-domain` | `ARCHITECTED` | `IMPLEMENTED` لمسار تخطيط محلي حتمي محدود | `ARCHITECTED` | Linux يستهلك `ActionPlan` و`AgentGoal` و`PlanStep` للاستجابة المحلية؛ execution على نظام التشغيل وproviders ما زالا مطلوبين. |
 | memory admission | `RUNTIME_VERIFIED` بمنطق Android واختبارات policy | `ARCHITECTED` | `ARCHITECTED` | `PLANNED` | policy تبني في target JVM عام، لكن لا يوجد تطبيق أو artifact أو تحقق Windows/Linux؛ لذلك لا تُرفع حالة المنصتين. |
 | RAG retrieval/ranking | `IMPLEMENTED` في Android | `PLANNED` | `PLANNED` | `PLANNED` | dataset fixture والاسترجاع على target. |
 | cloud models | `IMPLEMENTED`؛ الاتصال بحسابات حقيقية `EXTERNAL_VERIFICATION_REQUIRED` | `PLANNED` | `PLANNED` | `PLANNED` | provider integration آمن ومثبت لكل target. |
@@ -20,7 +20,7 @@
 | attachments validation | `RUNTIME_VERIFIED` لسياسة المرفقات واختباراتها | `ARCHITECTED` | `ARCHITECTED` | `ARCHITECTED` | policy في `core-domain` تبني وتختبر على JVM عام وAndroid؛ لا يوجد target product خارجي أو Web target بعد. |
 | attachments acquisition | `IMPLEMENTED` Android picker/content resolver | `PLANNED` | `PLANNED` | `PLANNED` | اختيار ملف وdrag/drop ورفض الحجم/MIME. |
 | artifacts | `IMPLEMENTED` Android | `PLANNED` | `PLANNED` | `PLANNED` | save/open/delete مع permission audit. |
-| persistence | `RUNTIME_VERIFIED` لRoom migrations المحددة | `ARCHITECTED` | `ARCHITECTED` | `ARCHITECTED` | repository contract، migration/restart/encryption tests. |
+| persistence | `RUNTIME_VERIFIED` لRoom migrations المحددة | `ARCHITECTED` | `RUNTIME_VERIFIED` لسجل جلسة محلي محدود | `ARCHITECTED` | Linux يكتب ويعيد تحميل سجل رسائل محلي بعد إعادة التشغيل؛ لا يمثل ذلك repository أو migration أو encryption نهائياً. |
 | scheduling | `IMPLEMENTED` Android عبر WorkManager؛ التشغيل OS الفعلي `EXTERNAL_VERIFICATION_REQUIRED` | `PLANNED` | `PLANNED` | `PLANNED` | wake/retry/cancel semantics على OS/browser. |
 | voice STT/TTS | `IMPLEMENTED` Android؛ mic/devices `EXTERNAL_VERIFICATION_REQUIRED` | `PLANNED` | `PLANNED` | `PLANNED` | permission، capture، transcription/synthesis، cancellation. |
 | notifications | `IMPLEMENTED` Android | `PLANNED` | `PLANNED` | `PLANNED` | opt-in، delivery، interaction. |
@@ -35,7 +35,8 @@
 | --- | --- | --- |
 | AIRI Android | `RUNTIME_VERIFIED` بصورة جزئية ومحددة بالاختبارات الموجودة | لا يتحول هذا الوصف إلى ضمان شامل للمزودين أو hardware أو الحسابات الخارجية. |
 | AIRI Core | `BUILDS` لنطاق `core-domain` المحدود | سياسات الذاكرة والمرفقات وعقود التخطيط المشتركة واختباراتها تبني على JVM Desktop وAndroid؛ بقية النواة ما زالت `ARCHITECTED` أو `PLANNED`. |
-| AIRI Desktop | `PLANNED` | لا يوجد build أو runtime artifact. |
+| AIRI Desktop Linux foundation | `RUNTIME_VERIFIED` لنطاق نافذة محلية محدود | حزمة DEB تبني، والنافذة تقبل keyboard/mouse وتعرض رداً حتمياً وتعيد تحميل سجل جلسة؛ راجع `GATE_DESKTOP_LINUX.md`. |
+| AIRI Desktop Windows | `PLANNED` | لا يوجد package أو runtime artifact أو دليل تفاعل على Windows. |
 | AIRI Web | `PLANNED` | لا يوجد target أو security architecture منفذة. |
 
 ## ضوابط منع الدعم الوهمي

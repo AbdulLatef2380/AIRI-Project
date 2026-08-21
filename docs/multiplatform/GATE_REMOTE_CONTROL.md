@@ -10,9 +10,9 @@ AIRI will not expose arbitrary Windows control. Android may control **only AIRI-
 | Ordered command acceptance and replay protection | Implemented | `TESTED` | The common test fixture and policy tests reject replayed or out-of-order sequences. |
 | Pairing ownership and revocation | Implemented | `TESTED` | Shared policy tests cover controller identity, owner binding, device revocation, and later command rejection. |
 | Rate limits and payload-safe audit records | Implemented | `TESTED` | Shared tests cover windowed limits; audit records contain metadata only, not text payloads or credentials. |
-| Firestore owner isolation and command validation | Implemented | `TESTED` | Firestore Emulator permits only a valid owner command with an active session and rejects unauthenticated, foreign-owner, unknown, oversized, expired, mutable, and deletable requests. |
+| Firestore owner isolation and command validation | Implemented | `TESTED` | Firestore Emulator permits only a valid owner command from paired Android and Desktop devices with an active session; it rejects unauthenticated, foreign-owner, pending-device, unknown, oversized, expired, mutable, and deletable requests. |
 | Desktop command dispatcher | Partial adapter | `BUILD_VERIFIED` | Dispatcher accepts only prevalidated AIRI-owned commands and has no direct network transport. |
-| Android authenticated controller adapter | Not implemented | `SOURCE_VERIFIED` | No Android adapter binds authenticated Firebase identity, device storage, and command transport yet. |
+| Android authenticated controller adapter | Partial adapter | `BUILD_VERIFIED` | `FirestoreRemoteControlAndroidAdapter` obtains the owner from `AuthService`, registers only a pending Android device, and submits only bounded allowlisted commands through Firebase client rules. |
 | Desktop local pairing approval adapter | Not implemented | `SOURCE_VERIFIED` | No local approval UI or platform token storage adapter exists yet. |
 | Production relay and encrypted authenticated transport | Not deployed | `EXTERNAL_VERIFICATION_REQUIRED` | Deployment requires real Firebase configuration, relay ownership, certificate and credential review. |
 | Android-to-Windows user journey | Not executed | `EXTERNAL_VERIFICATION_REQUIRED` | Requires a physical Android device and interactive Windows host after adapters are connected. |
@@ -21,7 +21,7 @@ AIRI will not expose arbitrary Windows control. Android may control **only AIRI-
 
 The shared policy rejects revoked or expired sessions, pairing and controller identifier mismatches, replayed command sequences, unavailable command types, empty text requests, oversized text requests, and payload fields not valid for the command. The contract is transport-agnostic and contains no secret, raw socket, or operating-system API.
 
-The Firestore schema scopes client-accessible documents under `users/{uid}/devices/{deviceId}`. Device documents use immutable owner and device bindings. Client sessions and events are relay-managed, command documents are append-only, and each command has exact field, command-type, payload, timestamp, expiry, owner, controller-device, and active-session validation. No broad `allow read, write` rule is present.
+The Firestore schema scopes client-accessible documents under `users/{uid}/devices/{deviceId}`. A client may create only its own Android device in `PENDING` state; it cannot create a Desktop device, promote a device, mutate a device, or create a session. Device promotion and sessions are relay-managed. Command documents are append-only and require a paired Android controller, a paired Desktop target, exact fields, an allowlisted command type, bounded payload, timestamp, expiry, owner, controller-device, and active session. No broad `allow read, write` rule is present.
 
 Platform adapters must use authenticated encrypted transport, short-lived revocable session material, platform-owned secure token storage, user-visible local pairing approval, and audit events that exclude text content and credentials. This follows least-privilege, secure-by-default, short-lived-session, secure-token-storage, and explicit-authorization guidance from OWASP and Android security documentation. [1] [2]
 
@@ -39,13 +39,19 @@ export ANDROID_HOME=/home/ubuntu/android-sdk
 python3 scripts/airi_remote_control_health.py
 python3 scripts/airi_remote_control_security.py
 python3 scripts/airi_firestore_rules_test.py --run-emulator
+
+./gradlew --no-daemon --max-workers=1 \
+  '-Dorg.gradle.jvmargs=-Xmx1536m -XX:MaxMetaspaceSize=512m -XX:+UseSerialGC' \
+  '-Dkotlin.daemon.jvmargs=-Xmx1024m' \
+  '-Pkotlin.compiler.execution.strategy=in-process' \
+  :app:compileDebugKotlin
 ```
 
 The Emulator suite uses the demo project `demo-airi-remote-control` only. It does not require a Firebase login, production project, service account, or production credential. It verifies the allowed owner command plus negative paths for unauthenticated and foreign owners, unknown commands, oversized text payloads, expired sessions, and client update/delete attempts.
 
 ## Remaining External Verification
 
-The following work deliberately remains outside the evidence of this gate: authenticated Android transport implementation, Android secure session storage, desktop approval UI, encrypted relay deployment, production Firestore configuration, physical Android-to-Windows command exchange, and user acceptance on Windows. None of those claims are implied by the local contract or Emulator evidence.
+The following work deliberately remains outside the evidence of this gate: desktop approval UI, relay-managed device promotion and session issuance, encrypted relay deployment, production Firestore configuration, physical Android-to-Windows command exchange, and user acceptance on Windows. The Android adapter build and Firestore Emulator do not prove any of those runtime or production claims.
 
 ## References
 

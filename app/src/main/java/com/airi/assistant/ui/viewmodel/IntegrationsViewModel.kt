@@ -168,13 +168,15 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             githubService.validateAndConnect(current.token)
                 .onSuccess {
-                    // : Write to ConnectorAuthManager namespace so GitHubConnector.connect()
-                    // can find the credential. GithubService writes to SecureStorage "github_token";
-                    // GitHubConnector reads ConnectorAuthManager.getCredential("github", "pat").
-                    // Bridging both namespaces here resolves the split-brain.
-                    authManager.storeCredential("github", "pat", current.token.trim())
-                    _dialog.value = DialogState.None
-                    refresh()
+                    if (!authManager.storeCredential("github", "pat", current.token.trim())) {
+                        _dialog.value = current.copy(
+                            loading = false,
+                            error = "Secure credential storage is unavailable. GitHub was not connected."
+                        )
+                    } else {
+                        _dialog.value = DialogState.None
+                        refresh()
+                    }
                 }
                 .onFailure { e ->
                     AppErrorHandler.capture(e, "IntegrationsViewModel.connectGithub")

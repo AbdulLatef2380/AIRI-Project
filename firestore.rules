@@ -17,6 +17,13 @@ service cloud.firestore {
       return exists(devicePath(userId, deviceId));
     }
 
+    function pairedDevice(userId, deviceId, platform) {
+      return deviceExists(userId, deviceId)
+        && get(devicePath(userId, deviceId)).data.ownerId == userId
+        && get(devicePath(userId, deviceId)).data.platform == platform
+        && get(devicePath(userId, deviceId)).data.status == 'PAIRED';
+    }
+
     function activeSession(userId, deviceId, sessionId) {
       return exists(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)/sessions/$(sessionId))
         && get(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)/sessions/$(sessionId)).data.ownerId == userId
@@ -76,20 +83,19 @@ service cloud.firestore {
         && request.resource.data.correlationId.size() <= 128
         && request.resource.data.commandType in ['REQUEST_STATUS', 'SYNC_STATE', 'START_NEW_DRAFT', 'SUBMIT_TEXT_REQUEST', 'CANCEL_OWNED_REQUEST']
         && request.resource.data.payload is map
-        && deviceExists(userId, request.resource.data.controllerDeviceId)
+        && pairedDevice(userId, request.resource.data.controllerDeviceId, 'ANDROID')
+        && pairedDevice(userId, deviceId, 'DESKTOP')
         && activeSession(userId, deviceId, request.resource.data.sessionId)
         && commandPayloadIsValid();
     }
 
     match /users/{userId}/devices/{deviceId} {
       allow read: if ownsUser(userId);
-      allow create: if ownsUser(userId) && validDevice(userId, deviceId);
-      allow update: if ownsUser(userId)
+      allow create: if ownsUser(userId)
         && validDevice(userId, deviceId)
-        && request.resource.data.deviceId == resource.data.deviceId
-        && request.resource.data.ownerId == resource.data.ownerId
-        && request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if false;
+        && request.resource.data.platform == 'ANDROID'
+        && request.resource.data.status == 'PENDING';
+      allow update, delete: if false;
 
       match /sessions/{sessionId} {
         allow read: if ownsUser(userId);

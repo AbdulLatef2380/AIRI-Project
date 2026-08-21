@@ -12,14 +12,14 @@ const activeSession = {
   expiresAt: Timestamp.fromMillis(now + 5 * 60_000)
 };
 
-const validDevice = (deviceId, platform) => ({
+const validDevice = (deviceId, platform, status = 'PENDING') => ({
   deviceId,
   ownerId: 'alice',
   displayName: platform === 'DESKTOP' ? 'AIRI Desktop' : 'AIRI Android',
   platform,
   createdAt: serverTimestamp(),
   lastSeenAt: serverTimestamp(),
-  status: 'PAIRED',
+  status,
   capabilities: ['REQUEST_STATUS', 'SYNC_STATE']
 });
 
@@ -50,12 +50,12 @@ async function seed() {
   await environment.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
     await setDoc(doc(db, 'users/alice/devices/desktop-1'), {
-      ...validDevice('desktop-1', 'DESKTOP'),
+      ...validDevice('desktop-1', 'DESKTOP', 'PAIRED'),
       createdAt: Timestamp.fromMillis(now),
       lastSeenAt: Timestamp.fromMillis(now)
     });
     await setDoc(doc(db, 'users/alice/devices/android-1'), {
-      ...validDevice('android-1', 'ANDROID'),
+      ...validDevice('android-1', 'ANDROID', 'PAIRED'),
       createdAt: Timestamp.fromMillis(now),
       lastSeenAt: Timestamp.fromMillis(now)
     });
@@ -70,7 +70,9 @@ try {
   const anonymous = environment.unauthenticatedContext().firestore();
 
   await verify('unauthenticated device creation is denied', assertFails(setDoc(doc(anonymous, 'users/alice/devices/desktop-2'), validDevice('desktop-2', 'DESKTOP'))));
-  await verify('owner device creation is allowed', assertSucceeds(setDoc(doc(alice, 'users/alice/devices/desktop-2'), validDevice('desktop-2', 'DESKTOP'))));
+  await verify('owner Android pending-device creation is allowed', assertSucceeds(setDoc(doc(alice, 'users/alice/devices/android-2'), validDevice('android-2', 'ANDROID'))));
+  await verify('owner desktop-device creation is denied', assertFails(setDoc(doc(alice, 'users/alice/devices/desktop-2'), validDevice('desktop-2', 'DESKTOP', 'PENDING'))));
+  await verify('owner paired-device creation is denied', assertFails(setDoc(doc(alice, 'users/alice/devices/android-3'), validDevice('android-3', 'ANDROID', 'PAIRED'))));
   await verify('other user device creation is denied', assertFails(setDoc(doc(bob, 'users/alice/devices/desktop-3'), validDevice('desktop-3', 'DESKTOP'))));
 
   await verify('active-session allowlisted command is allowed', assertSucceeds(setDoc(doc(alice, 'users/alice/devices/desktop-1/commands/command-1'), validCommand())));
@@ -86,6 +88,7 @@ try {
     });
   });
   await verify('expired session command is denied', assertFails(setDoc(doc(alice, 'users/alice/devices/desktop-1/commands/command-4'), validCommand({ commandId: 'command-4', sessionId: 'expired-session' }))));
+  await verify('pending controller command is denied', assertFails(setDoc(doc(alice, 'users/alice/devices/desktop-1/commands/command-5'), validCommand({ commandId: 'command-5', controllerDeviceId: 'android-2' }))));
 
   console.log('Firestore remote-control rules tests passed.');
 } finally {

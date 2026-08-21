@@ -42,6 +42,9 @@ class AuthService(
 
     private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance()
 
+    val currentUserId: String?
+        get() = firebaseAuth.currentUser?.uid
+
     // ── Email / Password ──────────────────────────────────────────────────────
 
     fun signIn(email: String, password: String, onResult: (String?) -> Unit) {

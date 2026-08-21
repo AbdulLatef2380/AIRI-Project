@@ -123,9 +123,16 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
 
     fun setKey(key: String): String {
         if (key.isBlank()) return "Webhook key cannot be empty."
-        authManager.storeCredential(id, CRED_KEY, key)
+        if (!authManager.storeCredential(id, CRED_KEY, key)) {
+            _state.value = ConnectorState(
+                connected = false,
+                statusLine = "Secure credential storage is unavailable",
+                errorMessage = "The webhook key was not saved."
+            )
+            return "Secure credential storage is unavailable. The webhook key was not saved."
+        }
         _state.value = ConnectorState(true, true, "Connected (key: ••••${key.takeLast(4)})", System.currentTimeMillis())
-        return "IFTTT Maker Webhook key saved "
+        return "IFTTT Maker Webhook key saved"
     }
 
     fun getWebhookKey(): String? = authManager.getCredential(id, CRED_KEY)

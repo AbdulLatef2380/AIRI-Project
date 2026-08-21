@@ -217,6 +217,10 @@ object ServiceLocator {
         com.airi.assistant.connector.ConnectorAuthManager(requireContext())
     }
 
+    val remoteControlAndroidAdapter: com.airi.assistant.remote.FirestoreRemoteControlAndroidAdapter by lazy {
+        com.airi.assistant.remote.FirestoreRemoteControlAndroidAdapter(authService)
+    }
+
     val connectorRegistry: ConnectorRegistry by lazy {
         val keys = secureStorage
         val llmProviders = listOf(

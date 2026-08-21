@@ -9,7 +9,7 @@
 | بدء التطبيق وواجهة الدردشة | `RUNTIME_VERIFIED` | `PLANNED` | `PLANNED` | `PLANNED` | artifact، تشغيل، إرسال/عرض رد. |
 | chat streaming | `RUNTIME_VERIFIED` في مسار Android المرجعي | `PLANNED` | `PLANNED` | `PLANNED` | provider test، ظهور chunks، recovery. |
 | إلغاء التنفيذ | `RUNTIME_VERIFIED` لبوابة generation في اختبارات Android/JVM | `PLANNED` | `PLANNED` | `PLANNED` | إلغاء أثناء stream ومنع callback قديم. |
-| agent planning/execution | `IMPLEMENTED` في Android، خارج core حتى الآن | `ARCHITECTED` | `ARCHITECTED` | `ARCHITECTED` | core module tests ثم target integration. |
+| agent planning/execution | `IMPLEMENTED` في Android؛ عقود الخطة المشتركة تبني في `core-domain` | `ARCHITECTED` | `ARCHITECTED` | `ARCHITECTED` | عقود `ActionPlan` و`AgentGoal` و`PlanStep` اجتازت اختبارات JVM/Android؛ التنفيذ وtarget integration ما زالا مطلوبين. |
 | memory admission | `RUNTIME_VERIFIED` بمنطق Android واختبارات policy | `ARCHITECTED` | `ARCHITECTED` | `PLANNED` | policy تبني في target JVM عام، لكن لا يوجد تطبيق أو artifact أو تحقق Windows/Linux؛ لذلك لا تُرفع حالة المنصتين. |
 | RAG retrieval/ranking | `IMPLEMENTED` في Android | `PLANNED` | `PLANNED` | `PLANNED` | dataset fixture والاسترجاع على target. |
 | cloud models | `IMPLEMENTED`؛ الاتصال بحسابات حقيقية `EXTERNAL_VERIFICATION_REQUIRED` | `PLANNED` | `PLANNED` | `PLANNED` | provider integration آمن ومثبت لكل target. |
@@ -34,7 +34,7 @@
 | نطاق | الحالة الحالية | سبب التسمية |
 | --- | --- | --- |
 | AIRI Android | `RUNTIME_VERIFIED` بصورة جزئية ومحددة بالاختبارات الموجودة | لا يتحول هذا الوصف إلى ضمان شامل للمزودين أو hardware أو الحسابات الخارجية. |
-| AIRI Core | `BUILDS` لنطاق `core-domain` المحدود | سياسة قبول الذاكرة واختباراتها تبني على JVM Desktop وAndroid؛ بقية النواة ما زالت `ARCHITECTED` أو `PLANNED`. |
+| AIRI Core | `BUILDS` لنطاق `core-domain` المحدود | سياسات الذاكرة والمرفقات وعقود التخطيط المشتركة واختباراتها تبني على JVM Desktop وAndroid؛ بقية النواة ما زالت `ARCHITECTED` أو `PLANNED`. |
 | AIRI Desktop | `PLANNED` | لا يوجد build أو runtime artifact. |
 | AIRI Web | `PLANNED` | لا يوجد target أو security architecture منفذة. |
 

@@ -58,6 +58,8 @@ import java.nio.file.Path
 
 fun main() = application {
     val agent = remember { DesktopAgent() }
+    val preferencesStore = remember { DesktopPreferencesStore() }
+    var preferences by remember { mutableStateOf(preferencesStore.load()) }
     var messages by remember { mutableStateOf(agent.history()) }
     var stagedAttachments by remember { mutableStateOf(agent.stagedAttachments()) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
@@ -76,6 +78,11 @@ fun main() = application {
             selectedSkillName = agent.selectedSkill()?.displayName,
             skills = agent.availableSkills(),
             statusMessage = statusMessage,
+            showCapabilityHints = preferences.showCapabilityHints,
+            onToggleCapabilityHints = {
+                preferences = preferences.copy(showCapabilityHints = !preferences.showCapabilityHints)
+                preferencesStore.save(preferences)
+            },
             onSubmit = { input ->
                 agent.submit(input)?.let { reply ->
                     messages = agent.history()
@@ -127,6 +134,8 @@ private fun AiriDesktopApp(
     selectedSkillName: String?,
     skills: List<com.airi.core.skills.SkillDescriptor>,
     statusMessage: String?,
+    showCapabilityHints: Boolean,
+    onToggleCapabilityHints: () -> Unit,
     onSubmit: (String) -> Unit,
     onSelectModel: (String) -> Unit,
     onSelectSkill: (String) -> Unit,
@@ -187,9 +196,10 @@ private fun AiriDesktopApp(
                         .padding(if (compact) DesktopSpacing.large else DesktopSpacing.page),
                     verticalArrangement = Arrangement.spacedBy(DesktopSpacing.medium)
                 ) {
-                    Header(messages.isNotEmpty(), compact, onClear)
+                    Header(messages.isNotEmpty(), compact, showCapabilityHints, onToggleCapabilityHints, onClear)
                     CapabilityBar(
                         compact = compact,
+                        showCapabilityHints = showCapabilityHints,
                         selectedModelName = selectedModelName,
                         models = models,
                         modelMenuExpanded = modelMenuExpanded,
@@ -224,7 +234,13 @@ private fun AiriDesktopApp(
 }
 
 @Composable
-private fun Header(hasMessages: Boolean, compact: Boolean, onClear: () -> Unit) {
+private fun Header(
+    hasMessages: Boolean,
+    compact: Boolean,
+    showCapabilityHints: Boolean,
+    onToggleCapabilityHints: () -> Unit,
+    onClear: () -> Unit
+) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text("AIRI Desktop", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -234,6 +250,9 @@ private fun Header(hasMessages: Boolean, compact: Boolean, onClear: () -> Unit) 
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        TextButton(onClick = onToggleCapabilityHints) {
+            Text(if (showCapabilityHints) "Hide hints" else "Show hints")
+        }
         TextButton(onClick = onClear, enabled = hasMessages) { Text("Clear history") }
     }
 }
@@ -241,6 +260,7 @@ private fun Header(hasMessages: Boolean, compact: Boolean, onClear: () -> Unit) 
 @Composable
 private fun CapabilityBar(
     compact: Boolean,
+    showCapabilityHints: Boolean,
     selectedModelName: String?,
     models: List<com.airi.core.models.ModelDescriptor>,
     modelMenuExpanded: Boolean,
@@ -271,7 +291,7 @@ private fun CapabilityBar(
                 )
             }
         }
-        if (!compact) Text("Ctrl+N new draft · Ctrl+K focus input · Esc dismiss", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = DesktopSpacing.small))
+                        if (!compact && showCapabilityHints) Text("Ctrl+N new draft · Ctrl+K focus input · Esc dismiss", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = DesktopSpacing.small))
     }
 }
 

@@ -2,6 +2,7 @@ package com.airi.core.remote
 
 enum class RemoteControlCommandType {
     REQUEST_STATUS,
+    SYNC_STATE,
     START_NEW_DRAFT,
     SUBMIT_TEXT_REQUEST,
     CANCEL_OWNED_REQUEST

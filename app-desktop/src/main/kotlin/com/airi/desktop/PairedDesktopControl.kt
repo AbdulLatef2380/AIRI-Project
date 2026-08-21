@@ -31,7 +31,8 @@ class PairedDesktopControl(
             is RemoteControlDecision.Accepted -> {
                 activeSession = decision.updatedSession
                 when (command.type) {
-                    RemoteControlCommandType.REQUEST_STATUS -> DesktopRemoteControlResult.Executed(target.status())
+                    RemoteControlCommandType.REQUEST_STATUS,
+                    RemoteControlCommandType.SYNC_STATE -> DesktopRemoteControlResult.Executed(target.status())
                     RemoteControlCommandType.START_NEW_DRAFT -> {
                         target.startNewDraft()
                         DesktopRemoteControlResult.Executed("A new AIRI Desktop draft is ready.")

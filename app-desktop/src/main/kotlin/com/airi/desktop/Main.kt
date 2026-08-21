@@ -15,6 +15,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -39,10 +41,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import com.airi.core.models.ModelAvailability
+import com.airi.core.skills.SkillAvailability
+import java.awt.FileDialog
+import java.awt.Frame
+import java.nio.file.Path
 
 fun main() = application {
     val agent = remember { DesktopAgent() }
     var messages by remember { mutableStateOf(agent.history()) }
+    var stagedAttachments by remember { mutableStateOf(agent.stagedAttachments()) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
 
     Window(
         onCloseRequest = ::exitApplication,
@@ -50,15 +59,52 @@ fun main() = application {
     ) {
         AiriDesktopApp(
             messages = messages,
+            stagedAttachments = stagedAttachments,
+            selectedModelName = agent.selectedModel()?.displayName,
+            models = agent.availableModels(),
+            selectedSkillName = agent.selectedSkill()?.displayName,
+            skills = agent.availableSkills(),
+            statusMessage = statusMessage,
             onSubmit = { input ->
                 val reply = agent.submit(input)
                 if (reply != null) {
                     messages = agent.history()
+                    stagedAttachments = agent.stagedAttachments()
+                    statusMessage = reply.message.body
                 }
+            },
+            onSelectModel = { modelId ->
+                val result = agent.selectModel(modelId)
+                statusMessage = when (result) {
+                    is com.airi.core.models.ModelSelectionResult.Selected -> "Selected ${result.model.displayName}."
+                    is com.airi.core.models.ModelSelectionResult.Rejected -> result.reason
+                }
+            },
+            onSelectSkill = { skillId ->
+                val result = agent.selectSkill(skillId)
+                statusMessage = when (result) {
+                    is com.airi.core.skills.SkillSelectionResult.Selected -> "Selected ${result.skill.displayName}."
+                    is com.airi.core.skills.SkillSelectionResult.Rejected -> result.reason
+                }
+            },
+            onAddAttachment = {
+                chooseDesktopFile()?.let { source ->
+                    statusMessage = when (val result = agent.stageAttachment(source)) {
+                        is DesktopAttachmentResult.Accepted -> "Added ${result.attachment.displayName}."
+                        is DesktopAttachmentResult.Rejected -> result.reason
+                    }
+                    stagedAttachments = agent.stagedAttachments()
+                }
+            },
+            onRemoveAttachment = { attachmentId ->
+                agent.discardStagedAttachment(attachmentId)
+                stagedAttachments = agent.stagedAttachments()
             },
             onClear = {
                 agent.clearHistory()
                 messages = emptyList()
+                stagedAttachments = emptyList()
+                statusMessage = null
             }
         )
     }
@@ -67,10 +113,22 @@ fun main() = application {
 @Composable
 private fun AiriDesktopApp(
     messages: List<DesktopMessage>,
+    stagedAttachments: List<DesktopAttachment>,
+    selectedModelName: String?,
+    models: List<com.airi.core.models.ModelDescriptor>,
+    selectedSkillName: String?,
+    skills: List<com.airi.core.skills.SkillDescriptor>,
+    statusMessage: String?,
     onSubmit: (String) -> Unit,
+    onSelectModel: (String) -> Unit,
+    onSelectSkill: (String) -> Unit,
+    onAddAttachment: () -> Unit,
+    onRemoveAttachment: (String) -> Unit,
     onClear: () -> Unit
 ) {
     var input by remember { mutableStateOf("") }
+    var modelMenuExpanded by remember { mutableStateOf(false) }
+    var skillMenuExpanded by remember { mutableStateOf(false) }
 
     fun submitInput() {
         if (input.isBlank()) return
@@ -92,7 +150,7 @@ private fun AiriDesktopApp(
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background)
                     .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -105,7 +163,7 @@ private fun AiriDesktopApp(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Linux foundation · local deterministic response · AIRI Core",
+                            text = "Desktop runtime · capability-gated · local persistence",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -113,6 +171,27 @@ private fun AiriDesktopApp(
                     TextButton(onClick = onClear, enabled = messages.isNotEmpty()) {
                         Text("Clear local history")
                     }
+                }
+
+                CapabilityBar(
+                    selectedModelName = selectedModelName,
+                    models = models,
+                    modelMenuExpanded = modelMenuExpanded,
+                    onModelMenuExpandedChange = { modelMenuExpanded = it },
+                    onSelectModel = onSelectModel,
+                    selectedSkillName = selectedSkillName,
+                    skills = skills,
+                    skillMenuExpanded = skillMenuExpanded,
+                    onSkillMenuExpandedChange = { skillMenuExpanded = it },
+                    onSelectSkill = onSelectSkill
+                )
+
+                statusMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
                 if (messages.isEmpty()) {
@@ -126,6 +205,10 @@ private fun AiriDesktopApp(
                             ConversationMessage(message)
                         }
                     }
+                }
+
+                if (stagedAttachments.isNotEmpty()) {
+                    StagedAttachments(stagedAttachments, onRemoveAttachment)
                 }
 
                 OutlinedTextField(
@@ -153,19 +236,111 @@ private fun AiriDesktopApp(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    TextButton(onClick = onAddAttachment) {
+                        Text("Add file")
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
                     Text(
                         text = "Enter للإرسال · Shift+Enter لسطر جديد",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.align(Alignment.CenterVertically)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(16.dp))
                     Button(onClick = ::submitInput, enabled = input.isNotBlank()) {
                         Text("Send")
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CapabilityBar(
+    selectedModelName: String?,
+    models: List<com.airi.core.models.ModelDescriptor>,
+    modelMenuExpanded: Boolean,
+    onModelMenuExpandedChange: (Boolean) -> Unit,
+    onSelectModel: (String) -> Unit,
+    selectedSkillName: String?,
+    skills: List<com.airi.core.skills.SkillDescriptor>,
+    skillMenuExpanded: Boolean,
+    onSkillMenuExpandedChange: (Boolean) -> Unit,
+    onSelectSkill: (String) -> Unit
+) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            TextButton(onClick = { onModelMenuExpandedChange(true) }) {
+                Text("Model: ${selectedModelName ?: "Not configured"}")
+            }
+            DropdownMenu(
+                expanded = modelMenuExpanded,
+                onDismissRequest = { onModelMenuExpandedChange(false) }
+            ) {
+                models.forEach { model ->
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text(model.displayName)
+                                model.unavailableReason?.let { reason ->
+                                    Text(reason, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        },
+                        enabled = model.availability == ModelAvailability.READY,
+                        onClick = {
+                            onSelectModel(model.id)
+                            onModelMenuExpandedChange(false)
+                        }
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Column {
+            TextButton(onClick = { onSkillMenuExpandedChange(true) }) {
+                Text("Skill: ${selectedSkillName ?: "No ready skill"}")
+            }
+            DropdownMenu(
+                expanded = skillMenuExpanded,
+                onDismissRequest = { onSkillMenuExpandedChange(false) }
+            ) {
+                skills.forEach { skill ->
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text(skill.displayName)
+                                skill.unavailableReason?.let { reason ->
+                                    Text(reason, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        },
+                        enabled = skill.availability == SkillAvailability.READY,
+                        onClick = {
+                            onSelectSkill(skill.id)
+                            onSkillMenuExpandedChange(false)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StagedAttachments(
+    attachments: List<DesktopAttachment>,
+    onRemoveAttachment: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        attachments.forEach { attachment ->
+            TextButton(onClick = { onRemoveAttachment(attachment.id) }) {
+                Text("${attachment.displayName} · remove")
             }
         }
     }
@@ -179,13 +354,13 @@ private fun EmptyConversation(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "AIRI is ready on this desktop",
+            text = "Configure a compatible model to use AIRI on this desktop",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Submit a request to verify local response and persistence.",
+            text = "Conversation history and attachment staging are available locally. Model and skill execution remain capability-gated.",
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -212,6 +387,22 @@ private fun ConversationMessage(message: DesktopMessage) {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(text = message.body, style = MaterialTheme.typography.bodyLarge)
+            message.attachments.forEach { attachment ->
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Attachment: ${attachment.displayName} (${attachment.sizeBytes} bytes)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
+}
+
+private fun chooseDesktopFile(): Path? {
+    val dialog = FileDialog(null as Frame?, "Add attachment", FileDialog.LOAD)
+    dialog.isVisible = true
+    val directory = dialog.directory ?: return null
+    val file = dialog.file ?: return null
+    return Path.of(directory, file)
 }

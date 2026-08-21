@@ -1,54 +1,82 @@
-# تقرير قبول AIRI
+# تقرير القبول النهائي — AIRI Core متعدد المنصات
 
-**تاريخ التحقق:** 18 أغسطس 2026
-**الفرع:** `architecture-refactor`
-**نطاق الدليل:** بناء محلي نظيف وتحليل ثابت واختبارات JVM وتهيئة اختبارات Android على الشفرة الحالية.
+## نطاق التقرير وقرار القبول
 
-> الشفرة الحالية هي **Release Candidate** مبنية على Android 16 / API 36. تؤكد الأدلة أدناه صحة مخرجات Debug وRelease وAAB غير الموقعة محلياً، بينما يعالج مسار CI توقيع upload من أسرار GitHub فقط.
+يسجل هذا التقرير نتيجة بوابة التسليم لفرع `cp-foundation` عند revision `84f8e1b4bcc2c07eb88e9609f9cb35cf09399ca3` بتاريخ 2026-08-21. وهو يحل محل التقرير السابق الذي كان مرتبطاً بفرع `architecture-refactor` وتاريخه السابق؛ لا يعدّل هذا التقرير ذلك الفرع ولا ينفذ دمجاً بين الخطين. بقي `architecture-refactor` دون تعديل عند `1027dee20511b294437c4f47f08e9c2f54050eaf`.
 
-## نتيجة بوابات الإصدار
+> قرار القبول: **ACCEPTED_FOR_RELEASE_CANDIDATE**. يقبل الفرع للدخول في التحقق الخارجي المنضبط. لا يصرح هذا القرار بنشر إنتاجي أو توقيع فعلي أو توزيع تجاري حتى تغلق العناصر المصنفة `EXTERNAL_VERIFICATION_REQUIRED`.
 
-| البوابة | النتيجة المثبتة | الدليل |
+يعتمد التقرير مبدأ أن **المنصة أو القدرة لا تُصنّف أعلى من دليلها**. لذلك يفصل بين الاختبار داخل CI والمحاكي والحارس المصدري من جهة، والتحقق من بيئات الإنتاج والأجهزة الحقيقية والامتثال التجاري من جهة أخرى.
+
+## مصفوفة القبول المطلوبة
+
+| المتطلب | الحالة | مستوى الدليل | الدليل المنفذ | الحد المتبقي |
+|---|---|---|---|---|
+| Remote Control | `IMPLEMENTED` | `SOURCE_VERIFIED` | عقود التحكم المقترن وdispatcher Desktop ومحول Android وقواعد Firestore موجودة ومحروسة. | backend إنتاجي يحتاج تحققاً مستقلاً. |
+| Security | `IMPLEMENTED` | `SOURCE_VERIFIED` | حارس الأمن يؤكد غياب raw socket وcleartext HTTP وservice account وsecrets المضمّنة. | مراجعة أسرار وإعدادات البيئة الحية. |
+| Pairing | `TESTED` | `TESTED` | سيناريوهات الاقتران مغطاة ضمن اختبارات Emulator وموثقة في بوابة Remote Control. | smoke test إنتاجي بحسابات اختبار. |
+| Authorization | `TESTED` | `TESTED` | قواعد Firestore scoped وحارس القواعد يثبت منع الوصول الواسع. | التحقق على مشروع Firebase إنتاجي. |
+| Replay | `TESTED` | `SOURCE_VERIFIED` | سياسة sequence monotonic مفحوصة في حارس التحكم المقترن. | إعادة الاختبار end-to-end في الإنتاج. |
+| Revocation | `TESTED` | `SOURCE_VERIFIED` | حارس التحكم يثبت رفض الجلسات المسحوبة. | اختبار lifecycle في الإنتاج. |
+| Firestore Rules | `TESTED` | `SOURCE_VERIFIED` | حارس القواعد يثبت scoped routes ومنع client write للجلسات وعدم قابلية الأوامر للتعديل أو الحذف. | نشر قواعد مقيد ومراجعته في مشروع حقيقي. |
+| Emulator | `TESTED` | `TESTED` | اختبارات Firebase Emulator المستخدمة في بوابة التحكم المقترن. | لا يحل محل backend الإنتاج. |
+| Android | `TESTED` | `RUNTIME_VERIFIED` في CI | Android CI ناجح: shared core وdebug وunit وlint وrelease sources وinstrumentation وnative output [1]. | أجهزة فعلية وتنوع ABI وحرارة وشبكة وصوت. |
+| Desktop | `TESTED` | `BUILD_VERIFIED` | اختبارات Desktop محلياً وWindows CI ناجح لبناء MSI [2]. | runtime Windows حقيقي؛ runtime Linux النهائي بحسب بوابته المستقلة. |
+| Production | `EXTERNAL_VERIFICATION_REQUIRED` | — | لا توجد أسرار إنتاج أو توقيع أو backend إنتاج داخل هذا القبول. | استكمال قائمة النشر الخارجي قبل التوزيع. |
+
+## سجل أدلة CI
+
+تشكل هذه النتائج الحد الأدنى القابل لإعادة التنفيذ على revision واحد؛ لا توجد نتيجة منفصلة من revision سابق مستخدمة لإسناد القبول الحالي.
+
+| البوابة | النتيجة | ما تؤكده |
 |---|---|---|
-| سلسلة أدوات Android 16 | PASS | AGP 8.10.1، Gradle 8.11.1، JDK 17، و`compileSdk`/`targetSdk` 36. [1] [2] |
-| اختبارات JVM | PASS | **26/26**؛ لا إخفاقات ولا أخطاء. |
-| المتحقق الثابت | PASS | **25/25** ضابطاً. |
-| Android lint | PASS | `:app:lintDebug` نجح بلا أخطاء. |
-| APK Debug | PASS | `:app:assembleDebug` نجح وتحقق من `libairi_native.so`. |
-| APK Release وAAB | PASS | `:app:assembleRelease :app:bundleRelease` نجحا عبر R8. |
-| اختبارات Android | COMPILED | `:app:assembleDebugAndroidTest` نجح ويحتوي اختبار Room migration ومخزن المفاتيح المشفر. |
+| AIRI Android CI [1] | `success` | build وunit/lint وinstrumentation وnative validation، مع تجميع مصادر release من دون مادة signing محلية. |
+| AIRI Desktop Windows [2] | `success` | اختبارات Desktop على Windows ومسار حزمة MSI. |
+| AIRI Architecture Audit [3] | `success` | تدقيق الحدود المعمارية متعددة المنصات. |
+| AIRI Deep Audit [4] | `success` | تدقيقات المصدر الإضافية وسلامة الضوابط. |
 
-## مخرجات التوزيع
+## سجل أدلة الحراس المحلية
 
-| artifact | القيمة |
-|---|---|
-| APK Release | `app-release-unsigned.apk`، نحو 26 MB |
-| AAB Release | `app-release.aab`، نحو 23 MB |
-| ABI المضمن | `arm64-v8a` |
-| JNI | `libairi_native.so` بحجم 3,759,488 بايت داخل APK وAAB |
-| R8 mapping | مُنشأ بحجم 102,253,321 بايت |
-| الحد الأدنى للنظام | API 26 |
-| هدف النظام | API 36 |
+أعيد تشغيل الحراس على revision النهائي وخرج كل أمر بحالة `0`. توضح النتائج حدود الدليل بدقة: هي تؤكد source policies وقواعد الحماية؛ لا تحاكي credentials إنتاجية ولا أجهزة المستخدمين.
 
-الـAPK المحلي غير موقّع عمداً لغياب مادة توقيع upload من البيئة. يستقبل workflow في GitHub المتغيرات `KEYSTORE_BASE64` و`STORE_PASSWORD` و`KEY_ALIAS` و`KEY_PASSWORD` من الأسرار، ويحذف ملف keystore المؤقت بعد البناء. لا تُخزن أي مادة توقيع في Git أو في artifacts المحلية.
+| الأمر | النتيجة | الإثبات |
+|---|---|---|
+| `python3 scripts/airi_release_health.py` | `PASS` | تجميع release مستقل عن أسرار signing؛ التغليف الموقّع مقصور على `main` مع الأسرار الأربعة؛ تنظيف مادة signing المؤقتة مفروض. |
+| `python3 scripts/airi_remote_control_health.py` | `PASS` | dispatcher، حد النص، expiry، replay sequence، وrevocation policy مغطاة. |
+| `python3 scripts/airi_remote_control_security.py` | `PASS` | لا socket خام، ولا HTTP غير مشفر، ولا service account، ولا secrets مضمّنة ضمن paired-control. |
+| `python3 scripts/airi_firestore_rules_test.py` | `PASS` | قيود sessions والأوامر ومسارات المستخدم/الجهاز/الجلسة/الأمر/الحدث. |
+| `python3 scripts/airi_localization_health.py` | `PASS` | فحص بنية الموارد نجح؛ سجّل `252` قيمة مرشحة لمراجعة لغوية بشرية. |
 
-## التغطية الآلية المضافة
+## سلسلة التوريد وتحقق التبعيات
 
-تغطي الاختبارات الآن قواعد التوجيه المحلي والسحابي في حالتي الاتصال وعدم الاتصال، fallback، الرؤية، ورفض responses من `401` و`429` و`500`. كما تغطي states الخاصة بـOAuth واستخدامها مرة واحدة وربط PKCE S256، وعزل أسماء تخزين endpoints المخصصة، وحاجز generation الذي يرفض callbacks المتأخرة بعد الإلغاء أو بعد طلب أحدث.
+بقيت خاصية Gradle dependency verification مفعلة. عند تكرار Windows CI، كانت البصمات الناقصة مقتصرة على artifacts الخاصة بمسار Windows runtime: Compose Desktop Windows وSkiko Windows وCompose JDK probe. جُلب كل ملف من Maven Central عبر HTTPS، وحُسب SHA-256، وأضيف إلى `gradle/verification-metadata.xml` فقط. لم يُستخدم `--write-verification-metadata` لتوسيع قائمة غير مراجعة، ولم تُعطّل سياسة التحقق.
 
-أضيف اختبار Android لترحيل Room من قاعدة v1 ممثلة إلى v6 باستخدام instances الترحيل نفسها التي يمررها التطبيق إلى Room، مع التحقق من احتفاظ البيانات وإنشاء جداول embedding وaudit وworkspace. وأضيف اختبار Android لمخزن مفاتيح API يغطي الحفظ بعد trim والاستعادة والكتابة فوق القيمة والحذف وعزل endpoints المخصصة.
+| الضابط | الحالة | الملاحظة |
+|---|---|---|
+| Gradle metadata verification | `IMPLEMENTED` | ما زال التحقق مفعلاً في metadata. |
+| بصمات artifacts Windows | `BUILD_VERIFIED` | اجتازت بوابة MSI بعد إضافتها. |
+| Dependabot | `IMPLEMENTED` | إعداد التحديثات موجود في `.github/dependabot.yml`. |
+| npm/pnpm audit | `SOURCE_VERIFIED` | الدليل السابق موثق في ضوابط سلسلة التوريد. |
+| مراجعة تراخيص تجارية | `EXTERNAL_VERIFICATION_REQUIRED` | لا تُغلق إلا وفق `docs/commercial/LICENSE_MATRIX.md`. |
 
-## قرارات هندسية مضمّنة
+## موانع إصدار الإنتاج والمالك المقترح
 
-أزيل مسار SQLCipher المؤجل ومساعد الترحيل غير المفعّل واعتماده، بدلاً من شحن تشفير اختياري غير قابل للتشغيل. تستمر مفاتيح API وOAuth في التخزين المشفر المعتمد على AndroidX Security؛ أما بيانات Room فتستخدم تخزين التطبيق الداخلي ومسار ترحيل Room المختبر آلياً. أزيلت ملفات التخطيط الفارغة وحاجز التكيف المعطل، ووحّدت حراسة الإلغاء في `ExecutionGenerationGate`.
+| العمل المتبقي | الحالة | المالك المقترح | دليل الإغلاق |
+|---|---|---|---|
+| توقيع APK/AAB من `main` | `EXTERNAL_VERIFICATION_REQUIRED` | مالك الإصدار | أسرار signing الأربعة، artifact موقّع، SHA-256، AAB، mapping، وسجل CI. |
+| Firebase وOAuth الإنتاجيان | `EXTERNAL_VERIFICATION_REQUIRED` | مالك البنية السحابية | إعدادات project الحقيقية وsmoke test بحسابات اختبار. |
+| تشغيل MSI على Windows حقيقي | `EXTERNAL_VERIFICATION_REQUIRED` | QA على Windows | launch/render وإدخال وresponse وpersistence/restart وresize/focus/close. |
+| قبول Android على أجهزة حقيقية | `EXTERNAL_VERIFICATION_REQUIRED` | QA Android | شبكة وصوت وكاميرا/ملفات وذاكرة وحرارة وABI متعددة. |
+| مراجعة الترجمة البشرية | `EXTERNAL_VERIFICATION_REQUIRED` | الترجمة/المنتج | إغلاق `252` مرشحاً وفق سياق UX؛ لا تساوي المطابقة النصية وحدها خطأ ترجمة. |
+| مراجعة التراخيص وسياسة التوزيع | `EXTERNAL_VERIFICATION_REQUIRED` | القانوني/الناشر | إغلاق `LICENSE_MATRIX.md` ومراجعة نماذج وتبعيات الطرف الثالث. |
 
-كما أزيلت الرموز النصية والوسوم المرحلية من كود الإنتاج والموارد، وحُدّثت رسائل وملاحظات التشغيل لتصف السلوك الفعلي فقط.
+## خلاصة تنفيذية
 
-## التحقق الخارجي المخصص للإطلاق
-
-يبقى تنفيذ رحلة الاستخدام على جهاز Android حقيقي، وفق التفويض المحدد، للتحقق من الصوت والصلاحيات والبث والإلغاء وموفري cloud وOAuth وDoze وTalkBack وRTL المرئي. ويظل توقيع upload النهائي عملية سرية في CI لا يمكن إجراؤها دون مفاتيح النشر. لا تؤثر هذه العمليات في الشفرة أو بنية الحزمة المبنية أعلاه.
+أغلقت بوابة CI والإصدار لفرع `cp-foundation` بنجاح. **Android وDesktop ومسار Remote Control والحراس الأمنية وقواعد Firestore** تملك أدلة محددة ضمن نطاقها، وتبقى جميع خطوات الإنتاج والتوقيع والأجهزة الحقيقية والالتزامات القانونية مصنفة بوضوح على أنها خارجية. هذا يمنع الادعاءات الزائدة ويحافظ على قابلية تتبع القرار عند الانتقال من Release Candidate إلى نشر فعلي.
 
 ## المراجع
 
-[1]: https://developer.android.com/about/versions/16/setup-sdk "إعداد Android 16 SDK"
-[2]: https://developer.android.com/build/releases/agp-8-10-0-release-notes "توافق Android Gradle Plugin 8.10"
+[1]: https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32513740298 "AIRI Android CI #32513740298"
+[2]: https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32513740332 "AIRI Desktop Windows #32513740332"
+[3]: https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32513740335 "AIRI Architecture Audit #32513740335"
+[4]: https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32513740288 "AIRI Deep Audit #32513740288"

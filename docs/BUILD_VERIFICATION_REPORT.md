@@ -73,7 +73,7 @@ All `OutlinedButton`, `BorderStroke`, `combinedClickable` usages covered by `mat
 | `chat_start_hint` | Referenced in `ChatScreen.kt`, missing from all locales | Added to all 4 locale files |
 | `voice_gemini_key_required` | Referenced in `VoiceSettingsScreen.kt`, missing | Added to all 4 locale files |
 | `voice_openai_key_required` | Referenced in `VoiceSettingsScreen.kt`, missing | Added to all 4 locale files |
-| `default_web_client_id` | Referenced in `LoginScreen.kt`, missing | Added (placeholder — requires Firebase setup) |
+| `default_web_client_id` | Referenced in `LoginScreen.kt`, missing | Added as a build-time placeholder. `LoginScreen` و`GoogleAuthService` يرفضان قيمة `REPLACE_WITH_…` صراحةً؛ لا يبدأ Google OAuth حتى يهيأ Firebase client ID حقيقي خارج المستودع. |
 
 **Final string counts:** en=971, ar=971, es=971, zh=971. Zero gaps. Zero duplicates.
 

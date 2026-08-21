@@ -70,14 +70,20 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var isSignUp by remember { mutableStateOf(false) }
     var showEmailForm by remember { mutableStateOf(false) }
-    val googleSignInClient = remember {
-        runCatching {
-            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken(context.getString(R.string.default_web_client_id))
-                .requestEmail()
-                .build()
-            GoogleSignIn.getClient(context, gso)
-        }.getOrNull()
+    val googleWebClientId = remember {
+        context.getString(R.string.default_web_client_id)
+            .takeIf { it.isNotBlank() && !it.startsWith("REPLACE_WITH_") }
+    }
+    val googleSignInClient = remember(googleWebClientId) {
+        googleWebClientId?.let { clientId ->
+            runCatching {
+                val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestIdToken(clientId)
+                    .requestEmail()
+                    .build()
+                GoogleSignIn.getClient(context, gso)
+            }.getOrNull()
+        }
     }
 
     val googleLauncher = rememberLauncherForActivityResult(

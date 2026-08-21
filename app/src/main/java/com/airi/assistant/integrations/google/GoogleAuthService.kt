@@ -28,7 +28,7 @@ class GoogleAuthService(
                     "default_web_client_id", "string", context.packageName
                 )
             )
-            if (webClientId.isNotBlank()) {
+            if (webClientId.isConfiguredGoogleWebClientId()) {
                 builder.requestIdToken(webClientId)
             }
         } catch (e: Exception) {
@@ -38,6 +38,9 @@ class GoogleAuthService(
     }
 
     fun getSignInIntent(): Intent = GoogleSignIn.getClient(context, gso).signInIntent
+
+    private fun String.isConfiguredGoogleWebClientId(): Boolean =
+        isNotBlank() && !startsWith("REPLACE_WITH_")
 
     fun handleSignInSuccess(account: GoogleSignInAccount) {
         val email = account.email ?: ""

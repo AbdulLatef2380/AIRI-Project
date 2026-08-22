@@ -32,6 +32,11 @@ fun PlanningDashboardScreen(
 ) {
     val planViewModel: AgentPlanViewModel = viewModel()
     val steps by planViewModel.steps.collectAsState()
+    val history = remember {
+        runCatching {
+            com.airi.assistant.core.ServiceLocator.executionHistoryStore.getRecentEntries(20)
+        }.getOrDefault(emptyList())
+    }
 
     Scaffold(
         topBar = {
@@ -49,10 +54,12 @@ fun PlanningDashboardScreen(
         },
         containerColor = AiriTheme.background
     ) { padding ->
-        Column(
-            modifier = Modifier.padding(padding).fillMaxSize()
+        LazyColumn(
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            if (steps.isEmpty()) {
+            item {
+                if (steps.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.planning_no_active_plan), fontSize = 16.sp, color = AiriTheme.onSurfaceVariant)
@@ -71,23 +78,20 @@ fun PlanningDashboardScreen(
                     viewModel = planViewModel,
                     modifier  = Modifier.fillMaxWidth()
                 )
+                }
             }
 
             // Past plans from history store
-            val history = remember {
-                runCatching {
-                    com.airi.assistant.core.ServiceLocator.executionHistoryStore.getRecentEntries(20)
-                }.getOrDefault(emptyList())
-            }
             if (history.isNotEmpty()) {
-                Divider(modifier = Modifier.padding(vertical = 8.dp), color = AiriTheme.outline.copy(0.2f))
-                Text(
-                    "Past Executions",
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onSurfaceVariant
-                )
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(history) { entry ->
+                item {
+                    Divider(modifier = Modifier.padding(vertical = 8.dp), color = AiriTheme.outline.copy(0.2f))
+                    Text(
+                        "Past Executions",
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onSurfaceVariant
+                    )
+                }
+                items(history) { entry ->
                         ListItem(
                             headlineContent = { Text(entry.eventType.take(80), fontSize = 13.sp) },
                             supportingContent = {
@@ -100,7 +104,6 @@ fun PlanningDashboardScreen(
                             colors = ListItemDefaults.colors(containerColor = AiriTheme.background)
                         )
                         Divider(color = AiriTheme.outline.copy(0.1f))
-                    }
                 }
             }
         }

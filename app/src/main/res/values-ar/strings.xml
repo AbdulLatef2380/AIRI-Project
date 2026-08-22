@@ -813,6 +813,8 @@
     <string name="attachment_type_text">نص</string>
     <string name="attachment_type_document">مستند</string>
     <string name="attachment_type_file">ملف</string>
+    <string name="artifact_version_history_cd">سجل إصدارات الناتج</string>
+    <string name="artifact_restore_version">استعادة الإصدار %1$d</string>
 
     <!-- Agent Tasks screen -->
     <string name="agent_task_tab_scheduled">مجدول (%1$d)</string>

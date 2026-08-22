@@ -2,6 +2,7 @@ package com.airi.assistant.agent.subagent.impl
 
 import android.content.Context
 import android.util.Log
+import com.airi.assistant.agent.browser.BrowserNavigationPolicy
 import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgent
 import com.airi.assistant.agent.subagent.SubAgentCapability
@@ -42,6 +43,7 @@ class CloudBrowserAgent(
         private const val TAG           = "CloudBrowserAgent"
         private const val MAX_BODY_CHARS = 4_000
         private const val TIMEOUT_SEC    = 12L
+        private const val MAX_REDIRECTS   = 3
         private val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
@@ -51,8 +53,8 @@ class CloudBrowserAgent(
         OkHttpClient.Builder()
             .connectTimeout(TIMEOUT_SEC, TimeUnit.SECONDS)
             .readTimeout(TIMEOUT_SEC, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .followSslRedirects(true)
+            .followRedirects(false)
+            .followSslRedirects(false)
             .build()
     }
 
@@ -94,7 +96,42 @@ class CloudBrowserAgent(
 
         emit(AgentEvent.Progress("Resolving URL…", 10, "url_resolve"))
 
-        val url = extractUrl(input) ?: buildSearchUrl(input)
+        val candidateUrl = extractUrl(input) ?: buildSearchUrl(input)
+        val operation = BrowserNavigationPolicy.inferOperation(input)
+        val navigation = BrowserNavigationPolicy.evaluate(candidateUrl, operation)
+        val url = when (navigation) {
+            is BrowserNavigationPolicy.Decision.Allow -> navigation.normalizedUrl
+            is BrowserNavigationPolicy.Decision.RequiresApproval -> {
+                emit(AgentEvent.ToolCall(
+                    toolName = "browser_approval_required",
+                    params = mapOf("url" to navigation.normalizedUrl, "reason" to navigation.reason),
+                    reasoning = "Browser operation requires explicit approval"
+                ))
+                emit(AgentEvent.Failed(navigation.reason, recoverable = true))
+                return@flow
+            }
+            is BrowserNavigationPolicy.Decision.RequiresUserTakeover -> {
+                emit(AgentEvent.ToolCall(
+                    toolName = "browser_user_takeover",
+                    params = mapOf("url" to navigation.normalizedUrl, "reason" to navigation.reason),
+                    reasoning = "Browser operation requires user control"
+                ))
+                emit(AgentEvent.PartialResult(
+                    "This browser action needs you to take control: ${navigation.reason}",
+                    isFinal = true
+                ))
+                emit(AgentEvent.Complete(
+                    result = "[CloudBrowser: user takeover required for ${navigation.normalizedUrl}]",
+                    durationMs = System.currentTimeMillis() - start,
+                    toolsUsed = listOf("browser_user_takeover")
+                ))
+                return@flow
+            }
+            is BrowserNavigationPolicy.Decision.Blocked -> {
+                emit(AgentEvent.Failed("Browser navigation blocked: ${navigation.reason}", recoverable = false))
+                return@flow
+            }
+        }
         Log.i(TAG, "CLOUD_BROWSER_FETCH urlChars=${url.length}")
 
         emit(AgentEvent.Progress("Fetching: $url", 25, "fetch"))
@@ -142,19 +179,37 @@ class CloudBrowserAgent(
     // ── Internals ──────────────────────────────────────────────────────────────
 
     private fun fetchAndExtract(url: String): String {
-        val request = Request.Builder()
-            .url(url)
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml")
-            .build()
-        httpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                Log.w(TAG, "CLOUD_BROWSER_HTTP_FAILURE code=${response.code}")
-                return ""
+        var currentUrl = url
+        repeat(MAX_REDIRECTS + 1) {
+            val request = Request.Builder()
+                .url(currentUrl)
+                .header("User-Agent", USER_AGENT)
+                .header("Accept", "text/html,application/xhtml+xml")
+                .build()
+            httpClient.newCall(request).execute().use { response ->
+                if (response.isRedirect) {
+                    val location = response.header("Location") ?: return ""
+                    val redirected = runCatching {
+                        java.net.URI(currentUrl).resolve(location).toString()
+                    }.getOrNull() ?: return ""
+                    val decision = BrowserNavigationPolicy.evaluate(
+                        redirected,
+                        BrowserNavigationPolicy.Operation.READ
+                    )
+                    currentUrl = (decision as? BrowserNavigationPolicy.Decision.Allow)?.normalizedUrl
+                        ?: return ""
+                    return@repeat
+                }
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "CLOUD_BROWSER_HTTP_FAILURE code=${response.code}")
+                    return ""
+                }
+                val html = response.body?.string() ?: return ""
+                return extractText(html).take(MAX_BODY_CHARS)
             }
-            val html = response.body?.string() ?: return ""
-            return extractText(html).take(MAX_BODY_CHARS)
         }
+        Log.w(TAG, "CLOUD_BROWSER_REDIRECT_LIMIT")
+        return ""
     }
 
     /**

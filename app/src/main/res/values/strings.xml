@@ -814,6 +814,8 @@
     <string name="attachment_type_text">Text</string>
     <string name="attachment_type_document">Document</string>
     <string name="attachment_type_file">File</string>
+    <string name="artifact_version_history_cd">Artifact version history</string>
+    <string name="artifact_restore_version">Restore version %1$d</string>
 
     <!-- Agent Tasks screen -->
     <string name="agent_task_tab_scheduled">Scheduled (%1$d)</string>

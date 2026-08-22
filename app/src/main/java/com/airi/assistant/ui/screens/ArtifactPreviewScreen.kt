@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,9 +23,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.res.stringResource
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.ui.theme.AIRIShapes
+import com.airi.assistant.R
+import kotlinx.coroutines.launch
 
 /**
  * ArtifactPreviewScreen — isolated, sandboxed rendering for AIRI artifacts.
@@ -81,15 +85,21 @@ fun ArtifactPreviewScreen(
     val artifactManager = remember { ServiceLocator.artifactManager }
     var artifactType by remember(artifactId) { mutableStateOf("UNKNOWN") }
     var artifactContent by remember(artifactId) { mutableStateOf<String?>(null) }
+    var artifact by remember(artifactId) { mutableStateOf<com.airi.assistant.workspace.ArtifactManager.Artifact?>(null) }
+    var revisions by remember(artifactId) { mutableStateOf(emptyList<com.airi.assistant.workspace.ArtifactManager.ArtifactRevision>()) }
+    var showVersions by remember { mutableStateOf(false) }
     var loadFailed by remember(artifactId) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(artifactId) {
-        val artifact = artifactManager.getArtifact(artifactId)
-        if (artifact == null) {
+        val loadedArtifact = artifactManager.getArtifact(artifactId)
+        if (loadedArtifact == null) {
             loadFailed = true
         } else {
-            artifactType = artifact.type.name
+            artifact = loadedArtifact
+            artifactType = loadedArtifact.type.name
             artifactContent = artifactManager.readContent(artifactId)
+            revisions = artifactManager.listVersions(artifactId)
             loadFailed = artifactContent == null
         }
     }
@@ -128,6 +138,40 @@ fun ArtifactPreviewScreen(
                         fontSize   = 16.sp,
                         fontWeight = FontWeight.SemiBold
                     )
+                },
+                actions = {
+                    if (revisions.size > 1) {
+                        Box {
+                            IconButton(onClick = { showVersions = true }) {
+                                Icon(
+                                    Icons.Outlined.History,
+                                    contentDescription = stringResource(R.string.artifact_version_history_cd),
+                                    tint = AiriTheme.onBackground
+                                )
+                            }
+                            DropdownMenu(expanded = showVersions, onDismissRequest = { showVersions = false }) {
+                                revisions.forEach { revision ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(stringResource(R.string.artifact_restore_version, revision.version))
+                                        },
+                                        onClick = {
+                                            showVersions = false
+                                            scope.launch {
+                                                val restored = artifactManager.restoreVersion(artifactId, revision.version)
+                                                if (restored != null) {
+                                                    artifact = restored
+                                                    artifactType = restored.type.name
+                                                    artifactContent = artifactManager.readContent(artifactId)
+                                                    revisions = artifactManager.listVersions(artifactId)
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             )
         }

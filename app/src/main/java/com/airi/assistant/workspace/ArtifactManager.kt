@@ -60,6 +60,14 @@ class ArtifactManager(
         UNKNOWN       ("bin",  "")
     }
 
+    data class ArtifactRevision(
+        val artifactId: String,
+        val version: Int,
+        val filePath: String,
+        val sizeBytes: Long,
+        val capturedAtMs: Long
+    )
+
     data class Artifact(
         val id:          String = UUID.randomUUID().toString().take(8),
         val sessionId:   String,
@@ -92,13 +100,14 @@ class ArtifactManager(
     ): Artifact = withContext(Dispatchers.IO) {
         val id      = UUID.randomUUID().toString().take(8)
         val dir     = File(context.filesDir, "workspace/artifacts/$sessionId").also { it.mkdirs() }
-        val file    = File(dir, "$name.${type.ext}")
+        val safeName = safeArtifactName(name)
+        val file    = File(dir, "$id-$safeName.${type.ext}")
         file.writeText(content, Charsets.UTF_8)
 
         val artifact = Artifact(
             id             = id,
             sessionId      = sessionId,
-            name           = name,
+            name           = safeName,
             type           = type,
             filePath       = file.absolutePath,
             sizeBytes      = file.length(),
@@ -120,6 +129,9 @@ class ArtifactManager(
     suspend fun updateArtifact(id: String, newContent: String): Artifact? = withContext(Dispatchers.IO) {
         val existing = artifacts[id] ?: return@withContext null
         val file = File(existing.filePath)
+        if (!file.exists()) return@withContext null
+        val history = historyFile(existing, existing.version).also { it.parentFile?.mkdirs() }
+        file.copyTo(history, overwrite = true)
         file.writeText(newContent, Charsets.UTF_8)
         val updated = existing.copy(
             sizeBytes      = file.length(),
@@ -143,6 +155,30 @@ class ArtifactManager(
     suspend fun readContent(id: String): String? = withContext(Dispatchers.IO) {
         val artifact = artifacts[id] ?: return@withContext null
         runCatching { File(artifact.filePath).readText(Charsets.UTF_8) }.getOrNull()
+    }
+
+    fun listVersions(id: String): List<ArtifactRevision> {
+        val artifact = artifacts[id] ?: return emptyList()
+        val directory = historyDirectory(artifact)
+        val archived = directory.listFiles()
+            ?.mapNotNull { file ->
+                VERSION_PATTERN.matchEntire(file.name)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let { version ->
+                    ArtifactRevision(id, version, file.absolutePath, file.length(), file.lastModified())
+                }
+            }
+            .orEmpty()
+        val current = ArtifactRevision(id, artifact.version, artifact.filePath, artifact.sizeBytes, artifact.updatedAtMs)
+        return (archived + current).distinctBy { it.version }.sortedByDescending { it.version }
+    }
+
+    suspend fun restoreVersion(id: String, version: Int): Artifact? = withContext(Dispatchers.IO) {
+        val artifact = artifacts[id] ?: return@withContext null
+        if (version == artifact.version) return@withContext artifact
+        val snapshot = historyFile(artifact, version)
+        if (!snapshot.exists()) return@withContext null
+        val restoredContent = runCatching { snapshot.readText(Charsets.UTF_8) }.getOrNull()
+            ?: return@withContext null
+        updateArtifact(id, restoredContent)
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────
@@ -212,6 +248,20 @@ class ArtifactManager(
         }.onFailure { e -> Log.w(TAG, "loadPersistedArtifacts failed: ${e.message}") }
     }
 
+    private fun historyDirectory(artifact: Artifact): File =
+        File(File(artifact.filePath).parentFile, ".history/${artifact.id}")
+
+    private fun historyFile(artifact: Artifact, version: Int): File =
+        File(historyDirectory(artifact), "version-$version.${artifact.type.ext}")
+
+    private fun safeArtifactName(value: String): String {
+        val normalized = value.trim()
+            .replace(Regex("[^A-Za-z0-9._-]+"), "_")
+            .trim('.', '_', '-')
+            .take(MAX_ARTIFACT_NAME_CHARS)
+        return normalized.ifBlank { "artifact" }
+    }
+
     private fun publishAll() {
         _allArtifacts.value = artifacts.values.sortedByDescending { it.updatedAtMs }
     }
@@ -247,4 +297,9 @@ class ArtifactManager(
         agentId        = agentId,
         previewSnippet = previewSnippet
     )
+
+    private companion object {
+        const val MAX_ARTIFACT_NAME_CHARS = 80
+        val VERSION_PATTERN = Regex("version-(\\d+)\\.[A-Za-z0-9]+")
+    }
 }

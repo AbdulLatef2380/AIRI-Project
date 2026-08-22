@@ -45,7 +45,7 @@
 | T1-02 | Developer Center | `FOUNDATION` | code/build/test/logs/preview في رحلة مشروع واحدة |
 | T1-03 | Database Lab | `MISSING` | query planner وسياسة read/write وaudit وbackup |
 | T1-04 | Canvas | `MISSING` | prompt→canvas→user edit→AIRI refinement |
-| T1-05 | Research Mode | `PARTIAL` | source graph، cross-check، citations، snapshots، contradiction detection |
+| T1-05 | Research Mode | `PARTIAL` | `ResearchAgent` يمرر DuckDuckGo evidence محدوداً وموثق المنشأ كبيانات `untrusted_external`، يحجب private/non-HTTP URLs ويمنع fallback من فتح متصفح المستخدم تلقائياً؛ المتبقي source graph، cross-check متعدد المصادر، citations UI، snapshots دائمة، contradiction detection، وBrave/Jina device/provider verification |
 | T1-06 | Agent Teams | `PARTIAL` | `ProductionAgentOrchestrator` ينفذ أدواراً حقيقية عبر `SubAgentRegistry` و`AgentTeamPolicy` يقبل الرسم، يعزل dependency context افتراضياً، يخصص cloud reserve لكل دور، ويحد موجة التوازي؛ المتبقي accounting فعلي لاستهلاك providers، واجهة تكوين/replay للفريق، واختبار device/background |
 | T1-07 | Connector framework | `PARTIAL` | Runtime يمنع الموصل غير الصحي وينتظر broadcast كاملاً، وSkill Policy يفرض requiredConnectors؛ المتبقي OAuth scopes→Secret Broker لكل الموصلات→Tool Registry موقع→Audit/rotation/revocation دائم |
 | T1-08 | Voice state machine | `PARTIAL` | `LiveVoiceSession` يفرض الآن انتقالات state قانونية، مع barge-in/recovery metrics واختبارات JVM؛ المتبقي realtime provider end-to-end، تحقق microphone/audio-focus على جهاز، offline/online provider handoff، Arabic STT device validation |

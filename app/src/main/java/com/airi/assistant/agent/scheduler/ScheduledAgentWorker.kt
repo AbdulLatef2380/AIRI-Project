@@ -4,14 +4,13 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
 import com.airi.assistant.agent.subagent.SubAgentContext
-import com.airi.assistant.agent.subagent.SubAgentRegistry
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
 import com.airi.assistant.domain.logging.LoggingService
 import com.airi.assistant.memory.AiriDatabase
-import kotlinx.coroutines.flow.collect
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -55,6 +54,9 @@ class ScheduledAgentWorker(
         const val KEY_AGENT_ID = "agent_id"
         const val KEY_PAYLOAD  = "payload"
         const val KEY_LABEL    = "label"
+        const val KEY_PROJECT_ID = "project_id"
+        const val KEY_OWNER_ID = "owner_id"
+        const val KEY_PRIVACY_LEVEL = "privacy_level"
         private const val MAX_RETRY_ATTEMPTS = 3
 
         private fun Throwable.isTransientFailure(): Boolean =
@@ -66,6 +68,10 @@ class ScheduledAgentWorker(
         val agentId = inputData.getString(KEY_AGENT_ID) ?: return Result.failure()
         val payload = inputData.getString(KEY_PAYLOAD)  ?: return Result.failure()
         val label   = inputData.getString(KEY_LABEL)    ?: agentId
+        val projectId = inputData.getString(KEY_PROJECT_ID)?.takeIf { it.isNotBlank() }
+        val ownerId = inputData.getString(KEY_OWNER_ID)?.takeIf { it.isNotBlank() } ?: "scheduled"
+        val privacyLevel = inputData.getInt(KEY_PRIVACY_LEVEL, SubAgentContext.PRIVACY_BALANCED)
+            .coerceIn(SubAgentContext.PRIVACY_MAXIMUM, SubAgentContext.PRIVACY_STANDARD)
 
         LoggingService.info(TAG, "AIRI SCHEDULED_JOB_STARTED id=$jobId agent=$agentId label=$label")
 
@@ -107,37 +113,59 @@ class ScheduledAgentWorker(
             }
         }
 
-        // Build a background SubAgentContext — no UI session, generous timeout
+        // Agent jobs always use the production orchestrator so every background
+        // execution has a DurableTask → Run → Step timeline. A scheduled job is
+        // not allowed to invoke a sub-agent directly because that bypasses replay,
+        // approvals, and failure diagnostics.
         val ctx = SubAgentContext(
-            sessionId         = "scheduled_$jobId",
-            userId            = "scheduled",
-            recentTurns       = emptyList(),
-            worldState        = mapOf("source" to "scheduled_task", "agent_id" to agentId),
-            privacyLevel      = 1,
-            allowedTools      = emptyList(),
-            timeoutMs         = 120_000L   // 2-min budget for background tasks
+            sessionId = "scheduled_$jobId",
+            userId = ownerId,
+            projectId = projectId,
+            recentTurns = emptyList(),
+            worldState = mapOf("source" to "scheduled_task", "agent_id" to agentId),
+            privacyLevel = privacyLevel,
+            allowedTools = emptyList(),
+            timeoutMs = 120_000L
         )
 
         val result = runCatching {
-            val agent = SubAgentRegistry.route(payload, ctx)
-            if (agent != null) {
-                Log.i(TAG, "AIRI SCHEDULED_JOB_ROUTED id=$jobId agent=${agent.capability.agentId}")
-                // Collect the Flow to drive execution to completion
-                agent.execute(payload, ctx).collect { }
-                "completed"
-            } else {
-                Log.i(TAG, "AIRI SCHEDULED_JOB_ORCHESTRATOR id=$jobId (no agent matched)")
-                val orch = runCatching { ServiceLocator.productionOrchestrator }.getOrNull()
-                val execResult = orch?.executeSingle(payload, ctx)
-                execResult?.toString() ?: "Scheduled task dispatched (no agent match)"
+            val orchestrator = ServiceLocator.productionOrchestrator
+            val execution = orchestrator.executePlan(
+                ProductionAgentOrchestrator.OrchestratorPlan(
+                    tasks = listOf(
+                        ProductionAgentOrchestrator.OrchestratorTask(
+                            description = label.take(120),
+                            agentId = agentId.takeUnless { it == "system" },
+                            dependencies = emptyList(),
+                            input = payload,
+                            context = ctx
+                        )
+                    ),
+                    projectId = ctx.projectId,
+                    ownerId = ctx.userId
+                )
+            )
+            when (execution) {
+                is ProductionAgentOrchestrator.ExecutionResult.Success -> {
+                    ScheduledExecution(taskId = execution.planId)
+                }
+                is ProductionAgentOrchestrator.ExecutionResult.PartialFailure -> {
+                    throw ScheduledExecutionFailure(
+                        taskId = execution.planId,
+                        reason = execution.taskErrors.values.joinToString().ifBlank { "Scheduled execution failed" }
+                    )
+                }
             }
         }
 
         return result.fold(
-            onSuccess = { output ->
-                ScheduledJobOrchestrator(applicationContext)
-                    .recordRunResult(jobId, ScheduledJobOutcome.COMPLETED)
-                LoggingService.info(TAG, "Scheduled job completed id=$jobId")
+            onSuccess = { execution ->
+                ScheduledJobOrchestrator(applicationContext).recordRunResult(
+                    jobId = jobId,
+                    outcome = ScheduledJobOutcome.COMPLETED,
+                    durableTaskId = execution.taskId
+                )
+                LoggingService.info(TAG, "Scheduled job completed id=$jobId task=${execution.taskId}")
                 EventBus.emitSync(AppEvent.GenericInfo("Scheduled task complete: $label"))
                 Result.success()
             },
@@ -145,8 +173,9 @@ class ScheduledAgentWorker(
                 val transient = error.isTransientFailure()
                 val canRetry = transient && runAttemptCount < MAX_RETRY_ATTEMPTS
                 ScheduledJobOrchestrator(applicationContext).recordRunResult(
-                    jobId,
-                    if (canRetry) ScheduledJobOutcome.RETRYING else ScheduledJobOutcome.FAILED
+                    jobId = jobId,
+                    outcome = if (canRetry) ScheduledJobOutcome.RETRYING else ScheduledJobOutcome.FAILED,
+                    durableTaskId = (error as? ScheduledExecutionFailure)?.taskId
                 )
                 LoggingService.warn(
                     TAG,
@@ -162,4 +191,11 @@ class ScheduledAgentWorker(
             }
         )
     }
+
+    private data class ScheduledExecution(val taskId: String)
+
+    private class ScheduledExecutionFailure(
+        val taskId: String,
+        reason: String
+    ) : IllegalStateException(reason)
 }

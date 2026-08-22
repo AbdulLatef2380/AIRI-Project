@@ -63,7 +63,10 @@ class ScheduledJobOrchestrator(private val context: Context) {
         payload:     String,
         label:       String,
         delayMs:     Long,
-        requiresNet: Boolean = false
+        requiresNet: Boolean = false,
+        projectId:   String? = null,
+        ownerId:     String = "scheduled",
+        privacyLevel: Int = 1
     ): ScheduledJob {
         ScheduledJobInputPolicy.requireValid(agentId, payload, label)
         val safeDelayMs = delayMs.coerceAtLeast(0L)
@@ -75,7 +78,10 @@ class ScheduledJobOrchestrator(private val context: Context) {
             type        = ScheduleType.ONE_TIME,
             triggerAtMs = System.currentTimeMillis() + safeDelayMs,
             intervalMs  = null,
-            requiresNetwork = requiresNet
+            requiresNetwork = requiresNet,
+            projectId = projectId,
+            ownerId = ownerId,
+            privacyLevel = privacyLevel.coerceIn(0, 2)
         )
 
         val constraints = Constraints.Builder()
@@ -86,6 +92,9 @@ class ScheduledJobOrchestrator(private val context: Context) {
             .putString("agent_id", agentId)
             .putString("payload",  payload)
             .putString("label",    label)
+            .putString("project_id", projectId)
+            .putString("owner_id", ownerId)
+            .putInt("privacy_level", privacyLevel.coerceIn(0, 2))
             .build()
         val request = OneTimeWorkRequestBuilder<ScheduledAgentWorker>()
             .setInputData(data)
@@ -113,7 +122,10 @@ class ScheduledJobOrchestrator(private val context: Context) {
         label:           String,
         intervalMinutes: Long,
         requiresNet:     Boolean = false,
-        stableJobId:     String? = null
+        stableJobId:     String? = null,
+        projectId:       String? = null,
+        ownerId:         String = "scheduled",
+        privacyLevel:    Int = 1
     ): ScheduledJob {
         ScheduledJobInputPolicy.requireValid(agentId, payload, label)
         stableJobId?.let { id ->
@@ -132,7 +144,10 @@ class ScheduledJobOrchestrator(private val context: Context) {
             type        = ScheduleType.PERIODIC,
             triggerAtMs = System.currentTimeMillis() + safeInterval * 60_000L,
             intervalMs  = safeInterval * 60_000L,
-            requiresNetwork = requiresNet
+            requiresNetwork = requiresNet,
+            projectId = projectId,
+            ownerId = ownerId,
+            privacyLevel = privacyLevel.coerceIn(0, 2)
         )
 
         val constraints = Constraints.Builder()
@@ -143,6 +158,9 @@ class ScheduledJobOrchestrator(private val context: Context) {
             .putString("agent_id", agentId)
             .putString("payload",  payload)
             .putString("label",    label)
+            .putString("project_id", projectId)
+            .putString("owner_id", ownerId)
+            .putInt("privacy_level", privacyLevel.coerceIn(0, 2))
             .build()
         val request = PeriodicWorkRequestBuilder<ScheduledAgentWorker>(
             safeInterval, TimeUnit.MINUTES
@@ -192,13 +210,18 @@ class ScheduledJobOrchestrator(private val context: Context) {
     }
 
     /** Persist the terminal result of an attempted job run for the task UI. */
-    fun recordRunResult(jobId: String, outcome: ScheduledJobOutcome) {
+    fun recordRunResult(
+        jobId: String,
+        outcome: ScheduledJobOutcome,
+        durableTaskId: String? = null
+    ) {
         val current = listJobs().toMutableList()
         val index = current.indexOfFirst { it.id == jobId }
         if (index >= 0) {
             current[index] = current[index].copy(
                 lastRunAtMs = System.currentTimeMillis(),
-                lastOutcome = outcome
+                lastOutcome = outcome,
+                lastDurableTaskId = durableTaskId ?: current[index].lastDurableTaskId
             )
             persistAllJobs(current)
         }
@@ -254,6 +277,10 @@ class ScheduledJobOrchestrator(private val context: Context) {
         put("work_request_id", job.workRequestId ?: JSONObject.NULL)
         put("last_run_at", job.lastRunAtMs ?: JSONObject.NULL)
         put("last_outcome", job.lastOutcome.name)
+        put("last_durable_task_id", job.lastDurableTaskId ?: JSONObject.NULL)
+        put("project_id", job.projectId ?: JSONObject.NULL)
+        put("owner_id", job.ownerId)
+        put("privacy_level", job.privacyLevel)
     }
 
     private fun parseJob(json: JSONObject) = ScheduledJob(
@@ -268,7 +295,12 @@ class ScheduledJobOrchestrator(private val context: Context) {
         workRequestId = json.optString("work_request_id").takeUnless { it.isBlank() || it == "null" },
         lastRunAtMs = if (json.isNull("last_run_at")) null else json.optLong("last_run_at").takeIf { it > 0L },
         lastOutcome = runCatching { ScheduledJobOutcome.valueOf(json.optString("last_outcome", "PENDING")) }
-            .getOrDefault(ScheduledJobOutcome.PENDING)
+            .getOrDefault(ScheduledJobOutcome.PENDING),
+        lastDurableTaskId = json.optString("last_durable_task_id")
+            .takeUnless { it.isBlank() || it == "null" },
+        projectId = json.optString("project_id").takeUnless { it.isBlank() || it == "null" },
+        ownerId = json.optString("owner_id", "scheduled").ifBlank { "scheduled" },
+        privacyLevel = json.optInt("privacy_level", 1).coerceIn(0, 2)
     )
 }
 
@@ -285,7 +317,12 @@ data class ScheduledJob(
     val requiresNetwork: Boolean = false,
     val workRequestId: String? = null,
     val lastRunAtMs: Long? = null,
-    val lastOutcome: ScheduledJobOutcome = ScheduledJobOutcome.PENDING
+    val lastOutcome: ScheduledJobOutcome = ScheduledJobOutcome.PENDING,
+    /** Durable task created for the latest agent run; absent for maintenance jobs. */
+    val lastDurableTaskId: String? = null,
+    val projectId: String? = null,
+    val ownerId: String = "scheduled",
+    val privacyLevel: Int = 1
 )
 
 enum class ScheduleType { ONE_TIME, PERIODIC }

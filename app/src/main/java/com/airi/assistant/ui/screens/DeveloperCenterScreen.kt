@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.crash.RuntimeHealthMonitor
@@ -31,6 +32,9 @@ import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
 import com.airi.assistant.connector.api.LlmCertPins
+import com.airi.assistant.developer.database.DatabaseLabManager
+import com.airi.assistant.memory.AiriDatabase
+import kotlinx.coroutines.launch
 
 /**
  * DeveloperCenterScreen — AIRI internal tooling dashboard.
@@ -45,7 +49,7 @@ import com.airi.assistant.connector.api.LlmCertPins
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeveloperCenterScreen(onBack: () -> Unit) {
-    val tabs = listOf("Runtime", "Connectors", "Memory", "Diagnostics", "Health", "Audit", "Profiler")
+    val tabs = listOf("Runtime", "Connectors", "Memory", "Diagnostics", "Health", "Audit", "Profiler", "Database")
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
@@ -82,6 +86,7 @@ fun DeveloperCenterScreen(onBack: () -> Unit) {
                 4 -> HealthTab()
                 5 -> AuditLogTab()
                 6 -> ProfilerTab()
+                7 -> DatabaseLabTab()
             }
         }
     }
@@ -433,6 +438,94 @@ private fun AuditLogTab() {
         }
     }
 }
+@Composable
+private fun DatabaseLabTab() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val manager = remember {
+        DatabaseLabManager(
+            database = AiriDatabase.getDatabase(context),
+            auditRepository = ServiceLocator.auditRepository
+        )
+    }
+    var query by remember { mutableStateOf("SELECT name, type FROM sqlite_master WHERE type = 'table' ORDER BY name") }
+    var execution by remember { mutableStateOf<DatabaseLabManager.Execution?>(null) }
+    var running by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        DevCard(title = "Database Lab") {
+            Text(
+                "Read-only inspection of AIRI's local Room database. Writes, migrations, backups, and arbitrary PRAGMA commands are blocked.",
+                fontSize = 11.sp,
+                color = AiriTheme.onSurfaceVariant
+            )
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                label = { Text("Read-only SQL") },
+                supportingText = { Text("SELECT, EXPLAIN QUERY PLAN SELECT, or limited schema PRAGMA; first 100 rows only.") },
+                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                enabled = !running
+            )
+            Button(
+                onClick = {
+                    scope.launch {
+                        running = true
+                        execution = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            manager.executeReadOnly(query)
+                        }
+                        running = false
+                    }
+                },
+                enabled = !running,
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                if (running) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                else Text("Run read-only query")
+            }
+        }
+
+        when (val result = execution) {
+            is DatabaseLabManager.Execution.Success -> {
+                DevCard(title = "Result · ${result.result.rows.size} row(s) · ${result.result.elapsedMs}ms") {
+                    if (result.result.truncated) {
+                        Text("Result limited to 100 rows.", fontSize = 11.sp, color = Color(0xFFFFB340))
+                    }
+                    Text(
+                        result.result.columns.joinToString(" | "),
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = CosmicAccent
+                    )
+                    result.result.rows.forEach { row ->
+                        Text(
+                            row.joinToString(" | "),
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = AiriTheme.onSurfaceVariant,
+                            maxLines = 3
+                        )
+                    }
+                    if (result.result.rows.isEmpty()) {
+                        Text("The query completed without rows.", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                    }
+                }
+            }
+            is DatabaseLabManager.Execution.Rejected -> DevCard(title = "Query blocked") {
+                Text(result.reason, fontSize = 11.sp, color = SemanticError)
+            }
+            is DatabaseLabManager.Execution.Failed -> DevCard(title = "Query failed") {
+                Text(result.reason, fontSize = 11.sp, color = SemanticError)
+            }
+            null -> Unit
+        }
+    }
+}
+
 @Composable
 private fun DevCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     Surface(shape = AIRIShapes.md, color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {

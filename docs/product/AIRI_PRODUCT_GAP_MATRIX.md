@@ -43,7 +43,7 @@
 |---|---|---|---|
 | T1-01 | Git workspace | `PARTIAL` | clone/branch/diff/commit/pull/push مع موافقة destructive |
 | T1-02 | Developer Center | `FOUNDATION` | code/build/test/logs/preview في رحلة مشروع واحدة |
-| T1-03 | Database Lab | `MISSING` | query planner وسياسة read/write وaudit وbackup |
+| T1-03 | Database Lab | `PARTIAL` | Developer Center يضم Database Lab حياً للقراءة فقط فوق Room: `DatabaseLabQueryPolicy` يحصر SQL في SELECT/schema PRAGMA ويمنع write/multi-statement، و`DatabaseLabManager` يحد النتائج ويدقق metadata دون SQL/data؛ المتبقي query planner مرئي، history، schema explorer، write policy مع durable approval/resume، backup/restore/export، device performance/access verification |
 | T1-04 | Canvas | `MISSING` | prompt→canvas→user edit→AIRI refinement |
 | T1-05 | Research Mode | `PARTIAL` | `ResearchAgent` يمرر DuckDuckGo evidence محدوداً وموثق المنشأ كبيانات `untrusted_external`، يحجب private/non-HTTP URLs ويمنع fallback من فتح متصفح المستخدم تلقائياً؛ المتبقي source graph، cross-check متعدد المصادر، citations UI، snapshots دائمة، contradiction detection، وBrave/Jina device/provider verification |
 | T1-06 | Agent Teams | `PARTIAL` | `ProductionAgentOrchestrator` ينفذ أدواراً حقيقية عبر `SubAgentRegistry` و`AgentTeamPolicy` يقبل الرسم، يعزل dependency context افتراضياً، يخصص cloud reserve لكل دور، ويحد موجة التوازي؛ المتبقي accounting فعلي لاستهلاك providers، واجهة تكوين/replay للفريق، واختبار device/background |

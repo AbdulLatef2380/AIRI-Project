@@ -177,8 +177,8 @@ abstract class AiriDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE episodic_memory ADD COLUMN expiresAtMs INTEGER NOT NULL DEFAULT -1")
                 db.execSQL("ALTER TABLE episodic_memory ADD COLUMN lastAccessedAtMs INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE episodic_memory ADD COLUMN updatedAtMs INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_episodic_memory_project_scope ON episodic_memory(projectId, memoryScope)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_episodic_memory_expiry ON episodic_memory(expiresAtMs)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_episodic_memory_projectId_memoryScope ON episodic_memory(projectId, memoryScope)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_episodic_memory_expiresAtMs ON episodic_memory(expiresAtMs)")
             }
         }
 

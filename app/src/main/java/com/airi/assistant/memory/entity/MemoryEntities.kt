@@ -2,9 +2,16 @@ package com.airi.assistant.memory.entity
 
 import androidx.room.Entity
 import androidx.room.Ignore
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "episodic_memory")
+@Entity(
+    tableName = "episodic_memory",
+    indices = [
+        Index(name = "index_episodic_memory_project_scope", value = ["projectId", "memoryScope"]),
+        Index(name = "index_episodic_memory_expiry", value = ["expiresAtMs"])
+    ]
+)
 data class ChatMessage(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val sessionId: String = "default",

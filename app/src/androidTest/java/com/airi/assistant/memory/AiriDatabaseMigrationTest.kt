@@ -32,7 +32,7 @@ class AiriDatabaseMigrationTest {
     }
 
     @Test
-    fun migratesVersionOneDataToVersionSevenWithoutLoss() = runBlocking {
+    fun migratesVersionOneDataToVersionEightWithoutLoss() = runBlocking {
         createVersionOneDatabase()
 
         database = Room.databaseBuilder(context, AiriDatabase::class.java, DATABASE_NAME)
@@ -64,6 +64,16 @@ class AiriDatabaseMigrationTest {
         assertTrue("message_embedding" in tables)
         assertTrue("audit_log" in tables)
         assertTrue("workspace_artifact" in tables)
+
+        val memoryIndices = database!!.openHelper.writableDatabase.query(
+            "PRAGMA index_list('episodic_memory')"
+        ).use { cursor ->
+            buildSet {
+                while (cursor.moveToNext()) add(cursor.getString(1))
+            }
+        }
+        assertTrue("index_episodic_memory_projectId_memoryScope" in memoryIndices)
+        assertTrue("index_episodic_memory_expiresAtMs" in memoryIndices)
     }
 
     private fun createVersionOneDatabase() {

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 8,
-    "identityHash": "cb9cf0c6cf6b9093b69f4872083196c4",
+    "identityHash": "c47e78a2df3086d3c0abb208c2548236",
     "entities": [
       {
         "tableName": "episodic_memory",
@@ -126,7 +126,28 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_episodic_memory_projectId_memoryScope",
+            "unique": false,
+            "columnNames": [
+              "projectId",
+              "memoryScope"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_episodic_memory_projectId_memoryScope` ON `${TABLE_NAME}` (`projectId`, `memoryScope`)"
+          },
+          {
+            "name": "index_episodic_memory_expiresAtMs",
+            "unique": false,
+            "columnNames": [
+              "expiresAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_episodic_memory_expiresAtMs` ON `${TABLE_NAME}` (`expiresAtMs`)"
+          }
+        ]
       },
       {
         "tableName": "chat_sessions",
@@ -590,7 +611,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cb9cf0c6cf6b9093b69f4872083196c4')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c47e78a2df3086d3c0abb208c2548236')"
     ]
   }
 }

@@ -52,6 +52,23 @@ class AndroidIntentConnector(
     override suspend fun disconnect() { /* always-on */ }
 
     override suspend fun execute(input: ConnectorInput): ConnectorOutput {
+        when (val decision = DeviceActionPolicy.evaluate(input.action, input.text)) {
+            DeviceActionPolicy.Decision.Allowed -> Unit
+            is DeviceActionPolicy.Decision.RequiresUserTakeover -> {
+                return ConnectorOutput.Failure(
+                    code = "user_takeover_required",
+                    message = decision.reason,
+                    retryable = false
+                )
+            }
+            is DeviceActionPolicy.Decision.Blocked -> {
+                return ConnectorOutput.Failure(
+                    code = "blocked_by_policy",
+                    message = decision.reason,
+                    retryable = false
+                )
+            }
+        }
         return when (input.action) {
             "open_app" -> openApp(input.params["package"].orEmpty())
             "open_url" -> openUrl(input.text)

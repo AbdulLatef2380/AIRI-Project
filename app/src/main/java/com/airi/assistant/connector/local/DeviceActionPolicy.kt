@@ -19,6 +19,9 @@ object DeviceActionPolicy {
         "open_app" -> Decision.RequiresUserTakeover(
             "Opening another app transfers control outside AIRI and must be initiated by the user"
         )
+        "open_settings" -> Decision.RequiresUserTakeover(
+            "Opening device settings transfers control outside AIRI and must be initiated by the user"
+        )
         "open_url" -> when (val browser = BrowserNavigationPolicy.evaluate(url.orEmpty(), BrowserNavigationPolicy.Operation.OPEN_EXTERNAL)) {
             is BrowserNavigationPolicy.Decision.RequiresUserTakeover -> Decision.RequiresUserTakeover(browser.reason)
             is BrowserNavigationPolicy.Decision.Blocked -> Decision.Blocked(browser.reason)

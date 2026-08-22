@@ -1,15 +1,16 @@
 # حد أفعال الجهاز
 
-**الحالة:** `IMPLEMENTATION_COMPLETE` لحارس `DeviceAppsConnector` بين discovery المحلي وأفعال النقل خارج AIRI. **`RUNTIME_VERIFICATION_PENDING`** لواجهة تسليم المستخدم على جهاز Android حقيقي. لا يدعي العقد أن AIRI يستطيع فتح تطبيقات أو روابط تلقائياً.
+**الحالة:** `IMPLEMENTATION_COMPLETE` لحارس موصلي `DeviceAppsConnector` و`AndroidIntentConnector` بين discovery المحلي وأفعال النقل خارج AIRI. **`RUNTIME_VERIFICATION_PENDING`** لواجهة تسليم المستخدم على جهاز Android حقيقي. لا يدعي العقد أن AIRI يستطيع فتح تطبيقات أو روابط تلقائياً.
 
 ## المسار المنفذ
 
-`DeviceAppsConnector` يبقي `list_apps` و`find_app` قابلين للتنفيذ محلياً. قبل أي `startActivity` يفحص `DeviceActionPolicy` action المطلوب:
+يستخدم كل من `DeviceAppsConnector` و`AndroidIntentConnector` السياسة نفسها. يبقي الأول `list_apps` و`find_app` قابلين للتنفيذ محلياً، وقبل أي `startActivity` يفحص الموصلان `DeviceActionPolicy` action المطلوب:
 
 | Action | القرار |
 |---|---|
 | `list_apps` و`find_app` | قراءة محلية مسموحة |
 | `open_app` | `user_takeover_required` لأن فتح تطبيق آخر ينقل التحكم خارج AIRI |
+| `open_settings` | `user_takeover_required` لأن فتح إعدادات الجهاز ينقل التحكم خارج AIRI |
 | `open_url` بعنوان HTTP(S) عام | `user_takeover_required` وفق `BrowserNavigationPolicy.OPEN_EXTERNAL` |
 | `open_url` محلي أو غير HTTP(S) | `blocked_by_policy` |
 

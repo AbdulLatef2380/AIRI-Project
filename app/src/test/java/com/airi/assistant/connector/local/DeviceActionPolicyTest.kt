@@ -14,6 +14,7 @@ class DeviceActionPolicyTest {
     @Test
     fun requiresUserTakeoverForAppAndPublicUrlLaunch() {
         assertTrue(DeviceActionPolicy.evaluate("open_app") is DeviceActionPolicy.Decision.RequiresUserTakeover)
+        assertTrue(DeviceActionPolicy.evaluate("open_settings") is DeviceActionPolicy.Decision.RequiresUserTakeover)
         assertTrue(
             DeviceActionPolicy.evaluate("open_url", "https://example.com")
                 is DeviceActionPolicy.Decision.RequiresUserTakeover

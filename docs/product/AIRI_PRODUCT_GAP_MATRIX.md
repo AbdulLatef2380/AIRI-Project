@@ -30,7 +30,7 @@
 | T0-08 | Real Terminal | تنفيذ مراقب لا زر shell فقط | `PARTIAL` | Android sandbox argv-only مع session/history/output cap/timeout/cancel مرئي وحوكمة؛ المتبقي Desktop PTY وقياس موارد العملية وaudit مُفصل على جهاز | Desktop/Android control | تشغيل، مراقبة، إيقاف، وفشل آمن |
 | T0-09 | Browser Agent | تنفيذ مهمة ويب لا web search فقط | `PARTIAL` | قراءة عامة محكومة بسياسة URL وredirect وتوقف takeover للدخول/الدفع/النماذج/الرفع؛ المتبقي tabs/DOM/authenticated backend/download-upload/replay حي | Desktop/Cloud | يتوقف عند login أو destructive action وينتظر الموافقة |
 | T0-10 | Artifact System | نتيجة قابلة للمعاينة والتنزيل وإعادة التوليد | `PARTIAL` | ملفات معرّفة بوضوح وpreview معزول وsnapshot versions/restore فعلي؛ المتبقي compare/hash/export/download وربط artifact بسجل التنفيذ | Core/Android/Desktop | إنتاج ملف، معاينته، حفظه، وتنزيله |
-| T0-11 | Model Router | اختيار نموذج حسب capability/privacy/cost | `PARTIAL` | capability profile، local-only policy، fallback قابل للتفسير | Core/Android/Desktop | routing يرفض نموذجاً غير مناسب ويشرح القرار |
+| T0-11 | Model Router | اختيار نموذج حسب capability/privacy/cost | `PARTIAL` | `RuntimeRouter` يمرر رمز سبب منظم مع rationale إلى diagnostics، وتفرض `RoutingPolicy` capability/privacy/network/budget gates وfallback مرتب؛ المتبقي projection مرئي لآخر قرار وقياس token فعلي وربطه بميزانية الاستخدام وتجربة local/cloud على جهاز | Core/Android/Desktop | routing يرفض نموذجاً غير مناسب ويشرح القرار |
 | T0-12 | Automation/Event Engine | تشغيل مهام مفيدة عند حدث حقيقي | `PARTIAL` | trigger/condition/input/approval/retry/result/notification | Android/Desktop/External | run now، pause، history، failure recovery |
 | T0-13 | Secret Broker | استخدام credential دون كشف القيمة الخام | `PARTIAL` | Keystore-backed SecretVault يصدر capability مقيدة بالوكيل/العملية/المدة/الاستخدام ويستهلكها داخل provider callback؛ المتبقي audit دائم وrotation وربط كل provider/connector بقبول capability | Android/Desktop | tool receives ephemeral capability, not raw secret |
 | T0-14 | AIRI Mesh | اختيار node مناسب لتنفيذ المهمة | `PARTIAL` | device identity، capabilities، presence، trust، routing | Android/Desktop/External | تنفيذ آمن على node مصرح به فقط |
@@ -46,7 +46,7 @@
 | T1-03 | Database Lab | `MISSING` | query planner وسياسة read/write وaudit وbackup |
 | T1-04 | Canvas | `MISSING` | prompt→canvas→user edit→AIRI refinement |
 | T1-05 | Research Mode | `PARTIAL` | source graph، cross-check، citations، snapshots، contradiction detection |
-| T1-06 | Agent Teams | `MISSING` | roles/models/tools/memory/permissions/budget لكل agent |
+| T1-06 | Agent Teams | `PARTIAL` | `ProductionAgentOrchestrator` ينفذ أدواراً حقيقية عبر `SubAgentRegistry` و`AgentTeamPolicy` يقبل الرسم، يعزل dependency context افتراضياً، يخصص cloud reserve لكل دور، ويحد موجة التوازي؛ المتبقي accounting فعلي لاستهلاك providers، واجهة تكوين/replay للفريق، واختبار device/background |
 | T1-07 | Connector framework | `PARTIAL` | Runtime يمنع الموصل غير الصحي وينتظر broadcast كاملاً، وSkill Policy يفرض requiredConnectors؛ المتبقي OAuth scopes→Secret Broker لكل الموصلات→Tool Registry موقع→Audit/rotation/revocation دائم |
 | T1-08 | Voice state machine | `PARTIAL` | interruption، barge-in، offline/online، Arabic detection، permissions |
 | T1-09 | Vision/OCR/video | `PARTIAL` | image/document/video ingestion مع evidence وlimits |

@@ -28,6 +28,7 @@ class RoutingPolicyTest {
         )
 
         assertEquals(listOf(local), selection.backends)
+        assertEquals(RoutingPolicy.DecisionReason.HARD_LOCAL_GATE, selection.reason)
     }
 
     @Test
@@ -44,6 +45,7 @@ class RoutingPolicyTest {
         )
 
         assertEquals(listOf(cloud, local), selection.backends)
+        assertEquals(RoutingPolicy.DecisionReason.CLOUD_ONLY_ONLINE, selection.reason)
     }
 
     @Test
@@ -60,6 +62,7 @@ class RoutingPolicyTest {
         )
 
         assertEquals(listOf(local), selection.backends)
+        assertEquals(RoutingPolicy.DecisionReason.CLOUD_ONLY_OFFLINE_FALLBACK, selection.reason)
     }
 
     @Test
@@ -77,6 +80,7 @@ class RoutingPolicyTest {
 
         assertEquals(listOf(cloud), selection.backends)
         assertEquals("CLOUD_ONLY mode — offline, no fallback", selection.rationale)
+        assertEquals(RoutingPolicy.DecisionReason.CLOUD_ONLY_UNAVAILABLE, selection.reason)
     }
 
     @Test
@@ -97,6 +101,7 @@ class RoutingPolicyTest {
         )
 
         assertEquals(listOf(cloud, local), selection.backends)
+        assertEquals(RoutingPolicy.DecisionReason.CLOUD_PREFERRED, selection.reason)
     }
 
     @Test
@@ -113,6 +118,7 @@ class RoutingPolicyTest {
         )
 
         assertEquals(listOf(local), selection.backends)
+        assertEquals(RoutingPolicy.DecisionReason.NETWORK_UNAVAILABLE, selection.reason)
     }
 
     @Test
@@ -129,6 +135,7 @@ class RoutingPolicyTest {
         )
 
         assertEquals(listOf(cloud, local), selection.backends)
+        assertEquals(RoutingPolicy.DecisionReason.LOCAL_CAPABILITY_MISMATCH, selection.reason)
     }
 
     private fun prefs(

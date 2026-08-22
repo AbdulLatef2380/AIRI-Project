@@ -159,6 +159,16 @@ class ProductionAgentOrchestrator {
     ): ExecutionResult {
         val executionId = plan.id
         val startMs     = System.currentTimeMillis()
+        val teamAdmission = AgentTeamPolicy.admit(plan, SubAgentRegistry.capabilities())
+        if (!teamAdmission.accepted) {
+            Log.w(TAG, "TEAM_PLAN_REJECTED id=$executionId reason=${teamAdmission.reason}")
+            return ExecutionResult.PartialFailure(
+                planId = executionId,
+                taskResults = emptyMap(),
+                taskErrors = mapOf("team_policy" to teamAdmission.reason),
+                durationMs = System.currentTimeMillis() - startMs
+            )
+        }
 
         durableTaskManager?.registerInProcess(
             DurableTask(
@@ -224,7 +234,8 @@ class ProductionAgentOrchestrator {
             remaining.removeAll(ready)
 
             // Execute all ready tasks in parallel
-            val deferred = ready.map { task ->
+            ready.chunked(teamAdmission.maxParallelTasks).forEach { batch ->
+                val deferred = batch.map { task ->
                 orchestrationScope.async {
                     durableTaskManager?.updateExecutionStep(
                         taskId = executionId,
@@ -234,9 +245,12 @@ class ProductionAgentOrchestrator {
                     )
                     // Inject workspace-resolved artifacts alongside dependency results
                     val workspaceInjection = workspace.resolveDependency(task.id)
+                    val seededDependencies = if (plan.isolateTaskContext) emptyMap() else task.context.dependencyResults
                     val enrichedContext = task.context.copy(
-                        dependencyResults = taskResults.toMap() + workspaceInjection,
-                        parentTaskId      = executionId
+                        dependencyResults = seededDependencies + taskResults.toMap() + workspaceInjection,
+                        remainingCloudTokenBudget = teamAdmission.taskCloudBudgets[task.id]
+                            ?: task.context.remainingCloudTokenBudget,
+                        parentTaskId = executionId
                     )
                     val result = executeTask(task, enrichedContext, onEvent, allEvents, workspace)
                     when (result) {
@@ -264,7 +278,8 @@ class ProductionAgentOrchestrator {
             }
 
             // Wait for all parallel tasks to complete before advancing the wave
-            deferred.awaitAll()
+                deferred.awaitAll()
+            }
 
             val completed = completedIds.size
             val total     = plan.tasks.size
@@ -616,7 +631,13 @@ class ProductionAgentOrchestrator {
         val ownerId: String = "anonymous",
         val memoryScope: TaskScope = TaskScope.SESSION,
         val knowledgeScope: TaskScope = TaskScope.PROJECT,
-        val executionNode: String? = null
+        val executionNode: String? = null,
+        /** Parent-owned maximum cloud-token budget for all roles in this plan. */
+        val teamCloudTokenBudget: Int? = null,
+        /** Upper bound for each ready-task wave; hard-capped by [AgentTeamPolicy]. */
+        val maxParallelTasks: Int = AgentTeamPolicy.DEFAULT_MAX_PARALLEL_TASKS,
+        /** Child contexts receive only completed dependency outputs when true. */
+        val isolateTaskContext: Boolean = true
     )
 
     /**

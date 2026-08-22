@@ -51,6 +51,7 @@ class RuntimeRouter(
         val primary:   RuntimeBackend,
         val fallbacks: List<RuntimeBackend>,
         val rationale: String,
+        val reason:    RoutingPolicy.DecisionReason,
         val signals:   DeviceSignals
     ) {
         val hasFallback: Boolean get() = fallbacks.isNotEmpty()
@@ -100,7 +101,7 @@ class RuntimeRouter(
 
         // Log to the diagnostics timeline.
         val logMsg = "Route → ${selection.primary.id} " +
-            "(${selection.backends.size} candidate(s)) · ${selection.rationale}"
+            "reason=${selection.reason.name} (${selection.backends.size} candidate(s)) · ${selection.rationale}"
         Log.i(TAG, logMsg)
         RuntimeEventLog.post(
             subsystem = "ROUTER",
@@ -112,6 +113,7 @@ class RuntimeRouter(
             primary   = selection.primary,
             fallbacks = selection.backends.drop(1),
             rationale = selection.rationale,
+            reason    = selection.reason,
             signals   = signals
         )
     }

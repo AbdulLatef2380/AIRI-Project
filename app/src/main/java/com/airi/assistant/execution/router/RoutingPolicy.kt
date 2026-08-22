@@ -47,9 +47,25 @@ object RoutingPolicy {
      * @param backends  Ordered candidates, primary first.
      * @param rationale Short human-readable explanation (for event log).
      */
+    enum class DecisionReason {
+        HARD_LOCAL_GATE,
+        OFFLINE_REQUIRED,
+        CLOUD_ONLY_ONLINE,
+        CLOUD_ONLY_OFFLINE_FALLBACK,
+        CLOUD_ONLY_UNAVAILABLE,
+        LOCAL_CAPABILITY_MISMATCH,
+        LOCAL_BEST_EFFORT,
+        DEVICE_STRESS,
+        CLOUD_PREFERRED,
+        CLOUD_BUDGET_EXHAUSTED,
+        NETWORK_UNAVAILABLE,
+        HYBRID_LOCAL_DEFAULT
+    }
+
     data class Selection(
-        val backends:  List<RuntimeBackend>,
-        val rationale: String
+        val backends: List<RuntimeBackend>,
+        val rationale: String,
+        val reason: DecisionReason
     ) {
         val primary:  RuntimeBackend  get() = backends.first()
         val fallback: RuntimeBackend? get() = backends.getOrNull(1)
@@ -71,25 +87,25 @@ object RoutingPolicy {
         if (mode == ExecutionMode.LOCAL_ONLY ||
             privacy == PrivacyLevel.MAXIMUM ||
             !prefs.internetPermissionGranted) {
-            return Selection(listOf(local), "LOCAL_ONLY / privacy=MAXIMUM / no internet permission")
+            return Selection(listOf(local), "LOCAL_ONLY / privacy=MAXIMUM / no internet permission", DecisionReason.HARD_LOCAL_GATE)
         }
 
         // ── Rule 4: caller signals offline ────────────────────────────────────
         // Checked before CLOUD_ONLY so we never attempt cloud on a request that
         // the caller already knows will fail (e.g. ConnectivityMonitor = false).
         if (request.requiresOffline) {
-            return Selection(listOf(local), "requiresOffline=true — local only")
+            return Selection(listOf(local), "requiresOffline=true — local only", DecisionReason.OFFLINE_REQUIRED)
         }
 
         // ── Rule 5: CLOUD_ONLY ─────────────────────────────────────────────────
         if (mode == ExecutionMode.CLOUD_ONLY) {
             return if (signals.networkAvailable && cloud.isAvailable) {
                 val fallbacks = if (fallbackEnabled && local.isAvailable) listOf(cloud, local) else listOf(cloud)
-                Selection(fallbacks, "CLOUD_ONLY mode — online")
+                Selection(fallbacks, "CLOUD_ONLY mode — online", DecisionReason.CLOUD_ONLY_ONLINE)
             } else if (fallbackEnabled && local.isAvailable) {
-                Selection(listOf(local), "CLOUD_ONLY mode — offline, falling back to local")
+                Selection(listOf(local), "CLOUD_ONLY mode — offline, falling back to local", DecisionReason.CLOUD_ONLY_OFFLINE_FALLBACK)
             } else {
-                Selection(listOf(cloud), "CLOUD_ONLY mode — offline, no fallback")
+                Selection(listOf(cloud), "CLOUD_ONLY mode — offline, no fallback", DecisionReason.CLOUD_ONLY_UNAVAILABLE)
             }
         }
 
@@ -99,19 +115,22 @@ object RoutingPolicy {
             if (signals.networkAvailable && cloud.isAvailable) {
                 val fallbacks = if (local.isAvailable) listOf(cloud, local) else listOf(cloud)
                 return Selection(fallbacks,
-                    "Local cannot satisfy: ${request.requirementSummary}")
+                    "Local cannot satisfy: ${request.requirementSummary}",
+                    DecisionReason.LOCAL_CAPABILITY_MISMATCH)
             }
             // Cloud also unavailable — proceed with local anyway (best-effort)
             return Selection(listOf(local),
-                "Local cap mismatch but cloud unavailable; local best-effort")
+                "Local cap mismatch but cloud unavailable; local best-effort",
+                DecisionReason.LOCAL_BEST_EFFORT)
         }
 
         // ── Rule 7: device stress → cloud offload ──────────────────────────────
         if (signals.preferCloudForPerformance &&
             signals.networkAvailable && cloud.isAvailable) {
             val fallbacks = if (local.isAvailable) listOf(cloud, local) else listOf(cloud)
-            return Selection(fallbacks,
-                "Device stress (thermal=${signals.thermalLevel} ram=${signals.availRamMb}MB) → cloud offload")
+return Selection(fallbacks,
+                    "Device stress (thermal=${signals.thermalLevel} ram=${signals.availRamMb}MB) → cloud offload",
+                    DecisionReason.DEVICE_STRESS)
         }
 
         // ── Rules 8 + 9: HYBRID query-type routing ────────────────────────────
@@ -120,25 +139,26 @@ object RoutingPolicy {
             if (cloudPreferred) {
                 val fallbacks = if (local.isAvailable) listOf(cloud, local) else listOf(cloud)
                 return Selection(fallbacks,
-                    "HYBRID: cloud preferred for ${request.queryType.name} / long=${request.requiresLongContext}")
+                    "HYBRID: cloud preferred for ${request.queryType.name} / long=${request.requiresLongContext}",
+                    DecisionReason.CLOUD_PREFERRED)
             }
         }
 
         // ── Rule 10: cloud budget exhausted ────────────────────────────────────
         if (prefs.isCloudBudgetExhausted) {
-            return Selection(listOf(local), "Cloud daily budget exhausted")
+            return Selection(listOf(local), "Cloud daily budget exhausted", DecisionReason.CLOUD_BUDGET_EXHAUSTED)
         }
 
         // ── Rule 11: no network → local only (belt-and-suspenders) ────────────
         if (!signals.networkAvailable) {
-            return Selection(listOf(local), "No network detected — local only")
+            return Selection(listOf(local), "No network detected — local only", DecisionReason.NETWORK_UNAVAILABLE)
         }
 
         // ── Rule 12: default HYBRID → local primary, cloud fallback ──────────
         val fallbacks = if (mode == ExecutionMode.HYBRID &&
             signals.networkAvailable && cloud.isAvailable)
             listOf(local, cloud) else listOf(local)
-        return Selection(fallbacks, "HYBRID default: local primary, cloud fallback")
+        return Selection(fallbacks, "HYBRID default: local primary, cloud fallback", DecisionReason.HYBRID_LOCAL_DEFAULT)
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────

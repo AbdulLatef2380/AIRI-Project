@@ -20,12 +20,12 @@
 
 | ID | القدرة | قيمة المستخدم | الحالة الحالية | فجوة الإغلاق | المنصات | معيار القبول |
 |---|---|---|---|---|---|---|
-| T0-01 | Workspace 2.0 | مشروع واحد يجمع الوكيل والملفات والمهام والمعرفة والأدوات | `FOUNDATION` | ربط `WorkspaceRuntime` بالمشروع والسياق والموارد بدلاً من جلسة معزولة | Android/Desktop | إنشاء مشروع، فتحه، واستعادة سياقه بعد إعادة التشغيل |
-| T0-02 | Project Context | عدم إعادة شرح المشروع في كل محادثة | `MISSING` | عقد سياق scoped ومصدر واحد للحالة | Android/Desktop | الرسالة الجديدة ترى موارد المشروع المصرح بها فقط |
+| T0-01 | Workspace 2.0 | مشروع واحد يجمع الوكيل والملفات والمهام والمعرفة والأدوات | `PARTIAL` | استعادة الموارد بعد إعادة التشغيل وربط المهام والذاكرة بملكية المشروع | Android/Desktop | إنشاء مشروع، فتحه، واستعادة سياقه بعد إعادة التشغيل |
+| T0-02 | Project Context | عدم إعادة شرح المشروع في كل محادثة | `PARTIAL` | حقن السياق المصرح به في AgentLoop واختبار عزله عن المشاريع الأخرى | Android/Desktop | الرسالة الجديدة ترى موارد المشروع المصرح بها فقط |
 | T0-03 | File Intelligence | تحويل المرفق إلى مورد قابل للبحث والمعرفة | `PARTIAL` | فهرسة، SHA-256، metadata، preview، وفرق Attachment/Knowledge/Project File | Android/Desktop | استيراد، بحث exact/semantic، حذف واستعادة |
 | T0-04 | Memory Fabric | ذاكرة قابلة للتفسير والحذف وليست مخزناً عشوائياً | `PARTIAL` | Working/Episodic/Semantic مع provenance وscope وexpiry | Core/Android/Desktop | عرض المصدر، التصحيح، الحذف، والتصدير |
 | T0-05 | Knowledge/RAG | إجابات مرتبطة بالأدلة | `PARTIAL` | extraction، facts، hybrid retrieval، reranking، evidence | Core/Android/Desktop | كل claim يعرض المصدر والثقة عند توفر المعرفة |
-| T0-06 | Execution Center | فهم ما فعله الوكيل ولماذا | `FOUNDATION` | ربط plan وtool وpermission وartifact وerror وrecovery في timeline | Android/Desktop | replay قابل للقراءة وإعادة الفتح |
+| T0-06 | Execution Center | فهم ما فعله الوكيل ولماذا | `PARTIAL` | ربط plan وtool وpermission وartifact وerror وrecovery وإضافة replay قابل للقراءة | Android/Desktop | replay قابل للقراءة وإعادة الفتح |
 | T0-07 | Approval Center | موافقة واضحة قبل الأثر الجانبي | `PARTIAL` | Allow once/task/project، تعديل الأمر، الرفض، وانتهاء الموافقة | Android/Desktop | لا ينفذ command أو secret أو connector قبل القرار |
 | T0-08 | Real Terminal | تنفيذ مراقب لا زر shell فقط | `PARTIAL` | sessions، process kill، timeout، cwd، limits، history، audit | Desktop/Android control | تشغيل، مراقبة، إيقاف، وفشل آمن |
 | T0-09 | Browser Agent | تنفيذ مهمة ويب لا web search فقط | `MISSING` | tabs، DOM، upload/download، login approval، replay | Desktop/Cloud | يتوقف عند login أو destructive action وينتظر الموافقة |
@@ -35,7 +35,7 @@
 | T0-13 | Secret Broker | استخدام credential دون كشف القيمة الخام | `FOUNDATION` | vault حقيقي platform-secure مع scopes وexpiry وrotation وrevoke | Android/Desktop | tool receives ephemeral capability, not raw secret |
 | T0-14 | AIRI Mesh | اختيار node مناسب لتنفيذ المهمة | `PARTIAL` | device identity، capabilities، presence، trust، routing | Android/Desktop/External | تنفيذ آمن على node مصرح به فقط |
 | T0-15 | Continuity | متابعة نفس المهمة من جهاز آخر | `PARTIAL` | مزامنة task state وplan وartifacts وlogs وcurrent step | Android/Desktop/External | فتح المهمة على جهاز ثانٍ واستكمالها دون فقدان الحالة |
-| T0-16 | Diagnostics | معرفة سبب الفشل بدون تسريب الأسرار | `FOUNDATION` | trace Task→Run→Step→Tool→Provider→Recovery مع export منقح | Core/Android/Desktop | diagnostic bundle لا يحتوي secrets أو raw prompts الحساسة |
+| T0-16 | Diagnostics | معرفة سبب الفشل بدون تسريب الأسرار | `PARTIAL` | إكمال trace Task→Run→Step→Tool→Provider→Recovery مع export منقح | Core/Android/Desktop | diagnostic bundle لا يحتوي secrets أو raw prompts الحساسة |
 
 ## Tier 1: بيئة التطوير والإنتاج
 
@@ -71,7 +71,7 @@
 
 > ينشئ مستخدم جديد مشروعاً، يضيف ملفاً، يراه في File Intelligence، يوافق على إدخاله إلى Knowledge، يطلب مهمة، يكوّن AIRI خطة، يطلب صلاحية Terminal أو Browser عند الحاجة، ينفذ داخل حدود المشروع، يسجل كل خطوة في Execution Center، يتعافى من فشل قابل للإصلاح، ينتج Artifact، يحفظ evidence وdiagnostics، ثم يفتح المهمة من جهاز آخر ويستكمل من الموضع نفسه.
 
-كل مرحلة من الرحلة تحتاج `PRODUCT_CONTRACT` و`USER_JOURNEY` و`DOMAIN_CONTRACT` و`SECURITY_MODEL` و`REAL_INTEGRATION` و`UNIT_TEST` و`INTEGRATION_TEST` و`UI_TEST` و`FAILURE_TEST` و`PERFORMANCE_TEST` و`CI_ARTIFACT`.
+كل مرحلة من الرحلة تحتاج `PRODUCT_CONTRACT` و`USER_JOURNEY` و`DOMAIN_CONTRACT` و`SECURITY_MODEL` و`REAL_INTEGRATION` و`UNIT_TEST` و`INTEGRATION_TEST` و`UI_TEST` و`FAILURE_TEST` و`PERFORMANCE_TEST` و`CI_ARTIFACT`. آخر أدلة التنفيذ تشمل `24fb3a98` لحدود RAG، و`00d0c7a7` لمركز التنفيذ، و`a1e35c7b` لخريطة صلاحيات AgentLoop، و`492871d8` لحماية Sandbox، و`c569153f` للاسترداد الذاتي داخل الحلقة.
 
 ## قرار الأولوية
 

@@ -91,8 +91,21 @@ object RemoteModelRegistry {
 
     fun getActiveId(): String = prefs.getString(KEY_ACTIVE, "") ?: ""
 
-    fun setActive(modelId: String) {
-        prefs.edit().putString(KEY_ACTIVE, modelId).apply()
+    fun setActive(modelId: String): Boolean = when (
+        RemoteModelSelectionPolicy.decide(
+            availableIds = getAll().mapTo(mutableSetOf()) { it.id },
+            requestedId = modelId
+        )
+    ) {
+        is RemoteModelSelectionPolicy.Decision.Select -> {
+            prefs.edit().putString(KEY_ACTIVE, modelId).apply()
+            true
+        }
+        RemoteModelSelectionPolicy.Decision.RejectBlank,
+        RemoteModelSelectionPolicy.Decision.RejectUnknown -> {
+            android.util.Log.w("AIRI_Registry", "Rejected remote model selection")
+            false
+        }
     }
 
     fun clearActive() {

@@ -114,6 +114,15 @@ class WorkspaceRuntime(
     fun artifactsForActive(): List<ArtifactManager.Artifact> =
         _activeSession.value?.let { artifactManager.forSession(it.sessionId) } ?: emptyList()
 
+    /**
+     * Returns the product-facing context for the selected workspace.
+     * The context is derived from the existing session and artifact store.
+     */
+    fun contextForActive(): WorkspaceContext? {
+        val session = _activeSession.value ?: return null
+        return workspaceContextFrom(session, artifactManager.forSession(session.sessionId))
+    }
+
     private fun restoreSessions() {
         val serialized = storage.getString(KEY_SESSIONS, null) ?: return
         runCatching {

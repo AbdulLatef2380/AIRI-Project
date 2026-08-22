@@ -266,9 +266,10 @@ object ServiceLocator {
 
     val workspaceRuntime: com.airi.assistant.workspace.WorkspaceRuntime by lazy {
         com.airi.assistant.workspace.WorkspaceRuntime(
-            context         = requireContext(),
-            sandboxManager  = sandboxManager,
-            artifactManager = artifactManager
+            context            = requireContext(),
+            sandboxManager     = sandboxManager,
+            artifactManager    = artifactManager,
+            durableTaskManager = durableTaskManager
         )
     }
 

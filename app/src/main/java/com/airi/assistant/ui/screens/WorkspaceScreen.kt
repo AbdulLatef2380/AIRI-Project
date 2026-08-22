@@ -52,15 +52,17 @@ fun WorkspaceScreen(
 ) {
     val workspaceRuntime = ServiceLocator.workspaceRuntime
     val artifactManager  = ServiceLocator.artifactManager
+    val taskManager      = ServiceLocator.durableTaskManager
     val scope            = rememberCoroutineScope()
 
     val sessions       by workspaceRuntime.allSessions.collectAsStateWithLifecycle()
     val activeSession  by workspaceRuntime.activeSession.collectAsStateWithLifecycle()
     val allArtifacts   by artifactManager.allArtifacts.collectAsStateWithLifecycle()
+    val allTasks       by taskManager.tasks.collectAsStateWithLifecycle()
     val artifacts      = remember(allArtifacts, activeSession) {
         activeSession?.let { artifactManager.forSession(it.sessionId) } ?: emptyList()
     }
-    val activeContext   = remember(activeSession, allArtifacts) {
+    val activeContext   = remember(activeSession, allArtifacts, allTasks) {
         workspaceRuntime.contextForActive()
     }
 
@@ -196,10 +198,23 @@ private fun WorkspaceContextCard(context: com.airi.assistant.workspace.Workspace
                 Text(context.description, fontSize = 12.sp, color = AiriTheme.onBackground.copy(alpha = 0.62f), maxLines = 2)
             }
             Text(
-                text = "${context.artifactCount} artifacts${if (context.tags.isNotEmpty()) " · ${context.tags.joinToString(", ")}" else ""}",
+                text = stringResource(
+                    R.string.workspace_context_summary,
+                    context.artifactCount,
+                    context.taskCount,
+                    context.activeTaskCount,
+                    context.failedTaskCount
+                ),
                 fontSize = 11.sp,
                 color = CosmicAccent
             )
+            if (context.tags.isNotEmpty()) {
+                Text(
+                    text = context.tags.joinToString(" · "),
+                    fontSize = 11.sp,
+                    color = AiriTheme.onBackground.copy(alpha = 0.58f)
+                )
+            }
         }
     }
 }

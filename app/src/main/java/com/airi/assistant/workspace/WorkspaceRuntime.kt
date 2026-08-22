@@ -3,6 +3,7 @@ package com.airi.assistant.workspace
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.airi.assistant.agent.durable.DurableTaskManager
 import com.airi.assistant.agent.sandbox.SandboxManager
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.AgentActivityBus
@@ -29,7 +30,8 @@ import java.util.concurrent.ConcurrentHashMap
 class WorkspaceRuntime(
     private val context: Context,
     private val sandboxManager: SandboxManager,
-    private val artifactManager: ArtifactManager
+    private val artifactManager: ArtifactManager,
+    private val durableTaskManager: DurableTaskManager? = null
 ) {
     data class WorkspaceSession(
         val sessionId: String = UUID.randomUUID().toString().take(8),
@@ -120,7 +122,11 @@ class WorkspaceRuntime(
      */
     fun contextForActive(): WorkspaceContext? {
         val session = _activeSession.value ?: return null
-        return workspaceContextFrom(session, artifactManager.forSession(session.sessionId))
+        return workspaceContextFrom(
+            session = session,
+            artifacts = artifactManager.forSession(session.sessionId),
+            tasks = durableTaskManager?.tasks?.value.orEmpty()
+        )
     }
 
     private fun restoreSessions() {

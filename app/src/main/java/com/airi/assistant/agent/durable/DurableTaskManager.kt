@@ -82,7 +82,10 @@ class DurableTaskManager(private val context: Context) {
      * Returns the task ID (UUID) for tracking.
      */
     fun enqueue(task: DurableTask): String {
-        val queued = task.copy(status = DurableTaskStatus.QUEUED)
+        val queued = task.copy(
+            status = DurableTaskStatus.QUEUED,
+            updatedAtMs = System.currentTimeMillis()
+        )
         putTask(queued)
         submitToWorkManager(queued)
         Log.i(TAG, "AIRI DURABLE_TASK_ENQUEUED id=${task.id} title='${task.title}'")
@@ -90,11 +93,55 @@ class DurableTaskManager(private val context: Context) {
     }
 
     /**
+     * Registers a task executed by the foreground orchestrator. Unlike [enqueue],
+     * this never creates a second WorkManager execution for the same user intent.
+     */
+    fun registerInProcess(task: DurableTask): String {
+        if (taskCache.containsKey(task.id)) return task.id
+        putTask(task.copy(updatedAtMs = System.currentTimeMillis()))
+        Log.i(TAG, "AIRI DURABLE_TASK_REGISTERED_IN_PROCESS id=${task.id}")
+        return task.id
+    }
+
+    /** Starts or resumes a durable execution run and records its active plan step. */
+    fun beginRun(taskId: String, runId: String = taskId, stepId: String? = null) {
+        updateTask(taskId) { beginRun(runId = runId, stepId = stepId) }
+    }
+
+    /** Persists a safe execution checkpoint and the current plan step. */
+    fun updateExecutionStep(
+        taskId: String,
+        stepId: String?,
+        checkpointData: String = "",
+        progressPercent: Int = -1,
+        progressMessage: String = ""
+    ) {
+        updateTask(taskId) {
+            updateStep(
+                stepId = stepId,
+                checkpointData = checkpointData,
+                progressPercent = progressPercent,
+                progressMessage = progressMessage
+            )
+        }
+    }
+
+    /** Marks an individual plan step as complete while keeping the task running. */
+    fun markStepCompleted(taskId: String, stepId: String) {
+        updateTask(taskId) { completeStep(stepId) }
+    }
+
+    /** Records a failed plan step before the task-level recovery policy decides what to do. */
+    fun markStepFailed(taskId: String, stepId: String, reason: String) {
+        updateTask(taskId) { failStep(stepId, reason) }
+    }
+
+    /**
      * Cancel a running or queued task.
      */
     fun cancel(taskId: String) {
         WorkManager.getInstance(context).cancelUniqueWork(workName(taskId))
-        updateTask(taskId) { copy(status = DurableTaskStatus.CANCELLED) }
+        updateTask(taskId) { cancel() }
         Log.i(TAG, "AIRI DURABLE_TASK_CANCELLED id=$taskId")
     }
 
@@ -103,27 +150,20 @@ class DurableTaskManager(private val context: Context) {
      * Call from inside a DurableTaskWorker to persist progress.
      */
     fun updateCheckpoint(taskId: String, checkpointData: String, progressPercent: Int = -1, progressMessage: String = "") {
-        updateTask(taskId) {
-            copy(
-                checkpointData  = checkpointData,
-                progressPercent = progressPercent,
-                progressMessage = progressMessage
-            )
-        }
+        updateExecutionStep(
+            taskId = taskId,
+            stepId = getTask(taskId)?.currentStepId,
+            checkpointData = checkpointData,
+            progressPercent = progressPercent,
+            progressMessage = progressMessage
+        )
     }
 
     /**
      * Mark a task as completed with its final result.
      */
     fun markCompleted(taskId: String, result: String) {
-        updateTask(taskId) {
-            copy(
-                status        = DurableTaskStatus.COMPLETED,
-                result        = result,
-                finishedAtMs  = System.currentTimeMillis(),
-                progressPercent = 100
-            )
-        }
+        updateTask(taskId) { complete(result) }
         postCompletionNotification(taskId)
         Log.i(TAG, "AIRI DURABLE_TASK_COMPLETED id=$taskId")
     }
@@ -132,13 +172,7 @@ class DurableTaskManager(private val context: Context) {
      * Mark a task as failed.
      */
     fun markFailed(taskId: String, reason: String) {
-        updateTask(taskId) {
-            copy(
-                status       = DurableTaskStatus.FAILED,
-                errorReason  = reason,
-                finishedAtMs = System.currentTimeMillis()
-            )
-        }
+        updateTask(taskId) { fail(reason) }
         Log.w(TAG, "AIRI DURABLE_TASK_FAILED id=$taskId reason=$reason")
     }
 
@@ -294,7 +328,12 @@ class DurableTaskWorker(
             return Result.failure()
         }
 
-        manager.updateCheckpoint(taskId, "", 0, "Starting…")
+        manager.beginRun(
+            taskId = taskId,
+            runId = task.currentRunId ?: taskId,
+            stepId = task.currentStepId
+        )
+        manager.updateCheckpoint(taskId, task.checkpointData, 0, "Starting…")
 
         return runCatching {
             val registry = com.airi.assistant.agent.subagent.SubAgentRegistry
@@ -306,12 +345,16 @@ class DurableTaskWorker(
                 }
 
             val context = com.airi.assistant.agent.subagent.SubAgentContext(
-                sessionId         = taskId,
-                userId            = "durable_worker",
+                sessionId         = task.projectId ?: taskId,
+                userId            = task.ownerId,
+                projectId         = task.projectId,
                 worldState        = emptyMap(),
                 grantedPermissions = emptyList(),
+                parentTaskId      = taskId,
                 nestingDepth      = 0,
-                dependencyResults = task.checkpointData?.let { mapOf("checkpoint" to it) } ?: emptyMap()
+                dependencyResults = task.checkpointData.takeIf { it.isNotBlank() }
+                    ?.let { mapOf("checkpoint" to it) }
+                    ?: emptyMap()
             )
 
             var finalResult = ""

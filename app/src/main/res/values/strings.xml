@@ -1044,6 +1044,7 @@
     <string name="workspace_no_artifacts">No artifacts yet</string>
     <string name="workspace_no_artifacts_desc">Ask AIRI to generate code, files, or content</string>
     <string name="workspace_open_chat">Open Chat</string>
+    <string name="workspace_context_summary">Artifacts: %1$d · Tasks: %2$d · Running: %3$d · Needs attention: %4$d</string>
 
     <!-- Zapier / IFTTT screen -->
     <string name="zapier_ifttt_title">Automation</string>

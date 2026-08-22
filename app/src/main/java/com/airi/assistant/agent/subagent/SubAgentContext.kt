@@ -24,6 +24,12 @@ data class SubAgentContext(
     /** Firebase UID or "anonymous" for unauthenticated users. */
     val userId: String,
 
+    /**
+     * Workspace/project that owns this request. Null is permitted only for
+     * legacy or quick-chat work that has not entered a project yet.
+     */
+    val projectId: String? = null,
+
     // ── Conversation context ─────────────────────────────────────────────────
 
     /**

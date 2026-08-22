@@ -1,6 +1,9 @@
 package com.airi.assistant.agent.orchestrator
 
 import android.util.Log
+import com.airi.assistant.agent.durable.DurableTask
+import com.airi.assistant.agent.durable.TaskPlanStep
+import com.airi.assistant.agent.durable.TaskScope
 import com.airi.assistant.agent.learning.reinforcement.ReinforcementMemory
 import com.airi.assistant.agent.planning.GoalNode
 import com.airi.assistant.agent.planning.GraphSnapshot
@@ -134,7 +137,14 @@ class ProductionAgentOrchestrator {
             input       = input,
             context     = context
         )
-        return executePlan(OrchestratorPlan(tasks = listOf(task)), onEvent)
+        return executePlan(
+            OrchestratorPlan(
+                tasks = listOf(task),
+                projectId = context.projectId,
+                ownerId = context.userId
+            ),
+            onEvent
+        )
     }
 
     /**
@@ -149,6 +159,27 @@ class ProductionAgentOrchestrator {
     ): ExecutionResult {
         val executionId = plan.id
         val startMs     = System.currentTimeMillis()
+
+        durableTaskManager?.registerInProcess(
+            DurableTask(
+                id = executionId,
+                projectId = plan.projectId,
+                ownerId = plan.ownerId,
+                title = plan.tasks.firstOrNull()?.description?.take(120) ?: "AIRI task",
+                description = plan.tasks.joinToString("\n") { it.description },
+                agentId = plan.tasks.firstOrNull()?.agentId ?: "auto",
+                input = plan.tasks.joinToString("\n") { it.input },
+                plan = plan.tasks.map { task -> TaskPlanStep(task.id, task.description) },
+                memoryScope = plan.memoryScope,
+                knowledgeScope = plan.knowledgeScope,
+                executionNode = plan.executionNode
+            )
+        )
+        durableTaskManager?.beginRun(
+            taskId = executionId,
+            runId = executionId,
+            stepId = plan.tasks.firstOrNull()?.id
+        )
 
         Log.i(TAG, "AIRI PLAN_START id=$executionId tasks=${plan.tasks.size}")
         _state.value = OrchestratorState.Running(executionId, plan.tasks.size, 0)
@@ -195,6 +226,11 @@ class ProductionAgentOrchestrator {
             // Execute all ready tasks in parallel
             val deferred = ready.map { task ->
                 orchestrationScope.async {
+                    durableTaskManager?.updateExecutionStep(
+                        taskId = executionId,
+                        stepId = task.id,
+                        progressMessage = "Running ${task.description.take(80)}"
+                    )
                     // Inject workspace-resolved artifacts alongside dependency results
                     val workspaceInjection = workspace.resolveDependency(task.id)
                     val enrichedContext = task.context.copy(
@@ -210,11 +246,13 @@ class ProductionAgentOrchestrator {
                             if (result.text.isNotBlank()) {
                                 workspace.putText(task.id, result.text, task.id)
                             }
+                            durableTaskManager?.markStepCompleted(executionId, task.id)
                             // Reinforce success signal
                             task.agentId?.let { ReinforcementMemory.recordSuccess("routing", it) }
                         }
                         is TaskResult.Failure -> {
                             taskErrors[task.id] = result.reason
+                            durableTaskManager?.markStepFailed(executionId, task.id, result.reason)
                             // Reinforce failure signal
                             task.agentId?.let { ReinforcementMemory.recordFailure("routing", it) }
                             Log.w(TAG, "Task ${task.id} failed: ${result.reason}")
@@ -285,6 +323,7 @@ class ProductionAgentOrchestrator {
         return if (succeeded) {
             val finalResult = taskResults.values.lastOrNull() ?: ""
             Log.i(TAG, "AIRI PLAN_SUCCESS id=$executionId duration=${durationMs}ms")
+            durableTaskManager?.markCompleted(executionId, finalResult)
             _state.value = OrchestratorState.Idle
             ExecutionResult.Success(
                 planId        = executionId,
@@ -295,6 +334,10 @@ class ProductionAgentOrchestrator {
             )
         } else {
             Log.w(TAG, "AIRI PLAN_PARTIAL id=$executionId errors=${taskErrors.size}")
+            durableTaskManager?.markFailed(
+                executionId,
+                taskErrors.values.firstOrNull() ?: "Execution failed"
+            )
             _state.value = OrchestratorState.Idle
             ExecutionResult.PartialFailure(
                 planId      = executionId,
@@ -412,6 +455,14 @@ class ProductionAgentOrchestrator {
                             }
                             is AgentEvent.Progress -> {
                                 Log.d(TAG, "Progress [${event.percentComplete}%] ${event.message}")
+                                context.parentTaskId.takeIf { it.isNotBlank() }?.let { parentTaskId ->
+                                    durableTaskManager?.updateExecutionStep(
+                                        taskId = parentTaskId,
+                                        stepId = task.id,
+                                        progressPercent = event.percentComplete,
+                                        progressMessage = event.message
+                                    )
+                                }
                             }
                         }
                     }
@@ -531,8 +582,13 @@ class ProductionAgentOrchestrator {
      * Tasks without dependencies can run in parallel.
      */
     data class OrchestratorPlan(
-        val id:    String              = UUID.randomUUID().toString(),
-        val tasks: List<OrchestratorTask>
+        val id: String = UUID.randomUUID().toString(),
+        val tasks: List<OrchestratorTask>,
+        val projectId: String? = null,
+        val ownerId: String = "anonymous",
+        val memoryScope: TaskScope = TaskScope.SESSION,
+        val knowledgeScope: TaskScope = TaskScope.PROJECT,
+        val executionNode: String? = null
     )
 
     /**

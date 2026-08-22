@@ -995,6 +995,7 @@
     <string name="workspace_no_artifacts">لا توجد مخرجات بعد</string>
     <string name="workspace_no_artifacts_desc">اطلب من AIRI توليد كود أو ملفات أو محتوى</string>
     <string name="workspace_open_chat">فتح المحادثة</string>
+    <string name="workspace_context_summary">المخرجات: %1$d · المهام: %2$d · قيد التنفيذ: %3$d · تحتاج متابعة: %4$d</string>
     <string name="zapier_ifttt_title">الأتمتة</string>
     <string name="zapier_auth_section">المصادقة</string>
     <string name="zapier_connect_button">الاتصال بـ Zapier</string>

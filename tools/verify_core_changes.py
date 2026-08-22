@@ -35,6 +35,7 @@ experience_store = read('app/src/main/java/com/airi/assistant/agent/execution/Ex
 attachment_policy = read('core-domain/src/commonMain/kotlin/com/airi/core/attachments/AttachmentPolicy.kt')
 chat_attachment = read('app/src/main/java/com/airi/assistant/domain/ChatAttachment.kt')
 model_registry = read('app/src/main/java/com/airi/assistant/ai/ModelRegistry.kt')
+privacy_guard = read('app/src/main/java/com/airi/assistant/execution/privacy/PrivacyGuard.kt')
 
 check('Generation ownership and cleanup', 'activeGenerationId' in chat_vm and 'finishGeneration(generationId)' in chat_vm, 'ViewModel owns and clears a generation id.')
 check('Backend cancellation barrier', 'throw generationCancelled("during privacy fallback")' in hybrid and 'generationGate.accepts(genId)' in hybrid and 'fun accepts(candidateGenerationId: Long)' in generation_gate, 'Callbacks are gated after cancellation and generation changes.')
@@ -60,6 +61,7 @@ check('Attachment duplicate prevention', 'isSameSource' in attachment_policy and
 check('Session attachment cleanup', 'deleteAttachmentFiles' in memory and 'file.name == name' in memory and 'withContext(Dispatchers.IO)' in memory, 'Deleting a chat removes its validated private attachment files off the UI thread.')
 check('Voice partial transcript feedback', 'partialVoiceInput' in input_bar and 'onPartial = { partial' in input_bar and 'voicePartial' in input_bar, 'Recognized speech is shown while listening and cleared on final or error states.')
 check('Thread-safe private model registry', model_registry.count('@Synchronized') >= 8 and 'path=${model.path}' not in model_registry and 'model=${model.name}' not in model_registry, 'Registry mutations and snapshots synchronize access and diagnostics omit raw model identifiers.')
+check('Cloud fallback privacy boundary', 'decision.allBackends.any { it.origin.isCloudBound() }' in hybrid and 'backend.origin.isCloudBound() && cloudRequest == null' in hybrid and 'val req = if (backend.origin.isCloudBound()) cloudRequest!! else request' in hybrid and 'conversationHistory = history' in privacy_guard and 'DEVICE_IDENTIFIER_REGEX' in privacy_guard, 'Every cloud candidate, including a fallback after local execution, receives the guarded request with history and device identifiers redacted.')
 for commercial_doc in (
     'docs/architecture/OVERVIEW.md',
     'docs/security/THREAT_MODEL.md',

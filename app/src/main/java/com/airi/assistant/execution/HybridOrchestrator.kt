@@ -150,23 +150,15 @@ class HybridOrchestrator(
             throw generationCancelled("after routing")
         }
 
-        // ── Step 2: Privacy gate (cloud-bound requests only) ───────────────
-        val privacyGateResult = applyPrivacyGate(genId, request, decision)
-        if (privacyGateResult == null) {
-            // Privacy gate forced local fallback — handled inside applyPrivacyGate
-            val localFallback = decision.fallbacks.firstOrNull { it.origin == ExecOrigin.LOCAL }
-            if (localFallback != null && localFallback.isAvailable) {
-                dispatchToBackend(genId, localFallback, request, onToken, onComplete, onError)
-            } else {
-                updateDiagnostics { copy(isStreaming = false) }
-                onError(
-                    "Privacy settings block this request from cloud, and no local model is loaded.",
-                    ExecOrigin.NONE
-                )
-            }
-            return@withLock
+        // ── Step 2: Evaluate one sanitized cloud copy for every cloud attempt ──
+        // The primary backend can be local while a cloud backend appears later as a
+        // fallback. Prepare the cloud copy once, then skip blocked cloud attempts
+        // without preventing a local primary from running.
+        val cloudRequest = if (decision.allBackends.any { it.origin.isCloudBound() }) {
+            applyPrivacyGate(genId, request)
+        } else {
+            request
         }
-        val effectiveRequest = privacyGateResult
 
         // ── Step 3: Execute primary → fallbacks ───────────────────────────
         val allBackends = decision.allBackends
@@ -193,8 +185,17 @@ class HybridOrchestrator(
                 continue
             }
 
-            val isFallback  = idx > 0
-            val req         = if (backend.origin == ExecOrigin.CLOUD) effectiveRequest else request
+            if (backend.origin.isCloudBound() && cloudRequest == null) {
+                RuntimeEventLog.post(
+                    "ORCHESTRATOR",
+                    EventSeverity.WARN,
+                    "gen#$genId Skipping ${backend.id} — privacy blocks cloud dispatch"
+                )
+                continue
+            }
+
+            val isFallback = idx > 0
+            val req = if (backend.origin.isCloudBound()) cloudRequest!! else request
 
             if (isFallback) {
                 sessionFallbackCount++
@@ -288,20 +289,14 @@ class HybridOrchestrator(
     // ── Privacy gate ──────────────────────────────────────────────────────────
 
     /**
-     * Apply privacy guard to cloud-bound requests.
-     * Returns the (possibly sanitized) request, or null if privacy blocks cloud
-     * and there is no local fallback available (caller handles null).
+     * Prepare a sanitized request for all cloud-capable backends in the routing
+     * decision. A null result means cloud is blocked; callers may still dispatch
+     * local backends in the same decision.
      */
-    private suspend fun applyPrivacyGate(
-        genId:    Long,
-        request:  ExecutionRequest,
-        decision: RuntimeRouter.RoutingDecision
-    ): ExecutionRequest? {
-        val primaryIsCloud = decision.primary.origin == ExecOrigin.CLOUD ||
-                             decision.primary.origin == ExecOrigin.HYBRID
-        if (!primaryIsCloud) return request   // local-bound: no gate needed
-
-        return when (val guardResult = PrivacyGuard.evaluate(
+    private fun applyPrivacyGate(
+        genId: Long,
+        request: ExecutionRequest
+    ): ExecutionRequest? = when (val guardResult = PrivacyGuard.evaluate(
             request      = request,
             privacyLevel = prefs.privacyLevel,
             execMode     = prefs.effectiveMode
@@ -319,7 +314,8 @@ class HybridOrchestrator(
                 guardResult.sanitized
             }
         }
-    }
+
+    private fun ExecOrigin.isCloudBound(): Boolean = this == ExecOrigin.CLOUD || this == ExecOrigin.HYBRID
 
     // ── Backend dispatch helper ───────────────────────────────────────────────
 

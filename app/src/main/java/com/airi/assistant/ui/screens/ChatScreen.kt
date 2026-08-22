@@ -2815,6 +2815,14 @@ fun AiriChatInputBar(
                         .background(AiriTheme.surfaceVariant)
                 ) {
                     activeSuggestions.forEach { suggestion ->
+                        val suggestionCategory = stringResource(
+                            if (suggestion.isKnowledge) R.string.input_saved_knowledge else R.string.skill_title
+                        )
+                        val suggestionDescription = listOf(
+                            suggestionCategory,
+                            suggestion.title,
+                            suggestion.subtitle.takeIf { it.isNotBlank() }
+                        ).filterNotNull().joinToString(", ")
                         Surface(
                             onClick = {
                                 text = com.airi.assistant.ui.composer.ComposerDirectivePolicy.applySelection(
@@ -2826,7 +2834,12 @@ fun AiriChatInputBar(
                                 onKnowledgeQueryChanged("")
                             },
                             color = Color.Transparent,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics(mergeDescendants = true) {
+                                    contentDescription = suggestionDescription
+                                    role = Role.Button
+                                }
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
@@ -2835,7 +2848,7 @@ fun AiriChatInputBar(
                             ) {
                                 Icon(
                                     imageVector = if (suggestion.isKnowledge) Icons.Outlined.Lightbulb else Icons.Outlined.AutoAwesome,
-                                    contentDescription = suggestion.title,
+                                    contentDescription = null,
                                     tint = if (suggestion.isKnowledge) Color(0xFFFFB347) else CosmicAccent,
                                     modifier = Modifier.size(18.dp)
                                 )

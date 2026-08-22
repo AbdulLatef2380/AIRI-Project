@@ -41,7 +41,7 @@
 
 | ID | القدرة | الحالة الحالية | معيار الإغلاق |
 |---|---|---|---|
-| T1-01 | Git workspace | `PARTIAL` | clone/branch/diff/commit/pull/push مع موافقة destructive |
+| T1-01 | Git workspace | `PARTIAL` | GitHub connector يسمح بالقراءات الحية health-gated ويمنع `create_issue` قبل credential/HTTP عبر `GitHubMutationPolicy` إلى أن يوجد task-owned approval/resume؛ المتبقي clone/branch/diff محلي، commit/pull/push/PR، task/run/step approval consumption، preview/review، audit device verification |
 | T1-02 | Developer Center | `FOUNDATION` | code/build/test/logs/preview في رحلة مشروع واحدة |
 | T1-03 | Database Lab | `PARTIAL` | Developer Center يضم Database Lab حياً للقراءة فقط فوق Room: `DatabaseLabQueryPolicy` يحصر SQL في SELECT/schema PRAGMA ويمنع write/multi-statement، و`DatabaseLabManager` يحد النتائج ويدقق metadata دون SQL/data؛ المتبقي query planner مرئي، history، schema explorer، write policy مع durable approval/resume، backup/restore/export، device performance/access verification |
 | T1-04 | Canvas | `MISSING` | prompt→canvas→user edit→AIRI refinement |

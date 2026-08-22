@@ -40,6 +40,16 @@ class GitHubConnector(private val authManager: ConnectorAuthManager) : Connector
     override suspend fun disconnect() { _state.value = ConnectorState(false, statusLine = "Disconnected") }
 
     override suspend fun execute(input: ConnectorInput): ConnectorOutput = withContext(Dispatchers.IO) {
+        when (val mutation = GitHubMutationPolicy.evaluate(input.action)) {
+            GitHubMutationPolicy.Decision.Allowed -> Unit
+            is GitHubMutationPolicy.Decision.RequiresTaskApproval -> {
+                return@withContext ConnectorOutput.Failure(
+                    code = "approval_required",
+                    message = mutation.reason,
+                    retryable = false
+                )
+            }
+        }
         val token = authManager.getCredential(id, "pat")
             ?: return@withContext ConnectorOutput.Failure("not_connected", "GitHub PAT not configured")
         try {

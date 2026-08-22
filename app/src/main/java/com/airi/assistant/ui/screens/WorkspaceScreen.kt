@@ -60,6 +60,9 @@ fun WorkspaceScreen(
     val artifacts      = remember(allArtifacts, activeSession) {
         activeSession?.let { artifactManager.forSession(it.sessionId) } ?: emptyList()
     }
+    val activeContext   = remember(activeSession, allArtifacts) {
+        workspaceRuntime.contextForActive()
+    }
 
     var showNewWorkspace   by remember { mutableStateOf(false) }
     var newWorkspaceName   by remember { mutableStateOf("") }
@@ -117,6 +120,9 @@ fun WorkspaceScreen(
                 }
 
                 Divider(color = AiriTheme.outline, modifier = Modifier.padding(horizontal = 12.dp))
+                activeContext?.let { context ->
+                    WorkspaceContextCard(context)
+                }
                 if (artifacts.isEmpty()) {
                     ArtifactEmptyState(onCreateFromChat = onOpenChat)
                 } else {
@@ -172,6 +178,27 @@ fun WorkspaceScreen(
                     TextButton(onClick = { showNewWorkspace = false }) { Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(0.5f)) }
                 },
                 containerColor = AiriTheme.surface
+            )
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceContextCard(context: com.airi.assistant.workspace.WorkspaceContext) {
+    Surface(
+        color = CosmicAccent.copy(alpha = 0.08f),
+        shape = AIRIShapes.sm,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(context.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+            if (context.description.isNotBlank()) {
+                Text(context.description, fontSize = 12.sp, color = AiriTheme.onBackground.copy(alpha = 0.62f), maxLines = 2)
+            }
+            Text(
+                text = "${context.artifactCount} artifacts${if (context.tags.isNotEmpty()) " · ${context.tags.joinToString(", ")}" else ""}",
+                fontSize = 11.sp,
+                color = CosmicAccent
             )
         }
     }

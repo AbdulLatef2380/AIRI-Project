@@ -163,9 +163,14 @@ class SearchTool(
      */
     suspend fun fetchViaJina(url: String, maxChars: Int = 4000): FetchResult =
         withContext(Dispatchers.IO) {
-        Log.d(TAG, "JINA_FETCH urlChars=${url.length}")
+        val allowedUrl = when (val decision = SearchSourcePolicy.evaluateRead(url)) {
+            is SearchSourcePolicy.Decision.ReadAllowed -> decision.normalizedUrl
+            is SearchSourcePolicy.Decision.Blocked -> return@withContext FetchResult(false, url, "Fetch blocked: ${decision.reason}")
+            else -> return@withContext FetchResult(false, url, "Fetch blocked by source policy")
+        }
+        Log.d(TAG, "JINA_FETCH urlChars=${allowedUrl.length}")
         return@withContext try {
-            val jinaUrl = "https://r.jina.ai/${url}"
+            val jinaUrl = "https://r.jina.ai/${allowedUrl}"
             val response = httpClient.newCall(
                 Request.Builder()
                     .url(jinaUrl)
@@ -252,35 +257,20 @@ class SearchTool(
     // ──────────────────────────────────────────────────────────────────────────
 
     fun searchViaIntent(query: String): SearchResult {
-        return try {
-            val intent = Intent(Intent.ACTION_WEB_SEARCH).apply {
-                putExtra("query", query)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            if (intent.resolveActivity(context.packageManager) != null) {
-                context.startActivity(intent)
-            } else {
-                context.startActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse(
-                        "https://www.google.com/search?q=${urlEncode(query)}")
-                    ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                )
-            }
-            SearchResult(success = true, query = query,
-                summary = "Search opened in browser for: $query")
-        } catch (e: Exception) {
-            SearchResult(success = false, query = query, summary = "Search failed: ${e.message}")
-        }
+        // Browser hand-off must be initiated by a user-controlled UI surface.
+        return SearchResult(
+            success = false,
+            query = query,
+            summary = "Opening a web search requires user takeover."
+        )
     }
 
     fun openInBrowser(url: String): Boolean {
-        return try {
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                    .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-            )
-            true
-        } catch (e: Exception) { false }
+        return when (SearchSourcePolicy.evaluateExternalOpen(url)) {
+            is SearchSourcePolicy.Decision.RequiresUserTakeover -> false
+            is SearchSourcePolicy.Decision.Blocked -> false
+            else -> false
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -289,8 +279,13 @@ class SearchTool(
 
     suspend fun fetchPageContent(url: String, maxLen: Int = 4000): FetchResult =
         withContext(Dispatchers.IO) {
+        val allowedUrl = when (val decision = SearchSourcePolicy.evaluateRead(url)) {
+            is SearchSourcePolicy.Decision.ReadAllowed -> decision.normalizedUrl
+            is SearchSourcePolicy.Decision.Blocked -> return@withContext FetchResult(false, url, "Fetch blocked: ${decision.reason}")
+            else -> return@withContext FetchResult(false, url, "Fetch blocked by source policy")
+        }
         return@withContext try {
-            val response = httpClient.newCall(Request.Builder().url(url).build()).execute()
+            val response = httpClient.newCall(Request.Builder().url(allowedUrl).build()).execute()
             if (!response.isSuccessful) return@withContext FetchResult(false, url, "HTTP ${response.code}")
             val raw  = response.body?.string() ?: ""
             val text = raw

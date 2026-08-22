@@ -48,8 +48,11 @@ object ConnectivityMonitor {
 
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                Log.d(TAG, "Network available: $network")
-                trySend(true)
+                // Availability only means Android selected a network. Wait for the
+                // validated capability before allowing cloud routing; a captive portal
+                // or restricted Wi-Fi can be available without usable internet.
+                Log.d(TAG, "Network available: $network — checking validation")
+                trySend(hasInternet(cm))
             }
 
             override fun onLost(network: Network) {

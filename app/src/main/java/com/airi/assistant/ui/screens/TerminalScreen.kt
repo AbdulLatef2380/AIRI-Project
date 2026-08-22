@@ -165,6 +165,16 @@ fun TerminalScreen(onBack: () -> Unit) {
                             }
                         },
                         actions = {
+                            if (isRunning) {
+                                IconButton(onClick = { runtime.cancelActiveCommand() }) {
+                                    Icon(
+                                        Icons.Outlined.StopCircle,
+                                        stringResource(R.string.terminal_cancel_command_cd),
+                                        tint = TermWarn,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
                             IconButton(onClick = { showSearch = !showSearch; if (!showSearch) searchQuery = "" }) {
                                 Icon(
                                     if (showSearch) Icons.Outlined.SearchOff else Icons.Outlined.Search,

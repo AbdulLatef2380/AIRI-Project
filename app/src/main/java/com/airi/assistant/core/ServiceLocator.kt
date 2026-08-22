@@ -114,6 +114,11 @@ object ServiceLocator {
         SecureApiKeyStore(requireContext())
     }
 
+    val secretVault: com.airi.assistant.vault.SecretVault by lazy {
+        com.airi.assistant.vault.SecretVault.initialize(requireContext())
+        com.airi.assistant.vault.SecretVault
+    }
+
     val deviceBindingService: DeviceBindingService by lazy {
         DeviceBindingService(requireContext())
     }

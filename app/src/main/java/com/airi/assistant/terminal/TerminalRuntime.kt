@@ -8,13 +8,16 @@ import com.airi.assistant.agent.sandbox.SandboxSession
 import com.airi.assistant.security.PermissionGovernanceLayer
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.AgentActivityBus
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import java.util.LinkedList
 import java.util.UUID
@@ -65,6 +68,7 @@ class TerminalRuntime(
 
     private val _isRunning = MutableStateFlow(false)
     val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
+    @Volatile private var activeExecutionJob: Job? = null
 
     private val scrollback = LinkedList<TerminalLine>()
     private val historyBuffer = ArrayDeque<String>()
@@ -117,6 +121,8 @@ class TerminalRuntime(
     suspend fun execute(rawCommand: String) {
         val command = rawCommand.trim()
         if (command.isBlank()) return
+        val executionJob = currentCoroutineContext()[Job]
+        activeExecutionJob = executionJob
 
         // Record input line
         appendLine(TerminalLine(text = "$ $command", isInput = true))
@@ -185,11 +191,22 @@ class TerminalRuntime(
                     appendLine(TerminalLine(text = "Security violation: ${result.reason}", isError = true))
                 }
             }
+        } catch (_: CancellationException) {
+            appendLine(TerminalLine(text = "Command cancelled", isError = true))
+            throw CancellationException("Terminal command cancelled")
         } catch (e: Exception) {
             appendLine(TerminalLine(text = "Error: ${e.message}", isError = true))
         } finally {
+            if (activeExecutionJob === executionJob) activeExecutionJob = null
             _isRunning.value = false
         }
+    }
+
+    /** Cancels the active command; SandboxExecutor destroys its process in finally. */
+    fun cancelActiveCommand(): Boolean {
+        val job = activeExecutionJob ?: return false
+        job.cancel(CancellationException("Cancelled from terminal controls"))
+        return true
     }
 
     // ── History navigation ────────────────────────────────────────────────────

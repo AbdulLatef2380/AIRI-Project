@@ -1345,6 +1345,7 @@
 
     <!-- terminal -->
     <string name="terminal_clear_cd">مسح الطرفية</string>
+    <string name="terminal_cancel_command_cd">إلغاء الأمر الجاري</string>
     <string name="terminal_close_search_cd">إغلاق البحث</string>
     <string name="terminal_copied">تم نسخ الإخراج إلى الحافظة</string>
     <string name="terminal_copy_cd">نسخ الإخراج</string>

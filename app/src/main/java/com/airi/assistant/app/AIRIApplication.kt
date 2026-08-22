@@ -155,6 +155,7 @@ class AIRIApplication : Application() {
                     ServiceLocator.networkService
                     ServiceLocator.executionHistoryStore
                     ServiceLocator.subscriptionManager
+                    ServiceLocator.secretVault
                     AiriDatabase.getDatabase(applicationContext)
                     ServiceLocator.sessionManager
                     ServiceLocator.userProfileRepository

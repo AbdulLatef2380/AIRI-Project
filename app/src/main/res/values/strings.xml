@@ -1440,6 +1440,7 @@
 
     <!-- terminal -->
     <string name="terminal_clear_cd">Clear terminal</string>
+    <string name="terminal_cancel_command_cd">Cancel running command</string>
     <string name="terminal_close_search_cd">Close search</string>
     <string name="terminal_copied">Output copied to clipboard</string>
     <string name="terminal_copy_cd">Copy output</string>

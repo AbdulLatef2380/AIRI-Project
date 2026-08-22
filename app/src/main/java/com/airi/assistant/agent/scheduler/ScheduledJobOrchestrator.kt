@@ -111,11 +111,19 @@ class ScheduledJobOrchestrator(private val context: Context) {
         payload:         String,
         label:           String,
         intervalMinutes: Long,
-        requiresNet:     Boolean = false
+        requiresNet:     Boolean = false,
+        stableJobId:     String? = null
     ): ScheduledJob {
+        stableJobId?.let { id ->
+            listJobs().firstOrNull { it.id == id }?.let { existing ->
+                Log.i(TAG, "AIRI PERIODIC_JOB_REUSED id=$id agent=${existing.agentId}")
+                return existing
+            }
+        }
+
         val safeInterval = intervalMinutes.coerceAtLeast(MIN_PERIODIC_MINUTES)
         val job = ScheduledJob(
-            id          = UUID.randomUUID().toString(),
+            id          = stableJobId ?: UUID.randomUUID().toString(),
             agentId     = agentId,
             payload     = payload,
             label       = label,

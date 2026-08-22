@@ -47,14 +47,12 @@ import java.util.Date
  *    (JSON) — survives app restarts.
  *  - [ScheduledJobOrchestrator.scheduleOnce] enqueues a WorkManager
  *    OneTimeWorkRequest with a real delay.
- *  - [ScheduledJobOrchestrator.cancelJob] cancels the WorkManager job.
+ *  - [ScheduledJobOrchestrator.cancel] cancels the WorkManager job.
+ *  - [ScheduledAgentWorker] routes the saved payload to a registered
+ *    sub-agent or the production orchestrator and records the outcome.
  *
- * WHAT IS STILL LIMITED:
- *  - Natural-language schedule parsing (e.g. "daily at 9am") is not yet
- *    implemented. Users enter a delay in minutes for now.
- *  - [ScheduledAgentWorker.doWork] posts to EventBus but does not yet
- *    call the full SubAgentRegistry dispatch. That is a backend wiring
- *    gap, not a UI gap.
+ * The editor currently accepts a delay in minutes. Calendar-style recurring
+ * expressions require a dedicated scheduling contract before they are exposed.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

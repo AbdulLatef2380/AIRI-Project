@@ -499,7 +499,8 @@ object ServiceLocator {
             agentId         = "system",
             payload         = "sandbox_reaper",
             label           = "Prune stale sandbox workspaces",
-            intervalMinutes = 30L
+            intervalMinutes = 30L,
+            stableJobId     = "system_sandbox_reaper"
         )
 
         // Job 2: Audit log pruner (every 24h, 30-day retention window)
@@ -507,7 +508,8 @@ object ServiceLocator {
             agentId         = "system",
             payload         = "audit_log_pruner",
             label           = "Prune audit log entries older than 30 days",
-            intervalMinutes = 24 * 60L
+            intervalMinutes = 24 * 60L,
+            stableJobId     = "system_audit_log_pruner"
         )
 
         // Job 3: Context cache pruner (every 24h)
@@ -515,7 +517,8 @@ object ServiceLocator {
             agentId         = "system",
             payload         = "context_cache_pruner",
             label           = "Prune expired context cache entries",
-            intervalMinutes = 24 * 60L
+            intervalMinutes = 24 * 60L,
+            stableJobId     = "system_context_cache_pruner"
         )
 
         orchestrator

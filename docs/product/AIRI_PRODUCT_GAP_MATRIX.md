@@ -47,7 +47,7 @@
 | T1-04 | Canvas | `MISSING` | prompt→canvas→user edit→AIRI refinement |
 | T1-05 | Research Mode | `PARTIAL` | source graph، cross-check، citations، snapshots، contradiction detection |
 | T1-06 | Agent Teams | `MISSING` | roles/models/tools/memory/permissions/budget لكل agent |
-| T1-07 | Connector framework | `PARTIAL` | OAuth scope→Secret Broker→Tool Registry→Audit |
+| T1-07 | Connector framework | `PARTIAL` | Runtime يمنع الموصل غير الصحي وينتظر broadcast كاملاً، وSkill Policy يفرض requiredConnectors؛ المتبقي OAuth scopes→Secret Broker لكل الموصلات→Tool Registry موقع→Audit/rotation/revocation دائم |
 | T1-08 | Voice state machine | `PARTIAL` | interruption، barge-in، offline/online، Arabic detection، permissions |
 | T1-09 | Vision/OCR/video | `PARTIAL` | image/document/video ingestion مع evidence وlimits |
 | T1-10 | Update Center | `MISSING` | signed updates، channels، rollback، migration safety |

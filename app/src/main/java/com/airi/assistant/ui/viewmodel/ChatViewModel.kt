@@ -416,6 +416,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             )
+        },
+        isConnectorHealthy = { connectorId ->
+            runCatching {
+                ServiceLocator.connectorRegistry.get(connectorId)
+                    ?.state()
+                    ?.value
+                    ?.let { state -> state.connected && state.healthy }
+                    ?: false
+            }.getOrDefault(false)
         }
     )
     private val toolDispatcher           = com.airi.assistant.agent.loop.tool.ToolDispatcher(

@@ -63,7 +63,10 @@ interface AiriSkill {
     /** Other skill IDs this skill depends on. */
     val dependencies: List<String> get() = emptyList()
 
-    /** Tool definitions this skill exposes to the agent loop. */
+    /** Connected services that must be healthy before this skill can execute. */
+    val requiredConnectors: List<String> get() = emptyList()
+
+    /** Tool definitions this skill exposes to the AgentLoop so the LLM can call it directly by name. */
     val toolDefinitions: List<SkillToolDefinition> get() = emptyList()
 
     // ── Runtime ───────────────────────────────────────────────────────────────

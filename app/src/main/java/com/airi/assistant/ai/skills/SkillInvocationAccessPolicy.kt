@@ -21,13 +21,15 @@ object SkillInvocationAccessPolicy {
     enum class DenyReason {
         DISABLED,
         MISSING_PERMISSION,
-        MEMORY_UNAVAILABLE
+        MEMORY_UNAVAILABLE,
+        CONNECTOR_UNHEALTHY
     }
 
     fun authorize(
         skill: AiriSkill,
         context: SkillContext,
-        hasPermission: (String) -> Boolean
+        hasPermission: (String) -> Boolean,
+        isConnectorHealthy: (String) -> Boolean = { true }
     ): Decision {
         if (!skill.isEnabled) {
             return Decision.Deny(
@@ -41,6 +43,14 @@ object SkillInvocationAccessPolicy {
             return Decision.Deny(
                 reason = DenyReason.MISSING_PERMISSION,
                 userMessage = "Skill '${skill.name}' needs permission before it can run."
+            )
+        }
+
+        val unavailableConnectors = skill.requiredConnectors.filterNot(isConnectorHealthy)
+        if (unavailableConnectors.isNotEmpty()) {
+            return Decision.Deny(
+                reason = DenyReason.CONNECTOR_UNHEALTHY,
+                userMessage = "Skill '${skill.name}' needs a connected service before it can run."
             )
         }
 

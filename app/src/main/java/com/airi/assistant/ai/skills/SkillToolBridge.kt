@@ -32,9 +32,10 @@ import kotlinx.coroutines.withTimeout
  */
 class SkillToolBridge(
     private val context:      Context,
-    private val registry:     SkillRegistry,
-    private val modelBridge:  SkillModelBridge? = null,
-    private val skillCtx:     () -> SkillContext = { SkillContext() }
+    private val registry: SkillRegistry,
+    private val modelBridge: SkillModelBridge? = null,
+    private val skillCtx: () -> SkillContext = { SkillContext() },
+    private val isConnectorHealthy: (String) -> Boolean = { true }
 ) {
     private val permissionService = PermissionService(context.applicationContext)
     companion object {
@@ -108,7 +109,8 @@ class SkillToolBridge(
         val accessDecision = SkillInvocationAccessPolicy.authorize(
             skill = skill,
             context = requestedContext,
-            hasPermission = permissionService::hasPermission
+            hasPermission = permissionService::hasPermission,
+            isConnectorHealthy = isConnectorHealthy
         )
         val skillCtxInstance = when (accessDecision) {
             is SkillInvocationAccessPolicy.Decision.Allow -> accessDecision.context

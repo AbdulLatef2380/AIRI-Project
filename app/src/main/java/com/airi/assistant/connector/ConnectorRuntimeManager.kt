@@ -4,9 +4,8 @@ import android.util.Log
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.ActivitySeverity
 import com.airi.assistant.ui.activity.AgentActivityBus
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,8 +22,6 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
     private val inflight = ConcurrentHashMap<String, InflightAction>()
     private val _inflightActions = MutableStateFlow<List<InflightAction>>(emptyList())
     val inflightActions: StateFlow<List<InflightAction>> = _inflightActions.asStateFlow()
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
     suspend fun execute(connectorId: String, input: ConnectorInput, maxRetries: Int = 2, timeoutMs: Long = 20_000L): ConnectorOutput {
         val connector = registry.get(connectorId)
             ?: return ConnectorOutput.Failure("not_found", "Connector '$connectorId' not registered")
@@ -32,7 +29,16 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
         trackStart(key, InflightAction(connectorId, input.action))
         AgentActivityBus.emit("Executing '$connectorId' → ${input.action}", ActivityCategory.CONNECTOR)
         return try {
-            withTimeout(timeoutMs) { ensureConnected(connector); executeWithRetry(connector, input, maxRetries) }
+            withTimeout(timeoutMs) {
+                if (!ensureHealthy(connector)) {
+                    return@withTimeout ConnectorOutput.Failure(
+                        "unhealthy",
+                        "Connector '$connectorId' is not healthy after connection check",
+                        retryable = true
+                    )
+                }
+                executeWithRetry(connector, input, maxRetries.coerceIn(0, MAX_RETRIES))
+            }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             AgentActivityBus.emit("'$connectorId' timed out after ${timeoutMs}ms", ActivityCategory.CONNECTOR, ActivitySeverity.WARN)
             ConnectorOutput.Failure("timeout", "Timed out after ${timeoutMs}ms", retryable = true)
@@ -41,17 +47,17 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
         } finally { trackEnd(key) }
     }
 
-    suspend fun broadcast(type: ConnectorType, input: ConnectorInput): Map<String, ConnectorOutput> {
-        val results = ConcurrentHashMap<String, ConnectorOutput>()
-        registry.byType(type).forEach { connector ->
-            scope.launch { results[connector.id] = execute(connector.id, input) }
-        }
-        delay(500)
-        return results.toMap()
+    suspend fun broadcast(type: ConnectorType, input: ConnectorInput): Map<String, ConnectorOutput> = coroutineScope {
+        registry.byType(type)
+            .map { connector -> async { connector.id to execute(connector.id, input) } }
+            .map { deferred -> deferred.await() }
+            .toMap()
     }
 
-    private suspend fun ensureConnected(connector: Connector) {
-        if (!connector.state().value.connected) connector.connect()
+    private suspend fun ensureHealthy(connector: Connector): Boolean {
+        val current = connector.state().value
+        val checked = if (current.connected && current.healthy) current else connector.connect()
+        return checked.connected && checked.healthy
     }
 
     private suspend fun executeWithRetry(connector: Connector, input: ConnectorInput, maxRetries: Int): ConnectorOutput {
@@ -74,4 +80,8 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
 
     private fun trackStart(key: String, action: InflightAction) { inflight[key] = action; _inflightActions.value = inflight.values.toList() }
     private fun trackEnd(key: String) { inflight.remove(key); _inflightActions.value = inflight.values.toList() }
+
+    private companion object {
+        const val MAX_RETRIES = 3
+    }
 }

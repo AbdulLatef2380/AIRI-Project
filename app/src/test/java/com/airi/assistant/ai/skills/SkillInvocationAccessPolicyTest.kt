@@ -29,6 +29,18 @@ class SkillInvocationAccessPolicyTest {
     }
 
     @Test
+    fun connectorBoundSkillIsRejectedWhenConnectorIsUnhealthy() {
+        val decision = SkillInvocationAccessPolicy.authorize(
+            skill = TestSkill(requiredConnectors = listOf("notion")),
+            context = SkillContext(),
+            hasPermission = { true },
+            isConnectorHealthy = { false }
+        )
+
+        assertDeny(decision, SkillInvocationAccessPolicy.DenyReason.CONNECTOR_UNHEALTHY)
+    }
+
+    @Test
     fun memorySkillIsRejectedWhenMemoryIsUnavailable() {
         val decision = SkillInvocationAccessPolicy.authorize(
             skill = TestSkill(memoryAccess = SkillMemoryAccess.READ_ONLY),
@@ -63,6 +75,7 @@ class SkillInvocationAccessPolicyTest {
     private class TestSkill(
         private val enabled: Boolean = true,
         override val requiredPermissions: List<String> = emptyList(),
+        override val requiredConnectors: List<String> = emptyList(),
         override val memoryAccess: SkillMemoryAccess = SkillMemoryAccess.NONE,
         override val modelAccess: SkillModelAccess = SkillModelAccess.NONE
     ) : AiriSkill {

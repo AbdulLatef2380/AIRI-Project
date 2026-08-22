@@ -2,6 +2,7 @@ package com.airi.assistant.agent.loop
 
 import android.content.Context
 import android.util.Log
+import com.airi.assistant.ai.agent.SelfHealingExecutor
 import com.airi.assistant.agent.loop.tool.ToolDispatcher
 import com.airi.assistant.agent.loop.tool.ToolSchema
 import com.airi.assistant.ai.QueryType
@@ -259,6 +260,20 @@ Do not mix tool_call JSON with prose in the same message.
                 // sees what it asked for and what it got back.
                 history.add(ConversationTurn.Assistant(rawResponse))
                 history.add(ConversationTurn.ToolResult(toolName, effectiveResult))
+                if (toolResult is ToolDispatcher.ToolResult.Error && stepsUsed < MAX_STEPS) {
+                    val healing = SelfHealingExecutor.recoverFromToolError(
+                        failedToolName = toolName,
+                        errorMessage = toolResult.message.take(300),
+                        originalInput = ""
+                    )
+                    history.add(
+                        ConversationTurn.User(
+                            "[RECOVERY] ${healing.correctedPromptOrInput.trim()} " +
+                                "Do not repeat a side effect unless the user has confirmed it."
+                        )
+                    )
+                    Log.i(TAG, "AIRI SELF_HEALING_QUEUED tool=$toolName step=$stepsUsed")
+                }
             }
 
             // Exhausted step budget — ask LLM to summarise what it has

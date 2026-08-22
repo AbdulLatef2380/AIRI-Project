@@ -1624,7 +1624,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }.getOrDefault("")
             val selectedKnowledge = directives.knowledgeId?.let { id ->
-                runCatching { selectedKnowledgeContext(sessionId, id) }.getOrNull()
+                runCatching {
+                    selectedKnowledgeContext(
+                        sessionId = sessionId,
+                        messageId = id,
+                        projectId = activeProjectId,
+                        maxPrivacyLevel = ragPrivacyLevel
+                    )
+                }.getOrNull()
             }
             val selectedSkillId = directives.skillId?.takeIf { requestedId ->
                 skillService.getAllSkillInfos().any { info ->
@@ -2895,7 +2902,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun searchKnowledgeForQuery(query: String): List<ChatInputSuggestion> {
         val normalized = query.trim().lowercase()
         val sessionId = _currentSessionId.value
-        return memoryManager.getLongTermMemories(sessionId, MAX_KNOWLEDGE_SHORTCUT_SCAN)
+        val projectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
+        val privacyLevel = if (execModePrefs.effectiveMode == ExecutionMode.LOCAL_ONLY) 0 else 1
+        return memoryManager.getScopedLongTermMemories(
+            sessionId = sessionId,
+            projectId = projectId,
+            maxPrivacyLevel = privacyLevel,
+            limit = MAX_KNOWLEDGE_SHORTCUT_SCAN
+        )
             .asSequence()
             .filter { memory ->
                 normalized.isBlank() || memory.content.lowercase().contains(normalized)
@@ -2912,9 +2926,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .toList()
     }
 
-    private suspend fun selectedKnowledgeContext(sessionId: String, messageId: Long): String? =
-        memoryManager.getLongTermMemories(sessionId, MAX_KNOWLEDGE_SHORTCUT_SCAN)
-            .firstOrNull { it.id == messageId }
+    private suspend fun selectedKnowledgeContext(
+        sessionId: String,
+        messageId: Long,
+        projectId: String,
+        maxPrivacyLevel: Int
+    ): String? =
+        memoryManager.getScopedLongTermMemories(
+            sessionId = sessionId,
+            projectId = projectId,
+            maxPrivacyLevel = maxPrivacyLevel,
+            limit = MAX_KNOWLEDGE_SHORTCUT_SCAN
+        ).firstOrNull { it.id == messageId }
             ?.content
             ?.removePrefix("[memory] ")
             ?.take(MAX_SELECTED_KNOWLEDGE_CHARS)

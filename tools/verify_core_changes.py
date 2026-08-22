@@ -38,6 +38,7 @@ model_registry = read('app/src/main/java/com/airi/assistant/ai/ModelRegistry.kt'
 privacy_guard = read('app/src/main/java/com/airi/assistant/execution/privacy/PrivacyGuard.kt')
 connectivity = read('app/src/main/java/com/airi/assistant/execution/network/ConnectivityMonitor.kt')
 cloud_errors = read('app/src/main/java/com/airi/assistant/execution/cloud/CloudErrorMapper.kt')
+retry_policy = read('app/src/main/java/com/airi/assistant/execution/cloud/RetryPolicy.kt')
 
 check('Generation ownership and cleanup', 'activeGenerationId' in chat_vm and 'finishGeneration(generationId)' in chat_vm, 'ViewModel owns and clears a generation id.')
 check('Backend cancellation barrier', 'throw generationCancelled("during privacy fallback")' in hybrid and 'generationGate.accepts(genId)' in hybrid and 'fun accepts(candidateGenerationId: Long)' in generation_gate, 'Callbacks are gated after cancellation and generation changes.')
@@ -66,6 +67,7 @@ check('Thread-safe private model registry', model_registry.count('@Synchronized'
 check('Cloud fallback privacy boundary', 'decision.allBackends.any { it.origin.isCloudBound() }' in hybrid and 'backend.origin.isCloudBound() && cloudRequest == null' in hybrid and 'val req = if (backend.origin.isCloudBound()) cloudRequest!! else request' in hybrid and 'conversationHistory = history' in privacy_guard and 'DEVICE_IDENTIFIER_REGEX' in privacy_guard, 'Every cloud candidate, including a fallback after local execution, receives the guarded request with history and device identifiers redacted.')
 check('Validated connectivity for cloud routing', 'trySend(hasInternet(cm))' in connectivity and 'hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)' in connectivity and 'trySend(true)' not in connectivity, 'Network availability alone cannot mark cloud routing online before Android validates internet access.')
 check('Cloud error response redaction', 'body.take(' not in cloud_errors and 'Provider rejected the request (HTTP 400)' in cloud_errors and 'Provider request failed (HTTP $httpCode)' in cloud_errors, 'Cloud response bodies remain local classification input and never become diagnostics or UI messages.')
+check('Retry diagnostics redaction', '.error.take(' not in retry_policy and 'type=${failure.errorType}' in retry_policy, 'Retry logs record normalized error type and delay, not provider error text.')
 for commercial_doc in (
     'docs/architecture/OVERVIEW.md',
     'docs/security/THREAT_MODEL.md',

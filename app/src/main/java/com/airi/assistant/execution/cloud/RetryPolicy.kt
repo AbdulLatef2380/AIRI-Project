@@ -59,9 +59,11 @@ object RetryPolicy {
                 attempt >= maxAttempts - 1 -> return lastResult   // exhausted
                 else -> {
                     val delayMs = computeDelay(attempt)
-                    Log.i(TAG, "attempt=${attempt + 1}/$maxAttempts " +
-                        "error=${(lastResult as CloudProviderAdapter.AdapterResult.Failure).error.take(60)} " +
-                        "retry_in=${delayMs}ms")
+                    val failure = lastResult as CloudProviderAdapter.AdapterResult.Failure
+                    Log.i(
+                        TAG,
+                        "attempt=${attempt + 1}/$maxAttempts type=${failure.errorType} retry_in=${delayMs}ms"
+                    )
                     delay(delayMs)
                 }
             }

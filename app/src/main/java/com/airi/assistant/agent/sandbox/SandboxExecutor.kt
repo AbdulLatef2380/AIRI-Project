@@ -87,8 +87,13 @@ class SandboxExecutor(private val session: SandboxSession) {
         val path = safePath(task.command)
             ?: return ExecutionResult.SecurityViolation("Path escapes sandbox")
         return try {
-            if (!path.exists()) ExecutionResult.Failure("Not found: ${path.name}")
-            else ExecutionResult.Success(path.readText())
+            if (!path.exists()) {
+                ExecutionResult.Failure("Not found: ${path.name}")
+            } else if (path.length() > OUTPUT_LIMIT_BYTES) {
+                ExecutionResult.SecurityViolation("File exceeds ${OUTPUT_LIMIT_BYTES} byte read limit")
+            } else {
+                ExecutionResult.Success(path.readText())
+            }
         } catch (e: Exception) {
             ExecutionResult.Failure("Read failed: ${e.message}")
         }
@@ -206,8 +211,12 @@ class SandboxExecutor(private val session: SandboxSession) {
     }
 
     private fun safePath(rel: String): File? {
-        val target = File(session.workspaceDir, rel).canonicalFile
-        return if (target.path.startsWith(session.workspaceDir.canonicalPath)) target else null
+        val root = session.workspaceDir.canonicalFile
+        val target = File(root, rel).canonicalFile
+        val rootPath = root.path
+        val targetPath = target.path
+        val insideRoot = targetPath == rootPath || targetPath.startsWith(rootPath + File.separator)
+        return target.takeIf { insideRoot }
     }
 
     /** Whitespace-tokenize — NO shell parsing, NO quote handling. */

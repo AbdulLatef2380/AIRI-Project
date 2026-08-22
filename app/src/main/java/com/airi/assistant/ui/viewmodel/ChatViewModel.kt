@@ -1391,6 +1391,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val LONG_TEXT_THRESHOLD = 3000
 
     fun sendMessage(input: String) {
+        sendMessageInternal(input, allowLongTextConversion = true)
+    }
+
+    private fun sendMessageInternal(input: String, allowLongTextConversion: Boolean) {
         val directives = parseInputDirectives(input)
         val trimmedInput = directives.userText.trim()
         if (trimmedInput.isEmpty() || _modelState.value.isModelLoading) return
@@ -1401,7 +1405,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // When the user pastes/sends very long text (e.g. code, articles, logs),
         // convert it to a .txt file attachment instead of embedding it inline.
         // This prevents token overflow and keeps the conversation manageable.
-        if (trimmedInput.length >= LONG_TEXT_THRESHOLD) {
+        if (allowLongTextConversion && trimmedInput.length >= LONG_TEXT_THRESHOLD) {
             val file = File(appContext.cacheDir, "chat_attachments")
             file.mkdirs()
             val fileName = "pasted_${System.currentTimeMillis()}.txt"
@@ -1414,15 +1418,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }.getOrNull()
             if (fileUri != null) {
                 Log.i("AIRI", "LONG_TEXT_CONVERSION chars=${trimmedInput.length} -> file=$fileName")
-                // Stage the file via SharedFlow so ChatScreen adds it to pending attachments
-                stageAttachmentUri(fileUri)
-                // Send with a short summary prefix instead of the full text
-                val summary = if (trimmedInput.length > 200) {
-                    "[Attached file: $fileName]\n\n${trimmedInput.take(200)}..."
-                } else {
-                    trimmedInput
-                }
-                return sendMessage(summary)
+                val summary = "[Attached file: $fileName]\n\n${trimmedInput.take(200)}..."
+                sendMessageWithAttachments(
+                    input = summary,
+                    attachments = listOf(
+                        ChatAttachment(
+                            kind = ChatAttachment.Kind.FILE,
+                            uri = fileUri,
+                            displayName = fileName,
+                            mimeType = "text/plain",
+                            sizeBytes = trimmedInput.toByteArray(Charsets.UTF_8).size.toLong()
+                        )
+                    )
+                )
+                return
             }
         }
         // ── Intent classification (before any async work) ─────────────────────
@@ -2601,7 +2610,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 textAttachmentContext
             ).filter { it.isNotBlank() }.joinToString(separator = "\n\n")
             val fullText = if (trimmed.isBlank()) attachmentContext else "$trimmed\n\n$attachmentContext"
-            sendMessage(fullText)
+            sendMessageInternal(fullText, allowLongTextConversion = false)
         }
         }
     }

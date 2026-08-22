@@ -198,7 +198,7 @@ fun MemoryScreen(
                         ) {
                             Icon(Icons.Outlined.Psychology, null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
                             Text(
-                                stringResource(R.string.episodic_memory_label),
+                                "Memory entries are admitted selectively; ordinary chat is not stored as long-term memory.",
                                 fontSize = 12.sp,
                                 color = AiriTheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f)
@@ -256,6 +256,17 @@ private fun MemoryEntryCard(msg: ChatMessage, searchQuery: String) {
                     fontWeight = FontWeight.SemiBold,
                     color = if (isUser) CosmicAccent else AiriTheme.onBackground
                 )
+                Surface(
+                    shape = RoundedCornerShape(5.dp),
+                    color = if (msg.isMemory) CosmicAccent.copy(alpha = 0.14f) else SurfaceHighlight
+                ) {
+                    Text(
+                        if (msg.isMemory) "Long-term" else "Context",
+                        fontSize = 9.sp,
+                        color = if (msg.isMemory) CosmicAccent else AiriTheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                    )
+                }
                 Spacer(Modifier.weight(1f))
                 Text(timeStr, fontSize = 10.sp, color = AiriTheme.onSurfaceVariant.copy(0.55f))
             }

@@ -3,6 +3,7 @@ package com.airi.assistant.ai.skills
 import android.content.Context
 import android.util.Log
 import com.airi.assistant.agent.loop.tool.ToolSchema
+import com.airi.assistant.domain.permission.PermissionService
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 
@@ -35,6 +36,7 @@ class SkillToolBridge(
     private val modelBridge:  SkillModelBridge? = null,
     private val skillCtx:     () -> SkillContext = { SkillContext() }
 ) {
+    private val permissionService = PermissionService(context.applicationContext)
     companion object {
         private const val TAG        = "SkillToolBridge"
         private const val PREFIX     = "skill_"
@@ -102,20 +104,29 @@ class SkillToolBridge(
             return "No skill found for tool: $toolName. Available skill tools: $available"
         }
 
-        // Phase I enforcement: only pass the model bridge to skills that declared model access
-        val effectiveBridge = if (skill.modelAccess != SkillModelAccess.NONE) modelBridge else null
-        if (modelBridge != null && skill.modelAccess == SkillModelAccess.NONE) {
+        val requestedContext = skillCtx().copy(modelBridge = modelBridge)
+        val accessDecision = SkillInvocationAccessPolicy.authorize(
+            skill = skill,
+            context = requestedContext,
+            hasPermission = permissionService::hasPermission
+        )
+        val skillCtxInstance = when (accessDecision) {
+            is SkillInvocationAccessPolicy.Decision.Allow -> accessDecision.context
+            is SkillInvocationAccessPolicy.Decision.Deny -> {
+                Log.w(TAG, "AIRI SKILL_DENIED tool=$toolName skillId=${skill.skillId} reason=${accessDecision.reason}")
+                return accessDecision.userMessage
+            }
+        }
+        if (modelBridge != null && skillCtxInstance.modelBridge == null) {
             Log.d(TAG, "AIRI SKILL_BRIDGE_SUPPRESSED skillId=${skill.skillId} — modelAccess=NONE")
         }
-
-        val skillCtxInstance = skillCtx().copy(modelBridge = effectiveBridge)
 
         Log.i(TAG, "AIRI SKILL_INVOKE " +
             "tool=$toolName " +
             "skillId=${skill.skillId} " +
             "argKeys=${args.keys.joinToString()} " +
             "modelAccess=${skill.modelAccess} " +
-            "modelBridgeActive=${effectiveBridge != null} " +
+            "modelBridgeActive=${skillCtxInstance.modelBridge != null} " +
             "memoryActive=${skillCtxInstance.memoryManager != null} " +
             "sessionId=${skillCtxInstance.sessionId.take(12).ifBlank { "NONE" }}")
 

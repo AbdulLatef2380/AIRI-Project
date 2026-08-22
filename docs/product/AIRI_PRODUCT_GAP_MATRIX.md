@@ -20,9 +20,9 @@
 
 | ID | القدرة | قيمة المستخدم | الحالة الحالية | فجوة الإغلاق | المنصات | معيار القبول |
 |---|---|---|---|---|---|---|
-| T0-01 | Workspace 2.0 | مشروع واحد يجمع الوكيل والملفات والمهام والمعرفة والأدوات | `PARTIAL` | استعادة الموارد بعد إعادة التشغيل وربط المهام والذاكرة بملكية المشروع | Android/Desktop | إنشاء مشروع، فتحه، واستعادة سياقه بعد إعادة التشغيل |
+| T0-01 | Workspace 2.0 | مشروع واحد يجمع الوكيل والملفات والمهام والمعرفة والأدوات | `PARTIAL` | Product Kernel يربط Workspace/Task/Project Files/Artifacts؛ المتبقي حقن الذاكرة والمعرفة المصرح بهما واختبار الاستعادة على جهاز | Android/Desktop | إنشاء مشروع، فتحه، واستعادة سياقه بعد إعادة التشغيل |
 | T0-02 | Project Context | عدم إعادة شرح المشروع في كل محادثة | `PARTIAL` | حقن السياق المصرح به في AgentLoop واختبار عزله عن المشاريع الأخرى | Android/Desktop | الرسالة الجديدة ترى موارد المشروع المصرح بها فقط |
-| T0-03 | File Intelligence | تحويل المرفق إلى مورد قابل للبحث والمعرفة | `PARTIAL` | فهرسة، SHA-256، metadata، preview، وفرق Attachment/Knowledge/Project File | Android/Desktop | استيراد، بحث exact/semantic، حذف واستعادة |
+| T0-03 | File Intelligence | تحويل المرفق إلى مورد قابل للبحث والمعرفة | `PARTIAL` | مشروع File حقيقي: URI→validate→SHA-256→managed storage→preview مع فصل المورد؛ المتبقي semantic index وversion/restore واختبار Android picker | Android/Desktop | استيراد، بحث exact/semantic، حذف واستعادة |
 | T0-04 | Memory Fabric | ذاكرة قابلة للتفسير والحذف وليست مخزناً عشوائياً | `PARTIAL` | Working/Episodic/Semantic مع provenance وscope وexpiry | Core/Android/Desktop | عرض المصدر، التصحيح، الحذف، والتصدير |
 | T0-05 | Knowledge/RAG | إجابات مرتبطة بالأدلة | `PARTIAL` | extraction، facts، hybrid retrieval، reranking، evidence | Core/Android/Desktop | كل claim يعرض المصدر والثقة عند توفر المعرفة |
 | T0-06 | Execution Center | فهم ما فعله الوكيل ولماذا | `PARTIAL` | ربط plan وtool وpermission وartifact وerror وrecovery وإضافة replay قابل للقراءة | Android/Desktop | replay قابل للقراءة وإعادة الفتح |

@@ -31,7 +31,8 @@ class WorkspaceRuntime(
     private val context: Context,
     private val sandboxManager: SandboxManager,
     private val artifactManager: ArtifactManager,
-    private val durableTaskManager: DurableTaskManager? = null
+    private val durableTaskManager: DurableTaskManager? = null,
+    private val projectFileManager: ProjectFileManager? = null
 ) {
     data class WorkspaceSession(
         val sessionId: String = UUID.randomUUID().toString().take(8),
@@ -125,7 +126,8 @@ class WorkspaceRuntime(
         return workspaceContextFrom(
             session = session,
             artifacts = artifactManager.forSession(session.sessionId),
-            tasks = durableTaskManager?.tasks?.value.orEmpty()
+            tasks = durableTaskManager?.tasks?.value.orEmpty(),
+            projectFiles = projectFileManager?.files?.value.orEmpty()
         )
     }
 

@@ -16,6 +16,7 @@ data class WorkspaceContext(
     val tags: List<String>,
     val artifactCount: Int,
     val artifactNames: List<String>,
+    val fileCount: Int,
     val taskCount: Int,
     val activeTaskCount: Int,
     val failedTaskCount: Int
@@ -24,9 +25,14 @@ data class WorkspaceContext(
 internal fun workspaceContextFrom(
     session: WorkspaceRuntime.WorkspaceSession,
     artifacts: List<ArtifactManager.Artifact>,
-    tasks: List<DurableTask> = emptyList()
+    tasks: List<DurableTask> = emptyList(),
+    projectFiles: List<ProjectFileManager.ProjectFile> = emptyList()
 ): WorkspaceContext {
     val projectTasks = tasks.filter { it.projectId == session.sessionId }
+    val activeFiles = projectFiles.count {
+        it.projectId == session.sessionId &&
+            it.lifecycle != ProjectFileManager.LifecycleState.DELETED
+    }
     return WorkspaceContext(
         workspaceId = session.sessionId,
         name = session.name,
@@ -34,6 +40,7 @@ internal fun workspaceContextFrom(
         tags = session.tags,
         artifactCount = artifacts.size,
         artifactNames = artifacts.map { it.name },
+        fileCount = activeFiles,
         taskCount = projectTasks.size,
         activeTaskCount = projectTasks.count { !it.isTerminal },
         failedTaskCount = projectTasks.count { it.status == DurableTaskStatus.FAILED }

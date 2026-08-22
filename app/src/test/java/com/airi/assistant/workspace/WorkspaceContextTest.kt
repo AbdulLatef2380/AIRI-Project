@@ -58,13 +58,36 @@ class WorkspaceContextTest {
             )
         )
 
-        val context = workspaceContextFrom(session, artifacts, tasks)
+        val projectFiles = listOf(
+            ProjectFileManager.ProjectFile(
+                id = "file-project-1",
+                projectId = "project-1",
+                name = "notes.md",
+                mimeType = "text/markdown"
+            ),
+            ProjectFileManager.ProjectFile(
+                id = "file-deleted",
+                projectId = "project-1",
+                name = "old.md",
+                mimeType = "text/markdown",
+                lifecycle = ProjectFileManager.LifecycleState.DELETED
+            ),
+            ProjectFileManager.ProjectFile(
+                id = "file-project-2",
+                projectId = "project-2",
+                name = "other.md",
+                mimeType = "text/markdown"
+            )
+        )
+
+        val context = workspaceContextFrom(session, artifacts, tasks, projectFiles)
 
         assertEquals("project-1", context.workspaceId)
         assertEquals("AIRI Core", context.name)
         assertEquals(listOf("kmp", "release"), context.tags)
         assertEquals(2, context.artifactCount)
         assertEquals(listOf("plan.md", "report.json"), context.artifactNames)
+        assertEquals(1, context.fileCount)
         assertEquals(2, context.taskCount)
         assertEquals(1, context.activeTaskCount)
         assertEquals(1, context.failedTaskCount)

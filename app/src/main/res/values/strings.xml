@@ -1044,7 +1044,20 @@
     <string name="workspace_no_artifacts">No artifacts yet</string>
     <string name="workspace_no_artifacts_desc">Ask AIRI to generate code, files, or content</string>
     <string name="workspace_open_chat">Open Chat</string>
-    <string name="workspace_context_summary">Artifacts: %1$d · Tasks: %2$d · Running: %3$d · Needs attention: %4$d</string>
+    <string name="workspace_context_summary">Files: %1$d · Artifacts: %2$d · Tasks: %3$d · Running: %4$d · Needs attention: %5$d</string>
+    <string name="library_title">Files</string>
+    <string name="library_import_file">Import file</string>
+    <string name="library_search_files">Search files</string>
+    <string name="library_project_files">Project files</string>
+    <string name="library_generated_artifacts">Generated artifacts</string>
+    <string name="library_toggle_favorite">Toggle favorite</string>
+    <string name="library_file_state">Extraction: %1$s · Knowledge index: %2$s</string>
+    <string name="library_select_project_title">Select a project first</string>
+    <string name="library_select_project_description">Files belong to a project. Open or create a workspace before importing.</string>
+    <string name="library_no_matching_files">No matching files</string>
+    <string name="library_no_matching_files_description">Try a different name, type, or tag.</string>
+    <string name="library_no_files">No files yet</string>
+    <string name="library_no_files_description">Import a project file or create an artifact from a task.</string>
 
     <!-- Zapier / IFTTT screen -->
     <string name="zapier_ifttt_title">Automation</string>

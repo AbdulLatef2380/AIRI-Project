@@ -52,17 +52,19 @@ fun WorkspaceScreen(
 ) {
     val workspaceRuntime = ServiceLocator.workspaceRuntime
     val artifactManager  = ServiceLocator.artifactManager
+    val projectFileManager = ServiceLocator.projectFileManager
     val taskManager      = ServiceLocator.durableTaskManager
     val scope            = rememberCoroutineScope()
 
     val sessions       by workspaceRuntime.allSessions.collectAsStateWithLifecycle()
     val activeSession  by workspaceRuntime.activeSession.collectAsStateWithLifecycle()
     val allArtifacts   by artifactManager.allArtifacts.collectAsStateWithLifecycle()
+    val allProjectFiles by projectFileManager.files.collectAsStateWithLifecycle()
     val allTasks       by taskManager.tasks.collectAsStateWithLifecycle()
     val artifacts      = remember(allArtifacts, activeSession) {
         activeSession?.let { artifactManager.forSession(it.sessionId) } ?: emptyList()
     }
-    val activeContext   = remember(activeSession, allArtifacts, allTasks) {
+    val activeContext   = remember(activeSession, allArtifacts, allProjectFiles, allTasks) {
         workspaceRuntime.contextForActive()
     }
 
@@ -200,6 +202,7 @@ private fun WorkspaceContextCard(context: com.airi.assistant.workspace.Workspace
             Text(
                 text = stringResource(
                     R.string.workspace_context_summary,
+                    context.fileCount,
                     context.artifactCount,
                     context.taskCount,
                     context.activeTaskCount,

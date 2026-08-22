@@ -269,7 +269,8 @@ object ServiceLocator {
             context            = requireContext(),
             sandboxManager     = sandboxManager,
             artifactManager    = artifactManager,
-            durableTaskManager = durableTaskManager
+            durableTaskManager = durableTaskManager,
+            projectFileManager = projectFileManager
         )
     }
 
@@ -612,6 +613,13 @@ object ServiceLocator {
 
     val mediaLibrary: com.airi.assistant.media.MediaLibrary by lazy {
         com.airi.assistant.media.MediaLibrary(requireContext())
+    }
+
+    val projectFileManager: com.airi.assistant.workspace.ProjectFileManager by lazy {
+        com.airi.assistant.workspace.ProjectFileManager(
+            context = requireContext(),
+            mediaLibrary = mediaLibrary
+        )
     }
 
     // ── Dynamic Prompt Engine ─────────────────────────────────────────────────

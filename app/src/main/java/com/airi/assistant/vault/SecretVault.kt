@@ -13,7 +13,7 @@ object SecretVault {
 
     fun brokerSecret(agentId: String, keyName: String, authorizedByPolicy: Boolean): String? {
         if (!authorizedByPolicy) {
-            android.util.Log.w("AIRI_Vault", "Agent $agentId denied access to secret $keyName")
+            recordDeniedAccess(agentId, keyName)
             return null
         }
         return encryptedStore[keyName]
@@ -21,5 +21,13 @@ object SecretVault {
 
     fun clear() {
         encryptedStore.clear()
+    }
+
+    private fun recordDeniedAccess(agentId: String, keyName: String) {
+        // Android's logger is unavailable in the JVM unit-test runtime. A denied
+        // request must remain fail-closed even when telemetry cannot be emitted.
+        runCatching {
+            android.util.Log.w("AIRI_Vault", "Agent $agentId denied access to secret $keyName")
+        }
     }
 }

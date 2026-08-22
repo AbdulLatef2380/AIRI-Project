@@ -4,8 +4,9 @@ package com.airi.assistant.execution.cloud
  * Pure-function mapper from raw HTTP codes and error bodies to normalized
  * [CloudErrorType] values with retryability flags.
  *
- * All string comparisons are case-insensitive. Body snippets are used
- * only for sub-classification within ambiguous HTTP codes (e.g. 400, 429).
+ * All string comparisons are case-insensitive. Response bodies are used only
+ * for local sub-classification within ambiguous HTTP codes (e.g. 400, 429);
+ * no body content is returned because mapped messages reach diagnostics and UI.
  *
  * ## Special sentinel codes (internal use only — never from HTTP):
  *  -1  = request timed out before server response
@@ -30,9 +31,9 @@ object CloudErrorMapper {
         httpCode >= 500                         -> MappedError(CloudErrorType.SERVER_ERROR,     true,  "Provider server error (HTTP $httpCode)")
         httpCode == 400 && body.hasContextErr   -> MappedError(CloudErrorType.CONTEXT_LENGTH,  false, "Prompt exceeds model context window")
         httpCode == 400 && body.hasSafetyErr    -> MappedError(CloudErrorType.CONTENT_FILTERED, false, "Content policy violation")
-        httpCode == 400                         -> MappedError(CloudErrorType.INVALID_REQUEST,  false, "Bad request: ${body.take(120)}")
+        httpCode == 400                         -> MappedError(CloudErrorType.INVALID_REQUEST,  false, "Provider rejected the request (HTTP 400)")
         httpCode in 200..299                    -> MappedError(CloudErrorType.UNKNOWN,          false, "Unexpected success code in error path: $httpCode")
-        else                                    -> MappedError(CloudErrorType.UNKNOWN,          false, "HTTP $httpCode: ${body.take(120)}")
+        else                                    -> MappedError(CloudErrorType.UNKNOWN,          false, "Provider request failed (HTTP $httpCode)")
     }
 
     /** 429 may be either a request-rate limit (retryable) or a quota/billing limit (not retryable). */

@@ -30,9 +30,16 @@ import java.util.concurrent.atomic.AtomicLong
  * collectors automatically receive the latest value on resubscription after
  * an Activity recreate — no explicit save/restore needed.
  */
-class LiveVoiceSession {
-
-    private val TAG = "LiveVoiceSession"
+class LiveVoiceSession(
+    private val logger: (level: String, message: String) -> Unit = { level, message ->
+        when (level) {
+            "D" -> Log.d(TAG, message)
+            "I" -> Log.i(TAG, message)
+            "W" -> Log.w(TAG, message)
+            else -> Log.e(TAG, message)
+        }
+    }
+) {
 
     // ── Session identity ──────────────────────────────────────────────────────
 
@@ -73,7 +80,7 @@ class LiveVoiceSession {
     /** Emit a transcript that no agent claimed. See [pendingTranscript]. */
     fun emitPendingTranscript(text: String) {
         _pendingTranscript.value = text
-        Log.d(TAG, "AIRI VOICE_PENDING_TRANSCRIPT chars=${text.length}")
+        logger("D", "AIRI VOICE_PENDING_TRANSCRIPT chars=${text.length}")
     }
 
     /** Clear after the consumer (ChatViewModel / bound client) has handled it. */
@@ -99,6 +106,7 @@ class LiveVoiceSession {
         private set
 
     companion object {
+        private const val TAG = "LiveVoiceSession"
         const val MAX_RECOVERY_ATTEMPTS = 3
     }
 
@@ -118,7 +126,7 @@ class LiveVoiceSession {
         _metrics.value = SessionMetrics()
         _latency.value = LatencySnapshot()
         transitionTo(VoicePipelineState.LISTENING)
-        Log.i(TAG, "AIRI VOICE_SESSION_BEGIN id=$id")
+        logger("I", "AIRI VOICE_SESSION_BEGIN id=$id")
         return id
     }
 
@@ -127,7 +135,7 @@ class LiveVoiceSession {
         _partialTranscript.value = ""
         recoveryAttempts = 0
         transitionTo(VoicePipelineState.IDLE)
-        Log.i(TAG, "AIRI VOICE_SESSION_END id=$currentSessionId " +
+        logger("I", "AIRI VOICE_SESSION_END id=$currentSessionId " +
                 "turns=${_metrics.value.completedTurns} " +
                 "interruptions=${_metrics.value.interruptionCount}")
     }
@@ -174,7 +182,7 @@ class LiveVoiceSession {
             completedTurns = _metrics.value.completedTurns + 1
         )
         transitionTo(VoicePipelineState.IDLE)
-        Log.d(TAG, "AIRI VOICE_TURN_COMPLETE total=${_metrics.value.completedTurns}")
+        logger("D", "AIRI VOICE_TURN_COMPLETE total=${_metrics.value.completedTurns}")
     }
 
     /**
@@ -187,7 +195,7 @@ class LiveVoiceSession {
             interruptionCount = _metrics.value.interruptionCount + 1
         )
         transitionTo(VoicePipelineState.INTERRUPTED)
-        Log.d(TAG, "AIRI VOICE_BARGE_IN count=${_metrics.value.interruptionCount}")
+        logger("D", "AIRI VOICE_BARGE_IN count=${_metrics.value.interruptionCount}")
     }
 
     /** Call after barge-in cleanup is complete and STT is re-armed. */
@@ -205,10 +213,10 @@ class LiveVoiceSession {
         return if (recoveryAttempts < MAX_RECOVERY_ATTEMPTS) {
             recoveryAttempts++
             transitionTo(VoicePipelineState.RECOVERING)
-            Log.w(TAG, "VOICE_RECOVERING attempt=$recoveryAttempts reason=$reason")
+            logger("W", "VOICE_RECOVERING attempt=$recoveryAttempts reason=$reason")
             true
         } else {
-            Log.e(TAG, "VOICE_MAX_RETRIES_EXHAUSTED reason=$reason")
+            logger("E", "VOICE_MAX_RETRIES_EXHAUSTED reason=$reason")
             endSession()
             false
         }
@@ -241,10 +249,29 @@ class LiveVoiceSession {
     // ─────────────────────────────────────────────────────────────────────────
 
     private fun transitionTo(next: VoicePipelineState) {
-        val prev = _state.value
-        if (prev == next) return
+        val previous = _state.value
+        if (previous == next) return
+        if (!isValidTransition(previous, next)) {
+            logger("W", "AIRI VOICE_INVALID_TRANSITION $previous → $next session=$currentSessionId")
+            return
+        }
         _state.value = next
-        Log.d(TAG, "AIRI VOICE_STATE $prev → $next session=$currentSessionId")
+        logger("D", "AIRI VOICE_STATE $previous → $next session=$currentSessionId")
+    }
+
+    private fun isValidTransition(
+        previous: VoicePipelineState,
+        next: VoicePipelineState
+    ): Boolean {
+        if (next == VoicePipelineState.IDLE || next == VoicePipelineState.RECOVERING) return true
+        return when (previous) {
+            VoicePipelineState.IDLE -> next == VoicePipelineState.LISTENING
+            VoicePipelineState.LISTENING -> next == VoicePipelineState.THINKING
+            VoicePipelineState.THINKING -> next == VoicePipelineState.STREAMING_RESPONSE
+            VoicePipelineState.STREAMING_RESPONSE -> next == VoicePipelineState.INTERRUPTED
+            VoicePipelineState.INTERRUPTED -> next == VoicePipelineState.LISTENING
+            VoicePipelineState.RECOVERING -> next == VoicePipelineState.LISTENING
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

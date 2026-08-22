@@ -33,8 +33,8 @@
 | T0-11 | Model Router | اختيار نموذج حسب capability/privacy/cost | `PARTIAL` | `RuntimeRouter` يمرر رمز سبب منظم مع rationale إلى diagnostics، وتفرض `RoutingPolicy` capability/privacy/network/budget gates وfallback مرتب؛ المتبقي projection مرئي لآخر قرار وقياس token فعلي وربطه بميزانية الاستخدام وتجربة local/cloud على جهاز | Core/Android/Desktop | routing يرفض نموذجاً غير مناسب ويشرح القرار |
 | T0-12 | Automation/Event Engine | تشغيل مهام مفيدة عند حدث حقيقي | `PARTIAL` | trigger/condition/input/approval/retry/result/notification | Android/Desktop/External | run now، pause، history، failure recovery |
 | T0-13 | Secret Broker | استخدام credential دون كشف القيمة الخام | `PARTIAL` | Keystore-backed SecretVault يصدر capability مقيدة بالوكيل/العملية/المدة/الاستخدام ويستهلكها داخل provider callback؛ المتبقي audit دائم وrotation وربط كل provider/connector بقبول capability | Android/Desktop | tool receives ephemeral capability, not raw secret |
-| T0-14 | AIRI Mesh | اختيار node مناسب لتنفيذ المهمة | `PARTIAL` | device identity، capabilities، presence، trust، routing | Android/Desktop/External | تنفيذ آمن على node مصرح به فقط |
-| T0-15 | Continuity | متابعة نفس المهمة من جهاز آخر | `PARTIAL` | مزامنة task state وplan وartifacts وlogs وcurrent step | Android/Desktop/External | فتح المهمة على جهاز ثانٍ واستكمالها دون فقدان الحالة |
+| T0-14 | AIRI Mesh | اختيار node مناسب لتنفيذ المهمة | `PARTIAL` | `TaskContinuitySnapshot` يحمل execution progress منقحاً ويمتنع عن التنفيذ عن بُعد أو إنشاء مهمة مجهولة؛ المتبقي device presence/capability registry، paired-node trust، transport authentication، routing وتنفيذ node مصرح به | Android/Desktop/External | تنفيذ آمن على node مصرح به فقط |
+| T0-15 | Continuity | متابعة نفس المهمة من جهاز آخر | `PARTIAL` | opt-in Firestore sync يرفع/يسحب snapshot حالة وخطوات مهام منقحاً عبر `CloudSyncWorker`، يدمج الأحدث في مهمة محلية معروفة فقط ويحوّل remote RUNNING إلى PAUSED لمنع duplicate execution؛ المتبقي security rules، identity/trust للأجهزة، encryption/rotation، artifacts/logs، وresume صريح على جهاز ثانٍ | Android/Desktop/External | فتح المهمة على جهاز ثانٍ واستكمالها دون فقدان الحالة |
 | T0-16 | Diagnostics | معرفة سبب الفشل بدون تسريب الأسرار | `PARTIAL` | إكمال trace Task→Run→Step→Tool→Provider→Recovery مع export منقح | Core/Android/Desktop | diagnostic bundle لا يحتوي secrets أو raw prompts الحساسة |
 
 ## Tier 1: بيئة التطوير والإنتاج
@@ -48,7 +48,7 @@
 | T1-05 | Research Mode | `PARTIAL` | source graph، cross-check، citations، snapshots، contradiction detection |
 | T1-06 | Agent Teams | `PARTIAL` | `ProductionAgentOrchestrator` ينفذ أدواراً حقيقية عبر `SubAgentRegistry` و`AgentTeamPolicy` يقبل الرسم، يعزل dependency context افتراضياً، يخصص cloud reserve لكل دور، ويحد موجة التوازي؛ المتبقي accounting فعلي لاستهلاك providers، واجهة تكوين/replay للفريق، واختبار device/background |
 | T1-07 | Connector framework | `PARTIAL` | Runtime يمنع الموصل غير الصحي وينتظر broadcast كاملاً، وSkill Policy يفرض requiredConnectors؛ المتبقي OAuth scopes→Secret Broker لكل الموصلات→Tool Registry موقع→Audit/rotation/revocation دائم |
-| T1-08 | Voice state machine | `PARTIAL` | interruption، barge-in، offline/online، Arabic detection، permissions |
+| T1-08 | Voice state machine | `PARTIAL` | `LiveVoiceSession` يفرض الآن انتقالات state قانونية، مع barge-in/recovery metrics واختبارات JVM؛ المتبقي realtime provider end-to-end، تحقق microphone/audio-focus على جهاز، offline/online provider handoff، Arabic STT device validation |
 | T1-09 | Vision/OCR/video | `PARTIAL` | image/document/video ingestion مع evidence وlimits |
 | T1-10 | Update Center | `MISSING` | signed updates، channels، rollback، migration safety |
 

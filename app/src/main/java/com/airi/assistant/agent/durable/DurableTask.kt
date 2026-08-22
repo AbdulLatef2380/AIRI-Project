@@ -409,7 +409,16 @@ enum class TaskTimelineEventType {
     STEP_FAILED,
     TASK_COMPLETED,
     TASK_FAILED,
-    TASK_CANCELLED
+    TASK_CANCELLED,
+    CONTINUITY_MERGED
+}
+
+sealed class ContinuityMergeResult {
+    data class Merged(val remoteWasRunning: Boolean) : ContinuityMergeResult()
+    data object UnknownTask : ContinuityMergeResult()
+    data object LocalNewer : ContinuityMergeResult()
+    data object LocalExecutionActive : ContinuityMergeResult()
+    data object UnsupportedSchema : ContinuityMergeResult()
 }
 
 data class TaskTimelineEvent(

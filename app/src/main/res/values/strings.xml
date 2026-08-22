@@ -1519,4 +1519,7 @@
 
     <string name="dev_cert_pinning_deferred">Platform TLS verification is active; certificate pinning is pending verification.</string>
     <string name="dev_cert_pinning_active">Certificate pinning is active.</string>
+    <string name="task_continuity_sync_title">Sync task progress across devices</string>
+    <string name="task_continuity_sync_summary">Syncs task status and plan progress only. Task content, results, approvals, files, and secrets stay on this device.</string>
+    <string name="task_continuity_sync_requires_cloud">Enable cloud sync before sharing task progress.</string>
 </resources>

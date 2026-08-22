@@ -46,6 +46,8 @@ data class UserPreferences(
     val crashReportingOptIn:   Boolean = false,
     val sendAgentTelemetry:    Boolean = false,
     val cloudSyncEnabled:      Boolean = false,
+    /** Explicit consent to sync content-free durable task progress metadata. */
+    val taskContinuitySyncEnabled: Boolean = false,
 
     // ── Accessibility ─────────────────────────────────────────────────────
     val accessibilityServiceEnabled: Boolean = false,

@@ -1418,4 +1418,7 @@
 
     <string name="dev_cert_pinning_deferred">التحقق القياسي من TLS مفعّل؛ تثبيت الشهادات مؤجل حتى التحقق.</string>
     <string name="dev_cert_pinning_active">تثبيت الشهادات مفعّل.</string>
+    <string name="task_continuity_sync_title">مزامنة تقدّم المهام بين الأجهزة</string>
+    <string name="task_continuity_sync_summary">تُزامن حالة المهمة وتقدّم الخطة فقط. يبقى محتوى المهمة والنتائج والموافقات والملفات والأسرار على هذا الجهاز.</string>
+    <string name="task_continuity_sync_requires_cloud">فعّل المزامنة السحابية أولاً لمشاركة تقدّم المهام.</string>
 </resources>

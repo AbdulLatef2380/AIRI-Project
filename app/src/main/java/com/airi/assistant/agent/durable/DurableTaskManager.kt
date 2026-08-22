@@ -372,6 +372,65 @@ class DurableTaskManager(private val context: Context) {
         }
     }
 
+    /**
+     * Exports bounded, content-free task progress metadata for an explicitly
+     * enabled continuity transport. This does not expose task input, result,
+     * checkpoint, approval detail, timeline text, diagnostics, or artifacts.
+     */
+    fun continuitySnapshots(limit: Int = MAX_CONTINUITY_SNAPSHOTS): List<TaskContinuitySnapshot> =
+        taskCache.values
+            .sortedByDescending { it.updatedAtMs }
+            .take(limit.coerceIn(1, MAX_CONTINUITY_SNAPSHOTS))
+            .map(TaskContinuitySnapshot::from)
+
+    /**
+     * Applies a newer remote progress snapshot only to a task already owned by
+     * this device. A remote RUNNING state is represented locally as PAUSED so
+     * the receiver never starts duplicate execution without an explicit resume.
+     */
+    fun mergeContinuitySnapshot(snapshot: TaskContinuitySnapshot): ContinuityMergeResult {
+        if (snapshot.schemaVersion != TaskContinuitySnapshot.SCHEMA_VERSION) {
+            return ContinuityMergeResult.UnsupportedSchema
+        }
+        val local = getTask(snapshot.taskId) ?: return ContinuityMergeResult.UnknownTask
+        if (snapshot.updatedAtMs <= local.updatedAtMs) return ContinuityMergeResult.LocalNewer
+        if (local.status == DurableTaskStatus.RUNNING) return ContinuityMergeResult.LocalExecutionActive
+
+        val remoteSteps = snapshot.plan.associateBy { it.id }
+        val remoteStatus = if (snapshot.status == DurableTaskStatus.RUNNING) {
+            DurableTaskStatus.PAUSED
+        } else {
+            snapshot.status
+        }
+        val merged = local.copy(
+            status = remoteStatus,
+            updatedAtMs = snapshot.updatedAtMs,
+            currentRunId = snapshot.currentRunId,
+            currentStepId = snapshot.currentStepId,
+            progressPercent = snapshot.progressPercent,
+            executionNode = snapshot.executionNode,
+            plan = local.plan.map { localStep ->
+                remoteSteps[localStep.id]?.let { remoteStep ->
+                    localStep.copy(
+                        status = remoteStep.status,
+                        startedAtMs = remoteStep.startedAtMs,
+                        completedAtMs = remoteStep.completedAtMs
+                    )
+                } ?: localStep
+            }
+        ).appendTimeline(
+            TaskTimelineEvent(
+                type = TaskTimelineEventType.CONTINUITY_MERGED,
+                summary = "Newer task progress received from another device",
+                runId = snapshot.currentRunId,
+                stepId = snapshot.currentStepId,
+                recordedAtMs = snapshot.updatedAtMs
+            )
+        )
+        putTask(merged)
+        return ContinuityMergeResult.Merged(remoteWasRunning = snapshot.status == DurableTaskStatus.RUNNING)
+    }
+
     /** Get a task by ID. */
     fun getTask(taskId: String): DurableTask? = taskCache[taskId]
 
@@ -504,7 +563,8 @@ class DurableTaskManager(private val context: Context) {
 
     companion object {
         private const val CHANNEL_ID = "airi_tasks_channel"
-        private const val MAX_TIMELINE_TEXT_CHARS = 280
+         const val MAX_TIMELINE_TEXT_CHARS = 480
+        const val MAX_CONTINUITY_SNAPSHOTS = 250
         private const val MIN_APPROVAL_EXPIRY_MS = 10_000L
         private const val DEFAULT_APPROVAL_EXPIRY_MS = 5 * 60_000L
         private const val MAX_APPROVAL_EXPIRY_MS = 24 * 60 * 60_000L

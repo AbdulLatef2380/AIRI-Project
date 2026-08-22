@@ -94,6 +94,7 @@ class UserProfileRepository(private val context: Context) {
                 crashReportingOptIn  = remote.crashReportingOptIn,
                 sendAgentTelemetry   = remote.sendAgentTelemetry,
                 cloudSyncEnabled     = remote.cloudSyncEnabled,
+                taskContinuitySyncEnabled = remote.taskContinuitySyncEnabled,
                 darkMode             = remote.darkMode,
                 lastUpdatedAtMs      = System.currentTimeMillis()
             )

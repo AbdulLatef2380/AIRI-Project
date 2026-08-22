@@ -1158,4 +1158,36 @@
     <!-- English fallbacks pending native-language review. -->
     <string name="dev_cert_pinning_deferred">Platform TLS verification is active; certificate pinning is pending verification.</string>
     <string name="dev_cert_pinning_active">Certificate pinning is active.</string>
+    <string name="artifact_version_history_cd">Historial de versiones del artefacto</string>
+    <string name="task_continuity_sync_title">Sincronizar el progreso de tareas entre dispositivos</string>
+    <string name="task_continuity_sync_summary">Sincroniza solo el estado de la tarea y el progreso del plan. El contenido, los resultados, las aprobaciones, los archivos y los secretos permanecen en este dispositivo.</string>
+    <string name="task_continuity_sync_requires_cloud">Activa la sincronización en la nube antes de compartir el progreso de tareas.</string>
+    <string name="artifact_restore_version">Restaurar esta versión</string>
+    <string name="execution_center_approval_risk">Riesgo: %1$s</string>
+    <string name="execution_center_approve_once">Permitir una vez</string>
+    <string name="execution_center_approve_task">Permitir para esta tarea</string>
+    <string name="execution_center_deny">Denegar</string>
+    <string name="execution_center_no_approvals">No hay aprobaciones pendientes</string>
+    <string name="execution_center_no_runs">Aún no hay ejecuciones registradas</string>
+    <string name="execution_center_replay">Reproducir actividad</string>
+    <string name="execution_center_tab_approvals">Aprobaciones</string>
+    <string name="execution_center_tab_runs">Ejecuciones</string>
+    <string name="library_file_state">Estado: %1$s</string>
+    <string name="library_generated_artifacts">Artefactos generados</string>
+    <string name="library_import_file">Importar archivo</string>
+    <string name="library_index_file">Añadir al conocimiento</string>
+    <string name="library_no_files">Aún no hay archivos del proyecto</string>
+    <string name="library_no_files_description">Importa un archivo para mantenerlo organizado y disponible para tu proyecto.</string>
+    <string name="library_no_matching_files">No hay archivos coincidentes</string>
+    <string name="library_no_matching_files_description">Prueba con otro término de búsqueda.</string>
+    <string name="library_project_files">Archivos del proyecto</string>
+    <string name="library_search_files">Buscar archivos</string>
+    <string name="library_select_project_description">Elige un proyecto antes de gestionar sus archivos.</string>
+    <string name="library_select_project_title">Selecciona un proyecto</string>
+    <string name="library_title">Biblioteca</string>
+    <string name="library_toggle_favorite">Cambiar favorito</string>
+    <string name="memory_scope_confidence">Ámbito: %1$s · Confianza: %2$d%%</string>
+    <string name="memory_why_saved">Por qué se guardó</string>
+    <string name="terminal_cancel_command_cd">Cancelar comando</string>
+    <string name="workspace_context_summary">%1$d tareas · %2$d archivos · %3$d artefactos</string>
 </resources>

@@ -49,6 +49,8 @@ fun PrivacyDataSettingsScreen(
     // sign-out) and surfaces structured results so the UI can respond correctly
     // to each outcome without embedding any deletion business logic here.
     val coordinator = remember { ServiceLocator.dataDeletionCoordinator }
+    val profileRepository = remember { ServiceLocator.userProfileRepository }
+    val profile by profileRepository.profile.collectAsState()
 
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -139,6 +141,46 @@ fun PrivacyDataSettingsScreen(
                             )
                         }
                     }
+                }
+                Divider(
+                    color    = AiriTheme.onBackground.copy(alpha = 0.06f),
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Sync,
+                        contentDescription = null,
+                        tint = AiriTheme.onSurfaceVariant
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.task_continuity_sync_title),
+                            color = AiriTheme.onSurface,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = stringResource(
+                                if (profile.cloudSyncEnabled) {
+                                    R.string.task_continuity_sync_summary
+                                } else {
+                                    R.string.task_continuity_sync_requires_cloud
+                                }
+                            ),
+                            color = AiriTheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Switch(
+                        checked = profile.taskContinuitySyncEnabled,
+                        enabled = profile.cloudSyncEnabled,
+                        onCheckedChange = { enabled ->
+                            profileRepository.update { copy(taskContinuitySyncEnabled = enabled) }
+                        }
+                    )
                 }
                 Divider(
                     color    = AiriTheme.onBackground.copy(alpha = 0.06f),

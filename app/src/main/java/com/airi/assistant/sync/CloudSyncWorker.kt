@@ -53,7 +53,9 @@ class CloudSyncWorker(
 
         return runCatching {
             ServiceLocator.cloudSyncCoordinator.pull()
+            ServiceLocator.cloudSyncCoordinator.pullTaskContinuity(ServiceLocator.durableTaskManager)
             ServiceLocator.cloudSyncCoordinator.push()
+            ServiceLocator.cloudSyncCoordinator.pushTaskContinuity(ServiceLocator.durableTaskManager)
             LoggingService.info(TAG, "AIRI CLOUD_SYNC_WORKER_OK")
             Result.success()
         }.getOrElse { e ->

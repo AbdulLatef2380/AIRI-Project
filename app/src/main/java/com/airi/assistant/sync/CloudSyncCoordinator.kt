@@ -2,6 +2,11 @@ package com.airi.assistant.sync
 
 import android.util.Log
 import com.airi.assistant.domain.logging.LoggingService
+import com.airi.assistant.agent.durable.ContinuityMergeResult
+import com.airi.assistant.agent.durable.DurableTaskManager
+import com.airi.assistant.agent.durable.DurableTaskStatus
+import com.airi.assistant.agent.durable.TaskContinuitySnapshot
+import com.airi.assistant.agent.durable.TaskStepStatus
 import com.airi.assistant.memory.entity.ChatMessage
 import com.airi.assistant.memory.repository.MemoryManager
 import com.airi.assistant.profile.UserPreferences
@@ -256,6 +261,128 @@ class CloudSyncCoordinator(
         }
     }
 
+    /**
+     * Pushes content-free durable task progress metadata when the user has
+     * explicitly opted in to continuity. This is a state handoff signal, not
+     * a remote execution protocol: task input, result, checkpoints, approvals,
+     * diagnostics, timeline text, artifacts, and secrets are never uploaded.
+     */
+    suspend fun pushTaskContinuity(taskManager: DurableTaskManager) {
+        val prefs = profileRepo.current
+        if (!prefs.cloudSyncEnabled || !prefs.taskContinuitySyncEnabled) return
+        val uid = auth.currentUser?.uid ?: return
+        val db = db ?: return
+        val snapshots = taskManager.continuitySnapshots()
+        if (snapshots.isEmpty()) return
+
+        _syncStatus.value = SyncStatus.SYNCING
+        runCatching {
+            val batch = db.batch()
+            snapshots.forEach { snapshot ->
+                batch.set(
+                    db.collection("users").document(uid)
+                        .collection("task_continuity").document(snapshot.taskId),
+                    continuityToDocument(snapshot),
+                    SetOptions.merge()
+                )
+            }
+            batch.commit().await()
+            _syncStatus.value = SyncStatus.SUCCESS
+            LoggingService.info(TAG, "AIRI TASK_CONTINUITY_PUSH_OK count=${snapshots.size}")
+        }.onFailure { error ->
+            _syncStatus.value = SyncStatus.FAILED
+            LoggingService.warn(TAG, "AIRI TASK_CONTINUITY_PUSH_FAILED type=${error.javaClass.simpleName}")
+        }
+    }
+
+    /**
+     * Pulls newer content-free progress snapshots for tasks already known on
+     * this device. Unknown tasks are deliberately ignored: continuity sync
+     * cannot materialise a task without its local user-approved specification.
+     */
+    suspend fun pullTaskContinuity(taskManager: DurableTaskManager) {
+        val prefs = profileRepo.current
+        if (!prefs.cloudSyncEnabled || !prefs.taskContinuitySyncEnabled) return
+        val uid = auth.currentUser?.uid ?: return
+        val db = db ?: return
+
+        _syncStatus.value = SyncStatus.SYNCING
+        runCatching {
+            val documents = db.collection("users").document(uid)
+                .collection("task_continuity")
+                .limit(MAX_TASK_CONTINUITY_PULL.toLong())
+                .get()
+                .await()
+            var merged = 0
+            var ignored = 0
+            documents.forEach { document ->
+                val snapshot = documentToContinuity(document.data ?: return@forEach)
+                when (snapshot?.let(taskManager::mergeContinuitySnapshot)) {
+                    is ContinuityMergeResult.Merged -> merged++
+                    else -> ignored++
+                }
+            }
+            _syncStatus.value = SyncStatus.SUCCESS
+            LoggingService.info(TAG, "AIRI TASK_CONTINUITY_PULL_OK merged=$merged ignored=$ignored")
+        }.onFailure { error ->
+            _syncStatus.value = SyncStatus.FAILED
+            LoggingService.warn(TAG, "AIRI TASK_CONTINUITY_PULL_FAILED type=${error.javaClass.simpleName}")
+        }
+    }
+
+    private fun continuityToDocument(snapshot: TaskContinuitySnapshot): Map<String, Any?> = mapOf(
+        "schemaVersion" to snapshot.schemaVersion,
+        "taskId" to snapshot.taskId,
+        "projectId" to snapshot.projectId,
+        "status" to snapshot.status.name,
+        "updatedAtMs" to snapshot.updatedAtMs,
+        "currentRunId" to snapshot.currentRunId,
+        "currentStepId" to snapshot.currentStepId,
+        "progressPercent" to snapshot.progressPercent,
+        "plan" to snapshot.plan.map { step ->
+            mapOf(
+                "id" to step.id,
+                "status" to step.status.name,
+                "startedAtMs" to step.startedAtMs,
+                "completedAtMs" to step.completedAtMs
+            )
+        }
+    )
+
+    @Suppress("UNCHECKED_CAST")
+    private fun documentToContinuity(document: Map<String, Any?>): TaskContinuitySnapshot? {
+        val taskId = document["taskId"] as? String ?: return null
+        val status = runCatching {
+            DurableTaskStatus.valueOf(document["status"] as? String ?: return null)
+        }.getOrNull() ?: return null
+        val updatedAtMs = document["updatedAtMs"] as? Long ?: return null
+        val rawPlan = document["plan"] as? List<Map<String, Any?>> ?: emptyList()
+        val plan = rawPlan.mapNotNull { rawStep ->
+            val id = rawStep["id"] as? String ?: return@mapNotNull null
+            val stepStatus = runCatching {
+                TaskStepStatus.valueOf(rawStep["status"] as? String ?: return@mapNotNull null)
+            }.getOrNull() ?: return@mapNotNull null
+            TaskContinuitySnapshot.StepState(
+                id = id,
+                status = stepStatus,
+                startedAtMs = rawStep["startedAtMs"] as? Long ?: -1L,
+                completedAtMs = rawStep["completedAtMs"] as? Long ?: -1L
+            )
+        }
+        return TaskContinuitySnapshot(
+            schemaVersion = (document["schemaVersion"] as? Long)?.toInt() ?: 0,
+            taskId = taskId,
+            projectId = document["projectId"] as? String,
+            status = status,
+            updatedAtMs = updatedAtMs,
+            currentRunId = document["currentRunId"] as? String,
+            currentStepId = document["currentStepId"] as? String,
+            progressPercent = (document["progressPercent"] as? Long)?.toInt() ?: -1,
+            executionNode = null,
+            plan = plan
+        )
+    }
+
     private val _lastMemorySyncMs = MutableStateFlow(0L)
     val lastMemorySyncMs: StateFlow<Long> = _lastMemorySyncMs.asStateFlow()
 
@@ -287,6 +414,7 @@ class CloudSyncCoordinator(
         const val MAX_MEMORY_BATCH         = 100   // rows per push call
         const val MAX_MEMORY_PULL          = 500   // rows per pull call
         const val MAX_MEMORY_CONTENT_CHARS = 2_000 // hard cap per memory row
+        const val MAX_TASK_CONTINUITY_PULL  = 250
     }
 
     private fun observeRemote() {
@@ -326,6 +454,7 @@ class CloudSyncCoordinator(
         "crashReportingOptIn"   to p.crashReportingOptIn,
         "sendAgentTelemetry"    to p.sendAgentTelemetry,
         "cloudSyncEnabled"      to p.cloudSyncEnabled,
+        "taskContinuitySyncEnabled" to p.taskContinuitySyncEnabled,
         "darkMode"              to p.darkMode.name,
         "lastUpdatedAtMs"       to p.lastUpdatedAtMs
     )
@@ -354,6 +483,7 @@ class CloudSyncCoordinator(
             crashReportingOptIn      = bool("crashReportingOptIn", base.crashReportingOptIn),
             sendAgentTelemetry       = bool("sendAgentTelemetry", base.sendAgentTelemetry),
             cloudSyncEnabled         = bool("cloudSyncEnabled", base.cloudSyncEnabled),
+            taskContinuitySyncEnabled = bool("taskContinuitySyncEnabled", base.taskContinuitySyncEnabled),
             darkMode                 = runCatching { UserPreferences.DarkMode.valueOf(str("darkMode", base.darkMode.name)) }.getOrDefault(base.darkMode),
             lastUpdatedAtMs          = (doc["lastUpdatedAtMs"] as? Long) ?: base.lastUpdatedAtMs
         )

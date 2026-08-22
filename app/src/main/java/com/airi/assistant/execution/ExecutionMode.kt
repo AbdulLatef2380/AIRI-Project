@@ -34,8 +34,8 @@ enum class ExecutionMode {
  *
  *  - MAXIMUM     — never send data to cloud even when mode is HYBRID.
  *                  Equivalent to forcing LOCAL_ONLY at the privacy layer.
- *  - BALANCED    — send to cloud with sanitization: strip paths, secrets,
- *                  accessibility context; truncate to 4096 chars.
+ *  - BALANCED    — send to cloud with sanitization across prompt, system prompt,
+ *                  and history; strip sensitive identifiers and apply field budgets.
  *  - PERFORMANCE — send full context to cloud (user's explicit opt-in).
  */
 enum class PrivacyLevel {

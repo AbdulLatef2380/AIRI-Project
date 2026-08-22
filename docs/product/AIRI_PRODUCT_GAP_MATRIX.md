@@ -35,7 +35,7 @@
 | T0-13 | Secret Broker | استخدام credential دون كشف القيمة الخام | `PARTIAL` | Keystore-backed SecretVault يصدر capability مقيدة بالوكيل/العملية/المدة/الاستخدام ويستهلكها داخل provider callback؛ المتبقي audit دائم وrotation وربط كل provider/connector بقبول capability | Android/Desktop | tool receives ephemeral capability, not raw secret |
 | T0-14 | AIRI Mesh | اختيار node مناسب لتنفيذ المهمة | `PARTIAL` | `TaskContinuitySnapshot` يحمل execution progress منقحاً ويمتنع عن التنفيذ عن بُعد أو إنشاء مهمة مجهولة؛ المتبقي device presence/capability registry، paired-node trust، transport authentication، routing وتنفيذ node مصرح به | Android/Desktop/External | تنفيذ آمن على node مصرح به فقط |
 | T0-15 | Continuity | متابعة نفس المهمة من جهاز آخر | `PARTIAL` | opt-in Firestore sync يرفع/يسحب snapshot حالة وخطوات مهام منقحاً عبر `CloudSyncWorker`، يدمج الأحدث في مهمة محلية معروفة فقط ويحوّل remote RUNNING إلى PAUSED لمنع duplicate execution؛ المتبقي security rules، identity/trust للأجهزة، encryption/rotation، artifacts/logs، وresume صريح على جهاز ثانٍ | Android/Desktop/External | فتح المهمة على جهاز ثانٍ واستكمالها دون فقدان الحالة |
-| T0-16 | Diagnostics | معرفة سبب الفشل بدون تسريب الأسرار | `PARTIAL` | إكمال trace Task→Run→Step→Tool→Provider→Recovery مع export منقح | Core/Android/Desktop | diagnostic bundle لا يحتوي secrets أو raw prompts الحساسة |
+| T0-16 | Diagnostics | معرفة سبب الفشل بدون تسريب الأسرار | `PARTIAL` | `PrivacyGuard` ينقّح prompt/system/history قبل كل adapter سحابي في Balanced ويسجل redaction categories فقط؛ المتبقي trace Task→Run→Step→Tool→Provider→Recovery كامل وexport منقح وواجهة أدلة قابلة للاستخدام | Core/Android/Desktop | diagnostic bundle لا يحتوي secrets أو raw prompts الحساسة |
 
 ## Tier 1: بيئة التطوير والإنتاج
 

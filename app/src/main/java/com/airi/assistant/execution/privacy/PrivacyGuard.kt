@@ -5,57 +5,37 @@ import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.PrivacyLevel
 
 /**
- * Sanitizes prompts before they leave the device and enforces the
- * user's privacy settings at the execution boundary.
+ * Sanitizes cloud-bound execution requests and enforces the user's privacy settings.
  *
- * The guard is the last line of defence before any bytes travel over
- * the network. It is called by [HybridOrchestrator] on EVERY request
- * routed to a cloud backend — even if the caller believes it has already
- * sanitized the input.
+ * The guard is the final in-process boundary before a cloud backend receives an
+ * [ExecutionRequest]. It must be called for every cloud dispatch, and it cleans every
+ * text field adapters can serialize: the prompt, system prompt, and conversation history.
  *
- * ## What it strips
- *  - Android filesystem paths   (`/data/`, `/sdcard/`, `/storage/`, `content://`)
- *  - API keys / bearer tokens   (`sk-…`, `AIza…`, `Bearer …`, `ghp_…`)
- *  - Private IP addresses       (192.168.x.x, 10.x.x.x, 172.16–31.x.x)
- *  - GPS coordinates            (lat/lon patterns)
- *  - IMEI / serial number patterns
- *
- * ## What it blocks entirely
- *  - [PrivacyLevel.MAXIMUM] + any cloud target → [SanitizationResult.Blocked]
- *  - [ExecutionMode.LOCAL_ONLY] + any cloud target → [SanitizationResult.Blocked]
- *  - Requests whose prompt contains `<accessibility_context>` tags without
- *    explicit user approval → strips the block
- *
- * ## Performance contract
- *  All operations are synchronous regex + string operations running on
- *  whatever thread the caller is on (expected: Dispatchers.Default).
- *  No I/O, no allocations beyond the sanitized string.
+ * In [PrivacyLevel.BALANCED], filesystem paths, content URIs, access tokens, private
+ * network addresses, coordinates, device identifiers, and accessibility context are
+ * replaced with stable markers. Audit metadata contains category names only; it never
+ * includes a matched value. [PrivacyLevel.MAXIMUM] and [ExecutionMode.LOCAL_ONLY]
+ * block cloud dispatch entirely. [PrivacyLevel.PERFORMANCE] remains an explicit opt-in
+ * to send full context.
  */
 object PrivacyGuard {
 
     /**
-     * Evaluate whether [request] may be sent to a cloud backend and, if so,
-     * what the sanitized version looks like.
-     *
-     * @param request       The request that will be sent to cloud.
-     * @param privacyLevel  User's configured privacy level.
-     * @param execMode      Resolved execution mode (after prefs/safety gates).
-     * @return [SanitizationResult] — either [SanitizationResult.Allowed] with
-     *         a sanitized copy of [request], or [SanitizationResult.Blocked].
+     * Returns a request safe for a cloud adapter, or a blocking result when cloud use is
+     * disallowed. The returned request, rather than the caller's original request, must be
+     * passed to every cloud provider.
      */
     fun evaluate(
-        request:      ExecutionRequest,
+        request: ExecutionRequest,
         privacyLevel: PrivacyLevel,
-        execMode:     ExecutionMode
+        execMode: ExecutionMode
     ): SanitizationResult {
-        // Hard block: privacy or mode forbids cloud.
         if (privacyLevel == PrivacyLevel.MAXIMUM || execMode == ExecutionMode.LOCAL_ONLY) {
             return SanitizationResult.Blocked(
                 reason = "PrivacyGuard: mode=$execMode privacy=$privacyLevel — cloud calls blocked"
             )
         }
 
-        // PERFORMANCE level: trust the user, pass through unchanged.
         if (privacyLevel == PrivacyLevel.PERFORMANCE) {
             return SanitizationResult.Allowed(
                 sanitized = request,
@@ -63,62 +43,87 @@ object PrivacyGuard {
             )
         }
 
-        // BALANCED: sanitize sensitive patterns.
         val stripped = mutableListOf<String>()
-
-        var prompt       = request.prompt
-        var systemPrompt = request.systemPrompt
-
-        // Strip Android file system paths.
-        PATH_REGEX.findAll(prompt).forEach { stripped += "path:${it.value.take(40)}" }
-        prompt       = PATH_REGEX.replace(prompt,       "[PATH_REDACTED]")
-        systemPrompt = PATH_REGEX.replace(systemPrompt, "[PATH_REDACTED]")
-
-        // Strip content:// URIs.
-        CONTENT_URI_REGEX.findAll(prompt).forEach { stripped += "uri:${it.value.take(40)}" }
-        prompt       = CONTENT_URI_REGEX.replace(prompt,       "[URI_REDACTED]")
-        systemPrompt = CONTENT_URI_REGEX.replace(systemPrompt, "[URI_REDACTED]")
-
-        // Strip API keys / bearer tokens.
-        API_KEY_REGEX.findAll(prompt).forEach { stripped += "apikey" }
-        prompt       = API_KEY_REGEX.replace(prompt,       "[KEY_REDACTED]")
-        systemPrompt = API_KEY_REGEX.replace(systemPrompt, "[KEY_REDACTED]")
-
-        // Strip private IP addresses.
-        PRIVATE_IP_REGEX.findAll(prompt).forEach { stripped += "ip" }
-        prompt       = PRIVATE_IP_REGEX.replace(prompt,       "[IP_REDACTED]")
-        systemPrompt = PRIVATE_IP_REGEX.replace(systemPrompt, "[IP_REDACTED]")
-
-        // Strip GPS coordinates (rough pattern: ±dd.dddddd, ±ddd.dddddd).
-        GPS_REGEX.findAll(prompt).forEach { stripped += "gps" }
-        prompt       = GPS_REGEX.replace(prompt,       "[GPS_REDACTED]")
-        systemPrompt = GPS_REGEX.replace(systemPrompt, "[GPS_REDACTED]")
-
-        // Strip accessibility context blocks (may contain private screen content).
-        ACCESSIBILITY_BLOCK_REGEX.findAll(prompt).forEach { stripped += "a11y_context" }
-        prompt       = ACCESSIBILITY_BLOCK_REGEX.replace(prompt,       "[A11Y_REDACTED]")
-        systemPrompt = ACCESSIBILITY_BLOCK_REGEX.replace(systemPrompt, "[A11Y_REDACTED]")
-
-        // Truncate to avoid accidentally uploading huge local context.
-        val maxChars = MAX_CLOUD_PROMPT_CHARS
-        if (prompt.length > maxChars) {
-            stripped += "truncated(${prompt.length}→$maxChars)"
-            prompt = prompt.take(maxChars) + "\n[…truncated by PrivacyGuard]"
-        }
-        if (systemPrompt.length > MAX_CLOUD_SYSTEM_CHARS) {
-            systemPrompt = systemPrompt.take(MAX_CLOUD_SYSTEM_CHARS)
-        }
+        val prompt = sanitizeText(request.prompt, stripped).limitTo(
+            MAX_CLOUD_PROMPT_CHARS,
+            category = "prompt_truncated",
+            stripped = stripped
+        )
+        val systemPrompt = sanitizeText(request.systemPrompt, stripped).limitTo(
+            MAX_CLOUD_SYSTEM_CHARS,
+            category = "system_prompt_truncated",
+            stripped = stripped
+        )
+        val history = sanitizeHistory(request.conversationHistory, stripped)
 
         return SanitizationResult.Allowed(
-            sanitized    = request.copy(prompt = prompt, systemPrompt = systemPrompt),
+            sanitized = request.copy(
+                prompt = prompt,
+                systemPrompt = systemPrompt,
+                conversationHistory = history
+            ),
             strippedItems = stripped
         )
     }
 
-    // ── Regex patterns ────────────────────────────────────────────────────────
+    private fun sanitizeHistory(
+        history: List<ExecutionRequest.ConversationTurn>,
+        stripped: MutableList<String>
+    ): List<ExecutionRequest.ConversationTurn> {
+        var remaining = MAX_CLOUD_HISTORY_CHARS
+        val retainedNewestFirst = mutableListOf<ExecutionRequest.ConversationTurn>()
+        for (turn in history.asReversed()) {
+            if (remaining == 0) {
+                stripped += "history_truncated"
+                break
+            }
+            val sanitized = sanitizeText(turn.content, stripped)
+            val content = sanitized.limitTo(remaining, "history_truncated", stripped)
+            retainedNewestFirst += turn.copy(content = content)
+            remaining -= content.length
+        }
+        return retainedNewestFirst.asReversed()
+    }
+
+    private fun sanitizeText(value: String, stripped: MutableList<String>): String {
+        var sanitized = value
+        sanitized = sanitized.replaceTracked(PATH_REGEX, "[PATH_REDACTED]", "path", stripped)
+        sanitized = sanitized.replaceTracked(CONTENT_URI_REGEX, "[URI_REDACTED]", "uri", stripped)
+        sanitized = sanitized.replaceTracked(API_KEY_REGEX, "[KEY_REDACTED]", "credential", stripped)
+        sanitized = sanitized.replaceTracked(PRIVATE_IP_REGEX, "[IP_REDACTED]", "private_ip", stripped)
+        sanitized = sanitized.replaceTracked(GPS_REGEX, "[GPS_REDACTED]", "gps", stripped)
+        sanitized = sanitized.replaceTracked(DEVICE_IDENTIFIER_REGEX, "[DEVICE_ID_REDACTED]", "device_id", stripped)
+        return sanitized.replaceTracked(
+            ACCESSIBILITY_BLOCK_REGEX,
+            "[A11Y_REDACTED]",
+            "a11y_context",
+            stripped
+        )
+    }
+
+    private fun String.replaceTracked(
+        expression: Regex,
+        replacement: String,
+        category: String,
+        stripped: MutableList<String>
+    ): String {
+        val matches = expression.findAll(this).count()
+        if (matches > 0) repeat(matches) { stripped += category }
+        return expression.replace(this, replacement)
+    }
+
+    private fun String.limitTo(
+        maximum: Int,
+        category: String,
+        stripped: MutableList<String>
+    ): String {
+        if (length <= maximum) return this
+        stripped += category
+        return take(maximum) + "\n[…truncated by PrivacyGuard]"
+    }
 
     private val PATH_REGEX = Regex(
-        """(?:/data/|/sdcard/|/storage/emulated/|/cache/|/files/)[^\s'"]{0,120}"""
+        """(?:file://)?(?:/data/|/sdcard/|/storage/emulated/|/cache/|/files/)[^\s'"]{0,120}"""
     )
 
     private val CONTENT_URI_REGEX = Regex(
@@ -126,7 +131,7 @@ object PrivacyGuard {
     )
 
     private val API_KEY_REGEX = Regex(
-        """(?:sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z\-_]{35}|ghp_[A-Za-z0-9]{36}|Bearer\s+[A-Za-z0-9\-._~+/]{20,}|api[_\-]?key\s*[:=]\s*['""]?[A-Za-z0-9\-_]{16,})""",
+        """(?:sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z\-_]{35}|ghp_[A-Za-z0-9]{36}|Bearer\s+[A-Za-z0-9\-._~+/]{20,}|api[_\-]?key\s*[:=]\s*['"]?[A-Za-z0-9\-_]{16,})""",
         setOf(RegexOption.IGNORE_CASE)
     )
 
@@ -138,11 +143,17 @@ object PrivacyGuard {
         """[-+]?(?:[1-8]?\d(?:\.\d{4,})|90(?:\.0+)?),\s*[-+]?(?:180(?:\.0+)?|(?:(?:1[0-7]\d)|(?:[1-9]?\d))(?:\.\d{4,}))"""
     )
 
+    private val DEVICE_IDENTIFIER_REGEX = Regex(
+        """(?:\b(?:imei|imeisv|serial(?:\s+(?:number|no\.?))?|sn)\s*[:=#]?\s*)(?:[A-Za-z0-9][A-Za-z0-9._-]{5,})""",
+        RegexOption.IGNORE_CASE
+    )
+
     private val ACCESSIBILITY_BLOCK_REGEX = Regex(
         """<accessibility_context>.*?</accessibility_context>""",
         setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE)
     )
 
-    private const val MAX_CLOUD_PROMPT_CHARS  = 16_000   // ~4 000 tokens
-    private const val MAX_CLOUD_SYSTEM_CHARS  = 4_000    // ~1 000 tokens
+    private const val MAX_CLOUD_PROMPT_CHARS = 16_000
+    private const val MAX_CLOUD_SYSTEM_CHARS = 4_000
+    private const val MAX_CLOUD_HISTORY_CHARS = 12_000
 }

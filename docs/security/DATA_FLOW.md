@@ -8,7 +8,7 @@
 | بيانات محلية دائمة | جلسات، محادثات، تفضيلات، حقائق صريحة، مرفقات خاصة | تحفظ محلياً ضمن Room أو تخزين التطبيق. |
 | بيانات حساسة | مفاتيح، tokens، بريد، هاتف، رقم بطاقة محتمل | تمنع سياسة الذاكرة حفظها كذاكرة طويلة المدى. |
 | بيانات غير موثوقة | ملف نصي، محتوى Web، RAG، استجابة موصل | تُحد وتوسم كبيانات، لا تعليمات تنفيذ. |
-| بيانات مزود خارجي | prompt أو مرفق أرسله المستخدم لمسار cloud | تغادر فقط عند اختيار مزود/مسار سحابي مهيأ. |
+| بيانات مزود خارجي | `prompt` و`systemPrompt` وhistory ومرفق أرسله المستخدم لمسار cloud | تغادر فقط عند اختيار مزود/مسار سحابي مهيأ؛ في Balanced تنقّح `PrivacyGuard` الحقول النصية قبل adapter، أما Performance فهو opt-in صريح للسياق الكامل. |
 
 ## المحادثة والذاكرة
 
@@ -20,7 +20,7 @@ User message
   │      └─ explicit important memory → local long-term store
   └─→ selected model request
            ├─ local model: remains on device
-           └─ configured cloud provider: request leaves device
+           └─ configured cloud provider: `PrivacyGuard` يقرر block أو يمرر نسخة متوازنة من prompt/system/history ثم يغادر الطلب الجهاز
 ```
 
 ## المرفقات

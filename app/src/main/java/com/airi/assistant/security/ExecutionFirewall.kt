@@ -43,56 +43,6 @@ class ExecutionFirewall(
 
     private val TAG = "ExecutionFirewall"
 
-    private val toolPermissionMap: Map<String, ScopedPermissionRegistry.AgentPermission> = mapOf(
-        // Calendar
-        "calendar_read"       to ScopedPermissionRegistry.AgentPermission.READ_CALENDAR,
-        "calendar_create"     to ScopedPermissionRegistry.AgentPermission.WRITE_CALENDAR,
-        "calendar_update"     to ScopedPermissionRegistry.AgentPermission.WRITE_CALENDAR,
-        "calendar_delete"     to ScopedPermissionRegistry.AgentPermission.WRITE_CALENDAR,
-
-        // Alarms
-        "alarm_set"           to ScopedPermissionRegistry.AgentPermission.SET_ALARM,
-        "alarm_cancel"        to ScopedPermissionRegistry.AgentPermission.SET_ALARM,
-
-        // Notifications
-        "notification_post"   to ScopedPermissionRegistry.AgentPermission.POST_NOTIFICATIONS,
-
-        // Search / web
-        "search_web"          to ScopedPermissionRegistry.AgentPermission.SEARCH_WEB,
-        "web_search"          to ScopedPermissionRegistry.AgentPermission.SEARCH_WEB,
-        "browser_open"        to ScopedPermissionRegistry.AgentPermission.OPEN_BROWSER,
-
-        // Notes
-        "notes_create"        to ScopedPermissionRegistry.AgentPermission.WRITE_NOTES,
-        "notes_read"          to ScopedPermissionRegistry.AgentPermission.READ_FILES,
-
-        // Files
-        "file_read"           to ScopedPermissionRegistry.AgentPermission.READ_FILES,
-        "file_write"          to ScopedPermissionRegistry.AgentPermission.WRITE_FILES,
-
-        // Memory
-        "memory_read"         to ScopedPermissionRegistry.AgentPermission.READ_MEMORY,
-        "memory_write"        to ScopedPermissionRegistry.AgentPermission.WRITE_MEMORY,
-
-        // Remote LLM
-        "llm_call"            to ScopedPermissionRegistry.AgentPermission.CALL_REMOTE_LLM,
-        "remote_llm"          to ScopedPermissionRegistry.AgentPermission.CALL_REMOTE_LLM,
-
-        // Integrations
-        "github_api"          to ScopedPermissionRegistry.AgentPermission.CALL_GITHUB_API,
-        "telegram_send"       to ScopedPermissionRegistry.AgentPermission.CALL_TELEGRAM_API,
-
-        // Accessibility
-        "accessibility_tap"   to ScopedPermissionRegistry.AgentPermission.ACCESSIBILITY_ACTIONS,
-        "accessibility_type"  to ScopedPermissionRegistry.AgentPermission.ACCESSIBILITY_ACTIONS,
-        "accessibility_scroll" to ScopedPermissionRegistry.AgentPermission.ACCESSIBILITY_ACTIONS,
-        "intent_launch"       to ScopedPermissionRegistry.AgentPermission.TRIGGER_INTENT,
-
-        // Orchestration
-        "spawn_subagent"      to ScopedPermissionRegistry.AgentPermission.SPAWN_SUBAGENT,
-        "cloud_sync"          to ScopedPermissionRegistry.AgentPermission.CLOUD_SYNC
-    )
-
     // ── Per-agent token buckets ────────────────────────────────────────────────
 
     private val buckets = ConcurrentHashMap<String, AgentRateBucket>()
@@ -140,7 +90,7 @@ class ExecutionFirewall(
             throw RateLimitException(agentId, toolName)
         }
 
-        val permission = toolPermissionMap[toolName.lowercase()]
+        val permission = ToolPermissionPolicy.permissionFor(toolName)
             ?: run {
                 LoggingService.warn(TAG, "AIRI FIREWALL_UNKNOWN_TOOL agent=$agentId tool=$toolName")
                 throw UnknownToolException(agentId, toolName)
@@ -155,7 +105,7 @@ class ExecutionFirewall(
      */
     fun allows(agentId: String, toolName: String): Boolean {
         if (!bucketFor(agentId).tryConsume()) return false
-        val permission = toolPermissionMap[toolName.lowercase()] ?: return false
+        val permission = ToolPermissionPolicy.permissionFor(toolName) ?: return false
         return registry.check(agentId, permission)
     }
 

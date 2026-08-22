@@ -289,8 +289,9 @@ object ServiceLocator {
     // ── Phase P6: Permission governance ───────────────────────────────────────
     val permissionGovernanceLayer: com.airi.assistant.security.PermissionGovernanceLayer by lazy {
         com.airi.assistant.security.PermissionGovernanceLayer(
-            firewall  = executionFirewall,
-            scopeReg  = scopedPermissionRegistry
+            firewall = executionFirewall,
+            scopeReg = scopedPermissionRegistry,
+            durableTaskManager = durableTaskManager
         )
     }
 

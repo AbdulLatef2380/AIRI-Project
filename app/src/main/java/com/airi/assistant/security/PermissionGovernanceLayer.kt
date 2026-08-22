@@ -4,6 +4,9 @@ import android.util.Base64
 import android.util.Log
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.ActivitySeverity
+import com.airi.assistant.agent.durable.ApprovalGrantScope
+import com.airi.assistant.agent.durable.DurableTaskManager
+import com.airi.assistant.agent.durable.TaskApprovalStatus
 import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,9 +33,14 @@ class PermissionGovernanceLayer(
     // existing callers (ServiceLocator) don't need a breaking change until the full
     // LLM-based risk estimator is available in a later Wave.
     private val riskProvider:  com.airi.assistant.agent.decision.RiskProvider =
-        com.airi.assistant.world.WorldRiskProvider()
+        com.airi.assistant.world.WorldRiskProvider(),
+    private val durableTaskManager: DurableTaskManager? = null
 ) {
     private val TAG = "PermissionGovernanceLayer"
+
+    private companion object {
+        const val DEFAULT_APPROVAL_EXPIRY_MS = 5 * 60_000L
+    }
 
     enum class RiskLevel { LOW, MEDIUM, HIGH, CRITICAL }
 
@@ -70,11 +78,15 @@ class PermissionGovernanceLayer(
     private val pending = ConcurrentHashMap<String, PendingApproval>()
 
     data class PendingApproval(
-        val id:          String,
-        val action:      String,
+        val id: String,
+        val action: String,
         val description: String,
-        val riskLevel:   RiskLevel,
-        val timestampMs: Long = System.currentTimeMillis()
+        val riskLevel: RiskLevel,
+        val timestampMs: Long = System.currentTimeMillis(),
+        val expiresAtMs: Long = timestampMs + DEFAULT_APPROVAL_EXPIRY_MS,
+        val taskId: String? = null,
+        val runId: String? = null,
+        val stepId: String? = null
     )
 
     // ── Evaluation ────────────────────────────────────────────────────────────
@@ -279,24 +291,104 @@ class PermissionGovernanceLayer(
 
     // ── User approval flow ────────────────────────────────────────────────────
 
-    fun requestApproval(action: String, description: String, riskLevel: RiskLevel): String {
-        val id = java.util.UUID.randomUUID().toString().take(8)
-        val approval = PendingApproval(id, action, description, riskLevel)
-        pending[id] = approval
-        _pendingApprovals.value = pending.values.toList()
+    fun requestApproval(
+        action: String,
+        description: String,
+        riskLevel: RiskLevel,
+        taskId: String? = null,
+        runId: String? = null,
+        stepId: String? = null,
+        expiresInMs: Long = DEFAULT_APPROVAL_EXPIRY_MS
+    ): String {
+        val durableApproval = taskId?.let { id ->
+            durableTaskManager?.requestApproval(
+                taskId = id,
+                action = action,
+                description = description,
+                riskLevel = riskLevel.name,
+                expiresInMs = expiresInMs,
+                runId = runId,
+                stepId = stepId
+            )
+        }
+        val now = System.currentTimeMillis()
+        val approval = PendingApproval(
+            id = durableApproval?.id ?: java.util.UUID.randomUUID().toString().take(12),
+            action = action,
+            description = description,
+            riskLevel = riskLevel,
+            timestampMs = now,
+            expiresAtMs = durableApproval?.expiresAtMs ?: now + expiresInMs,
+            taskId = taskId,
+            runId = runId,
+            stepId = stepId
+        )
+        pending[approval.id] = approval
+        publishPending()
         AgentActivityBus.emit("Awaiting approval: $description", ActivityCategory.SYSTEM, ActivitySeverity.WARN)
-        return id
+        return approval.id
     }
 
-    fun approveAction(approvalId: String) {
-        pending.remove(approvalId)
-        _pendingApprovals.value = pending.values.toList()
-        AgentActivityBus.emit("Action approved: $approvalId", ActivityCategory.SYSTEM)
+    fun approveAction(
+        approvalId: String,
+        grantScope: ApprovalGrantScope = ApprovalGrantScope.ONCE
+    ): Boolean {
+        val approval = pending.remove(approvalId)
+        val approved = if (approval == null) {
+            durableTaskManager?.decideApproval(
+                approvalId = approvalId,
+                status = TaskApprovalStatus.APPROVED,
+                scope = grantScope
+            ) ?: false
+        } else {
+            approval.taskId?.let {
+                durableTaskManager?.decideApproval(
+                    approvalId = approvalId,
+                    status = TaskApprovalStatus.APPROVED,
+                    scope = grantScope
+                ) ?: true
+            } ?: true
+        }
+        publishPending()
+        val message = if (approved) "Action approved: $approvalId" else "Approval expired or unavailable: $approvalId"
+        AgentActivityBus.emit(message, ActivityCategory.SYSTEM, if (approved) ActivitySeverity.INFO else ActivitySeverity.WARN)
+        return approved
     }
 
-    fun denyAction(approvalId: String) {
-        pending.remove(approvalId)
-        _pendingApprovals.value = pending.values.toList()
-        AgentActivityBus.emit("Action denied: $approvalId", ActivityCategory.SYSTEM, ActivitySeverity.WARN)
+    fun denyAction(approvalId: String, reason: String = "Denied by user"): Boolean {
+        val approval = pending.remove(approvalId)
+        val denied = if (approval == null) {
+            durableTaskManager?.decideApproval(
+                approvalId = approvalId,
+                status = TaskApprovalStatus.DENIED,
+                reason = reason
+            ) ?: false
+        } else {
+            approval.taskId?.let {
+                durableTaskManager?.decideApproval(
+                    approvalId = approvalId,
+                    status = TaskApprovalStatus.DENIED,
+                    reason = reason
+                ) ?: true
+            } ?: true
+        }
+        publishPending()
+        if (denied) AgentActivityBus.emit("Action denied: $approvalId", ActivityCategory.SYSTEM, ActivitySeverity.WARN)
+        return denied
+    }
+
+    private fun publishPending(nowMs: Long = System.currentTimeMillis()) {
+        pending.entries.removeIf { (_, approval) ->
+            if (approval.expiresAtMs > nowMs) return@removeIf false
+            approval.taskId?.let { taskId ->
+                durableTaskManager?.decideApproval(
+                    approvalId = approval.id,
+                    status = TaskApprovalStatus.EXPIRED,
+                    reason = "Approval expired"
+                )
+            }
+            true
+        }
+        _pendingApprovals.value = pending.values.sortedBy { it.timestampMs }
     }
 }

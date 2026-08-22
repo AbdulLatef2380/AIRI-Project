@@ -817,6 +817,15 @@
     <!-- Agent Tasks screen -->
     <string name="agent_task_tab_scheduled">مجدول (%1$d)</string>
     <string name="agent_task_tab_completed">مكتمل (%1$d)</string>
+    <string name="execution_center_tab_runs">التشغيلات (%1$d)</string>
+    <string name="execution_center_tab_approvals">الموافقات (%1$d)</string>
+    <string name="execution_center_no_runs">لا توجد تشغيلات بعد</string>
+    <string name="execution_center_no_approvals">لا توجد موافقات بانتظارك</string>
+    <string name="execution_center_replay">سجل التنفيذ</string>
+    <string name="execution_center_approval_risk">المخاطرة: %1$s</string>
+    <string name="execution_center_approve_once">السماح مرة</string>
+    <string name="execution_center_approve_task">السماح للمهمة</string>
+    <string name="execution_center_deny">رفض</string>
     <string name="agent_task_no_scheduled">لا توجد مهام مجدولة\nاضغط + لإضافة مهمة</string>
     <string name="agent_task_no_completed">لا توجد مهام مكتملة</string>
     <string name="agent_task_name_required">أدخل اسم المهمة</string>

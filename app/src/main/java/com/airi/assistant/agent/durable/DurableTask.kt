@@ -91,8 +91,14 @@ data class DurableTask(
     /** Approval request identifiers associated with this task. */
     val approvalIds: List<String> = emptyList(),
 
+    /** Durable approval records for task-owned side effects. */
+    val approvals: List<TaskApproval> = emptyList(),
+
     /** Sanitized diagnostics retained for replay and support export. */
     val diagnostics: List<TaskDiagnostic> = emptyList(),
+
+    /** Ordered, sanitised execution events retained for replay. */
+    val timeline: List<TaskTimelineEvent> = emptyList(),
 
     /** Memory boundary applied to the task. */
     val memoryScope: TaskScope = TaskScope.SESSION,
@@ -251,6 +257,34 @@ data class DurableTask(
         runs = finishCurrentRun(TaskRunStatus.CANCELLED, nowMs)
     )
 
+    fun requestApproval(approval: TaskApproval): DurableTask = copy(
+        approvalIds = (approvalIds + approval.id).distinct(),
+        approvals = approvals.filterNot { it.id == approval.id } + approval,
+        updatedAtMs = approval.requestedAtMs
+    )
+
+    fun decideApproval(
+        approvalId: String,
+        status: TaskApprovalStatus,
+        scope: ApprovalGrantScope,
+        reason: String = "",
+        nowMs: Long = System.currentTimeMillis()
+    ): DurableTask = copy(
+        approvals = approvals.map { approval ->
+            if (approval.id == approvalId) {
+                approval.copy(
+                    status = status,
+                    grantScope = scope,
+                    decisionReason = reason,
+                    decidedAtMs = nowMs
+                )
+            } else {
+                approval
+            }
+        },
+        updatedAtMs = nowMs
+    )
+
     fun addDiagnostic(
         diagnostic: TaskDiagnostic,
         nowMs: Long = System.currentTimeMillis()
@@ -258,6 +292,18 @@ data class DurableTask(
         diagnostics = diagnostics + diagnostic,
         updatedAtMs = nowMs
     )
+
+    fun appendTimeline(
+        event: TaskTimelineEvent,
+        maxEvents: Int = MAX_TIMELINE_EVENTS
+    ): DurableTask = copy(
+        timeline = (timeline + event).takeLast(maxEvents.coerceAtLeast(1)),
+        updatedAtMs = event.recordedAtMs
+    )
+
+    private companion object {
+        const val MAX_TIMELINE_EVENTS = 400
+    }
 
     private fun finishCurrentRun(
         status: TaskRunStatus,
@@ -320,6 +366,59 @@ data class TaskRun(
     val currentStepId: String? = null,
     val status: TaskRunStatus,
     val error: String = ""
+)
+
+enum class TaskApprovalStatus {
+    PENDING,
+    APPROVED,
+    DENIED,
+    EXPIRED
+}
+
+enum class ApprovalGrantScope {
+    ONCE,
+    TASK,
+    PROJECT
+}
+
+data class TaskApproval(
+    val id: String,
+    val action: String,
+    val description: String,
+    val riskLevel: String,
+    val requestedAtMs: Long = System.currentTimeMillis(),
+    val expiresAtMs: Long,
+    val status: TaskApprovalStatus = TaskApprovalStatus.PENDING,
+    val grantScope: ApprovalGrantScope = ApprovalGrantScope.ONCE,
+    val decisionReason: String = "",
+    val decidedAtMs: Long = -1L,
+    val runId: String? = null,
+    val stepId: String? = null
+)
+
+enum class TaskTimelineEventType {
+    TASK_REGISTERED,
+    RUN_STARTED,
+    STEP_STARTED,
+    STEP_PROGRESS,
+    TOOL_REQUESTED,
+    APPROVAL_REQUESTED,
+    APPROVAL_DECIDED,
+    RECOVERY_ATTEMPTED,
+    STEP_COMPLETED,
+    STEP_FAILED,
+    TASK_COMPLETED,
+    TASK_FAILED,
+    TASK_CANCELLED
+}
+
+data class TaskTimelineEvent(
+    val type: TaskTimelineEventType,
+    val summary: String,
+    val detail: String = "",
+    val runId: String? = null,
+    val stepId: String? = null,
+    val recordedAtMs: Long = System.currentTimeMillis()
 )
 
 data class TaskDiagnostic(

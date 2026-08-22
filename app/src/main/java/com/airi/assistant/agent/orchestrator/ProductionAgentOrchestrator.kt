@@ -229,6 +229,7 @@ class ProductionAgentOrchestrator {
                     durableTaskManager?.updateExecutionStep(
                         taskId = executionId,
                         stepId = task.id,
+                        progressPercent = 0,
                         progressMessage = "Running ${task.description.take(80)}"
                     )
                     // Inject workspace-resolved artifacts alongside dependency results
@@ -382,6 +383,7 @@ class ProductionAgentOrchestrator {
         var resultText = ""
         var taskError: String? = null
         val toolsUsed = mutableListOf<String>()
+        val durableTaskId = context.parentTaskId.takeIf { it.isNotBlank() }
 
         val timeoutMs = if (context.timeoutMs > 0) context.timeoutMs else 30_000L
 
@@ -447,15 +449,23 @@ class ProductionAgentOrchestrator {
                                 // ── Observability: record every real tool call ─
                                 observabilityHub?.recordToolCall(event.toolName)
                                 // ── Checkpoint after each tool call ──
-                                durableTaskManager?.updateCheckpoint(
-                                    taskId          = task.id,
-                                    checkpointData  = "tool:${event.toolName}",
-                                    progressMessage = "Used tool: ${event.toolName}"
-                                )
+                                durableTaskId?.let { parentTaskId ->
+                                    durableTaskManager?.updateCheckpoint(
+                                        taskId = parentTaskId,
+                                        checkpointData = "tool:${event.toolName}",
+                                        progressMessage = "Used tool: ${event.toolName}"
+                                    )
+                                    durableTaskManager?.recordTimeline(
+                                        taskId = parentTaskId,
+                                        type = com.airi.assistant.agent.durable.TaskTimelineEventType.TOOL_REQUESTED,
+                                        summary = "Tool requested: ${event.toolName}",
+                                        stepId = task.id
+                                    )
+                                }
                             }
                             is AgentEvent.Progress -> {
                                 Log.d(TAG, "Progress [${event.percentComplete}%] ${event.message}")
-                                context.parentTaskId.takeIf { it.isNotBlank() }?.let { parentTaskId ->
+                                durableTaskId?.let { parentTaskId ->
                                     durableTaskManager?.updateExecutionStep(
                                         taskId = parentTaskId,
                                         stepId = task.id,
@@ -480,6 +490,15 @@ class ProductionAgentOrchestrator {
             // On timeout, allow one retry with half the time budget
             if (retryAttempt == 0) {
                 Log.i(TAG, "Recovery: timeout retry attempt=1 task=${task.id}")
+                durableTaskId?.let { parentTaskId ->
+                    durableTaskManager?.recordTimeline(
+                        taskId = parentTaskId,
+                        type = com.airi.assistant.agent.durable.TaskTimelineEventType.RECOVERY_ATTEMPTED,
+                        summary = "Retrying after timeout",
+                        detail = "Attempt 1 with reduced time budget",
+                        stepId = task.id
+                    )
+                }
                 val retryContext = context.copy(timeoutMs = timeoutMs / 2)
                 val retryResult  = executeTask(
                     task.copy(context = retryContext), retryContext,
@@ -524,6 +543,15 @@ class ProductionAgentOrchestrator {
                 TaskResult.Failure(error)
             } else {
                 Log.i(TAG, "Recovery: retrying task=${task.id} attempt=${retryAttempt + 1}")
+                durableTaskId?.let { parentTaskId ->
+                    durableTaskManager?.recordTimeline(
+                        taskId = parentTaskId,
+                        type = com.airi.assistant.agent.durable.TaskTimelineEventType.RECOVERY_ATTEMPTED,
+                        summary = "Retrying after recoverable failure",
+                        detail = "Attempt ${retryAttempt + 1}",
+                        stepId = task.id
+                    )
+                }
                 executeTask(task, context, onEvent, allEvents, workspace, retryAttempt + 1)
             }
             taskSpanId?.let {

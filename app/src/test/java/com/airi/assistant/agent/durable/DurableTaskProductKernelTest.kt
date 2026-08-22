@@ -57,6 +57,57 @@ class DurableTaskProductKernelTest {
     }
 
     @Test
+    fun timelineRetainsRunAndStepEvidenceWithinBound() {
+        var task = sampleTask().beginRun("run-replay", "collect", nowMs = 2_000L)
+        repeat(405) { index ->
+            task = task.appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.STEP_PROGRESS,
+                    summary = "Progress $index",
+                    runId = "run-replay",
+                    stepId = "collect",
+                    recordedAtMs = 2_001L + index
+                )
+            )
+        }
+
+        assertEquals(400, task.timeline.size)
+        assertEquals("Progress 5", task.timeline.first().summary)
+        assertEquals("run-replay", task.timeline.last().runId)
+        assertEquals("collect", task.timeline.last().stepId)
+    }
+
+    @Test
+    fun approvalDecisionRemainsBoundToTaskRunAndStep() {
+        val approval = TaskApproval(
+            id = "approval-1",
+            action = "write_file",
+            description = "Write the reviewed project file",
+            riskLevel = "HIGH",
+            requestedAtMs = 2_000L,
+            expiresAtMs = 10_000L,
+            runId = "run-approval",
+            stepId = "collect"
+        )
+        val decided = sampleTask()
+            .beginRun("run-approval", "collect", nowMs = 1_500L)
+            .requestApproval(approval)
+            .decideApproval(
+                approvalId = "approval-1",
+                status = TaskApprovalStatus.APPROVED,
+                scope = ApprovalGrantScope.TASK,
+                reason = "User reviewed the target",
+                nowMs = 2_500L
+            )
+
+        assertEquals(listOf("approval-1"), decided.approvalIds)
+        assertEquals(TaskApprovalStatus.APPROVED, decided.approvals.single().status)
+        assertEquals(ApprovalGrantScope.TASK, decided.approvals.single().grantScope)
+        assertEquals("run-approval", decided.approvals.single().runId)
+        assertEquals("collect", decided.approvals.single().stepId)
+    }
+
+    @Test
     fun failedOrCancelledRunNeverRemainsActive() {
         val failed = sampleTask()
             .beginRun("run-fail", "collect", nowMs = 2_000L)

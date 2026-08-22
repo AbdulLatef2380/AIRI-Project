@@ -818,6 +818,15 @@
     <!-- Agent Tasks screen -->
     <string name="agent_task_tab_scheduled">Scheduled (%1$d)</string>
     <string name="agent_task_tab_completed">Completed (%1$d)</string>
+    <string name="execution_center_tab_runs">Runs (%1$d)</string>
+    <string name="execution_center_tab_approvals">Approvals (%1$d)</string>
+    <string name="execution_center_no_runs">No execution runs yet</string>
+    <string name="execution_center_no_approvals">No approvals are waiting</string>
+    <string name="execution_center_replay">Replay</string>
+    <string name="execution_center_approval_risk">Risk: %1$s</string>
+    <string name="execution_center_approve_once">Allow once</string>
+    <string name="execution_center_approve_task">Allow task</string>
+    <string name="execution_center_deny">Deny</string>
     <string name="agent_task_no_scheduled">No scheduled tasks\nPress + to add a task</string>
     <string name="agent_task_no_completed">No completed tasks</string>
     <string name="agent_task_name_required">Enter a task name</string>

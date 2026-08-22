@@ -98,14 +98,32 @@ class DurableTaskManager(private val context: Context) {
      */
     fun registerInProcess(task: DurableTask): String {
         if (taskCache.containsKey(task.id)) return task.id
-        putTask(task.copy(updatedAtMs = System.currentTimeMillis()))
+        val now = System.currentTimeMillis()
+        putTask(
+            task.copy(updatedAtMs = now).appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.TASK_REGISTERED,
+                    summary = "Task registered for foreground execution",
+                    recordedAtMs = now
+                )
+            )
+        )
         Log.i(TAG, "AIRI DURABLE_TASK_REGISTERED_IN_PROCESS id=${task.id}")
         return task.id
     }
 
     /** Starts or resumes a durable execution run and records its active plan step. */
     fun beginRun(taskId: String, runId: String = taskId, stepId: String? = null) {
-        updateTask(taskId) { beginRun(runId = runId, stepId = stepId) }
+        updateTask(taskId) {
+            beginRun(runId = runId, stepId = stepId).appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.RUN_STARTED,
+                    summary = "Execution run started",
+                    runId = runId,
+                    stepId = stepId
+                )
+            )
+        }
     }
 
     /** Persists a safe execution checkpoint and the current plan step. */
@@ -122,18 +140,44 @@ class DurableTaskManager(private val context: Context) {
                 checkpointData = checkpointData,
                 progressPercent = progressPercent,
                 progressMessage = progressMessage
+            ).appendTimeline(
+                TaskTimelineEvent(
+                    type = if (progressPercent == 0) TaskTimelineEventType.STEP_STARTED else TaskTimelineEventType.STEP_PROGRESS,
+                    summary = safeTimelineText(progressMessage.ifBlank { "Execution progress updated" }),
+                    runId = currentRunId,
+                    stepId = stepId
+                )
             )
         }
     }
 
     /** Marks an individual plan step as complete while keeping the task running. */
     fun markStepCompleted(taskId: String, stepId: String) {
-        updateTask(taskId) { completeStep(stepId) }
+        updateTask(taskId) {
+            completeStep(stepId).appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.STEP_COMPLETED,
+                    summary = "Plan step completed",
+                    runId = currentRunId,
+                    stepId = stepId
+                )
+            )
+        }
     }
 
     /** Records a failed plan step before the task-level recovery policy decides what to do. */
     fun markStepFailed(taskId: String, stepId: String, reason: String) {
-        updateTask(taskId) { failStep(stepId, reason) }
+        updateTask(taskId) {
+            failStep(stepId, reason).appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.STEP_FAILED,
+                    summary = "Plan step failed",
+                    detail = safeTimelineText(reason),
+                    runId = currentRunId,
+                    stepId = stepId
+                )
+            )
+        }
     }
 
     /**
@@ -141,7 +185,16 @@ class DurableTaskManager(private val context: Context) {
      */
     fun cancel(taskId: String) {
         WorkManager.getInstance(context).cancelUniqueWork(workName(taskId))
-        updateTask(taskId) { cancel() }
+        updateTask(taskId) {
+            cancel().appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.TASK_CANCELLED,
+                    summary = "Task cancelled by user or runtime",
+                    runId = currentRunId,
+                    stepId = currentStepId
+                )
+            )
+        }
         Log.i(TAG, "AIRI DURABLE_TASK_CANCELLED id=$taskId")
     }
 
@@ -163,7 +216,17 @@ class DurableTaskManager(private val context: Context) {
      * Mark a task as completed with its final result.
      */
     fun markCompleted(taskId: String, result: String) {
-        updateTask(taskId) { complete(result) }
+        updateTask(taskId) {
+            complete(result).appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.TASK_COMPLETED,
+                    summary = "Task completed",
+                    detail = safeTimelineText(result),
+                    runId = currentRunId,
+                    stepId = currentStepId
+                )
+            )
+        }
         postCompletionNotification(taskId)
         Log.i(TAG, "AIRI DURABLE_TASK_COMPLETED id=$taskId")
     }
@@ -172,8 +235,141 @@ class DurableTaskManager(private val context: Context) {
      * Mark a task as failed.
      */
     fun markFailed(taskId: String, reason: String) {
-        updateTask(taskId) { fail(reason) }
+        updateTask(taskId) {
+            fail(reason).appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.TASK_FAILED,
+                    summary = "Task failed",
+                    detail = safeTimelineText(reason),
+                    runId = currentRunId,
+                    stepId = currentStepId
+                )
+            )
+        }
         Log.w(TAG, "AIRI DURABLE_TASK_FAILED id=$taskId reason=$reason")
+    }
+
+    /** Creates a task-owned approval request with an explicit expiry. */
+    fun requestApproval(
+        taskId: String,
+        action: String,
+        description: String,
+        riskLevel: String,
+        expiresInMs: Long = DEFAULT_APPROVAL_EXPIRY_MS,
+        runId: String? = null,
+        stepId: String? = null
+    ): TaskApproval? {
+        val task = getTask(taskId) ?: return null
+        val now = System.currentTimeMillis()
+        val approval = TaskApproval(
+            id = java.util.UUID.randomUUID().toString().take(12),
+            action = safeTimelineText(action),
+            description = safeTimelineText(description),
+            riskLevel = riskLevel,
+            requestedAtMs = now,
+            expiresAtMs = now + expiresInMs.coerceIn(MIN_APPROVAL_EXPIRY_MS, MAX_APPROVAL_EXPIRY_MS),
+            runId = runId ?: task.currentRunId,
+            stepId = stepId ?: task.currentStepId
+        )
+        updateTask(taskId) {
+            requestApproval(approval).appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.APPROVAL_REQUESTED,
+                    summary = "Approval required: ${approval.action}",
+                    detail = approval.description,
+                    runId = approval.runId,
+                    stepId = approval.stepId,
+                    recordedAtMs = now
+                )
+            )
+        }
+        return approval
+    }
+
+    /** Decides a pending approval. Expired approvals cannot be granted. */
+    fun decideApproval(
+        approvalId: String,
+        status: TaskApprovalStatus,
+        scope: ApprovalGrantScope = ApprovalGrantScope.ONCE,
+        reason: String = ""
+    ): Boolean {
+        val task = taskCache.values.firstOrNull { candidate ->
+            candidate.approvals.any { it.id == approvalId }
+        } ?: return false
+        val current = task.approvals.first { it.id == approvalId }
+        val now = System.currentTimeMillis()
+        val resolvedStatus = if (current.status != TaskApprovalStatus.PENDING) {
+            return false
+        } else if (current.expiresAtMs <= now) {
+            TaskApprovalStatus.EXPIRED
+        } else {
+            status
+        }
+        updateTask(task.id) {
+            decideApproval(
+                approvalId = approvalId,
+                status = resolvedStatus,
+                scope = scope,
+                reason = safeTimelineText(reason),
+                nowMs = now
+            ).appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.APPROVAL_DECIDED,
+                    summary = "Approval ${resolvedStatus.name.lowercase()}: ${current.action}",
+                    detail = safeTimelineText(reason),
+                    runId = current.runId,
+                    stepId = current.stepId,
+                    recordedAtMs = now
+                )
+            )
+        }
+        return resolvedStatus == status
+    }
+
+    /** Marks stale pending approvals expired and returns their count. */
+    fun expireApprovals(nowMs: Long = System.currentTimeMillis()): Int {
+        var expired = 0
+        taskCache.values.forEach { task ->
+            task.approvals
+                .filter { it.status == TaskApprovalStatus.PENDING && it.expiresAtMs <= nowMs }
+                .forEach { approval ->
+                    if (decideApproval(approval.id, TaskApprovalStatus.EXPIRED, reason = "Approval expired")) {
+                        expired++
+                    }
+                }
+        }
+        return expired
+    }
+
+    fun pendingApprovals(): List<Pair<DurableTask, TaskApproval>> {
+        expireApprovals()
+        return taskCache.values.flatMap { task ->
+            task.approvals
+                .filter { it.status == TaskApprovalStatus.PENDING }
+                .map { approval -> task to approval }
+        }.sortedBy { (_, approval) -> approval.requestedAtMs }
+    }
+
+    /** Appends a sanitised task-owned event suitable for replay. */
+    fun recordTimeline(
+        taskId: String,
+        type: TaskTimelineEventType,
+        summary: String,
+        detail: String = "",
+        runId: String? = null,
+        stepId: String? = null
+    ) {
+        updateTask(taskId) {
+            appendTimeline(
+                TaskTimelineEvent(
+                    type = type,
+                    summary = safeTimelineText(summary),
+                    detail = safeTimelineText(detail),
+                    runId = runId ?: currentRunId,
+                    stepId = stepId ?: currentStepId
+                )
+            )
+        }
     }
 
     /** Get a task by ID. */
@@ -191,6 +387,11 @@ class DurableTaskManager(private val context: Context) {
     // ─────────────────────────────────────────────────────────────────────────
     // Internal
     // ─────────────────────────────────────────────────────────────────────────
+
+    private fun safeTimelineText(value: String): String {
+        val normalized = value.replace(Regex("\\s+"), " ").trim().take(MAX_TIMELINE_TEXT_CHARS)
+        return if (SENSITIVE_TIMELINE_PATTERN.containsMatchIn(normalized)) "Sensitive detail redacted" else normalized
+    }
 
     private fun putTask(task: DurableTask) {
         taskCache[task.id] = task
@@ -303,6 +504,13 @@ class DurableTaskManager(private val context: Context) {
 
     companion object {
         private const val CHANNEL_ID = "airi_tasks_channel"
+        private const val MAX_TIMELINE_TEXT_CHARS = 280
+        private const val MIN_APPROVAL_EXPIRY_MS = 10_000L
+        private const val DEFAULT_APPROVAL_EXPIRY_MS = 5 * 60_000L
+        private const val MAX_APPROVAL_EXPIRY_MS = 24 * 60 * 60_000L
+        private val SENSITIVE_TIMELINE_PATTERN = Regex(
+            "(?i)(api[_ -]?key|password|secret|authorization|bearer\\s+[a-z0-9._-]+)"
+        )
         fun workName(taskId: String) = "durable_task_$taskId"
     }
 }

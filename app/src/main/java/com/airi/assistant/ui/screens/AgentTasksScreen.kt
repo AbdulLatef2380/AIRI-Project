@@ -27,11 +27,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airi.assistant.agent.durable.ApprovalGrantScope
+import com.airi.assistant.agent.durable.DurableTask
+import com.airi.assistant.agent.durable.DurableTaskStatus
+import com.airi.assistant.agent.durable.TaskApproval
+import com.airi.assistant.agent.durable.TaskTimelineEvent
 import com.airi.assistant.agent.scheduler.ScheduledJob
 import com.airi.assistant.agent.scheduler.ScheduledJobOrchestrator
 import com.airi.assistant.agent.scheduler.ScheduleType
 import com.airi.assistant.agent.scheduler.ScheduledJobOutcome
 import com.airi.assistant.R
+import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicBlack
@@ -62,6 +68,13 @@ fun AgentTasksScreen(
 ) {
     val context = LocalContext.current
     val orchestrator = remember { ScheduledJobOrchestrator(context) }
+    val durableTaskManager = remember { ServiceLocator.durableTaskManager }
+    val durableTasks by durableTaskManager.tasks.collectAsState()
+    val taskApprovals = remember(durableTasks) {
+        durableTasks.flatMap { task ->
+            task.approvals.map { approval -> task to approval }
+        }.filter { (_, approval) -> approval.status.name == "PENDING" }
+    }
 
     var selectedTab    by remember { mutableStateOf(0) }
     var showAddDialog  by remember { mutableStateOf(false) }
@@ -74,10 +87,6 @@ fun AgentTasksScreen(
         it.type == ScheduleType.PERIODIC ||
             it.lastOutcome == ScheduledJobOutcome.PENDING ||
             it.lastOutcome == ScheduledJobOutcome.RETRYING
-    }
-    val completed = jobs.filter {
-        it.type == ScheduleType.ONE_TIME &&
-            (it.lastOutcome == ScheduledJobOutcome.COMPLETED || it.lastOutcome == ScheduledJobOutcome.FAILED)
     }
 
     Scaffold(
@@ -141,43 +150,34 @@ fun AgentTasksScreen(
             ) {
                 TaskTab(label = stringResource(R.string.agent_task_tab_scheduled, pending.size), isSelected = selectedTab == 0,
                     modifier = Modifier.weight(1f)) { selectedTab = 0 }
-                TaskTab(label = stringResource(R.string.agent_task_tab_completed, completed.size), isSelected = selectedTab == 1,
+                TaskTab(label = stringResource(R.string.execution_center_tab_runs, durableTasks.size), isSelected = selectedTab == 1,
                     modifier = Modifier.weight(1f)) { selectedTab = 1 }
+                TaskTab(label = stringResource(R.string.execution_center_tab_approvals, taskApprovals.size), isSelected = selectedTab == 2,
+                    modifier = Modifier.weight(1f)) { selectedTab = 2 }
             }
 
-            val displayJobs = if (selectedTab == 0) pending else completed
-
-            if (displayJobs.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Icon(Icons.Outlined.Schedule, null, tint = AiriTheme.onBackground.copy(0.25f), modifier = Modifier.size(52.dp))
-                        Text(
-                            if (selectedTab == 0) stringResource(R.string.agent_task_no_scheduled)
-                            else stringResource(R.string.agent_task_no_completed),
-                            color = AiriTheme.onBackground.copy(0.35f),
-                            fontSize = 15.sp,
-                            textAlign = TextAlign.Center
-                        )
+            when (selectedTab) {
+                0 -> ScheduledTasksContent(
+                    jobs = pending,
+                    onCancel = { jobId ->
+                        orchestrator.cancel(jobId)
+                        reload()
                     }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)
-                ) {
-                    items(displayJobs, key = { it.id }) { job ->
-                        RealTaskItem(
-                            job      = job,
-                            onCancel = {
-                                orchestrator.cancel(job.id)
-                                reload()
-                            }
-                        )
+                )
+                1 -> DurableExecutionContent(
+                    tasks = durableTasks,
+                    onCancel = { taskId -> durableTaskManager.cancel(taskId) }
+                )
+                else -> ApprovalCenterContent(
+                    approvals = taskApprovals,
+                    onDecision = { approvalId, scope, approved ->
+                        if (approved) {
+                            ServiceLocator.permissionGovernanceLayer.approveAction(approvalId, scope)
+                        } else {
+                            ServiceLocator.permissionGovernanceLayer.denyAction(approvalId)
+                        }
                     }
-                }
+                )
             }
         }
     }
@@ -218,6 +218,169 @@ fun AgentTasksScreen(
         )
     }
 }
+@Composable
+private fun ScheduledTasksContent(
+    jobs: List<ScheduledJob>,
+    onCancel: (String) -> Unit
+) {
+    if (jobs.isEmpty()) {
+        EmptyCenterState(
+            icon = Icons.Outlined.Schedule,
+            message = stringResource(R.string.agent_task_no_scheduled)
+        )
+        return
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)
+    ) {
+        items(jobs, key = { it.id }) { job ->
+            RealTaskItem(job = job, onCancel = { onCancel(job.id) })
+        }
+    }
+}
+
+@Composable
+private fun DurableExecutionContent(
+    tasks: List<DurableTask>,
+    onCancel: (String) -> Unit
+) {
+    if (tasks.isEmpty()) {
+        EmptyCenterState(
+            icon = Icons.Outlined.Timeline,
+            message = stringResource(R.string.execution_center_no_runs)
+        )
+        return
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)
+    ) {
+        items(tasks, key = { it.id }) { task ->
+            DurableExecutionCard(task = task, onCancel = { onCancel(task.id) })
+        }
+    }
+}
+
+@Composable
+private fun DurableExecutionCard(task: DurableTask, onCancel: () -> Unit) {
+    val statusColor = when (task.status) {
+        DurableTaskStatus.RUNNING -> CosmicAccent
+        DurableTaskStatus.COMPLETED -> Color(0xFF4CAF50)
+        DurableTaskStatus.FAILED, DurableTaskStatus.CANCELLED -> Color(0xFFFF6B6B)
+        else -> Color(0xFFFFB74D)
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = AIRIShapes.md,
+        color = AiriTheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, statusColor.copy(alpha = 0.22f))
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Timeline, null, tint = statusColor, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(task.title, color = AiriTheme.onBackground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(task.status.name.lowercase(), color = statusColor, fontSize = 11.sp)
+            }
+            if (task.progressMessage.isNotBlank()) {
+                Text(task.progressMessage, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+            }
+            if (task.progressPercent in 0..100) {
+                LinearProgressIndicator(
+                    progress = { task.progressPercent / 100f },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = statusColor,
+                    trackColor = AiriTheme.onSurface.copy(alpha = 0.08f)
+                )
+            }
+            val recent = task.timeline.takeLast(3)
+            if (recent.isNotEmpty()) {
+                Text(stringResource(R.string.execution_center_replay), color = CosmicAccent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                recent.forEach { event ->
+                    TimelineLine(event)
+                }
+            }
+            if (!task.isTerminal) {
+                TextButton(onClick = onCancel) {
+                    Text(stringResource(R.string.cancel), color = Color(0xFFFF6B6B))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimelineLine(event: TaskTimelineEvent) {
+    Text(
+        text = "${event.type.name.lowercase().replace('_', ' ')} · ${event.summary}",
+        color = AiriTheme.onSurfaceVariant.copy(alpha = 0.82f),
+        fontSize = 11.sp,
+        maxLines = 2
+    )
+}
+
+@Composable
+private fun ApprovalCenterContent(
+    approvals: List<Pair<DurableTask, TaskApproval>>,
+    onDecision: (String, ApprovalGrantScope, Boolean) -> Unit
+) {
+    if (approvals.isEmpty()) {
+        EmptyCenterState(
+            icon = Icons.Outlined.VerifiedUser,
+            message = stringResource(R.string.execution_center_no_approvals)
+        )
+        return
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)
+    ) {
+        items(approvals, key = { (_, approval) -> approval.id }) { (task, approval) ->
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = AIRIShapes.md,
+                color = AiriTheme.surface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB74D).copy(alpha = 0.3f))
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(task.title, color = AiriTheme.onBackground, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(approval.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    Text(
+                        stringResource(R.string.execution_center_approval_risk, approval.riskLevel.lowercase()),
+                        color = Color(0xFFFFB74D),
+                        fontSize = 11.sp
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        TextButton(onClick = { onDecision(approval.id, ApprovalGrantScope.ONCE, true) }) {
+                            Text(stringResource(R.string.execution_center_approve_once), color = CosmicAccent)
+                        }
+                        TextButton(onClick = { onDecision(approval.id, ApprovalGrantScope.TASK, true) }) {
+                            Text(stringResource(R.string.execution_center_approve_task), color = CosmicAccent)
+                        }
+                        TextButton(onClick = { onDecision(approval.id, ApprovalGrantScope.ONCE, false) }) {
+                            Text(stringResource(R.string.execution_center_deny), color = Color(0xFFFF6B6B))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyCenterState(icon: androidx.compose.ui.graphics.vector.ImageVector, message: String) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(icon, null, tint = AiriTheme.onBackground.copy(0.25f), modifier = Modifier.size(52.dp))
+            Text(message, color = AiriTheme.onBackground.copy(0.35f), fontSize = 15.sp, textAlign = TextAlign.Center)
+        }
+    }
+}
+
 @Composable
 private fun TaskTab(label: String, isSelected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(

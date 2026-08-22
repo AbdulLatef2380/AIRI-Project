@@ -6,6 +6,7 @@ import com.airi.assistant.agent.subagent.SubAgent
 import com.airi.assistant.agent.subagent.SubAgentCapability
 import com.airi.assistant.agent.subagent.SubAgentContext
 import com.airi.assistant.memory.repository.MemoryManager
+import com.airi.assistant.memory.repository.MemoryScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
@@ -65,7 +66,7 @@ class MemoryAgent(
         emit(AgentEvent.Progress("Memory operation: ${operation.name}", 20, "classify"))
 
         when (operation) {
-            MemoryOperation.STORE -> executeStore(input, start)
+            MemoryOperation.STORE -> executeStore(input, context, start)
             MemoryOperation.RECALL -> executeRecall(input, context, start)
             MemoryOperation.DELETE -> executeDelete(start)
             MemoryOperation.LIST   -> executeList(context, start)
@@ -76,7 +77,7 @@ class MemoryAgent(
     // STORE — persist a long-term memory to Room
     // ─────────────────────────────────────────────────────────────────────────
 
-    private fun executeStore(input: String, start: Long) = flow<AgentEvent> {
+    private fun executeStore(input: String, context: SubAgentContext, start: Long) = flow<AgentEvent> {
         emit(AgentEvent.ToolCall(
             toolName  = "memory_store",
             params    = mapOf("content" to input, "layer" to "LONG_TERM"),
@@ -85,15 +86,44 @@ class MemoryAgent(
         emit(AgentEvent.Progress("Storing memory…", 50, "store"))
 
         val content = cleanMemoryContent(input)
-        memoryManager.recordImportantMemory("user", content)
+        val result = memoryManager.storeExplicitMemory(
+            request = MemoryManager.ExplicitMemoryRequest(
+                content = content,
+                sessionId = context.sessionId,
+                projectId = context.projectId.orEmpty(),
+                scope = if (context.projectId.isNullOrBlank()) MemoryScope.SESSION else MemoryScope.PROJECT,
+                privacyLevel = context.privacyLevel,
+                provenance = "Explicit request through Memory Agent"
+            )
+        )
 
-        Log.i(TAG, "MEMORY_STORED contentChars=${content.length}")
-        emit(AgentEvent.PartialResult("Got it — I'll remember that.", isFinal = true))
-        emit(AgentEvent.Complete(
-            result     = "Memory stored: \"${content.take(60)}\"",
-            durationMs = System.currentTimeMillis() - start,
-            toolsUsed  = listOf("memory_store")
-        ))
+        when (result) {
+            is MemoryManager.ExplicitMemoryResult.Stored -> {
+                Log.i(TAG, "MEMORY_STORED id=${result.memoryId} contentChars=${content.length}")
+                emit(AgentEvent.PartialResult("Got it — I saved that memory.", isFinal = true))
+                emit(AgentEvent.Complete(
+                    result = "Memory stored: \"${content.take(60)}\"",
+                    durationMs = System.currentTimeMillis() - start,
+                    toolsUsed = listOf("memory_store")
+                ))
+            }
+            MemoryManager.ExplicitMemoryResult.Duplicate -> {
+                emit(AgentEvent.PartialResult("That memory is already saved in this scope.", isFinal = true))
+                emit(AgentEvent.Complete(
+                    result = "Memory already existed.",
+                    durationMs = System.currentTimeMillis() - start,
+                    toolsUsed = listOf("memory_store")
+                ))
+            }
+            is MemoryManager.ExplicitMemoryResult.Rejected -> {
+                emit(AgentEvent.PartialResult("I did not save that memory: ${result.reason}.", isFinal = true))
+                emit(AgentEvent.Complete(
+                    result = "Memory rejected.",
+                    durationMs = System.currentTimeMillis() - start,
+                    toolsUsed = listOf("memory_store")
+                ))
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -108,21 +138,15 @@ class MemoryAgent(
         ))
         emit(AgentEvent.Progress("Searching memories…", 40, "search"))
 
-        // Try semantic (vector) search first if available
-        val memories = if (memoryManager.isSemanticMemoryReady()) {
-            emit(AgentEvent.Progress("Running semantic search…", 55, "vector_search"))
-            val hits = memoryManager.semanticSearch(context.sessionId, input, k = 10)
-            Log.d(TAG, "AIRI MEMORY_RECALL semantic hits=${hits.size}")
-            if (hits.isNotEmpty()) {
-                hits.map { it.message }
-            } else {
-                // Fall back to chronological
-                memoryManager.getSemanticMemories(20)
-            }
-        } else {
-            // Chronological fallback when embeddings not loaded
-            memoryManager.getSemanticMemories(20)
-        }
+        // Explicit memory recall reads only records that passed long-term
+        // admission and the active scope/privacy/expiry gate. Context RAG has
+        // a separate retrieval contract and must not be presented as memory.
+        val memories = memoryManager.getScopedLongTermMemories(
+            sessionId = context.sessionId,
+            projectId = context.projectId.orEmpty(),
+            maxPrivacyLevel = context.privacyLevel,
+            limit = 20
+        )
 
         emit(AgentEvent.Progress("Found ${memories.size} memory record(s).", 70, "recall_done"))
 
@@ -140,9 +164,10 @@ class MemoryAgent(
         }
 
         val memoryBlock = memories
-            .filter { it.isMemory }
-            .takeLast(10)
-            .joinToString("\n") { "- ${it.content.take(200)}" }
+            .take(10)
+            .joinToString("\n") { memory ->
+                "- ${memory.content.take(200)} [${memory.memorySource.lowercase()} · ${memory.memoryScope.lowercase()}]"
+            }
             .ifBlank { "No long-term memories found." }
 
         // Delegate to LLM for synthesis when cloud is allowed
@@ -206,8 +231,12 @@ class MemoryAgent(
         ))
         emit(AgentEvent.Progress("Retrieving stored memories…", 50, "list"))
 
-        val memories = memoryManager.getSemanticMemories(20)
-        val longTerm = memories.filter { it.isMemory }
+        val longTerm = memoryManager.getScopedLongTermMemories(
+            sessionId = context.sessionId,
+            projectId = context.projectId.orEmpty(),
+            maxPrivacyLevel = context.privacyLevel,
+            limit = 20
+        )
 
         if (longTerm.isEmpty()) {
             emit(AgentEvent.PartialResult(

@@ -41,6 +41,7 @@ class RagRetriever(
         private const val MIN_SCORE = 0.30f  // cosine similarity floor
         private const val DEFAULT_K = 5
         private const val MAX_CONTEXT_CHARS = 2_400
+        private const val DEFAULT_PRIVACY_LEVEL = 1
     }
 
     // ── Public API ─────────────────────────────────────────────────────────────
@@ -58,14 +59,16 @@ class RagRetriever(
     suspend fun buildContextBlock(
         sessionId: String,
         query:     String,
-        k:         Int = DEFAULT_K
+        k:         Int = DEFAULT_K,
+        projectId: String = "",
+        maxPrivacyLevel: Int = DEFAULT_PRIVACY_LEVEL
     ): String {
         if (!RagQueryPolicy.accepts(query)) return ""
-        val passages = retrieve(sessionId, query, k)
+        val passages = retrieve(sessionId, query, k, projectId, maxPrivacyLevel)
         if (passages.isEmpty()) return ""
 
         val formatted = passages.joinToString("\n") { p ->
-            "[${p.role.uppercase()}] ${p.content.take(220)}"
+            "[${p.citationId}] [${p.role.uppercase()}] ${p.content.take(220)}"
         }
         val block = """
 --- User memory reference ---
@@ -87,22 +90,33 @@ $formatted
     suspend fun retrieve(
         sessionId: String,
         query:     String,
-        k:         Int = DEFAULT_K
+        k:         Int = DEFAULT_K,
+        projectId: String = "",
+        maxPrivacyLevel: Int = DEFAULT_PRIVACY_LEVEL
     ): List<RetrievedPassage> {
         if (!RagQueryPolicy.accepts(query)) return emptyList()
         val safeLimit = RagQueryPolicy.normalizeLimit(k)
         val normalizedQuery = RagQueryPolicy.normalizeQuery(query)
-        val longTerm = memoryManager.getLongTermMemories(sessionId, safeLimit)
-            .map { memory ->
-                RetrievedPassage(
-                    role = "memory",
-                    content = memory.content.removePrefix("[memory] "),
-                    score = 1f,
-                    source = "explicit_memory"
-                )
-            }
+        val longTerm = memoryManager.getScopedLongTermMemories(
+            sessionId = sessionId,
+            projectId = projectId,
+            maxPrivacyLevel = maxPrivacyLevel,
+            limit = safeLimit
+        ).map { memory ->
+            RetrievedPassage(
+                citationId = "memory-${memory.id}",
+                role = "memory",
+                content = memory.content.removePrefix("[memory] "),
+                score = memory.confidence.coerceAtLeast(0.8f),
+                source = memory.memorySource,
+                provenance = memory.provenance,
+                scope = memory.memoryScope,
+                confidence = memory.confidence,
+                memoryId = memory.id
+            )
+        }
         val semantic = if (memoryManager.isSemanticMemoryReady()) {
-            retrieveSemantic(sessionId, normalizedQuery, safeLimit)
+            retrieveSemantic(sessionId, normalizedQuery, safeLimit, projectId, maxPrivacyLevel)
         } else {
             emptyList()
         }
@@ -121,12 +135,14 @@ $formatted
     suspend fun buildMultiQueryContext(
         sessionId: String,
         queries:   List<String>,
-        kPerQuery: Int = 3
+        kPerQuery: Int = 3,
+        projectId: String = "",
+        maxPrivacyLevel: Int = DEFAULT_PRIVACY_LEVEL
     ): String {
         val seen     = mutableSetOf<String>()
         val passages = mutableListOf<RetrievedPassage>()
         for (q in queries.map(RagQueryPolicy::normalizeQuery).filter(String::isNotEmpty).take(4)) {
-            val hits = retrieve(sessionId, q, kPerQuery)
+            val hits = retrieve(sessionId, q, kPerQuery, projectId, maxPrivacyLevel)
             for (p in hits) {
                 val key = "${p.role}:${p.content.take(60)}"
                 if (seen.add(key)) passages.add(p)
@@ -138,7 +154,7 @@ $formatted
             .sortedByDescending { it.score }
             .take(DEFAULT_K)
             .joinToString("\n") { p ->
-                "[${p.role.uppercase()}] ${p.content.take(240)}"
+                "[${p.citationId}] [${p.role.uppercase()}] ${p.content.take(240)}"
             }
         return """
 --- Relevant prior context (multi-query RAG) ---
@@ -152,7 +168,9 @@ $formatted
     private suspend fun retrieveSemantic(
         sessionId: String,
         query:     String,
-        k:         Int
+        k:         Int,
+        projectId: String,
+        maxPrivacyLevel: Int
     ): List<RetrievedPassage> {
         val hits = runCatching {
             memoryManager.semanticSearch(sessionId, query, k)
@@ -164,18 +182,38 @@ $formatted
         val filtered = hits
             .filter { it.score >= MIN_SCORE }
             .filter { ranked -> ranked.message.role in setOf("user", "assistant") }
+            .filter { ranked -> isVisibleInScope(ranked.message, projectId, maxPrivacyLevel) }
             .map { ranked ->
                 RetrievedPassage(
-                    role    = ranked.message.role,
+                    citationId = "message-${ranked.message.id}",
+                    role = ranked.message.role,
                     content = ranked.message.content,
-                    score   = ranked.score,
-                    source  = "semantic"
+                    score = ranked.score,
+                    source = ranked.message.memorySource,
+                    provenance = ranked.message.provenance,
+                    scope = ranked.message.memoryScope,
+                    confidence = ranked.score,
+                    memoryId = ranked.message.id
                 )
             }
 
         Log.d(TAG, "RAG semantic hits=${hits.size} filtered=${filtered.size} " +
             "minScore=${filtered.minOfOrNull { it.score } ?: 0f}")
         return filtered
+    }
+
+    private fun isVisibleInScope(
+        message: ChatMessage,
+        projectId: String,
+        maxPrivacyLevel: Int
+    ): Boolean {
+        if (message.privacyLevel > maxPrivacyLevel) return false
+        if (message.expiresAtMs >= 0 && message.expiresAtMs <= System.currentTimeMillis()) return false
+        return when (message.memoryScope) {
+            "PROJECT" -> projectId.isNotBlank() && message.projectId == projectId
+            "USER", "SESSION" -> true
+            else -> false
+        }
     }
 
     private fun isPromptSafe(passage: RetrievedPassage): Boolean {
@@ -188,8 +226,13 @@ $formatted
 }
 
 data class RetrievedPassage(
-    val role:    String,
+    val citationId: String,
+    val role: String,
     val content: String,
-    val score:   Float,
-    val source:  String
+    val score: Float,
+    val source: String,
+    val provenance: String = "",
+    val scope: String = "SESSION",
+    val confidence: Float = 0f,
+    val memoryId: Long = 0L
 )

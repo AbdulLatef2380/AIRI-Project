@@ -22,6 +22,35 @@ import org.json.JSONArray
 // AP-18: applicationScope injected from ServiceLocator so summarization tasks survive
 // screen rotation without relying on a ViewModel lifecycle.
 class MemoryManager(context: Context, private val applicationScope: CoroutineScope? = null) {
+    data class ExplicitMemoryRequest(
+        val content: String,
+        val sessionId: String = "default",
+        val projectId: String = "",
+        val scope: MemoryScope = if (projectId.isBlank()) MemoryScope.SESSION else MemoryScope.PROJECT,
+        val privacyLevel: Int = DEFAULT_PRIVACY_LEVEL,
+        val provenance: String = "Explicit user memory request",
+        val importance: Int = DEFAULT_EXPLICIT_IMPORTANCE,
+        val expiresAtMs: Long = NO_EXPIRY
+    )
+
+    sealed class ExplicitMemoryResult {
+        data class Stored(val memoryId: Long) : ExplicitMemoryResult()
+        data object Duplicate : ExplicitMemoryResult()
+        data class Rejected(val reason: String) : ExplicitMemoryResult()
+    }
+
+    data class MemoryExplanation(
+        val memoryId: Long,
+        val source: String,
+        val provenance: String,
+        val scope: String,
+        val projectId: String,
+        val confidence: Float,
+        val importance: Int,
+        val privacyLevel: Int,
+        val expiresAtMs: Long
+    )
+
     private val appContext = context.applicationContext
     private val db = AiriDatabase.getDatabase(appContext)
     private val dao = db.memoryDao()
@@ -61,22 +90,62 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         explicitlyRequested: Boolean = false,
         sessionId: String = "default"
     ) {
-        val normalized = content.trim()
-        if (!explicitlyRequested || !canStoreImportantMemory(normalized)) return
+        if (!explicitlyRequested) return
         scope.launch {
-            if (dao.findLongTermMemoryId(sessionId, normalized) == null) {
-                dao.insertMessage(
-                    ChatMessage(
-                        sessionId = sessionId,
-                        role = role,
-                        content = normalized,
-                        emotionState = emotion,
-                        isMemory = true
-                    )
-                )
-                dao.pruneLongTermMemories(sessionId, MAX_LONG_TERM_FACTS_PER_SESSION)
-            }
+            storeExplicitMemory(
+                ExplicitMemoryRequest(
+                    content = content,
+                    sessionId = sessionId,
+                    provenance = "Explicit memory request via compatibility API"
+                ),
+                role = role,
+                emotion = emotion
+            )
         }
+    }
+
+    /**
+     * Canonical long-term memory write path. The result is returned only after
+     * policy validation, duplicate detection, Room persistence, and retention
+     * pruning have completed.
+     */
+    suspend fun storeExplicitMemory(
+        request: ExplicitMemoryRequest,
+        role: String = "user",
+        emotion: String? = null
+    ): ExplicitMemoryResult {
+        val normalized = request.content.trim()
+        if (!canStoreImportantMemory(normalized)) {
+            return ExplicitMemoryResult.Rejected("Content is empty or may contain sensitive data")
+        }
+        val normalizedScope = MemoryMetadataPolicy.normalizeScope(request.scope, request.projectId)
+        val safePrivacy = MemoryMetadataPolicy.normalizePrivacyLevel(request.privacyLevel)
+        val safeImportance = MemoryMetadataPolicy.normalizeImportance(request.importance)
+        val existing = dao.findLongTermMemoryId(request.sessionId, normalized)
+        if (existing != null) return ExplicitMemoryResult.Duplicate
+
+        val now = System.currentTimeMillis()
+        val id = dao.insertMessage(
+            ChatMessage(
+                sessionId = request.sessionId,
+                role = role,
+                content = normalized,
+                timestamp = now,
+                emotionState = emotion,
+                isMemory = true,
+                projectId = request.projectId.takeIf { normalizedScope == MemoryScope.PROJECT.name }.orEmpty(),
+                memorySource = "USER_EXPLICIT",
+                provenance = MemoryMetadataPolicy.sanitizeProvenance(request.provenance),
+                confidence = 1f,
+                importance = safeImportance,
+                memoryScope = normalizedScope,
+                privacyLevel = safePrivacy,
+                expiresAtMs = request.expiresAtMs,
+                updatedAtMs = now
+            )
+        )
+        dao.pruneLongTermMemories(request.sessionId, MAX_LONG_TERM_FACTS_PER_SESSION)
+        return ExplicitMemoryResult.Stored(id)
     }
 
     suspend fun recordChatMessage(
@@ -84,7 +153,8 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         role: String,
         content: String,
         emotion: String? = null,
-        attachmentJson: String? = null
+        attachmentJson: String? = null,
+        projectId: String = ""
     ): ChatMessage {
         val draft = ChatMessage(
             sessionId = sessionId,
@@ -92,7 +162,11 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
             content = content,
             emotionState = emotion,
             isMemory = false,
-            attachmentJson = attachmentJson
+            attachmentJson = attachmentJson,
+            projectId = projectId,
+            memorySource = "CHAT_CONTEXT",
+            provenance = "Conversation context",
+            memoryScope = if (projectId.isBlank()) MemoryScope.SESSION.name else MemoryScope.PROJECT.name
         )
         val messageId = dao.insertMessage(draft)
         val stored = draft.copy(id = messageId)
@@ -125,12 +199,22 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
                         .forEach { fact ->
                             val storedFact = "[memory] $fact"
                             if (dao.findLongTermMemoryId(sessionId, storedFact) == null) {
+                                val now = System.currentTimeMillis()
                                 dao.insertMessage(
                                     ChatMessage(
                                         sessionId = sessionId,
                                         role = "system",
                                         content = storedFact,
-                                        isMemory = true
+                                        timestamp = now,
+                                        isMemory = true,
+                                        projectId = projectId,
+                                        memorySource = "EXTRACTED_FACT",
+                                        provenance = "Extracted from an explicit user memory request",
+                                        confidence = 0.82f,
+                                        importance = EXTRACTED_FACT_IMPORTANCE,
+                                        memoryScope = if (projectId.isBlank()) MemoryScope.SESSION.name else MemoryScope.PROJECT.name,
+                                        privacyLevel = DEFAULT_PRIVACY_LEVEL,
+                                        updatedAtMs = now
                                     )
                                 )
                             }
@@ -239,6 +323,76 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         dao.getRecentLongTermMemories(sessionId, limit)
 
     /**
+     * Retrieves long-term memory only from scopes authorised for this task.
+     * Project memory never crosses to a different project and expired rows are
+     * not returned. A successful recall updates `lastAccessedAtMs` for audit.
+     */
+    suspend fun getScopedLongTermMemories(
+        sessionId: String,
+        projectId: String = "",
+        maxPrivacyLevel: Int = DEFAULT_PRIVACY_LEVEL,
+        limit: Int = 20
+    ): List<ChatMessage> {
+        val memories = dao.getScopedLongTermMemories(
+            sessionId = sessionId,
+            projectId = projectId,
+            maxPrivacyLevel = MemoryMetadataPolicy.normalizePrivacyLevel(maxPrivacyLevel),
+            nowMs = System.currentTimeMillis(),
+            limit = limit.coerceIn(1, MAX_RETRIEVAL_LIMIT)
+        )
+        if (memories.isNotEmpty()) {
+            dao.markMemoriesAccessed(memories.map(ChatMessage::id), System.currentTimeMillis())
+        }
+        return memories
+    }
+
+    suspend fun explainMemory(memoryId: Long): MemoryExplanation? = dao.getMessageById(memoryId)
+        ?.takeIf { it.isMemory }
+        ?.let { memory ->
+            MemoryExplanation(
+                memoryId = memory.id,
+                source = memory.memorySource,
+                provenance = memory.provenance,
+                scope = memory.memoryScope,
+                projectId = memory.projectId,
+                confidence = memory.confidence,
+                importance = memory.importance,
+                privacyLevel = memory.privacyLevel,
+                expiresAtMs = memory.expiresAtMs
+            )
+        }
+
+    suspend fun forgetMemory(memoryId: Long): Boolean =
+        dao.deleteLongTermMemory(memoryId) > 0
+
+    suspend fun editMemory(
+        memoryId: Long,
+        content: String,
+        provenance: String,
+        scope: MemoryScope,
+        projectId: String,
+        privacyLevel: Int,
+        importance: Int,
+        expiresAtMs: Long
+    ): Boolean {
+        val normalized = content.trim()
+        if (!canStoreImportantMemory(normalized)) return false
+        val normalizedScope = MemoryMetadataPolicy.normalizeScope(scope, projectId)
+        return dao.updateLongTermMemory(
+            memoryId = memoryId,
+            content = normalized,
+            provenance = MemoryMetadataPolicy.sanitizeProvenance(provenance),
+            confidence = 1f,
+            importance = MemoryMetadataPolicy.normalizeImportance(importance),
+            projectId = projectId.takeIf { normalizedScope == MemoryScope.PROJECT.name }.orEmpty(),
+            memoryScope = normalizedScope,
+            privacyLevel = MemoryMetadataPolicy.normalizePrivacyLevel(privacyLevel),
+            expiresAtMs = expiresAtMs,
+            updatedAtMs = System.currentTimeMillis()
+        ) > 0
+    }
+
+    /**
      * REAL semantic search (). Returns the top-k most similar
      * prior messages to [query] for [sessionId], ranked by cosine
      * similarity over L2-normalised vectors. Empty list if no embedding
@@ -288,5 +442,10 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         const val MAX_MESSAGES_PER_SESSION = 200
         const val MAX_LONG_TERM_FACTS_PER_TURN = 2
         const val MAX_LONG_TERM_FACTS_PER_SESSION = 50
+        const val MAX_RETRIEVAL_LIMIT = 50
+        const val DEFAULT_PRIVACY_LEVEL = 1
+        const val DEFAULT_EXPLICIT_IMPORTANCE = 80
+        const val EXTRACTED_FACT_IMPORTANCE = 65
+        const val NO_EXPIRY = -1L
     }
 }

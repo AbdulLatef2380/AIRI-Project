@@ -1502,6 +1502,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             generationStartMs = System.currentTimeMillis()
             val perfMode = _performanceMode.value
             val sessionId = currentSessionOrCreate()
+            val activeProjectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
+            val ragPrivacyLevel = if (execModePrefs.effectiveMode == ExecutionMode.LOCAL_ONLY) 0 else 1
             val wasEmpty = _messages.value.isEmpty()
             val attachedForBubble = pendingImageUriForNextSend
             val attachmentJson = pendingAttachmentJsonForNextSend
@@ -1514,7 +1516,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 sessionId = sessionId,
                 role = "user",
                 content = trimmedInput,
-                attachmentJson = attachmentJson
+                attachmentJson = attachmentJson,
+                projectId = activeProjectId
             )
             if (wasEmpty) memoryManager.renameSession(sessionId, trimmedInput.take(48))
             subscriptionManager.recordMessage()
@@ -1584,7 +1587,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     lastTokensPerSec    = 0f,
                     lastModelName       = "fast-table"
                 )}
-                val fastMsg = memoryManager.recordChatMessage(sessionId, "assistant", fastHit)
+                val fastMsg = memoryManager.recordChatMessage(
+                    sessionId = sessionId,
+                    role = "assistant",
+                    content = fastHit,
+                    projectId = activeProjectId
+                )
                 _messages.update { it + ChatMessage(fastHit, isUser = false, id = fastMsg.id) }
                 _smartReplies.value = ResponseOptimizer.generateSuggestions(fastHit)
                 streamAccumulator.setLength(0); _streamingText.value = ""
@@ -1608,7 +1616,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // system prompt. RagRetriever falls back to chronological recall when
             // the embedding model is not loaded — never blocks the send path.
             val ragContext = runCatching {
-                ServiceLocator.ragRetriever.buildContextBlock(sessionId, trimmedInput)
+                ServiceLocator.ragRetriever.buildContextBlock(
+                    sessionId = sessionId,
+                    query = trimmedInput,
+                    projectId = activeProjectId,
+                    maxPrivacyLevel = ragPrivacyLevel
+                )
             }.getOrDefault("")
             val selectedKnowledge = directives.knowledgeId?.let { id ->
                 runCatching { selectedKnowledgeContext(sessionId, id) }.getOrNull()
@@ -1752,7 +1765,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
                 if (loopResult.finalAnswer.isNotBlank()) {
                     val assistantMsg = memoryManager.recordChatMessage(
-                        sessionId, "assistant", loopResult.finalAnswer
+                        sessionId = sessionId,
+                        role = "assistant",
+                        content = loopResult.finalAnswer,
+                        projectId = activeProjectId
                     )
                     _messages.update {
                         it + ChatMessage(
@@ -1823,7 +1839,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (isCurrentGeneration(generationId) && !_isCancelled.get()) {
                     Log.e("AIRI_LOOP", "AgentLoop failed type=${e.javaClass.simpleName}")
                     val errMsg = appContext.getString(R.string.err_generation_failed)
-                    val errRec = memoryManager.recordChatMessage(sessionId, "assistant", errMsg)
+                    val errRec = memoryManager.recordChatMessage(
+                        sessionId = sessionId,
+                        role = "assistant",
+                        content = errMsg,
+                        projectId = activeProjectId
+                    )
                     _messages.update { it + ChatMessage(errMsg, isUser = false, id = errRec.id) }
                 }
             } finally {
@@ -2735,6 +2756,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _isCancelled.set(false)
             generationStartMs = System.currentTimeMillis()
             val sessionId = currentSessionOrCreate()
+            val activeProjectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
             val wasEmpty = _messages.value.isEmpty()
 
             // Record the user's turn FIRST (with a structured marker so the
@@ -2745,7 +2767,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 sessionId = sessionId,
                 role = "user",
                 content = userMarker,
-                attachmentJson = attachmentJson
+                attachmentJson = attachmentJson,
+                projectId = activeProjectId
             )
             if (wasEmpty) memoryManager.renameSession(sessionId, "Image: ${attachmentName.take(40)}")
             _messages.update {
@@ -2812,7 +2835,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             return@launch
                         }
                         val asstMsg = memoryManager.recordChatMessage(
-                            sessionId, "assistant", fullText
+                            sessionId = sessionId,
+                            role = "assistant",
+                            content = fullText,
+                            projectId = activeProjectId
                         )
                         _messages.update {
                             it + ChatMessage(fullText, isUser = false, id = asstMsg.id)

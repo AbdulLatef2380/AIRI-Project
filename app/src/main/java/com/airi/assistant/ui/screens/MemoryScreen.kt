@@ -278,6 +278,34 @@ private fun MemoryEntryCard(msg: ChatMessage, searchQuery: String) {
                 overflow  = TextOverflow.Ellipsis,
                 lineHeight = 18.sp
             )
+            if (msg.isMemory) {
+                val provenance = msg.provenance.ifBlank { msg.memorySource.replace('_', ' ').lowercase() }
+                val confidencePercent = (msg.confidence.coerceIn(0f, 1f) * 100).toInt()
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(
+                        stringResource(R.string.memory_why_saved),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = CosmicAccent
+                    )
+                    Text(
+                        provenance,
+                        fontSize = 11.sp,
+                        color = AiriTheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        stringResource(
+                            R.string.memory_scope_confidence,
+                            msg.memoryScope.lowercase(),
+                            confidencePercent
+                        ),
+                        fontSize = 10.sp,
+                        color = AiriTheme.onSurfaceVariant.copy(alpha = 0.72f)
+                    )
+                }
+            }
         }
     }
 }

@@ -1009,6 +1009,8 @@
     <string name="library_no_matching_files_description">جرّب اسماً أو نوعاً أو وسماً مختلفاً.</string>
     <string name="library_no_files">لا توجد ملفات بعد</string>
     <string name="library_no_files_description">استورد ملف مشروع أو أنشئ مخرجاً من مهمة.</string>
+    <string name="memory_why_saved">سبب الحفظ</string>
+    <string name="memory_scope_confidence">النطاق: %1$s · الثقة: %2$d%%</string>
     <string name="zapier_ifttt_title">الأتمتة</string>
     <string name="zapier_auth_section">المصادقة</string>
     <string name="zapier_connect_button">الاتصال بـ Zapier</string>

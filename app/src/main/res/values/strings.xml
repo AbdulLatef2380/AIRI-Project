@@ -1058,6 +1058,8 @@
     <string name="library_no_matching_files_description">Try a different name, type, or tag.</string>
     <string name="library_no_files">No files yet</string>
     <string name="library_no_files_description">Import a project file or create an artifact from a task.</string>
+    <string name="memory_why_saved">Why saved</string>
+    <string name="memory_scope_confidence">Scope: %1$s · Confidence: %2$d%%</string>
 
     <!-- Zapier / IFTTT screen -->
     <string name="zapier_ifttt_title">Automation</string>

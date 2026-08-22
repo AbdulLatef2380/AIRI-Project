@@ -36,7 +36,8 @@ import java.io.File
  *   v3 → v4: Added audit_log table for persistent AIRI event storage (ask 5).
  *   v4 → v5: Added workspace_artifact table for ArtifactManager persistence (ask 26).
  *   v5 → v6: Added feedback and attachment metadata columns to episodic memory.
- *   v6 → v7: Added durable chat-session pin state.
+     *   v6 → v7: Added durable chat-session pin state.
+     *   v7 → v8: Added memory provenance, scope, confidence, retention, and privacy metadata.
 
  *
  * [exportBackup] copies the live database file to a destination [File] using
@@ -54,7 +55,7 @@ import java.io.File
         AuditLogEntity::class,
         ArtifactEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 @TypeConverters(AuditLogTypeConverters::class)
@@ -164,13 +165,31 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE episodic_memory ADD COLUMN projectId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE episodic_memory ADD COLUMN memorySource TEXT NOT NULL DEFAULT 'CHAT_CONTEXT'")
+                db.execSQL("ALTER TABLE episodic_memory ADD COLUMN provenance TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE episodic_memory ADD COLUMN confidence REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE episodic_memory ADD COLUMN importance INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE episodic_memory ADD COLUMN memoryScope TEXT NOT NULL DEFAULT 'SESSION'")
+                db.execSQL("ALTER TABLE episodic_memory ADD COLUMN privacyLevel INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE episodic_memory ADD COLUMN expiresAtMs INTEGER NOT NULL DEFAULT -1")
+                db.execSQL("ALTER TABLE episodic_memory ADD COLUMN lastAccessedAtMs INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE episodic_memory ADD COLUMN updatedAtMs INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_episodic_memory_project_scope ON episodic_memory(projectId, memoryScope)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_episodic_memory_expiry ON episodic_memory(expiresAtMs)")
+            }
+        }
+
         internal fun migrations(): Array<Migration> = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
             MIGRATION_3_4,
             MIGRATION_4_5,
             MIGRATION_5_6,
-            MIGRATION_6_7
+            MIGRATION_6_7,
+            MIGRATION_7_8
         )
 
         fun getDatabase(context: Context): AiriDatabase {

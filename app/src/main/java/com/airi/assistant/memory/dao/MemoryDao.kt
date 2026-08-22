@@ -37,6 +37,59 @@ interface MemoryDao {
     suspend fun findLongTermMemoryId(sessionId: String, content: String): Long?
 
     @Query("""
+        SELECT * FROM episodic_memory
+        WHERE isMemory = 1
+          AND privacyLevel <= :maxPrivacyLevel
+          AND (expiresAtMs < 0 OR expiresAtMs > :nowMs)
+          AND (
+              memoryScope = 'USER'
+              OR (memoryScope = 'PROJECT' AND :projectId != '' AND projectId = :projectId)
+              OR (memoryScope = 'SESSION' AND sessionId = :sessionId)
+          )
+        ORDER BY importance DESC, timestamp DESC, id DESC
+        LIMIT :limit
+    """)
+    suspend fun getScopedLongTermMemories(
+        sessionId: String,
+        projectId: String,
+        maxPrivacyLevel: Int,
+        nowMs: Long,
+        limit: Int
+    ): List<ChatMessage>
+
+    @Query("UPDATE episodic_memory SET lastAccessedAtMs = :nowMs WHERE id IN (:memoryIds)")
+    suspend fun markMemoriesAccessed(memoryIds: List<Long>, nowMs: Long)
+
+    @Query("DELETE FROM episodic_memory WHERE id = :memoryId AND isMemory = 1")
+    suspend fun deleteLongTermMemory(memoryId: Long): Int
+
+    @Query("""
+        UPDATE episodic_memory
+        SET content = :content,
+            provenance = :provenance,
+            confidence = :confidence,
+            importance = :importance,
+            projectId = :projectId,
+            memoryScope = :memoryScope,
+            privacyLevel = :privacyLevel,
+            expiresAtMs = :expiresAtMs,
+            updatedAtMs = :updatedAtMs
+        WHERE id = :memoryId AND isMemory = 1
+    """)
+    suspend fun updateLongTermMemory(
+        memoryId: Long,
+        content: String,
+        provenance: String,
+        confidence: Float,
+        importance: Int,
+        projectId: String,
+        memoryScope: String,
+        privacyLevel: Int,
+        expiresAtMs: Long,
+        updatedAtMs: Long
+    ): Int
+
+    @Query("""
         DELETE FROM episodic_memory
         WHERE sessionId = :sessionId
           AND isMemory = 1

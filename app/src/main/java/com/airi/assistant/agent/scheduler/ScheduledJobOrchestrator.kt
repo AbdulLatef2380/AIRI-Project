@@ -65,6 +65,7 @@ class ScheduledJobOrchestrator(private val context: Context) {
         delayMs:     Long,
         requiresNet: Boolean = false
     ): ScheduledJob {
+        ScheduledJobInputPolicy.requireValid(agentId, payload, label)
         val safeDelayMs = delayMs.coerceAtLeast(0L)
         val job = ScheduledJob(
             id          = UUID.randomUUID().toString(),
@@ -114,6 +115,7 @@ class ScheduledJobOrchestrator(private val context: Context) {
         requiresNet:     Boolean = false,
         stableJobId:     String? = null
     ): ScheduledJob {
+        ScheduledJobInputPolicy.requireValid(agentId, payload, label)
         stableJobId?.let { id ->
             listJobs().firstOrNull { it.id == id }?.let { existing ->
                 Log.i(TAG, "AIRI PERIODIC_JOB_REUSED id=$id agent=${existing.agentId}")

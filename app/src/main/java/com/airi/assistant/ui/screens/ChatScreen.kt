@@ -2817,11 +2817,11 @@ fun AiriChatInputBar(
                     activeSuggestions.forEach { suggestion ->
                         Surface(
                             onClick = {
-                                text = if (suggestion.isKnowledge) {
-                                    "@knowledge:${suggestion.id} "
-                                } else {
-                                    "/skill:${suggestion.id} "
-                                }
+                                text = com.airi.assistant.ui.composer.ComposerDirectivePolicy.applySelection(
+                                    currentText = text,
+                                    directiveId = suggestion.id,
+                                    isKnowledge = suggestion.isKnowledge
+                                )
                                 onSkillQueryChanged("")
                                 onKnowledgeQueryChanged("")
                             },

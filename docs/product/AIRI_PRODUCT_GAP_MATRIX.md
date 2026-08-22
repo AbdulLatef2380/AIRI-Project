@@ -51,6 +51,7 @@
 | T1-08 | Voice state machine | `PARTIAL` | `LiveVoiceSession` يفرض الآن انتقالات state قانونية، مع barge-in/recovery metrics واختبارات JVM؛ المتبقي realtime provider end-to-end، تحقق microphone/audio-focus على جهاز، offline/online provider handoff، Arabic STT device validation |
 | T1-09 | Vision/OCR/video | `PARTIAL` | image/document/video ingestion مع evidence وlimits |
 | T1-10 | Update Center | `MISSING` | signed updates، channels، rollback، migration safety |
+| T1-11 | Composer, localization & accessibility | `PARTIAL` | `ComposerDirectivePolicy` يحافظ على نص المهمة عند اختيار `/skill` أو `@knowledge`، وصحة الموارد تبلغ `likely_untranslated_values=0` للإسبانية/الصينية؛ المتبقي اختبار TalkBack/focus/IME ولقطات RTL/LTR ومراجعة لغوية بشرية ورفع hard-coded Compose text إلى موارد |
 
 ## Tier 2: التجاري والفرق
 

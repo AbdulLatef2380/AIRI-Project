@@ -1,5 +1,7 @@
 # أدلة تنفيذ برنامج Productization
 
+> **سجل تاريخي حتى `b7fe2f2e`:** لا يغطي هذا السجل التزامات `cp-foundation` المحلية اللاحقة. يرجى الرجوع إلى [`../AIRI_FINAL_ACCEPTANCE_REPORT.md`](../AIRI_FINAL_ACCEPTANCE_REPORT.md) و[`LOCAL_ACCEPTANCE_EVIDENCE_2026-08-23.md`](LOCAL_ACCEPTANCE_EVIDENCE_2026-08-23.md) للحالة الحالية وقيود التحقق الخارجي.
+
 ## نطاق الدليل
 
 يغطي هذا السجل تنفيذ برنامج المنتج على فرع `cp-foundation` حتى revision `b7fe2f2ef8b7f62f324c52495abcd75ad17f425c`. لا يغير هذا السجل حالة `architecture-refactor` ولا يمثل دمجاً بين الفرعين. وهو يفرق بين نتيجة المصدر والاختبارات الآلية وبين تحقق التشغيل على جهاز فعلي أو نشر إنتاجي.
@@ -28,7 +30,7 @@
 | حراس Remote Control وFirestore | ناجحة | تثبت الحدود المصدرية للتفويض والملكية والـreplay والـrevocation. |
 | `airi_scheduler_health.py` | ناجح | يثبت عدم إنشاء نسخ دورية جديدة من مهام الصيانة عند الاستئناف. |
 | `airi_attachment_flow_health.py` | ناجح | يثبت أن تحويل النص الطويل لا يعتمد على ترتيب UI غير متزامن. |
-| `airi_localization_health.py` | ناجح مع مراجعات | يسجل 252 نصاً مرشحاً للمراجعة في الصينية؛ ليست دليلاً على اكتمال مراجعة ترجمة بشرية. |
+| `airi_localization_health.py` | `HISTORICAL_SNAPSHOT` ثم محسن | سجّل revision التاريخي 252 مرشحاً. فحص strict الحالي بعد تطبيق الإسبانية والصينية يعيد `likely_untranslated_values=0`؛ ولا يزال لا يساوي مراجعة بشرية كاملة. |
 
 ## أدلة CI على revision النهائي
 

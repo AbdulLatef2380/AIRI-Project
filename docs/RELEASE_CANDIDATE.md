@@ -1,5 +1,7 @@
 # AIRI Core — Release Candidate
 
+> **سجل تاريخي:** يغطي هذا المستند revision `84f8e1b4` فقط. لا يغطي التزامات `cp-foundation` المحلية اللاحقة التي تبدأ من `31d06383`، إذ إن push البعيد رفض المصادقة في جلسة 2026-08-23 ولم يتوفر CI صالح للمراجعات الجديدة. الحالة الحالية ودليل القبول المحلي موجودان في [`AIRI_FINAL_ACCEPTANCE_REPORT.md`](AIRI_FINAL_ACCEPTANCE_REPORT.md) و[`product/LOCAL_ACCEPTANCE_EVIDENCE_2026-08-23.md`](product/LOCAL_ACCEPTANCE_EVIDENCE_2026-08-23.md).
+
 ## تعريف المرشح
 
 هذا المستند يسجل قرار **Release Candidate** لفرع `cp-foundation` عند revision `84f8e1b4bcc2c07eb88e9609f9cb35cf09399ca3` بتاريخ 2026-08-21. لم يُدمج الفرع مع `architecture-refactor` ولم يُعدّل ذلك الفرع؛ يبقى خط المراجعة المحمي عند `1027dee20511b294437c4f47f08e9c2f54050eaf`.
@@ -45,7 +47,7 @@ python3 scripts/airi_localization_health.py
 | `airi_remote_control_health.py` | `SOURCE_VERIFIED` | تغطية dispatcher، حد النص، expiry قبل القبول، sequence monotonic، ورفض الجلسة المسحوبة. |
 | `airi_remote_control_security.py` | `SOURCE_VERIFIED` | لا raw socket ولا cleartext HTTP ولا service account ولا secret مضمّن ضمن paired-control. |
 | `airi_firestore_rules_test.py` | `SOURCE_VERIFIED` | المسارات scoped، وجلسات relay-managed، والأوامر غير قابلة للتعديل أو الحذف من العميل. |
-| `airi_localization_health.py` | `SOURCE_VERIFIED` | خرج بنجاح؛ سجّل `252` قيمة متطابقة تحتاج مراجعة لغوية بشرية، لا فشل بنيوي في الحارس. |
+| `airi_localization_health.py` | `HISTORICAL_SNAPSHOT` | في revision التاريخي سجّل الحارس 252 قيمة مرشحة. أعاد فحص 2026-08-23 بعد تطبيق الموارد `likely_untranslated_values=0`؛ تبقى المراجعة البشرية مطلوبة. |
 
 ## سلسلة التوريد في هذا الإغلاق
 

@@ -1,82 +1,63 @@
-# تقرير القبول النهائي — AIRI Core متعدد المنصات
+# تقرير القبول النهائي المحلي — AIRI Android
 
-## نطاق التقرير وقرار القبول
+## حالة التقرير وحدوده
 
-يسجل هذا التقرير نتيجة بوابة التسليم لفرع `cp-foundation` عند revision `84f8e1b4bcc2c07eb88e9609f9cb35cf09399ca3` بتاريخ 2026-08-21. وهو يحل محل التقرير السابق الذي كان مرتبطاً بفرع `architecture-refactor` وتاريخه السابق؛ لا يعدّل هذا التقرير ذلك الفرع ولا ينفذ دمجاً بين الخطين. بقي `architecture-refactor` دون تعديل عند `1027dee20511b294437c4f47f08e9c2f54050eaf`.
+يسجل هذا التقرير لقطة قبول محلية لفرع **`cp-foundation`** حتى revision `077a60cc` بتاريخ 2026-08-23. لا يغير التقرير فرع `architecture-refactor`، ولا يدمج معه أي سجل. كانت آخر مقارنة آمنة مع `origin/cp-foundation` عند `60f98388`، بينما تضم الشجرة المحلية في هذه اللقطة **ثمانية التزامات أمام البعيد** بسبب رفض المصادقة البعيدة لعملية Git push؛ لذلك لا ينسب التقرير أي CI منشور إلى هذه المراجعات المحلية.
 
-> قرار القبول: **ACCEPTED_FOR_RELEASE_CANDIDATE**. يقبل الفرع للدخول في التحقق الخارجي المنضبط. لا يصرح هذا القرار بنشر إنتاجي أو توقيع فعلي أو توزيع تجاري حتى تغلق العناصر المصنفة `EXTERNAL_VERIFICATION_REQUIRED`.
+> **القرار:** `LOCAL_ACCEPTANCE_COMPLETE` لمسارات المصدر وGradle/JVM المحددة أدناه. الحالة ليست دليلاً على توقيع release أو اختبار جهاز Android حقيقي أو مزود سحابي أو نشر إنتاجي. هذه العناصر مصنفة صراحةً `RUNTIME_VERIFICATION_PENDING` أو `EXTERNAL_VERIFICATION_REQUIRED`.
 
-يعتمد التقرير مبدأ أن **المنصة أو القدرة لا تُصنّف أعلى من دليلها**. لذلك يفصل بين الاختبار داخل CI والمحاكي والحارس المصدري من جهة، والتحقق من بيئات الإنتاج والأجهزة الحقيقية والامتثال التجاري من جهة أخرى.
+يعتمد التقرير مبدأ أن **القدرة لا تتجاوز دليلها**. فنجاح اختبار وحدة أو lint يثبت عقداً محلياً، لكنه لا يثبت صوتاً أو شبكة أو credential أو واجهة فعلية على هاتف.
 
-## مصفوفة القبول المطلوبة
+## بوابات القبول المنفذة
 
-| المتطلب | الحالة | مستوى الدليل | الدليل المنفذ | الحد المتبقي |
-|---|---|---|---|---|
-| Remote Control | `IMPLEMENTED` | `SOURCE_VERIFIED` | عقود التحكم المقترن وdispatcher Desktop ومحول Android وقواعد Firestore موجودة ومحروسة. | backend إنتاجي يحتاج تحققاً مستقلاً. |
-| Security | `IMPLEMENTED` | `SOURCE_VERIFIED` | حارس الأمن يؤكد غياب raw socket وcleartext HTTP وservice account وsecrets المضمّنة. | مراجعة أسرار وإعدادات البيئة الحية. |
-| Pairing | `TESTED` | `TESTED` | سيناريوهات الاقتران مغطاة ضمن اختبارات Emulator وموثقة في بوابة Remote Control. | smoke test إنتاجي بحسابات اختبار. |
-| Authorization | `TESTED` | `TESTED` | قواعد Firestore scoped وحارس القواعد يثبت منع الوصول الواسع. | التحقق على مشروع Firebase إنتاجي. |
-| Replay | `TESTED` | `SOURCE_VERIFIED` | سياسة sequence monotonic مفحوصة في حارس التحكم المقترن. | إعادة الاختبار end-to-end في الإنتاج. |
-| Revocation | `TESTED` | `SOURCE_VERIFIED` | حارس التحكم يثبت رفض الجلسات المسحوبة. | اختبار lifecycle في الإنتاج. |
-| Firestore Rules | `TESTED` | `SOURCE_VERIFIED` | حارس القواعد يثبت scoped routes ومنع client write للجلسات وعدم قابلية الأوامر للتعديل أو الحذف. | نشر قواعد مقيد ومراجعته في مشروع حقيقي. |
-| Emulator | `TESTED` | `TESTED` | اختبارات Firebase Emulator المستخدمة في بوابة التحكم المقترن. | لا يحل محل backend الإنتاج. |
-| Android | `TESTED` | `RUNTIME_VERIFIED` في CI | Android CI ناجح: shared core وdebug وunit وlint وrelease sources وinstrumentation وnative output [1]. | أجهزة فعلية وتنوع ABI وحرارة وشبكة وصوت. |
-| Desktop | `TESTED` | `BUILD_VERIFIED` | اختبارات Desktop محلياً وWindows CI ناجح لبناء MSI [2]. | runtime Windows حقيقي؛ runtime Linux النهائي بحسب بوابته المستقلة. |
-| Production | `EXTERNAL_VERIFICATION_REQUIRED` | — | لا توجد أسرار إنتاج أو توقيع أو backend إنتاج داخل هذا القبول. | استكمال قائمة النشر الخارجي قبل التوزيع. |
+| البوابة | الحالة | الدليل المحلي | الحد الصريح |
+|---|---|---|---|
+| قبول JVM لمسارات المنتج | `LOCAL_VERIFIED` | `ComposerDirectivePolicyTest` و`PrivacyGuardTest` و`CloudErrorMapperTest` و`RoutingPolicyTest` و`AgentTeamPolicyTest` واختبارات scheduler/device/search نجحت | لا تثبت مزوداً أو جهازاً أو WorkManager/Doze فعلياً |
+| تجميع Android | `LOCAL_VERIFIED` | `:app:compileDebugKotlin` و`:app:assembleDebug` نجحا | لا يثبت التثبيت أو حرارية/ABI أو توقيع release |
+| Android lint | `LOCAL_VERIFIED` | `:app:lintDebug` نجح | لا يثبت UX بصرياً أو TalkBack/IME |
+| حدود الأمن | `LOCAL_VERIFIED` | `tools/security_scan.py` نجح: لا cleartext override، FileProvider غير مُصدّر، attachments خاصة ومحدودة | لا يحل محل اختبار اختراق أو أسرار production |
+| تدقيق النواة | `LOCAL_VERIFIED` | `tools/verify_core_changes.py` نجح بنتيجة **45/45** | حارس مصدر، وليس E2E على مزود أو جهاز |
+| صحة الترجمة | `LOCAL_VERIFIED` | `scripts/airi_localization_health.py --strict` أعاد `likely_untranslated_values=0` | مراجعة بشرية وسياق RTL/LTR وTalkBack ما زالت مطلوبة |
 
-## سجل أدلة CI
+تفاصيل الأوامر والسيناريوهات موجودة في [`LOCAL_ACCEPTANCE_EVIDENCE_2026-08-23.md`](product/LOCAL_ACCEPTANCE_EVIDENCE_2026-08-23.md).
 
-تشكل هذه النتائج الحد الأدنى القابل لإعادة التنفيذ على revision واحد؛ لا توجد نتيجة منفصلة من revision سابق مستخدمة لإسناد القبول الحالي.
+## مصفوفة القدرات الحالية
 
-| البوابة | النتيجة | ما تؤكده |
-|---|---|---|
-| AIRI Android CI [1] | `success` | build وunit/lint وinstrumentation وnative validation، مع تجميع مصادر release من دون مادة signing محلية. |
-| AIRI Desktop Windows [2] | `success` | اختبارات Desktop على Windows ومسار حزمة MSI. |
-| AIRI Architecture Audit [3] | `success` | تدقيق الحدود المعمارية متعددة المنصات. |
-| AIRI Deep Audit [4] | `success` | تدقيقات المصدر الإضافية وسلامة الضوابط. |
+| المجال | الحالة | الدليل | قيود الإغلاق |
+|---|---|---|---|
+| الملحن `/skill` و`@knowledge` | `IMPLEMENTATION_COMPLETE` | يحافظ `ComposerDirectivePolicy` على النص بعد اختيار directive؛ اختبارات عربية وإنجليزية وحالة فارغة | TalkBack/focus/IME ولقطات Android حقيقية |
+| الإسبانية والصينية | `IMPLEMENTATION_COMPLETE` للفحص الآلي | أزيلت 126 قيمة مطابقة للإنجليزية لكل لغة؛ strict health يساوي صفر | مراجعة لغوية بشرية والسياق الثقافي |
+| الخصوصية السحابية | `IMPLEMENTATION_COMPLETE` للمسار المحلي | `PrivacyGuard` ينقح prompt/system/history ومعرفات الجهاز، ويحرس كل cloud fallback | التقاط شبكة جهاز ومراجعة providers حقيقية |
+| diagnostics | `IMPLEMENTATION_COMPLETE` للتنقيح المحلي | response body ورسائل retry الخام لا تدخل state/sجل diagnostics؛ 45/45 يدقق الحدود | export تشخيصي للمستخدم وtrace كامل لا يزالان جزئيين |
+| offline routing | `IMPLEMENTATION_COMPLETE` لحارس المصدر | لا يعد `ConnectivityMonitor` cloud online قبل `NET_CAPABILITY_VALIDATED` | captive portal وhandoff على جهاز حقيقي |
+| scheduled agent jobs | `IMPLEMENTATION_COMPLETE` للعقد المحلي | وظائف agent ترتبط بـDurableTask/Run/Step ويغطيها JVM | Doze/OEM والتنبيهات والتشغيل الفعلي |
+| device/search safeguards | `IMPLEMENTATION_COMPLETE` للسياسات | device discovery فقط وtakeover/block، والبحث public HTTP(S) read-only | تطبيقات/متصفحات/device targets حقيقية |
+| model router وفرق الوكلاء | `IMPLEMENTATION_COMPLETE` للسياسة | capability/privacy/budget وteam isolation مغطاة باختبارات | provider usage accounting وlocal/cloud runtime |
 
-## سجل أدلة الحراس المحلية
+## سجل الالتزامات المحلية بعد آخر remote sync
 
-أعيد تشغيل الحراس على revision النهائي وخرج كل أمر بحالة `0`. توضح النتائج حدود الدليل بدقة: هي تؤكد source policies وقواعد الحماية؛ لا تحاكي credentials إنتاجية ولا أجهزة المستخدمين.
+| الالتزام | المضمون |
+|---|---|
+| `31d06383` | حفظ نص الملحن وترجمة موارد الإسبانية والصينية |
+| `3e7f6e38` | semantics لاقتراحات الملحن لقارئ الشاشة |
+| `0139a379` | تنقيح جميع الحقول النصية المتجهة إلى cloud ومعرفات الجهاز |
+| `5aded955` | إنفاذ الحارس ذاته على cloud fallbacks |
+| `78847f4b` | اشتراط شبكة Android المتحققة لتوجيه cloud |
+| `0359d94e` | منع response body من diagnostics |
+| `00b73e88` | منع نص الخطأ الخام من سجل retry |
+| `077a60cc` | دليل قبول محلي قابل لإعادة التشغيل |
 
-| الأمر | النتيجة | الإثبات |
-|---|---|---|
-| `python3 scripts/airi_release_health.py` | `PASS` | تجميع release مستقل عن أسرار signing؛ التغليف الموقّع مقصور على `main` مع الأسرار الأربعة؛ تنظيف مادة signing المؤقتة مفروض. |
-| `python3 scripts/airi_remote_control_health.py` | `PASS` | dispatcher، حد النص، expiry، replay sequence، وrevocation policy مغطاة. |
-| `python3 scripts/airi_remote_control_security.py` | `PASS` | لا socket خام، ولا HTTP غير مشفر، ولا service account، ولا secrets مضمّنة ضمن paired-control. |
-| `python3 scripts/airi_firestore_rules_test.py` | `PASS` | قيود sessions والأوامر ومسارات المستخدم/الجهاز/الجلسة/الأمر/الحدث. |
-| `python3 scripts/airi_localization_health.py` | `PASS` | فحص بنية الموارد نجح؛ سجّل `252` قيمة مرشحة لمراجعة لغوية بشرية. |
-
-## سلسلة التوريد وتحقق التبعيات
-
-بقيت خاصية Gradle dependency verification مفعلة. عند تكرار Windows CI، كانت البصمات الناقصة مقتصرة على artifacts الخاصة بمسار Windows runtime: Compose Desktop Windows وSkiko Windows وCompose JDK probe. جُلب كل ملف من Maven Central عبر HTTPS، وحُسب SHA-256، وأضيف إلى `gradle/verification-metadata.xml` فقط. لم يُستخدم `--write-verification-metadata` لتوسيع قائمة غير مراجعة، ولم تُعطّل سياسة التحقق.
-
-| الضابط | الحالة | الملاحظة |
-|---|---|---|
-| Gradle metadata verification | `IMPLEMENTED` | ما زال التحقق مفعلاً في metadata. |
-| بصمات artifacts Windows | `BUILD_VERIFIED` | اجتازت بوابة MSI بعد إضافتها. |
-| Dependabot | `IMPLEMENTED` | إعداد التحديثات موجود في `.github/dependabot.yml`. |
-| npm/pnpm audit | `SOURCE_VERIFIED` | الدليل السابق موثق في ضوابط سلسلة التوريد. |
-| مراجعة تراخيص تجارية | `EXTERNAL_VERIFICATION_REQUIRED` | لا تُغلق إلا وفق `docs/commercial/LICENSE_MATRIX.md`. |
-
-## موانع إصدار الإنتاج والمالك المقترح
+## قيود التحقق الخارجي ومالك الإغلاق
 
 | العمل المتبقي | الحالة | المالك المقترح | دليل الإغلاق |
 |---|---|---|---|
-| توقيع APK/AAB من `main` | `EXTERNAL_VERIFICATION_REQUIRED` | مالك الإصدار | أسرار signing الأربعة، artifact موقّع، SHA-256، AAB، mapping، وسجل CI. |
-| Firebase وOAuth الإنتاجيان | `EXTERNAL_VERIFICATION_REQUIRED` | مالك البنية السحابية | إعدادات project الحقيقية وsmoke test بحسابات اختبار. |
-| تشغيل MSI على Windows حقيقي | `EXTERNAL_VERIFICATION_REQUIRED` | QA على Windows | launch/render وإدخال وresponse وpersistence/restart وresize/focus/close. |
-| قبول Android على أجهزة حقيقية | `EXTERNAL_VERIFICATION_REQUIRED` | QA Android | شبكة وصوت وكاميرا/ملفات وذاكرة وحرارة وABI متعددة. |
-| مراجعة الترجمة البشرية | `EXTERNAL_VERIFICATION_REQUIRED` | الترجمة/المنتج | إغلاق `252` مرشحاً وفق سياق UX؛ لا تساوي المطابقة النصية وحدها خطأ ترجمة. |
-| مراجعة التراخيص وسياسة التوزيع | `EXTERNAL_VERIFICATION_REQUIRED` | القانوني/الناشر | إغلاق `LICENSE_MATRIX.md` ومراجعة نماذج وتبعيات الطرف الثالث. |
+| مزامنة GitHub وتشغيل CI للمراجعات المحلية | `EXTERNAL_VERIFICATION_REQUIRED` | مالك المستودع | استعادة مصادقة GitHub، push آمن لـ`cp-foundation`، ثم CI للـSHA المنشور |
+| تثبيت APK وفحص UX/RTL/TalkBack/IME | `RUNTIME_VERIFICATION_PENDING` | QA Android | تثبيت debug/release، تسجيل سيناريوهات عربية/إنجليزية، rotation وkeyboard/focus |
+| local model وcloud fallback الحقيقيان | `RUNTIME_VERIFICATION_PENDING` | QA Android/Runtime | نموذج محلي ومفتاح test، انقطاع شبكة/captive portal/fallback مع سجل منقح |
+| الصوت والكاميرا والملفات | `RUNTIME_VERIFICATION_PENDING` | QA Android | microphone/audio-focus/STT/TTS وpicker وcamera على أجهزة ABI مختلفة |
+| Firestore/OAuth/الموصلات الإنتاجية | `EXTERNAL_VERIFICATION_REQUIRED` | مالك البنية السحابية | accounts اختبار، scopes، rules منشورة، وsmoke tests |
+| توقيع AAB/APK وسياسة النشر | `EXTERNAL_VERIFICATION_REQUIRED` | مالك الإصدار/القانوني | signing material، artifacts، hashes، license review، store rollout |
 
-## خلاصة تنفيذية
+## الخلاصة
 
-أغلقت بوابة CI والإصدار لفرع `cp-foundation` بنجاح. **Android وDesktop ومسار Remote Control والحراس الأمنية وقواعد Firestore** تملك أدلة محددة ضمن نطاقها، وتبقى جميع خطوات الإنتاج والتوقيع والأجهزة الحقيقية والالتزامات القانونية مصنفة بوضوح على أنها خارجية. هذا يمنع الادعاءات الزائدة ويحافظ على قابلية تتبع القرار عند الانتقال من Release Candidate إلى نشر فعلي.
-
-## المراجع
-
-[1]: https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32513740298 "AIRI Android CI #32513740298"
-[2]: https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32513740332 "AIRI Desktop Windows #32513740332"
-[3]: https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32513740335 "AIRI Architecture Audit #32513740335"
-[4]: https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32513740288 "AIRI Deep Audit #32513740288"
+أغلقت هذه اللقطة **القبول المحلي القابل لإعادة التشغيل** لطبقات الملحن والترجمة والخصوصية والتشخيص والتوجيه والأتمتة والسياسات المقيدة. لا توجد نتيجة محلية تُستخدم كبديل عن جهاز أو credential أو مزود أو CI منشور. بعد إعادة مزامنة `cp-foundation` وتشغيل CI، تبقى قائمة التحقق الخارجية أعلاه معيار الانتقال من قبول محلي إلى مرشح إصدار موزع.

@@ -160,6 +160,21 @@ class ProjectFileManager(
         if (!current.isReady) current else current.copy(indexState = IndexState.PENDING)
     }
 
+    /** Reads bounded text only for an explicit knowledge-indexing operation. */
+    suspend fun readTextForIndex(id: String): String? = withContext(Dispatchers.IO) {
+        val file = store[id] ?: return@withContext null
+        if (!file.isReady || file.extractionState != ExtractionState.EXTRACTED || file.storagePath.isBlank()) {
+            return@withContext null
+        }
+        runCatching {
+            File(file.storagePath).bufferedReader(Charsets.UTF_8).use { reader ->
+                val chars = CharArray(MAX_INDEXABLE_CHARS)
+                val count = reader.read(chars)
+                if (count <= 0) null else String(chars, 0, count)
+            }
+        }.getOrNull()
+    }
+
     /** Called only by a real knowledge-indexing runtime. */
     fun markIndexed(id: String, success: Boolean, error: String = ""): ProjectFile? = update(id) { current ->
         current.copy(
@@ -384,6 +399,7 @@ class ProjectFileManager(
         const val COPY_BUFFER_BYTES = 8 * 1024
         const val MAX_IMPORT_BYTES = 100L * 1024L * 1024L
         const val MAX_EXTRACTED_CHARS = 8 * 1024
+        const val MAX_INDEXABLE_CHARS = 250 * 1024
         const val MAX_FILE_NAME_CHARS = 160
         const val MAX_FOLDER_CHARS = 80
         const val MAX_ERROR_CHARS = 240

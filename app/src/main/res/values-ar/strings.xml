@@ -1002,6 +1002,7 @@
     <string name="library_project_files">ملفات المشروع</string>
     <string name="library_generated_artifacts">المخرجات المُنشأة</string>
     <string name="library_toggle_favorite">تبديل المفضلة</string>
+    <string name="library_index_file">إضافة إلى المعرفة</string>
     <string name="library_file_state">الاستخراج: %1$s · فهرس المعرفة: %2$s</string>
     <string name="library_select_project_title">اختر مشروعاً أولاً</string>
     <string name="library_select_project_description">تنتمي الملفات إلى مشروع. افتح مساحة عمل أو أنشئها قبل الاستيراد.</string>

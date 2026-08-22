@@ -605,8 +605,15 @@ object ServiceLocator {
 
     // ── RAG Retriever ─────────────────────────────────────────────────────────
 
+    val projectKnowledgeManager: com.airi.assistant.knowledge.ProjectKnowledgeManager by lazy {
+        com.airi.assistant.knowledge.ProjectKnowledgeManager(
+            context = requireContext(),
+            projectFileManager = projectFileManager
+        )
+    }
+
     val ragRetriever: RagRetriever by lazy {
-        RagRetriever(memoryManager)
+        RagRetriever(memoryManager, projectKnowledgeManager)
     }
 
     // ── Media Library ─────────────────────────────────────────────────────────

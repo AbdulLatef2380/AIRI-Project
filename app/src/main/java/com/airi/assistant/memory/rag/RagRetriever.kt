@@ -1,6 +1,7 @@
 package com.airi.assistant.memory.rag
 
 import android.util.Log
+import com.airi.assistant.knowledge.ProjectKnowledgeManager
 import com.airi.assistant.memory.embedding.EmbeddingService
 import com.airi.assistant.memory.entity.ChatMessage
 import com.airi.assistant.memory.repository.MemoryManager
@@ -33,7 +34,8 @@ import com.airi.assistant.memory.repository.MemoryManager
  *     LlamaManager receives the augmented prompt — no cloud leakage.
  */
 class RagRetriever(
-    private val memoryManager: MemoryManager
+    private val memoryManager: MemoryManager,
+    private val projectKnowledgeManager: ProjectKnowledgeManager? = null
 ) {
 
     companion object {
@@ -120,7 +122,23 @@ $formatted
         } else {
             emptyList()
         }
-        return (longTerm + semantic)
+        val projectKnowledge = projectKnowledgeManager
+            ?.search(projectId = projectId, query = normalizedQuery, limit = safeLimit)
+            .orEmpty()
+            .map { hit ->
+                RetrievedPassage(
+                    citationId = hit.citationId,
+                    role = "knowledge",
+                    content = hit.content,
+                    score = hit.score,
+                    source = hit.retrievalMethod,
+                    provenance = "Project file: ${hit.sourceName} · chunk ${hit.chunkOrdinal + 1}",
+                    scope = "PROJECT",
+                    confidence = 0f,
+                    memoryId = 0L
+                )
+            }
+        return (longTerm + semantic + projectKnowledge)
             .filter(::isPromptSafe)
             .distinctBy { "${it.role}:${it.content.trim()}" }
             .take(safeLimit)

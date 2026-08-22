@@ -34,6 +34,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -199,7 +200,12 @@ fun LibraryScreen(onBack: () -> Unit) {
                                             isFavorite = !file.isFavorite
                                         )
                                     },
-                                    onDelete = { projectFileManager.delete(file.id) }
+                                    onDelete = { projectFileManager.delete(file.id) },
+                                    onIndex = {
+                                        scope.launch {
+                                            ServiceLocator.projectKnowledgeManager.indexProjectFile(file.id)
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -238,7 +244,8 @@ private fun ProjectFileRow(
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
     onToggleFavorite: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onIndex: () -> Unit
 ) {
     Surface(
         color = AiriTheme.surface,
@@ -319,6 +326,14 @@ private fun ProjectFileRow(
                                 .background(AiriTheme.background, AIRIShapes.xs)
                                 .padding(8.dp)
                         )
+                    }
+                    if (
+                        file.extractionState == ProjectFileManager.ExtractionState.EXTRACTED &&
+                        file.indexState != ProjectFileManager.IndexState.INDEXED
+                    ) {
+                        TextButton(onClick = onIndex) {
+                            Text(stringResource(R.string.library_index_file), color = CosmicAccent)
+                        }
                     }
                     if (file.error.isNotBlank()) {
                         Text(

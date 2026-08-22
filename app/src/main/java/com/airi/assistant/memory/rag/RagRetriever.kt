@@ -60,6 +60,7 @@ class RagRetriever(
         query:     String,
         k:         Int = DEFAULT_K
     ): String {
+        if (!RagQueryPolicy.accepts(query)) return ""
         val passages = retrieve(sessionId, query, k)
         if (passages.isEmpty()) return ""
 
@@ -88,7 +89,10 @@ $formatted
         query:     String,
         k:         Int = DEFAULT_K
     ): List<RetrievedPassage> {
-        val longTerm = memoryManager.getLongTermMemories(sessionId, k)
+        if (!RagQueryPolicy.accepts(query)) return emptyList()
+        val safeLimit = RagQueryPolicy.normalizeLimit(k)
+        val normalizedQuery = RagQueryPolicy.normalizeQuery(query)
+        val longTerm = memoryManager.getLongTermMemories(sessionId, safeLimit)
             .map { memory ->
                 RetrievedPassage(
                     role = "memory",
@@ -98,14 +102,14 @@ $formatted
                 )
             }
         val semantic = if (memoryManager.isSemanticMemoryReady()) {
-            retrieveSemantic(sessionId, query, k)
+            retrieveSemantic(sessionId, normalizedQuery, safeLimit)
         } else {
             emptyList()
         }
         return (longTerm + semantic)
             .filter(::isPromptSafe)
             .distinctBy { "${it.role}:${it.content.trim()}" }
-            .take(k)
+            .take(safeLimit)
     }
 
     /**
@@ -121,7 +125,7 @@ $formatted
     ): String {
         val seen     = mutableSetOf<String>()
         val passages = mutableListOf<RetrievedPassage>()
-        for (q in queries.take(4)) {
+        for (q in queries.map(RagQueryPolicy::normalizeQuery).filter(String::isNotEmpty).take(4)) {
             val hits = retrieve(sessionId, q, kPerQuery)
             for (p in hits) {
                 val key = "${p.role}:${p.content.take(60)}"

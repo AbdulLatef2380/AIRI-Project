@@ -51,6 +51,23 @@ class DeviceAppsConnector(private val appContext: Context) : Connector {
     override suspend fun execute(input: ConnectorInput): ConnectorOutput =
         withContext(Dispatchers.IO) {
             val pm = appContext.packageManager
+            when (val decision = DeviceActionPolicy.evaluate(input.action, input.params["url"])) {
+                DeviceActionPolicy.Decision.Allowed -> Unit
+                is DeviceActionPolicy.Decision.RequiresUserTakeover -> {
+                    return@withContext ConnectorOutput.Failure(
+                        code = "user_takeover_required",
+                        message = decision.reason,
+                        retryable = false
+                    )
+                }
+                is DeviceActionPolicy.Decision.Blocked -> {
+                    return@withContext ConnectorOutput.Failure(
+                        code = "blocked_by_policy",
+                        message = decision.reason,
+                        retryable = false
+                    )
+                }
+            }
             when (input.action) {
 
                 "list_apps" -> {

@@ -52,8 +52,8 @@ data class ChatAttachment(
     }
 
     private fun formatSize(bytes: Long): String = when {
-        bytes >= 1024L * 1024L -> "; size=${"%.1f".format(bytes / (1024.0 * 1024.0))} MB"
-        bytes >= 1024L -> "; size=${bytes / 1024L} KB"
-        else -> "; size=$bytes B"
+        bytes >= 1024L * 1024L -> "%.1f".format(bytes / (1024.0 * 1024.0)) + " MB"
+        bytes >= 1024L -> "${bytes / 1024L} KB"
+        else -> "$bytes B"
     }
 }

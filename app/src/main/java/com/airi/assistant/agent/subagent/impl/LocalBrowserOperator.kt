@@ -1,9 +1,9 @@
 package com.airi.assistant.agent.subagent.impl
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import com.airi.assistant.agent.browser.BrowserNavigationPolicy
 import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgent
 import com.airi.assistant.agent.subagent.SubAgentCapability
@@ -14,9 +14,10 @@ import kotlinx.coroutines.flow.flow
 /**
  * LocalBrowserOperator — on-device browser control via Android Intents.
  *
- * REAL EXECUTION:
- *   - Opens URLs, performs searches, and navigates the device's default
- *     browser using [Intent.ACTION_VIEW].
+ * USER-CONTROLLED HANDOFF:
+ *   - Resolves URLs, searches, and deep links for the device browser.
+ *   - Never launches an external app autonomously. Every handoff emits an
+ *     explicit user-takeover event before a user-controlled browser action.
  *   - Supports deep-link navigation for common services (YouTube, Maps,
  *     Wikipedia, GitHub, Reddit, Twitter/X, etc.).
  *   - Falls back to a plain HTTPS open when no deep-link matches.
@@ -33,12 +34,27 @@ class LocalBrowserOperator(
 
     companion object {
         private const val TAG = "LocalBrowserOperator"
+
+        internal fun handoffDecision(rawUri: String): BrowserNavigationPolicy.Decision {
+            val scheme = runCatching { java.net.URI(rawUri).scheme?.lowercase() }.getOrNull()
+            return when (scheme) {
+                "http", "https" -> BrowserNavigationPolicy.evaluate(
+                    rawUri,
+                    BrowserNavigationPolicy.Operation.OPEN_EXTERNAL
+                )
+                "geo" -> BrowserNavigationPolicy.Decision.RequiresUserTakeover(
+                    rawUri,
+                    "Opening a maps application transfers control to the user"
+                )
+                else -> BrowserNavigationPolicy.Decision.Blocked("Unsupported external navigation URI")
+            }
+        }
     }
 
     override val capability = SubAgentCapability(
         agentId        = "local_browser_operator",
         displayName    = "Local Browser",
-        description    = "Open websites, perform searches, and navigate your device browser.",
+        description    = "Prepare safe, user-controlled browser handoffs for websites and searches.",
         intentKeywords = listOf(
             "open browser", "open in browser", "open link", "launch browser",
             "navigate to", "take me to", "show me on maps", "search on youtube",
@@ -67,46 +83,32 @@ class LocalBrowserOperator(
         emit(AgentEvent.Progress("Resolving navigation intent…", 15, "resolve"))
 
         val action = detectBrowserAction(input.lowercase())
-        val intent = buildIntent(action, input)
+        val handoff = handoffDecision(action.uri.toString())
 
-        emit(AgentEvent.ToolCall(
-            toolName  = "android_intent",
-            params    = mapOf(
-                "action"  to intent.action.orEmpty(),
-                "data"    to (intent.dataString ?: ""),
-                "package" to (intent.`package` ?: "")
-            ),
-            reasoning = "Open device browser for: ${action.label}"
-        ))
-
-        emit(AgentEvent.Progress("Opening: ${action.label}…", 60, "launch"))
-
-        val launched = runCatching {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            this@LocalBrowserOperator.context.startActivity(intent)
-            true
-        }.getOrElse { e ->
-            Log.w(TAG, "Intent failed: ${e.message}")
-            false
+        when (handoff) {
+            is BrowserNavigationPolicy.Decision.RequiresUserTakeover -> {
+                emit(AgentEvent.ToolCall(
+                    toolName = "browser_user_takeover",
+                    params = mapOf("url" to handoff.normalizedUrl, "reason" to handoff.reason),
+                    reasoning = "External browser navigation requires user control"
+                ))
+                emit(AgentEvent.PartialResult(
+                    "This browser action needs you to take control: ${handoff.reason}",
+                    isFinal = true
+                ))
+                emit(AgentEvent.Complete(
+                    result = "[LocalBrowser: user takeover required for ${action.label}]",
+                    durationMs = System.currentTimeMillis() - start,
+                    toolsUsed = listOf("browser_user_takeover")
+                ))
+            }
+            is BrowserNavigationPolicy.Decision.Blocked -> {
+                emit(AgentEvent.Failed("Browser navigation blocked: ${handoff.reason}", recoverable = false))
+            }
+            else -> {
+                emit(AgentEvent.Failed("Browser handoff policy returned an unsupported decision", recoverable = false))
+            }
         }
-
-        if (launched) {
-            emit(AgentEvent.PartialResult(
-                "Opened ${action.label} in your browser.",
-                isFinal = true
-            ))
-        } else {
-            emit(AgentEvent.PartialResult(
-                "Could not open the browser. No browser app may be installed.",
-                isFinal = true
-            ))
-        }
-
-        emit(AgentEvent.Complete(
-            result     = "[LocalBrowser: ${action.label} launched=$launched]",
-            durationMs = System.currentTimeMillis() - start,
-            toolsUsed  = listOf("android_intent")
-        ))
     }
 
     // ── Internals ──────────────────────────────────────────────────────────────
@@ -173,9 +175,6 @@ class LocalBrowserOperator(
             }
         }
     }
-
-    private fun buildIntent(action: BrowserAction, rawInput: String): Intent =
-        Intent(Intent.ACTION_VIEW, action.uri)
 
     private fun extractQuery(lower: String, vararg remove: String): String {
         var result = lower

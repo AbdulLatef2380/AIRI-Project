@@ -4,7 +4,7 @@
 
 ## Browser agent boundary
 
-`CloudBrowserAgent` is a public, read-only content retriever. It does not impersonate a logged-in browser and it does not execute external side effects. The shared `BrowserNavigationPolicy` normalizes HTTP(S) addresses, rejects user-info URLs and private/local network hosts, and categorizes requested browser operations before an HTTP call occurs.
+`CloudBrowserAgent` is a public, read-only content retriever. It does not impersonate a logged-in browser and it does not execute external side effects. The shared `BrowserNavigationPolicy` normalizes HTTP(S) addresses, rejects user-info URLs and private/local network hosts, and categorizes requested browser operations before an HTTP call occurs. `LocalBrowserOperator` uses the same boundary before any external handoff; it resolves a candidate only, emits `browser_user_takeover`, and does not call `ACTION_VIEW` or launch another application autonomously.
 
 | Browser operation | Current policy outcome |
 |---|---|
@@ -14,7 +14,7 @@
 | Download | Explicit approval is required before implementation-specific storage writes. |
 | Localhost, loopback, RFC1918, link-local, `.local`, `.internal`, non-HTTP(S) | Blocked before fetch, preventing browser-agent SSRF into device or private services. |
 
-The Android `LocalBrowserOperator` remains a hand-off to the user’s browser through `ACTION_VIEW`; it must not claim DOM inspection or automated form completion. Its future actions must reuse the same policy before launch.
+The Android `LocalBrowserOperator` is now a **handoff proposal**, not an autonomous `ACTION_VIEW` launcher. Public HTTP(S) targets and `geo:` maps deep links emit a structured `browser_user_takeover` event; private HTTP(S) targets and unsupported schemes fail closed. The application still needs a user-initiated UI action that consumes this event and launches the platform browser after the user explicitly elects to continue. It must not claim DOM inspection, automated form completion, authenticated browsing, or external navigation completion before that UI path exists and is device-verified.
 
 ## Artifact boundary
 
@@ -27,6 +27,7 @@ Artifact preview now exposes a version-history menu when more than one version e
 | Evidence | Contract proven |
 |---|---|
 | `BrowserNavigationPolicyTest` | Public HTTPS reads, private/non-HTTP target blocking, and login/payment takeover behavior. |
-| Kotlin compilation | CloudBrowserAgent redirect policy, ArtifactManager history, and ArtifactPreview restoration integrate into the Android app. |
+| `LocalBrowserOperatorPolicyTest` | Public external handoffs and `geo:` deep links require takeover; private HTTP targets are blocked before an external app can be launched. |
+| JVM unit-test compilation/execution | CloudBrowserAgent redirect policy and the local browser handoff boundary compile and execute in the Android unit-test target. |
 
-The next implementation must add a policy-gated authenticated browser backend with explicit user takeover, a download scanner plus project-file import flow, artifact content hashes/visual compare, and provider-produced artifact linkage to the durable execution timeline.
+The next browser implementation must provide a visible, user-initiated handoff UI that consumes `browser_user_takeover` without silently launching any external activity, then device-verify that path. A separately designed policy-gated authenticated browser backend, download scanner plus project-file import flow, DOM action execution with durable exact-step approvals, and cross-device artifact sync remain out of scope for the current implementation.

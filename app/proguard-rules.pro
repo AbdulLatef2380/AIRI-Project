@@ -40,7 +40,7 @@
 -keep class com.airi.assistant.accessibility.service.AiriAccessibilityService { *; }
 
 # ── Application entry points (Android framework reflection) ───────────────────
--keep class com.airi.assistant.AiriApplication { *; }
+-keep class com.airi.assistant.app.AIRIApplication { *; }
 -keep class * extends android.app.Activity { *; }
 -keep class * extends android.app.Service { *; }
 -keep class * extends android.content.BroadcastReceiver { *; }

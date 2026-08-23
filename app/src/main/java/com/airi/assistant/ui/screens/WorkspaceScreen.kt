@@ -126,6 +126,11 @@ fun WorkspaceScreen(
                 Divider(color = AiriTheme.outline, modifier = Modifier.padding(horizontal = 12.dp))
                 activeContext?.let { context ->
                     WorkspaceContextCard(context)
+                    ProjectHomePanel(
+                        context = context,
+                        onOpenChat = onOpenChat,
+                        onNavigate = onNavigate
+                    )
                 }
                 if (artifacts.isEmpty()) {
                     ArtifactEmptyState(onCreateFromChat = onOpenChat)
@@ -217,6 +222,90 @@ private fun WorkspaceContextCard(context: com.airi.assistant.workspace.Workspace
                     fontSize = 11.sp,
                     color = AiriTheme.onBackground.copy(alpha = 0.58f)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectHomePanel(
+    context: com.airi.assistant.workspace.WorkspaceContext,
+    onOpenChat: () -> Unit,
+    onNavigate: (String) -> Unit
+) {
+    val actionLabel = when (val action = context.nextAction) {
+        is com.airi.assistant.workspace.WorkspaceNextAction.ReviewApprovals ->
+            stringResource(R.string.project_home_review_approvals, action.pendingCount)
+        is com.airi.assistant.workspace.WorkspaceNextAction.OpenActiveTask ->
+            stringResource(R.string.project_home_open_active_task)
+        is com.airi.assistant.workspace.WorkspaceNextAction.ReviewFailedTask ->
+            stringResource(R.string.project_home_review_failed_task)
+        com.airi.assistant.workspace.WorkspaceNextAction.AddProjectFile ->
+            stringResource(R.string.project_home_add_file)
+        com.airi.assistant.workspace.WorkspaceNextAction.StartProjectChat ->
+            stringResource(R.string.project_home_start_chat)
+    }
+    val action = context.nextAction
+    Surface(
+        color = AiriTheme.surface,
+        shape = AIRIShapes.sm,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.project_home_title),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = AiriTheme.onBackground
+            )
+            context.latestTask?.let { task ->
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(
+                        text = stringResource(R.string.project_home_latest_task),
+                        fontSize = 11.sp,
+                        color = AiriTheme.onSurfaceVariant
+                    )
+                    Text(task.title, fontSize = 13.sp, color = AiriTheme.onSurface)
+                    task.currentStepTitle?.let { stepTitle ->
+                        Text(
+                            text = stringResource(R.string.project_home_current_step, stepTitle),
+                            fontSize = 11.sp,
+                            color = AiriTheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } ?: Text(
+                text = stringResource(R.string.project_home_no_task),
+                fontSize = 12.sp,
+                color = AiriTheme.onSurfaceVariant
+            )
+            if (context.pendingApprovalCount > 0) {
+                Text(
+                    text = stringResource(R.string.project_home_pending_approvals, context.pendingApprovalCount),
+                    fontSize = 12.sp,
+                    color = CosmicAccent
+                )
+            }
+            OutlinedButton(
+                onClick = {
+                    when (action) {
+                        is com.airi.assistant.workspace.WorkspaceNextAction.ReviewApprovals,
+                        is com.airi.assistant.workspace.WorkspaceNextAction.OpenActiveTask,
+                        is com.airi.assistant.workspace.WorkspaceNextAction.ReviewFailedTask ->
+                            onNavigate(AiriRoute.AGENT_TASKS)
+                        com.airi.assistant.workspace.WorkspaceNextAction.AddProjectFile ->
+                            onNavigate(AiriRoute.LIBRARY)
+                        com.airi.assistant.workspace.WorkspaceNextAction.StartProjectChat -> onOpenChat()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = AIRIShapes.sm,
+                border = androidx.compose.foundation.BorderStroke(1.dp, CosmicAccent.copy(alpha = 0.48f))
+            ) {
+                Text(actionLabel, color = CosmicAccent, fontSize = 12.sp)
             }
         }
     }

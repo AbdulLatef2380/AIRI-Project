@@ -1289,4 +1289,15 @@
     <string name="calendar_approval_review_start">开始时间：%1$s</string>
     <string name="calendar_approval_review_duration">时长：%1$d 分钟</string>
     <string name="calendar_approval_review_confirm">批准并创建</string>
+    <!-- 项目主页 -->
+    <string name="project_home_title">项目概览</string>
+    <string name="project_home_latest_task">最近任务</string>
+    <string name="project_home_current_step">当前步骤：%1$s</string>
+    <string name="project_home_no_task">尚未为此项目创建任务。</string>
+    <string name="project_home_pending_approvals">有 %1$d 项审批需要复核</string>
+    <string name="project_home_review_approvals">复核 %1$d 项审批</string>
+    <string name="project_home_open_active_task">打开活动任务</string>
+    <string name="project_home_review_failed_task">复核失败任务</string>
+    <string name="project_home_add_file">添加项目文件</string>
+    <string name="project_home_start_chat">开始项目聊天</string>
 </resources>

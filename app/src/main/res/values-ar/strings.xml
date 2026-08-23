@@ -1520,4 +1520,15 @@
     <string name="calendar_approval_review_start">يبدأ: %1$s</string>
     <string name="calendar_approval_review_duration">المدة: %1$d دقيقة</string>
     <string name="calendar_approval_review_confirm">موافقة وإنشاء</string>
+    <!-- الصفحة الرئيسية للمشروع -->
+    <string name="project_home_title">نظرة عامة على المشروع</string>
+    <string name="project_home_latest_task">آخر مهمة</string>
+    <string name="project_home_current_step">الخطوة الحالية: %1$s</string>
+    <string name="project_home_no_task">لم تُنشأ مهمة لهذا المشروع بعد.</string>
+    <string name="project_home_pending_approvals">تحتاج %1$d من الموافقات إلى مراجعة</string>
+    <string name="project_home_review_approvals">مراجعة %1$d من الموافقات</string>
+    <string name="project_home_open_active_task">فتح المهمة النشطة</string>
+    <string name="project_home_review_failed_task">مراجعة المهمة الفاشلة</string>
+    <string name="project_home_add_file">إضافة ملف إلى المشروع</string>
+    <string name="project_home_start_chat">بدء دردشة المشروع</string>
 </resources>

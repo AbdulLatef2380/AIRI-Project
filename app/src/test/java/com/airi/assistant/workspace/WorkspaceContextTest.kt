@@ -2,7 +2,10 @@ package com.airi.assistant.workspace
 
 import com.airi.assistant.agent.durable.DurableTask
 import com.airi.assistant.agent.durable.DurableTaskStatus
+import com.airi.assistant.agent.durable.TaskApproval
+import com.airi.assistant.agent.durable.TaskApprovalStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WorkspaceContextTest {
@@ -37,7 +40,26 @@ class WorkspaceContextTest {
                 title = "Running task",
                 description = "",
                 agentId = "research",
-                input = ""
+                input = "",
+                updatedAtMs = 200L,
+                approvals = listOf(
+                    TaskApproval(
+                        id = "approval-active",
+                        action = "calendar_create",
+                        description = "",
+                        riskLevel = "HIGH",
+                        expiresAtMs = 1_000L,
+                        status = TaskApprovalStatus.PENDING
+                    ),
+                    TaskApproval(
+                        id = "approval-expired",
+                        action = "calendar_create",
+                        description = "",
+                        riskLevel = "HIGH",
+                        expiresAtMs = 99L,
+                        status = TaskApprovalStatus.PENDING
+                    )
+                )
             ),
             DurableTask(
                 id = "task-failed",
@@ -46,7 +68,8 @@ class WorkspaceContextTest {
                 description = "",
                 agentId = "research",
                 input = "",
-                status = DurableTaskStatus.FAILED
+                status = DurableTaskStatus.FAILED,
+                updatedAtMs = 150L
             ),
             DurableTask(
                 id = "other-project-task",
@@ -80,7 +103,7 @@ class WorkspaceContextTest {
             )
         )
 
-        val context = workspaceContextFrom(session, artifacts, tasks, projectFiles)
+        val context = workspaceContextFrom(session, artifacts, tasks, projectFiles, nowMs = 100L)
 
         assertEquals("project-1", context.workspaceId)
         assertEquals("AIRI Core", context.name)
@@ -91,5 +114,31 @@ class WorkspaceContextTest {
         assertEquals(2, context.taskCount)
         assertEquals(1, context.activeTaskCount)
         assertEquals(1, context.failedTaskCount)
+        assertEquals("task-running", context.latestTask?.taskId)
+        assertEquals(1, context.pendingApprovalCount)
+        assertTrue(context.nextAction is WorkspaceNextAction.ReviewApprovals)
+        assertEquals(1, (context.nextAction as WorkspaceNextAction.ReviewApprovals).pendingCount)
+    }
+
+    @Test
+    fun derivesFileOrChatActionOnlyFromOwnedResources() {
+        val session = WorkspaceRuntime.WorkspaceSession(sessionId = "project-1", name = "AIRI Core")
+        val contextWithoutFiles = workspaceContextFrom(session, emptyList(), nowMs = 100L)
+        assertTrue(contextWithoutFiles.nextAction is WorkspaceNextAction.AddProjectFile)
+
+        val contextWithOwnedFile = workspaceContextFrom(
+            session = session,
+            artifacts = emptyList(),
+            projectFiles = listOf(
+                ProjectFileManager.ProjectFile(
+                    id = "owned-file",
+                    projectId = "project-1",
+                    name = "notes.md",
+                    mimeType = "text/markdown"
+                )
+            ),
+            nowMs = 100L
+        )
+        assertTrue(contextWithOwnedFile.nextAction is WorkspaceNextAction.StartProjectChat)
     }
 }

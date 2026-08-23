@@ -1289,4 +1289,15 @@
     <string name="calendar_approval_review_start">Comienza: %1$s</string>
     <string name="calendar_approval_review_duration">Duración: %1$d minutos</string>
     <string name="calendar_approval_review_confirm">Aprobar y crear</string>
+    <!-- Inicio del proyecto -->
+    <string name="project_home_title">Resumen del proyecto</string>
+    <string name="project_home_latest_task">Última tarea</string>
+    <string name="project_home_current_step">Paso actual: %1$s</string>
+    <string name="project_home_no_task">Aún no se ha creado una tarea para este proyecto.</string>
+    <string name="project_home_pending_approvals">%1$d aprobación(es) necesita(n) revisión</string>
+    <string name="project_home_review_approvals">Revisar %1$d aprobación(es)</string>
+    <string name="project_home_open_active_task">Abrir tarea activa</string>
+    <string name="project_home_review_failed_task">Revisar tarea fallida</string>
+    <string name="project_home_add_file">Agregar un archivo del proyecto</string>
+    <string name="project_home_start_chat">Iniciar chat del proyecto</string>
 </resources>

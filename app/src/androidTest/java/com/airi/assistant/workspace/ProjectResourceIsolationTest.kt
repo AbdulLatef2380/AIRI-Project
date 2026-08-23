@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.airi.assistant.knowledge.ProjectKnowledgeManager
 import com.airi.assistant.media.MediaLibrary
 import com.airi.assistant.memory.repository.MemoryManager
+import com.airi.assistant.vault.SecretVault
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -30,6 +31,7 @@ class ProjectResourceIsolationTest {
         }
         knowledge = ProjectKnowledgeManager(context, files)
         val artifacts = ArtifactManager(context)
+        SecretVault.clear()
         val memory = MemoryManager(context)
         val memorySession = "memory-$suffix"
 
@@ -77,6 +79,37 @@ class ProjectResourceIsolationTest {
         )
         assertTrue(memory.getScopedLongTermMemories(memorySession, projectId = projectB).isEmpty())
 
+        assertTrue(SecretVault.storeProjectSecret(projectA, "GITHUB_PAT", "fixture-secret", connectorId = "github"))
+        val secretCapability = SecretVault.issueCapability(
+            agentId = "fixture-agent",
+            keyName = "GITHUB_PAT",
+            operation = "github.list_repos",
+            authorizedByPolicy = true,
+            taskId = "task-$suffix",
+            projectId = projectA,
+            connectorId = "github"
+        ) ?: throw AssertionError("Expected project secret capability")
+        assertEquals(
+            SecretVault.CapabilityStatus.DENIED,
+            SecretVault.useProjectCapability(
+                token = secretCapability.token,
+                agentId = "fixture-agent",
+                operation = "github.list_repos",
+                projectId = projectB,
+                connectorId = "github"
+            ) { it.length }.status
+        )
+        assertEquals(
+            SecretVault.CapabilityStatus.CONSUMED,
+            SecretVault.useProjectCapability(
+                token = secretCapability.token,
+                agentId = "fixture-agent",
+                operation = "github.list_repos",
+                projectId = projectA,
+                connectorId = "github"
+            ) { it.length }.status
+        )
+
         val artifactA = artifacts.createArtifact(
             sessionId = projectA,
             name = "alpha-result",
@@ -107,5 +140,6 @@ class ProjectResourceIsolationTest {
         artifacts.deleteArtifact(artifactA.id)
         artifacts.deleteArtifact(artifactB.id)
         memory.forgetMemory((storedMemory as MemoryManager.ExplicitMemoryResult.Stored).memoryId)
+        SecretVault.clear()
     }
 }

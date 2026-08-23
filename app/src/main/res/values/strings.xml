@@ -1595,4 +1595,6 @@
     <string name="trust_center_unscoped_request">Current runtime request</string>
     <string name="trust_center_action">Action: %1$s</string>
     <string name="trust_center_execution_scope">Run: %1$s · Step: %2$s</string>
+    <string name="scheduled_task_refresh">Refresh scheduled tasks</string>
+    <string name="scheduled_task_view_execution">View execution</string>
 </resources>

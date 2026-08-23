@@ -1263,4 +1263,6 @@
     <string name="trust_center_unscoped_request">当前运行时请求</string>
     <string name="trust_center_action">操作：%1$s</string>
     <string name="trust_center_execution_scope">运行：%1$s · 步骤：%2$s</string>
+    <string name="scheduled_task_refresh">刷新计划任务</string>
+    <string name="scheduled_task_view_execution">查看执行</string>
 </resources>

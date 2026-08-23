@@ -1263,4 +1263,6 @@
     <string name="trust_center_unscoped_request">Solicitud de ejecución actual</string>
     <string name="trust_center_action">Acción: %1$s</string>
     <string name="trust_center_execution_scope">Ejecución: %1$s · Paso: %2$s</string>
+    <string name="scheduled_task_refresh">Actualizar tareas programadas</string>
+    <string name="scheduled_task_view_execution">Ver ejecución</string>
 </resources>

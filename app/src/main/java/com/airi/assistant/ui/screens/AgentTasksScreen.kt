@@ -95,10 +95,10 @@ fun AgentTasksScreen(
 
     fun reload() { jobs = orchestrator.listJobs() }
 
-    val pending = jobs.filter {
-        it.type == ScheduleType.PERIODIC ||
-            it.lastOutcome == ScheduledJobOutcome.PENDING ||
-            it.lastOutcome == ScheduledJobOutcome.RETRYING
+    // Keep completed and failed persisted jobs visible as execution evidence.
+    // A user refreshes explicitly rather than the screen polling WorkManager.
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == 0) reload()
     }
 
     Scaffold(
@@ -124,6 +124,13 @@ fun AgentTasksScreen(
                     )
                 },
                 actions = {
+                    IconButton(onClick = { reload() }) {
+                        Icon(
+                            Icons.Outlined.Refresh,
+                            contentDescription = stringResource(R.string.scheduled_task_refresh),
+                            tint = AiriTheme.onBackground
+                        )
+                    }
                     IconButton(onClick = { showStopConfirmation = true }) {
                         Icon(
                             Icons.Outlined.Cancel,
@@ -167,7 +174,7 @@ fun AgentTasksScreen(
                     .background(AiriTheme.surface),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                TaskTab(label = stringResource(R.string.agent_task_tab_scheduled, pending.size), isSelected = selectedTab == 0,
+                TaskTab(label = stringResource(R.string.agent_task_tab_scheduled, jobs.size), isSelected = selectedTab == 0,
                     modifier = Modifier.weight(1f)) { selectedTab = 0 }
                 TaskTab(label = stringResource(R.string.execution_center_tab_runs, durableTasks.size), isSelected = selectedTab == 1,
                     modifier = Modifier.weight(1f)) { selectedTab = 1 }
@@ -177,11 +184,12 @@ fun AgentTasksScreen(
 
             when (selectedTab) {
                 0 -> ScheduledTasksContent(
-                    jobs = pending,
+                    jobs = jobs,
                     onCancel = { jobId ->
                         orchestrator.cancel(jobId)
                         reload()
-                    }
+                    },
+                    onOpenExecution = { selectedTab = 1 }
                 )
                 1 -> DurableExecutionContent(
                     tasks = durableTasks,
@@ -290,7 +298,8 @@ private fun ActiveWorkStopDialog(
 @Composable
 private fun ScheduledTasksContent(
     jobs: List<ScheduledJob>,
-    onCancel: (String) -> Unit
+    onCancel: (String) -> Unit,
+    onOpenExecution: () -> Unit
 ) {
     if (jobs.isEmpty()) {
         EmptyCenterState(
@@ -305,7 +314,11 @@ private fun ScheduledTasksContent(
         contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)
     ) {
         items(jobs, key = { it.id }) { job ->
-            RealTaskItem(job = job, onCancel = { onCancel(job.id) })
+            RealTaskItem(
+                job = job,
+                onCancel = { onCancel(job.id) },
+                onOpenExecution = onOpenExecution
+            )
         }
     }
 }
@@ -564,10 +577,13 @@ private fun TaskTab(label: String, isSelected: Boolean, modifier: Modifier = Mod
 }
 
 @Composable
-private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
+private fun RealTaskItem(
+    job: ScheduledJob,
+    onCancel: () -> Unit,
+    onOpenExecution: () -> Unit
+) {
     val triggerDate = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
         .format(Date(job.triggerAtMs))
-    val context = androidx.compose.ui.platform.LocalContext.current
     val typeLabel = when (job.type) {
         ScheduleType.ONE_TIME -> stringResource(R.string.agent_task_type_once)
         ScheduleType.PERIODIC -> stringResource(R.string.agent_task_type_periodic, (job.intervalMs ?: 0) / 60_000)
@@ -633,6 +649,18 @@ private fun RealTaskItem(job: ScheduledJob, onCancel: () -> Unit) {
             Text(triggerDate, color = CosmicAccent.copy(0.8f), fontSize = 12.sp)
             Text(typeLabel, color = AiriTheme.onBackground.copy(0.45f), fontSize = 11.sp)
             Text(statusLabel, color = statusTint.copy(0.85f), fontSize = 11.sp)
+            if (job.lastDurableTaskId != null) {
+                TextButton(
+                    onClick = onOpenExecution,
+                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.scheduled_task_view_execution),
+                        color = CosmicAccent,
+                        fontSize = 11.sp
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.width(10.dp))

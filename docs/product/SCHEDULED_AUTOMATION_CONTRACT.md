@@ -44,9 +44,10 @@
 |---|---|
 | `ScheduledJobInputPolicyTest` | حدود agent/payload/label قبل enqueue |
 | `ScheduledJobDurableLinkTest` | بقاء project/owner/privacy ومرجع DurableTask في نموذج job |
+| واجهة `AgentTasksScreen` + الحارس البنيوي | تعرض كل jobs المحفوظة، ومنها `COMPLETED` و`FAILED`، وتدعم refresh صريحاً بلا polling؛ عندما يملك job `lastDurableTaskId` تنتقل بإجراء مستخدم إلى تبويب Execution Center. |
 | `:app:compileDebugKotlin` | تكامل WorkManager وServiceLocator والمنسق الحي |
 | Android CI | سيعاد تشغيله بعد دفع الدفعة؛ اختبار Doze الحقيقي وOEM background policy ليسا جزءاً من هذا الدليل |
 
 ## فجوات الإغلاق الصريحة
 
-الوظائف المجدولة لا تملك بعد UI يفتح `lastDurableTaskId` مباشرة، ولا توجد سياسة جدولة event-triggered أو webhook أو delivery عبر قناة خارجية. لا يدعي هذا العقد التوقيت الدقيق؛ WorkManager قد يؤخر التنفيذ بحسب Doze والقيود الشبكية والنظام. تُعالج event/webhook automation، مصادر البحث، عمليات Git، وقواعد البيانات بعقود منفصلة ضمن Phase 10.
+واجهة المهام تعرض الآن رابطاً إلى تبويب Execution Center عندما يتوفر `lastDurableTaskId`، لكنها لا تملك بعد deep-link أو focus دقيقاً على ذلك task. لا توجد سياسة جدولة event-triggered أو webhook أو delivery عبر قناة خارجية. لا يدعي هذا العقد التوقيت الدقيق؛ WorkManager قد يؤخر التنفيذ بحسب Doze والقيود الشبكية والنظام. تُعالج event/webhook automation، مصادر البحث، عمليات Git، وقواعد البيانات بعقود منفصلة ضمن Phase 10.

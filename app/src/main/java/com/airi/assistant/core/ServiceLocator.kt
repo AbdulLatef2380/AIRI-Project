@@ -679,6 +679,15 @@ object ServiceLocator {
         )
     }
 
+    /** Typed private proposal -> approval -> one CalendarContract insert runtime. */
+    val calendarCreateRuntime: com.airi.assistant.agent.calendar.CalendarCreateRuntime by lazy {
+        com.airi.assistant.agent.calendar.CalendarCreateRuntime(
+            context = requireContext(),
+            durableTaskManager = durableTaskManager,
+            artifactManager = artifactManager
+        )
+    }
+
     // ── Dynamic Prompt Engine ─────────────────────────────────────────────────
     // Singleton object — exposes the stateless dynamic prompt assembler.
     val dynamicPromptEngine get() = com.airi.assistant.ai.prompt.DynamicPromptEngine

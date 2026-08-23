@@ -3,6 +3,7 @@ package com.airi.assistant.agent.loop
 import android.content.Context
 import android.util.Log
 import com.airi.assistant.ai.agent.SelfHealingExecutor
+import com.airi.assistant.agent.calendar.CalendarCreateRuntime
 import com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy
 import com.airi.assistant.agent.loop.tool.ToolDispatcher
 import com.airi.assistant.agent.loop.tool.ToolSchema
@@ -54,7 +55,9 @@ class AgentLoop(
      * Null keeps the legacy direct-dispatch path for callers that have not
      * yet been updated (conservative default).
      */
-    private val agentSandbox: com.airi.assistant.security.AgentSandbox? = null
+    private val agentSandbox: com.airi.assistant.security.AgentSandbox? = null,
+    /** Typed local proposal runtime; only calendar creation is eligible today. */
+    private val calendarCreateRuntime: CalendarCreateRuntime? = null
 ) {
     companion object {
         private const val TAG              = "AIRI_AgentLoop"
@@ -111,12 +114,14 @@ Do not mix tool_call JSON with prose in the same message.
         tools:          List<ToolSchema>,
         queryType:      QueryType              = QueryType.UNKNOWN,
         onToken:        suspend (String) -> Unit,
-        onStepComplete: suspend (StepEvent) -> String? = { null }
+        onStepComplete: suspend (StepEvent) -> String? = { null },
+        executionContextFactory: AgentLoopExecutionContextFactory? = null
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
         val toolsInvoked = mutableListOf<String>()
         val history      = mutableListOf<ConversationTurn>()
         var stepsUsed    = 0
+        var durableExecutionContext: AgentLoopExecutionContext? = null
 
         // If no tools provided, single-pass inference
         if (tools.isEmpty()) {
@@ -215,44 +220,74 @@ Do not mix tool_call JSON with prose in the same message.
                 Log.i(TAG, "AIRI TOOL_CALL step=$stepsUsed tool=$toolName args=${toolArgs.keys.joinToString()}")
                 ExecutionStatusBus.onWaveStarted(listOf("tool_$toolName"), listOf("Tool: $toolName"))
 
-                // Chat-owned AgentLoop executions have no persisted task/run/step
-                // identity. Block all write and live-device side effects before the
-                // sandbox/adapter boundary; a future typed durable runtime must own
-                // and claim those operations instead of reusing confirmation text.
+                // Direct chat retains a fail-closed boundary. The first allowed
+                // mutation is a typed calendar proposal, and it is admitted only
+                // after a foreground task owner has created an exact task/run/step.
+                if (
+                    toolName == "calendar_create" &&
+                    durableExecutionContext == null &&
+                    calendarCreateRuntime != null
+                ) {
+                    durableExecutionContext = executionContextFactory?.createFor(toolName)
+                }
                 val sideEffectDecision = AgentLoopSideEffectPolicy.decide(
                     toolName = toolName,
-                    hasDurableExecutionContext = false
+                    hasDurableExecutionContext = durableExecutionContext != null
                 )
-                val toolResult = if (sideEffectDecision == AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED) {
-                    Log.w(TAG, "AIRI TOOL_BLOCKED_NO_DURABLE_CONTEXT tool=$toolName")
-                    ToolDispatcher.ToolResult.Error(AgentLoopSideEffectPolicy.blockedMessage(toolName))
-                } else try {
-                    // Route through AgentSandbox when available so every allowed
-                    // tool call is permission-checked and workspace-logged.
-                    // NOTE: agentId must be a stable registered principal ("agent_loop"),
-                    // NOT the tool name. Using the tool name caused permission checks to
-                    // run against unknown principals, broadly denying legitimate calls.
-                    if (agentSandbox != null) {
-                        agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
-                            // Per-tool authorization: guard() throws
-                            // ScopedPermissionRegistry.PermissionDeniedException
-                            // (caught by the sandbox and re-thrown as
-                            // SandboxViolationException) if the firewall
-                            // has not allowed this tool for "agent_loop".
-                            ctx.guardTool(toolName)
+                val toolResult = when (sideEffectDecision) {
+                    AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED -> {
+                        Log.w(TAG, "AIRI TOOL_BLOCKED_NO_DURABLE_CONTEXT tool=$toolName")
+                        ToolDispatcher.ToolResult.Error(AgentLoopSideEffectPolicy.blockedMessage(toolName))
+                    }
+                    AgentLoopSideEffectPolicy.Decision.ALLOW_TYPED_CALENDAR_CREATE -> {
+                        val execution = durableExecutionContext
+                        val runtime = calendarCreateRuntime
+                        if (execution == null || runtime == null) {
+                            ToolDispatcher.ToolResult.Error(AgentLoopSideEffectPolicy.blockedMessage(toolName))
+                        } else {
+                            when (val created = runtime.createProposal(
+                                execution = execution,
+                                title = toolArgs["title"],
+                                startTime = toolArgs["start_time"],
+                                durationText = toolArgs["duration_min"]
+                            )) {
+                                is CalendarCreateRuntime.ProposalResult.Created -> when (
+                                    val pending = runtime.requestApproval(created.proposal.id)
+                                ) {
+                                    is CalendarCreateRuntime.ProposalResult.ApprovalPending ->
+                                        ToolDispatcher.ToolResult.Success(
+                                            "Calendar proposal is awaiting explicit review and approval in Trust Center. Do not retry the operation."
+                                        )
+                                    is CalendarCreateRuntime.ProposalResult.Rejected -> ToolDispatcher.ToolResult.Error(pending.reason)
+                                    is CalendarCreateRuntime.ProposalResult.Failed -> ToolDispatcher.ToolResult.Error(pending.reason)
+                                    else -> ToolDispatcher.ToolResult.Error("Calendar proposal could not enter approval")
+                                }
+                                is CalendarCreateRuntime.ProposalResult.Rejected -> ToolDispatcher.ToolResult.Error(created.reason)
+                                is CalendarCreateRuntime.ProposalResult.Failed -> ToolDispatcher.ToolResult.Error(created.reason)
+                                else -> ToolDispatcher.ToolResult.Error("Calendar proposal could not be created")
+                            }
+                        }
+                    }
+                    AgentLoopSideEffectPolicy.Decision.ALLOW_READ -> try {
+                        // Route read-only tools through AgentSandbox when available so
+                        // permission checks and workspace logging remain applied.
+                        if (agentSandbox != null) {
+                            agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
+                                ctx.guardTool(toolName)
+                                dispatcher.execute(toolName, toolArgs, appContext)
+                            }
+                        } else {
                             dispatcher.execute(toolName, toolArgs, appContext)
                         }
-                    } else {
-                        dispatcher.execute(toolName, toolArgs, appContext)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: com.airi.assistant.security.AgentSandbox.SandboxViolationException) {
+                        Log.w(TAG, "AIRI SANDBOX_VIOLATION tool=$toolName: ${e.message}")
+                        ToolDispatcher.ToolResult.Error("Permission denied for tool: $toolName")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Tool $toolName threw: ${e.message}")
+                        ToolDispatcher.ToolResult.Error("Tool failed: ${e.message}")
                     }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: com.airi.assistant.security.AgentSandbox.SandboxViolationException) {
-                    Log.w(TAG, "AIRI SANDBOX_VIOLATION tool=$toolName: ${e.message}")
-                    ToolDispatcher.ToolResult.Error("Permission denied for tool: $toolName")
-                } catch (e: Exception) {
-                    Log.w(TAG, "Tool $toolName threw: ${e.message}")
-                    ToolDispatcher.ToolResult.Error("Tool failed: ${e.message}")
                 }
 
                 val resultText = when (toolResult) {

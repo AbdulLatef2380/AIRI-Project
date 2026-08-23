@@ -281,6 +281,85 @@ class DurableTaskProductKernelTest {
     }
 
     @Test
+    fun calendarCreateContinuationPausesAndClaimsWithoutPrivateEventPayload() {
+        val approval = TaskApproval(
+            id = "approval-calendar",
+            action = "calendar_create",
+            description = "Create one reviewed calendar event",
+            riskLevel = "HIGH",
+            expiresAtMs = 10_000L,
+            runId = "run-calendar",
+            stepId = "collect"
+        )
+        val continuation = ApprovalContinuation(
+            id = "continuation-calendar",
+            approvalId = approval.id,
+            projectId = "project-a",
+            runId = "run-calendar",
+            stepId = "collect",
+            calendarCreate = ResumableCalendarCreate(
+                proposalId = "calendar-proposal-1",
+                titleHash = "a".repeat(64),
+                scheduleHash = "b".repeat(64),
+                calendarPolicy = "PRIMARY_OR_FIRST",
+                idempotencyKey = "calendar-calendar-proposal-1"
+            ),
+            expiresAtMs = 10_000L
+        )
+
+        val paused = sampleTask()
+            .beginRun("run-calendar", "collect", nowMs = 1_000L)
+            .requestApproval(approval)
+            .pauseForApproval(approval.id, continuation, nowMs = 2_000L)
+            ?: throw AssertionError("Expected typed calendar create to pause the task")
+        val approved = paused.decideApproval(
+            approval.id,
+            TaskApprovalStatus.APPROVED,
+            ApprovalGrantScope.ONCE,
+            nowMs = 2_100L
+        )
+        val claimedPair = approved.claimApprovedContinuation(approval.id, nowMs = 2_200L)
+            ?: throw AssertionError("Expected typed calendar create to claim once")
+        val resumed = claimedPair.first
+        val claimed = claimedPair.second
+
+        assertEquals(ApprovalContinuationStatus.CLAIMED, claimed.status)
+        assertEquals("calendar-proposal-1", claimed.calendarCreate?.proposalId)
+        assertEquals(null, claimed.invocation)
+        assertEquals(null, claimed.projectFileWrite)
+        assertFalse(claimed.toString().contains("Team retrospective"))
+        assertTrue(MissionKernel.validate(MissionKernel.normalize(resumed)) is MissionOwnershipValidation.Valid)
+        assertEquals(null, resumed.claimApprovedContinuation(approval.id, nowMs = 2_201L))
+    }
+
+    @Test
+    fun hybridCalendarContinuationDescriptorFailsClosed() {
+        val hybrid = ApprovalContinuation(
+            approvalId = "approval-calendar-hybrid",
+            projectId = "project-a",
+            runId = "run-hybrid",
+            stepId = "collect",
+            calendarCreate = ResumableCalendarCreate(
+                proposalId = "calendar-proposal-hybrid",
+                titleHash = "a".repeat(64),
+                scheduleHash = "b".repeat(64),
+                calendarPolicy = "PRIMARY_OR_FIRST",
+                idempotencyKey = "calendar-calendar-proposal-hybrid"
+            ),
+            projectFileWrite = ResumableProjectFileWrite(
+                proposalId = "file-proposal-hybrid",
+                targetFileId = "file-hybrid",
+                baseContentHash = "c".repeat(64),
+                candidateContentHash = "d".repeat(64),
+                idempotencyKey = "file-hybrid"
+            ),
+            expiresAtMs = 10_000L
+        )
+
+        assertFalse(hybrid.isSafeToPersist())
+    }
+
+    @Test
     fun hybridContinuationDescriptorFailsClosed() {
         val hybrid = ApprovalContinuation(
             approvalId = "approval-hybrid",
@@ -298,6 +377,13 @@ class DurableTaskProductKernelTest {
                 baseContentHash = "a".repeat(64),
                 candidateContentHash = "b".repeat(64),
                 idempotencyKey = "file-hybrid"
+            ),
+            calendarCreate = ResumableCalendarCreate(
+                proposalId = "calendar-proposal-hybrid",
+                titleHash = "c".repeat(64),
+                scheduleHash = "d".repeat(64),
+                calendarPolicy = "PRIMARY_OR_FIRST",
+                idempotencyKey = "calendar-calendar-proposal-hybrid"
             ),
             expiresAtMs = 10_000L
         )

@@ -1283,4 +1283,10 @@
     <string name="scheduled_task_run_now_queued">已将立即执行加入队列</string>
     <string name="scheduled_task_run_now_active">已有立即执行正在进行</string>
     <string name="scheduled_task_run_now_unavailable">此任务不再可立即执行</string>
+    <!-- 类型化日历审批复核 -->
+    <string name="calendar_approval_review_title">核对日历事件</string>
+    <string name="calendar_approval_review_message">请在批准此次一次性日历变更前核对事件详情。</string>
+    <string name="calendar_approval_review_start">开始时间：%1$s</string>
+    <string name="calendar_approval_review_duration">时长：%1$d 分钟</string>
+    <string name="calendar_approval_review_confirm">批准并创建</string>
 </resources>

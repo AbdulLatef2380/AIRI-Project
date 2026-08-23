@@ -24,6 +24,8 @@ data class ApprovalContinuation(
     val invocation: ResumableConnectorInvocation? = null,
     /** Present only for a local managed-project text revision. */
     val projectFileWrite: ResumableProjectFileWrite? = null,
+    /** Present only for one local CalendarContract event creation. */
+    val calendarCreate: ResumableCalendarCreate? = null,
     val createdAtMs: Long = System.currentTimeMillis(),
     val expiresAtMs: Long,
     val status: ApprovalContinuationStatus = ApprovalContinuationStatus.PENDING,
@@ -35,8 +37,9 @@ data class ApprovalContinuation(
 
     /** Exactly one typed invocation is required; hybrid descriptors fail closed. */
     fun isSafeToPersist(): Boolean = when {
-        invocation != null && projectFileWrite == null -> invocation.isSafeToPersist()
-        invocation == null && projectFileWrite != null -> projectFileWrite.isSafeToPersist()
+        invocation != null && projectFileWrite == null && calendarCreate == null -> invocation.isSafeToPersist()
+        invocation == null && projectFileWrite != null && calendarCreate == null -> projectFileWrite.isSafeToPersist()
+        invocation == null && projectFileWrite == null && calendarCreate != null -> calendarCreate.isSafeToPersist()
         else -> false
     }
 
@@ -102,13 +105,6 @@ enum class ApprovalContinuationStatus {
 }
 
 /**
- * Replayable connector input kept only while awaiting one explicit approval.
- *
- * It intentionally excludes `binary`, credentials, authorization headers, and
- * arbitrary object callbacks. The caller must reject any user payload that
- * resembles a credential instead of silently storing it in durable JSON.
- */
-/**
  * ID-and-hash-only description of one approved write to a managed project text
  * file. Candidate bytes, source paths, backups, credentials, and user text stay
  * in private editor storage and are never placed in a durable continuation.
@@ -128,6 +124,33 @@ data class ResumableProjectFileWrite(
             candidateContentHash.matches(SHA256)
 
     private companion object {
+        val SAFE_ID = Regex("^[A-Za-z0-9._-]{1,128}$")
+        val SHA256 = Regex("^[a-f0-9]{64}$")
+    }
+}
+
+/**
+ * ID-and-hash-only description of one approved local calendar event. The title,
+ * start instant, duration, session data, and provider response remain in private
+ * proposal storage; task JSON retains only integrity hashes and a fixed local
+ * calendar-selection policy.
+ */
+data class ResumableCalendarCreate(
+    val proposalId: String,
+    val titleHash: String,
+    val scheduleHash: String,
+    val calendarPolicy: String,
+    val idempotencyKey: String
+) {
+    fun isSafeToPersist(): Boolean =
+        proposalId.matches(SAFE_ID) &&
+            titleHash.matches(SHA256) &&
+            scheduleHash.matches(SHA256) &&
+            calendarPolicy == PRIMARY_OR_FIRST &&
+            idempotencyKey.matches(SAFE_ID)
+
+    private companion object {
+        const val PRIMARY_OR_FIRST = "PRIMARY_OR_FIRST"
         val SAFE_ID = Regex("^[A-Za-z0-9._-]{1,128}$")
         val SHA256 = Regex("^[a-f0-9]{64}$")
     }

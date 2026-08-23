@@ -221,20 +221,12 @@ class ToolDispatcher(
             }
 
             "calendar_create" -> {
-                val title       = args["title"] ?: return ToolResult.Error("Missing title")
-                val startTime   = args["start_time"] ?: return ToolResult.Error("Missing start_time")
-                val durationMin = args["duration_min"]?.toIntOrNull() ?: 60
-                val cal         = CalendarTool(context)
-                // Parse start_time: try ISO first, then natural language fallback
-                val startMs = parseDateTime(startTime) ?: return ToolResult.Error("Could not parse start_time: $startTime")
-                val endMs   = startMs + durationMin * 60_000L
-                val eventId = cal.createEvent(title, startMs, endMs)
-                if (eventId != null) {
-                    Log.i(TAG, "CALENDAR_CREATE titleChars=${title.length} startMs=$startMs eventId=$eventId")
-                    ToolResult.Success("Created event: $title at $startTime")
-                } else {
-                    ToolResult.Error("Failed to create calendar event. Calendar permission may be missing.")
-                }
+                // Calendar creation is intentionally not a generic dispatcher action.
+                // AgentLoop must use CalendarCreateRuntime, which owns a private
+                // proposal plus task/run/step-bound one-shot approval before one
+                // provider insert. This prevents raw arguments and live writes from
+                // bypassing durable ownership, review, recovery and evidence.
+                ToolResult.Error("Calendar creation requires a task-owned approval session before it can run.")
             }
 
             // ── Alarm ──────────────────────────────────────────────────────────

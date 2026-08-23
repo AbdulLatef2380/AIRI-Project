@@ -449,7 +449,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         contextBudgetProvider = { llamaManager.contextBudget },
         // : wire AgentSandbox so every tool dispatch is permission-checked
         // and workspace-logged before execution.
-        agentSandbox          = com.airi.assistant.core.ServiceLocator.agentSandbox
+        agentSandbox          = com.airi.assistant.core.ServiceLocator.agentSandbox,
+        calendarCreateRuntime = com.airi.assistant.core.ServiceLocator.calendarCreateRuntime
     )
 
     // ── Plan Mode — step-by-step planning instruction injected into system prompt ──
@@ -1769,6 +1770,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 null
                             }
                         }
+                    },
+                    executionContextFactory = com.airi.assistant.agent.loop.AgentLoopExecutionContextFactory { toolName ->
+                        com.airi.assistant.agent.loop.AgentLoopTaskRuntime(
+                            durableTaskManager = ServiceLocator.durableTaskManager,
+                            projectId = activeProjectId.takeIf { it.isNotBlank() },
+                            sourceSessionId = sessionId
+                        ).createFor(toolName)
                     }
                 )
                 if (loopResult.cancelled || _isCancelled.get() || !isCurrentGeneration(generationId)) {

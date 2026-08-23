@@ -1615,4 +1615,10 @@
     <string name="scheduled_task_run_now_queued">Immediate execution queued</string>
     <string name="scheduled_task_run_now_active">An immediate execution is already active</string>
     <string name="scheduled_task_run_now_unavailable">This task is no longer available for immediate execution</string>
+    <!-- Typed calendar approval review -->
+    <string name="calendar_approval_review_title">Review calendar event</string>
+    <string name="calendar_approval_review_message">Review the event details before approving this one-time calendar change.</string>
+    <string name="calendar_approval_review_start">Starts: %1$s</string>
+    <string name="calendar_approval_review_duration">Duration: %1$d minutes</string>
+    <string name="calendar_approval_review_confirm">Approve and create</string>
 </resources>

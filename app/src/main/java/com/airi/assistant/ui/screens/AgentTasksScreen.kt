@@ -95,8 +95,34 @@ fun AgentTasksScreen(
     var runNowCandidate by remember { mutableStateOf<ScheduledJob?>(null) }
     var jobs           by remember { mutableStateOf(orchestrator.listJobs()) }
     var errorMessage   by remember { mutableStateOf<String?>(null) }
+    var calendarReviewCandidate by remember {
+        mutableStateOf<Pair<String, Pair<ApprovalGrantScope, com.airi.assistant.agent.calendar.CalendarCreateRuntime.PrivateReview>>?>(null)
+    }
 
     fun reload() { jobs = orchestrator.listJobs() }
+
+    fun approveAndResume(approvalId: String, approvalScope: ApprovalGrantScope) {
+        if (!permissionGovernance.approveAction(approvalId, approvalScope)) {
+            ServiceLocator.calendarCreateRuntime.reconcileExpiredApprovals()
+            ServiceLocator.calendarCreateRuntime.reconcileApproval(approvalId)
+            return
+        }
+        approvalResumeScope.launch {
+            val connectorResult = ServiceLocator.approvalContinuationRuntime.resume(approvalId)
+            if (connectorResult == null) {
+                val fileResult = ServiceLocator.projectFileEditRuntime.resume(approvalId)
+                if (fileResult == null) {
+                    ServiceLocator.calendarCreateRuntime.resume(approvalId)
+                }
+            }
+        }
+    }
+
+    fun denyAndReconcile(approvalId: String) {
+        if (!permissionGovernance.denyAction(approvalId)) return
+        ServiceLocator.projectFileEditRuntime.reconcileApproval(approvalId)
+        ServiceLocator.calendarCreateRuntime.reconcileApproval(approvalId)
+    }
 
     // Keep completed and failed persisted jobs visible as execution evidence.
     // A user refreshes explicitly rather than the screen polling WorkManager.
@@ -212,23 +238,31 @@ fun AgentTasksScreen(
                     unboundLiveApprovals = unboundLiveApprovals,
                     onDecision = { approvalId, approvalScope, approved ->
                         if (approved) {
-                            if (permissionGovernance.approveAction(approvalId, approvalScope)) {
-                                approvalResumeScope.launch {
-                                    val connectorResult = ServiceLocator.approvalContinuationRuntime.resume(approvalId)
-                                    if (connectorResult == null) {
-                                        ServiceLocator.projectFileEditRuntime.resume(approvalId)
-                                    }
-                                }
+                            val calendarReview = ServiceLocator.calendarCreateRuntime
+                                .privateReviewForApproval(approvalId)
+                            if (calendarReview != null) {
+                                calendarReviewCandidate = approvalId to (approvalScope to calendarReview)
+                            } else {
+                                approveAndResume(approvalId, approvalScope)
                             }
                         } else {
-                            if (permissionGovernance.denyAction(approvalId)) {
-                                ServiceLocator.projectFileEditRuntime.reconcileApproval(approvalId)
-                            }
+                            denyAndReconcile(approvalId)
                         }
                     }
                 )
             }
         }
+    }
+
+    calendarReviewCandidate?.let { (approvalId, scopedReview) ->
+        CalendarCreateApprovalDialog(
+            review = scopedReview.second,
+            onDismiss = { calendarReviewCandidate = null },
+            onConfirm = {
+                calendarReviewCandidate = null
+                approveAndResume(approvalId, scopedReview.first)
+            }
+        )
     }
 
     if (showStopConfirmation) {
@@ -317,6 +351,42 @@ fun AgentTasksScreen(
             }
         )
     }
+}
+
+@Composable
+private fun CalendarCreateApprovalDialog(
+    review: com.airi.assistant.agent.calendar.CalendarCreateRuntime.PrivateReview,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val formattedStart = remember(review.startMs) {
+        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(review.startMs))
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.calendar_approval_review_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.calendar_approval_review_message))
+                Text(review.title, color = AiriTheme.onSurface, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.calendar_approval_review_start, formattedStart))
+                Text(
+                    stringResource(
+                        R.string.calendar_approval_review_duration,
+                        review.durationMinutes
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.calendar_approval_review_confirm), color = CosmicAccent)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
 }
 
 @Composable

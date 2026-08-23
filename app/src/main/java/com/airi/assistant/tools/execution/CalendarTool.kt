@@ -172,10 +172,11 @@ class CalendarTool(private val context: Context) {
         return@withContext try {
             val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
             val id  = uri?.lastPathSegment?.toLongOrNull() ?: -1L
-            Log.i(TAG, "Created event '$title' id=$id at ${formatTime(startMs)}")
+            if (id > 0L) Log.i(TAG, "Calendar event insert reported success")
+            else Log.w(TAG, "Calendar provider did not return an event identifier")
             id
         } catch (e: Exception) {
-            Log.e(TAG, "createEvent failed: ${e.message}")
+            Log.e(TAG, "Calendar provider insert failed")
             -1L
         }
     }

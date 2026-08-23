@@ -1514,4 +1514,10 @@
     <string name="scheduled_task_run_now_queued">تم وضع التنفيذ الفوري في الطابور</string>
     <string name="scheduled_task_run_now_active">يوجد تنفيذ فوري نشط بالفعل</string>
     <string name="scheduled_task_run_now_unavailable">لم تعد هذه المهمة متاحة للتنفيذ الفوري</string>
+    <!-- مراجعة موافقة التقويم المحددة -->
+    <string name="calendar_approval_review_title">مراجعة حدث التقويم</string>
+    <string name="calendar_approval_review_message">راجع تفاصيل الحدث قبل الموافقة على هذا التغيير لمرة واحدة في التقويم.</string>
+    <string name="calendar_approval_review_start">يبدأ: %1$s</string>
+    <string name="calendar_approval_review_duration">المدة: %1$d دقيقة</string>
+    <string name="calendar_approval_review_confirm">موافقة وإنشاء</string>
 </resources>

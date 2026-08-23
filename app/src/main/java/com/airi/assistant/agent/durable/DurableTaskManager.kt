@@ -377,11 +377,21 @@ class DurableTaskManager(private val context: Context) {
      * denied, expired, consumed, and malformed records are intentionally absent.
      */
     fun approvedConnectorContinuationApprovalIds(nowMs: Long = System.currentTimeMillis()): List<String> =
-        approvedContinuationApprovalIds(nowMs) { it.invocation != null && it.projectFileWrite == null }
+        approvedContinuationApprovalIds(nowMs) {
+            it.invocation != null && it.projectFileWrite == null && it.calendarCreate == null
+        }
 
     /** Approved local file writes are recovered only by the project-file runtime. */
     fun approvedProjectFileWriteApprovalIds(nowMs: Long = System.currentTimeMillis()): List<String> =
-        approvedContinuationApprovalIds(nowMs) { it.invocation == null && it.projectFileWrite != null }
+        approvedContinuationApprovalIds(nowMs) {
+            it.invocation == null && it.projectFileWrite != null && it.calendarCreate == null
+        }
+
+    /** Approved calendar inserts are recovered only by the typed calendar runtime. */
+    fun approvedCalendarCreateApprovalIds(nowMs: Long = System.currentTimeMillis()): List<String> =
+        approvedContinuationApprovalIds(nowMs) {
+            it.invocation == null && it.projectFileWrite == null && it.calendarCreate != null
+        }
 
     /** Read-only preflight used to select the typed runtime before an atomic claim. */
     fun continuationForApproval(approvalId: String): ApprovalContinuation? =
@@ -413,6 +423,43 @@ class DurableTaskManager(private val context: Context) {
         }
 
     /**
+     * Local-calendar authorizer. The calendar runtime must verify exact task,
+     * mission, project, run, step, descriptor hashes and policy after atomic
+     * claim and before one provider insert attempt.
+     */
+    fun isClaimedCalendarContinuation(
+        continuationId: String,
+        taskId: String,
+        missionId: String,
+        projectId: String?,
+        runId: String,
+        stepId: String,
+        proposalId: String,
+        titleHash: String,
+        scheduleHash: String,
+        calendarPolicy: String,
+        idempotencyKey: String
+    ): Boolean {
+        val task = taskCache[taskId] ?: return false
+        val continuation = task.approvalContinuations.firstOrNull { it.id == continuationId }
+            ?: return false
+        val calendar = continuation.calendarCreate ?: return false
+        return continuation.invocation == null &&
+            continuation.projectFileWrite == null &&
+            continuation.status == ApprovalContinuationStatus.CLAIMED &&
+            continuation.taskId == taskId &&
+            continuation.missionId == missionId &&
+            continuation.projectId == projectId &&
+            continuation.runId == runId &&
+            continuation.stepId == stepId &&
+            calendar.proposalId == proposalId &&
+            calendar.titleHash == titleHash &&
+            calendar.scheduleHash == scheduleHash &&
+            calendar.calendarPolicy == calendarPolicy &&
+            calendar.idempotencyKey == idempotencyKey
+    }
+
+    /**
      * Connector-side authorizer for a claimed continuation. A connector must
      * call this before performing an approved side effect; matching the ID alone
      * is insufficient because stale/replayed inputs must fail closed.
@@ -433,6 +480,7 @@ class DurableTaskManager(private val context: Context) {
             ?: return false
         val invocation = continuation.invocation ?: return false
         return continuation.projectFileWrite == null &&
+            continuation.calendarCreate == null &&
             continuation.status == ApprovalContinuationStatus.CLAIMED &&
             continuation.taskId == taskId &&
             continuation.missionId == missionId &&

@@ -194,6 +194,11 @@ class AIRIApplication : Application() {
                     if (recoveredProjectFileEdits.isNotEmpty()) {
                         LoggingService.info(TAG, "Recovered ${recoveredProjectFileEdits.size} approved project-file continuation(s)")
                     }
+                    val recoveredCalendarCreates = ServiceLocator.calendarCreateRuntime
+                        .resumeApprovedAfterRecovery()
+                    if (recoveredCalendarCreates.isNotEmpty()) {
+                        LoggingService.info(TAG, "Recovered ${recoveredCalendarCreates.size} approved calendar continuation(s)")
+                    }
 
                     // Cloud sync is user-preference-gated and network I/O
                     val prefs = ServiceLocator.userProfileRepository.current

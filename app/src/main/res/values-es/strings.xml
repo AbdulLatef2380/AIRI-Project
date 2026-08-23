@@ -1283,4 +1283,10 @@
     <string name="scheduled_task_run_now_queued">Ejecución inmediata en cola</string>
     <string name="scheduled_task_run_now_active">Ya hay una ejecución inmediata activa</string>
     <string name="scheduled_task_run_now_unavailable">Esta tarea ya no está disponible para ejecución inmediata</string>
+    <!-- Revisión de aprobación de calendario con tipo -->
+    <string name="calendar_approval_review_title">Revisar evento del calendario</string>
+    <string name="calendar_approval_review_message">Revisa los detalles del evento antes de aprobar este cambio único en el calendario.</string>
+    <string name="calendar_approval_review_start">Comienza: %1$s</string>
+    <string name="calendar_approval_review_duration">Duración: %1$d minutos</string>
+    <string name="calendar_approval_review_confirm">Aprobar y crear</string>
 </resources>

@@ -10,6 +10,7 @@ internal object AgentLoopSideEffectPolicy {
 
     enum class Decision {
         ALLOW_READ,
+        ALLOW_TYPED_CALENDAR_CREATE,
         DURABLE_CONTEXT_REQUIRED
     }
 
@@ -26,7 +27,7 @@ internal object AgentLoopSideEffectPolicy {
 
     fun decide(toolName: String, hasDurableExecutionContext: Boolean): Decision = when {
         toolName !in sideEffectingTools -> Decision.ALLOW_READ
-        hasDurableExecutionContext -> Decision.ALLOW_READ
+        toolName == "calendar_create" && hasDurableExecutionContext -> Decision.ALLOW_TYPED_CALENDAR_CREATE
         else -> Decision.DURABLE_CONTEXT_REQUIRED
     }
 

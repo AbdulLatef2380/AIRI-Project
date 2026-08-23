@@ -1363,6 +1363,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Deletes only a durable long-term memory and refreshes the memory projection. */
+    suspend fun deleteMemoryEntry(memoryId: Long): Boolean {
+        val removed = memoryManager.forgetMemory(memoryId)
+        if (removed) {
+            _memoryEntries.value = memoryManager.getSemanticMemories(200)
+            _memoryCount.value = memoryManager.getMessageCount()
+        }
+        return removed
+    }
+
     // ── Message Handling ──────────────────────────────────────────────────────
 
     private data class InputDirectives(

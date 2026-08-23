@@ -12,7 +12,7 @@ AIRI separates ordinary conversation context from durable memory. A message is n
 | Expiry | A memory with an elapsed `expiresAtMs` is excluded from retrieval. |
 | Provenance | Each long-term row stores a bounded, sanitised explanation such as `Explicit request through Memory Agent` or `Extracted from an explicit user memory request`. |
 | Explainability | `explainMemory` returns source, provenance, scope, project ID, confidence, importance, privacy, and expiry. MemoryScreen shows why a long-term memory was saved. |
-| Deletion and correction | `forgetMemory` deletes a long-term row explicitly; `editMemory` changes content and governance metadata in one SQL update after validation. |
+| Deletion and correction | `forgetMemory` deletes a long-term row explicitly; `editMemory` changes content and governance metadata in one SQL update after validation. `ChatViewModel.deleteMemoryEntry` exposes only the deletion path to MemoryScreen, refreshes the durable-memory projection and count after success, and the UI requires explicit confirmation. |
 | Retrieval evidence | `RagRetriever` creates stable citation IDs (`memory-{id}` / `message-{id}`) and carries source, provenance, scope, confidence, and record ID with every retrieved passage. |
 
 ## Persistence migration
@@ -44,6 +44,6 @@ A chat request identifies the active workspace project and the effective privacy
 | `MemoryMetadataPolicyTest` | Scope fallback, privacy/importance bounds, and sensitive provenance sanitisation. |
 | `MemoryAdmissionPolicyTest` | Explicit-request and sensitive-content admission rules. |
 | `RagQueryPolicyTest` | RAG input and limit bounds. |
-| Kotlin compilation and selected unit suite | Room v8 entity/DAO/migration, MemoryAgent, RagRetriever, ChatViewModel, and MemoryScreen compile together. |
+| Kotlin compilation and selected unit suite | Room v8 entity/DAO/migration, MemoryAgent, RagRetriever, ChatViewModel, and MemoryScreen compile together, including individual long-term-memory deletion and its localized confirmation flow. |
 
-The next knowledge phase must connect an explicit Project File index request to a real extractor/indexer, preserve source chunks and confidence, and expose those citations in the same evidence model. Importing a file must not become implicit long-term memory or knowledge.
+The next knowledge phase must connect an explicit Project File index request to a real extractor/indexer, preserve source chunks and confidence, and expose those citations in the same evidence model. Importing a file must not become implicit long-term memory or knowledge. Physical-device verification remains required for the delete confirmation, TalkBack labels, font-scale rendering, and persistence refresh after process recreation.

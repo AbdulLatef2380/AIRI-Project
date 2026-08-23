@@ -925,6 +925,16 @@
     <string name="memory_title">الذاكرة</string>
     <string name="memory_clear_dialog_body">سيؤدي هذا إلى حذف جميع التفاعلات المحفوظة نهائيًا. سيتم إعادة تعيين سياق الذكاء الاصطناعي. لا يمكن التراجع عن هذا الإجراء.</string>
     <string name="memory_clear_button">مسح الذاكرة</string>
+    <string name="memory_delete_title">حذف هذه الذاكرة؟</string>
+    <string name="memory_delete_body">سيحذف هذا هذه الذاكرة طويلة الأجل فقط. لا يمكن التراجع عن الإجراء.</string>
+    <string name="memory_delete_button">حذف الذاكرة</string>
+    <string name="memory_deleted_snack">تم حذف الذاكرة</string>
+    <string name="memory_delete_failed">تعذر حذف الذاكرة. يرجى المحاولة مجدداً.</string>
+    <string name="memory_admission_summary">تُحتفظ فقط بالتفاعلات المنتقاة والمفيدة كذاكرة طويلة الأجل.</string>
+    <string name="memory_role_user">أنت</string>
+    <string name="memory_role_assistant">AIRI</string>
+    <string name="memory_badge_long_term">طويلة الأجل</string>
+    <string name="memory_badge_context">سياق</string>
     <string name="memory_no_memory">لا توجد ذاكرة بعد</string>
     <string name="memory_no_memory_desc">ابدأ محادثة لبناء الذاكرة</string>
     <string name="memory_episodic_section">الذاكرة التجريبية</string>

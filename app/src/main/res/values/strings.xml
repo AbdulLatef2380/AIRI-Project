@@ -952,6 +952,16 @@
     <string name="memory_title">Memory</string>
     <string name="memory_clear_dialog_body">This will permanently delete all stored interactions. The AI context will be reset. This action cannot be undone.</string>
     <string name="memory_clear_button">Clear Memory</string>
+    <string name="memory_delete_title">Delete this memory?</string>
+    <string name="memory_delete_body">This removes only this long-term memory. This action cannot be undone.</string>
+    <string name="memory_delete_button">Delete memory</string>
+    <string name="memory_deleted_snack">Memory deleted</string>
+    <string name="memory_delete_failed">Memory could not be deleted. Please try again.</string>
+    <string name="memory_admission_summary">Only selected, useful interactions are kept as long-term memory.</string>
+    <string name="memory_role_user">You</string>
+    <string name="memory_role_assistant">AIRI</string>
+    <string name="memory_badge_long_term">Long-term</string>
+    <string name="memory_badge_context">Context</string>
     <string name="memory_no_memory">No memory yet</string>
     <string name="memory_no_memory_desc">Start a conversation to build memory</string>
     <string name="memory_episodic_section">Episodic Memory</string>

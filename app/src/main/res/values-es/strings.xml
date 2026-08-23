@@ -771,6 +771,16 @@
     <string name="memory_title">Memoria</string>
     <string name="memory_clear_dialog_body">Esto eliminará permanentemente todas las interacciones guardadas. El contexto de IA se restablecerá. Esta acción no se puede deshacer.</string>
     <string name="memory_clear_button">Borrar memoria</string>
+    <string name="memory_delete_title">¿Eliminar este recuerdo?</string>
+    <string name="memory_delete_body">Solo elimina este recuerdo de largo plazo. Esta acción no se puede deshacer.</string>
+    <string name="memory_delete_button">Eliminar recuerdo</string>
+    <string name="memory_deleted_snack">Recuerdo eliminado</string>
+    <string name="memory_delete_failed">No se pudo eliminar el recuerdo. Inténtalo de nuevo.</string>
+    <string name="memory_admission_summary">Solo las interacciones útiles seleccionadas se guardan como memoria a largo plazo.</string>
+    <string name="memory_role_user">Tú</string>
+    <string name="memory_role_assistant">AIRI</string>
+    <string name="memory_badge_long_term">Largo plazo</string>
+    <string name="memory_badge_context">Contexto</string>
     <string name="memory_no_memory">Sin memoria aún</string>
     <string name="memory_no_memory_desc">Inicia una conversación para construir memoria</string>
     <string name="memory_episodic_section">Memoria episódica</string>

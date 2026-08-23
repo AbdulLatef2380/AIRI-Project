@@ -771,6 +771,16 @@
     <string name="memory_title">记忆</string>
     <string name="memory_clear_dialog_body">这将永久删除所有存储的交互记录。AI 上下文将被重置。此操作无法撤销。</string>
     <string name="memory_clear_button">清除记忆</string>
+    <string name="memory_delete_title">删除此记忆？</string>
+    <string name="memory_delete_body">这只会删除此长期记忆，且无法撤销。</string>
+    <string name="memory_delete_button">删除记忆</string>
+    <string name="memory_deleted_snack">记忆已删除</string>
+    <string name="memory_delete_failed">无法删除记忆，请重试。</string>
+    <string name="memory_admission_summary">只有经过选择且有用的互动会保留为长期记忆。</string>
+    <string name="memory_role_user">你</string>
+    <string name="memory_role_assistant">AIRI</string>
+    <string name="memory_badge_long_term">长期</string>
+    <string name="memory_badge_context">上下文</string>
     <string name="memory_no_memory">暂无记忆</string>
     <string name="memory_no_memory_desc">开始对话以建立记忆</string>
     <string name="memory_episodic_section">情景记忆</string>

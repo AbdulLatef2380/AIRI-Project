@@ -41,6 +41,7 @@ fun MemoryScreen(
     val memoryMessages by viewModel.memoryEntries.collectAsState()
     val memoryCount    by viewModel.memoryCount.collectAsState()
     var showConfirm    by remember { mutableStateOf(false) }
+    var deleteCandidate by remember { mutableStateOf<ChatMessage?>(null) }
     var searchQuery    by remember { mutableStateOf("") }
     var showSearch     by remember { mutableStateOf(false) }
     val context        = LocalContext.current
@@ -86,6 +87,39 @@ fun MemoryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showConfirm = false }) {
+                    Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
+                }
+            }
+        )
+    }
+
+    deleteCandidate?.let { candidate ->
+        AlertDialog(
+            onDismissRequest = { deleteCandidate = null },
+            containerColor = SurfaceFloating,
+            shape = AIRIShapes.xl,
+            icon = { Icon(Icons.Outlined.Delete, null, tint = SemanticError, modifier = Modifier.size(28.dp)) },
+            title = { Text(stringResource(R.string.memory_delete_title), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.memory_delete_body), color = AiriTheme.onSurfaceVariant, lineHeight = 20.sp) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            val removed = runCatching { viewModel.deleteMemoryEntry(candidate.id) }.getOrDefault(false)
+                            deleteCandidate = null
+                            snackbarHost.showSnackbar(
+                                context.getString(
+                                    if (removed) R.string.memory_deleted_snack else R.string.memory_delete_failed
+                                )
+                            )
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SemanticError),
+                    shape = AIRIShapes.md
+                ) { Text(stringResource(R.string.memory_delete_button), fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteCandidate = null }) {
                     Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
                 }
             }
@@ -198,7 +232,7 @@ fun MemoryScreen(
                         ) {
                             Icon(Icons.Outlined.Psychology, null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
                             Text(
-                                "Memory entries are admitted selectively; ordinary chat is not stored as long-term memory.",
+                                stringResource(R.string.memory_admission_summary),
                                 fontSize = 12.sp,
                                 color = AiriTheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f)
@@ -216,7 +250,11 @@ fun MemoryScreen(
                     }
                 }
                 items(displayMessages, key = { it.id }) { msg ->
-                    MemoryEntryCard(msg = msg, searchQuery = searchQuery)
+                    MemoryEntryCard(
+                        msg = msg,
+                        searchQuery = searchQuery,
+                        onDelete = if (msg.isMemory) ({ deleteCandidate = msg }) else null
+                    )
                 }
             }
         }
@@ -224,7 +262,11 @@ fun MemoryScreen(
 }
 
 @Composable
-private fun MemoryEntryCard(msg: ChatMessage, searchQuery: String) {
+private fun MemoryEntryCard(
+    msg: ChatMessage,
+    searchQuery: String,
+    onDelete: (() -> Unit)?
+) {
     val isUser  = msg.role == "user"
     val timeStr = remember(msg.timestamp) {
         SimpleDateFormat("dd MMM · HH:mm", Locale.getDefault()).format(Date(msg.timestamp))
@@ -251,7 +293,7 @@ private fun MemoryEntryCard(msg: ChatMessage, searchQuery: String) {
                     )
                 }
                 Text(
-                    if (isUser) "You" else "AIRI",
+                        if (isUser) stringResource(R.string.memory_role_user) else stringResource(R.string.memory_role_assistant),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = if (isUser) CosmicAccent else AiriTheme.onBackground
@@ -261,7 +303,7 @@ private fun MemoryEntryCard(msg: ChatMessage, searchQuery: String) {
                     color = if (msg.isMemory) CosmicAccent.copy(alpha = 0.14f) else SurfaceHighlight
                 ) {
                     Text(
-                        if (msg.isMemory) "Long-term" else "Context",
+                        if (msg.isMemory) stringResource(R.string.memory_badge_long_term) else stringResource(R.string.memory_badge_context),
                         fontSize = 9.sp,
                         color = if (msg.isMemory) CosmicAccent else AiriTheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
@@ -269,6 +311,19 @@ private fun MemoryEntryCard(msg: ChatMessage, searchQuery: String) {
                 }
                 Spacer(Modifier.weight(1f))
                 Text(timeStr, fontSize = 10.sp, color = AiriTheme.onSurfaceVariant.copy(0.55f))
+                if (onDelete != null) {
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Delete,
+                            contentDescription = stringResource(R.string.memory_delete_button),
+                            tint = SemanticError.copy(alpha = 0.78f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
             }
             Text(
                 msg.content,

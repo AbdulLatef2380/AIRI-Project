@@ -3,6 +3,7 @@ package com.airi.assistant.agent.loop
 import android.content.Context
 import android.util.Log
 import com.airi.assistant.ai.agent.SelfHealingExecutor
+import com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy
 import com.airi.assistant.agent.loop.tool.ToolDispatcher
 import com.airi.assistant.agent.loop.tool.ToolSchema
 import com.airi.assistant.ai.QueryType
@@ -214,12 +215,23 @@ Do not mix tool_call JSON with prose in the same message.
                 Log.i(TAG, "AIRI TOOL_CALL step=$stepsUsed tool=$toolName args=${toolArgs.keys.joinToString()}")
                 ExecutionStatusBus.onWaveStarted(listOf("tool_$toolName"), listOf("Tool: $toolName"))
 
-                // : route through AgentSandbox when available so every
-                // tool call is permission-checked and workspace-logged.
-                // NOTE: agentId must be a stable registered principal ("agent_loop"),
-                // NOT the tool name. Using the tool name caused permission checks to
-                // run against unknown principals, broadly denying legitimate calls.
-                val toolResult = try {
+                // Chat-owned AgentLoop executions have no persisted task/run/step
+                // identity. Block all write and live-device side effects before the
+                // sandbox/adapter boundary; a future typed durable runtime must own
+                // and claim those operations instead of reusing confirmation text.
+                val sideEffectDecision = AgentLoopSideEffectPolicy.decide(
+                    toolName = toolName,
+                    hasDurableExecutionContext = false
+                )
+                val toolResult = if (sideEffectDecision == AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED) {
+                    Log.w(TAG, "AIRI TOOL_BLOCKED_NO_DURABLE_CONTEXT tool=$toolName")
+                    ToolDispatcher.ToolResult.Error(AgentLoopSideEffectPolicy.blockedMessage(toolName))
+                } else try {
+                    // Route through AgentSandbox when available so every allowed
+                    // tool call is permission-checked and workspace-logged.
+                    // NOTE: agentId must be a stable registered principal ("agent_loop"),
+                    // NOT the tool name. Using the tool name caused permission checks to
+                    // run against unknown principals, broadly denying legitimate calls.
                     if (agentSandbox != null) {
                         agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
                             // Per-tool authorization: guard() throws

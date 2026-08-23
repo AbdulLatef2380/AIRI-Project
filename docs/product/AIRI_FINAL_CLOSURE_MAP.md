@@ -73,5 +73,6 @@
 | Project Context admission | `IMPLEMENTED` / `TESTED` | `PRODUCT_KERNEL_CONTEXT_CONTRACT.md`, `ProjectContextAdmissionPolicyTest`, core verifier. |
 | Trust Center live decisions | `IMPLEMENTED` / `TESTED` | `TRUST_CENTER_CONTRACT.md`, `AgentTasksScreen`, core verifier. |
 | Exact-step GitHub continuation | `IMPLEMENTED` / `TESTED` / `BUILD_VERIFIED` | `APPROVAL_CONTINUATION_CONTRACT.md`, durable pause/claim runtime, Trust Center resume, targeted Product Kernel and ConnectorRuntimeManager tests. |
+| AgentLoop side-effect fail-closed boundary | `IMPLEMENTED` / `TESTED` | `AGENT_LOOP_DURABLE_APPROVAL_CONTRACT.md`; chat-owned loop has no task/run/step and therefore blocks calendar/note/alarm/accessibility/app-intent actions before dispatcher I/O. `AgentLoopSideEffectPolicyTest` and the core guard pass. This is a safety boundary, not a calendar continuation or a replacement for a task-owned AgentLoop runtime. |
 | Artifact execution provenance | `IMPLEMENTED` / `TESTED` / `BUILD_VERIFIED` | `ARTIFACT_PROVENANCE_CONTRACT.md`, Room v9, orchestrator result artifact route, targeted tests and core verifier. |
 | Final closure pass | `IN_PROGRESS` | This map and `AIRI_FINAL_CLOSURE_STATUS.md` are updated only at meaningful closure milestones. |

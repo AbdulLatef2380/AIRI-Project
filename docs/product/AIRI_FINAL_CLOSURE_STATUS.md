@@ -12,7 +12,8 @@
 | Project Context admission | `IMPLEMENTED` / `TESTED` | `ProjectContextResolver`, scoped `RagRetriever`, `ProjectContextAdmissionPolicyTest`, core verifier. | Device/model execution and broad cross-resource isolation. |
 | Trust Center | `IMPLEMENTED` / `TESTED` | `TRUST_CENTER_CONTRACT.md`, live governance/durable approval bridge. | Exact-step continuation and device recovery. |
 | Mission ownership baseline | `IMPLEMENTED` / `TESTED` | `MissionKernel`, normalized `DurableTaskManager` persistence, `MissionKernelTest`, and `DurableTaskProductKernelTest`. | Artifact→task/run/step and exact-step approval continuation remain separate P0 work. |
-| Final closure program | `IN_PROGRESS` | This file, closure map, and `AIRI_PRODUCT_GAP_MATRIX.md`. | P0 artifact provenance, approval continuation, and project-scoped secrets are next. |
+| Project secret broker | `IMPLEMENTED` / `TESTED` | Project/connector-scoped capability namespace in `SecretVault` and regression coverage for cross-project denial and revocation. | Provider adapters must pass real project/connector context; project-secret management UI remains open. |
+| Final closure program | `IN_PROGRESS` | This file, closure map, and `AIRI_PRODUCT_GAP_MATRIX.md`. | P0 artifact provenance and approval continuation are next; project secret adapter/UI closure follows their live context paths. |
 
 ## Evidence rules
 

@@ -1522,4 +1522,20 @@
     <string name="task_continuity_sync_title">Sync task progress across devices</string>
     <string name="task_continuity_sync_summary">Syncs task status and plan progress only. Task content, results, approvals, files, and secrets stay on this device.</string>
     <string name="task_continuity_sync_requires_cloud">Enable cloud sync before sharing task progress.</string>
+    <!-- Live agent-plan states and accessibility -->
+    <string name="agent_plan_dismiss_cd">Dismiss plan</string>
+    <string name="agent_plan_elapsed_seconds">%1$d s</string>
+    <string name="agent_plan_stage_planning">Planning</string>
+    <string name="agent_plan_stage_executing">Executing</string>
+    <string name="agent_plan_stage_recovering">Recovering</string>
+    <string name="agent_plan_stage_reflecting">Reviewing</string>
+    <string name="agent_plan_stage_completed">Completed</string>
+    <string name="agent_plan_stage_failed">Failed</string>
+    <string name="agent_plan_stage_idle">Waiting</string>
+    <string name="agent_plan_step_queued">Queued</string>
+    <string name="agent_plan_step_running">Running</string>
+    <string name="agent_plan_step_completed">Completed</string>
+    <string name="agent_plan_step_failed">Failed</string>
+    <string name="agent_plan_step_retrying">Retrying</string>
+    <string name="agent_plan_step_cancelled">Cancelled</string>
 </resources>

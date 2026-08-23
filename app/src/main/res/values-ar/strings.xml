@@ -1421,4 +1421,20 @@
     <string name="task_continuity_sync_title">مزامنة تقدّم المهام بين الأجهزة</string>
     <string name="task_continuity_sync_summary">تُزامن حالة المهمة وتقدّم الخطة فقط. يبقى محتوى المهمة والنتائج والموافقات والملفات والأسرار على هذا الجهاز.</string>
     <string name="task_continuity_sync_requires_cloud">فعّل المزامنة السحابية أولاً لمشاركة تقدّم المهام.</string>
+    <!-- حالات لوحة خطة الوكيل وإتاحة الوصول -->
+    <string name="agent_plan_dismiss_cd">إغلاق الخطة</string>
+    <string name="agent_plan_elapsed_seconds">%1$d ث</string>
+    <string name="agent_plan_stage_planning">جارٍ التخطيط</string>
+    <string name="agent_plan_stage_executing">جارٍ التنفيذ</string>
+    <string name="agent_plan_stage_recovering">جارٍ الاسترداد</string>
+    <string name="agent_plan_stage_reflecting">جارٍ المراجعة</string>
+    <string name="agent_plan_stage_completed">اكتمل</string>
+    <string name="agent_plan_stage_failed">فشل</string>
+    <string name="agent_plan_stage_idle">بانتظار البدء</string>
+    <string name="agent_plan_step_queued">في الانتظار</string>
+    <string name="agent_plan_step_running">قيد التنفيذ</string>
+    <string name="agent_plan_step_completed">اكتملت</string>
+    <string name="agent_plan_step_failed">فشلت</string>
+    <string name="agent_plan_step_retrying">جارٍ إعادة المحاولة</string>
+    <string name="agent_plan_step_cancelled">أُلغيت</string>
 </resources>

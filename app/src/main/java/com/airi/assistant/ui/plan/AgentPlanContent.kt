@@ -31,6 +31,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -41,6 +44,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import kotlinx.coroutines.delay
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.viewmodel.ExecutionStage
@@ -106,7 +112,7 @@ fun AgentPlanContent(
             }
             Icon(
                 Icons.Outlined.Close,
-                contentDescription = "Dismiss",
+                contentDescription = stringResource(R.string.agent_plan_dismiss_cd),
                 tint     = AiriTheme.onSurface.copy(alpha = 0.4f),
                 modifier = Modifier
                     .size(18.dp)
@@ -147,9 +153,22 @@ fun AgentPlanContent(
 
 @Composable
 private fun PlanStepRow(step: PlanStepModel) {
+    val statusLabel = planStepStatusLabel(step.status)
+    var nowMs by remember(step.id, step.startedAtMs) {
+        mutableLongStateOf(System.currentTimeMillis())
+    }
+    LaunchedEffect(step.id, step.status, step.startedAtMs) {
+        if (!step.status.isActive) return@LaunchedEffect
+        while (true) {
+            nowMs = System.currentTimeMillis()
+            delay(1_000)
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .semantics { contentDescription = "$statusLabel: ${step.label}" }
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -192,9 +211,9 @@ private fun PlanStepRow(step: PlanStepModel) {
 
                 // : Elapsed time for RUNNING step
                 if (step.status == PlanStepStatus.RUNNING && step.startedAtMs != null) {
-                    val elapsed = (System.currentTimeMillis() - step.startedAtMs) / 1000L
+                    val elapsed = ((nowMs - step.startedAtMs) / 1000L).coerceAtLeast(0L)
                     Text(
-                        "${elapsed}s",
+                        stringResource(R.string.agent_plan_elapsed_seconds, elapsed),
                         fontSize = 10.sp,
                         color    = CosmicAccent.copy(0.55f),
                         fontFamily = FontFamily.Monospace,
@@ -252,12 +271,23 @@ private fun stageColor(stage: ExecutionStage) = when (stage) {
     ExecutionStage.IDLE       -> AiriTheme.onSurface.copy(alpha = 0.4f)
 }
 
+@Composable
 private fun stageLabel(stage: ExecutionStage) = when (stage) {
-    ExecutionStage.PLANNING   -> "Planning"
-    ExecutionStage.EXECUTING  -> "Executing"
-    ExecutionStage.RECOVERING -> "Recovering"
-    ExecutionStage.REFLECTING -> "Reflecting"
-    ExecutionStage.COMPLETED  -> "Completed"
-    ExecutionStage.FAILED     -> "Failed"
-    ExecutionStage.IDLE       -> "Idle"
+    ExecutionStage.PLANNING   -> stringResource(R.string.agent_plan_stage_planning)
+    ExecutionStage.EXECUTING  -> stringResource(R.string.agent_plan_stage_executing)
+    ExecutionStage.RECOVERING -> stringResource(R.string.agent_plan_stage_recovering)
+    ExecutionStage.REFLECTING -> stringResource(R.string.agent_plan_stage_reflecting)
+    ExecutionStage.COMPLETED  -> stringResource(R.string.agent_plan_stage_completed)
+    ExecutionStage.FAILED     -> stringResource(R.string.agent_plan_stage_failed)
+    ExecutionStage.IDLE       -> stringResource(R.string.agent_plan_stage_idle)
+}
+
+@Composable
+private fun planStepStatusLabel(status: PlanStepStatus) = when (status) {
+    PlanStepStatus.QUEUED -> stringResource(R.string.agent_plan_step_queued)
+    PlanStepStatus.RUNNING -> stringResource(R.string.agent_plan_step_running)
+    PlanStepStatus.COMPLETED -> stringResource(R.string.agent_plan_step_completed)
+    PlanStepStatus.FAILED -> stringResource(R.string.agent_plan_step_failed)
+    PlanStepStatus.RETRYING -> stringResource(R.string.agent_plan_step_retrying)
+    PlanStepStatus.CANCELLED -> stringResource(R.string.agent_plan_step_cancelled)
 }

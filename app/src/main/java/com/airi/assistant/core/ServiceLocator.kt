@@ -449,6 +449,8 @@ object ServiceLocator {
             authService           = authService,
             storageRepository     = storageRepository,
             artifactManager       = artifactManager,
+            projectFileManager    = projectFileManager,
+            projectKnowledgeManager = projectKnowledgeManager,
             preferenceCoordinator = preferenceCoordinator,
             secureStorage         = secureStorage,
             auditRepository       = auditRepository
@@ -660,7 +662,8 @@ object ServiceLocator {
     val projectFileManager: com.airi.assistant.workspace.ProjectFileManager by lazy {
         com.airi.assistant.workspace.ProjectFileManager(
             context = requireContext(),
-            mediaLibrary = mediaLibrary
+            mediaLibrary = mediaLibrary,
+            onFileDeleted = { file -> projectKnowledgeManager.deleteIndexForFile(file.id) }
         )
     }
 

@@ -1064,6 +1064,9 @@
     <string name="library_toggle_favorite">Toggle favorite</string>
     <string name="library_index_file">Add to knowledge</string>
     <string name="library_file_state">Extraction: %1$s · Knowledge index: %2$s</string>
+    <string name="library_deleted_files">Recently deleted files</string>
+    <string name="library_restore_file">Restore file</string>
+    <string name="library_purge_file">Delete permanently</string>
     <string name="library_select_project_title">Select a project first</string>
     <string name="library_select_project_description">Files belong to a project. Open or create a workspace before importing.</string>
     <string name="library_no_matching_files">No matching files</string>

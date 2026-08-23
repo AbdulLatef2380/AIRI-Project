@@ -1173,6 +1173,9 @@
     <string name="execution_center_tab_approvals">审批</string>
     <string name="execution_center_tab_runs">执行</string>
     <string name="library_file_state">状态：%1$s</string>
+    <string name="library_deleted_files">最近删除的文件</string>
+    <string name="library_restore_file">恢复文件</string>
+    <string name="library_purge_file">永久删除</string>
     <string name="library_generated_artifacts">生成的工件</string>
     <string name="library_import_file">导入文件</string>
     <string name="library_index_file">添加到知识库</string>

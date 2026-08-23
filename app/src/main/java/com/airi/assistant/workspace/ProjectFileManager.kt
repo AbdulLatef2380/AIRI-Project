@@ -29,7 +29,9 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class ProjectFileManager(
     private val context: Context,
-    private val mediaLibrary: MediaLibrary
+    private val mediaLibrary: MediaLibrary,
+    /** Removes external knowledge entries when a file leaves the active project set. */
+    private val onFileDeleted: (ProjectFile) -> Unit = {}
 ) {
     enum class LifecycleState {
         IMPORTING,
@@ -76,6 +78,8 @@ class ProjectFileManager(
         val tags: List<String> = emptyList(),
         val folder: String = "",
         val isFavorite: Boolean = false,
+        /** Private recovery copy retained only while lifecycle is DELETED. */
+        val trashPath: String = "",
         val error: String = ""
     ) {
         val isReady: Boolean get() = lifecycle == LifecycleState.READY
@@ -99,6 +103,10 @@ class ProjectFileManager(
 
     fun forProject(projectId: String): List<ProjectFile> = files.value
         .filter { it.projectId == projectId && it.lifecycle != LifecycleState.DELETED }
+        .sortedByDescending { it.modifiedAtMs }
+
+    fun deletedForProject(projectId: String): List<ProjectFile> = files.value
+        .filter { it.projectId == projectId && it.lifecycle == LifecycleState.DELETED }
         .sortedByDescending { it.modifiedAtMs }
 
     fun findById(id: String): ProjectFile? = store[id]
@@ -183,17 +191,88 @@ class ProjectFileManager(
         )
     }
 
+    /**
+     * Moves a project file to private local trash before removing its active
+     * media-library copy. A failed archive leaves the live resource untouched.
+     */
     fun delete(id: String): Boolean {
         val file = store[id] ?: return false
+        if (file.lifecycle == LifecycleState.DELETED) return true
+        val source = file.storagePath.takeIf(String::isNotBlank)?.let(::File)
+            ?.takeIf(File::exists) ?: return false
+        val trash = trashFile(file)
+        if (runCatching {
+                trash.parentFile?.mkdirs()
+                source.copyTo(trash, overwrite = true)
+            }.isFailure) return false
         mediaLibrary.delete(file.mediaItemId)
-        if (file.storagePath.isNotBlank()) {
-            runCatching { File(file.storagePath).delete() }
-        }
+        runCatching { source.delete() }
         store[id] = file.copy(
             lifecycle = LifecycleState.DELETED,
             modifiedAtMs = System.currentTimeMillis(),
-            previewText = ""
+            previewText = "",
+            trashPath = trash.absolutePath
         )
+        publishAndPersist()
+        onFileDeleted(file)
+        return true
+    }
+
+    /**
+     * Clears active files, private trash, and the persisted project-file index.
+     * Used by account-data deletion; safe to repeat after a partial cleanup.
+     */
+    suspend fun deleteAll() = withContext(Dispatchers.IO) {
+        val removed = store.values.toList()
+        removed.forEach { file ->
+            if (file.mediaItemId.isNotBlank()) mediaLibrary.delete(file.mediaItemId)
+            onFileDeleted(file)
+        }
+        store.clear()
+        publish()
+        File(context.filesDir, "workspace/project-files").deleteRecursively()
+    }
+
+    /** Restores a soft-deleted file to the same project from its private trash copy. */
+    suspend fun restore(id: String): ProjectFile? = withContext(Dispatchers.IO) {
+        val deleted = store[id] ?: return@withContext null
+        if (deleted.lifecycle != LifecycleState.DELETED || deleted.trashPath.isBlank()) return@withContext null
+        val trash = File(deleted.trashPath)
+        if (!trash.exists()) return@withContext null
+        val libraryItem = mediaLibrary.importFile(
+            sourceFile = trash,
+            type = mediaTypeFor(deleted.mimeType),
+            mimeType = deleted.mimeType,
+            sessionId = deleted.projectId,
+            description = "Restored project file"
+        ) ?: return@withContext null
+        val restoring = deleted.copy(
+            lifecycle = LifecycleState.EXTRACTING,
+            storagePath = libraryItem.filePath,
+            mediaItemId = libraryItem.id,
+            trashPath = "",
+            modifiedAtMs = System.currentTimeMillis()
+        )
+        val extraction = extractPreview(restoring)
+        val restored = restoring.copy(
+            lifecycle = LifecycleState.READY,
+            extractionState = extraction.state,
+            previewText = extraction.preview,
+            error = extraction.error,
+            indexState = IndexState.NOT_REQUESTED,
+            modifiedAtMs = System.currentTimeMillis()
+        )
+        runCatching { trash.delete() }
+        replace(restored)
+        restored
+    }
+
+    /** Permanently removes a file already in trash and its persisted metadata. */
+    fun purge(id: String): Boolean {
+        val deleted = store[id] ?: return false
+        if (deleted.lifecycle != LifecycleState.DELETED) return false
+        if (deleted.trashPath.isNotBlank()) runCatching { File(deleted.trashPath).delete() }
+        store.remove(id)
         publishAndPersist()
         return true
     }
@@ -339,6 +418,9 @@ class ProjectFileManager(
 
     private fun normalizeFileName(raw: String): String =
         ProjectFilePolicy.normalizeFileName(raw)
+
+    private fun trashFile(file: ProjectFile): File =
+        File(context.filesDir, "workspace/project-files/trash/${file.projectId}/${file.id}-${file.name}")
 
     private fun update(id: String, transform: (ProjectFile) -> ProjectFile): ProjectFile? {
         val current = store[id] ?: return null

@@ -1173,6 +1173,9 @@
     <string name="execution_center_tab_approvals">Aprobaciones</string>
     <string name="execution_center_tab_runs">Ejecuciones</string>
     <string name="library_file_state">Estado: %1$s</string>
+    <string name="library_deleted_files">Archivos eliminados recientemente</string>
+    <string name="library_restore_file">Restaurar archivo</string>
+    <string name="library_purge_file">Eliminar permanentemente</string>
     <string name="library_generated_artifacts">Artefactos generados</string>
     <string name="library_import_file">Importar archivo</string>
     <string name="library_index_file">Añadir al conocimiento</string>

@@ -1015,6 +1015,9 @@
     <string name="library_toggle_favorite">تبديل المفضلة</string>
     <string name="library_index_file">إضافة إلى المعرفة</string>
     <string name="library_file_state">الاستخراج: %1$s · فهرس المعرفة: %2$s</string>
+    <string name="library_deleted_files">الملفات المحذوفة مؤخراً</string>
+    <string name="library_restore_file">استعادة الملف</string>
+    <string name="library_purge_file">حذف نهائي</string>
     <string name="library_select_project_title">اختر مشروعاً أولاً</string>
     <string name="library_select_project_description">تنتمي الملفات إلى مشروع. افتح مساحة عمل أو أنشئها قبل الاستيراد.</string>
     <string name="library_no_matching_files">لا توجد ملفات مطابقة</string>

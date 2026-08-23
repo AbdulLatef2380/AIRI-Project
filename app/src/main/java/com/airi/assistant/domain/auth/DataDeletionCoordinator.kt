@@ -9,6 +9,8 @@ import com.airi.assistant.memory.repository.AuditRepository
 import com.airi.assistant.memory.repository.StorageRepository
 import com.airi.assistant.settings.PreferenceCoordinator
 import com.airi.assistant.workspace.ArtifactManager
+import com.airi.assistant.workspace.ProjectFileManager
+import com.airi.assistant.knowledge.ProjectKnowledgeManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -101,6 +103,8 @@ class DataDeletionCoordinator(
     private val authService:           AuthService,
     private val storageRepository:     StorageRepository,
     private val artifactManager:       ArtifactManager,
+    private val projectFileManager:    ProjectFileManager,
+    private val projectKnowledgeManager: ProjectKnowledgeManager,
     private val preferenceCoordinator: PreferenceCoordinator,
     private val secureStorage:         SecureStorage,
     private val auditRepository:       AuditRepository,
@@ -246,6 +250,8 @@ class DataDeletionCoordinator(
         runStep(Step.FILESYSTEM_WIPE, failures, completed) {
             withContext(Dispatchers.IO) {
                 artifactManager.deleteAll()
+                projectFileManager.deleteAll()
+                projectKnowledgeManager.deleteAll()
                 File(context.cacheDir, "chat_attachments").deleteRecursively()
                 File(context.cacheDir, "mmproj_active.gguf").delete()
             }

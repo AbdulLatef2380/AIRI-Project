@@ -94,6 +94,9 @@ fun LibraryScreen(onBack: () -> Unit) {
                 file.tags.any { tag -> tag.contains(normalizedQuery, ignoreCase = true) }
         }
     }
+    val deletedProjectFiles = remember(projectId, allProjectFiles) {
+        projectId?.let(projectFileManager::deletedForProject).orEmpty()
+    }
     val projectArtifacts = remember(projectId, allArtifacts, normalizedQuery) {
         allArtifacts.filter { artifact ->
             artifact.sessionId == projectId && (
@@ -172,7 +175,7 @@ fun LibraryScreen(onBack: () -> Unit) {
                         unfocusedTextColor = AiriTheme.onBackground
                     )
                 )
-                if (projectFiles.isEmpty() && projectArtifacts.isEmpty()) {
+                if (projectFiles.isEmpty() && deletedProjectFiles.isEmpty() && projectArtifacts.isEmpty()) {
                     EmptyLibraryState(isFiltering = normalizedQuery.isNotBlank())
                 } else {
                     LazyColumn(
@@ -206,6 +209,23 @@ fun LibraryScreen(onBack: () -> Unit) {
                                             ServiceLocator.projectKnowledgeManager.indexProjectFile(file.id)
                                         }
                                     }
+                                )
+                            }
+                        }
+                        if (deletedProjectFiles.isNotEmpty()) {
+                            item(key = "deleted-project-files-header") {
+                                LibrarySectionHeader(
+                                    stringResource(R.string.library_deleted_files),
+                                    deletedProjectFiles.size
+                                )
+                            }
+                            items(deletedProjectFiles, key = { "deleted-project-file-${it.id}" }) { file ->
+                                DeletedProjectFileRow(
+                                    file = file,
+                                    onRestore = {
+                                        scope.launch { projectFileManager.restore(file.id) }
+                                    },
+                                    onPurge = { projectFileManager.purge(file.id) }
                                 )
                             }
                         }
@@ -343,6 +363,56 @@ private fun ProjectFileRow(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeletedProjectFileRow(
+    file: ProjectFileManager.ProjectFile,
+    onRestore: () -> Unit,
+    onPurge: () -> Unit
+) {
+    Surface(color = AiriTheme.surface, shape = AIRIShapes.sm, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Outlined.Description,
+                contentDescription = null,
+                tint = AiriTheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    file.name,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AiriTheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    file.mimeType,
+                    fontSize = 11.sp,
+                    color = AiriTheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            TextButton(onClick = onRestore) {
+                Text(stringResource(R.string.library_restore_file), color = CosmicAccent)
+            }
+            IconButton(onClick = onPurge, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    Icons.Outlined.Delete,
+                    contentDescription = stringResource(R.string.library_purge_file),
+                    tint = AiriTheme.error,
+                    modifier = Modifier.size(17.dp)
+                )
             }
         }
     }

@@ -147,6 +147,13 @@ class ProjectKnowledgeManager(
         return removed
     }
 
+    /** Clears all project knowledge chunks and the local index file during data deletion. */
+    fun deleteAll() {
+        chunksById.clear()
+        _chunks.value = emptyList()
+        runCatching { indexFile.delete() }
+    }
+
     private fun chunkText(text: String): List<String> =
         ProjectKnowledgeTextPolicy.chunkText(text)
 

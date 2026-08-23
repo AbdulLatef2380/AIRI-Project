@@ -1339,8 +1339,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun renameCurrentSession(title: String) {
+        renameSession(_currentSessionId.value, title)
+    }
+
+    fun renameSession(sessionId: String, title: String) {
         val normalized = title.trim().replace(Regex("[\\r\\n]+"), " ").take(80)
-        val sessionId = _currentSessionId.value
         if (normalized.isBlank() || sessionId.isBlank()) return
         viewModelScope.launch {
             memoryManager.renameSession(sessionId, normalized)
@@ -1349,7 +1352,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setCurrentSessionPinned(isPinned: Boolean) {
-        val sessionId = _currentSessionId.value
+        setSessionPinned(_currentSessionId.value, isPinned)
+    }
+
+    fun setSessionPinned(sessionId: String, isPinned: Boolean) {
         if (sessionId.isBlank()) return
         viewModelScope.launch {
             memoryManager.setSessionPinned(sessionId, isPinned)

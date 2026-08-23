@@ -52,6 +52,7 @@ fun HistoryScreen(
 ) {
     val sessions by viewModel.sessions.collectAsState()
     var sessionToDelete by remember { mutableStateOf<ChatSessionSummary?>(null) }
+    var sessionToRename by remember { mutableStateOf<ChatSessionSummary?>(null) }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -156,12 +157,46 @@ fun HistoryScreen(
                                 viewModel.loadSession(session.id)
                                 onSessionSelected()
                             },
-                            onDelete = { sessionToDelete = session }
+                            onDelete = { sessionToDelete = session },
+                            onRename = { sessionToRename = session },
+                            onTogglePin = { viewModel.setSessionPinned(session.id, !session.isPinned) }
                         )
                     }
                 }
             }
         }
+    }
+
+    sessionToRename?.let { session ->
+        var renameDraft by remember(session.id) { mutableStateOf(session.title) }
+        AlertDialog(
+            onDismissRequest = { sessionToRename = null },
+            containerColor = AiriTheme.surface,
+            title = { Text(stringResource(R.string.rename_chat_title), color = AiriTheme.onBackground) },
+            text = {
+                OutlinedTextField(
+                    value = renameDraft,
+                    onValueChange = { renameDraft = it },
+                    label = { Text(stringResource(R.string.rename_chat_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.renameSession(session.id, renameDraft)
+                        sessionToRename = null
+                    },
+                    enabled = renameDraft.trim().isNotEmpty()
+                ) { Text(stringResource(R.string.save), color = CosmicAccent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { sessionToRename = null }) {
+                    Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
+                }
+            }
+        )
     }
 
     // Delete confirmation
@@ -223,7 +258,9 @@ fun HistoryScreen(
 private fun HistorySessionItem(
     session: ChatSessionSummary,
     onSelect: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onRename: () -> Unit,
+    onTogglePin: () -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     var showActions by remember { mutableStateOf(false) }
@@ -241,11 +278,28 @@ private fun HistorySessionItem(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Left side: dot indicator + actions
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (showActions) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (session.isPinned) {
+                Icon(
+                    Icons.Outlined.PushPin,
+                    contentDescription = null,
+                    tint = CosmicAccent,
+                    modifier = Modifier.size(18.dp)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(CosmicAccent)
+                )
+            }
+            Box {
                 IconButton(
-                    onClick = { showActions = false; onDelete() },
+                    onClick = { showActions = true },
                     modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
@@ -255,13 +309,23 @@ private fun HistorySessionItem(
                         modifier = Modifier.size(18.dp)
                     )
                 }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(CosmicAccent)
-                )
+                DropdownMenu(
+                    expanded = showActions,
+                    onDismissRequest = { showActions = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(if (session.isPinned) R.string.unpin_chat else R.string.pin_chat)) },
+                        onClick = { showActions = false; onTogglePin() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.rename_chat)) },
+                        onClick = { showActions = false; onRename() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.delete), color = SemanticError) },
+                        onClick = { showActions = false; onDelete() }
+                    )
+                }
             }
         }
 

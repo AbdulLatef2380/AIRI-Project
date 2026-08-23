@@ -1265,4 +1265,8 @@
     <string name="trust_center_execution_scope">运行：%1$s · 步骤：%2$s</string>
     <string name="scheduled_task_refresh">刷新计划任务</string>
     <string name="scheduled_task_view_execution">查看执行</string>
+    <string name="browser_takeover_title">在浏览器中打开？</string>
+    <string name="browser_takeover_message">AIRI 将把此页面交给您的浏览器。仅当您希望离开 AIRI 时继续。</string>
+    <string name="browser_takeover_open">打开浏览器</string>
+    <string name="browser_takeover_unavailable">没有可用于打开此页面的浏览器应用。</string>
 </resources>

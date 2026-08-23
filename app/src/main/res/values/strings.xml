@@ -1597,4 +1597,8 @@
     <string name="trust_center_execution_scope">Run: %1$s · Step: %2$s</string>
     <string name="scheduled_task_refresh">Refresh scheduled tasks</string>
     <string name="scheduled_task_view_execution">View execution</string>
+    <string name="browser_takeover_title">Open in your browser?</string>
+    <string name="browser_takeover_message">AIRI will hand this page to your browser. Continue only if you want to leave AIRI.</string>
+    <string name="browser_takeover_open">Open browser</string>
+    <string name="browser_takeover_unavailable">No browser app is available to open this page.</string>
 </resources>

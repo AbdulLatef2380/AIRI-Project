@@ -11,9 +11,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +31,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
+import com.airi.assistant.R
+import com.airi.assistant.agent.browser.BrowserUserTakeoverCoordinator
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.auth.AuthService
@@ -78,6 +84,7 @@ import com.airi.assistant.ui.screens.VoicePersonalizationScreen
 import com.airi.assistant.ui.screens.WelcomeScreen
 import com.airi.assistant.ui.screens.WorkspaceScreen
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import com.airi.assistant.ui.screens.PlanningDashboardScreen
 import com.airi.assistant.ui.screens.GitRepositoryScreen
 import com.airi.assistant.ui.screens.SecurityScannerScreen
@@ -173,6 +180,8 @@ fun AiriApp() {
     val chatViewModel: ChatViewModel = viewModel()
     val agentViewModel: AgentViewModel = viewModel()
     val planViewModel: AgentPlanViewModel = viewModel()
+    val browserHandoff by BrowserUserTakeoverCoordinator.pending.collectAsState()
+    var browserHandoffUnavailable by remember { mutableStateOf(false) }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -734,6 +743,49 @@ fun AiriApp() {
                     }
                 }
             }
+        }
+
+        browserHandoff?.let { request ->
+            AlertDialog(
+                onDismissRequest = { BrowserUserTakeoverCoordinator.dismiss(request.id) },
+                title = { Text(stringResource(R.string.browser_takeover_title)) },
+                text = {
+                    Text(
+                        text = "${stringResource(R.string.browser_takeover_message)}\n\n${request.normalizedUrl}",
+                        color = AiriTheme.onSurfaceVariant
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (BrowserUserTakeoverCoordinator.confirm(context, request.id) ==
+                                BrowserUserTakeoverCoordinator.ConfirmResult.NO_HANDLER
+                            ) {
+                                browserHandoffUnavailable = true
+                            }
+                        }
+                    ) {
+                        Text(stringResource(R.string.browser_takeover_open))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { BrowserUserTakeoverCoordinator.dismiss(request.id) }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            )
+        }
+
+        if (browserHandoffUnavailable) {
+            AlertDialog(
+                onDismissRequest = { browserHandoffUnavailable = false },
+                text = { Text(stringResource(R.string.browser_takeover_unavailable)) },
+                confirmButton = {
+                    TextButton(onClick = { browserHandoffUnavailable = false }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            )
         }
     }
 }

@@ -14,7 +14,7 @@
 | Download | Explicit approval is required before implementation-specific storage writes. |
 | Localhost, loopback, RFC1918, link-local, `.local`, `.internal`, non-HTTP(S) | Blocked before fetch, preventing browser-agent SSRF into device or private services. |
 
-The Android `LocalBrowserOperator` is now a **handoff proposal**, not an autonomous `ACTION_VIEW` launcher. Public HTTP(S) targets and `geo:` maps deep links emit a structured `browser_user_takeover` event; private HTTP(S) targets and unsupported schemes fail closed. The application still needs a user-initiated UI action that consumes this event and launches the platform browser after the user explicitly elects to continue. It must not claim DOM inspection, automated form completion, authenticated browsing, or external navigation completion before that UI path exists and is device-verified.
+The Android `LocalBrowserOperator` is a **handoff proposal**, not an autonomous `ACTION_VIEW` launcher. Public HTTP(S) targets emit a single in-process `BrowserUserTakeoverCoordinator` request after policy admission; private HTTP(S), unsupported schemes, and unsafe targets fail closed. `AiriApp` visibly displays the normalized public URL and requires the user to choose **Open browser**. Only that confirm handler revalidates the URL with `BrowserNavigationPolicy` and calls platform `ACTION_VIEW` once; missing or denied Android handlers resolve safely without a retry. `geo:` maps deep links remain a structured takeover event but are not admitted to the HTTP browser coordinator. This path is process-local and not a durable browser continuation. It must not claim DOM inspection, automated form completion, authenticated browsing, or external navigation completion before device verification.
 
 ## Artifact boundary
 
@@ -28,6 +28,7 @@ Artifact preview now exposes a version-history menu when more than one version e
 |---|---|
 | `BrowserNavigationPolicyTest` | Public HTTPS reads, private/non-HTTP target blocking, and login/payment takeover behavior. |
 | `LocalBrowserOperatorPolicyTest` | Public external handoffs and `geo:` deep links require takeover; private HTTP targets are blocked before an external app can be launched. |
-| JVM unit-test compilation/execution | CloudBrowserAgent redirect policy and the local browser handoff boundary compile and execute in the Android unit-test target. |
+| `BrowserUserTakeoverCoordinatorTest` | Only admitted public HTTP(S) requests enter the visible queue; private targets are rejected, duplicate requests are coalesced, and only the matching request ID can dismiss it. |
+| JVM unit-test compilation/execution | CloudBrowserAgent redirect policy, coordinator request policy, and the local browser handoff boundary compile and execute in the Android unit-test target. |
 
-The next browser implementation must provide a visible, user-initiated handoff UI that consumes `browser_user_takeover` without silently launching any external activity, then device-verify that path. A separately designed policy-gated authenticated browser backend, download scanner plus project-file import flow, DOM action execution with durable exact-step approvals, and cross-device artifact sync remain out of scope for the current implementation.
+The visible handoff must be device-verified for browser selection, cancellation, missing-handler feedback, configuration/process recreation, TalkBack, and font scale. A separately designed policy-gated authenticated browser backend, download scanner plus project-file import flow, DOM action execution with durable exact-step approvals, and cross-device artifact sync remain out of scope for the current implementation.

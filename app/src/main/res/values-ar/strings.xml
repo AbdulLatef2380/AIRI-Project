@@ -1496,4 +1496,8 @@
     <string name="trust_center_execution_scope">التشغيل: %1$s · الخطوة: %2$s</string>
     <string name="scheduled_task_refresh">تحديث المهام المجدولة</string>
     <string name="scheduled_task_view_execution">عرض التنفيذ</string>
+    <string name="browser_takeover_title">فتح في المتصفح؟</string>
+    <string name="browser_takeover_message">سينقل AIRI هذه الصفحة إلى متصفحك. تابع فقط إذا أردت مغادرة AIRI.</string>
+    <string name="browser_takeover_open">فتح المتصفح</string>
+    <string name="browser_takeover_unavailable">لا يتوفر تطبيق متصفح لفتح هذه الصفحة.</string>
 </resources>

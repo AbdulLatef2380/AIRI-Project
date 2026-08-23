@@ -1265,4 +1265,8 @@
     <string name="trust_center_execution_scope">Ejecución: %1$s · Paso: %2$s</string>
     <string name="scheduled_task_refresh">Actualizar tareas programadas</string>
     <string name="scheduled_task_view_execution">Ver ejecución</string>
+    <string name="browser_takeover_title">¿Abrir en tu navegador?</string>
+    <string name="browser_takeover_message">AIRI entregará esta página a tu navegador. Continúa solo si quieres salir de AIRI.</string>
+    <string name="browser_takeover_open">Abrir navegador</string>
+    <string name="browser_takeover_unavailable">No hay una aplicación de navegador disponible para abrir esta página.</string>
 </resources>

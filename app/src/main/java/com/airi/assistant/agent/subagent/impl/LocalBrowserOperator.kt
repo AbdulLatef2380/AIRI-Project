@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.airi.assistant.agent.browser.BrowserNavigationPolicy
+import com.airi.assistant.agent.browser.BrowserUserTakeoverCoordinator
 import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgent
 import com.airi.assistant.agent.subagent.SubAgentCapability
@@ -87,13 +88,20 @@ class LocalBrowserOperator(
 
         when (handoff) {
             is BrowserNavigationPolicy.Decision.RequiresUserTakeover -> {
+                val request = BrowserUserTakeoverCoordinator.request(
+                    rawUrl = handoff.normalizedUrl,
+                    reason = handoff.reason
+                ) ?: run {
+                    emit(AgentEvent.Failed("Browser handoff could not be safely presented", recoverable = false))
+                    return@flow
+                }
                 emit(AgentEvent.ToolCall(
                     toolName = "browser_user_takeover",
-                    params = mapOf("url" to handoff.normalizedUrl, "reason" to handoff.reason),
+                    params = mapOf("request_id" to request.id, "url" to request.normalizedUrl),
                     reasoning = "External browser navigation requires user control"
                 ))
                 emit(AgentEvent.PartialResult(
-                    "This browser action needs you to take control: ${handoff.reason}",
+                    "This browser action needs you to take control: ${request.reason}",
                     isFinal = true
                 ))
                 emit(AgentEvent.Complete(

@@ -1269,4 +1269,9 @@
     <string name="browser_takeover_message">AIRI 将把此页面交给您的浏览器。仅当您希望离开 AIRI 时继续。</string>
     <string name="browser_takeover_open">打开浏览器</string>
     <string name="browser_takeover_unavailable">没有可用于打开此页面的浏览器应用。</string>
+    <string name="memory_edit_title">编辑已保存的记忆</string>
+    <string name="memory_edit_content_label">记忆内容</string>
+    <string name="memory_edit_save">保存记忆</string>
+    <string name="memory_edited_snack">记忆已更新</string>
+    <string name="memory_edit_failed">无法更新此记忆</string>
 </resources>

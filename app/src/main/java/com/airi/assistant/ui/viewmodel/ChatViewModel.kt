@@ -1373,6 +1373,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return removed
     }
 
+    /** Edits only the visible content of a durable memory and preserves its metadata. */
+    suspend fun editMemoryEntry(memoryId: Long, content: String): Boolean {
+        val updated = memoryManager.editMemoryContent(memoryId, content)
+        if (updated) {
+            _memoryEntries.value = memoryManager.getSemanticMemories(200)
+            _memoryCount.value = memoryManager.getMessageCount()
+        }
+        return updated
+    }
+
     // ── Message Handling ──────────────────────────────────────────────────────
 
     private data class InputDirectives(

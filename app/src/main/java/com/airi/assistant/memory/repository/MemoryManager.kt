@@ -375,6 +375,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         importance: Int,
         expiresAtMs: Long
     ): Boolean {
+        val existing = dao.getMessageById(memoryId)?.takeIf { it.isMemory } ?: return false
         val normalized = content.trim()
         if (!canStoreImportantMemory(normalized)) return false
         val normalizedScope = MemoryMetadataPolicy.normalizeScope(scope, projectId)
@@ -390,6 +391,21 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
             expiresAtMs = expiresAtMs,
             updatedAtMs = System.currentTimeMillis()
         ) > 0
+    }
+
+    /** Updates only user-authored content while preserving durable memory metadata. */
+    suspend fun editMemoryContent(memoryId: Long, content: String): Boolean {
+        val existing = dao.getMessageById(memoryId)?.takeIf { it.isMemory } ?: return false
+        return editMemory(
+            memoryId = memoryId,
+            content = content,
+            provenance = existing.provenance,
+            scope = runCatching { MemoryScope.valueOf(existing.memoryScope) }.getOrDefault(MemoryScope.SESSION),
+            projectId = existing.projectId,
+            privacyLevel = existing.privacyLevel,
+            importance = existing.importance,
+            expiresAtMs = existing.expiresAtMs
+        )
     }
 
     /**

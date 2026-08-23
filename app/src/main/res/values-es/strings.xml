@@ -1269,4 +1269,9 @@
     <string name="browser_takeover_message">AIRI entregará esta página a tu navegador. Continúa solo si quieres salir de AIRI.</string>
     <string name="browser_takeover_open">Abrir navegador</string>
     <string name="browser_takeover_unavailable">No hay una aplicación de navegador disponible para abrir esta página.</string>
+    <string name="memory_edit_title">Editar memoria guardada</string>
+    <string name="memory_edit_content_label">Contenido de la memoria</string>
+    <string name="memory_edit_save">Guardar memoria</string>
+    <string name="memory_edited_snack">Memoria actualizada</string>
+    <string name="memory_edit_failed">No se pudo actualizar esta memoria</string>
 </resources>

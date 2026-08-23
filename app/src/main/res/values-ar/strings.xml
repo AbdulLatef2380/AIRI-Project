@@ -1500,4 +1500,9 @@
     <string name="browser_takeover_message">سينقل AIRI هذه الصفحة إلى متصفحك. تابع فقط إذا أردت مغادرة AIRI.</string>
     <string name="browser_takeover_open">فتح المتصفح</string>
     <string name="browser_takeover_unavailable">لا يتوفر تطبيق متصفح لفتح هذه الصفحة.</string>
+    <string name="memory_edit_title">تعديل الذاكرة المحفوظة</string>
+    <string name="memory_edit_content_label">محتوى الذاكرة</string>
+    <string name="memory_edit_save">حفظ الذاكرة</string>
+    <string name="memory_edited_snack">تم تحديث الذاكرة</string>
+    <string name="memory_edit_failed">تعذر تحديث هذه الذاكرة</string>
 </resources>

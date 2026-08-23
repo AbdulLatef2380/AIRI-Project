@@ -1601,4 +1601,9 @@
     <string name="browser_takeover_message">AIRI will hand this page to your browser. Continue only if you want to leave AIRI.</string>
     <string name="browser_takeover_open">Open browser</string>
     <string name="browser_takeover_unavailable">No browser app is available to open this page.</string>
+    <string name="memory_edit_title">Edit saved memory</string>
+    <string name="memory_edit_content_label">Memory content</string>
+    <string name="memory_edit_save">Save memory</string>
+    <string name="memory_edited_snack">Memory updated</string>
+    <string name="memory_edit_failed">Unable to update this memory</string>
 </resources>

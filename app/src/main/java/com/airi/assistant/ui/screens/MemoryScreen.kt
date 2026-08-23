@@ -42,6 +42,8 @@ fun MemoryScreen(
     val memoryCount    by viewModel.memoryCount.collectAsState()
     var showConfirm    by remember { mutableStateOf(false) }
     var deleteCandidate by remember { mutableStateOf<ChatMessage?>(null) }
+    var editCandidate  by remember { mutableStateOf<ChatMessage?>(null) }
+    var editDraft      by remember { mutableStateOf("") }
     var searchQuery    by remember { mutableStateOf("") }
     var showSearch     by remember { mutableStateOf(false) }
     val context        = LocalContext.current
@@ -120,6 +122,56 @@ fun MemoryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { deleteCandidate = null }) {
+                    Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
+                }
+            }
+        )
+    }
+
+    editCandidate?.let { candidate ->
+        AlertDialog(
+            onDismissRequest = { editCandidate = null },
+            containerColor = SurfaceFloating,
+            shape = AIRIShapes.xl,
+            icon = { Icon(Icons.Outlined.Edit, null, tint = CosmicAccent, modifier = Modifier.size(28.dp)) },
+            title = { Text(stringResource(R.string.memory_edit_title), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = editDraft,
+                    onValueChange = { editDraft = it },
+                    label = { Text(stringResource(R.string.memory_edit_content_label)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    maxLines = 8,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = CosmicAccent,
+                        unfocusedBorderColor = DividerColor,
+                        focusedTextColor = AiriTheme.onSurface,
+                        unfocusedTextColor = AiriTheme.onSurface
+                    )
+                )
+            },
+            confirmButton = {
+                Button(
+                    enabled = editDraft.isNotBlank(),
+                    onClick = {
+                        scope.launch {
+                            val updated = runCatching {
+                                viewModel.editMemoryEntry(candidate.id, editDraft)
+                            }.getOrDefault(false)
+                            if (updated) editCandidate = null
+                            snackbarHost.showSnackbar(
+                                context.getString(
+                                    if (updated) R.string.memory_edited_snack else R.string.memory_edit_failed
+                                )
+                            )
+                        }
+                    },
+                    shape = AIRIShapes.md
+                ) { Text(stringResource(R.string.memory_edit_save), fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { editCandidate = null }) {
                     Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
                 }
             }
@@ -253,6 +305,10 @@ fun MemoryScreen(
                     MemoryEntryCard(
                         msg = msg,
                         searchQuery = searchQuery,
+                        onEdit = if (msg.isMemory) ({
+                            editCandidate = msg
+                            editDraft = msg.content
+                        }) else null,
                         onDelete = if (msg.isMemory) ({ deleteCandidate = msg }) else null
                     )
                 }
@@ -265,6 +321,7 @@ fun MemoryScreen(
 private fun MemoryEntryCard(
     msg: ChatMessage,
     searchQuery: String,
+    onEdit: (() -> Unit)?,
     onDelete: (() -> Unit)?
 ) {
     val isUser  = msg.role == "user"
@@ -311,6 +368,19 @@ private fun MemoryEntryCard(
                 }
                 Spacer(Modifier.weight(1f))
                 Text(timeStr, fontSize = 10.sp, color = AiriTheme.onSurfaceVariant.copy(0.55f))
+                if (onEdit != null) {
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Edit,
+                            contentDescription = stringResource(R.string.memory_edit_title),
+                            tint = CosmicAccent.copy(alpha = 0.82f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
                 if (onDelete != null) {
                     IconButton(
                         onClick = onDelete,

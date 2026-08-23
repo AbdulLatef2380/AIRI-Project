@@ -309,6 +309,16 @@ object ServiceLocator {
         )
     }
 
+    val activeWorkStopController: com.airi.assistant.agent.governance.ActiveWorkStopController by lazy {
+        com.airi.assistant.agent.governance.ActiveWorkStopController(
+            productionOrchestrator = productionOrchestrator,
+            durableTaskManager = durableTaskManager,
+            scheduledJobOrchestrator = scheduledJobOrchestrator,
+            terminalRuntime = terminalRuntime,
+            auditRepository = auditRepository
+        )
+    }
+
     val agentRouter: AgentRouter by lazy {
         AgentRouter(connectorRegistry)
     }

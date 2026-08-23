@@ -1538,4 +1538,9 @@
     <string name="agent_plan_step_failed">Failed</string>
     <string name="agent_plan_step_retrying">Retrying</string>
     <string name="agent_plan_step_cancelled">Cancelled</string>
+    <!-- Active-work stop control -->
+    <string name="active_work_stop_title">Stop active work</string>
+    <string name="active_work_stop_message">This cancels running agent plans, durable tasks, your scheduled jobs, and the current terminal command. It does not cancel connector or browser actions already in flight.</string>
+    <string name="active_work_stop_confirm">Stop active work</string>
+    <string name="active_work_stop_summary">Cancelled %1$d durable tasks, %2$d scheduled jobs, and %3$d terminal commands.</string>
 </resources>

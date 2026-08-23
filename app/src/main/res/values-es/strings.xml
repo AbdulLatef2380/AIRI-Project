@@ -1206,4 +1206,9 @@
     <string name="agent_plan_step_failed">Falló</string>
     <string name="agent_plan_step_retrying">Reintentando</string>
     <string name="agent_plan_step_cancelled">Cancelado</string>
+    <!-- Control para detener el trabajo activo -->
+    <string name="active_work_stop_title">Detener trabajo activo</string>
+    <string name="active_work_stop_message">Esto cancela planes de agentes en ejecución, tareas duraderas, tus tareas programadas y el comando actual de la terminal. No cancela acciones de conectores o del navegador que ya estén en curso.</string>
+    <string name="active_work_stop_confirm">Detener trabajo activo</string>
+    <string name="active_work_stop_summary">Se cancelaron %1$d tareas duraderas, %2$d tareas programadas y %3$d comandos de terminal.</string>
 </resources>

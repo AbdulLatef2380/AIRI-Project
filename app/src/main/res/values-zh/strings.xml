@@ -1206,4 +1206,9 @@
     <string name="agent_plan_step_failed">失败</string>
     <string name="agent_plan_step_retrying">正在重试</string>
     <string name="agent_plan_step_cancelled">已取消</string>
+    <!-- 停止活动工作控制 -->
+    <string name="active_work_stop_title">停止活动工作</string>
+    <string name="active_work_stop_message">这会取消正在运行的智能体计划、持久任务、你创建的计划任务以及当前终端命令。它不会取消已在进行的连接器或浏览器操作。</string>
+    <string name="active_work_stop_confirm">停止活动工作</string>
+    <string name="active_work_stop_summary">已取消 %1$d 个持久任务、%2$d 个计划任务和 %3$d 条终端命令。</string>
 </resources>

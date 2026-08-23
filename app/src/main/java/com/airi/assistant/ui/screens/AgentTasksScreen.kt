@@ -67,8 +67,9 @@ fun AgentTasksScreen(
     onNavigateToAgentControl: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val orchestrator = remember { ScheduledJobOrchestrator(context) }
+    val orchestrator = remember { ServiceLocator.scheduledJobOrchestrator }
     val durableTaskManager = remember { ServiceLocator.durableTaskManager }
+    val activeWorkStopController = remember { ServiceLocator.activeWorkStopController }
     val durableTasks by durableTaskManager.tasks.collectAsState()
     val taskApprovals = remember(durableTasks) {
         durableTasks.flatMap { task ->
@@ -78,6 +79,7 @@ fun AgentTasksScreen(
 
     var selectedTab    by remember { mutableStateOf(0) }
     var showAddDialog  by remember { mutableStateOf(false) }
+    var showStopConfirmation by remember { mutableStateOf(false) }
     var jobs           by remember { mutableStateOf(orchestrator.listJobs()) }
     var errorMessage   by remember { mutableStateOf<String?>(null) }
 
@@ -112,6 +114,13 @@ fun AgentTasksScreen(
                     )
                 },
                 actions = {
+                    IconButton(onClick = { showStopConfirmation = true }) {
+                        Icon(
+                            Icons.Outlined.Cancel,
+                            contentDescription = stringResource(R.string.active_work_stop_title),
+                            tint = Color(0xFFFF6B6B)
+                        )
+                    }
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
@@ -182,6 +191,23 @@ fun AgentTasksScreen(
         }
     }
 
+    if (showStopConfirmation) {
+        ActiveWorkStopDialog(
+            onDismiss = { showStopConfirmation = false },
+            onConfirm = {
+                val report = activeWorkStopController.stopActiveUserWork()
+                reload()
+                errorMessage = context.getString(
+                    R.string.active_work_stop_summary,
+                    report.cancelledDurableTaskCount,
+                    report.cancelledScheduledJobCount,
+                    if (report.terminalCommandCancelled) 1 else 0
+                )
+                showStopConfirmation = false
+            }
+        )
+    }
+
     if (showAddDialog) {
         AddTaskDialog(
             onDismiss = { showAddDialog = false },
@@ -218,6 +244,29 @@ fun AgentTasksScreen(
         )
     }
 }
+
+@Composable
+private fun ActiveWorkStopDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.active_work_stop_title)) },
+        text = { Text(stringResource(R.string.active_work_stop_message)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.active_work_stop_confirm), color = Color(0xFFFF6B6B))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
 @Composable
 private fun ScheduledTasksContent(
     jobs: List<ScheduledJob>,

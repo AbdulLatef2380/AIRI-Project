@@ -1437,4 +1437,9 @@
     <string name="agent_plan_step_failed">فشلت</string>
     <string name="agent_plan_step_retrying">جارٍ إعادة المحاولة</string>
     <string name="agent_plan_step_cancelled">أُلغيت</string>
+    <!-- تحكم إيقاف العمل النشط -->
+    <string name="active_work_stop_title">إيقاف العمل النشط</string>
+    <string name="active_work_stop_message">سيُلغي هذا خطط الوكيل والمهام الدائمة والمهام المجدولة التي أنشأتها والأمر الجاري في الطرفية. لا يلغي إجراءات الموصلات أو المتصفح التي بدأت بالفعل.</string>
+    <string name="active_work_stop_confirm">إيقاف العمل النشط</string>
+    <string name="active_work_stop_summary">أُلغيت %1$d مهام دائمة و%2$d مهام مجدولة و%3$d أوامر طرفية.</string>
 </resources>

@@ -105,7 +105,15 @@ class ProductionAgentOrchestrator {
 
     // ── Orchestration scope — SupervisorJob so task failures don't kill siblings ──
 
-    private val orchestrationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /**
+     * Scope used by a single generation of running plans. It is replaced after
+     * [cancelAll] so an emergency stop cannot permanently disable later tasks.
+     */
+    @Volatile
+    private var orchestrationScope = newOrchestrationScope()
+
+    private fun newOrchestrationScope(): CoroutineScope =
+        CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     // ── Active execution tracking ─────────────────────────────────────────────
 
@@ -159,6 +167,9 @@ class ProductionAgentOrchestrator {
     ): ExecutionResult {
         val executionId = plan.id
         val startMs     = System.currentTimeMillis()
+        // A plan must keep its original scope. If cancelAll creates a new scope
+        // for a later plan, this execution still observes its own cancellation.
+        val executionScope = orchestrationScope
         val teamAdmission = AgentTeamPolicy.admit(plan, SubAgentRegistry.capabilities())
         if (!teamAdmission.accepted) {
             Log.w(TAG, "TEAM_PLAN_REJECTED id=$executionId reason=${teamAdmission.reason}")
@@ -213,7 +224,7 @@ class ProductionAgentOrchestrator {
         var remaining = plan.tasks.toMutableList()
         var iterationGuard = 0
 
-        while (remaining.isNotEmpty() && orchestrationScope.isActive) {
+        while (remaining.isNotEmpty() && executionScope.isActive) {
             iterationGuard++
             if (iterationGuard > plan.tasks.size * 2) {
                 Log.e(TAG, "Cycle detected in task dependency graph — aborting")
@@ -236,7 +247,7 @@ class ProductionAgentOrchestrator {
             // Execute all ready tasks in parallel
             ready.chunked(teamAdmission.maxParallelTasks).forEach { batch ->
                 val deferred = batch.map { task ->
-                orchestrationScope.async {
+                executionScope.async {
                     durableTaskManager?.updateExecutionStep(
                         taskId = executionId,
                         stepId = task.id,
@@ -610,10 +621,14 @@ class ProductionAgentOrchestrator {
     /**
      * Cancel all running executions. Safe to call at any time.
      */
+    @Synchronized
     fun cancelAll() {
-        orchestrationScope.cancel()
+        val scopeToCancel = orchestrationScope
+        scopeToCancel.cancel()
+        orchestrationScope = newOrchestrationScope()
         _state.value = OrchestratorState.Idle
-        Log.i(TAG, "All orchestrations cancelled")
+        // Observability must never prevent an emergency cancellation from completing.
+        runCatching { Log.i(TAG, "All orchestrations cancelled; runtime ready for future plans") }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

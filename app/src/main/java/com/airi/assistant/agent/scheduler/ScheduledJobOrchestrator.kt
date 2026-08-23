@@ -46,6 +46,7 @@ class ScheduledJobOrchestrator(private val context: Context) {
         private const val PREFS_NAME   = "airi_scheduled_jobs"
         private const val KEY_JOBS     = "jobs_v1"
         private const val MIN_PERIODIC_MINUTES = 15L
+        private const val SYSTEM_AGENT_ID = "system"
     }
 
     private val prefs      = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -197,6 +198,24 @@ class ScheduledJobOrchestrator(private val context: Context) {
         val keep    = all.filter { it.agentId != agentId }
         persistAllJobs(keep)
         Log.i(TAG, "Cancelled all jobs for agent=$agentId count=${all.size - keep.size}")
+    }
+
+    /**
+     * Cancel all user-created jobs while preserving AIRI maintenance jobs.
+     * System jobs use the reserved `system` agent id and must remain available
+     * for sandbox, audit-log, and context-cache maintenance.
+     */
+    fun cancelAllUserJobs(): Int {
+        val userJobs = listJobs().filter { it.agentId != SYSTEM_AGENT_ID }
+        userJobs.forEach { job ->
+            workManager.cancelUniqueWork(uniqueWorkName(job.id))
+        }
+        if (userJobs.isNotEmpty()) {
+            val cancelledIds = userJobs.mapTo(mutableSetOf()) { it.id }
+            persistAllJobs(listJobs().filterNot { it.id in cancelledIds })
+        }
+        Log.i(TAG, "Cancelled user scheduled jobs count=${userJobs.size}")
+        return userJobs.size
     }
 
     /** All currently scheduled jobs, sorted by trigger time. */

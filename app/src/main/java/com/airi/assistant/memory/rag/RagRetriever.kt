@@ -147,10 +147,11 @@ $formatted
                     memoryId = 0L
                 )
             }
-        return (longTerm + semantic + projectKnowledge)
-            .filter(::isPromptSafe)
-            .distinctBy { "${it.role}:${it.content.trim()}" }
-            .take(safeLimit)
+        return RagRetrievalRanker.rank(
+            passages = (longTerm + semantic + projectKnowledge)
+                .filter(::isPromptSafe),
+            limit = safeLimit
+        )
     }
 
     /**
@@ -166,20 +167,14 @@ $formatted
         projectId: String = "",
         maxPrivacyLevel: Int = DEFAULT_PRIVACY_LEVEL
     ): String {
-        val seen     = mutableSetOf<String>()
         val passages = mutableListOf<RetrievedPassage>()
         for (q in queries.map(RagQueryPolicy::normalizeQuery).filter(String::isNotEmpty).take(4)) {
-            val hits = retrieve(sessionId, q, kPerQuery, projectId, maxPrivacyLevel)
-            for (p in hits) {
-                val key = "${p.role}:${p.content.take(60)}"
-                if (seen.add(key)) passages.add(p)
-            }
+            passages += retrieve(sessionId, q, kPerQuery, projectId, maxPrivacyLevel)
         }
-        if (passages.isEmpty()) return ""
+        val rankedPassages = RagRetrievalRanker.rank(passages, DEFAULT_K)
+        if (rankedPassages.isEmpty()) return ""
 
-        val formatted = passages
-            .sortedByDescending { it.score }
-            .take(DEFAULT_K)
+        val formatted = rankedPassages
             .joinToString("\n") { p ->
                 "[${p.citationId}] [${p.role.uppercase()}] ${p.content.take(240)}"
             }

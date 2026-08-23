@@ -14,6 +14,7 @@ Every AIRI artifact must be attributable to the project and, when it comes from 
 | Live producer | `ProductionAgentOrchestrator` stores non-empty successful step results as private text artifacts with `projectId=plan.projectId`, `taskId=plan.id`, `runId=plan.id`, `stepId=task.id`, and first known tool identifier when available. |
 | Execution evidence | `DurableTaskManager.linkArtifact` attaches the artifact only when the exact run/step is active and writes an `ARTIFACT_CREATED` timeline event. A rejected linkage deletes the just-created file/metadata. |
 | Read boundary | `ArtifactManager.forProject`, `getArtifactForProject`, and `readContentForProject` constrain reads. `ProjectContextResolver` admits only `forProject(projectId)` metadata; no path, hash, content, prompt, or secret is inserted into model context. |
+| User evidence | `LibraryArtifactRow` renders task/run/step, bounded tool/model IDs, provenance summary, and only the first 12 characters of the integrity hash for artifacts with complete execution coordinates. It never renders file paths, artifact content, raw prompts, or secrets as provenance. |
 | Legacy compatibility | Old session-only records migrate with `projectId=sessionId`; task/run/step remain null. They are visible only through that mapped project and are not retroactively attributed to an execution. |
 
 ## Live execution sequence
@@ -35,8 +36,9 @@ Every AIRI artifact must be attributable to the project and, when it comes from 
 | `DurableTaskProductKernelTest` | Confirms an artifact ID is attached while the owning run/step is active and validates through MissionKernel normalization. |
 | `AiriDatabaseMigrationTest` | Instrumentation-ready migration harness now asserts v9 provenance columns and indexes from v1 data. |
 | Targeted Android unit build | `ArtifactProvenanceTest` and `DurableTaskProductKernelTest` passed with compilation of Room v9 and the orchestrator path. |
-| Core verifier | Source checks require Room migration, artifact project scope, provenance validation, orchestrator creation, and durable linkage. |
+| Core verifier | Source checks require Room migration, artifact project scope, provenance validation, orchestrator creation, durable linkage, and Library evidence rendering. |
+| Android instrumentation compilation | Library evidence UI and the v9 artifact path compile with the Android test target. |
 
 ## Remaining closure work
 
-Artifact producers outside `ProductionAgentOrchestrator` must supply the same `ArtifactProvenance` contract before they can claim task evidence. Physical-device migration, file preview/share/download, deletion races, and a credentialed multi-step agent run remain external/runtime evidence. No artifact content, raw path, raw prompt, credential, or provider response is admitted to RAG context through this contract.
+Artifact producers outside `ProductionAgentOrchestrator` must supply the same `ArtifactProvenance` contract before they can claim task evidence. Physical-device migration, file preview/share/download, evidence rendering at accessibility/font-scale extremes, deletion races, and a credentialed multi-step agent run remain external/runtime evidence. No artifact content, raw path, raw prompt, credential, or provider response is admitted to RAG context through this contract.

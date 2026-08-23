@@ -1012,6 +1012,10 @@
     <string name="library_search_files">البحث في الملفات</string>
     <string name="library_project_files">ملفات المشروع</string>
     <string name="library_generated_artifacts">المخرجات المُنشأة</string>
+    <string name="library_artifact_execution_evidence">دليل التنفيذ</string>
+    <string name="library_artifact_execution">المهمة %1$s · التشغيل %2$s · الخطوة %3$s</string>
+    <string name="library_artifact_tool_model">الأداة: %1$s · النموذج: %2$s</string>
+    <string name="library_artifact_integrity">بصمة السلامة: %1$s</string>
     <string name="library_toggle_favorite">تبديل المفضلة</string>
     <string name="library_index_file">إضافة إلى المعرفة</string>
     <string name="library_file_state">الاستخراج: %1$s · فهرس المعرفة: %2$s</string>

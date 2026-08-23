@@ -430,6 +430,60 @@ private fun LibraryArtifactRow(artifact: ArtifactManager.Artifact) {
                 if (artifact.description.isNotBlank()) {
                     Text(artifact.description, fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, maxLines = 2)
                 }
+                if (artifact.taskId != null && artifact.runId != null && artifact.stepId != null) {
+                    Spacer(Modifier.size(4.dp))
+                    Text(
+                        stringResource(R.string.library_artifact_execution_evidence),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = CosmicAccent
+                    )
+                    Text(
+                        stringResource(
+                            R.string.library_artifact_execution,
+                            artifact.taskId,
+                            artifact.runId,
+                            artifact.stepId
+                        ),
+                        fontSize = 10.sp,
+                        color = AiriTheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    val toolOrModel = listOfNotNull(artifact.toolId, artifact.modelId)
+                    if (toolOrModel.isNotEmpty()) {
+                        Text(
+                            stringResource(
+                                R.string.library_artifact_tool_model,
+                                artifact.toolId ?: "—",
+                                artifact.modelId ?: "—"
+                            ),
+                            fontSize = 10.sp,
+                            color = AiriTheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (artifact.provenanceSummary.isNotBlank()) {
+                        Text(
+                            artifact.provenanceSummary,
+                            fontSize = 10.sp,
+                            color = AiriTheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (artifact.contentHash.isNotBlank()) {
+                        Text(
+                            stringResource(
+                                R.string.library_artifact_integrity,
+                                artifact.contentHash.take(12)
+                            ),
+                            fontSize = 10.sp,
+                            color = AiriTheme.onSurfaceVariant.copy(alpha = 0.72f)
+                        )
+                    }
+                }
             }
         }
     }

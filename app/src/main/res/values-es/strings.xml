@@ -1177,6 +1177,10 @@
     <string name="library_restore_file">Restaurar archivo</string>
     <string name="library_purge_file">Eliminar permanentemente</string>
     <string name="library_generated_artifacts">Artefactos generados</string>
+    <string name="library_artifact_execution_evidence">Evidencia de ejecución</string>
+    <string name="library_artifact_execution">Tarea %1$s · ejecución %2$s · paso %3$s</string>
+    <string name="library_artifact_tool_model">Herramienta: %1$s · Modelo: %2$s</string>
+    <string name="library_artifact_integrity">Hash de integridad: %1$s</string>
     <string name="library_import_file">Importar archivo</string>
     <string name="library_index_file">Añadir al conocimiento</string>
     <string name="library_no_files">Aún no hay archivos del proyecto</string>

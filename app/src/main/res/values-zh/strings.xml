@@ -1177,6 +1177,10 @@
     <string name="library_restore_file">恢复文件</string>
     <string name="library_purge_file">永久删除</string>
     <string name="library_generated_artifacts">生成的工件</string>
+    <string name="library_artifact_execution_evidence">执行证据</string>
+    <string name="library_artifact_execution">任务 %1$s · 运行 %2$s · 步骤 %3$s</string>
+    <string name="library_artifact_tool_model">工具：%1$s · 模型：%2$s</string>
+    <string name="library_artifact_integrity">完整性哈希：%1$s</string>
     <string name="library_import_file">导入文件</string>
     <string name="library_index_file">添加到知识库</string>
     <string name="library_no_files">还没有项目文件</string>

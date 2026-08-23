@@ -1061,6 +1061,10 @@
     <string name="library_search_files">Search files</string>
     <string name="library_project_files">Project files</string>
     <string name="library_generated_artifacts">Generated artifacts</string>
+    <string name="library_artifact_execution_evidence">Execution evidence</string>
+    <string name="library_artifact_execution">Task %1$s · run %2$s · step %3$s</string>
+    <string name="library_artifact_tool_model">Tool: %1$s · Model: %2$s</string>
+    <string name="library_artifact_integrity">Integrity hash: %1$s</string>
     <string name="library_toggle_favorite">Toggle favorite</string>
     <string name="library_index_file">Add to knowledge</string>
     <string name="library_file_state">Extraction: %1$s · Knowledge index: %2$s</string>

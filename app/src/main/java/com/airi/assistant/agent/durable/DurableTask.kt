@@ -16,6 +16,9 @@ data class DurableTask(
     /** Project/workspace that owns the task. Null denotes an unscoped legacy task. */
     val projectId: String? = null,
 
+    /** Stable mission aggregate. Legacy tasks normalize to their own task ID. */
+    val missionId: String? = null,
+
     /** Firebase UID or local identity that owns the task. */
     val ownerId: String = "anonymous",
 
@@ -127,6 +130,9 @@ data class DurableTask(
     ): DurableTask {
         val run = TaskRun(
             id = runId,
+            taskId = id,
+            missionId = missionId ?: id,
+            projectId = projectId,
             startedAtMs = nowMs,
             currentStepId = stepId,
             status = TaskRunStatus.RUNNING
@@ -139,7 +145,7 @@ data class DurableTask(
             currentStepId = stepId,
             plan = plan.map { step ->
                 if (step.id == stepId && step.status == TaskStepStatus.PENDING) {
-                    step.copy(status = TaskStepStatus.RUNNING, startedAtMs = nowMs)
+                    step.copy(runId = runId, status = TaskStepStatus.RUNNING, startedAtMs = nowMs)
                 } else {
                     step
                 }
@@ -257,11 +263,20 @@ data class DurableTask(
         runs = finishCurrentRun(TaskRunStatus.CANCELLED, nowMs)
     )
 
-    fun requestApproval(approval: TaskApproval): DurableTask = copy(
-        approvalIds = (approvalIds + approval.id).distinct(),
-        approvals = approvals.filterNot { it.id == approval.id } + approval,
-        updatedAtMs = approval.requestedAtMs
-    )
+    fun requestApproval(approval: TaskApproval): DurableTask {
+        val ownedApproval = approval.copy(
+            taskId = id,
+            missionId = missionId ?: id,
+            projectId = projectId,
+            runId = approval.runId ?: currentRunId,
+            stepId = approval.stepId ?: currentStepId
+        )
+        return copy(
+            approvalIds = (approvalIds + ownedApproval.id).distinct(),
+            approvals = approvals.filterNot { it.id == ownedApproval.id } + ownedApproval,
+            updatedAtMs = ownedApproval.requestedAtMs
+        )
+    }
 
     fun decideApproval(
         approvalId: String,
@@ -352,6 +367,8 @@ enum class TaskRunStatus {
 data class TaskPlanStep(
     val id: String,
     val title: String,
+    /** Owning run once execution begins; null is valid while the plan is pending. */
+    val runId: String? = null,
     val status: TaskStepStatus = TaskStepStatus.PENDING,
     val startedAtMs: Long = -1L,
     val completedAtMs: Long = -1L,
@@ -361,6 +378,9 @@ data class TaskPlanStep(
 
 data class TaskRun(
     val id: String,
+    val taskId: String = "",
+    val missionId: String = "",
+    val projectId: String? = null,
     val startedAtMs: Long,
     val finishedAtMs: Long = -1L,
     val currentStepId: String? = null,
@@ -383,6 +403,9 @@ enum class ApprovalGrantScope {
 
 data class TaskApproval(
     val id: String,
+    val taskId: String = "",
+    val missionId: String = "",
+    val projectId: String? = null,
     val action: String,
     val description: String,
     val riskLevel: String,

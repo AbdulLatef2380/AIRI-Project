@@ -453,17 +453,18 @@ class DurableTaskManager(private val context: Context) {
     }
 
     private fun putTask(task: DurableTask) {
-        taskCache[task.id] = task
+        val normalized = MissionKernel.normalize(task)
+        require(MissionKernel.validate(normalized) is MissionOwnershipValidation.Valid) {
+            "Durable task ownership invariant rejected for task=${task.id}"
+        }
+        taskCache[normalized.id] = normalized
         emitUpdate()
         saveToDisk()
     }
 
     private fun updateTask(taskId: String, transform: DurableTask.() -> DurableTask) {
         val existing = taskCache[taskId] ?: return
-        val updated  = existing.transform()
-        taskCache[taskId] = updated
-        emitUpdate()
-        saveToDisk()
+        putTask(existing.transform())
     }
 
     private fun emitUpdate() {
@@ -518,9 +519,16 @@ class DurableTaskManager(private val context: Context) {
             val json = taskFile.readText(Charsets.UTF_8)
             val type = object : TypeToken<List<DurableTask>>() {}.type
             val list: List<DurableTask> = gson.fromJson(json, type) ?: emptyList()
-            list.forEach { taskCache[it.id] = it }
+            list.map(MissionKernel::normalize).forEach { normalized ->
+                if (MissionKernel.validate(normalized) is MissionOwnershipValidation.Valid) {
+                    taskCache[normalized.id] = normalized
+                } else {
+                    Log.w(TAG, "Rejected durable task with invalid mission ownership id=${normalized.id}")
+                }
+            }
             emitUpdate()
-            Log.i(TAG, "Loaded ${list.size} durable tasks from disk")
+            saveToDisk()
+            Log.i(TAG, "Loaded ${taskCache.size} durable tasks from disk")
         }.onFailure {
             Log.e(TAG, "Failed to load tasks from disk: ${it.message}")
         }

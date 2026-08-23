@@ -44,6 +44,8 @@ agent_tasks_screen = read('app/src/main/java/com/airi/assistant/ui/screens/Agent
 permission_governance = read('app/src/main/java/com/airi/assistant/security/PermissionGovernanceLayer.kt')
 project_context_resolver = read('app/src/main/java/com/airi/assistant/workspace/ProjectContextResolver.kt')
 rag_retriever = read('app/src/main/java/com/airi/assistant/memory/rag/RagRetriever.kt')
+mission_kernel = read('app/src/main/java/com/airi/assistant/agent/durable/MissionKernel.kt')
+durable_task_manager = read('app/src/main/java/com/airi/assistant/agent/durable/DurableTaskManager.kt')
 
 check('Generation ownership and cleanup', 'activeGenerationId' in chat_vm and 'finishGeneration(generationId)' in chat_vm, 'ViewModel owns and clears a generation id.')
 check('Backend cancellation barrier', 'throw generationCancelled("during privacy fallback")' in hybrid and 'generationGate.accepts(genId)' in hybrid and 'fun accepts(candidateGenerationId: Long)' in generation_gate, 'Callbacks are gated after cancellation and generation changes.')
@@ -76,6 +78,7 @@ check('Retry diagnostics redaction', '.error.take(' not in retry_policy and 'typ
 check('Emergency orchestration continuity', 'val executionScope = orchestrationScope' in production_orchestrator and 'while (remaining.isNotEmpty() && executionScope.isActive)' in production_orchestrator and 'orchestrationScope = newOrchestrationScope()' in production_orchestrator, 'Emergency cancellation leaves each active plan cancelled while future plans receive a fresh scope.')
 check('Live Trust Center approval bridge', 'pendingApprovals.collectAsState()' in agent_tasks_screen and 'TrustCenterContent(' in agent_tasks_screen and 'permissionGovernance.approveAction(approvalId, scope)' in agent_tasks_screen and 'permissionGovernance.denyAction(approvalId)' in agent_tasks_screen and 'fun requestApproval(' in permission_governance, 'Trust Center combines live governance requests and durable task approvals, then returns decisions through the governance layer.')
 check('Project context admission boundary', 'candidate.projectId == requestedProjectId' in project_context_resolver and 'charBudget' in project_context_resolver and 'projectFileManager.forProject(projectId)' in project_context_resolver and 'artifactManager.forSession(projectId)' in project_context_resolver and 'projectContextResolver' in rag_retriever and 'buildContextBlock(projectId = projectId, query = query)' in rag_retriever, 'Only project-owned metadata/files/artifacts enter the admitted context budget, while scoped RAG injects it on the live model path.')
+check('Mission ownership normalization', 'fun normalize(task: DurableTask)' in mission_kernel and 'fun validate(task: DurableTask)' in mission_kernel and 'task.projectId == resourceProjectId' in mission_kernel and 'MissionKernel.normalize(task)' in durable_task_manager and 'MissionKernel.validate(normalized)' in durable_task_manager and 'list.map(MissionKernel::normalize)' in durable_task_manager, 'Durable task persistence normalizes mission/run/step/approval ownership and rejects invalid cross-project records on load or write.')
 for commercial_doc in (
     'docs/architecture/OVERVIEW.md',
     'docs/security/THREAT_MODEL.md',

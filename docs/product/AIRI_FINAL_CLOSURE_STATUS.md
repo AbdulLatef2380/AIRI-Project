@@ -1,0 +1,28 @@
+# AIRI Final Closure Status
+
+**Branch:** `cp-foundation`  
+**Program status:** `IN_PROGRESS`  
+**Source of execution scope:** [`AIRI_FINAL_CLOSURE_MAP.md`](AIRI_FINAL_CLOSURE_MAP.md)
+
+## Current milestone
+
+| Milestone | Status | Evidence | Remaining boundary |
+|---|---|---|---|
+| Closure-map baseline | `IMPLEMENTED` | `AIRI_FINAL_CLOSURE_MAP.md` maps P0/P1/P2 ownership, runtime, persistence, security, UI, tests and external gates. | Map must be updated only when a real runtime or acceptance gate changes. |
+| Project Context admission | `IMPLEMENTED` / `TESTED` | `ProjectContextResolver`, scoped `RagRetriever`, `ProjectContextAdmissionPolicyTest`, core verifier. | Device/model execution and broad cross-resource isolation. |
+| Trust Center | `IMPLEMENTED` / `TESTED` | `TRUST_CENTER_CONTRACT.md`, live governance/durable approval bridge. | Exact-step continuation and device recovery. |
+| Mission ownership baseline | `IMPLEMENTED` / `TESTED` | `MissionKernel`, normalized `DurableTaskManager` persistence, `MissionKernelTest`, and `DurableTaskProductKernelTest`. | Artifact→task/run/step and exact-step approval continuation remain separate P0 work. |
+| Final closure program | `IN_PROGRESS` | This file, closure map, and `AIRI_PRODUCT_GAP_MATRIX.md`. | P0 artifact provenance, approval continuation, and project-scoped secrets are next. |
+
+## Evidence rules
+
+A capability may be described as `BUILD_VERIFIED` only when the relevant build/lint/package gate succeeds on the current revision. `RUNTIME_VERIFICATION_PENDING` is reserved for physical-device, authenticated-provider, multi-device, signing, or store gates that cannot be executed from the repository. It is not used to defer implementable source work.
+
+## External verification register
+
+| External verification | Why it is external | Prepared internal evidence |
+|---|---|---|
+| Android device runtime | Android permissions, picker/media behavior, TalkBack, OEM/Doze behavior | Runtime contracts, unit/policy tests, instrumentation-ready paths where present. |
+| Provider/OAuth runtime | Real credentials, OAuth callbacks, external provider behavior | Sanitization, policy and connector boundary tests. |
+| Continuity across devices | Paired hardware plus production sync identity/rules | Redacted snapshot merge and known-task-only safeguards. |
+| Release signing/store | Private signing material and store account | Build/release manifests and deterministic reports when configured. |

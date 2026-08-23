@@ -65,7 +65,8 @@ class AgentRouter(
 
             when (out) {
                 is ConnectorOutput.Success,
-                is ConnectorOutput.Streaming -> {
+                is ConnectorOutput.Streaming,
+                is ConnectorOutput.ApprovalRequired -> {
                     return RouteResult(connector.id, out, attempts)
                 }
                 is ConnectorOutput.Failure -> {

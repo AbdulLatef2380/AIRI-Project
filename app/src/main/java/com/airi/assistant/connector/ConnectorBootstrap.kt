@@ -48,6 +48,7 @@ object ConnectorBootstrap {
         // secureStorage param retained for callers that pass it explicitly;
         // falls back to ServiceLocator.secureStorage if null (AP-04 guarantee).
         secureStorage: com.airi.assistant.auth.SecureStorage? = null,
+        durableTaskManager: com.airi.assistant.agent.durable.DurableTaskManager? = null,
     ) {
         val storage = secureStorage ?: runCatching { ServiceLocator.secureStorage }.getOrNull()
 
@@ -72,7 +73,7 @@ object ConnectorBootstrap {
         registry.register(N8nConnector(authManager))
 
         // P1-7 / AP-06: First-class GitHubConnector — no legacy adapter fallback.
-        registry.register(GitHubConnector(authManager))
+        registry.register(GitHubConnector(authManager, durableTaskManager))
 
         // B-20 / AP-06: TelegramConnector — first-class; legacy adapter removed.
         // AP-04 guarantees SecureStorage is always available; log and skip if not.

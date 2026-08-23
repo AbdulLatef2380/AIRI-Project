@@ -129,6 +129,8 @@ data class ConnectorInput(
     val params: Map<String, String> = emptyMap(),
     /** Opaque binary payload (e.g. audio bytes for the voice connector). */
     val binary: ByteArray? = null,
+    /** Execution ownership for actions that may pause awaiting a user decision. */
+    val execution: ConnectorExecutionContext? = null,
 ) {
     // Manual equals/hashCode because of the ByteArray field — auto-generated
     // data class equals would compare the array by reference, which is
@@ -139,6 +141,7 @@ data class ConnectorInput(
         if (action != other.action) return false
         if (text   != other.text)   return false
         if (params != other.params) return false
+        if (execution != other.execution) return false
         if (binary == null) return other.binary == null
         if (other.binary == null) return false
         return binary.contentEquals(other.binary)
@@ -147,9 +150,29 @@ data class ConnectorInput(
         var r = action.hashCode()
         r = 31 * r + text.hashCode()
         r = 31 * r + params.hashCode()
+        r = 31 * r + (execution?.hashCode() ?: 0)
         r = 31 * r + (binary?.contentHashCode() ?: 0)
         return r
     }
+}
+
+/**
+ * Stable ownership carried from a product task into a connector side effect.
+ * A connector may accept an approved continuation only when every coordinate
+ * matches its durable record; unscoped actions cannot request durable resume.
+ */
+data class ConnectorExecutionContext(
+    val projectId: String?,
+    val taskId: String,
+    val missionId: String,
+    val runId: String,
+    val stepId: String,
+    val idempotencyKey: String,
+    val continuationId: String? = null
+) {
+    val isComplete: Boolean
+        get() = taskId.isNotBlank() && missionId.isNotBlank() && runId.isNotBlank() &&
+            stepId.isNotBlank() && idempotencyKey.isNotBlank()
 }
 
 /**
@@ -170,6 +193,16 @@ sealed class ConnectorOutput {
         val message: String,
         /** Whether the agent should retry this same connector or fall back. */
         val retryable: Boolean = false,
+    ) : ConnectorOutput()
+
+    /** A durable side effect was stopped before invocation and needs a decision. */
+    data class ApprovalRequired(
+        val approvalId: String,
+        val taskId: String,
+        val runId: String,
+        val stepId: String,
+        val expiresAtMs: Long,
+        val message: String
     ) : ConnectorOutput()
 
     /** Streaming output — for chat-style connectors. The collector

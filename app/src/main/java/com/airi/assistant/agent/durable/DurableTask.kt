@@ -97,6 +97,9 @@ data class DurableTask(
     /** Durable approval records for task-owned side effects. */
     val approvals: List<TaskApproval> = emptyList(),
 
+    /** One-shot side effects paused before invocation and eligible for explicit resume. */
+    val approvalContinuations: List<ApprovalContinuation> = emptyList(),
+
     /** Sanitized diagnostics retained for replay and support export. */
     val diagnostics: List<TaskDiagnostic> = emptyList(),
 
@@ -297,8 +300,133 @@ data class DurableTask(
                 approval
             }
         },
+        approvalContinuations = approvalContinuations.map { continuation ->
+            if (
+                continuation.approvalId == approvalId &&
+                status != TaskApprovalStatus.APPROVED
+            ) {
+                continuation.reject(reason.ifBlank { "Approval ${status.name.lowercase()}" }, nowMs)
+            } else {
+                continuation
+            }
+        },
         updatedAtMs = nowMs
     )
+
+    /**
+     * Stops the currently running exact step before its side effect is invoked.
+     * The continuation is normalized to this aggregate and rejected unless every
+     * ownership and execution coordinate matches the pending approval.
+     */
+    fun pauseForApproval(
+        approvalId: String,
+        continuation: ApprovalContinuation,
+        nowMs: Long = System.currentTimeMillis()
+    ): DurableTask? {
+        val approval = approvals.firstOrNull { it.id == approvalId }
+            ?.takeIf { it.status == TaskApprovalStatus.PENDING }
+            ?: return null
+        val resolvedRunId = currentRunId ?: return null
+        val resolvedStepId = currentStepId ?: return null
+        val owned = continuation.copy(
+            approvalId = approvalId,
+            taskId = id,
+            missionId = missionId ?: id,
+            projectId = projectId,
+            runId = resolvedRunId,
+            stepId = resolvedStepId,
+            expiresAtMs = minOf(continuation.expiresAtMs, approval.expiresAtMs)
+        )
+        if (
+            approval.runId != resolvedRunId ||
+            approval.stepId != resolvedStepId ||
+            continuation.runId != resolvedRunId ||
+            continuation.stepId != resolvedStepId ||
+            continuation.projectId != projectId ||
+            !owned.invocation.isSafeToPersist() ||
+            owned.isExpired(nowMs)
+        ) return null
+
+        return copy(
+            status = DurableTaskStatus.PAUSED,
+            updatedAtMs = nowMs,
+            progressMessage = "Waiting for approval",
+            approvalContinuations = approvalContinuations.filterNot { it.id == owned.id } + owned,
+            plan = plan.map { step ->
+                if (step.id == resolvedStepId && step.runId == resolvedRunId) {
+                    step.copy(status = TaskStepStatus.PAUSED)
+                } else step
+            },
+            runs = runs.map { run ->
+                if (run.id == resolvedRunId) run.copy(status = TaskRunStatus.PAUSED) else run
+            }
+        )
+    }
+
+    /**
+     * Atomically consumes one approved continuation and returns the claimed
+     * record. A second call returns null, which is the duplicate-call guard.
+     */
+    fun claimApprovedContinuation(
+        approvalId: String,
+        nowMs: Long = System.currentTimeMillis()
+    ): Pair<DurableTask, ApprovalContinuation>? {
+        val approval = approvals.firstOrNull { it.id == approvalId }
+            ?.takeIf { it.status == TaskApprovalStatus.APPROVED }
+            ?: return null
+        val continuation = approvalContinuations.firstOrNull {
+            it.approvalId == approvalId && it.status == ApprovalContinuationStatus.PENDING
+        } ?: return null
+        if (
+            status != DurableTaskStatus.PAUSED ||
+            currentRunId != continuation.runId ||
+            currentStepId != continuation.stepId ||
+            approval.runId != continuation.runId ||
+            approval.stepId != continuation.stepId ||
+            continuation.taskId != id ||
+            continuation.missionId != (missionId ?: id) ||
+            continuation.projectId != projectId
+        ) return null
+        val claimed = continuation.claim(nowMs) ?: return null
+        val resumed = copy(
+            status = DurableTaskStatus.RUNNING,
+            updatedAtMs = nowMs,
+            progressMessage = "Resuming approved action",
+            approvalContinuations = approvalContinuations.map {
+                if (it.id == claimed.id) claimed else it
+            },
+            plan = plan.map { step ->
+                if (step.id == claimed.stepId && step.runId == claimed.runId) {
+                    step.copy(status = TaskStepStatus.RUNNING)
+                } else step
+            },
+            runs = runs.map { run ->
+                if (run.id == claimed.runId) run.copy(status = TaskRunStatus.RUNNING) else run
+            }
+        )
+        return resumed to claimed
+    }
+
+    fun finishContinuation(
+        continuationId: String,
+        outcome: String,
+        succeeded: Boolean,
+        nowMs: Long = System.currentTimeMillis()
+    ): DurableTask? {
+        val current = approvalContinuations.firstOrNull { it.id == continuationId }
+            ?: return null
+        val finished: ApprovalContinuation = (if (succeeded) {
+            current.complete(outcome, nowMs)
+        } else {
+            current.fail(outcome, nowMs)
+        }) ?: return null
+        return copy(
+            updatedAtMs = nowMs,
+            approvalContinuations = approvalContinuations.map {
+                if (it.id == continuationId) finished else it
+            }
+        )
+    }
 
     fun addDiagnostic(
         diagnostic: TaskDiagnostic,
@@ -352,6 +480,7 @@ enum class TaskScope {
 enum class TaskStepStatus {
     PENDING,
     RUNNING,
+    PAUSED,
     COMPLETED,
     FAILED,
     SKIPPED
@@ -359,6 +488,7 @@ enum class TaskStepStatus {
 
 enum class TaskRunStatus {
     RUNNING,
+    PAUSED,
     COMPLETED,
     FAILED,
     CANCELLED
@@ -427,6 +557,9 @@ enum class TaskTimelineEventType {
     TOOL_REQUESTED,
     APPROVAL_REQUESTED,
     APPROVAL_DECIDED,
+    APPROVAL_PAUSED,
+    APPROVAL_RESUMED,
+    APPROVAL_CONTINUATION_COMPLETED,
     RECOVERY_ATTEMPTED,
     STEP_COMPLETED,
     STEP_FAILED,

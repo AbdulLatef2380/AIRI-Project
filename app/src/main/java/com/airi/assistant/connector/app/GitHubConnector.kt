@@ -2,6 +2,9 @@ package com.airi.assistant.connector.app
 
 import android.util.Log
 import com.airi.assistant.connector.*
+import com.airi.assistant.agent.durable.ApprovalContinuation
+import com.airi.assistant.agent.durable.DurableTaskManager
+import com.airi.assistant.agent.durable.ResumableConnectorInvocation
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.Dispatchers
@@ -14,7 +17,10 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-class GitHubConnector(private val authManager: ConnectorAuthManager) : Connector {
+class GitHubConnector(
+    private val authManager: ConnectorAuthManager,
+    private val durableTaskManager: DurableTaskManager? = null
+) : Connector {
     private val TAG = "GitHubConnector"
     private val BASE = "https://api.github.com"
     override val id          = "github"
@@ -43,11 +49,85 @@ class GitHubConnector(private val authManager: ConnectorAuthManager) : Connector
         when (val mutation = GitHubMutationPolicy.evaluate(input.action)) {
             GitHubMutationPolicy.Decision.Allowed -> Unit
             is GitHubMutationPolicy.Decision.RequiresTaskApproval -> {
-                return@withContext ConnectorOutput.Failure(
-                    code = "approval_required",
-                    message = mutation.reason,
-                    retryable = false
-                )
+                val execution = input.execution
+                val manager = durableTaskManager
+                    ?: return@withContext ConnectorOutput.Failure(
+                        code = "approval_runtime_unavailable",
+                        message = "GitHub mutation cannot run because durable approval storage is unavailable"
+                    )
+                if (execution?.continuationId != null) {
+                    val authorized = execution.isComplete && manager.isClaimedConnectorContinuation(
+                        continuationId = execution.continuationId,
+                        taskId = execution.taskId,
+                        missionId = execution.missionId,
+                        projectId = execution.projectId,
+                        runId = execution.runId,
+                        stepId = execution.stepId,
+                        connectorId = id,
+                        action = input.action,
+                        idempotencyKey = execution.idempotencyKey
+                    )
+                    if (!authorized) {
+                        return@withContext ConnectorOutput.Failure(
+                            code = "invalid_approved_continuation",
+                            message = "The approved GitHub action is stale, consumed, or does not match this task step"
+                        )
+                    }
+                } else {
+                    if (execution == null || !execution.isComplete || input.binary != null) {
+                        return@withContext ConnectorOutput.Failure(
+                            code = "approval_context_required",
+                            message = "GitHub mutations require a task, project, run, step, and idempotency context before approval"
+                        )
+                    }
+                    val approval = manager.requestApproval(
+                        taskId = execution.taskId,
+                        action = "github_${input.action}",
+                        description = mutation.reason,
+                        riskLevel = "HIGH",
+                        runId = execution.runId,
+                        stepId = execution.stepId
+                    ) ?: return@withContext ConnectorOutput.Failure(
+                        code = "approval_context_rejected",
+                        message = "GitHub mutation could not bind approval to the active task step"
+                    )
+                    val continuation = ApprovalContinuation(
+                        approvalId = approval.id,
+                        taskId = execution.taskId,
+                        missionId = execution.missionId,
+                        projectId = execution.projectId,
+                        runId = execution.runId,
+                        stepId = execution.stepId,
+                        invocation = ResumableConnectorInvocation(
+                            connectorId = id,
+                            action = input.action,
+                            text = input.text,
+                            params = input.params,
+                            idempotencyKey = execution.idempotencyKey
+                        ),
+                        expiresAtMs = approval.expiresAtMs
+                    )
+                    if (!manager.pauseForApproval(execution.taskId, approval.id, continuation)) {
+                        manager.decideApproval(
+                            approval.id,
+                            com.airi.assistant.agent.durable.TaskApprovalStatus.DENIED,
+                            reason = "Continuation persistence rejected"
+                        )
+                        return@withContext ConnectorOutput.Failure(
+                            code = "approval_continuation_rejected",
+                            message = "GitHub mutation was not queued because its continuation failed validation"
+                        )
+                    }
+                    AgentActivityBus.emit("GitHub action awaiting approval", ActivityCategory.CONNECTOR)
+                    return@withContext ConnectorOutput.ApprovalRequired(
+                        approvalId = approval.id,
+                        taskId = execution.taskId,
+                        runId = execution.runId,
+                        stepId = execution.stepId,
+                        expiresAtMs = approval.expiresAtMs,
+                        message = mutation.reason
+                    )
+                }
             }
         }
         val token = authManager.getCredential(id, "pat")

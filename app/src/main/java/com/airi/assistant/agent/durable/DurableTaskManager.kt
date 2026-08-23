@@ -260,6 +260,15 @@ class DurableTaskManager(private val context: Context) {
         stepId: String? = null
     ): TaskApproval? {
         val task = getTask(taskId) ?: return null
+        val resolvedRunId = runId ?: task.currentRunId
+        val resolvedStepId = stepId ?: task.currentStepId
+        if (
+            resolvedRunId.isNullOrBlank() ||
+            resolvedStepId.isNullOrBlank() ||
+            task.currentRunId != resolvedRunId ||
+            task.currentStepId != resolvedStepId ||
+            task.status != DurableTaskStatus.RUNNING
+        ) return null
         val now = System.currentTimeMillis()
         val approval = TaskApproval(
             id = java.util.UUID.randomUUID().toString().take(12),
@@ -268,8 +277,8 @@ class DurableTaskManager(private val context: Context) {
             riskLevel = riskLevel,
             requestedAtMs = now,
             expiresAtMs = now + expiresInMs.coerceIn(MIN_APPROVAL_EXPIRY_MS, MAX_APPROVAL_EXPIRY_MS),
-            runId = runId ?: task.currentRunId,
-            stepId = stepId ?: task.currentStepId
+            runId = resolvedRunId,
+            stepId = resolvedStepId
         )
         updateTask(taskId) {
             requestApproval(approval).appendTimeline(
@@ -286,7 +295,141 @@ class DurableTaskManager(private val context: Context) {
         return approval
     }
 
+    /**
+     * Persists a one-shot continuation and pauses the exact task/run/step before
+     * its side effect begins. Invalid or cross-owned continuation records are
+     * rejected rather than being coerced into a new execution.
+     */
+    @Synchronized
+    fun pauseForApproval(taskId: String, approvalId: String, continuation: ApprovalContinuation): Boolean {
+        val task = taskCache[taskId] ?: return false
+        val now = System.currentTimeMillis()
+        val paused = task.pauseForApproval(approvalId, continuation, now) ?: return false
+        putTask(
+            paused.appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.APPROVAL_PAUSED,
+                    summary = "Execution paused for approval",
+                    runId = paused.currentRunId,
+                    stepId = paused.currentStepId,
+                    recordedAtMs = now
+                )
+            )
+        )
+        return true
+    }
+
+    /**
+     * Claims an approved continuation exactly once. The claimed state is saved
+     * before the caller invokes any connector, so double approval taps, stale
+     * callbacks, and process-restored UI cannot duplicate the side effect.
+     */
+    @Synchronized
+    fun claimApprovedContinuation(approvalId: String): ApprovalContinuation? {
+        val task = taskCache.values.firstOrNull { candidate ->
+            candidate.approvalContinuations.any { it.approvalId == approvalId }
+        } ?: return null
+        val now = System.currentTimeMillis()
+        val claimedPair = task.claimApprovedContinuation(approvalId, now) ?: return null
+        val (resumed, claimed) = claimedPair
+        putTask(
+            resumed.appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.APPROVAL_RESUMED,
+                    summary = "Approved action claimed for exact-step resume",
+                    runId = claimed.runId,
+                    stepId = claimed.stepId,
+                    recordedAtMs = now
+                )
+            )
+        )
+        return claimed
+    }
+
+    /**
+     * Approved continuations eligible for process-recovery resume. Pending,
+     * denied, expired, consumed, and malformed records are intentionally absent.
+     */
+    fun approvedContinuationApprovalIds(nowMs: Long = System.currentTimeMillis()): List<String> =
+        taskCache.values.flatMap { task ->
+            task.approvalContinuations.mapNotNull { continuation ->
+                val approval = task.approvals.firstOrNull { it.id == continuation.approvalId }
+                continuation.approvalId.takeIf {
+                    continuation.status == ApprovalContinuationStatus.PENDING &&
+                        !continuation.isExpired(nowMs) &&
+                        approval?.status == TaskApprovalStatus.APPROVED &&
+                        approval.expiresAtMs > nowMs &&
+                        task.status == DurableTaskStatus.PAUSED
+                }
+            }
+        }
+
+    /** Returns the durable approval, including ownership metadata, when it exists. */
+    fun findApproval(approvalId: String): Pair<DurableTask, TaskApproval>? =
+        taskCache.values.firstNotNullOfOrNull { task ->
+            task.approvals.firstOrNull { it.id == approvalId }?.let { approval -> task to approval }
+        }
+
+    /**
+     * Connector-side authorizer for a claimed continuation. A connector must
+     * call this before performing an approved side effect; matching the ID alone
+     * is insufficient because stale/replayed inputs must fail closed.
+     */
+    fun isClaimedConnectorContinuation(
+        continuationId: String,
+        taskId: String,
+        missionId: String,
+        projectId: String?,
+        runId: String,
+        stepId: String,
+        connectorId: String,
+        action: String,
+        idempotencyKey: String
+    ): Boolean {
+        val task = taskCache[taskId] ?: return false
+        val continuation = task.approvalContinuations.firstOrNull { it.id == continuationId }
+            ?: return false
+        return continuation.status == ApprovalContinuationStatus.CLAIMED &&
+            continuation.taskId == taskId &&
+            continuation.missionId == missionId &&
+            continuation.projectId == projectId &&
+            continuation.runId == runId &&
+            continuation.stepId == stepId &&
+            continuation.invocation.connectorId == connectorId &&
+            continuation.invocation.action == action &&
+            continuation.invocation.idempotencyKey == idempotencyKey
+    }
+
+    /** Completes the one-shot continuation after its claimed connector call returns. */
+    @Synchronized
+    fun finishApprovalContinuation(
+        continuationId: String,
+        outcome: String,
+        succeeded: Boolean
+    ): Boolean {
+        val task = taskCache.values.firstOrNull { candidate ->
+            candidate.approvalContinuations.any { it.id == continuationId }
+        } ?: return false
+        val now = System.currentTimeMillis()
+        val finished = task.finishContinuation(continuationId, outcome, succeeded, now) ?: return false
+        val continuation = finished.approvalContinuations.first { it.id == continuationId }
+        putTask(
+            finished.appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.APPROVAL_CONTINUATION_COMPLETED,
+                    summary = if (succeeded) "Approved action completed" else "Approved action failed",
+                    detail = safeTimelineText(outcome),
+                    runId = continuation.runId,
+                    stepId = continuation.stepId,
+                    recordedAtMs = now
+                )
+            )
+        )
+        return true
+    }
+
     /** Decides a pending approval. Expired approvals cannot be granted. */
+    @Synchronized
     fun decideApproval(
         approvalId: String,
         status: TaskApprovalStatus,
@@ -452,6 +595,7 @@ class DurableTaskManager(private val context: Context) {
         return if (SENSITIVE_TIMELINE_PATTERN.containsMatchIn(normalized)) "Sensitive detail redacted" else normalized
     }
 
+    @Synchronized
     private fun putTask(task: DurableTask) {
         val normalized = MissionKernel.normalize(task)
         require(MissionKernel.validate(normalized) is MissionOwnershipValidation.Valid) {
@@ -462,6 +606,7 @@ class DurableTaskManager(private val context: Context) {
         saveToDisk()
     }
 
+    @Synchronized
     private fun updateTask(taskId: String, transform: DurableTask.() -> DurableTask) {
         val existing = taskCache[taskId] ?: return
         putTask(existing.transform())
@@ -602,6 +747,10 @@ class DurableTaskWorker(
         val task = manager.getTask(taskId) ?: run {
             Log.w(TAG, "Task $taskId not found in store — aborting")
             return Result.failure()
+        }
+        if (task.status == DurableTaskStatus.PAUSED) {
+            Log.i(TAG, "DurableTaskWorker leaving paused task untouched taskId=$taskId")
+            return Result.success()
         }
 
         manager.beginRun(

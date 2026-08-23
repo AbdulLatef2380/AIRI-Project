@@ -108,6 +108,101 @@ class DurableTaskProductKernelTest {
     }
 
     @Test
+    fun approvalContinuationPausesAndClaimsExactlyOneMatchingStep() {
+        val approval = TaskApproval(
+            id = "approval-resume",
+            action = "github_create_issue",
+            description = "Create GitHub issue",
+            riskLevel = "HIGH",
+            requestedAtMs = 2_000L,
+            expiresAtMs = 10_000L,
+            runId = "run-resume",
+            stepId = "collect"
+        )
+        val continuation = ApprovalContinuation(
+            id = "continuation-1",
+            approvalId = approval.id,
+            taskId = "task-sample",
+            missionId = "task-sample",
+            projectId = "project-a",
+            runId = "run-resume",
+            stepId = "collect",
+            invocation = ResumableConnectorInvocation(
+                connectorId = "github",
+                action = "create_issue",
+                text = "Document the approved change",
+                params = mapOf("repo" to "org/repo", "body" to "Reviewed body"),
+                idempotencyKey = "idempotency-1"
+            ),
+            expiresAtMs = 10_000L
+        )
+
+        val paused = sampleTask()
+            .beginRun("run-resume", "collect", nowMs = 1_500L)
+            .requestApproval(approval)
+            .pauseForApproval(approval.id, continuation, nowMs = 2_100L)
+            ?: throw AssertionError("Expected matching continuation to pause the task")
+
+        assertEquals(DurableTaskStatus.PAUSED, paused.status)
+        assertEquals(TaskRunStatus.PAUSED, paused.runs.single().status)
+        assertEquals(TaskStepStatus.PAUSED, paused.plan.single().status)
+        assertEquals(ApprovalContinuationStatus.PENDING, paused.approvalContinuations.single().status)
+        assertTrue(MissionKernel.validate(MissionKernel.normalize(paused)) is MissionOwnershipValidation.Valid)
+
+        val approved = paused.decideApproval(
+            approvalId = approval.id,
+            status = TaskApprovalStatus.APPROVED,
+            scope = ApprovalGrantScope.ONCE,
+            nowMs = 2_200L
+        )
+        val claimedPair = approved.claimApprovedContinuation(approval.id, nowMs = 2_300L)
+            ?: throw AssertionError("Expected approved continuation to claim once")
+        val resumed = claimedPair.first
+        val claimed = claimedPair.second
+
+        assertEquals(ApprovalContinuationStatus.CLAIMED, claimed.status)
+        assertEquals(DurableTaskStatus.RUNNING, resumed.status)
+        assertEquals(TaskRunStatus.RUNNING, resumed.runs.single().status)
+        assertEquals(TaskStepStatus.RUNNING, resumed.plan.single().status)
+        assertEquals(null, resumed.claimApprovedContinuation(approval.id, nowMs = 2_301L))
+    }
+
+    @Test
+    fun continuationRejectsProjectMismatchAndSecretLikePayload() {
+        val approval = TaskApproval(
+            id = "approval-boundary",
+            action = "github_create_issue",
+            description = "Create GitHub issue",
+            riskLevel = "HIGH",
+            expiresAtMs = 10_000L,
+            runId = "run-boundary",
+            stepId = "collect"
+        )
+        val base = sampleTask().beginRun("run-boundary", "collect", nowMs = 1_000L).requestApproval(approval)
+        val projectMismatch = ApprovalContinuation(
+            approvalId = approval.id,
+            projectId = "project-b",
+            runId = "run-boundary",
+            stepId = "collect",
+            invocation = ResumableConnectorInvocation(
+                connectorId = "github",
+                action = "create_issue",
+                idempotencyKey = "idempotency-project-mismatch"
+            ),
+            expiresAtMs = 10_000L
+        )
+        val secretPayload = projectMismatch.copy(
+            projectId = "project-a",
+            invocation = projectMismatch.invocation.copy(
+                text = "Authorization: Bearer 12345678901234567890"
+            )
+        )
+
+        assertEquals(null, base.pauseForApproval(approval.id, projectMismatch, nowMs = 2_000L))
+        assertEquals(null, base.pauseForApproval(approval.id, secretPayload, nowMs = 2_000L))
+    }
+
+    @Test
     fun failedOrCancelledRunNeverRemainsActive() {
         val failed = sampleTask()
             .beginRun("run-fail", "collect", nowMs = 2_000L)

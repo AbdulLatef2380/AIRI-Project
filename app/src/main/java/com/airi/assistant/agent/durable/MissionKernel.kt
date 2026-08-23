@@ -32,11 +32,19 @@ object MissionKernel {
                 stepId = approval.stepId ?: task.currentStepId
             )
         }
+        val normalizedContinuations = task.approvalContinuations.map { continuation ->
+            continuation.copy(
+                taskId = continuation.taskId.takeIf(String::isNotBlank) ?: task.id,
+                missionId = continuation.missionId.takeIf(String::isNotBlank) ?: resolvedMissionId,
+                projectId = continuation.projectId ?: task.projectId
+            )
+        }
         return task.copy(
             missionId = resolvedMissionId,
             runs = normalizedRuns,
             plan = normalizedSteps,
             approvals = normalizedApprovals,
+            approvalContinuations = normalizedContinuations,
             approvalIds = (task.approvalIds + normalizedApprovals.map { it.id }).distinct()
         )
     }
@@ -66,6 +74,24 @@ object MissionKernel {
                 (approval.runId != null && runsById[approval.runId] == null)
         }?.let { approval ->
             return MissionOwnershipValidation.Invalid("Approval ${approval.id} does not belong to task/project/mission")
+        }
+
+        task.approvalContinuations.firstOrNull { continuation ->
+            val approval = task.approvals.firstOrNull { it.id == continuation.approvalId }
+            continuation.taskId != task.id ||
+                continuation.missionId != missionId ||
+                continuation.projectId != task.projectId ||
+                runsById[continuation.runId] == null ||
+                task.plan.none { it.id == continuation.stepId && it.runId == continuation.runId } ||
+                approval == null ||
+                approval.taskId != continuation.taskId ||
+                approval.missionId != continuation.missionId ||
+                approval.projectId != continuation.projectId ||
+                approval.runId != continuation.runId ||
+                approval.stepId != continuation.stepId ||
+                !continuation.invocation.isSafeToPersist()
+        }?.let { continuation ->
+            return MissionOwnershipValidation.Invalid("Continuation ${continuation.id} is not bound to its approval/task/project/run/step")
         }
 
         return MissionOwnershipValidation.Valid

@@ -24,6 +24,19 @@ class ConnectorRuntimeManagerTest {
     }
 
     @Test
+    fun approvalRequiredNeverRetriesConnectorAction() = runBlocking {
+        val registry = ConnectorRegistry()
+        val connector = ApprovalConnector()
+        registry.register(connector)
+        val runtime = ConnectorRuntimeManager(registry)
+
+        val result = runtime.execute("approval", ConnectorInput(action = "create_issue"), maxRetries = 3)
+
+        assertTrue(result is ConnectorOutput.ApprovalRequired)
+        assertEquals(1, connector.executeCalls)
+    }
+
+    @Test
     fun broadcastAwaitsEveryConnectorResult() = runBlocking {
         val registry = ConnectorRegistry()
         registry.register(FakeConnector(id = "fast", initiallyHealthy = true, executionDelayMs = 0))
@@ -34,6 +47,31 @@ class ConnectorRuntimeManagerTest {
 
         assertEquals(setOf("fast", "slow"), results.keys)
         assertTrue(results.values.all { it is ConnectorOutput.Success })
+    }
+
+    private class ApprovalConnector : Connector {
+        override val id = "approval"
+        override val name = "Approval connector"
+        override val description = "Returns an approval gate"
+        override val type = ConnectorType.APP
+        private val stateFlow = MutableStateFlow(ConnectorState(connected = true, healthy = true))
+        var executeCalls = 0
+
+        override fun meta() = ConnectorMeta(id, name, description, type)
+        override fun state() = stateFlow
+        override suspend fun connect() = stateFlow.value
+        override suspend fun disconnect() { stateFlow.value = ConnectorState(false, false) }
+        override suspend fun execute(input: ConnectorInput): ConnectorOutput {
+            executeCalls++
+            return ConnectorOutput.ApprovalRequired(
+                approvalId = "approval-1",
+                taskId = "task-1",
+                runId = "run-1",
+                stepId = "step-1",
+                expiresAtMs = 10_000L,
+                message = "Approval required"
+            )
+        }
     }
 
     private class FakeConnector(

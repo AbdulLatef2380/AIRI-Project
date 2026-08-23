@@ -184,6 +184,12 @@ class AIRIApplication : Application() {
                     ServiceLocator.connectorHealthMonitor
                     LoggingService.info(TAG, " ConnectorHealthMonitor started (deferred)")
 
+                    val recoveredContinuations = ServiceLocator.approvalContinuationRuntime
+                        .resumeApprovedAfterRecovery()
+                    if (recoveredContinuations.isNotEmpty()) {
+                        LoggingService.info(TAG, "Recovered ${recoveredContinuations.size} approved connector continuation(s)")
+                    }
+
                     // Cloud sync is user-preference-gated and network I/O
                     val prefs = ServiceLocator.userProfileRepository.current
                     if (prefs.cloudSyncEnabled) {

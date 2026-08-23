@@ -239,7 +239,8 @@ object ServiceLocator {
                 registry      = reg,
                 authManager   = connectorAuthManager,   // P1-7: for GitHubConnector
                 llmProviders  = llmProviders,
-                secureStorage = secureStorage,          
+                secureStorage = secureStorage,
+                durableTaskManager = durableTaskManager,
             )
             // GitHubConnector is now registered inside ConnectorBootstrap.installDefaults.
             // No duplicate registration needed here.
@@ -248,6 +249,13 @@ object ServiceLocator {
 
     val connectorRuntimeManager: com.airi.assistant.connector.ConnectorRuntimeManager by lazy {
         com.airi.assistant.connector.ConnectorRuntimeManager(connectorRegistry)
+    }
+
+    val approvalContinuationRuntime: com.airi.assistant.connector.ApprovalContinuationRuntime by lazy {
+        com.airi.assistant.connector.ApprovalContinuationRuntime(
+            durableTaskManager = durableTaskManager,
+            connectorRuntimeManager = connectorRuntimeManager
+        )
     }
 
     val connectorHealthMonitor: com.airi.assistant.connector.ConnectorHealthMonitor by lazy {

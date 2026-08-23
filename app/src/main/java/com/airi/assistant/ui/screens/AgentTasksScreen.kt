@@ -2,6 +2,7 @@ package com.airi.assistant.ui.screens
 
 import com.airi.assistant.ui.theme.*
 
+import kotlinx.coroutines.launch
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -67,6 +68,7 @@ fun AgentTasksScreen(
     onNavigateToAgentControl: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val approvalResumeScope = rememberCoroutineScope()
     val orchestrator = remember { ServiceLocator.scheduledJobOrchestrator }
     val durableTaskManager = remember { ServiceLocator.durableTaskManager }
     val activeWorkStopController = remember { ServiceLocator.activeWorkStopController }
@@ -188,9 +190,13 @@ fun AgentTasksScreen(
                 else -> TrustCenterContent(
                     taskApprovals = taskApprovals,
                     unboundLiveApprovals = unboundLiveApprovals,
-                    onDecision = { approvalId, scope, approved ->
+                    onDecision = { approvalId, approvalScope, approved ->
                         if (approved) {
-                            permissionGovernance.approveAction(approvalId, scope)
+                            if (permissionGovernance.approveAction(approvalId, approvalScope)) {
+                                approvalResumeScope.launch {
+                                    ServiceLocator.approvalContinuationRuntime.resume(approvalId)
+                                }
+                            }
                         } else {
                             permissionGovernance.denyAction(approvalId)
                         }

@@ -67,6 +67,10 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
             when {
                 last is ConnectorOutput.Success   -> { AgentActivityBus.emit(" '${connector.id}' ${input.action}", ActivityCategory.CONNECTOR); return last }
                 last is ConnectorOutput.Streaming -> return last
+                last is ConnectorOutput.ApprovalRequired -> {
+                    AgentActivityBus.emit(" '${connector.id}' is awaiting approval", ActivityCategory.CONNECTOR, ActivitySeverity.WARN)
+                    return last
+                }
                 last is ConnectorOutput.Failure && last.retryable && attempt < maxRetries -> {
                     val backoffMs = 500L * (attempt + 1)
                     AgentActivityBus.emit("Retrying '${connector.id}' (${attempt + 2}/${maxRetries + 1})", ActivityCategory.CONNECTOR, ActivitySeverity.WARN)

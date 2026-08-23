@@ -10,10 +10,11 @@
 |---|---|---|---|
 | Closure-map baseline | `IMPLEMENTED` | `AIRI_FINAL_CLOSURE_MAP.md` maps P0/P1/P2 ownership, runtime, persistence, security, UI, tests and external gates. | Map must be updated only when a real runtime or acceptance gate changes. |
 | Project Context admission | `IMPLEMENTED` / `TESTED` | `ProjectContextResolver`, scoped `RagRetriever`, `ProjectContextAdmissionPolicyTest`, core verifier. | Device/model execution and broad cross-resource isolation. |
-| Trust Center | `IMPLEMENTED` / `TESTED` | `TRUST_CENTER_CONTRACT.md`, live governance/durable approval bridge. | Exact-step continuation and device recovery. |
-| Mission ownership baseline | `IMPLEMENTED` / `TESTED` | `MissionKernel`, normalized `DurableTaskManager` persistence, `MissionKernelTest`, and `DurableTaskProductKernelTest`. | Artifact→task/run/step and exact-step approval continuation remain separate P0 work. |
+| Trust Center | `IMPLEMENTED` / `TESTED` | `TRUST_CENTER_CONTRACT.md`, live governance/durable approval bridge. | Exact-step continuation for AgentLoop, skills, terminal, and remaining connector paths; device recovery. |
+| Mission ownership baseline | `IMPLEMENTED` / `TESTED` | `MissionKernel`, normalized `DurableTaskManager` persistence, `MissionKernelTest`, and `DurableTaskProductKernelTest`. | Artifact→task/run/step remains separate P0 work. |
 | Project secret broker | `IMPLEMENTED` / `TESTED` | Project/connector-scoped capability namespace in `SecretVault` and regression coverage for cross-project denial and revocation. | Provider adapters must pass real project/connector context; project-secret management UI remains open. |
-| Final closure program | `IN_PROGRESS` | This file, closure map, and `AIRI_PRODUCT_GAP_MATRIX.md`. | P0 artifact provenance and approval continuation are next; project secret adapter/UI closure follows their live context paths. |
+| Exact-step GitHub continuation | `IMPLEMENTED` / `TESTED` / `BUILD_VERIFIED` | `APPROVAL_CONTINUATION_CONTRACT.md`; durable PAUSED/CLAIMED states, restart sweep, Trust Center allow route, claimed connector authorization; `DurableTaskProductKernelTest` + `ConnectorRuntimeManagerTest` passed. | Migrate AgentLoop, skills, terminal, and remaining side-effecting connectors; validate a credentialed GitHub mutation and device process recovery. |
+| Final closure program | `IN_PROGRESS` | This file, closure map, and `AIRI_PRODUCT_GAP_MATRIX.md`. | P0 artifact provenance and cross-project integration coverage are next; continuation migration and project-secret adapter/UI closure follow their live context paths. |
 
 ## Evidence rules
 

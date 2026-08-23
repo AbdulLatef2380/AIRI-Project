@@ -32,7 +32,7 @@ class AiriDatabaseMigrationTest {
     }
 
     @Test
-    fun migratesVersionOneDataToVersionEightWithoutLoss() = runBlocking {
+    fun migratesVersionOneDataToVersionNineWithoutLoss() = runBlocking {
         createVersionOneDatabase()
 
         database = Room.databaseBuilder(context, AiriDatabase::class.java, DATABASE_NAME)
@@ -64,6 +64,26 @@ class AiriDatabaseMigrationTest {
         assertTrue("message_embedding" in tables)
         assertTrue("audit_log" in tables)
         assertTrue("workspace_artifact" in tables)
+        val artifactColumns = database!!.openHelper.writableDatabase.query(
+            "PRAGMA table_info('workspace_artifact')"
+        ).use { cursor ->
+            buildSet {
+                while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+            }
+        }
+        assertTrue(setOf(
+            "projectId", "taskId", "runId", "stepId", "toolId", "modelId",
+            "provenanceSummary", "contentHash"
+        ).all { it in artifactColumns })
+        val artifactIndices = database!!.openHelper.writableDatabase.query(
+            "PRAGMA index_list('workspace_artifact')"
+        ).use { cursor ->
+            buildSet {
+                while (cursor.moveToNext()) add(cursor.getString(1))
+            }
+        }
+        assertTrue("index_workspace_artifact_projectId" in artifactIndices)
+        assertTrue("index_workspace_artifact_projectId_taskId_runId_stepId" in artifactIndices)
 
         val memoryIndices = database!!.openHelper.writableDatabase.query(
             "PRAGMA index_list('episodic_memory')"

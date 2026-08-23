@@ -38,6 +38,7 @@ import java.io.File
  *   v5 → v6: Added feedback and attachment metadata columns to episodic memory.
      *   v6 → v7: Added durable chat-session pin state.
      *   v7 → v8: Added memory provenance, scope, confidence, retention, and privacy metadata.
+     *   v8 → v9: Added project/task/run/step/tool/model provenance to workspace artifacts.
 
  *
  * [exportBackup] copies the live database file to a destination [File] using
@@ -55,7 +56,7 @@ import java.io.File
         AuditLogEntity::class,
         ArtifactEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 @TypeConverters(AuditLogTypeConverters::class)
@@ -182,6 +183,22 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE workspace_artifact ADD COLUMN projectId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE workspace_artifact ADD COLUMN taskId TEXT")
+                db.execSQL("ALTER TABLE workspace_artifact ADD COLUMN runId TEXT")
+                db.execSQL("ALTER TABLE workspace_artifact ADD COLUMN stepId TEXT")
+                db.execSQL("ALTER TABLE workspace_artifact ADD COLUMN toolId TEXT")
+                db.execSQL("ALTER TABLE workspace_artifact ADD COLUMN modelId TEXT")
+                db.execSQL("ALTER TABLE workspace_artifact ADD COLUMN provenanceSummary TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE workspace_artifact ADD COLUMN contentHash TEXT NOT NULL DEFAULT ''")
+                db.execSQL("UPDATE workspace_artifact SET projectId = sessionId WHERE projectId = ''")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_workspace_artifact_projectId ON workspace_artifact(projectId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_workspace_artifact_projectId_taskId_runId_stepId ON workspace_artifact(projectId, taskId, runId, stepId)")
+            }
+        }
+
         internal fun migrations(): Array<Migration> = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -189,7 +206,8 @@ abstract class AiriDatabase : RoomDatabase() {
             MIGRATION_4_5,
             MIGRATION_5_6,
             MIGRATION_6_7,
-            MIGRATION_7_8
+            MIGRATION_7_8,
+            MIGRATION_8_9
         )
 
         fun getDatabase(context: Context): AiriDatabase {

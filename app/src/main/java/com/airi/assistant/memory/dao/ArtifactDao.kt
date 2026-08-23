@@ -23,6 +23,9 @@ interface ArtifactDao {
     @Query("SELECT * FROM workspace_artifact WHERE sessionId = :sessionId ORDER BY createdAtMs DESC")
     suspend fun getForSession(sessionId: String): List<ArtifactEntity>
 
+    @Query("SELECT * FROM workspace_artifact WHERE projectId = :projectId ORDER BY createdAtMs DESC")
+    suspend fun getForProject(projectId: String): List<ArtifactEntity>
+
     @Query("SELECT * FROM workspace_artifact ORDER BY createdAtMs DESC")
     suspend fun getAll(): List<ArtifactEntity>
 
@@ -31,6 +34,9 @@ interface ArtifactDao {
 
     @Query("SELECT * FROM workspace_artifact WHERE id = :id")
     suspend fun getById(id: String): ArtifactEntity?
+
+    @Query("SELECT * FROM workspace_artifact WHERE id = :id AND projectId = :projectId")
+    suspend fun getByIdForProject(id: String, projectId: String): ArtifactEntity?
 
     @Query("DELETE FROM workspace_artifact WHERE id = :id")
     suspend fun deleteById(id: String)

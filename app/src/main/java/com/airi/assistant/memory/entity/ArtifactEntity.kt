@@ -19,6 +19,8 @@ import androidx.room.PrimaryKey
     tableName = "workspace_artifact",
     indices = [
         Index("sessionId"),
+        Index("projectId"),
+        Index(value = ["projectId", "taskId", "runId", "stepId"]),
         Index("createdAtMs")
     ]
 )
@@ -26,6 +28,14 @@ data class ArtifactEntity(
     @PrimaryKey
     val id:             String,
     val sessionId:      String,
+    val projectId:      String,
+    val taskId:         String?,
+    val runId:          String?,
+    val stepId:         String?,
+    val toolId:         String?,
+    val modelId:        String?,
+    val provenanceSummary: String,
+    val contentHash:    String,
     val name:           String,
     val typeName:       String,   // ArtifactType.name()
     val filePath:       String,

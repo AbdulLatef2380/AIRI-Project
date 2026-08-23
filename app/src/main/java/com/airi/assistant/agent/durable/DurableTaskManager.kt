@@ -151,6 +151,32 @@ class DurableTaskManager(private val context: Context) {
         }
     }
 
+    /**
+     * Links an artifact produced by the currently running exact step. A caller
+     * cannot attach an output to a stale run or a different step after recovery.
+     */
+    fun linkArtifact(taskId: String, artifactId: String, runId: String, stepId: String): Boolean {
+        val task = getTask(taskId) ?: return false
+        if (
+            task.currentRunId != runId ||
+            task.status != DurableTaskStatus.RUNNING ||
+            task.plan.none { step ->
+                step.id == stepId && step.runId == runId && step.status == TaskStepStatus.RUNNING
+            }
+        ) return false
+        updateTask(taskId) {
+            linkArtifact(artifactId).appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.ARTIFACT_CREATED,
+                    summary = "Artifact linked to execution step",
+                    runId = runId,
+                    stepId = stepId
+                )
+            )
+        }
+        return true
+    }
+
     /** Marks an individual plan step as complete while keeping the task running. */
     fun markStepCompleted(taskId: String, stepId: String) {
         updateTask(taskId) {

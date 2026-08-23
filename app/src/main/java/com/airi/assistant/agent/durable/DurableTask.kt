@@ -175,6 +175,19 @@ data class DurableTask(
             progressPercent = progressPercent,
             progressMessage = progressMessage,
             checkpointData = checkpointData,
+            plan = plan.map { step ->
+                if (
+                    step.id == stepId &&
+                    step.status != TaskStepStatus.COMPLETED &&
+                    step.status != TaskStepStatus.FAILED
+                ) {
+                    step.copy(
+                        runId = currentRunId ?: step.runId,
+                        status = TaskStepStatus.RUNNING,
+                        startedAtMs = step.startedAtMs.takeIf { it > 0 } ?: nowMs
+                    )
+                } else step
+            },
             runs = updatedRun
         )
     }
@@ -264,6 +277,12 @@ data class DurableTask(
         finishedAtMs = nowMs,
         updatedAtMs = nowMs,
         runs = finishCurrentRun(TaskRunStatus.CANCELLED, nowMs)
+    )
+
+    /** Adds a validated artifact reference produced by the current execution. */
+    fun linkArtifact(artifactId: String, nowMs: Long = System.currentTimeMillis()): DurableTask = copy(
+        artifactIds = (artifactIds + artifactId).distinct(),
+        updatedAtMs = nowMs
     )
 
     fun requestApproval(approval: TaskApproval): DurableTask {
@@ -555,6 +574,7 @@ enum class TaskTimelineEventType {
     STEP_STARTED,
     STEP_PROGRESS,
     TOOL_REQUESTED,
+    ARTIFACT_CREATED,
     APPROVAL_REQUESTED,
     APPROVAL_DECIDED,
     APPROVAL_PAUSED,

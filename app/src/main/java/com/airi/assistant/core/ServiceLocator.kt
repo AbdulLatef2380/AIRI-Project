@@ -273,7 +273,8 @@ object ServiceLocator {
         com.airi.assistant.workspace.ArtifactManager(
             context     = requireContext(),
             artifactDao = com.airi.assistant.memory.AiriDatabase
-                .getDatabase(requireContext()).artifactDao()
+                .getDatabase(requireContext()).artifactDao(),
+            durableTaskManager = durableTaskManager
         )
     }
 
@@ -350,6 +351,7 @@ object ServiceLocator {
             observabilityHub.attachOrchestrator(orch)
             // Wire DurableTaskManager so orchestrator can checkpoint multi-step tasks
             orch.durableTaskManager = durableTaskManager
+            orch.artifactManager = artifactManager
         }
     }
 

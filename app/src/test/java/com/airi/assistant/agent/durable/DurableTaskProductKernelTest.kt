@@ -168,6 +168,19 @@ class DurableTaskProductKernelTest {
     }
 
     @Test
+    fun artifactReferenceAttachesToTheRunningProjectStep() {
+        val running = sampleTask()
+            .beginRun("run-artifact", "collect", nowMs = 1_000L)
+            .updateStep("collect", progressPercent = 20, nowMs = 1_100L)
+            .linkArtifact("artifact-1", nowMs = 1_200L)
+
+        assertEquals(listOf("artifact-1"), running.artifactIds)
+        assertEquals(TaskStepStatus.RUNNING, running.plan.single().status)
+        assertEquals("run-artifact", running.plan.single().runId)
+        assertTrue(MissionKernel.validate(MissionKernel.normalize(running)) is MissionOwnershipValidation.Valid)
+    }
+
+    @Test
     fun continuationRejectsProjectMismatchAndSecretLikePayload() {
         val approval = TaskApproval(
             id = "approval-boundary",

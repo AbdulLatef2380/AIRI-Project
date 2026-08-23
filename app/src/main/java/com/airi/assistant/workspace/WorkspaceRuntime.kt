@@ -108,10 +108,49 @@ class WorkspaceRuntime(
         name: String,
         type: ArtifactManager.ArtifactType,
         content: String,
+        desc: String = "",
+        provenance: ArtifactProvenance? = null
+    ): ArtifactManager.Artifact? {
+        val sessionId = _activeSession.value?.sessionId ?: return null
+        return artifactManager.createArtifact(
+            sessionId = sessionId,
+            name = name,
+            type = type,
+            content = content,
+            description = desc,
+            provenance = provenance ?: ArtifactProvenance(projectId = sessionId)
+        )
+    }
+
+    /** Creates an artifact tied to the current project and one exact durable task step. */
+    suspend fun createArtifactForActiveTask(
+        name: String,
+        type: ArtifactManager.ArtifactType,
+        content: String,
+        taskId: String,
+        runId: String,
+        stepId: String,
+        toolId: String? = null,
+        modelId: String? = null,
+        summary: String = "",
         desc: String = ""
     ): ArtifactManager.Artifact? {
         val sessionId = _activeSession.value?.sessionId ?: return null
-        return artifactManager.createArtifact(sessionId, name, type, content, desc)
+        return createArtifact(
+            name = name,
+            type = type,
+            content = content,
+            desc = desc,
+            provenance = ArtifactProvenance(
+                projectId = sessionId,
+                taskId = taskId,
+                runId = runId,
+                stepId = stepId,
+                toolId = toolId,
+                modelId = modelId,
+                summary = summary
+            )
+        )
     }
 
     fun artifactsForActive(): List<ArtifactManager.Artifact> =

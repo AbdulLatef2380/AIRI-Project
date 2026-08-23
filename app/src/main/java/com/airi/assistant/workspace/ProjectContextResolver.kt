@@ -49,12 +49,12 @@ class ProjectContextResolver(
                     )
                 }
 
-            artifactManager.forSession(projectId)
+            artifactManager.forProject(projectId)
                 .take(MAX_ARTIFACT_REFERENCES)
                 .forEach { artifact ->
                     add(
                         ProjectContextCandidate(
-                            projectId = artifact.sessionId,
+                            projectId = artifact.projectId,
                             kind = ProjectContextKind.ARTIFACT,
                             label = "Artifact: ${artifact.name}",
                             content = "Type ${artifact.type}; version ${artifact.version}"

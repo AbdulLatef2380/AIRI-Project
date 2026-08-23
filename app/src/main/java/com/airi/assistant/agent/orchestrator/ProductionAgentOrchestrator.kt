@@ -17,6 +17,8 @@ import com.airi.assistant.agent.subagent.SubAgentCapability
 import com.airi.assistant.agent.subagent.SubAgentContext
 import com.airi.assistant.agent.subagent.SubAgentRegistry
 import com.airi.assistant.agent.workspace.AgentWorkspace
+import com.airi.assistant.workspace.ArtifactManager
+import com.airi.assistant.workspace.ArtifactProvenance
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -96,6 +98,10 @@ class ProductionAgentOrchestrator {
     @Volatile
     var durableTaskManager: com.airi.assistant.agent.durable.DurableTaskManager? = null
 
+    /** Artifact persistence hook; set by ServiceLocator for task-owned output evidence. */
+    @Volatile
+    var artifactManager: ArtifactManager? = null
+
     /**
      * Adaptive retry policy tracks per-agent-type failure rates across tasks.
      * When an agent type fails ≥65% of the time over ≥3 samples,
@@ -114,6 +120,49 @@ class ProductionAgentOrchestrator {
 
     private fun newOrchestrationScope(): CoroutineScope =
         CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Stores a bounded execution result as a project/task/run/step-owned
+     * artifact. This is intentionally best-effort for evidence only: a result
+     * remains available to the plan when private storage is unavailable, but no
+     * artifact is linked unless ArtifactManager and DurableTaskManager both
+     * validate the same active ownership coordinates.
+     */
+    private suspend fun persistStepArtifact(
+        plan: OrchestratorPlan,
+        task: OrchestratorTask,
+        result: TaskResult.Success
+    ) {
+        val projectId = plan.projectId ?: return
+        val manager = artifactManager ?: return
+        val durable = durableTaskManager ?: return
+        if (result.text.isBlank()) return
+        val artifact = runCatching {
+            manager.createArtifact(
+                sessionId = projectId,
+                name = "step-${task.id.take(48)}-result",
+                type = ArtifactManager.ArtifactType.TEXT,
+                content = result.text,
+                description = "Execution result evidence",
+                agentId = task.agentId.orEmpty(),
+                provenance = ArtifactProvenance(
+                    projectId = projectId,
+                    taskId = plan.id,
+                    runId = plan.id,
+                    stepId = task.id,
+                    toolId = result.toolsUsed.firstOrNull(),
+                    summary = "Agent step result"
+                )
+            )
+        }.getOrElse { error ->
+            Log.w(TAG, "Artifact evidence skipped task=${task.id} reasonType=${error::class.simpleName}")
+            return
+        }
+        if (!durable.linkArtifact(plan.id, artifact.id, plan.id, task.id)) {
+            manager.deleteArtifact(artifact.id)
+            Log.w(TAG, "Artifact evidence rejected by durable ownership task=${task.id}")
+        }
+    }
 
     // ── Active execution tracking ─────────────────────────────────────────────
 
@@ -267,6 +316,7 @@ class ProductionAgentOrchestrator {
                     when (result) {
                         is TaskResult.Success -> {
                             taskResults[task.id] = result.text
+                            persistStepArtifact(plan, task, result)
                             completedIds.add(task.id)
                             // Publish result to workspace for downstream agents
                             if (result.text.isNotBlank()) {

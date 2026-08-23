@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.airi.assistant.memory.dao.ArtifactDao
 import com.airi.assistant.memory.entity.ArtifactEntity
+import com.airi.assistant.agent.durable.DurableTaskManager
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.CoroutineScope
@@ -16,6 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
+import java.security.MessageDigest
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -37,7 +39,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class ArtifactManager(
     private val context: Context,
-    private val artifactDao: ArtifactDao? = null
+    private val artifactDao: ArtifactDao? = null,
+    private val durableTaskManager: DurableTaskManager? = null
 ) {
     private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -71,6 +74,18 @@ class ArtifactManager(
     data class Artifact(
         val id:          String = UUID.randomUUID().toString().take(8),
         val sessionId:   String,
+        /** Project owner. Legacy records normalize to their session ID. */
+        val projectId:   String = sessionId,
+        /** Optional durable execution owner; task implies matching run and step. */
+        val taskId:      String? = null,
+        val runId:       String? = null,
+        val stepId:      String? = null,
+        /** Bounded identifiers, not raw tool/model requests or provider payloads. */
+        val toolId:      String? = null,
+        val modelId:     String? = null,
+        val provenanceSummary: String = "",
+        /** SHA-256 of written content, used only for integrity/evidence comparison. */
+        val contentHash: String = "",
         val name:        String,
         val type:        ArtifactType,
         val filePath:    String,
@@ -96,8 +111,10 @@ class ArtifactManager(
         type:        ArtifactType,
         content:     String,
         description: String = "",
-        agentId:     String = ""
+        agentId:     String = "",
+        provenance: ArtifactProvenance = ArtifactProvenance(projectId = sessionId)
     ): Artifact = withContext(Dispatchers.IO) {
+        val validatedProvenance = validateProvenance(sessionId, provenance)
         val id      = UUID.randomUUID().toString().take(8)
         val dir     = File(context.filesDir, "workspace/artifacts/$sessionId").also { it.mkdirs() }
         val safeName = safeArtifactName(name)
@@ -107,6 +124,14 @@ class ArtifactManager(
         val artifact = Artifact(
             id             = id,
             sessionId      = sessionId,
+            projectId      = validatedProvenance.projectId,
+            taskId         = validatedProvenance.taskId,
+            runId          = validatedProvenance.runId,
+            stepId         = validatedProvenance.stepId,
+            toolId         = validatedProvenance.toolId,
+            modelId        = validatedProvenance.modelId,
+            provenanceSummary = validatedProvenance.summary,
+            contentHash    = sha256(content),
             name           = safeName,
             type           = type,
             filePath       = file.absolutePath,
@@ -151,6 +176,18 @@ class ArtifactManager(
 
     fun forSession(sessionId: String): List<Artifact> =
         artifacts.values.filter { it.sessionId == sessionId }.sortedByDescending { it.updatedAtMs }
+
+    /** Project-scoped read boundary. Callers must not use an ID alone across projects. */
+    fun forProject(projectId: String): List<Artifact> =
+        artifacts.values.filter { it.projectId == projectId }.sortedByDescending { it.updatedAtMs }
+
+    fun getArtifactForProject(id: String, projectId: String): Artifact? =
+        artifacts[id]?.takeIf { it.projectId == projectId }
+
+    suspend fun readContentForProject(id: String, projectId: String): String? = withContext(Dispatchers.IO) {
+        val artifact = getArtifactForProject(id, projectId) ?: return@withContext null
+        runCatching { File(artifact.filePath).readText(Charsets.UTF_8) }.getOrNull()
+    }
 
     suspend fun readContent(id: String): String? = withContext(Dispatchers.IO) {
         val artifact = artifacts[id] ?: return@withContext null
@@ -248,6 +285,33 @@ class ArtifactManager(
         }.onFailure { e -> Log.w(TAG, "loadPersistedArtifacts failed: ${e.message}") }
     }
 
+    /**
+     * Enforces project and durable task ownership before any artifact file is
+     * written. Unscoped legacy artifacts remain supported only when their
+     * session/project identity is identical.
+     */
+    private fun validateProvenance(sessionId: String, provenance: ArtifactProvenance): ArtifactProvenance {
+        require(provenance.isWellFormed()) { "Artifact provenance is malformed or contains sensitive metadata" }
+        require(provenance.projectId == sessionId) { "Artifact project must match its active workspace session" }
+        val taskId = provenance.taskId ?: return provenance
+        val task = durableTaskManager?.getTask(taskId)
+            ?: throw IllegalArgumentException("Task-owned artifact requires an active durable task")
+        require(task.projectId == provenance.projectId) { "Artifact task does not belong to project" }
+        require(task.currentRunId == provenance.runId) { "Artifact run does not match active task run" }
+        require(
+            task.plan.any { step ->
+                step.id == provenance.stepId &&
+                    step.runId == provenance.runId &&
+                    step.status == com.airi.assistant.agent.durable.TaskStepStatus.RUNNING
+            }
+        ) { "Artifact step does not match an active task step" }
+        return provenance
+    }
+
+    private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString("") { byte -> "%02x".format(byte) }
+
     private fun historyDirectory(artifact: Artifact): File =
         File(File(artifact.filePath).parentFile, ".history/${artifact.id}")
 
@@ -271,6 +335,14 @@ class ArtifactManager(
     private fun Artifact.toEntity() = ArtifactEntity(
         id             = id,
         sessionId      = sessionId,
+        projectId      = projectId,
+        taskId         = taskId,
+        runId          = runId,
+        stepId         = stepId,
+        toolId         = toolId,
+        modelId        = modelId,
+        provenanceSummary = provenanceSummary,
+        contentHash    = contentHash,
         name           = name,
         typeName       = type.name,
         filePath       = filePath,
@@ -286,6 +358,14 @@ class ArtifactManager(
     private fun ArtifactEntity.toArtifact() = Artifact(
         id             = id,
         sessionId      = sessionId,
+        projectId      = projectId.ifBlank { sessionId },
+        taskId         = taskId,
+        runId          = runId,
+        stepId         = stepId,
+        toolId         = toolId,
+        modelId        = modelId,
+        provenanceSummary = provenanceSummary,
+        contentHash    = contentHash,
         name           = name,
         type           = runCatching { ArtifactType.valueOf(typeName) }.getOrDefault(ArtifactType.UNKNOWN),
         filePath       = filePath,

@@ -1211,4 +1211,14 @@
     <string name="active_work_stop_message">Esto cancela planes de agentes en ejecución, tareas duraderas, tus tareas programadas y el comando actual de la terminal. No cancela acciones de conectores o del navegador que ya estén en curso.</string>
     <string name="active_work_stop_confirm">Detener trabajo activo</string>
     <string name="active_work_stop_summary">Se cancelaron %1$d tareas duraderas, %2$d tareas programadas y %3$d comandos de terminal.</string>
+    <!-- Centro de confianza en vivo -->
+    <string name="trust_center_tab">Confianza (%1$d)</string>
+    <string name="trust_center_title">Centro de confianza de AIRI</string>
+    <string name="trust_center_summary">%1$d solicitud(es) necesita(n) tu decisión. AIRI solo muestra acciones con un registro de aprobación activo.</string>
+    <string name="trust_center_no_requests">No hay solicitudes de confianza activas</string>
+    <string name="trust_center_mission_requests">Solicitudes de la misión</string>
+    <string name="trust_center_runtime_requests">Otras solicitudes de ejecución</string>
+    <string name="trust_center_unscoped_request">Solicitud de ejecución actual</string>
+    <string name="trust_center_action">Acción: %1$s</string>
+    <string name="trust_center_execution_scope">Ejecución: %1$s · Paso: %2$s</string>
 </resources>

@@ -40,6 +40,8 @@ connectivity = read('app/src/main/java/com/airi/assistant/execution/network/Conn
 cloud_errors = read('app/src/main/java/com/airi/assistant/execution/cloud/CloudErrorMapper.kt')
 retry_policy = read('app/src/main/java/com/airi/assistant/execution/cloud/RetryPolicy.kt')
 production_orchestrator = read('app/src/main/java/com/airi/assistant/agent/orchestrator/ProductionAgentOrchestrator.kt')
+agent_tasks_screen = read('app/src/main/java/com/airi/assistant/ui/screens/AgentTasksScreen.kt')
+permission_governance = read('app/src/main/java/com/airi/assistant/security/PermissionGovernanceLayer.kt')
 
 check('Generation ownership and cleanup', 'activeGenerationId' in chat_vm and 'finishGeneration(generationId)' in chat_vm, 'ViewModel owns and clears a generation id.')
 check('Backend cancellation barrier', 'throw generationCancelled("during privacy fallback")' in hybrid and 'generationGate.accepts(genId)' in hybrid and 'fun accepts(candidateGenerationId: Long)' in generation_gate, 'Callbacks are gated after cancellation and generation changes.')
@@ -70,6 +72,7 @@ check('Validated connectivity for cloud routing', 'trySend(hasInternet(cm))' in 
 check('Cloud error response redaction', 'body.take(' not in cloud_errors and 'Provider rejected the request (HTTP 400)' in cloud_errors and 'Provider request failed (HTTP $httpCode)' in cloud_errors, 'Cloud response bodies remain local classification input and never become diagnostics or UI messages.')
 check('Retry diagnostics redaction', '.error.take(' not in retry_policy and 'type=${failure.errorType}' in retry_policy, 'Retry logs record normalized error type and delay, not provider error text.')
 check('Emergency orchestration continuity', 'val executionScope = orchestrationScope' in production_orchestrator and 'while (remaining.isNotEmpty() && executionScope.isActive)' in production_orchestrator and 'orchestrationScope = newOrchestrationScope()' in production_orchestrator, 'Emergency cancellation leaves each active plan cancelled while future plans receive a fresh scope.')
+check('Live Trust Center approval bridge', 'pendingApprovals.collectAsState()' in agent_tasks_screen and 'TrustCenterContent(' in agent_tasks_screen and 'permissionGovernance.approveAction(approvalId, scope)' in agent_tasks_screen and 'permissionGovernance.denyAction(approvalId)' in agent_tasks_screen and 'fun requestApproval(' in permission_governance, 'Trust Center combines live governance requests and durable task approvals, then returns decisions through the governance layer.')
 for commercial_doc in (
     'docs/architecture/OVERVIEW.md',
     'docs/security/THREAT_MODEL.md',

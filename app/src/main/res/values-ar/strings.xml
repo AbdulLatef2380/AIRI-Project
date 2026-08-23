@@ -1442,4 +1442,14 @@
     <string name="active_work_stop_message">سيُلغي هذا خطط الوكيل والمهام الدائمة والمهام المجدولة التي أنشأتها والأمر الجاري في الطرفية. لا يلغي إجراءات الموصلات أو المتصفح التي بدأت بالفعل.</string>
     <string name="active_work_stop_confirm">إيقاف العمل النشط</string>
     <string name="active_work_stop_summary">أُلغيت %1$d مهام دائمة و%2$d مهام مجدولة و%3$d أوامر طرفية.</string>
+    <!-- مركز الثقة الحي -->
+    <string name="trust_center_tab">الثقة (%1$d)</string>
+    <string name="trust_center_title">مركز ثقة AIRI</string>
+    <string name="trust_center_summary">هناك %1$d طلباً يحتاج إلى قرارك. يعرض AIRI الإجراءات التي تملك سجل موافقة حي فقط.</string>
+    <string name="trust_center_no_requests">لا توجد طلبات ثقة نشطة</string>
+    <string name="trust_center_mission_requests">طلبات المهمة</string>
+    <string name="trust_center_runtime_requests">طلبات تشغيل أخرى</string>
+    <string name="trust_center_unscoped_request">طلب التشغيل الحالي</string>
+    <string name="trust_center_action">الإجراء: %1$s</string>
+    <string name="trust_center_execution_scope">التشغيل: %1$s · الخطوة: %2$s</string>
 </resources>

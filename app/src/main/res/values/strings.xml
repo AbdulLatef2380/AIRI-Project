@@ -1543,4 +1543,14 @@
     <string name="active_work_stop_message">This cancels running agent plans, durable tasks, your scheduled jobs, and the current terminal command. It does not cancel connector or browser actions already in flight.</string>
     <string name="active_work_stop_confirm">Stop active work</string>
     <string name="active_work_stop_summary">Cancelled %1$d durable tasks, %2$d scheduled jobs, and %3$d terminal commands.</string>
+    <!-- Live Trust Center -->
+    <string name="trust_center_tab">Trust (%1$d)</string>
+    <string name="trust_center_title">AIRI Trust Center</string>
+    <string name="trust_center_summary">%1$d request(s) need your decision. AIRI only shows actions that have a live approval record.</string>
+    <string name="trust_center_no_requests">No active trust requests</string>
+    <string name="trust_center_mission_requests">Mission requests</string>
+    <string name="trust_center_runtime_requests">Other runtime requests</string>
+    <string name="trust_center_unscoped_request">Current runtime request</string>
+    <string name="trust_center_action">Action: %1$s</string>
+    <string name="trust_center_execution_scope">Run: %1$s · Step: %2$s</string>
 </resources>

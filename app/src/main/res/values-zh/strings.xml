@@ -1211,4 +1211,14 @@
     <string name="active_work_stop_message">这会取消正在运行的智能体计划、持久任务、你创建的计划任务以及当前终端命令。它不会取消已在进行的连接器或浏览器操作。</string>
     <string name="active_work_stop_confirm">停止活动工作</string>
     <string name="active_work_stop_summary">已取消 %1$d 个持久任务、%2$d 个计划任务和 %3$d 条终端命令。</string>
+    <!-- 实时信任中心 -->
+    <string name="trust_center_tab">信任（%1$d）</string>
+    <string name="trust_center_title">AIRI 信任中心</string>
+    <string name="trust_center_summary">有 %1$d 项请求需要你决定。AIRI 仅显示具有实时审批记录的操作。</string>
+    <string name="trust_center_no_requests">没有活动的信任请求</string>
+    <string name="trust_center_mission_requests">任务请求</string>
+    <string name="trust_center_runtime_requests">其他运行时请求</string>
+    <string name="trust_center_unscoped_request">当前运行时请求</string>
+    <string name="trust_center_action">操作：%1$s</string>
+    <string name="trust_center_execution_scope">运行：%1$s · 步骤：%2$s</string>
 </resources>

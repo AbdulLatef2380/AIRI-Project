@@ -70,12 +70,20 @@ fun AgentTasksScreen(
     val orchestrator = remember { ServiceLocator.scheduledJobOrchestrator }
     val durableTaskManager = remember { ServiceLocator.durableTaskManager }
     val activeWorkStopController = remember { ServiceLocator.activeWorkStopController }
+    val permissionGovernance = remember { ServiceLocator.permissionGovernanceLayer }
     val durableTasks by durableTaskManager.tasks.collectAsState()
+    val liveApprovals by permissionGovernance.pendingApprovals.collectAsState()
     val taskApprovals = remember(durableTasks) {
         durableTasks.flatMap { task ->
             task.approvals.map { approval -> task to approval }
         }.filter { (_, approval) -> approval.status.name == "PENDING" }
     }
+
+    val taskApprovalIds = remember(taskApprovals) { taskApprovals.mapTo(mutableSetOf()) { (_, approval) -> approval.id } }
+    val unboundLiveApprovals = remember(liveApprovals, taskApprovalIds) {
+        liveApprovals.filterNot { it.id in taskApprovalIds }
+    }
+    val trustRequestCount = taskApprovals.size + unboundLiveApprovals.size
 
     var selectedTab    by remember { mutableStateOf(0) }
     var showAddDialog  by remember { mutableStateOf(false) }
@@ -161,7 +169,7 @@ fun AgentTasksScreen(
                     modifier = Modifier.weight(1f)) { selectedTab = 0 }
                 TaskTab(label = stringResource(R.string.execution_center_tab_runs, durableTasks.size), isSelected = selectedTab == 1,
                     modifier = Modifier.weight(1f)) { selectedTab = 1 }
-                TaskTab(label = stringResource(R.string.execution_center_tab_approvals, taskApprovals.size), isSelected = selectedTab == 2,
+                TaskTab(label = stringResource(R.string.trust_center_tab, trustRequestCount), isSelected = selectedTab == 2,
                     modifier = Modifier.weight(1f)) { selectedTab = 2 }
             }
 
@@ -177,13 +185,14 @@ fun AgentTasksScreen(
                     tasks = durableTasks,
                     onCancel = { taskId -> durableTaskManager.cancel(taskId) }
                 )
-                else -> ApprovalCenterContent(
-                    approvals = taskApprovals,
+                else -> TrustCenterContent(
+                    taskApprovals = taskApprovals,
+                    unboundLiveApprovals = unboundLiveApprovals,
                     onDecision = { approvalId, scope, approved ->
                         if (approved) {
-                            ServiceLocator.permissionGovernanceLayer.approveAction(approvalId, scope)
+                            permissionGovernance.approveAction(approvalId, scope)
                         } else {
-                            ServiceLocator.permissionGovernanceLayer.denyAction(approvalId)
+                            permissionGovernance.denyAction(approvalId)
                         }
                     }
                 )
@@ -372,14 +381,15 @@ private fun TimelineLine(event: TaskTimelineEvent) {
 }
 
 @Composable
-private fun ApprovalCenterContent(
-    approvals: List<Pair<DurableTask, TaskApproval>>,
+private fun TrustCenterContent(
+    taskApprovals: List<Pair<DurableTask, TaskApproval>>,
+    unboundLiveApprovals: List<com.airi.assistant.security.PermissionGovernanceLayer.PendingApproval>,
     onDecision: (String, ApprovalGrantScope, Boolean) -> Unit
 ) {
-    if (approvals.isEmpty()) {
+    if (taskApprovals.isEmpty() && unboundLiveApprovals.isEmpty()) {
         EmptyCenterState(
             icon = Icons.Outlined.VerifiedUser,
-            message = stringResource(R.string.execution_center_no_approvals)
+            message = stringResource(R.string.trust_center_no_requests)
         )
         return
     }
@@ -388,32 +398,124 @@ private fun ApprovalCenterContent(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)
     ) {
-        items(approvals, key = { (_, approval) -> approval.id }) { (task, approval) ->
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = AIRIShapes.md,
-                color = AiriTheme.surface,
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB74D).copy(alpha = 0.3f))
-            ) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(task.title, color = AiriTheme.onBackground, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Text(approval.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
-                    Text(
-                        stringResource(R.string.execution_center_approval_risk, approval.riskLevel.lowercase()),
-                        color = Color(0xFFFFB74D),
-                        fontSize = 11.sp
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        TextButton(onClick = { onDecision(approval.id, ApprovalGrantScope.ONCE, true) }) {
-                            Text(stringResource(R.string.execution_center_approve_once), color = CosmicAccent)
-                        }
-                        TextButton(onClick = { onDecision(approval.id, ApprovalGrantScope.TASK, true) }) {
-                            Text(stringResource(R.string.execution_center_approve_task), color = CosmicAccent)
-                        }
-                        TextButton(onClick = { onDecision(approval.id, ApprovalGrantScope.ONCE, false) }) {
-                            Text(stringResource(R.string.execution_center_deny), color = Color(0xFFFF6B6B))
-                        }
-                    }
+        item {
+            TrustCenterHeader(requestCount = taskApprovals.size + unboundLiveApprovals.size)
+        }
+        if (taskApprovals.isNotEmpty()) {
+            item { TrustSectionLabel(stringResource(R.string.trust_center_mission_requests)) }
+            items(taskApprovals, key = { (_, approval) -> approval.id }) { (task, approval) ->
+                TrustRequestCard(
+                    title = task.title,
+                    action = approval.action,
+                    description = approval.description,
+                    riskLevel = approval.riskLevel,
+                    runId = approval.runId,
+                    stepId = approval.stepId,
+                    approvalId = approval.id,
+                    onDecision = onDecision
+                )
+            }
+        }
+        if (unboundLiveApprovals.isNotEmpty()) {
+            item { TrustSectionLabel(stringResource(R.string.trust_center_runtime_requests)) }
+            items(unboundLiveApprovals, key = { it.id }) { approval ->
+                TrustRequestCard(
+                    title = stringResource(R.string.trust_center_unscoped_request),
+                    action = approval.action,
+                    description = approval.description,
+                    riskLevel = approval.riskLevel.name,
+                    runId = approval.runId,
+                    stepId = approval.stepId,
+                    approvalId = approval.id,
+                    onDecision = onDecision
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrustCenterHeader(requestCount: Int) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = AIRIShapes.md,
+        color = AiriTheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, CosmicAccent.copy(alpha = 0.28f))
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(R.string.trust_center_title), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
+            Text(
+                stringResource(R.string.trust_center_summary, requestCount),
+                color = AiriTheme.onSurfaceVariant,
+                fontSize = 12.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun TrustSectionLabel(text: String) {
+    Text(
+        text = text,
+        color = CosmicAccent,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(top = 4.dp)
+    )
+}
+
+@Composable
+private fun TrustRequestCard(
+    title: String,
+    action: String,
+    description: String,
+    riskLevel: String,
+    runId: String?,
+    stepId: String?,
+    approvalId: String,
+    onDecision: (String, ApprovalGrantScope, Boolean) -> Unit
+) {
+    val riskColor = when (riskLevel.uppercase()) {
+        "CRITICAL" -> Color(0xFFFF5252)
+        "HIGH" -> Color(0xFFFF8A65)
+        "MEDIUM" -> Color(0xFFFFB74D)
+        else -> Color(0xFF81C784)
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = AIRIShapes.md,
+        color = AiriTheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, riskColor.copy(alpha = 0.35f))
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, color = AiriTheme.onBackground, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                stringResource(R.string.trust_center_action, action),
+                color = AiriTheme.onSurfaceVariant,
+                fontSize = 12.sp
+            )
+            Text(description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+            Text(
+                stringResource(R.string.execution_center_approval_risk, riskLevel.lowercase()),
+                color = riskColor,
+                fontSize = 11.sp
+            )
+            if (runId != null || stepId != null) {
+                Text(
+                    stringResource(R.string.trust_center_execution_scope, runId ?: "—", stepId ?: "—"),
+                    color = AiriTheme.onSurfaceVariant.copy(alpha = 0.82f),
+                    fontSize = 11.sp
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TextButton(onClick = { onDecision(approvalId, ApprovalGrantScope.ONCE, true) }) {
+                    Text(stringResource(R.string.execution_center_approve_once), color = CosmicAccent)
+                }
+                TextButton(onClick = { onDecision(approvalId, ApprovalGrantScope.TASK, true) }) {
+                    Text(stringResource(R.string.execution_center_approve_task), color = CosmicAccent)
+                }
+                TextButton(onClick = { onDecision(approvalId, ApprovalGrantScope.ONCE, false) }) {
+                    Text(stringResource(R.string.execution_center_deny), color = Color(0xFFFF6B6B))
                 }
             }
         }

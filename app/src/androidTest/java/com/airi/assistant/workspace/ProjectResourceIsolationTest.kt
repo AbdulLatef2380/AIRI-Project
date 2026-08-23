@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.airi.assistant.knowledge.ProjectKnowledgeManager
 import com.airi.assistant.media.MediaLibrary
+import com.airi.assistant.memory.repository.MemoryManager
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -19,7 +20,7 @@ class ProjectResourceIsolationTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun filesKnowledgeAndArtifactsNeverCrossProjectBoundary() = runBlocking {
+    fun projectResourcesNeverCrossProjectBoundary() = runBlocking {
         val suffix = UUID.randomUUID().toString().take(8)
         val projectA = "isolation-a-$suffix"
         val projectB = "isolation-b-$suffix"
@@ -29,6 +30,8 @@ class ProjectResourceIsolationTest {
         }
         knowledge = ProjectKnowledgeManager(context, files)
         val artifacts = ArtifactManager(context)
+        val memory = MemoryManager(context)
+        val memorySession = "memory-$suffix"
 
         val importedA = files.importFromBytes(
             projectId = projectA,
@@ -59,6 +62,21 @@ class ProjectResourceIsolationTest {
         assertEquals(ProjectFileManager.IndexState.NOT_REQUESTED, restoredA?.indexState)
         assertEquals(ProjectKnowledgeManager.IndexStatus.INDEXED, knowledge.indexProjectFile(importedA.file.id).status)
 
+        val storedMemory = memory.storeExplicitMemory(
+            MemoryManager.ExplicitMemoryRequest(
+                content = "memory-alpha-$suffix",
+                sessionId = memorySession,
+                projectId = projectA,
+                provenance = "Cross-project isolation fixture"
+            )
+        )
+        assertTrue(storedMemory is MemoryManager.ExplicitMemoryResult.Stored)
+        assertTrue(
+            memory.getScopedLongTermMemories(memorySession, projectId = projectA)
+                .any { entry -> entry.content == "memory-alpha-$suffix" }
+        )
+        assertTrue(memory.getScopedLongTermMemories(memorySession, projectId = projectB).isEmpty())
+
         val artifactA = artifacts.createArtifact(
             sessionId = projectA,
             name = "alpha-result",
@@ -88,5 +106,6 @@ class ProjectResourceIsolationTest {
         assertTrue(files.purge(importedB.file.id))
         artifacts.deleteArtifact(artifactA.id)
         artifacts.deleteArtifact(artifactB.id)
+        memory.forgetMemory((storedMemory as MemoryManager.ExplicitMemoryResult.Stored).memoryId)
     }
 }

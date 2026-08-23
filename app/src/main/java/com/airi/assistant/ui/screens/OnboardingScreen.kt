@@ -89,48 +89,13 @@ fun OnboardingScreen(
 
     val pages = remember {
         listOf(
-            OnboardingPage(
-                icon     = Icons.Outlined.Psychology,
-                title    = "Meet AIRI",
-                subtitle = "Your private, on-device AI assistant. AIRI chats, automates tasks, and acts for you — without sending your data to the cloud unless you choose to."
-            ),
-            OnboardingPage(
-                icon     = Icons.Outlined.Accessibility,
-                title    = "Enable Accessibility",
-                subtitle = "To click buttons, fill forms, and control apps on your behalf, AIRI needs Android Accessibility access. This stays local — AIRI never reads data it isn't acting on.",
-                permissionKey = "accessibility"
-            ),
-            OnboardingPage(
-                icon     = Icons.Outlined.Mic,
-                title    = "Voice Mode",
-                subtitle = "Speak naturally to AIRI. Microphone access powers hands-free voice commands and real-time voice conversations. You can skip this and use text only.",
-                permissionKey = "microphone"
-            ),
-            // : Notifications page — lets agent send task reminders and alerts
-            OnboardingPage(
-                icon     = Icons.Outlined.Notifications,
-                title    = "Stay Informed",
-                subtitle = "Allow notifications so AIRI can alert you when background tasks complete, reminders fire, or your agent needs attention. You can manage this in Settings anytime.",
-                permissionKey = "notifications"
-            ),
-            // : Calendar page — lets AIRI read/create events via CalendarTool
-            OnboardingPage(
-                icon     = Icons.Outlined.CalendarMonth,
-                title    = "Calendar Access",
-                subtitle = "AIRI can read your schedule and create events when you ask. Calendar access is optional — you can skip this and grant it later in Settings.",
-                permissionKey = "calendar"
-            ),
-            OnboardingPage(
-                icon     = Icons.Outlined.Lock,
-                title    = "Your Privacy",
-                subtitle = "AIRI runs fully on-device by default — your conversations never leave your phone. Cloud mode is optional and off by default. You control what runs where.",
-                permissionKey = "privacy"
-            ),
-            OnboardingPage(
-                icon     = Icons.Outlined.CheckCircle,
-                title    = "You're Ready",
-                subtitle = "Load an AI model, set your preferences, and start building your personal AI workflow. You can grant any skipped permissions later in Settings."
-            )
+            OnboardingPage(Icons.Outlined.Psychology, R.string.onboarding_welcome_title, R.string.onboarding_welcome_body),
+            OnboardingPage(Icons.Outlined.Accessibility, R.string.onboarding_accessibility_title, R.string.onboarding_accessibility_body, "accessibility"),
+            OnboardingPage(Icons.Outlined.Mic, R.string.onboarding_microphone_title, R.string.onboarding_microphone_body, "microphone"),
+            OnboardingPage(Icons.Outlined.Notifications, R.string.onboarding_notifications_title, R.string.onboarding_notifications_body, "notifications"),
+            OnboardingPage(Icons.Outlined.CalendarMonth, R.string.onboarding_calendar_title, R.string.onboarding_calendar_body, "calendar"),
+            OnboardingPage(Icons.Outlined.Lock, R.string.onboarding_privacy_title, R.string.onboarding_privacy_body, "privacy"),
+            OnboardingPage(Icons.Outlined.CheckCircle, R.string.onboarding_ready_title, R.string.onboarding_ready_body)
         )
     }
 
@@ -183,7 +148,7 @@ fun OnboardingScreen(
                 }
 
                 Text(
-                    text       = p.title,
+                    text       = stringResource(p.titleRes),
                     color      = AiriTheme.onBackground,
                     fontSize   = 28.sp,
                     fontWeight = FontWeight.ExtraBold,
@@ -192,7 +157,7 @@ fun OnboardingScreen(
                 )
 
                 Text(
-                    text      = p.subtitle,
+                    text      = stringResource(p.subtitleRes),
                     color     = AiriTheme.onSurfaceVariant,
                     fontSize  = 15.sp,
                     lineHeight = 23.sp,
@@ -253,7 +218,7 @@ fun OnboardingScreen(
                 )
             ) {
                 Text(
-                    text       = if (page < pages.lastIndex) "Continue" else "Get Started",
+                    text       = stringResource(if (page < pages.lastIndex) R.string.onboarding_continue else R.string.onboarding_get_started),
                     fontWeight = FontWeight.ExtraBold,
                     fontSize   = 16.sp
                 )
@@ -273,12 +238,9 @@ private fun AccessibilityPermissionCard(context: android.content.Context) {
     }
 
     PermissionCard(
-        title      = if (isEnabled.value) "Accessibility: Enabled " else "Accessibility: Not enabled",
-        body       = if (isEnabled.value)
-            "AIRI can control apps and automate tasks on your behalf."
-        else
-            "Open Settings → Accessibility → AIRI and enable the service. You can skip this and enable it later.",
-        buttonText = if (isEnabled.value) null else "Open Settings",
+        title      = stringResource(if (isEnabled.value) R.string.onboarding_accessibility_enabled else R.string.onboarding_accessibility_not_enabled),
+        body       = stringResource(if (isEnabled.value) R.string.onboarding_accessibility_enabled_body else R.string.onboarding_accessibility_not_enabled_body),
+        buttonText = if (isEnabled.value) null else stringResource(R.string.onboarding_open_settings),
         isGranted  = isEnabled.value,
         onClick    = {
             context.startActivity(
@@ -297,15 +259,9 @@ private fun MicrophonePermissionCard(
 ) {
     val granted = micState.status.isGranted
     PermissionCard(
-        title      = if (granted) "Microphone: Enabled " else "Microphone: Not enabled",
-        body       = if (granted)
-            "Voice mode is available. Speak to AIRI hands-free."
-        else
-            "Allow microphone access to use voice mode. Text mode works without it.",
-        buttonText = when {
-            granted -> null
-            else    -> "Grant Access"
-        },
+        title      = stringResource(if (granted) R.string.onboarding_microphone_enabled else R.string.onboarding_microphone_not_enabled),
+        body       = stringResource(if (granted) R.string.onboarding_microphone_enabled_body else R.string.onboarding_microphone_not_enabled_body),
+        buttonText = if (granted) null else stringResource(R.string.onboarding_grant_access),
         isGranted  = granted,
         onClick    = { micState.launchPermissionRequest() }
     )
@@ -321,10 +277,10 @@ private fun PrivacyExplanationCard() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        PrivacyRow("On-Device Mode", "All inference runs locally. Nothing leaves your device.")
-        PrivacyRow("Cloud Mode (optional)", "Enables faster cloud models. You choose when to activate it.")
-        PrivacyRow("Telemetry", "Disabled by default. Only enabled if you explicitly consent.")
-        PrivacyRow("Data Deletion", "All memory can be cleared at any time from Settings → Memory.")
+        PrivacyRow(stringResource(R.string.onboarding_privacy_local_title), stringResource(R.string.onboarding_privacy_local_body))
+        PrivacyRow(stringResource(R.string.onboarding_privacy_cloud_title), stringResource(R.string.onboarding_privacy_cloud_body))
+        PrivacyRow(stringResource(R.string.onboarding_privacy_telemetry_title), stringResource(R.string.onboarding_privacy_telemetry_body))
+        PrivacyRow(stringResource(R.string.onboarding_privacy_deletion_title), stringResource(R.string.onboarding_privacy_deletion_body))
     }
 }
 
@@ -381,12 +337,9 @@ private fun NotificationsPermissionCard(
     // On API < 33, notifications are granted at install time — show as enabled.
     val granted = permissionState?.status?.isGranted ?: true
     PermissionCard(
-        title      = if (granted) "Notifications: Enabled " else "Notifications: Not enabled",
-        body       = if (granted)
-            "AIRI can send you task alerts, reminders, and agent status updates."
-        else
-            "Allow notifications so AIRI can alert you when tasks finish or agents need your input. You can manage this in Settings anytime.",
-        buttonText = if (granted) null else "Grant Access",
+        title      = stringResource(if (granted) R.string.onboarding_notifications_enabled else R.string.onboarding_notifications_not_enabled),
+        body       = stringResource(if (granted) R.string.onboarding_notifications_enabled_body else R.string.onboarding_notifications_not_enabled_body),
+        buttonText = if (granted) null else stringResource(R.string.onboarding_grant_access),
         isGranted  = granted,
         onClick    = { permissionState?.launchPermissionRequest() }
     )
@@ -400,12 +353,9 @@ private fun CalendarPermissionCard(
 ) {
     val granted = permissionsState.allPermissionsGranted
     PermissionCard(
-        title      = if (granted) "Calendar: Enabled " else "Calendar: Not enabled",
-        body       = if (granted)
-            "AIRI can read your schedule and create events when you ask."
-        else
-            "Allow calendar access so AIRI can check your schedule, set reminders, and create events when you ask. Optional — skip to enable later.",
-        buttonText = if (granted) null else "Grant Access",
+        title      = stringResource(if (granted) R.string.onboarding_calendar_enabled else R.string.onboarding_calendar_not_enabled),
+        body       = stringResource(if (granted) R.string.onboarding_calendar_enabled_body else R.string.onboarding_calendar_not_enabled_body),
+        buttonText = if (granted) null else stringResource(R.string.onboarding_grant_access),
         isGranted  = granted,
         onClick    = { permissionsState.launchMultiplePermissionRequest() }
     )
@@ -437,7 +387,7 @@ private fun isAccessibilityEnabled(context: android.content.Context): Boolean = 
 
 private data class OnboardingPage(
     val icon:          ImageVector,
-    val title:         String,
-    val subtitle:      String,
+    val titleRes:      Int,
+    val subtitleRes:   Int,
     val permissionKey: String? = null
 )

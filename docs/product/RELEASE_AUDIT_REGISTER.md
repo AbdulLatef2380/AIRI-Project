@@ -23,6 +23,7 @@
 | R8 entry point | قاعدة ProGuard تحتفظ الآن بـ`com.airi.assistant.app.AIRIApplication` المطابق للـmanifest. | `IMPLEMENTED` / `BUILD_VERIFIED` بالحارس وتجميع Kotlin. | إثبات shrinking في APK release مكتمل ما زال مطلوباً. |
 | النسخ الاحتياطي والتجميع الخفي | `allowBackup="false"` وCrashlytics/Analytics معطلة افتراضياً في manifest حتى consent runtime. | `IMPLEMENTED` ثابتاً. | تحقق device/consent/network قبل إطلاق المتجر. |
 | الصلاحيات | Camera وmicrophone وContacts وCalendar وexact alarm لكل منها مسارات مصدر/شاشات إذن مرئية. | `PARTIAL`: وجود مسار لا يكفي لقبول Play أو UX. | تدقيق runtime لكل permission، إزالة/تأجيل ما لا يدخل first-release journey، وإعداد Data safety/justifications. |
+| Onboarding والأذونات الاختيارية | صفحات البداية لا تطلب microphone أو notification أو calendar إلا من زر يمنحه المستخدم؛ `PermissionsScreen` يظل مسار المنح اللاحق. النصوص المحلية في ar/es/zh تطابق default ولا تدّعي تحكم وكيل عام؛ وصف Calendar يذكر proposal/review الصريح. | `IMPLEMENTED` / `BUILD_VERIFIED` بواسطة `:app:compileDebugKotlin` وحارس المصدر والتوطين الصارم. | تحقق device للرفض الدائم، العودة من Settings، قارئ الشاشة، والنتائج على API/device matrix؛ يظل قبول Play/Data safety خارجياً. |
 
 ## 3. الحواف الخارجية التي لا يمكن تزويرها
 
@@ -41,9 +42,9 @@
 ## 4. ترتيب الإصلاح التالي
 
 1. **مكتمل:** فصل سياسة شبكة debug عن release وإصلاح R8 entry point؛ اجتازا `compileDebugKotlin` وحارس النواة والتوطين.
-2. مراجعة manifest والصلاحيات مع مسارات runtime الفعلية، ومنع أي إعلان أو onboarding يوحي بسيطرة agent غير مملوكة.
-3. إعادة تشغيل release build وLint ضمن CI أو ذاكرة كافية؛ لا تكرر الضغط في sandbox الحالي.
-4. تنفيذ `RELEASE_DEVICE_AND_STORE_MATRIX.md` على أجهزة فعلية/CI وتسجيل الأدلة.
+2. **مكتمل:** جعل onboarding محلياً لكل اللغات، وإبقاء طلب microphone/notification/calendar خلف زر صريح مع مسار Settings لاحق، وإزالة ادعاء التحكم العام للوكيل.
+3. تنفيذ `RELEASE_DEVICE_AND_STORE_MATRIX.md` على أجهزة فعلية/CI لتدقيق الرفض والعودة من Settings والواجهة/قارئ الشاشة وتسجيل الأدلة.
+4. إعادة تشغيل release build وLint ضمن CI أو ذاكرة كافية؛ لا تكرر الضغط في sandbox الحالي.
 5. تجهيز release documentation وstore/legal gates بعد وجود artifact موقع ونتائج runtime.
 
 ## 5. تدقيق مسارات المنتج والخصوصية والاستمرارية
@@ -51,7 +52,8 @@
 | المسار المدقق | النتيجة | حالة الإطلاق |
 |---|---|---|
 | مؤشرات التنفيذ الناقص | لا توجد `TODO` أو `FIXME` أو `UnsupportedOperationException` في Kotlin الإنتاجي وفق المسح الثابت. حقول `placeholder` في الموارد هي placeholders إدخال أو أمثلة، لا نجاحات وهمية. | `BUILD_VERIFIED` للمسح فقط؛ لا يثبت اكتمال كل ميزة. |
-| التوطين | فحص `airi_localization_health.py --strict` أعاد `likely_untranslated_values=0` مع تكافؤ المفاتيح للغات الأربع. | `BUILD_VERIFIED`؛ يحتاج تحقق مرئي RTL/LTR وحجم خط/قارئ شاشة على جهاز. |
+| التوطين | فحص `airi_localization_health.py --strict` أعاد `likely_untranslated_values=0` مع تكافؤ المفاتيح للغات الأربع، ويشمل الآن صفحات Onboarding وحالات الأذونات. | `BUILD_VERIFIED`؛ يحتاج تحقق مرئي RTL/LTR وحجم خط/قارئ شاشة على جهاز. |
+| Onboarding والصلاحيات | لا تُطلق بطاقات microphone/notification/calendar طلباً عند الانتقال بين صفحات البداية؛ الطلب يقع فقط بعد ضغط المستخدم. تعرض كل لغة وصفاً يربط Calendar بالمراجعة الصريحة ويمنع ادعاء أن Accessibility يخول تحكم الوكيل العام. | `BUILD_VERIFIED`/`RUNTIME_VERIFICATION_PENDING`: البناء وحارس المصدر يؤكدان البنية، أما تجربة منح/رفض/Settings فتتطلب جهازاً. |
 | Calendar create | المسار المسموح في AgentLoop أصبح runtime typed يمر بمهمة/موافقة/evidence؛ `CalendarTool` القديم ما زال طبقة provider تستخدمها runtime المحلية ولا يجوز استدعاؤها مباشرة من dispatcher العام. | `IMPLEMENTED`/`RUNTIME_VERIFICATION_PENDING` وفق العقد؛ اختبار Calendar permission/provider على جهاز ما زال مطلوباً. |
 | browser، terminal، accessibility، alarms، skills، connector mutation | تبقى محظورة في AgentLoop غير المملوك بحسب العقد. وجود شاشات أو أدوات محلية لا يساوي تفويضاً لوكيل. | `PARTIAL` مقصود؛ لا توسع surface قبل typed ownership منفصل. |
 | Hotword | `HotwordService` يفتح نشاط AIRI نفسه عند اكتشاف wake word بعد cooldown، لا تطبيقاً خارجياً ولا أداة وكيل. | يحتاج تحقق runtime ومراجعة سلوك foreground/الإشعار/الإذن؛ لا يغير حظر AgentLoop. |

@@ -34,12 +34,16 @@
 | Provider/connector | مفاتيح حقيقية بموافقة المستخدم، OAuth redirect/consent، ومراقبة الأخطاء/الإلغاء/التعافي وفق كل مزود. |
 | تبنٍ تجاري | جلسات مستخدمين من persona المحددة، احتفاظ، ثقة في الموافقة، وإشارة دفع؛ لا يمكن استبدالها بعدد commits أو شاشات. |
 
+## 3.1 مصفوفة التنفيذ الخارجي
+
+`RELEASE_DEVICE_AND_STORE_MATRIX.md` هو المرجع التشغيلي لكل تحقق Android/device/store. يحدد لكل صف الإجراء والنتيجة المتوقعة والدليل المنقح المطلوب، ولا يغير أي حالة إلى نجاح من تلقاء نفسه.
+
 ## 4. ترتيب الإصلاح التالي
 
 1. **مكتمل:** فصل سياسة شبكة debug عن release وإصلاح R8 entry point؛ اجتازا `compileDebugKotlin` وحارس النواة والتوطين.
 2. مراجعة manifest والصلاحيات مع مسارات runtime الفعلية، ومنع أي إعلان أو onboarding يوحي بسيطرة agent غير مملوكة.
 3. إعادة تشغيل release build وLint ضمن CI أو ذاكرة كافية؛ لا تكرر الضغط في sandbox الحالي.
-4. تنفيذ instrumentation/device matrix وتسجيل الأدلة.
+4. تنفيذ `RELEASE_DEVICE_AND_STORE_MATRIX.md` على أجهزة فعلية/CI وتسجيل الأدلة.
 5. تجهيز release documentation وstore/legal gates بعد وجود artifact موقع ونتائج runtime.
 
 ## 5. تدقيق مسارات المنتج والخصوصية والاستمرارية

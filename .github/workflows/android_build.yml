@@ -3,11 +3,16 @@ name: AIRI Android CI
 on:
   push:
     branches: [ "**" ]
+  pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 75
     env:
       RELEASE_SIGNING_READY: ${{ secrets.KEYSTORE_BASE64 != '' && secrets.STORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
 
@@ -36,6 +41,12 @@ jobs:
 
     - name: Grant execute permission
       run: chmod +x gradlew .github/scripts/run-instrumentation.sh
+
+    - name: Verify source contracts and localization
+      run: |
+        python3 tools/verify_core_changes.py
+        python3 scripts/airi_localization_health.py --strict
+        git diff --check
 
     - name: Build and test shared core
       run: ./gradlew :core-domain:desktopTest :core-domain:compileDebugKotlinAndroid --stacktrace

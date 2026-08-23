@@ -426,6 +426,29 @@ class DurableTaskManager(private val context: Context) {
             continuation.invocation.idempotencyKey == idempotencyKey
     }
 
+    /**
+     * Validates that a connector execution context belongs to one persisted
+     * task/run/step in the declared project. It intentionally does not grant
+     * approval; side-effecting connectors still require their claimed
+     * continuation authorizer before invocation.
+     */
+    fun ownsConnectorExecution(
+        taskId: String,
+        missionId: String,
+        projectId: String,
+        runId: String,
+        stepId: String
+    ): Boolean {
+        val task = taskCache[taskId] ?: return false
+        return MissionKernel.ownsConnectorExecution(
+            task = task,
+            missionId = missionId,
+            projectId = projectId,
+            runId = runId,
+            stepId = stepId
+        )
+    }
+
     /** Completes the one-shot continuation after its claimed connector call returns. */
     @Synchronized
     fun finishApprovalContinuation(

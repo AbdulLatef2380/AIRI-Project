@@ -168,6 +168,24 @@ class DurableTaskProductKernelTest {
     }
 
     @Test
+    fun connectorExecutionOwnershipRequiresExactMissionProjectRunAndStep() {
+        val running = sampleTask().beginRun("run-secret", "collect", nowMs = 1_000L)
+
+        assertTrue(
+            MissionKernel.ownsConnectorExecution(
+                task = running,
+                missionId = "task-sample",
+                projectId = "project-a",
+                runId = "run-secret",
+                stepId = "collect"
+            )
+        )
+        assertFalse(MissionKernel.ownsConnectorExecution(running, "task-sample", "project-b", "run-secret", "collect"))
+        assertFalse(MissionKernel.ownsConnectorExecution(running, "task-sample", "project-a", "run-other", "collect"))
+        assertFalse(MissionKernel.ownsConnectorExecution(running, "task-sample", "project-a", "run-secret", "other-step"))
+    }
+
+    @Test
     fun artifactReferenceAttachesToTheRunningProjectStep() {
         val running = sampleTask()
             .beginRun("run-artifact", "collect", nowMs = 1_000L)

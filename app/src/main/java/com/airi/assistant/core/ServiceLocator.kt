@@ -241,6 +241,7 @@ object ServiceLocator {
                 llmProviders  = llmProviders,
                 secureStorage = secureStorage,
                 durableTaskManager = durableTaskManager,
+                secretVault = secretVault,
             )
             // GitHubConnector is now registered inside ConnectorBootstrap.installDefaults.
             // No duplicate registration needed here.

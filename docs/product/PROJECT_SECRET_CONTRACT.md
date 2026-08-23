@@ -21,6 +21,12 @@
 5. تبطل `revokeProjectSecret` كل capabilities المرتبطة بنفس namespace فوراً.
 6. لا تسجل القيمة ولا تدخل capability أو رسالة الرفض أي قيمة سرية.
 
+## أول مسار حي: GitHub
+
+عندما يصل `GitHubConnector` إلى `ConnectorInput.execution` يحمل `projectId` غير فارغاً، لا يقرأ connector من `ConnectorAuthManager` ولا يستخدم PAT عالمياً كبديل. يتحقق أولاً من `DurableTaskManager.ownsConnectorExecution` عبر مهمة محفوظة تطابق `taskId` و`missionId` و`projectId` و`runId` و`stepId`. بعد ذلك فقط يصدر capability أحادية الاستخدام للسر المنطقي `GITHUB_PAT` وبالنطاق `projectId + connectorId=github`، ويستهلكها داخل adapter أثناء HTTP request. لا يُحفظ raw PAT أو capability token في continuation أو `ConnectorInput.params` أو activity/timeline.
+
+يبقى `ConnectorAuthManager` لمسارات GitHub غير المرتبطة بمشروع، ومنها اختبار `connect()` والعمليات القديمة التي لا تحمل execution context. هذا ليس fallback لمسار مشروع: كل تنفيذ يحمل project context يفشل مغلقاً عند غياب السر المقيّد أو عدم تطابق ملكية المهمة.
+
 ## الدليل
 
 | الدليل | ما يثبته |
@@ -28,7 +34,9 @@
 | `SecretVaultTest.projectSecretCannotBeUsedAcrossProjectOrConnector` | Project B وconnector مختلف يُرفضان قبل الاستهلاك؛ Project A/connector الصحيح يستهلك مرة واحدة. |
 | `SecretVaultTest.revokingProjectSecretInvalidatesOutstandingCapability` | إبطال السر يزيل capability المعلقة. |
 | اختبارات broker الأساسية | binding للـagent/operation، الاستخدام الواحد، الإبطال، وعدم إرجاع قيمة raw عبر API. |
+| `DurableTaskProductKernelTest.connectorExecutionOwnershipRequiresExactMissionProjectRunAndStep` | لا يصدر مسار adapter مقيّد إلا بعد تطابق mission/project/run/step؛ ترفض الإحداثيات المخالفة. |
+| Kotlin compilation | `ServiceLocator` يمرر SecretVault إلى `ConnectorBootstrap` ثم `GitHubConnector`، ويستهلك adapter capability المشروع داخلياً. |
 
 ## الحدود المتبقية
 
-هذه الدفعة تغلق broker والنطاق الداخلي. لا تضيف شاشة إدارة أسرار مشروع ولا تخمّن `projectId` في provider adapters؛ يجب على كل connector/task runtime أن يمرر project/connector context الحقيقي قبل أن يبدأ باستهلاك project capability. إلى أن يربط adapter هذا السياق، لا يملك مساراً للوصول إلى secret مشروع، وهو fail-closed مقصود.
+GitHub هو adapter الحي الأول فقط. لا تضيف هذه الدفعة شاشة إدارة أسرار مشروع، ولا ترحّل Remote LLM أو Telegram أو Notion أو Google أو الصوت الحي؛ تظل هذه consumers على مساراتها الموروثة إلى أن تمرر project/connector context حقيقياً وتتبنى capability داخل adapter. لا يجوز لأي consumer جديد أن يخمّن `projectId` أو fallback من project scope إلى secret عالمي.

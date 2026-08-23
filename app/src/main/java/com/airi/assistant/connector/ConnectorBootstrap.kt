@@ -18,6 +18,7 @@ import com.airi.assistant.connector.mcp.NotionMcpConnector
 import com.airi.assistant.connector.system.SystemInfoConnector
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.voice.VoskVoiceBackend
+import com.airi.assistant.vault.SecretVault
 
 /**
  * Wires the full set of [Connector]s into a [ConnectorRegistry].
@@ -49,6 +50,7 @@ object ConnectorBootstrap {
         // falls back to ServiceLocator.secureStorage if null (AP-04 guarantee).
         secureStorage: com.airi.assistant.auth.SecureStorage? = null,
         durableTaskManager: com.airi.assistant.agent.durable.DurableTaskManager? = null,
+        secretVault: SecretVault? = null,
     ) {
         val storage = secureStorage ?: runCatching { ServiceLocator.secureStorage }.getOrNull()
 
@@ -73,7 +75,7 @@ object ConnectorBootstrap {
         registry.register(N8nConnector(authManager))
 
         // P1-7 / AP-06: First-class GitHubConnector — no legacy adapter fallback.
-        registry.register(GitHubConnector(authManager, durableTaskManager))
+        registry.register(GitHubConnector(authManager, durableTaskManager, secretVault))
 
         // B-20 / AP-06: TelegramConnector — first-class; legacy adapter removed.
         // AP-04 guarantees SecureStorage is always available; log and skip if not.

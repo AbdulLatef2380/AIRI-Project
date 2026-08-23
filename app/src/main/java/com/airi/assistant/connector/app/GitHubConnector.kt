@@ -7,6 +7,7 @@ import com.airi.assistant.agent.durable.DurableTaskManager
 import com.airi.assistant.agent.durable.ResumableConnectorInvocation
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.AgentActivityBus
+import com.airi.assistant.vault.SecretVault
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +20,8 @@ import java.net.URL
 
 class GitHubConnector(
     private val authManager: ConnectorAuthManager,
-    private val durableTaskManager: DurableTaskManager? = null
+    private val durableTaskManager: DurableTaskManager? = null,
+    private val secretVault: SecretVault? = null
 ) : Connector {
     private val TAG = "GitHubConnector"
     private val BASE = "https://api.github.com"
@@ -130,23 +132,99 @@ class GitHubConnector(
                 }
             }
         }
+        val execution = input.execution
+        if (!execution?.projectId.isNullOrBlank()) {
+            return@withContext executeWithProjectSecret(input, execution!!)
+        }
         val token = authManager.getCredential(id, "pat")
             ?: return@withContext ConnectorOutput.Failure("not_connected", "GitHub PAT not configured")
-        try {
-            val t0 = System.currentTimeMillis()
-            val result = when (input.action) {
-                "list_repos"   -> listRepos(token)
-                "list_issues"  -> listIssues(token, input.params["repo"] ?: return@withContext ConnectorOutput.Failure("missing_param", "repo required"))
-                "create_issue" -> createIssue(token, input.params["repo"] ?: return@withContext ConnectorOutput.Failure("missing_param", "repo required"), input.text, input.params["body"] ?: "")
-                "search_code"  -> searchCode(token, input.text, input.params["repo"])
-                "get_file"     -> getFile(token, input.params["repo"] ?: return@withContext ConnectorOutput.Failure("missing_param","repo required"), input.params["path"] ?: return@withContext ConnectorOutput.Failure("missing_param","path required"))
-                "list_prs"     -> listPRs(token, input.params["repo"] ?: return@withContext ConnectorOutput.Failure("missing_param","repo required"))
-                "status"       -> return@withContext ConnectorOutput.Success(_state.value.statusLine)
-                else           -> return@withContext ConnectorOutput.Failure("unknown_action", "Unknown action: ${input.action}")
-            }
-            AgentActivityBus.emit("GitHub: ${input.action}", ActivityCategory.CONNECTOR)
-            ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
-        } catch (e: Exception) { ConnectorOutput.Failure("api_error", e.message ?: "Error", retryable = true) }
+        executeWithToken(input, token)
+    }
+
+    /**
+     * A project execution never falls back to ConnectorAuthManager. The adapter
+     * issues and consumes a one-use, project/connector-bound vault capability
+     * only after the durable task/run/step coordinates match persisted state.
+     */
+    private fun executeWithProjectSecret(
+        input: ConnectorInput,
+        execution: ConnectorExecutionContext
+    ): ConnectorOutput {
+        val projectId = execution.projectId ?: return ConnectorOutput.Failure(
+            "project_secret_context_missing", "GitHub project secret requires a project execution context"
+        )
+        val manager = durableTaskManager ?: return ConnectorOutput.Failure(
+            "project_secret_runtime_unavailable", "GitHub project secret requires durable task ownership"
+        )
+        if (!execution.isComplete || !manager.ownsConnectorExecution(
+                taskId = execution.taskId,
+                missionId = execution.missionId,
+                projectId = projectId,
+                runId = execution.runId,
+                stepId = execution.stepId
+            )
+        ) {
+            return ConnectorOutput.Failure(
+                "project_secret_context_rejected",
+                "GitHub project secret does not match a persisted task run and step"
+            )
+        }
+        val vault = secretVault ?: return ConnectorOutput.Failure(
+            "project_secret_broker_unavailable", "GitHub project secret broker is unavailable"
+        )
+        val operation = "$id.${input.action}"
+        val capability = vault.issueCapability(
+            agentId = "connector.$id.${execution.taskId}",
+            keyName = GITHUB_PAT_SECRET_ID,
+            operation = operation,
+            authorizedByPolicy = true,
+            taskId = execution.taskId,
+            uses = 1,
+            projectId = projectId,
+            connectorId = id
+        ) ?: return ConnectorOutput.Failure(
+            "project_secret_missing", "No project-scoped GitHub credential is available for this task"
+        )
+        val result = vault.useProjectCapability(
+            token = capability.token,
+            agentId = "connector.$id.${execution.taskId}",
+            operation = operation,
+            projectId = projectId,
+            connectorId = id,
+            consumer = { token -> executeWithToken(input, token) }
+        )
+        return when (result.status) {
+            SecretVault.CapabilityStatus.CONSUMED -> result.value ?: ConnectorOutput.Failure(
+                "project_secret_consumer_failed", "GitHub project credential could not complete the request"
+            )
+            SecretVault.CapabilityStatus.MISSING_SECRET -> ConnectorOutput.Failure(
+                "project_secret_missing", "GitHub project credential is no longer available"
+            )
+            else -> ConnectorOutput.Failure(
+                "project_secret_denied", "GitHub project credential access was denied or expired"
+            )
+        }
+    }
+
+    /** Raw PAT remains within this adapter and is never returned to an agent or continuation. */
+    private fun executeWithToken(input: ConnectorInput, token: String): ConnectorOutput {
+        return try {
+        val t0 = System.currentTimeMillis()
+        val result = when (input.action) {
+            "list_repos" -> listRepos(token)
+            "list_issues" -> listIssues(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"))
+            "create_issue" -> createIssue(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.text, input.params["body"] ?: "")
+            "search_code" -> searchCode(token, input.text, input.params["repo"])
+            "get_file" -> getFile(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["path"] ?: return ConnectorOutput.Failure("missing_param", "path required"))
+            "list_prs" -> listPRs(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"))
+            "status" -> return ConnectorOutput.Success(_state.value.statusLine)
+            else -> return ConnectorOutput.Failure("unknown_action", "Unknown action: ${input.action}")
+        }
+        AgentActivityBus.emit("GitHub: ${input.action}", ActivityCategory.CONNECTOR)
+        ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
+    } catch (e: Exception) {
+        ConnectorOutput.Failure("api_error", e.message ?: "Error", retryable = true)
+    }
     }
 
     private fun listRepos(token: String): String {
@@ -221,4 +299,8 @@ class GitHubConnector(
     private fun apiGetArr(path: String, token: String): JSONArray { val c = open("$BASE$path", token); val b = c.inputStream.bufferedReader().readText(); c.disconnect(); return JSONArray(b) }
     private fun apiPost(path: String, token: String, json: String): JSONObject { val c = open("$BASE$path", token, "POST"); c.doOutput = true; c.outputStream.bufferedWriter().use { it.write(json) }; val b = c.inputStream.bufferedReader().readText(); c.disconnect(); return JSONObject(b) }
     private fun open(url: String, token: String, method: String = "GET") = (URL(url).openConnection() as HttpURLConnection).apply { requestMethod = method; connectTimeout = 10_000; readTimeout = 15_000; setRequestProperty("Authorization","Bearer $token"); setRequestProperty("Accept","application/vnd.github.v3+json"); setRequestProperty("Content-Type","application/json") }
+
+    private companion object {
+        const val GITHUB_PAT_SECRET_ID = "GITHUB_PAT"
+    }
 }

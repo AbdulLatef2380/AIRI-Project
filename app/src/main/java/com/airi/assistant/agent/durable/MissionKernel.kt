@@ -100,6 +100,27 @@ object MissionKernel {
     /** Denies a project-owned resource unless the active task explicitly owns that project. */
     fun canAccessProject(task: DurableTask, resourceProjectId: String?): Boolean =
         task.projectId != null && task.projectId == resourceProjectId
+
+    /**
+     * Pure connector execution boundary used before an adapter can request a
+     * project-bound secret. It verifies all persisted coordinates but does not
+     * imply approval for a side effect.
+     */
+    fun ownsConnectorExecution(
+        task: DurableTask,
+        missionId: String,
+        projectId: String,
+        runId: String,
+        stepId: String
+    ): Boolean {
+        val normalized = normalize(task)
+        return normalized.missionId == missionId && normalized.projectId == projectId &&
+            normalized.runs.any { run ->
+                run.id == runId && run.taskId == normalized.id &&
+                    run.missionId == missionId && run.projectId == projectId
+            } &&
+            normalized.plan.any { step -> step.id == stepId && step.runId == runId }
+    }
 }
 
 sealed class MissionOwnershipValidation {

@@ -194,11 +194,16 @@ fun AgentTasksScreen(
                         if (approved) {
                             if (permissionGovernance.approveAction(approvalId, approvalScope)) {
                                 approvalResumeScope.launch {
-                                    ServiceLocator.approvalContinuationRuntime.resume(approvalId)
+                                    val connectorResult = ServiceLocator.approvalContinuationRuntime.resume(approvalId)
+                                    if (connectorResult == null) {
+                                        ServiceLocator.projectFileEditRuntime.resume(approvalId)
+                                    }
                                 }
                             }
                         } else {
-                            permissionGovernance.denyAction(approvalId)
+                            if (permissionGovernance.denyAction(approvalId)) {
+                                ServiceLocator.projectFileEditRuntime.reconcileApproval(approvalId)
+                            }
                         }
                     }
                 )

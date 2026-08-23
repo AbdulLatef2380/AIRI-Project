@@ -91,6 +91,22 @@ class ProjectFileManager(
         data class Failed(val reason: String) : ImportResult()
     }
 
+    /** Private backup reference returned only to the project-file edit runtime. */
+    class TextRevisionBackup internal constructor(
+        val revisionId: String,
+        val projectId: String,
+        val fileId: String,
+        val contentHash: String,
+        internal val privatePath: String
+    )
+
+    sealed class TextRevisionResult {
+        data class Applied(val file: ProjectFile, val backup: TextRevisionBackup) : TextRevisionResult()
+        data class Conflict(val reason: String) : TextRevisionResult()
+        data class Rejected(val reason: String) : TextRevisionResult()
+        data class Failed(val reason: String) : TextRevisionResult()
+    }
+
     private val gson = Gson()
     private val store = ConcurrentHashMap<String, ProjectFile>()
     private val indexFile = File(context.filesDir, "workspace/project-files/index.json")
@@ -182,6 +198,117 @@ class ProjectFileManager(
             }
         }.getOrNull()
     }
+
+    /** Reads a bounded managed text file only after a project-owned edit proposal is requested. */
+    suspend fun readTextForEdit(projectId: String, id: String): String? = withContext(Dispatchers.IO) {
+        val file = store[id] ?: return@withContext null
+        if (!isEditableTextFile(file, projectId)) return@withContext null
+        runCatching {
+            File(file.storagePath).inputStream().bufferedReader(Charsets.UTF_8).use { reader ->
+                val chars = CharArray(MAX_EDITABLE_CHARS + 1)
+                val count = reader.read(chars)
+                if (count !in 0..MAX_EDITABLE_CHARS) null else String(chars, 0, count)
+            }
+        }.getOrNull()
+    }
+
+    /**
+     * Replaces one managed textual file only when its project and expected content
+     * hash still match. Candidate bytes are written to a sibling temporary file
+     * and renamed in place; a failed rename leaves the active source untouched.
+     */
+    suspend fun applyTextRevision(
+        projectId: String,
+        id: String,
+        expectedContentHash: String,
+        candidateText: String
+    ): TextRevisionResult = withContext(Dispatchers.IO) {
+        val current = store[id] ?: return@withContext TextRevisionResult.Rejected("Project file is unavailable")
+        if (!isEditableTextFile(current, projectId)) {
+            return@withContext TextRevisionResult.Rejected("Only ready managed text files can be edited")
+        }
+        val candidateBytes = candidateText.toByteArray(Charsets.UTF_8)
+        if (candidateBytes.size > MAX_EDITABLE_BYTES) {
+            return@withContext TextRevisionResult.Rejected("Edited content exceeds the local edit limit")
+        }
+        val source = File(current.storagePath)
+        val currentHash = sha256(source) ?: return@withContext TextRevisionResult.Failed("Managed file cannot be read")
+        if (currentHash != expectedContentHash) {
+            return@withContext TextRevisionResult.Conflict("The project file changed before approval")
+        }
+        val candidateHash = sha256(candidateBytes)
+        if (candidateHash == currentHash) {
+            return@withContext TextRevisionResult.Rejected("The proposed content does not change the file")
+        }
+
+        val backup = createTextRevisionBackup(current, source, currentHash)
+            ?: return@withContext TextRevisionResult.Failed("Could not create a private recovery copy")
+        val temp = File(source.parentFile, ".${source.name}.${UUID.randomUUID()}.edit")
+        val writeSucceeded = runCatching {
+            FileOutputStream(temp).use { output ->
+                output.write(candidateBytes)
+                output.fd.sync()
+            }
+            temp.renameTo(source)
+        }.getOrDefault(false)
+        if (!writeSucceeded) {
+            temp.delete()
+            return@withContext TextRevisionResult.Failed("Atomic project-file replacement failed")
+        }
+
+        val updated = current.copy(
+            sizeBytes = candidateBytes.size.toLong(),
+            sha256 = candidateHash,
+            modifiedAtMs = System.currentTimeMillis(),
+            extractionState = ExtractionState.EXTRACTED,
+            previewText = candidateText.take(MAX_EXTRACTED_CHARS).trim(),
+            indexState = IndexState.NOT_REQUESTED,
+            error = ""
+        )
+        store[id] = updated
+        publish()
+        if (!persistIndex()) {
+            val restored = restoreTextRevisionInternal(current, backup)
+            return@withContext if (restored) {
+                TextRevisionResult.Failed("Project-file metadata could not be persisted; the prior content was restored")
+            } else {
+                TextRevisionResult.Failed("Project-file metadata could not be persisted after replacement")
+            }
+        }
+        onFileDeleted(current)
+        TextRevisionResult.Applied(updated, backup)
+    }
+
+    /** Restores a private revision only when the currently active file still matches the caller's expected hash. */
+    suspend fun restoreTextRevision(
+        projectId: String,
+        id: String,
+        expectedCurrentHash: String,
+        backup: TextRevisionBackup
+    ): TextRevisionResult = withContext(Dispatchers.IO) {
+        val current = store[id] ?: return@withContext TextRevisionResult.Rejected("Project file is unavailable")
+        if (!isEditableTextFile(current, projectId) || backup.projectId != projectId || backup.fileId != id) {
+            return@withContext TextRevisionResult.Rejected("Project file recovery ownership check failed")
+        }
+        val source = File(current.storagePath)
+        val activeHash = sha256(source) ?: return@withContext TextRevisionResult.Failed("Managed file cannot be read")
+        if (activeHash != expectedCurrentHash) {
+            return@withContext TextRevisionResult.Conflict("The project file changed before recovery")
+        }
+        if (!restoreTextRevisionInternal(current, backup)) {
+            return@withContext TextRevisionResult.Failed("Project-file recovery failed")
+        }
+        store[id]?.let { restored ->
+            onFileDeleted(current)
+            TextRevisionResult.Applied(restored, backup)
+        } ?: TextRevisionResult.Failed("Project-file recovery metadata is unavailable")
+    }
+
+    /** Removes a private historical backup after the editor's bounded retention policy expires. */
+    fun discardTextRevisionBackup(backup: TextRevisionBackup): Boolean = runCatching {
+        val path = File(backup.privatePath)
+        path.startsWith(textRevisionDirectory(backup.projectId)) && (!path.exists() || path.delete())
+    }.getOrDefault(false)
 
     /** Called only by a real knowledge-indexing runtime. */
     fun markIndexed(id: String, success: Boolean, error: String = ""): ProjectFile? = update(id) { current ->
@@ -422,6 +549,80 @@ class ProjectFileManager(
     private fun trashFile(file: ProjectFile): File =
         File(context.filesDir, "workspace/project-files/trash/${file.projectId}/${file.id}-${file.name}")
 
+    private fun textRevisionDirectory(projectId: String): File =
+        File(context.filesDir, "workspace/project-files/history/$projectId")
+
+    private fun createTextRevisionBackup(
+        file: ProjectFile,
+        source: File,
+        contentHash: String
+    ): TextRevisionBackup? = runCatching {
+        val revisionId = UUID.randomUUID().toString()
+        val backupFile = File(textRevisionDirectory(file.projectId), "${file.id}-$revisionId.backup")
+        backupFile.parentFile?.mkdirs()
+        source.copyTo(backupFile, overwrite = false)
+        TextRevisionBackup(revisionId, file.projectId, file.id, contentHash, backupFile.absolutePath)
+    }.getOrNull()
+
+    private fun restoreTextRevisionInternal(current: ProjectFile, backup: TextRevisionBackup): Boolean {
+        val backupFile = File(backup.privatePath)
+        val source = File(current.storagePath)
+        if (
+            !backupFile.startsWith(textRevisionDirectory(current.projectId)) ||
+            !backupFile.exists() ||
+            sha256(backupFile) != backup.contentHash
+        ) return false
+        val temp = File(source.parentFile, ".${source.name}.${UUID.randomUUID()}.restore")
+        val restored = runCatching {
+            FileInputStream(backupFile).use { input ->
+                FileOutputStream(temp).use { output ->
+                    input.copyTo(output)
+                    output.fd.sync()
+                }
+            }
+            temp.renameTo(source)
+        }.getOrDefault(false)
+        if (!restored) {
+            temp.delete()
+            return false
+        }
+        val restoredText = runCatching { source.readText(Charsets.UTF_8) }.getOrNull() ?: return false
+        val restoredRecord = current.copy(
+            sizeBytes = source.length(),
+            sha256 = backup.contentHash,
+            modifiedAtMs = System.currentTimeMillis(),
+            extractionState = ExtractionState.EXTRACTED,
+            previewText = restoredText.take(MAX_EXTRACTED_CHARS).trim(),
+            indexState = IndexState.NOT_REQUESTED,
+            error = ""
+        )
+        store[current.id] = restoredRecord
+        publish()
+        return persistIndex()
+    }
+
+    private fun isEditableTextFile(file: ProjectFile, projectId: String): Boolean =
+        file.projectId == projectId &&
+            file.isReady &&
+            file.storagePath.isNotBlank() &&
+            (file.mimeType.startsWith("text/") || ProjectFilePolicy.isTextualApplicationType(file.mimeType))
+
+    private fun sha256(file: File): String? = runCatching {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(COPY_BUFFER_BYTES)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        digest.digest().joinToString("") { byte -> "%02x".format(byte) }
+    }.getOrNull()
+
+    private fun sha256(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { byte -> "%02x".format(byte) }
+
     private fun update(id: String, transform: (ProjectFile) -> ProjectFile): ProjectFile? {
         val current = store[id] ?: return null
         val updated = transform(current).copy(modifiedAtMs = System.currentTimeMillis())
@@ -453,17 +654,21 @@ class ProjectFileManager(
 
     private fun publishAndPersist() {
         publish()
-        runCatching {
-            indexFile.parentFile?.mkdirs()
-            val temp = File(indexFile.parentFile, "${indexFile.name}.tmp")
-            temp.writeText(gson.toJson(store.values.toList()), Charsets.UTF_8)
-            if (!temp.renameTo(indexFile)) {
-                temp.copyTo(indexFile, overwrite = true)
-                temp.delete()
-            }
-        }.onFailure { error ->
-            Log.w(TAG, "PROJECT_FILE_PERSIST_FAILED type=${error.javaClass.simpleName}")
+        persistIndex()
+    }
+
+    private fun persistIndex(): Boolean = runCatching {
+        indexFile.parentFile?.mkdirs()
+        val temp = File(indexFile.parentFile, "${indexFile.name}.tmp")
+        temp.writeText(gson.toJson(store.values.toList()), Charsets.UTF_8)
+        if (!temp.renameTo(indexFile)) {
+            temp.copyTo(indexFile, overwrite = true)
+            temp.delete()
         }
+        true
+    }.getOrElse { error ->
+        Log.w(TAG, "PROJECT_FILE_PERSIST_FAILED type=${error.javaClass.simpleName}")
+        false
     }
 
     private fun publish() {
@@ -482,6 +687,8 @@ class ProjectFileManager(
         const val MAX_IMPORT_BYTES = 100L * 1024L * 1024L
         const val MAX_EXTRACTED_CHARS = 8 * 1024
         const val MAX_INDEXABLE_CHARS = 250 * 1024
+        const val MAX_EDITABLE_CHARS = 250 * 1024
+        const val MAX_EDITABLE_BYTES = 1_024 * 1_024
         const val MAX_FILE_NAME_CHARS = 160
         const val MAX_FOLDER_CHARS = 80
         const val MAX_ERROR_CHARS = 240

@@ -1081,6 +1081,16 @@
     <string name="library_deleted_files">Recently deleted files</string>
     <string name="library_restore_file">Restore file</string>
     <string name="library_purge_file">Delete permanently</string>
+    <string name="library_edit_file">Propose edit</string>
+    <string name="library_edit_dialog_title">Review project file edit</string>
+    <string name="library_edit_candidate_label">Replacement text</string>
+    <string name="library_edit_create_proposal">Create review proposal</string>
+    <string name="library_edit_request_approval">Request write approval</string>
+    <string name="library_edit_diff_summary">Diff: +%1$d · -%2$d lines</string>
+    <string name="library_edit_status">Edit status: %1$s</string>
+    <string name="library_edit_waiting_approval">Awaiting approval in Trust Center</string>
+    <string name="library_edit_no_active_task">Start a running task for this project before proposing a file edit.</string>
+    <string name="library_edit_unavailable">The file edit cannot be proposed in the current project state.</string>
     <string name="library_select_project_title">Select a project first</string>
     <string name="library_select_project_description">Files belong to a project. Open or create a workspace before importing.</string>
     <string name="library_no_matching_files">No matching files</string>

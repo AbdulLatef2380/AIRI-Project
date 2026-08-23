@@ -189,6 +189,11 @@ class AIRIApplication : Application() {
                     if (recoveredContinuations.isNotEmpty()) {
                         LoggingService.info(TAG, "Recovered ${recoveredContinuations.size} approved connector continuation(s)")
                     }
+                    val recoveredProjectFileEdits = ServiceLocator.projectFileEditRuntime
+                        .resumeApprovedAfterRecovery()
+                    if (recoveredProjectFileEdits.isNotEmpty()) {
+                        LoggingService.info(TAG, "Recovered ${recoveredProjectFileEdits.size} approved project-file continuation(s)")
+                    }
 
                     // Cloud sync is user-preference-gated and network I/O
                     val prefs = ServiceLocator.userProfileRepository.current

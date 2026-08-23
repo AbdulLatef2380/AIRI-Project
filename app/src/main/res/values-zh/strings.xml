@@ -1201,6 +1201,16 @@
     <string name="library_deleted_files">最近删除的文件</string>
     <string name="library_restore_file">恢复文件</string>
     <string name="library_purge_file">永久删除</string>
+    <string name="library_edit_file">提议编辑</string>
+    <string name="library_edit_dialog_title">审核项目文件编辑</string>
+    <string name="library_edit_candidate_label">替换文本</string>
+    <string name="library_edit_create_proposal">创建审核提议</string>
+    <string name="library_edit_request_approval">请求写入批准</string>
+    <string name="library_edit_diff_summary">差异：+%1$d · -%2$d 行</string>
+    <string name="library_edit_status">编辑状态：%1$s</string>
+    <string name="library_edit_waiting_approval">正在信任中心等待批准</string>
+    <string name="library_edit_no_active_task">请先为此项目启动运行中的任务，再提议文件编辑。</string>
+    <string name="library_edit_unavailable">当前项目状态无法提议此文件编辑。</string>
     <string name="library_generated_artifacts">生成的工件</string>
     <string name="library_artifact_execution_evidence">执行证据</string>
     <string name="library_artifact_execution">任务 %1$s · 运行 %2$s · 步骤 %3$s</string>

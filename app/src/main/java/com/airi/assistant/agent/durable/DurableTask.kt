@@ -362,7 +362,7 @@ data class DurableTask(
             continuation.runId != resolvedRunId ||
             continuation.stepId != resolvedStepId ||
             continuation.projectId != projectId ||
-            !owned.invocation.isSafeToPersist() ||
+            !owned.isSafeToPersist() ||
             owned.isExpired(nowMs)
         ) return null
 

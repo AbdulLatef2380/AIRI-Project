@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +59,9 @@ import com.airi.assistant.ui.theme.AIRIShapes
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.workspace.ArtifactManager
+import com.airi.assistant.agent.durable.DurableTask
+import com.airi.assistant.agent.durable.DurableTaskStatus
+import com.airi.assistant.workspace.ProjectFileEditRuntime
 import com.airi.assistant.workspace.ProjectFileManager
 import kotlinx.coroutines.launch
 
@@ -67,13 +71,20 @@ fun LibraryScreen(onBack: () -> Unit) {
     val workspaceRuntime = ServiceLocator.workspaceRuntime
     val artifactManager = ServiceLocator.artifactManager
     val projectFileManager = ServiceLocator.projectFileManager
+    val projectFileEditRuntime = ServiceLocator.projectFileEditRuntime
+    val durableTaskManager = ServiceLocator.durableTaskManager
     val scope = rememberCoroutineScope()
 
     val activeProject by workspaceRuntime.activeSession.collectAsStateWithLifecycle()
     val allArtifacts by artifactManager.allArtifacts.collectAsStateWithLifecycle()
     val allProjectFiles by projectFileManager.files.collectAsStateWithLifecycle()
+    val allTasks by durableTaskManager.tasks.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var selectedFileId by remember { mutableStateOf<String?>(null) }
+    var editFile by remember { mutableStateOf<ProjectFileManager.ProjectFile?>(null) }
+    var editCandidate by remember { mutableStateOf("") }
+    var editProposal by remember { mutableStateOf<ProjectFileEditRuntime.Proposal?>(null) }
+    var editUnavailable by remember { mutableStateOf(false) }
 
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -105,6 +116,16 @@ fun LibraryScreen(onBack: () -> Unit) {
                     artifact.type.name.contains(normalizedQuery, ignoreCase = true) ||
                     artifact.description.contains(normalizedQuery, ignoreCase = true)
                 )
+        }
+    }
+    val activeEditTask = remember(projectId, allTasks) {
+        projectId?.let { selectedProjectId ->
+            allTasks.firstOrNull { task ->
+                task.projectId == selectedProjectId &&
+                    task.status == DurableTaskStatus.RUNNING &&
+                    !task.currentRunId.isNullOrBlank() &&
+                    !task.currentStepId.isNullOrBlank()
+            }
         }
     }
 
@@ -208,6 +229,22 @@ fun LibraryScreen(onBack: () -> Unit) {
                                         scope.launch {
                                             ServiceLocator.projectKnowledgeManager.indexProjectFile(file.id)
                                         }
+                                    },
+                                    onEdit = {
+                                        scope.launch {
+                                            val source = projectId?.let { activeId ->
+                                                projectFileManager.readTextForEdit(activeId, file.id)
+                                            }
+                                            editFile = file
+                                            editProposal = null
+                                            if (source == null) {
+                                                editCandidate = ""
+                                                editUnavailable = true
+                                            } else {
+                                                editCandidate = source
+                                                editUnavailable = false
+                                            }
+                                        }
                                     }
                                 )
                             }
@@ -245,6 +282,56 @@ fun LibraryScreen(onBack: () -> Unit) {
             }
         }
     }
+
+    editFile?.let { file ->
+        ProjectFileEditDialog(
+            file = file,
+            activeTask = activeEditTask,
+            candidate = editCandidate,
+            proposal = editProposal,
+            unavailable = editUnavailable,
+            onCandidateChange = { editCandidate = it },
+            onCreateProposal = {
+                val task = activeEditTask ?: return@ProjectFileEditDialog
+                val activeId = projectId ?: return@ProjectFileEditDialog
+                scope.launch {
+                    when (val result = projectFileEditRuntime.createProposal(
+                        projectId = activeId,
+                        taskId = task.id,
+                        missionId = task.missionId ?: task.id,
+                        runId = task.currentRunId ?: return@launch,
+                        stepId = task.currentStepId ?: return@launch,
+                        targetFileId = file.id,
+                        candidateText = editCandidate
+                    )) {
+                        is ProjectFileEditRuntime.ProposalResult.Created -> {
+                            editProposal = result.proposal
+                            editUnavailable = false
+                        }
+                        else -> editUnavailable = true
+                    }
+                }
+            },
+            onRequestApproval = {
+                val proposal = editProposal ?: return@ProjectFileEditDialog
+                when (val result = projectFileEditRuntime.requestApproval(proposal.id)) {
+                    is ProjectFileEditRuntime.ProposalResult.ApprovalPending -> {
+                        editProposal = result.proposal
+                        editUnavailable = false
+                    }
+                    else -> editUnavailable = true
+                }
+            },
+            onDismiss = {
+                editProposal?.takeIf { it.status == ProjectFileEditRuntime.ProposalStatus.DRAFT }
+                    ?.let { projectFileEditRuntime.cancelProposal(it.id) }
+                editFile = null
+                editProposal = null
+                editCandidate = ""
+                editUnavailable = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -265,7 +352,8 @@ private fun ProjectFileRow(
     onToggleExpanded: () -> Unit,
     onToggleFavorite: () -> Unit,
     onDelete: () -> Unit,
-    onIndex: () -> Unit
+    onIndex: () -> Unit,
+    onEdit: () -> Unit
 ) {
     Surface(
         color = AiriTheme.surface,
@@ -347,12 +435,19 @@ private fun ProjectFileRow(
                                 .padding(8.dp)
                         )
                     }
-                    if (
-                        file.extractionState == ProjectFileManager.ExtractionState.EXTRACTED &&
-                        file.indexState != ProjectFileManager.IndexState.INDEXED
-                    ) {
-                        TextButton(onClick = onIndex) {
-                            Text(stringResource(R.string.library_index_file), color = CosmicAccent)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (
+                            file.extractionState == ProjectFileManager.ExtractionState.EXTRACTED &&
+                            file.indexState != ProjectFileManager.IndexState.INDEXED
+                        ) {
+                            TextButton(onClick = onIndex) {
+                                Text(stringResource(R.string.library_index_file), color = CosmicAccent)
+                            }
+                        }
+                        if (file.isReady && (file.mimeType.startsWith("text/") || file.mimeType in EDITABLE_APPLICATION_TYPES)) {
+                            TextButton(onClick = onEdit) {
+                                Text(stringResource(R.string.library_edit_file), color = CosmicAccent)
+                            }
                         }
                     }
                     if (file.error.isNotBlank()) {
@@ -366,6 +461,111 @@ private fun ProjectFileRow(
             }
         }
     }
+}
+
+@Composable
+private fun ProjectFileEditDialog(
+    file: ProjectFileManager.ProjectFile,
+    activeTask: DurableTask?,
+    candidate: String,
+    proposal: ProjectFileEditRuntime.Proposal?,
+    unavailable: Boolean,
+    onCandidateChange: (String) -> Unit,
+    onCreateProposal: () -> Unit,
+    onRequestApproval: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.library_edit_dialog_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    file.name,
+                    fontSize = 12.sp,
+                    color = AiriTheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (activeTask == null) {
+                    Text(
+                        stringResource(R.string.library_edit_no_active_task),
+                        color = AiriTheme.error,
+                        fontSize = 12.sp
+                    )
+                } else if (proposal == null) {
+                    OutlinedTextField(
+                        value = candidate,
+                        onValueChange = onCandidateChange,
+                        label = { Text(stringResource(R.string.library_edit_candidate_label)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 7,
+                        maxLines = 12,
+                        textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = CosmicAccent,
+                            unfocusedBorderColor = AiriTheme.outline,
+                            focusedTextColor = AiriTheme.onBackground,
+                            unfocusedTextColor = AiriTheme.onBackground
+                        )
+                    )
+                } else {
+                    Text(
+                        stringResource(
+                            R.string.library_edit_diff_summary,
+                            proposal.diff.addedLineCount,
+                            proposal.diff.removedLineCount
+                        ),
+                        fontSize = 12.sp,
+                        color = CosmicAccent
+                    )
+                    if (proposal.diff.preview.isNotBlank()) {
+                        Text(
+                            proposal.diff.preview,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            maxLines = 12,
+                            color = AiriTheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(AiriTheme.background, AIRIShapes.xs)
+                                .padding(8.dp)
+                        )
+                    }
+                    if (proposal.status == ProjectFileEditRuntime.ProposalStatus.PENDING_APPROVAL) {
+                        Text(
+                            stringResource(R.string.library_edit_waiting_approval),
+                            fontSize = 12.sp,
+                            color = CosmicAccent
+                        )
+                    }
+                }
+                if (unavailable) {
+                    Text(
+                        stringResource(R.string.library_edit_unavailable),
+                        color = AiriTheme.error,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            when {
+                activeTask == null || proposal?.status == ProjectFileEditRuntime.ProposalStatus.PENDING_APPROVAL -> Unit
+                proposal == null -> TextButton(onClick = onCreateProposal) {
+                    Text(stringResource(R.string.library_edit_create_proposal), color = CosmicAccent)
+                }
+                else -> TextButton(onClick = onRequestApproval) {
+                    Text(stringResource(R.string.library_edit_request_approval), color = CosmicAccent)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
+            }
+        }
+    )
 }
 
 @Composable
@@ -417,6 +617,14 @@ private fun DeletedProjectFileRow(
         }
     }
 }
+
+private val EDITABLE_APPLICATION_TYPES = setOf(
+    "application/json",
+    "application/xml",
+    "application/javascript",
+    "application/sql",
+    "application/x-yaml"
+)
 
 @Composable
 private fun LibraryArtifactRow(artifact: ArtifactManager.Artifact) {

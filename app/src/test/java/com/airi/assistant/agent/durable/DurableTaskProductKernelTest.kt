@@ -224,13 +224,85 @@ class DurableTaskProductKernelTest {
         )
         val secretPayload = projectMismatch.copy(
             projectId = "project-a",
-            invocation = projectMismatch.invocation.copy(
+            invocation = projectMismatch.invocation!!.copy(
                 text = "Authorization: Bearer 12345678901234567890"
             )
         )
 
         assertEquals(null, base.pauseForApproval(approval.id, projectMismatch, nowMs = 2_000L))
         assertEquals(null, base.pauseForApproval(approval.id, secretPayload, nowMs = 2_000L))
+    }
+
+    @Test
+    fun projectFileWriteContinuationPausesAndClaimsWithoutContentPayload() {
+        val approval = TaskApproval(
+            id = "approval-file-write",
+            action = "project_file_write",
+            description = "Apply reviewed file edit",
+            riskLevel = "HIGH",
+            expiresAtMs = 10_000L,
+            runId = "run-file-write",
+            stepId = "collect"
+        )
+        val continuation = ApprovalContinuation(
+            id = "continuation-file-write",
+            approvalId = approval.id,
+            projectId = "project-a",
+            runId = "run-file-write",
+            stepId = "collect",
+            projectFileWrite = ResumableProjectFileWrite(
+                proposalId = "proposal-1",
+                targetFileId = "file-1",
+                baseContentHash = "a".repeat(64),
+                candidateContentHash = "b".repeat(64),
+                idempotencyKey = "file-edit-proposal-1"
+            ),
+            expiresAtMs = 10_000L
+        )
+
+        val paused = sampleTask()
+            .beginRun("run-file-write", "collect", nowMs = 1_000L)
+            .requestApproval(approval)
+            .pauseForApproval(approval.id, continuation, nowMs = 2_000L)
+            ?: throw AssertionError("Expected typed project-file write to pause the task")
+        val approved = paused.decideApproval(
+            approval.id,
+            TaskApprovalStatus.APPROVED,
+            ApprovalGrantScope.ONCE,
+            nowMs = 2_100L
+        )
+        val claimed = approved.claimApprovedContinuation(approval.id, nowMs = 2_200L)?.second
+            ?: throw AssertionError("Expected typed project-file write to claim once")
+
+        assertEquals(ApprovalContinuationStatus.CLAIMED, claimed.status)
+        assertEquals("proposal-1", claimed.projectFileWrite?.proposalId)
+        assertEquals(null, claimed.invocation)
+        assertTrue(MissionKernel.validate(MissionKernel.normalize(approved)) is MissionOwnershipValidation.Valid)
+    }
+
+    @Test
+    fun hybridContinuationDescriptorFailsClosed() {
+        val hybrid = ApprovalContinuation(
+            approvalId = "approval-hybrid",
+            projectId = "project-a",
+            runId = "run-hybrid",
+            stepId = "collect",
+            invocation = ResumableConnectorInvocation(
+                connectorId = "github",
+                action = "create_issue",
+                idempotencyKey = "connector-hybrid"
+            ),
+            projectFileWrite = ResumableProjectFileWrite(
+                proposalId = "proposal-hybrid",
+                targetFileId = "file-hybrid",
+                baseContentHash = "a".repeat(64),
+                candidateContentHash = "b".repeat(64),
+                idempotencyKey = "file-hybrid"
+            ),
+            expiresAtMs = 10_000L
+        )
+
+        assertFalse(hybrid.isSafeToPersist())
     }
 
     @Test

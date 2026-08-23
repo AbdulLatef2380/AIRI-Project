@@ -376,19 +376,35 @@ class DurableTaskManager(private val context: Context) {
      * Approved continuations eligible for process-recovery resume. Pending,
      * denied, expired, consumed, and malformed records are intentionally absent.
      */
-    fun approvedContinuationApprovalIds(nowMs: Long = System.currentTimeMillis()): List<String> =
-        taskCache.values.flatMap { task ->
-            task.approvalContinuations.mapNotNull { continuation ->
-                val approval = task.approvals.firstOrNull { it.id == continuation.approvalId }
-                continuation.approvalId.takeIf {
+    fun approvedConnectorContinuationApprovalIds(nowMs: Long = System.currentTimeMillis()): List<String> =
+        approvedContinuationApprovalIds(nowMs) { it.invocation != null && it.projectFileWrite == null }
+
+    /** Approved local file writes are recovered only by the project-file runtime. */
+    fun approvedProjectFileWriteApprovalIds(nowMs: Long = System.currentTimeMillis()): List<String> =
+        approvedContinuationApprovalIds(nowMs) { it.invocation == null && it.projectFileWrite != null }
+
+    /** Read-only preflight used to select the typed runtime before an atomic claim. */
+    fun continuationForApproval(approvalId: String): ApprovalContinuation? =
+        taskCache.values.firstNotNullOfOrNull { task ->
+            task.approvalContinuations.firstOrNull { it.approvalId == approvalId }
+        }
+
+    private fun approvedContinuationApprovalIds(
+        nowMs: Long,
+        kindMatches: (ApprovalContinuation) -> Boolean
+    ): List<String> = taskCache.values.flatMap { task ->
+        task.approvalContinuations.mapNotNull { continuation ->
+            val approval = task.approvals.firstOrNull { it.id == continuation.approvalId }
+            continuation.approvalId.takeIf {
+                kindMatches(continuation) &&
                     continuation.status == ApprovalContinuationStatus.PENDING &&
-                        !continuation.isExpired(nowMs) &&
-                        approval?.status == TaskApprovalStatus.APPROVED &&
-                        approval.expiresAtMs > nowMs &&
-                        task.status == DurableTaskStatus.PAUSED
-                }
+                    !continuation.isExpired(nowMs) &&
+                    approval?.status == TaskApprovalStatus.APPROVED &&
+                    approval.expiresAtMs > nowMs &&
+                    task.status == DurableTaskStatus.PAUSED
             }
         }
+    }
 
     /** Returns the durable approval, including ownership metadata, when it exists. */
     fun findApproval(approvalId: String): Pair<DurableTask, TaskApproval>? =
@@ -415,15 +431,17 @@ class DurableTaskManager(private val context: Context) {
         val task = taskCache[taskId] ?: return false
         val continuation = task.approvalContinuations.firstOrNull { it.id == continuationId }
             ?: return false
-        return continuation.status == ApprovalContinuationStatus.CLAIMED &&
+        val invocation = continuation.invocation ?: return false
+        return continuation.projectFileWrite == null &&
+            continuation.status == ApprovalContinuationStatus.CLAIMED &&
             continuation.taskId == taskId &&
             continuation.missionId == missionId &&
             continuation.projectId == projectId &&
             continuation.runId == runId &&
             continuation.stepId == stepId &&
-            continuation.invocation.connectorId == connectorId &&
-            continuation.invocation.action == action &&
-            continuation.invocation.idempotencyKey == idempotencyKey
+            invocation.connectorId == connectorId &&
+            invocation.action == action &&
+            invocation.idempotencyKey == idempotencyKey
     }
 
     /**

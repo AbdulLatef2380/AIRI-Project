@@ -668,6 +668,17 @@ object ServiceLocator {
         )
     }
 
+    /** Typed local proposal -> approval -> apply runtime for managed project text files. */
+    val projectFileEditRuntime: com.airi.assistant.workspace.ProjectFileEditRuntime by lazy {
+        com.airi.assistant.workspace.ProjectFileEditRuntime(
+            context = requireContext(),
+            workspaceRuntime = workspaceRuntime,
+            projectFileManager = projectFileManager,
+            durableTaskManager = durableTaskManager,
+            artifactManager = artifactManager
+        )
+    }
+
     // ── Dynamic Prompt Engine ─────────────────────────────────────────────────
     // Singleton object — exposes the stateless dynamic prompt assembler.
     val dynamicPromptEngine get() = com.airi.assistant.ai.prompt.DynamicPromptEngine

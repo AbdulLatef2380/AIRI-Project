@@ -17,14 +17,16 @@ class ApprovalContinuationRuntime(
 ) {
     /** Restores only previously approved continuations after a process restart. */
     suspend fun resumeApprovedAfterRecovery(): List<ConnectorOutput> =
-        durableTaskManager.approvedContinuationApprovalIds().mapNotNull { approvalId ->
+        durableTaskManager.approvedConnectorContinuationApprovalIds().mapNotNull { approvalId ->
             resume(approvalId)
         }
 
     suspend fun resume(approvalId: String): ConnectorOutput? {
+        val pending = durableTaskManager.continuationForApproval(approvalId) ?: return null
+        if (pending.invocation == null || pending.projectFileWrite != null) return null
         val continuation = durableTaskManager.claimApprovedContinuation(approvalId)
             ?: return null
-        val invocation = continuation.invocation
+        val invocation = continuation.invocation ?: return null
         val execution = ConnectorExecutionContext(
             projectId = continuation.projectId,
             taskId = continuation.taskId,

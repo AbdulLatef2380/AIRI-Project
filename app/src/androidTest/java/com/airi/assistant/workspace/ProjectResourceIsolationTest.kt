@@ -21,6 +21,66 @@ class ProjectResourceIsolationTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
+    fun textRevisionRemainsProjectOwnedAndClearsStaleKnowledge() = runBlocking {
+        val suffix = UUID.randomUUID().toString().take(8)
+        val projectA = "revision-a-$suffix"
+        val projectB = "revision-b-$suffix"
+        lateinit var knowledge: ProjectKnowledgeManager
+        val files = ProjectFileManager(context, MediaLibrary(context)) { file ->
+            knowledge.deleteIndexForFile(file.id)
+        }
+        knowledge = ProjectKnowledgeManager(context, files)
+        val original = "original-$suffix"
+        val imported = files.importFromBytes(
+            projectId = projectA,
+            name = "editable.txt",
+            mimeType = "text/plain",
+            bytes = original.toByteArray()
+        ) as ProjectFileManager.ImportResult.Imported
+        assertEquals(ProjectKnowledgeManager.IndexStatus.INDEXED, knowledge.indexProjectFile(imported.file.id).status)
+        assertTrue(knowledge.search(projectA, original).isNotEmpty())
+
+        val crossProject = files.applyTextRevision(
+            projectId = projectB,
+            id = imported.file.id,
+            expectedContentHash = imported.file.sha256,
+            candidateText = "cross-project-$suffix"
+        )
+        assertTrue(crossProject is ProjectFileManager.TextRevisionResult.Rejected)
+
+        val applied = files.applyTextRevision(
+            projectId = projectA,
+            id = imported.file.id,
+            expectedContentHash = imported.file.sha256,
+            candidateText = "revised-$suffix"
+        ) as ProjectFileManager.TextRevisionResult.Applied
+        assertEquals(ProjectFileManager.IndexState.NOT_REQUESTED, applied.file.indexState)
+        assertEquals("revised-$suffix", files.readTextForEdit(projectA, imported.file.id))
+        assertTrue(knowledge.search(projectA, original).isEmpty())
+
+        val stale = files.applyTextRevision(
+            projectId = projectA,
+            id = imported.file.id,
+            expectedContentHash = imported.file.sha256,
+            candidateText = "stale-$suffix"
+        )
+        assertTrue(stale is ProjectFileManager.TextRevisionResult.Conflict)
+
+        val restored = files.restoreTextRevision(
+            projectId = projectA,
+            id = imported.file.id,
+            expectedCurrentHash = applied.file.sha256,
+            backup = applied.backup
+        ) as ProjectFileManager.TextRevisionResult.Applied
+        assertEquals(ProjectFileManager.IndexState.NOT_REQUESTED, restored.file.indexState)
+        assertEquals(original, files.readTextForEdit(projectA, imported.file.id))
+        assertTrue(files.discardTextRevisionBackup(applied.backup))
+
+        assertTrue(files.delete(imported.file.id))
+        assertTrue(files.purge(imported.file.id))
+    }
+
+    @Test
     fun projectResourcesNeverCrossProjectBoundary() = runBlocking {
         val suffix = UUID.randomUUID().toString().take(8)
         val projectA = "isolation-a-$suffix"

@@ -1032,6 +1032,16 @@
     <string name="library_deleted_files">الملفات المحذوفة مؤخراً</string>
     <string name="library_restore_file">استعادة الملف</string>
     <string name="library_purge_file">حذف نهائي</string>
+    <string name="library_edit_file">اقتراح تعديل</string>
+    <string name="library_edit_dialog_title">مراجعة تعديل ملف المشروع</string>
+    <string name="library_edit_candidate_label">النص البديل</string>
+    <string name="library_edit_create_proposal">إنشاء اقتراح للمراجعة</string>
+    <string name="library_edit_request_approval">طلب موافقة على الكتابة</string>
+    <string name="library_edit_diff_summary">الفرق: +%1$d · -%2$d سطر</string>
+    <string name="library_edit_status">حالة التعديل: %1$s</string>
+    <string name="library_edit_waiting_approval">بانتظار الموافقة في مركز الثقة</string>
+    <string name="library_edit_no_active_task">ابدأ مهمة قيد التنفيذ لهذا المشروع قبل اقتراح تعديل ملف.</string>
+    <string name="library_edit_unavailable">لا يمكن اقتراح تعديل الملف في حالة المشروع الحالية.</string>
     <string name="library_select_project_title">اختر مشروعاً أولاً</string>
     <string name="library_select_project_description">تنتمي الملفات إلى مشروع. افتح مساحة عمل أو أنشئها قبل الاستيراد.</string>
     <string name="library_no_matching_files">لا توجد ملفات مطابقة</string>

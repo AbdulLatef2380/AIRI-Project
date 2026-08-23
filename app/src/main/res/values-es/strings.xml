@@ -1201,6 +1201,16 @@
     <string name="library_deleted_files">Archivos eliminados recientemente</string>
     <string name="library_restore_file">Restaurar archivo</string>
     <string name="library_purge_file">Eliminar permanentemente</string>
+    <string name="library_edit_file">Proponer edición</string>
+    <string name="library_edit_dialog_title">Revisar edición del archivo del proyecto</string>
+    <string name="library_edit_candidate_label">Texto de sustitución</string>
+    <string name="library_edit_create_proposal">Crear propuesta de revisión</string>
+    <string name="library_edit_request_approval">Solicitar aprobación de escritura</string>
+    <string name="library_edit_diff_summary">Diferencias: +%1$d · -%2$d líneas</string>
+    <string name="library_edit_status">Estado de edición: %1$s</string>
+    <string name="library_edit_waiting_approval">Esperando aprobación en el Centro de confianza</string>
+    <string name="library_edit_no_active_task">Inicia una tarea en ejecución para este proyecto antes de proponer una edición de archivo.</string>
+    <string name="library_edit_unavailable">La edición del archivo no se puede proponer en el estado actual del proyecto.</string>
     <string name="library_generated_artifacts">Artefactos generados</string>
     <string name="library_artifact_execution_evidence">Evidencia de ejecución</string>
     <string name="library_artifact_execution">Tarea %1$s · ejecución %2$s · paso %3$s</string>

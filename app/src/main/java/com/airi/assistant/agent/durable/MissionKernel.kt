@@ -89,7 +89,7 @@ object MissionKernel {
                 approval.projectId != continuation.projectId ||
                 approval.runId != continuation.runId ||
                 approval.stepId != continuation.stepId ||
-                !continuation.invocation.isSafeToPersist()
+                !continuation.isSafeToPersist()
         }?.let { continuation ->
             return MissionOwnershipValidation.Invalid("Continuation ${continuation.id} is not bound to its approval/task/project/run/step")
         }

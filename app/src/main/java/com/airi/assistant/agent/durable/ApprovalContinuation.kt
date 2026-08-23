@@ -20,7 +20,10 @@ data class ApprovalContinuation(
     val projectId: String? = null,
     val runId: String,
     val stepId: String,
-    val invocation: ResumableConnectorInvocation,
+    /** Present only for a connector side effect. */
+    val invocation: ResumableConnectorInvocation? = null,
+    /** Present only for a local managed-project text revision. */
+    val projectFileWrite: ResumableProjectFileWrite? = null,
     val createdAtMs: Long = System.currentTimeMillis(),
     val expiresAtMs: Long,
     val status: ApprovalContinuationStatus = ApprovalContinuationStatus.PENDING,
@@ -29,6 +32,13 @@ data class ApprovalContinuation(
     val outcome: String = ""
 ) {
     fun isExpired(nowMs: Long = System.currentTimeMillis()): Boolean = expiresAtMs <= nowMs
+
+    /** Exactly one typed invocation is required; hybrid descriptors fail closed. */
+    fun isSafeToPersist(): Boolean = when {
+        invocation != null && projectFileWrite == null -> invocation.isSafeToPersist()
+        invocation == null && projectFileWrite != null -> projectFileWrite.isSafeToPersist()
+        else -> false
+    }
 
     /**
      * A continuation is executable only once. `CLAIMED` is persisted before any
@@ -89,6 +99,38 @@ enum class ApprovalContinuationStatus {
     FAILED,
     REJECTED,
     EXPIRED
+}
+
+/**
+ * Replayable connector input kept only while awaiting one explicit approval.
+ *
+ * It intentionally excludes `binary`, credentials, authorization headers, and
+ * arbitrary object callbacks. The caller must reject any user payload that
+ * resembles a credential instead of silently storing it in durable JSON.
+ */
+/**
+ * ID-and-hash-only description of one approved write to a managed project text
+ * file. Candidate bytes, source paths, backups, credentials, and user text stay
+ * in private editor storage and are never placed in a durable continuation.
+ */
+data class ResumableProjectFileWrite(
+    val proposalId: String,
+    val targetFileId: String,
+    val baseContentHash: String,
+    val candidateContentHash: String,
+    val idempotencyKey: String
+) {
+    fun isSafeToPersist(): Boolean =
+        proposalId.matches(SAFE_ID) &&
+            targetFileId.matches(SAFE_ID) &&
+            idempotencyKey.matches(SAFE_ID) &&
+            baseContentHash.matches(SHA256) &&
+            candidateContentHash.matches(SHA256)
+
+    private companion object {
+        val SAFE_ID = Regex("^[A-Za-z0-9._-]{1,128}$")
+        val SHA256 = Regex("^[a-f0-9]{64}$")
+    }
 }
 
 /**

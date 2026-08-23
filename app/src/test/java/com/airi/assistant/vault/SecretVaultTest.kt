@@ -105,6 +105,19 @@ class SecretVaultTest {
     }
 
     @Test
+    fun projectSecretPresenceIsScopedAndNeverReturnsSecretMaterial() {
+        assertEquals(false, SecretVault.hasProjectSecret("project-a", "GITHUB_PAT", "github"))
+        assertEquals(true, SecretVault.storeProjectSecret("project-a", "GITHUB_PAT", "project-a-token", "github"))
+
+        assertEquals(true, SecretVault.hasProjectSecret("project-a", "GITHUB_PAT", "github"))
+        assertEquals(false, SecretVault.hasProjectSecret("project-b", "GITHUB_PAT", "github"))
+        assertEquals(false, SecretVault.hasProjectSecret("project-a", "GITHUB_PAT", "other"))
+
+        assertEquals(true, SecretVault.revokeProjectSecret("project-a", "GITHUB_PAT", "github"))
+        assertEquals(false, SecretVault.hasProjectSecret("project-a", "GITHUB_PAT", "github"))
+    }
+
+    @Test
     fun revokingProjectSecretInvalidatesOutstandingCapability() {
         SecretVault.storeProjectSecret("project-a", "API_TOKEN", "secret")
         val capability = SecretVault.issueCapability(

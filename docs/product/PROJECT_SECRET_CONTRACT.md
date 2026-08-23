@@ -39,4 +39,8 @@
 
 ## الحدود المتبقية
 
-GitHub هو adapter الحي الأول فقط. لا تضيف هذه الدفعة شاشة إدارة أسرار مشروع، ولا ترحّل Remote LLM أو Telegram أو Notion أو Google أو الصوت الحي؛ تظل هذه consumers على مساراتها الموروثة إلى أن تمرر project/connector context حقيقياً وتتبنى capability داخل adapter. لا يجوز لأي consumer جديد أن يخمّن `projectId` أو fallback من project scope إلى secret عالمي.
+## إدارة بيانات اعتماد المشروع
+
+يعرض `SecretManagerScreen` credential واحدة لـGitHub في المشروع النشط فقط. يستخدم `WorkspaceRuntime.activeSession` بوصفه المصدر الوحيد لـ`projectId`، ويعرض حالة وجود غير كاشفة عبر `hasProjectSecret` بدلاً من value أو preview أو copy. يحفظ `storeProjectSecret(projectId, "GITHUB_PAT", value, "github")` ويزيل `revokeProjectSecret` namespace نفسه بعد تأكيد صريح. لا يصل input value إلى task، continuation، log، activity، أو prompt.
+
+GitHub هو adapter الحي الأول فقط. لا ترحّل هذه الدفعة Remote LLM أو Telegram أو Notion أو Google أو الصوت الحي؛ تظل هذه consumers على مساراتها الموروثة إلى أن تمرر project/connector context حقيقياً وتتبنى capability داخل adapter. لا يجوز لأي consumer جديد أن يخمّن `projectId` أو fallback من project scope إلى secret عالمي. يلزم التحقق على جهاز من Keystore، تبديل المشاريع، والواجهة biometric/Accessibility قبل اعتبار مسار الإدارة ميدانياً.

@@ -36,6 +36,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.airi.assistant.R
 import com.airi.assistant.execution.CloudProvider
+import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.execution.security.SecureApiKeyStore
 import com.airi.assistant.ui.theme.*
 import kotlinx.coroutines.launch
@@ -45,6 +46,10 @@ import kotlinx.coroutines.launch
 fun SecretManagerScreen(onBack: () -> Unit) {
     val context  = LocalContext.current
     val keyStore = remember { SecureApiKeyStore(context) }
+    val workspaceRuntime = ServiceLocator.workspaceRuntime
+    val activeProject by workspaceRuntime.activeSession.collectAsState()
+    val projectId = activeProject?.sessionId
+    val projectSecretVault = remember { ServiceLocator.secretVault }
     val scope    = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
 
@@ -67,6 +72,13 @@ fun SecretManagerScreen(onBack: () -> Unit) {
     var editText        by remember { mutableStateOf("") }
     var showKey         by remember { mutableStateOf(false) }
     var showDeleteFor   by remember { mutableStateOf<CloudProvider?>(null) }
+    var editingProjectGitHubSecret by remember { mutableStateOf(false) }
+    var deletingProjectGitHubSecret by remember { mutableStateOf(false) }
+    var projectSecretText by remember { mutableStateOf("") }
+    var showProjectSecret by remember { mutableStateOf(false) }
+    var projectGitHubConfigured by remember(projectId) {
+        mutableStateOf(projectId?.let { projectSecretVault.hasProjectSecret(it, "GITHUB_PAT", "github") } == true)
+    }
 
     // Biometric availability check — performed once
     val biometricAvailable = remember {
@@ -105,6 +117,105 @@ fun SecretManagerScreen(onBack: () -> Unit) {
             .setAllowedAuthenticators(BIOMETRIC_WEAK or DEVICE_CREDENTIAL)
             .build()
         prompt.authenticate(info)
+    }
+
+    deletingProjectGitHubSecret.takeIf { it && projectId != null }?.let {
+        AlertDialog(
+            onDismissRequest = { deletingProjectGitHubSecret = false },
+            containerColor = SurfaceFloating,
+            shape = AIRIShapes.xl,
+            icon = { Icon(Icons.Outlined.Delete, null, tint = SemanticError, modifier = Modifier.size(28.dp)) },
+            title = { Text(stringResource(R.string.secret_project_delete_title), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
+            text = { Text(stringResource(R.string.secret_project_delete_body), color = AiriTheme.onSurfaceVariant, fontSize = 14.sp, lineHeight = 20.sp) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val removed = projectSecretVault.revokeProjectSecret(projectId!!, "GITHUB_PAT", "github")
+                        deletingProjectGitHubSecret = false
+                        projectGitHubConfigured = false
+                        scope.launch {
+                            snackbar.showSnackbar(context.getString(if (removed) R.string.secret_project_deleted else R.string.secret_project_delete_failed))
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SemanticError),
+                    shape = AIRIShapes.md
+                ) { Text(stringResource(R.string.delete), fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingProjectGitHubSecret = false }) {
+                    Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
+                }
+            }
+        )
+    }
+
+    editingProjectGitHubSecret.takeIf { it && projectId != null }?.let {
+        AlertDialog(
+            onDismissRequest = { editingProjectGitHubSecret = false; projectSecretText = ""; showProjectSecret = false },
+            containerColor = SurfaceFloating,
+            shape = AIRIShapes.xl,
+            icon = { Icon(Icons.Outlined.Key, null, tint = CosmicAccent, modifier = Modifier.size(28.dp)) },
+            title = { Text(stringResource(R.string.secret_project_github_pat), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(stringResource(R.string.secret_project_secret_hint), color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+                    OutlinedTextField(
+                        value = projectSecretText,
+                        onValueChange = { projectSecretText = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.secret_project_secret_label)) },
+                        placeholder = { Text(stringResource(R.string.secret_manager_key_placeholder), color = AiriTheme.outline, fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                        visualTransformation = if (showProjectSecret) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        trailingIcon = {
+                            IconButton(onClick = { showProjectSecret = !showProjectSecret }) {
+                                Icon(
+                                    if (showProjectSecret) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                    stringResource(if (showProjectSecret) R.string.secret_manager_hide_key_cd else R.string.secret_manager_show_key_cd),
+                                    tint = AiriTheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        shape = AIRIShapes.md,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = CosmicAccent,
+                            unfocusedBorderColor = AiriTheme.outline,
+                            focusedLabelColor = CosmicAccent,
+                            focusedTextColor = AiriTheme.onBackground,
+                            unfocusedTextColor = AiriTheme.onBackground
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val saved = projectSecretVault.storeProjectSecret(
+                            projectId = projectId!!,
+                            secretId = "GITHUB_PAT",
+                            secretValue = projectSecretText,
+                            connectorId = "github"
+                        )
+                        editingProjectGitHubSecret = false
+                        projectSecretText = ""
+                        showProjectSecret = false
+                        if (saved) projectGitHubConfigured = true
+                        scope.launch {
+                            snackbar.showSnackbar(context.getString(if (saved) R.string.secret_project_saved else R.string.secret_project_save_failed))
+                        }
+                    },
+                    enabled = projectSecretText.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+                    shape = AIRIShapes.md
+                ) { Text(stringResource(R.string.secret_manager_save), fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingProjectGitHubSecret = false; projectSecretText = ""; showProjectSecret = false }) {
+                    Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
+                }
+            }
+        )
     }
 
     // Delete confirmation dialog
@@ -276,6 +387,66 @@ fun SecretManagerScreen(onBack: () -> Unit) {
                             color    = AiriTheme.onSurfaceVariant,
                             lineHeight = 17.sp
                         )
+                    }
+                }
+            }
+
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(R.string.secret_project_section),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AiriTheme.onBackground
+                    )
+                    Text(
+                        stringResource(R.string.secret_project_description),
+                        fontSize = 12.sp,
+                        color = AiriTheme.onSurfaceVariant,
+                        lineHeight = 17.sp
+                    )
+                    Surface(
+                        shape = AIRIShapes.md,
+                        color = SurfaceRaised,
+                        border = BorderStroke(0.5.dp, if (projectGitHubConfigured) CosmicAccent.copy(0.22f) else AiriTheme.outline.copy(0.25f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.Key,
+                                null,
+                                tint = if (projectGitHubConfigured) CosmicAccent else AiriTheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(stringResource(R.string.secret_project_github_pat), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
+                                Text(
+                                    when {
+                                        projectId == null -> stringResource(R.string.secret_project_no_active)
+                                        projectGitHubConfigured -> stringResource(R.string.secret_project_configured)
+                                        else -> stringResource(R.string.secret_manager_not_set)
+                                    },
+                                    fontSize = 11.sp,
+                                    color = if (projectGitHubConfigured) CosmicAccent.copy(alpha = 0.82f) else AiriTheme.onSurfaceVariant
+                                )
+                            }
+                            if (projectId != null) {
+                                TextButton(
+                                    onClick = { projectSecretText = ""; showProjectSecret = false; editingProjectGitHubSecret = true }
+                                ) {
+                                    Text(stringResource(if (projectGitHubConfigured) R.string.secret_project_update else R.string.secret_project_set))
+                                }
+                                if (projectGitHubConfigured) {
+                                    IconButton(onClick = { deletingProjectGitHubSecret = true }, modifier = Modifier.size(36.dp)) {
+                                        Icon(Icons.Outlined.Delete, stringResource(R.string.secret_manager_delete_cd), tint = SemanticError.copy(alpha = 0.72f), modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

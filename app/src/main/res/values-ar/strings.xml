@@ -1145,6 +1145,21 @@
     <string name="secret_manager_cancel">إلغاء</string>
     <string name="secret_manager_save">حفظ</string>
     <string name="secret_manager_title">مدير الأسرار</string>
+    <string name="secret_project_section">بيانات اعتماد المشروع</string>
+    <string name="secret_project_description">تبقى بيانات اعتماد المشروع معزولة عن المفاتيح العامة ولا تستخدم إلا من مهام المشروع المطابقة.</string>
+    <string name="secret_project_no_active">افتح مشروعاً لتهيئة بيانات اعتماده.</string>
+    <string name="secret_project_github_pat">بيانات اعتماد GitHub للمشروع</string>
+    <string name="secret_project_configured">مهيأة لهذا المشروع</string>
+    <string name="secret_project_set">تعيين بيانات الاعتماد</string>
+    <string name="secret_project_update">تحديث بيانات الاعتماد</string>
+    <string name="secret_project_secret_label">رمز وصول GitHub الشخصي</string>
+    <string name="secret_project_secret_hint">يُخزن لهذا المشروع فقط</string>
+    <string name="secret_project_saved">تم حفظ بيانات اعتماد المشروع</string>
+    <string name="secret_project_save_failed">تعذر حفظ بيانات اعتماد المشروع. يرجى المحاولة مجدداً.</string>
+    <string name="secret_project_deleted">تمت إزالة بيانات اعتماد المشروع</string>
+    <string name="secret_project_delete_failed">تعذر إزالة بيانات اعتماد المشروع. يرجى المحاولة مجدداً.</string>
+    <string name="secret_project_delete_title">إزالة بيانات اعتماد هذا المشروع؟</string>
+    <string name="secret_project_delete_body">يزيل هذا بيانات اعتماد GitHub من المشروع الحالي فقط. لا تتأثر بيانات اعتماد المشاريع الأخرى أو البيانات العامة.</string>
 
     <!-- Security Scanner -->
     <string name="security_scanner_no_results">لا توجد نتائج — اضغط تحديث للمسح.</string>

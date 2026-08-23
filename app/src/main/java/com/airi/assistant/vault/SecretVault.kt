@@ -94,6 +94,14 @@ object SecretVault {
         return true
     }
 
+    /** Returns only whether a scoped secret exists; it never reveals secret material. */
+    fun hasProjectSecret(projectId: String, secretId: String, connectorId: String? = null): Boolean {
+        val normalizedProject = normalizeProjectId(projectId) ?: return false
+        val normalizedSecret = normalizeKeyName(secretId) ?: return false
+        val storageName = scopedStorageName(normalizedSecret, normalizedProject, normalizeConnectorId(connectorId))
+        return !store.get(storageName).isNullOrBlank()
+    }
+
     fun revokeProjectSecret(projectId: String, secretId: String, connectorId: String? = null): Boolean {
         val normalizedProject = normalizeProjectId(projectId) ?: return false
         val normalizedSecret = normalizeKeyName(secretId) ?: return false

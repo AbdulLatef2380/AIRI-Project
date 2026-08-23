@@ -1202,6 +1202,21 @@
 
     <!-- Secret Manager () -->
     <string name="secret_manager_title">Secret Manager</string>
+    <string name="secret_project_section">Project credentials</string>
+    <string name="secret_project_description">Project credentials stay isolated from global keys and are used only by matching project tasks.</string>
+    <string name="secret_project_no_active">Open a project to configure its credential.</string>
+    <string name="secret_project_github_pat">GitHub project credential</string>
+    <string name="secret_project_configured">Configured for this project</string>
+    <string name="secret_project_set">Set credential</string>
+    <string name="secret_project_update">Update credential</string>
+    <string name="secret_project_secret_label">GitHub personal access token</string>
+    <string name="secret_project_secret_hint">Stored only for this project</string>
+    <string name="secret_project_saved">Project credential saved</string>
+    <string name="secret_project_save_failed">Project credential could not be saved. Please try again.</string>
+    <string name="secret_project_deleted">Project credential removed</string>
+    <string name="secret_project_delete_failed">Project credential could not be removed. Please try again.</string>
+    <string name="secret_project_delete_title">Remove this project credential?</string>
+    <string name="secret_project_delete_body">This removes the GitHub credential only from the current project. Other project and global credentials are unchanged.</string>
 
     <!-- Security Scanner () -->
     <string name="security_scanner_title">Security Scanner</string>

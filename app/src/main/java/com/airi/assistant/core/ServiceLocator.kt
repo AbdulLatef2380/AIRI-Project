@@ -628,8 +628,17 @@ object ServiceLocator {
         )
     }
 
+    val projectContextResolver: com.airi.assistant.workspace.ProjectContextResolver by lazy {
+        com.airi.assistant.workspace.ProjectContextResolver(
+            workspaceRuntime = workspaceRuntime,
+            projectFileManager = projectFileManager,
+            projectKnowledgeManager = projectKnowledgeManager,
+            artifactManager = artifactManager
+        )
+    }
+
     val ragRetriever: RagRetriever by lazy {
-        RagRetriever(memoryManager, projectKnowledgeManager)
+        RagRetriever(memoryManager, projectKnowledgeManager, projectContextResolver)
     }
 
     // ── Media Library ─────────────────────────────────────────────────────────

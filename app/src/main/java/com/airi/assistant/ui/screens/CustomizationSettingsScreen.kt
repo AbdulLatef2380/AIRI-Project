@@ -23,6 +23,7 @@ import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.ThemeMode
 import com.airi.assistant.ui.theme.ThemePreferences
 import com.airi.assistant.ui.viewmodel.ChatViewModel
+import com.airi.assistant.profile.UserPreferenceProfileStore
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,6 +35,8 @@ fun CustomizationSettingsScreen(
     val context            = LocalContext.current
     val themePrefs         = remember { ThemePreferences.get(context) }
     val themeMode          by themePrefs.themeMode.collectAsState()
+    val preferenceStore    = remember { UserPreferenceProfileStore(context.applicationContext) }
+    val preferenceProfile  by preferenceStore.profile.collectAsState()
 
     val systemPrompt       by viewModel.systemPrompt.collectAsState()
     val responseStyleState by viewModel.responseStyle.collectAsState()
@@ -181,6 +184,76 @@ fun CustomizationSettingsScreen(
                             )
                         )
                     }
+                }
+            }
+
+            SettingsSurface {
+                SettingsCategoryHeader(
+                    icon = Icons.Outlined.Person,
+                    title = stringResource(R.string.personal_context_title)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.personal_context_privacy),
+                    fontSize = 12.sp,
+                    color = AiriTheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = preferenceProfile.workContext,
+                    onValueChange = { value ->
+                        preferenceStore.update { it.copy(workContext = value) }
+                    },
+                    label = { Text(stringResource(R.string.personal_context_work_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = CosmicAccent,
+                        unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.12f),
+                        focusedTextColor = AiriTheme.onSurface,
+                        unfocusedTextColor = AiriTheme.onSurface
+                    )
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = preferenceProfile.currentGoal,
+                    onValueChange = { value ->
+                        preferenceStore.update { it.copy(currentGoal = value) }
+                    },
+                    label = { Text(stringResource(R.string.personal_context_goal_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = CosmicAccent,
+                        unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.12f),
+                        focusedTextColor = AiriTheme.onSurface,
+                        unfocusedTextColor = AiriTheme.onSurface
+                    )
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            stringResource(R.string.personal_context_share_label),
+                            fontSize = 13.sp,
+                            color = AiriTheme.onBackground
+                        )
+                        Text(
+                            stringResource(R.string.personal_context_share_description),
+                            fontSize = 11.sp,
+                            color = AiriTheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = preferenceProfile.shareWithResponses,
+                        onCheckedChange = { enabled ->
+                            preferenceStore.update { it.copy(shareWithResponses = enabled) }
+                        }
+                    )
                 }
             }
 

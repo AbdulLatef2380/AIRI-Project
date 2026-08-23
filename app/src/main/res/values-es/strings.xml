@@ -1300,4 +1300,11 @@
     <string name="project_home_review_failed_task">Revisar tarea fallida</string>
     <string name="project_home_add_file">Agregar un archivo del proyecto</string>
     <string name="project_home_start_chat">Iniciar chat del proyecto</string>
+    <!-- Preferencias explícitas de respuesta -->
+    <string name="personal_context_title">Preferencias de respuesta</string>
+    <string name="personal_context_privacy">Estos detalles permanecen en este dispositivo. Solo se comparten con la generación de respuestas cuando activas el interruptor siguiente.</string>
+    <string name="personal_context_work_label">Contexto de trabajo (opcional)</string>
+    <string name="personal_context_goal_label">Objetivo actual (opcional)</string>
+    <string name="personal_context_share_label">Usar en las respuestas</string>
+    <string name="personal_context_share_description">Incluye solo estos detalles como contexto para las respuestas. Puedes modificarlos o desactivarlos en cualquier momento.</string>
 </resources>

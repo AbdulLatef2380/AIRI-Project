@@ -1632,4 +1632,11 @@
     <string name="project_home_review_failed_task">Review failed task</string>
     <string name="project_home_add_file">Add a project file</string>
     <string name="project_home_start_chat">Start project chat</string>
+    <!-- Explicit response preferences -->
+    <string name="personal_context_title">Response preferences</string>
+    <string name="personal_context_privacy">These details stay on this device. They are shared with response generation only when you enable the switch below.</string>
+    <string name="personal_context_work_label">Work context (optional)</string>
+    <string name="personal_context_goal_label">Current goal (optional)</string>
+    <string name="personal_context_share_label">Use in responses</string>
+    <string name="personal_context_share_description">Include only these details as response context. You can change or turn this off at any time.</string>
 </resources>

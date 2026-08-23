@@ -1531,4 +1531,11 @@
     <string name="project_home_review_failed_task">مراجعة المهمة الفاشلة</string>
     <string name="project_home_add_file">إضافة ملف إلى المشروع</string>
     <string name="project_home_start_chat">بدء دردشة المشروع</string>
+    <!-- تفضيلات الرد الصريحة -->
+    <string name="personal_context_title">تفضيلات الرد</string>
+    <string name="personal_context_privacy">تبقى هذه التفاصيل على هذا الجهاز. ولا تُشارك مع توليد الردود إلا عند تفعيل المفتاح أدناه.</string>
+    <string name="personal_context_work_label">سياق العمل (اختياري)</string>
+    <string name="personal_context_goal_label">الهدف الحالي (اختياري)</string>
+    <string name="personal_context_share_label">استخدامها في الردود</string>
+    <string name="personal_context_share_description">أدرج هذه التفاصيل فقط كسياق للرد. يمكنك تعديلها أو إيقاف ذلك في أي وقت.</string>
 </resources>

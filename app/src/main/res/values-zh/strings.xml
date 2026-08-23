@@ -1300,4 +1300,11 @@
     <string name="project_home_review_failed_task">复核失败任务</string>
     <string name="project_home_add_file">添加项目文件</string>
     <string name="project_home_start_chat">开始项目聊天</string>
+    <!-- 明确的回复偏好 -->
+    <string name="personal_context_title">回复偏好</string>
+    <string name="personal_context_privacy">这些详情保留在此设备上。只有在您打开下面的开关后，才会与回复生成共享。</string>
+    <string name="personal_context_work_label">工作背景（可选）</string>
+    <string name="personal_context_goal_label">当前目标（可选）</string>
+    <string name="personal_context_share_label">用于回复</string>
+    <string name="personal_context_share_description">仅将这些详情作为回复背景。您随时可以修改或关闭此功能。</string>
 </resources>

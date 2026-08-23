@@ -1274,4 +1274,7 @@
     <string name="memory_edit_save">Guardar memoria</string>
     <string name="memory_edited_snack">Memoria actualizada</string>
     <string name="memory_edit_failed">No se pudo actualizar esta memoria</string>
+    <string name="execution_center_linked_run">Ejecución programada vinculada</string>
+    <string name="execution_center_show_all_runs">Ver todas las ejecuciones</string>
+    <string name="execution_center_linked_run_missing">La ejecución vinculada ya no está disponible.</string>
 </resources>

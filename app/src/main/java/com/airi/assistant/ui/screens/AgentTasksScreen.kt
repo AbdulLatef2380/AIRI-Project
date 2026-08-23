@@ -90,6 +90,7 @@ fun AgentTasksScreen(
     var selectedTab    by remember { mutableStateOf(0) }
     var showAddDialog  by remember { mutableStateOf(false) }
     var showStopConfirmation by remember { mutableStateOf(false) }
+    var focusedExecutionId by remember { mutableStateOf<String?>(null) }
     var jobs           by remember { mutableStateOf(orchestrator.listJobs()) }
     var errorMessage   by remember { mutableStateOf<String?>(null) }
 
@@ -177,7 +178,10 @@ fun AgentTasksScreen(
                 TaskTab(label = stringResource(R.string.agent_task_tab_scheduled, jobs.size), isSelected = selectedTab == 0,
                     modifier = Modifier.weight(1f)) { selectedTab = 0 }
                 TaskTab(label = stringResource(R.string.execution_center_tab_runs, durableTasks.size), isSelected = selectedTab == 1,
-                    modifier = Modifier.weight(1f)) { selectedTab = 1 }
+                    modifier = Modifier.weight(1f)) {
+                        focusedExecutionId = null
+                        selectedTab = 1
+                    }
                 TaskTab(label = stringResource(R.string.trust_center_tab, trustRequestCount), isSelected = selectedTab == 2,
                     modifier = Modifier.weight(1f)) { selectedTab = 2 }
             }
@@ -189,10 +193,15 @@ fun AgentTasksScreen(
                         orchestrator.cancel(jobId)
                         reload()
                     },
-                    onOpenExecution = { selectedTab = 1 }
+                    onOpenExecution = { taskId ->
+                        focusedExecutionId = taskId
+                        selectedTab = 1
+                    }
                 )
                 1 -> DurableExecutionContent(
                     tasks = durableTasks,
+                    focusedTaskId = focusedExecutionId,
+                    onClearFocus = { focusedExecutionId = null },
                     onCancel = { taskId -> durableTaskManager.cancel(taskId) }
                 )
                 else -> TrustCenterContent(
@@ -299,7 +308,7 @@ private fun ActiveWorkStopDialog(
 private fun ScheduledTasksContent(
     jobs: List<ScheduledJob>,
     onCancel: (String) -> Unit,
-    onOpenExecution: () -> Unit
+    onOpenExecution: (String) -> Unit
 ) {
     if (jobs.isEmpty()) {
         EmptyCenterState(
@@ -326,9 +335,30 @@ private fun ScheduledTasksContent(
 @Composable
 private fun DurableExecutionContent(
     tasks: List<DurableTask>,
+    focusedTaskId: String?,
+    onClearFocus: () -> Unit,
     onCancel: (String) -> Unit
 ) {
-    if (tasks.isEmpty()) {
+    val focusedTask = focusedTaskId?.let { id -> tasks.firstOrNull { it.id == id } }
+    if (focusedTaskId != null && focusedTask == null) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                stringResource(R.string.execution_center_linked_run_missing),
+                color = AiriTheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            TextButton(onClick = onClearFocus) {
+                Text(stringResource(R.string.execution_center_show_all_runs))
+            }
+        }
+        return
+    }
+    val displayedTasks = focusedTask?.let(::listOf) ?: tasks
+    if (displayedTasks.isEmpty()) {
         EmptyCenterState(
             icon = Icons.Outlined.Timeline,
             message = stringResource(R.string.execution_center_no_runs)
@@ -340,7 +370,26 @@ private fun DurableExecutionContent(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp)
     ) {
-        items(tasks, key = { it.id }) { task ->
+        if (focusedTask != null) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.execution_center_linked_run),
+                        color = CosmicAccent,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onClearFocus) {
+                        Text(stringResource(R.string.execution_center_show_all_runs), fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+        items(displayedTasks, key = { it.id }) { task ->
             DurableExecutionCard(task = task, onCancel = { onCancel(task.id) })
         }
     }
@@ -580,7 +629,7 @@ private fun TaskTab(label: String, isSelected: Boolean, modifier: Modifier = Mod
 private fun RealTaskItem(
     job: ScheduledJob,
     onCancel: () -> Unit,
-    onOpenExecution: () -> Unit
+    onOpenExecution: (String) -> Unit
 ) {
     val triggerDate = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
         .format(Date(job.triggerAtMs))
@@ -651,7 +700,7 @@ private fun RealTaskItem(
             Text(statusLabel, color = statusTint.copy(0.85f), fontSize = 11.sp)
             if (job.lastDurableTaskId != null) {
                 TextButton(
-                    onClick = onOpenExecution,
+                    onClick = { onOpenExecution(job.lastDurableTaskId) },
                     contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
                 ) {
                     Text(

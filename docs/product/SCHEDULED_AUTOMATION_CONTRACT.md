@@ -13,7 +13,7 @@
 | المكوّن | المسؤولية المنفذة |
 |---|---|
 | `ScheduledJobInputPolicy` | يرفض agent/payload/label غير الصالحة أو الكبيرة قبل إدخال WorkManager |
-| `ScheduledJobOrchestrator` | يحفظ job وWorkRequest ونتيجة آخر تشغيل و`lastDurableTaskId` في JSON محلي |
+| `ScheduledJobOrchestrator` | يحفظ job وWorkRequest ونتيجة آخر تشغيل و`lastDurableTaskId` وmarker تشغيل يدوي في JSON محلي؛ التشغيل الفوري ينشئ one-time WorkManager منفصلاً ولا يستبدل cadence المخزنة. |
 | `ScheduledAgentWorker` | يطبق network constraints ويصنع `SubAgentContext` بالنطاق المحفوظ ثم يستدعي المنسق الحي |
 | `ProductionAgentOrchestrator` | ينشئ DurableTask وRun وStep، يطبق Agent Team Policy، ويسجل diagnostics/approvals |
 
@@ -27,10 +27,13 @@
 | `ownerId` | يثبت الملكية بدلاً من نسبة كل run إلى مستخدم عام |
 | `privacyLevel` | يفرض local-only أو balanced أو standard في اختيار الوكيل/backend |
 | `lastDurableTaskId` | يشير إلى آخر task أنشأه job لواجهة history/replay |
+| `manualRunRequestId` | يثبت واحداً فقط من طلبات التشغيل الفوري المؤكدة للمستخدم؛ لا يمسحه إلا Worker مطابق بعد تسجيل نتيجته. |
 
 ## التنفيذ والنتائج
 
 لا يمر agent job عبر `SubAgentRegistry.execute` مباشرة. يستدعي العامل خطة من خطوة واحدة بمُعرّف agent المقصود؛ فإن اكتملت يسجل `COMPLETED` مع `planId` بوصفه `lastDurableTaskId`. وإذا أعاد المنسق `PartialFailure`، يحفظ العامل task id نفسه مع `FAILED`، كي يبقى الفشل قابلاً للمراجعة في timeline. أخطاء الشبكة العابرة وحدها تدخل retry المحدود ثلاث مرات؛ أما فشل الخطة أو policy أو agent فيبقى فشلاً نهائياً ولا يعاد تشغيله تلقائياً كأنه transient.
+
+التشغيل الفوري يبدأ فقط من confirmation مرئي في `AgentTasksScreen` لوظيفة agent غير نظامية. ينشئ `ScheduledJobOrchestrator.runNow` طلباً أحادياً مستقلاً باسم فريد (`airi_job_manual_*`) ويحتفظ بالـperiodic/one-time schedule الأصلية دون إلغاء أو استبدال؛ طلب يدوي ثانٍ يرفض طالما الأول `ENQUEUED` أو `RUNNING` أو `BLOCKED`. يحمل worker علامة التشغيل اليدوي ويزيل marker المطابق فقط عندما يسجل النتيجة. لا يقدم ذلك retry جديداً: يبقى retry الشبكي العابر الموجود محدوداً بثلاث محاولات داخل worker.
 
 وظائف `system` المعروفة (`sandbox_reaper` و`audit_log_pruner` و`context_cache_pruner`) تبقى maintenance محلية مباشرة. لا تتظاهر بأنها agent work، ولا تنشئ DurableTask لأن لا توجد مهمة مستخدم أو محتوى/موافقة قابلة لإعادة التشغيل. وظيفتها تسجل outcome فقط.
 
@@ -44,10 +47,10 @@
 |---|---|
 | `ScheduledJobInputPolicyTest` | حدود agent/payload/label قبل enqueue |
 | `ScheduledJobDurableLinkTest` | بقاء project/owner/privacy ومرجع DurableTask في نموذج job |
-| واجهة `AgentTasksScreen` + الحارس البنيوي | تعرض كل jobs المحفوظة، ومنها `COMPLETED` و`FAILED`، وتدعم refresh صريحاً بلا polling؛ عندما يملك job `lastDurableTaskId` يركز إجراء المستخدم على task المطابق في Execution Center، مع خيار آمن للعودة إلى كل التنفيذات أو توضيح أن evidence لم تعد موجودة. |
+| واجهة `AgentTasksScreen` + الحارس البنيوي | تعرض كل jobs المحفوظة، ومنها `COMPLETED` و`FAILED`، وتدعم refresh صريحاً بلا polling؛ عندما يملك job `lastDurableTaskId` يركز إجراء المستخدم على task المطابق في Execution Center، مع خيار آمن للعودة إلى كل التنفيذات أو توضيح أن evidence لم تعد موجودة. تعرض أيضاً confirmation للتشغيل الفوري لوظائف agent فقط. |
 | `:app:compileDebugKotlin` | تكامل WorkManager وServiceLocator والمنسق الحي |
 | Android CI | سيعاد تشغيله بعد دفع الدفعة؛ اختبار Doze الحقيقي وOEM background policy ليسا جزءاً من هذا الدليل |
 
 ## فجوات الإغلاق الصريحة
 
-واجهة المهام تركز الآن على task الدقيق عند توفر `lastDurableTaskId` وتسمح بالعودة إلى كل التنفيذات؛ لا تدّعي navigation عابرة لإعادة إنشاء العملية أو deep-link مستقل خارج الشاشة. لا توجد سياسة جدولة event-triggered أو webhook أو delivery عبر قناة خارجية. لا يدعي هذا العقد التوقيت الدقيق؛ WorkManager قد يؤخر التنفيذ بحسب Doze والقيود الشبكية والنظام. تُعالج event/webhook automation، مصادر البحث، عمليات Git، وقواعد البيانات بعقود منفصلة ضمن Phase 10.
+واجهة المهام تركز الآن على task الدقيق عند توفر `lastDurableTaskId` وتسمح بالعودة إلى كل التنفيذات، وتوفر تشغيلًا فوريًا واحدًا مؤكدًا للمستخدم من دون تبديل cadence؛ لا تدّعي navigation عابرة لإعادة إنشاء العملية أو deep-link مستقل خارج الشاشة. pause وuser-triggered retry لم ينفذا بعد، ولا توجد سياسة جدولة event-triggered أو webhook أو delivery عبر قناة خارجية. لا يدعي هذا العقد التوقيت الدقيق؛ WorkManager قد يؤخر التنفيذ بحسب Doze والقيود الشبكية والنظام. تُعالج event/webhook automation، مصادر البحث، عمليات Git، وقواعد البيانات بعقود منفصلة ضمن Phase 10.

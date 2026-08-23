@@ -183,9 +183,39 @@ class ScheduledJobOrchestrator(private val context: Context) {
         return persistedJob
     }
 
+    /**
+     * Queue one user-confirmed execution without replacing the stored schedule.
+     * The run uses its own unique WorkManager name so a periodic cadence remains
+     * intact. Only one manual execution may be enqueued for a job at a time.
+     */
+    fun runNow(jobId: String): ManualRunRequestResult {
+        val job = listJobs().firstOrNull { it.id == jobId } ?: return ManualRunRequestResult.NOT_FOUND
+        if (job.agentId == SYSTEM_AGENT_ID) return ManualRunRequestResult.NOT_ALLOWED
+        val existingManualId = job.manualRunRequestId
+        if (existingManualId != null && isWorkActive(existingManualId)) {
+            return ManualRunRequestResult.ALREADY_ACTIVE
+        }
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(if (job.requiresNetwork) NetworkType.CONNECTED else NetworkType.NOT_REQUIRED)
+            .build()
+        val request = OneTimeWorkRequestBuilder<ScheduledAgentWorker>()
+            .setInputData(buildWorkerData(job, manualRun = true))
+            .setConstraints(constraints)
+            .addTag("airi_job_${job.id}")
+            .addTag("airi_agent_${job.agentId}")
+            .addTag("airi_manual_run_${job.id}")
+            .build()
+        persistJob(job.copy(manualRunRequestId = request.id.toString()))
+        workManager.enqueueUniqueWork(manualWorkName(job.id), ExistingWorkPolicy.KEEP, request)
+        Log.i(TAG, "Manual scheduled-job run queued id=${job.id} agent=${job.agentId}")
+        EventBus.emitSync(AppEvent.GenericInfo("Scheduled job manual run queued: ${job.label}"))
+        return ManualRunRequestResult.QUEUED
+    }
+
     /** Cancel a scheduled job by its [jobId]. */
     fun cancel(jobId: String): Boolean {
         workManager.cancelUniqueWork(uniqueWorkName(jobId))
+        workManager.cancelUniqueWork(manualWorkName(jobId))
         val removed = removePersistedJob(jobId)
         Log.i(TAG, "Job cancelled id=$jobId removed=$removed")
         return removed
@@ -209,6 +239,7 @@ class ScheduledJobOrchestrator(private val context: Context) {
         val userJobs = listJobs().filter { it.agentId != SYSTEM_AGENT_ID }
         userJobs.forEach { job ->
             workManager.cancelUniqueWork(uniqueWorkName(job.id))
+            workManager.cancelUniqueWork(manualWorkName(job.id))
         }
         if (userJobs.isNotEmpty()) {
             val cancelledIds = userJobs.mapTo(mutableSetOf()) { it.id }
@@ -232,7 +263,8 @@ class ScheduledJobOrchestrator(private val context: Context) {
     fun recordRunResult(
         jobId: String,
         outcome: ScheduledJobOutcome,
-        durableTaskId: String? = null
+        durableTaskId: String? = null,
+        completedManualRunRequestId: String? = null
     ) {
         val current = listJobs().toMutableList()
         val index = current.indexOfFirst { it.id == jobId }
@@ -240,7 +272,11 @@ class ScheduledJobOrchestrator(private val context: Context) {
             current[index] = current[index].copy(
                 lastRunAtMs = System.currentTimeMillis(),
                 lastOutcome = outcome,
-                lastDurableTaskId = durableTaskId ?: current[index].lastDurableTaskId
+                lastDurableTaskId = durableTaskId ?: current[index].lastDurableTaskId,
+                manualRunRequestId = if (
+                    completedManualRunRequestId != null &&
+                    current[index].manualRunRequestId == completedManualRunRequestId
+                ) null else current[index].manualRunRequestId
             )
             persistAllJobs(current)
         }
@@ -262,6 +298,27 @@ class ScheduledJobOrchestrator(private val context: Context) {
     // ── Persistence ────────────────────────────────────────────────────────────
 
     private fun uniqueWorkName(jobId: String): String = "airi_job_$jobId"
+
+    private fun manualWorkName(jobId: String): String = "airi_job_manual_$jobId"
+
+    private fun isWorkActive(requestId: String): Boolean = runCatching {
+        workManager.getWorkInfoById(UUID.fromString(requestId)).get()?.state in setOf(
+            WorkInfo.State.ENQUEUED,
+            WorkInfo.State.RUNNING,
+            WorkInfo.State.BLOCKED
+        )
+    }.getOrDefault(false)
+
+    private fun buildWorkerData(job: ScheduledJob, manualRun: Boolean): Data = Data.Builder()
+        .putString(ScheduledAgentWorker.KEY_JOB_ID, job.id)
+        .putString(ScheduledAgentWorker.KEY_AGENT_ID, job.agentId)
+        .putString(ScheduledAgentWorker.KEY_PAYLOAD, job.payload)
+        .putString(ScheduledAgentWorker.KEY_LABEL, job.label)
+        .putString(ScheduledAgentWorker.KEY_PROJECT_ID, job.projectId)
+        .putString(ScheduledAgentWorker.KEY_OWNER_ID, job.ownerId)
+        .putInt(ScheduledAgentWorker.KEY_PRIVACY_LEVEL, job.privacyLevel)
+        .putBoolean(ScheduledAgentWorker.KEY_MANUAL_RUN, manualRun)
+        .build()
 
     private fun persistJob(job: ScheduledJob) {
         val current = listJobs().toMutableList()
@@ -297,6 +354,7 @@ class ScheduledJobOrchestrator(private val context: Context) {
         put("last_run_at", job.lastRunAtMs ?: JSONObject.NULL)
         put("last_outcome", job.lastOutcome.name)
         put("last_durable_task_id", job.lastDurableTaskId ?: JSONObject.NULL)
+        put("manual_run_request_id", job.manualRunRequestId ?: JSONObject.NULL)
         put("project_id", job.projectId ?: JSONObject.NULL)
         put("owner_id", job.ownerId)
         put("privacy_level", job.privacyLevel)
@@ -316,6 +374,8 @@ class ScheduledJobOrchestrator(private val context: Context) {
         lastOutcome = runCatching { ScheduledJobOutcome.valueOf(json.optString("last_outcome", "PENDING")) }
             .getOrDefault(ScheduledJobOutcome.PENDING),
         lastDurableTaskId = json.optString("last_durable_task_id")
+            .takeUnless { it.isBlank() || it == "null" },
+        manualRunRequestId = json.optString("manual_run_request_id")
             .takeUnless { it.isBlank() || it == "null" },
         projectId = json.optString("project_id").takeUnless { it.isBlank() || it == "null" },
         ownerId = json.optString("owner_id", "scheduled").ifBlank { "scheduled" },
@@ -339,6 +399,8 @@ data class ScheduledJob(
     val lastOutcome: ScheduledJobOutcome = ScheduledJobOutcome.PENDING,
     /** Durable task created for the latest agent run; absent for maintenance jobs. */
     val lastDurableTaskId: String? = null,
+    /** One active explicit user-triggered run; separate from the scheduled cadence. */
+    val manualRunRequestId: String? = null,
     val projectId: String? = null,
     val ownerId: String = "scheduled",
     val privacyLevel: Int = 1
@@ -346,4 +408,5 @@ data class ScheduledJob(
 
 enum class ScheduleType { ONE_TIME, PERIODIC }
 enum class ScheduledJobOutcome { PENDING, RETRYING, COMPLETED, FAILED }
+enum class ManualRunRequestResult { QUEUED, ALREADY_ACTIVE, NOT_FOUND, NOT_ALLOWED }
 

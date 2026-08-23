@@ -1277,4 +1277,10 @@
     <string name="execution_center_linked_run">关联的计划执行</string>
     <string name="execution_center_show_all_runs">查看所有执行</string>
     <string name="execution_center_linked_run_missing">关联的执行已不可用。</string>
+    <string name="scheduled_task_run_now">立即运行</string>
+    <string name="scheduled_task_run_now_title">现在运行计划任务？</string>
+    <string name="scheduled_task_run_now_message">这将为 %1$s 排队一次立即执行，不会更改其计划。</string>
+    <string name="scheduled_task_run_now_queued">已将立即执行加入队列</string>
+    <string name="scheduled_task_run_now_active">已有立即执行正在进行</string>
+    <string name="scheduled_task_run_now_unavailable">此任务不再可立即执行</string>
 </resources>

@@ -57,6 +57,7 @@ class ScheduledAgentWorker(
         const val KEY_PROJECT_ID = "project_id"
         const val KEY_OWNER_ID = "owner_id"
         const val KEY_PRIVACY_LEVEL = "privacy_level"
+        const val KEY_MANUAL_RUN = "manual_run"
         private const val MAX_RETRY_ATTEMPTS = 3
 
         private fun Throwable.isTransientFailure(): Boolean =
@@ -72,6 +73,7 @@ class ScheduledAgentWorker(
         val ownerId = inputData.getString(KEY_OWNER_ID)?.takeIf { it.isNotBlank() } ?: "scheduled"
         val privacyLevel = inputData.getInt(KEY_PRIVACY_LEVEL, SubAgentContext.PRIVACY_BALANCED)
             .coerceIn(SubAgentContext.PRIVACY_MAXIMUM, SubAgentContext.PRIVACY_STANDARD)
+        val manualRunRequestId = id.toString().takeIf { inputData.getBoolean(KEY_MANUAL_RUN, false) }
 
         LoggingService.info(TAG, "AIRI SCHEDULED_JOB_STARTED id=$jobId agent=$agentId label=$label")
 
@@ -101,7 +103,11 @@ class ScheduledAgentWorker(
             val handled = maintenanceResult.getOrNull()
             if (handled != null) {
                 ScheduledJobOrchestrator(applicationContext)
-                    .recordRunResult(jobId, ScheduledJobOutcome.COMPLETED)
+                    .recordRunResult(
+                        jobId = jobId,
+                        outcome = ScheduledJobOutcome.COMPLETED,
+                        completedManualRunRequestId = manualRunRequestId
+                    )
                 LoggingService.info(TAG, "Scheduled job completed id=$jobId")
                 return Result.success()
             }
@@ -163,7 +169,8 @@ class ScheduledAgentWorker(
                 ScheduledJobOrchestrator(applicationContext).recordRunResult(
                     jobId = jobId,
                     outcome = ScheduledJobOutcome.COMPLETED,
-                    durableTaskId = execution.taskId
+                    durableTaskId = execution.taskId,
+                    completedManualRunRequestId = manualRunRequestId
                 )
                 LoggingService.info(TAG, "Scheduled job completed id=$jobId task=${execution.taskId}")
                 EventBus.emitSync(AppEvent.GenericInfo("Scheduled task complete: $label"))
@@ -175,7 +182,8 @@ class ScheduledAgentWorker(
                 ScheduledJobOrchestrator(applicationContext).recordRunResult(
                     jobId = jobId,
                     outcome = if (canRetry) ScheduledJobOutcome.RETRYING else ScheduledJobOutcome.FAILED,
-                    durableTaskId = (error as? ScheduledExecutionFailure)?.taskId
+                    durableTaskId = (error as? ScheduledExecutionFailure)?.taskId,
+                    completedManualRunRequestId = manualRunRequestId
                 )
                 LoggingService.warn(
                     TAG,

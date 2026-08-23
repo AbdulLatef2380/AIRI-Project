@@ -33,6 +33,7 @@ import com.airi.assistant.agent.durable.DurableTask
 import com.airi.assistant.agent.durable.DurableTaskStatus
 import com.airi.assistant.agent.durable.TaskApproval
 import com.airi.assistant.agent.durable.TaskTimelineEvent
+import com.airi.assistant.agent.scheduler.ManualRunRequestResult
 import com.airi.assistant.agent.scheduler.ScheduledJob
 import com.airi.assistant.agent.scheduler.ScheduledJobOrchestrator
 import com.airi.assistant.agent.scheduler.ScheduleType
@@ -91,6 +92,7 @@ fun AgentTasksScreen(
     var showAddDialog  by remember { mutableStateOf(false) }
     var showStopConfirmation by remember { mutableStateOf(false) }
     var focusedExecutionId by remember { mutableStateOf<String?>(null) }
+    var runNowCandidate by remember { mutableStateOf<ScheduledJob?>(null) }
     var jobs           by remember { mutableStateOf(orchestrator.listJobs()) }
     var errorMessage   by remember { mutableStateOf<String?>(null) }
 
@@ -196,7 +198,8 @@ fun AgentTasksScreen(
                     onOpenExecution = { taskId ->
                         focusedExecutionId = taskId
                         selectedTab = 1
-                    }
+                    },
+                    onRunNow = { job -> runNowCandidate = job }
                 )
                 1 -> DurableExecutionContent(
                     tasks = durableTasks,
@@ -241,6 +244,40 @@ fun AgentTasksScreen(
                     if (report.terminalCommandCancelled) 1 else 0
                 )
                 showStopConfirmation = false
+            }
+        )
+    }
+
+    runNowCandidate?.let { job ->
+        AlertDialog(
+            onDismissRequest = { runNowCandidate = null },
+            title = { Text(stringResource(R.string.scheduled_task_run_now_title)) },
+            text = { Text(stringResource(R.string.scheduled_task_run_now_message, job.label)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        when (orchestrator.runNow(job.id)) {
+                            ManualRunRequestResult.QUEUED -> {
+                                reload()
+                                runNowCandidate = null
+                            }
+                            ManualRunRequestResult.ALREADY_ACTIVE -> {
+                                errorMessage = context.getString(R.string.scheduled_task_run_now_active)
+                                runNowCandidate = null
+                            }
+                            ManualRunRequestResult.NOT_FOUND,
+                            ManualRunRequestResult.NOT_ALLOWED -> {
+                                errorMessage = context.getString(R.string.scheduled_task_run_now_unavailable)
+                                runNowCandidate = null
+                            }
+                        }
+                    }
+                ) { Text(stringResource(R.string.scheduled_task_run_now)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { runNowCandidate = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
         )
     }
@@ -308,7 +345,8 @@ private fun ActiveWorkStopDialog(
 private fun ScheduledTasksContent(
     jobs: List<ScheduledJob>,
     onCancel: (String) -> Unit,
-    onOpenExecution: (String) -> Unit
+    onOpenExecution: (String) -> Unit,
+    onRunNow: (ScheduledJob) -> Unit
 ) {
     if (jobs.isEmpty()) {
         EmptyCenterState(
@@ -326,7 +364,8 @@ private fun ScheduledTasksContent(
             RealTaskItem(
                 job = job,
                 onCancel = { onCancel(job.id) },
-                onOpenExecution = onOpenExecution
+                onOpenExecution = onOpenExecution,
+                onRunNow = if (job.agentId != "system") ({ onRunNow(job) }) else null
             )
         }
     }
@@ -629,7 +668,8 @@ private fun TaskTab(label: String, isSelected: Boolean, modifier: Modifier = Mod
 private fun RealTaskItem(
     job: ScheduledJob,
     onCancel: () -> Unit,
-    onOpenExecution: (String) -> Unit
+    onOpenExecution: (String) -> Unit,
+    onRunNow: (() -> Unit)?
 ) {
     val triggerDate = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
         .format(Date(job.triggerAtMs))
@@ -698,6 +738,25 @@ private fun RealTaskItem(
             Text(triggerDate, color = CosmicAccent.copy(0.8f), fontSize = 12.sp)
             Text(typeLabel, color = AiriTheme.onBackground.copy(0.45f), fontSize = 11.sp)
             Text(statusLabel, color = statusTint.copy(0.85f), fontSize = 11.sp)
+            if (job.manualRunRequestId != null) {
+                Text(
+                    stringResource(R.string.scheduled_task_run_now_queued),
+                    color = CosmicAccent,
+                    fontSize = 11.sp
+                )
+            }
+            if (onRunNow != null) {
+                TextButton(
+                    onClick = onRunNow,
+                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.scheduled_task_run_now),
+                        color = CosmicAccent,
+                        fontSize = 11.sp
+                    )
+                }
+            }
             if (job.lastDurableTaskId != null) {
                 TextButton(
                     onClick = { onOpenExecution(job.lastDurableTaskId) },

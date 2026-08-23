@@ -36,11 +36,14 @@
 | اختبارات broker الأساسية | binding للـagent/operation، الاستخدام الواحد، الإبطال، وعدم إرجاع قيمة raw عبر API. |
 | `DurableTaskProductKernelTest.connectorExecutionOwnershipRequiresExactMissionProjectRunAndStep` | لا يصدر مسار adapter مقيّد إلا بعد تطابق mission/project/run/step؛ ترفض الإحداثيات المخالفة. |
 | Kotlin compilation | `ServiceLocator` يمرر SecretVault إلى `ConnectorBootstrap` ثم `GitHubConnector`، ويستهلك adapter capability المشروع داخلياً. |
+| `GitHubConnectorProjectSecretTest` | transport وownership/legacy credential seams محقونة للاختبار فقط؛ يثبت أن غياب سر المشروع أو ownership غير المطابقة لا يقرأ credential العالمي ولا يستدعي adapter، وأن التنفيذ الصحيح يصل إلى adapter بالمادة المقيدة بالمشروع فقط، دون HTTP أو تسجيل أو إرجاع قيمة السر. |
 
 ## الحدود المتبقية
 
 ## إدارة بيانات اعتماد المشروع
 
 يعرض `SecretManagerScreen` credential واحدة لـGitHub في المشروع النشط فقط. يستخدم `WorkspaceRuntime.activeSession` بوصفه المصدر الوحيد لـ`projectId`، ويعرض حالة وجود غير كاشفة عبر `hasProjectSecret` بدلاً من value أو preview أو copy. يحفظ `storeProjectSecret(projectId, "GITHUB_PAT", value, "github")` ويزيل `revokeProjectSecret` namespace نفسه بعد تأكيد صريح. لا يصل input value إلى task، continuation، log، activity، أو prompt.
+
+الاختبار الحتمي لا يحل محل GitHub أو Keystore الفعليين: لا يزال يلزم تحقق device/provider للـPAT الحقيقي، أخطاء HTTP، إبطال capability أثناء request، وعرض failure للمستخدم.
 
 GitHub هو adapter الحي الأول فقط. لا ترحّل هذه الدفعة Remote LLM أو Telegram أو Notion أو Google أو الصوت الحي؛ تظل هذه consumers على مساراتها الموروثة إلى أن تمرر project/connector context حقيقياً وتتبنى capability داخل adapter. لا يجوز لأي consumer جديد أن يخمّن `projectId` أو fallback من project scope إلى secret عالمي. يلزم التحقق على جهاز من Keystore، تبديل المشاريع، والواجهة biometric/Accessibility قبل اعتبار مسار الإدارة ميدانياً.

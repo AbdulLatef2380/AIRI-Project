@@ -19,9 +19,25 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class GitHubConnector(
-    private val authManager: ConnectorAuthManager,
+    private val authManager: ConnectorAuthManager? = null,
     private val durableTaskManager: DurableTaskManager? = null,
-    private val secretVault: SecretVault? = null
+    private val secretVault: SecretVault? = null,
+    /** Test seam; production obtains global credentials only from ConnectorAuthManager. */
+    private val legacyCredentialProvider: (String, String) -> String? = { connectorId, credentialKey ->
+        authManager?.getCredential(connectorId, credentialKey)
+    },
+    /** Test seam; production validates the exact persisted task/run/step ownership. */
+    private val projectExecutionOwnership: (ConnectorExecutionContext) -> Boolean = { execution ->
+        durableTaskManager?.ownsConnectorExecution(
+            taskId = execution.taskId,
+            missionId = execution.missionId,
+            projectId = execution.projectId.orEmpty(),
+            runId = execution.runId,
+            stepId = execution.stepId
+        ) == true
+    },
+    /** Test seam; production keeps the raw credential within the HTTP adapter. */
+    private val tokenExecutor: ((ConnectorInput, String) -> ConnectorOutput)? = null
 ) : Connector {
     private val TAG = "GitHubConnector"
     private val BASE = "https://api.github.com"
@@ -34,7 +50,7 @@ class GitHubConnector(
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
     override suspend fun connect(): ConnectorState = withContext(Dispatchers.IO) {
-        val token = authManager.getCredential(id, "pat")
+        val token = legacyCredentialProvider(id, "pat")
         if (token.isNullOrBlank()) { _state.value = ConnectorState(false, statusLine = "No PAT", errorMessage = "Set a GitHub PAT in Connectors settings"); return@withContext _state.value }
         try {
             val user = apiGet("/user", token)
@@ -136,7 +152,7 @@ class GitHubConnector(
         if (!execution?.projectId.isNullOrBlank()) {
             return@withContext executeWithProjectSecret(input, execution!!)
         }
-        val token = authManager.getCredential(id, "pat")
+        val token = legacyCredentialProvider(id, "pat")
             ?: return@withContext ConnectorOutput.Failure("not_connected", "GitHub PAT not configured")
         executeWithToken(input, token)
     }
@@ -153,17 +169,7 @@ class GitHubConnector(
         val projectId = execution.projectId ?: return ConnectorOutput.Failure(
             "project_secret_context_missing", "GitHub project secret requires a project execution context"
         )
-        val manager = durableTaskManager ?: return ConnectorOutput.Failure(
-            "project_secret_runtime_unavailable", "GitHub project secret requires durable task ownership"
-        )
-        if (!execution.isComplete || !manager.ownsConnectorExecution(
-                taskId = execution.taskId,
-                missionId = execution.missionId,
-                projectId = projectId,
-                runId = execution.runId,
-                stepId = execution.stepId
-            )
-        ) {
+        if (!execution.isComplete || !projectExecutionOwnership(execution)) {
             return ConnectorOutput.Failure(
                 "project_secret_context_rejected",
                 "GitHub project secret does not match a persisted task run and step"
@@ -208,6 +214,7 @@ class GitHubConnector(
 
     /** Raw PAT remains within this adapter and is never returned to an agent or continuation. */
     private fun executeWithToken(input: ConnectorInput, token: String): ConnectorOutput {
+        tokenExecutor?.let { return it(input, token) }
         return try {
         val t0 = System.currentTimeMillis()
         val result = when (input.action) {

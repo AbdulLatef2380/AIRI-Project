@@ -258,35 +258,6 @@ fun SettingsScreen(
                     label    = stringResource(R.string.settings_zapier_ifttt),
                     onClick  = { onNavigate(AiriRoute.ZAPIER_IFTTT) }
                 )
-                SettingsDivider()
-                SettingsNavItem(
-                    icon     = Icons.Outlined.CreditCard,
-                    iconTint = Color(0xFF635BFF),
-                    label    = stringResource(R.string.settings_buy_credits),
-                    onClick  = { onNavigate(AiriRoute.STRIPE_PAYMENT) }
-                )
-                SettingsDivider()
-                SettingsNavItem(
-                    icon     = Icons.Outlined.ReceiptLong,
-                    iconTint = Color(0xFF22C55E),
-                    label    = stringResource(R.string.settings_billing_history),
-                    onClick  = { onNavigate(AiriRoute.BILLING_HISTORY) }
-                )
-            }
-            SettingsGroup {
-                SettingsNavItem(
-                    icon     = Icons.Outlined.Store,
-                    iconTint = Color(0xFF7C6AF7),
-                    label    = stringResource(R.string.settings_skill_marketplace),
-                    onClick  = { onNavigate(AiriRoute.MARKETPLACE) }
-                )
-                SettingsDivider()
-                SettingsNavItem(
-                    icon     = Icons.Outlined.Groups,
-                    iconTint = Color(0xFF06B6D4),
-                    label    = stringResource(R.string.settings_community_skills),
-                    onClick  = { onNavigate(AiriRoute.COMMUNITY_SKILLS) }
-                )
             }
             // These tools were previously unreachable from any UI path.
             // Now exposed here so developers and power users can access

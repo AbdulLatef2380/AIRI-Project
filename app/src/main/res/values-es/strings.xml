@@ -1358,4 +1358,6 @@
     <string name="permissions_accessibility_why_needed">AIRI abre los ajustes de Android solo cuando eliges Activar. Este servicio por sí solo no autoriza acciones del agente en el dispositivo.</string>
     <string name="permissions_accessibility_enable_title">Activar servicio de accesibilidad</string>
     <string name="permissions_accessibility_enable_body">Abre los ajustes de Android para activar el servicio local. Las acciones del agente en el dispositivo siguen teniendo controles independientes.</string>
+    <string name="release_scope_unavailable_title">No disponible en esta versión</string>
+    <string name="release_scope_unavailable_message">Las funciones de pago, historial de facturación y mercado comunitario no están disponibles en esta versión. No se ha iniciado ninguna compra ni conexión a un mercado externo.</string>
 </resources>

@@ -39,6 +39,7 @@ import com.airi.assistant.domain.auth.AuthService
 import com.airi.assistant.domain.experiment.ExperimentManager
 import com.airi.assistant.domain.growth.OnboardingManager
 import com.airi.assistant.domain.growth.ReferralManager
+import com.airi.assistant.domain.release.ReleaseScopePolicy
 import androidx.compose.foundation.background
 import com.airi.assistant.ui.components.AiriBottomNavBar
 import com.airi.assistant.ui.components.AiriNavTab
@@ -49,6 +50,7 @@ import com.airi.assistant.ui.screens.AgentLogsScreen
 import com.airi.assistant.ui.screens.AgentTasksScreen
 import com.airi.assistant.ui.screens.DebugPanelScreen
 import com.airi.assistant.ui.screens.ExecDiagnosticsScreen
+import com.airi.assistant.ui.screens.FeatureFreezeUnavailableScreen
 import com.airi.assistant.ui.debug.DebugScreen
 import com.airi.assistant.ui.screens.AgentTraceDetailScreen
 import com.airi.assistant.ui.screens.ChatScreen
@@ -429,33 +431,49 @@ fun AiriApp() {
                     }
 
                     composable(AiriRoute.STRIPE_PAYMENT) {
-                        com.airi.assistant.ui.screens.StripePaymentScreen(
-                            stripeManager       = com.airi.assistant.core.ServiceLocator.stripeManager,
-                            subscriptionManager = com.airi.assistant.core.ServiceLocator.subscriptionManager,
-                            onBack              = { navController.popBackStack() }
-                        )
+                        if (ReleaseScopePolicy.commercialSurfacesEnabled) {
+                            com.airi.assistant.ui.screens.StripePaymentScreen(
+                                stripeManager       = com.airi.assistant.core.ServiceLocator.stripeManager,
+                                subscriptionManager = com.airi.assistant.core.ServiceLocator.subscriptionManager,
+                                onBack              = { navController.popBackStack() }
+                            )
+                        } else {
+                            FeatureFreezeUnavailableScreen(onBack = { navController.popBackStack() })
+                        }
                     }
 
                     composable(AiriRoute.BILLING_HISTORY) {
-                        com.airi.assistant.ui.screens.BillingHistoryScreen(
-                            billingHistoryStore = com.airi.assistant.core.ServiceLocator.billingHistoryStore,
-                            onBack              = { navController.popBackStack() }
-                        )
+                        if (ReleaseScopePolicy.commercialSurfacesEnabled) {
+                            com.airi.assistant.ui.screens.BillingHistoryScreen(
+                                billingHistoryStore = com.airi.assistant.core.ServiceLocator.billingHistoryStore,
+                                onBack              = { navController.popBackStack() }
+                            )
+                        } else {
+                            FeatureFreezeUnavailableScreen(onBack = { navController.popBackStack() })
+                        }
                     }
 
                     composable(AiriRoute.MARKETPLACE) {
-                        com.airi.assistant.ui.screens.MarketplaceScreen(
-                            repository         = com.airi.assistant.core.ServiceLocator.marketplaceRepository,
-                            onBack             = { navController.popBackStack() },
-                            onNavigateToWizard = { navController.navigate(AiriRoute.SKILL_CREATION_WIZARD) }
-                        )
+                        if (ReleaseScopePolicy.commercialSurfacesEnabled) {
+                            com.airi.assistant.ui.screens.MarketplaceScreen(
+                                repository         = com.airi.assistant.core.ServiceLocator.marketplaceRepository,
+                                onBack             = { navController.popBackStack() },
+                                onNavigateToWizard = { navController.navigate(AiriRoute.SKILL_CREATION_WIZARD) }
+                            )
+                        } else {
+                            FeatureFreezeUnavailableScreen(onBack = { navController.popBackStack() })
+                        }
                     }
 
                     composable(AiriRoute.COMMUNITY_SKILLS) {
-                        com.airi.assistant.ui.screens.CommunitySkillsScreen(
-                            hub    = com.airi.assistant.core.ServiceLocator.communitySkillHub,
-                            onBack = { navController.popBackStack() }
-                        )
+                        if (ReleaseScopePolicy.commercialSurfacesEnabled) {
+                            com.airi.assistant.ui.screens.CommunitySkillsScreen(
+                                hub    = com.airi.assistant.core.ServiceLocator.communitySkillHub,
+                                onBack = { navController.popBackStack() }
+                            )
+                        } else {
+                            FeatureFreezeUnavailableScreen(onBack = { navController.popBackStack() })
+                        }
                     }
 
                     composable(AiriRoute.SETTINGS) {
@@ -601,10 +619,14 @@ fun AiriApp() {
                     }
 
                     composable(AiriRoute.PAYWALL) {
-                        PaywallScreen(
-                            onBack            = { navController.popBackStack() },
-                            onPurchaseSuccess = { navController.popBackStack() }
-                        )
+                        if (ReleaseScopePolicy.commercialSurfacesEnabled) {
+                            PaywallScreen(
+                                onBack            = { navController.popBackStack() },
+                                onPurchaseSuccess = { navController.popBackStack() }
+                            )
+                        } else {
+                            FeatureFreezeUnavailableScreen(onBack = { navController.popBackStack() })
+                        }
                     }
 
                     composable(AiriRoute.REFERRALS) {

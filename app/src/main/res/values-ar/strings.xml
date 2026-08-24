@@ -1589,4 +1589,6 @@
     <string name="permissions_accessibility_why_needed">لا يفتح AIRI إعدادات Android إلا بعد اختيارك تمكين. هذه الخدمة وحدها لا تخوّل إجراءات جهاز الوكيل.</string>
     <string name="permissions_accessibility_enable_title">تمكين خدمة تسهيل الاستخدام</string>
     <string name="permissions_accessibility_enable_body">افتح إعدادات Android لتمكين الخدمة المحلية. تبقى إجراءات جهاز الوكيل خاضعة لضوابط منفصلة.</string>
+    <string name="release_scope_unavailable_title">غير متاح في هذا الإصدار</string>
+    <string name="release_scope_unavailable_message">ميزات الدفع وسجل الفوترة ومتجر المجتمع غير متاحة في هذا الإصدار. لم تبدأ أي عملية شراء أو اتصال بمتجر خارجي.</string>
 </resources>

@@ -1690,4 +1690,6 @@
     <string name="permissions_accessibility_why_needed">AIRI opens Android Settings only after you choose Enable. This service alone does not authorize agent device actions.</string>
     <string name="permissions_accessibility_enable_title">Enable Accessibility service</string>
     <string name="permissions_accessibility_enable_body">Open Android Settings to enable the local service. Agent device actions remain separately governed.</string>
+    <string name="release_scope_unavailable_title">Not available in this release</string>
+    <string name="release_scope_unavailable_message">Payments, billing history, and community marketplace features are not available in this release. No purchase or external marketplace connection has been started.</string>
 </resources>

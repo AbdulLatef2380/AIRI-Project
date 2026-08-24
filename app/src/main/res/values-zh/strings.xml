@@ -1358,4 +1358,6 @@
     <string name="permissions_accessibility_why_needed">AIRI 只会在您选择启用后打开 Android 设置。该服务本身不授权智能体执行设备操作。</string>
     <string name="permissions_accessibility_enable_title">启用无障碍服务</string>
     <string name="permissions_accessibility_enable_body">打开 Android 设置以启用本地服务。智能体设备操作仍受独立控制。</string>
+    <string name="release_scope_unavailable_title">此版本不可用</string>
+    <string name="release_scope_unavailable_message">此版本不提供付款、账单历史记录和社区市场功能。未发起任何购买或外部市场连接。</string>
 </resources>

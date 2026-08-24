@@ -1,13 +1,10 @@
 package com.airi.assistant
 
-import android.Manifest
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
@@ -42,22 +39,12 @@ class MainActivity : ComponentActivity() {
         super.attachBaseContext(LanguageManager.applyLocale(newBase))
     }
 
-    private val notifPermLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { /* result ignored — we never block the app */ }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         ReferralManager.captureReferralIntent(intent)
         if (intent?.action == HotwordService.ACTION_WAKE_WORD_TRIGGERED) {
             WakeWordDispatcher.fireTriggered()
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
         }
 
         // , Start SystemHealthCoordinator so thermal + battery signals are

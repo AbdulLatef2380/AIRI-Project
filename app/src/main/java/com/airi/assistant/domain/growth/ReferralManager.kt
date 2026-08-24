@@ -128,10 +128,10 @@ object ReferralManager {
 
     fun captureReferralIntent(intent: Intent?) {
         val data = intent?.data ?: return
-        val code = parseCode(data) ?: return
+        val code = parseReferralCode(data) ?: return
         val prefs = prefs() ?: return
         prefs.edit().putString(KEY_PENDING_CODE, code).apply()
-        LoggingService.info(TAG, "Captured referral code $code")
+        LoggingService.info(TAG, "Captured validated referral deep link")
     }
 
     // ── Code generation ───────────────────────────────────────────────────────
@@ -216,9 +216,10 @@ object ReferralManager {
         prefs.edit().putInt(KEY_BONUS_MESSAGES, current + amount).apply()
     }
 
-    private fun parseCode(uri: Uri): String? {
-        val code = uri.getQueryParameter("code") ?: uri.lastPathSegment
-        return code?.trim()?.uppercase(Locale.US)?.takeIf { isValidCode(it) }
+    private fun parseReferralCode(uri: Uri): String? {
+        if (uri.scheme != "airi" || uri.host != "referral") return null
+        val code = uri.getQueryParameter("code") ?: return null
+        return code.trim().uppercase(Locale.US).takeIf { isValidCode(it) }
     }
 
     private fun generateCode(seed: String): String {

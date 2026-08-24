@@ -221,13 +221,13 @@ fun PrivacyDataSettingsScreen(
                             if (activity != null) {
                                 val availability = BiometricGatekeeper.checkAvailability(activity)
                                 if (availability == BiometricGatekeeper.Availability.NOT_ENROLLED) {
-                                    snackbarHost.showSnackbar("Add a screen lock or fingerprint in device Settings to confirm account deletion.")
+                                    snackbarHost.showSnackbar(context.getString(R.string.delete_account_error_generic))
                                     return@launch
                                 }
                                 val confirmed = BiometricGatekeeper.authenticate(
                                     activity = activity,
-                                    title    = "Confirm Account Deletion",
-                                    subtitle = "This action is irreversible and cannot be undone."
+                                    title    = context.getString(R.string.delete_account),
+                                    subtitle = context.getString(R.string.delete_account_message)
                                 )
                                 if (!confirmed) return@launch
                             }

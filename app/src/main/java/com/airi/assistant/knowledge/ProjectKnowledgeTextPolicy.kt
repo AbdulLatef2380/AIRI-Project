@@ -10,6 +10,10 @@ internal object ProjectKnowledgeTextPolicy {
     fun chunkText(text: String): List<String> {
         val normalized = text.replace("\u0000", "").trim()
         if (normalized.isBlank()) return emptyList()
+        // A user explicitly selected this project file for local indexing. Keep a
+        // bounded short note as one lexical chunk instead of reporting a false
+        // indexing failure solely because it is below the long-text chunk target.
+        if (normalized.length < MIN_CHUNK_CHARS) return listOf(normalized)
 
         val chunks = mutableListOf<String>()
         var cursor = 0

@@ -8,9 +8,9 @@ import org.junit.Test
 class ProjectKnowledgeTextPolicyTest {
 
     @Test
-    fun blankAndShortTextDoNotCreatePhantomChunks() {
+    fun blankTextDoesNotCreatePhantomChunksButShortExplicitTextIsRetained() {
         assertTrue(ProjectKnowledgeTextPolicy.chunkText("   ").isEmpty())
-        assertTrue(ProjectKnowledgeTextPolicy.chunkText("short note").isEmpty())
+        assertEquals(listOf("short note"), ProjectKnowledgeTextPolicy.chunkText("short note"))
     }
 
     @Test

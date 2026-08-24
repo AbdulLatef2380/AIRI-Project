@@ -60,7 +60,6 @@ import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.workspace.ArtifactManager
 import com.airi.assistant.agent.durable.DurableTask
-import com.airi.assistant.agent.durable.DurableTaskStatus
 import com.airi.assistant.workspace.ProjectFileEditRuntime
 import com.airi.assistant.workspace.ProjectFileManager
 import kotlinx.coroutines.launch
@@ -96,6 +95,7 @@ fun LibraryScreen(onBack: () -> Unit) {
     }
 
     val projectId = activeProject?.sessionId
+    var selectedEditTaskId by remember(projectId) { mutableStateOf<String?>(null) }
     val normalizedQuery = query.trim()
     val projectFiles = remember(projectId, allProjectFiles, normalizedQuery) {
         projectId?.let(projectFileManager::forProject).orEmpty().filter { file ->
@@ -118,16 +118,11 @@ fun LibraryScreen(onBack: () -> Unit) {
                 )
         }
     }
-    val activeEditTask = remember(projectId, allTasks) {
-        projectId?.let { selectedProjectId ->
-            allTasks.firstOrNull { task ->
-                task.projectId == selectedProjectId &&
-                    task.status == DurableTaskStatus.RUNNING &&
-                    !task.currentRunId.isNullOrBlank() &&
-                    !task.currentStepId.isNullOrBlank()
-            }
-        }
+    val editTaskSelection = remember(projectId, allTasks) {
+        ProjectFileEditTaskSelector.select(allTasks, projectId)
     }
+    val activeEditTask = editTaskSelection.task
+        ?: editTaskSelection.eligibleTasks.firstOrNull { it.id == selectedEditTaskId }
 
     Scaffold(
         topBar = {
@@ -236,6 +231,7 @@ fun LibraryScreen(onBack: () -> Unit) {
                                                 projectFileManager.readTextForEdit(activeId, file.id)
                                             }
                                             editFile = file
+                                            selectedEditTaskId = null
                                             editProposal = null
                                             if (source == null) {
                                                 editCandidate = ""
@@ -287,10 +283,13 @@ fun LibraryScreen(onBack: () -> Unit) {
         ProjectFileEditDialog(
             file = file,
             activeTask = activeEditTask,
+            requiresExplicitTaskChoice = editTaskSelection.requiresExplicitTaskChoice,
+            eligibleTasks = editTaskSelection.eligibleTasks,
             candidate = editCandidate,
             proposal = editProposal,
             unavailable = editUnavailable,
             onCandidateChange = { editCandidate = it },
+            onSelectTask = { selectedEditTaskId = it },
             onCreateProposal = {
                 val task = activeEditTask ?: return@ProjectFileEditDialog
                 val activeId = projectId ?: return@ProjectFileEditDialog
@@ -328,6 +327,7 @@ fun LibraryScreen(onBack: () -> Unit) {
                 editFile = null
                 editProposal = null
                 editCandidate = ""
+                selectedEditTaskId = null
                 editUnavailable = false
             }
         )
@@ -467,10 +467,13 @@ private fun ProjectFileRow(
 private fun ProjectFileEditDialog(
     file: ProjectFileManager.ProjectFile,
     activeTask: DurableTask?,
+    requiresExplicitTaskChoice: Boolean,
+    eligibleTasks: List<DurableTask>,
     candidate: String,
     proposal: ProjectFileEditRuntime.Proposal?,
     unavailable: Boolean,
     onCandidateChange: (String) -> Unit,
+    onSelectTask: (String) -> Unit,
     onCreateProposal: () -> Unit,
     onRequestApproval: () -> Unit,
     onDismiss: () -> Unit
@@ -489,10 +492,28 @@ private fun ProjectFileEditDialog(
                 )
                 if (activeTask == null) {
                     Text(
-                        stringResource(R.string.library_edit_no_active_task),
+                        stringResource(
+                            if (requiresExplicitTaskChoice) {
+                                R.string.library_edit_multiple_active_tasks
+                            } else {
+                                R.string.library_edit_no_active_task
+                            }
+                        ),
                         color = AiriTheme.error,
                         fontSize = 12.sp
                     )
+                    if (requiresExplicitTaskChoice) {
+                        eligibleTasks.forEach { task ->
+                            TextButton(onClick = { onSelectTask(task.id) }) {
+                                Text(
+                                    task.title,
+                                    color = CosmicAccent,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
                 } else if (proposal == null) {
                     OutlinedTextField(
                         value = candidate,

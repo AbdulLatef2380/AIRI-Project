@@ -1213,6 +1213,7 @@
     <string name="library_edit_status">编辑状态：%1$s</string>
     <string name="library_edit_waiting_approval">正在信任中心等待批准</string>
     <string name="library_edit_no_active_task">请先为此项目启动运行中的任务，再提议文件编辑。</string>
+    <string name="library_edit_multiple_active_tasks">请先为此项目选择一项活动任务，再提议文件编辑。</string>
     <string name="library_edit_unavailable">当前项目状态无法提议此文件编辑。</string>
     <string name="library_generated_artifacts">生成的工件</string>
     <string name="library_artifact_execution_evidence">执行证据</string>

@@ -1093,6 +1093,7 @@
     <string name="library_edit_status">Edit status: %1$s</string>
     <string name="library_edit_waiting_approval">Awaiting approval in Trust Center</string>
     <string name="library_edit_no_active_task">Start a running task for this project before proposing a file edit.</string>
+    <string name="library_edit_multiple_active_tasks">Choose one active task for this project before proposing a file edit.</string>
     <string name="library_edit_unavailable">The file edit cannot be proposed in the current project state.</string>
     <string name="library_select_project_title">Select a project first</string>
     <string name="library_select_project_description">Files belong to a project. Open or create a workspace before importing.</string>

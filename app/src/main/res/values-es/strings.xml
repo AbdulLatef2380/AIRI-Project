@@ -1213,6 +1213,7 @@
     <string name="library_edit_status">Estado de edición: %1$s</string>
     <string name="library_edit_waiting_approval">Esperando aprobación en el Centro de confianza</string>
     <string name="library_edit_no_active_task">Inicia una tarea en ejecución para este proyecto antes de proponer una edición de archivo.</string>
+    <string name="library_edit_multiple_active_tasks">Elige una tarea activa para este proyecto antes de proponer una edición de archivo.</string>
     <string name="library_edit_unavailable">La edición del archivo no se puede proponer en el estado actual del proyecto.</string>
     <string name="library_generated_artifacts">Artefactos generados</string>
     <string name="library_artifact_execution_evidence">Evidencia de ejecución</string>

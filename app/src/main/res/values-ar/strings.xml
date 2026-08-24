@@ -1044,6 +1044,7 @@
     <string name="library_edit_status">حالة التعديل: %1$s</string>
     <string name="library_edit_waiting_approval">بانتظار الموافقة في مركز الثقة</string>
     <string name="library_edit_no_active_task">ابدأ مهمة قيد التنفيذ لهذا المشروع قبل اقتراح تعديل ملف.</string>
+    <string name="library_edit_multiple_active_tasks">اختر مهمة نشطة واحدة لهذا المشروع قبل اقتراح تعديل ملف.</string>
     <string name="library_edit_unavailable">لا يمكن اقتراح تعديل الملف في حالة المشروع الحالية.</string>
     <string name="library_select_project_title">اختر مشروعاً أولاً</string>
     <string name="library_select_project_description">تنتمي الملفات إلى مشروع. افتح مساحة عمل أو أنشئها قبل الاستيراد.</string>

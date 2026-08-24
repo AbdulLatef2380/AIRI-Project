@@ -1,6 +1,6 @@
 # تسليم بوابات نشر AIRI
 
-> **الحالة:** `FEATURE_FREEZE / EXTERNAL_GATE_HANDOFF`.
+> **الحالة:** `FEATURE_FREEZE / SIGNING_SECRETS_BLOCKED / EXTERNAL_GATE_HANDOFF`.
 >
 > هذا المستند هو قائمة التنفيذ الوحيدة لما لا يستطيع فرع `cp-foundation` أو محاكي CI إثباته. لا يجوز تحويل أي صف إلى `PASS` من دون evidence منقح محفوظ تحت سجل إصدار، ولا يجوز اعتبار أي APK/AAB غير موقّع صالحاً للتثبيت أو النشر.
 
@@ -14,6 +14,16 @@
 | AAB | `app-release.aab`، SHA-256: `647166abd6c955c7f68ab2f528b0a85b998776f79117c9b79c1ea81227569dcf` | لا Play upload ولا هوية ناشر. |
 | R8 mapping | `mapping.txt`، 815,811 سطراً، SHA-256: `d82ae1096fcbdaaf493952997b2a32bd3cf8ab7acfabc085c5c4ca9a0aced5a7` | لا mapping نهائي قبل تشغيل signed `main`. |
 | Manifest المرصود | `com.airi.assistant`، `versionCode=1`، `minSdk=26`، `targetSdk=36`، `arm64-v8a`، وإذن Billing غير موجود في APK المفحوص. | لا يغني عن manifest الحزمة الموقعة أو device install. |
+
+## 1.1 نتيجة بوابة التوقيع على main
+
+رُقّي commit المرشح `fe3fb68b` إلى `main` بتفويض المالك، وشُغلت GitHub Actions run [`32742046966`](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32742046966). اجتاز التشغيل الحارسات وdebug/unit/lint وrelease-source وinstrumentation API 29 وفحص native، لكنه لم ينشئ artifact موقعاً: الخطوة المنشورة سجلت `RELEASE_SIGNING_READY=false` وتخطت packaging و`apksigner` كما يجب. السبب الوحيد المثبت هو أن واحداً أو أكثر من المدخلات الآمنة التالية غير مهيأ: `KEYSTORE_BASE64` و`STORE_PASSWORD` و`KEY_ALIAS` و`KEY_PASSWORD`.
+
+| بوابة | النتيجة | الإجراء التالي المسموح |
+|---|---|---|
+| ترقية main | `PASS`؛ fast-forward إلى المرشح بلا merge commit. | لا تغيير للشفرة. |
+| CI الداخلي على main | `PASS`؛ كل البوابات غير الموقعة/المحاكي/native نجحت. | احتفظ برابط CI ضمن سجل الإصدار. |
+| توقيع الحزمة | `BLOCKED`؛ لا APK/AAB موقعة ولا apksigner/mapping/hash نهائية. | يهيئ مالك الإصدار الأسرار الأربعة داخل GitHub ثم يعيد تشغيل workflow على `main`. |
 
 ## 2. نطاق الإصدار المجمّد
 

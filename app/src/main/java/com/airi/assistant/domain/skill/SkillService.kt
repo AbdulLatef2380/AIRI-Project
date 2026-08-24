@@ -27,8 +27,20 @@ import com.airi.assistant.domain.policy.UnifiedPolicyGate
 
 class SkillService(private val context: Context) {
 
-    private companion object {
+    companion object {
         private const val TAG = "SkillService"
+
+        internal fun resultForToolExecution(
+            toolCall: ToolCall,
+            result: ToolResult
+        ): ToolCallResult = if (result.success) {
+            ToolCallResult.Executed(toolCall, result)
+        } else {
+            ToolCallResult.Failed(
+                toolName = toolCall.toolName,
+                errorMessage = result.error ?: "Tool execution failed."
+            )
+        }
     }
 
     private val skillExecutor         = SkillExecutor(context)
@@ -145,9 +157,14 @@ class SkillService(private val context: Context) {
         return try {
             val result    = toolExecutor.execute(toolCall)
             val latencyMs = System.currentTimeMillis() - startMs
-            outcomeScorer.record(toolCall.toolName, success = true, latencyMs = latencyMs)
-            EventBus.emitSync(AppEvent.ToolCallExecuted(toolCall.toolName, true))
-            ToolCallResult.Executed(toolCall, result)
+            outcomeScorer.record(
+                skillName = toolCall.toolName,
+                success = result.success,
+                latencyMs = latencyMs,
+                errorReason = if (result.success) null else "tool_execution_failed"
+            )
+            EventBus.emitSync(AppEvent.ToolCallExecuted(toolCall.toolName, result.success))
+            resultForToolExecution(toolCall, result)
         } catch (e: Exception) {
             val latencyMs = System.currentTimeMillis() - startMs
             val error     = AppError.SkillExecutionFailed(toolCall.toolName, e.message ?: "Unknown", e)

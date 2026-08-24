@@ -30,6 +30,7 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 object FirebaseCrashReporter {
 
     private const val TAG = "FirebaseCrashReporter"
+    @Volatile private var collectionEnabled = false
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ object FirebaseCrashReporter {
     fun enableCollection() {
         runCatching {
             FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(true)
+            collectionEnabled = true
             Log.i(TAG, "AIRI CRASHLYTICS_ENABLED")
         }.onFailure { e ->
             Log.w(TAG, "Crashlytics enableCollection failed: ${e.message}")
@@ -50,6 +52,7 @@ object FirebaseCrashReporter {
      * Disable crash data collection (called when user revokes consent).
      */
     fun disableCollection() {
+        collectionEnabled = false
         runCatching {
             FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(false)
             Log.i(TAG, "AIRI CRASHLYTICS_DISABLED")
@@ -65,6 +68,7 @@ object FirebaseCrashReporter {
      * MUST be an opaque UID — never PII (name, email, phone).
      */
     fun setUserId(uid: String) {
+        if (!collectionEnabled) return
         runCatching {
             FirebaseCrashlytics.getInstance().setUserId(uid)
         }.onFailure { e ->
@@ -83,6 +87,7 @@ object FirebaseCrashReporter {
      *   "session_count"   — integer session counter
      */
     fun setKey(key: String, value: String) {
+        if (!collectionEnabled) return
         runCatching {
             FirebaseCrashlytics.getInstance().setCustomKey(key, value)
         }.onFailure { e ->
@@ -91,6 +96,7 @@ object FirebaseCrashReporter {
     }
 
     fun setKey(key: String, value: Boolean) {
+        if (!collectionEnabled) return
         runCatching {
             FirebaseCrashlytics.getInstance().setCustomKey(key, value)
         }.onFailure { e ->
@@ -99,6 +105,7 @@ object FirebaseCrashReporter {
     }
 
     fun setKey(key: String, value: Int) {
+        if (!collectionEnabled) return
         runCatching {
             FirebaseCrashlytics.getInstance().setCustomKey(key, value)
         }.onFailure { e ->
@@ -116,6 +123,7 @@ object FirebaseCrashReporter {
      * are discarded automatically.
      */
     fun log(message: String) {
+        if (!collectionEnabled) return
         runCatching {
             FirebaseCrashlytics.getInstance().log(message)
         }.onFailure { /* silently ignore — never crash the crash reporter */ }
@@ -130,6 +138,7 @@ object FirebaseCrashReporter {
      *   - Unexpected StateFlow emissions
      */
     fun recordNonFatal(throwable: Throwable) {
+        if (!collectionEnabled) return
         runCatching {
             FirebaseCrashlytics.getInstance().recordException(throwable)
             Log.w(TAG, "AIRI NON_FATAL_RECORDED class=${throwable::class.simpleName}")

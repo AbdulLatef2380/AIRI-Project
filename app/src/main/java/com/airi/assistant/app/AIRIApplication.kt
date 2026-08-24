@@ -109,20 +109,18 @@ class AIRIApplication : Application() {
             LoggingService.info(TAG, " CrashReporter initialized")
 
             // ── Firebase Crashlytics ───────────────────────────────────────────
-            // Enrich every crash report with session metadata so triage is fast.
-            // Collection remains OFF until the user grants telemetry consent
-            // (OnboardingScreen calls FirebaseCrashReporter.enableCollection()).
-            FirebaseCrashReporter.setKey("app_version", "1.0")
-            FirebaseCrashReporter.setKey("exec_mode",
-                ServiceLocator.context?.let {
-                    com.airi.assistant.execution.prefs.ExecModePreferences(it)
-                        .effectiveMode.name
-                } ?: "UNKNOWN"
-            )
-            // Enable collection if user already consented in a prior session.
+            // Enable and enrich only after a stored, explicit crash-reporting opt-in.
+            // The reporter rejects metadata and non-fatals while collection is off.
             val consentStore = ServiceLocator.telemetryConsentStore
             if (consentStore.current.crashReportingEnabled) {
                 FirebaseCrashReporter.enableCollection()
+                FirebaseCrashReporter.setKey("app_version", "1.0")
+                FirebaseCrashReporter.setKey("exec_mode",
+                    ServiceLocator.context?.let {
+                        com.airi.assistant.execution.prefs.ExecModePreferences(it)
+                            .effectiveMode.name
+                    } ?: "UNKNOWN"
+                )
             }
             LoggingService.info(TAG, " FirebaseCrashReporter configured")
 

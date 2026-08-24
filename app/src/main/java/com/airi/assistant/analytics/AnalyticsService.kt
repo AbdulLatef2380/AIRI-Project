@@ -47,6 +47,20 @@ object AnalyticsService {
                 .getMethod("getInstance", Context::class.java)
                 .invoke(null, context.applicationContext)
             LoggingService.info(TAG, "Firebase Analytics linked")
+            setCollectionEnabled(consent.current.analyticsEnabled)
+        }
+    }
+
+    /** Mirrors the user's persisted choice into Firebase's collection state. */
+    fun setCollectionEnabled(enabled: Boolean) {
+        val analytics = firebaseAnalytics ?: return
+        runCatching {
+            analytics.javaClass
+                .getMethod("setAnalyticsCollectionEnabled", Boolean::class.javaPrimitiveType)
+                .invoke(analytics, enabled)
+            LoggingService.info(TAG, "Firebase Analytics collection enabled=$enabled")
+        }.onFailure { error ->
+            LoggingService.warn(TAG, "Firebase Analytics collection update failed type=${error.javaClass.simpleName}")
         }
     }
 
@@ -154,9 +168,7 @@ object AnalyticsService {
      */
     private fun track(event: String, vararg params: Pair<String, String>) {
         scope.launch {
-            val paramStr = if (params.isEmpty()) ""
-            else " | ${params.joinToString(" | ") { "${it.first}=${it.second}" }}"
-            LoggingService.info(TAG, "[EVENT] $event$paramStr")
+            LoggingService.info(TAG, "[EVENT] $event")
 
             // ── Consent gate — Firebase only fires when user has opted in ──────
             val store = consentStore

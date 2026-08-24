@@ -2,6 +2,8 @@ package com.airi.assistant.telemetry
 
 import android.content.Context
 import android.util.Log
+import com.airi.assistant.analytics.AnalyticsService
+import com.airi.assistant.crash.FirebaseCrashReporter
 import com.airi.assistant.domain.logging.LoggingService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,12 +50,14 @@ class TelemetryConsentStore(context: Context) {
     fun setAnalyticsEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_ANALYTICS, enabled).apply()
         _consentState.value = _consentState.value.copy(analyticsEnabled = enabled)
+        AnalyticsService.setCollectionEnabled(enabled)
         log("analytics", enabled)
     }
 
     fun setCrashReportingEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_CRASH, enabled).apply()
         _consentState.value = _consentState.value.copy(crashReportingEnabled = enabled)
+        if (enabled) FirebaseCrashReporter.enableCollection() else FirebaseCrashReporter.disableCollection()
         log("crash_reporting", enabled)
     }
 
@@ -70,6 +74,8 @@ class TelemetryConsentStore(context: Context) {
             .putBoolean(KEY_AGENT_TEL, false)
             .apply()
         _consentState.value = ConsentState()
+        AnalyticsService.setCollectionEnabled(false)
+        FirebaseCrashReporter.disableCollection()
         LoggingService.info(TAG, "AIRI TELEMETRY_ALL_REVOKED")
     }
 

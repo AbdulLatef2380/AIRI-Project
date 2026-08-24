@@ -1,7 +1,7 @@
 package com.airi.assistant.domain.release
 
-import kotlin.test.Test
-import kotlin.test.assertFalse
+import org.junit.Assert.assertFalse
+import org.junit.Test
 
 class ReleaseScopePolicyTest {
     @Test

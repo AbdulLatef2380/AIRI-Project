@@ -26,8 +26,8 @@
 
 | المجال | ما وجد | التقييم | الإجراء |
 |---|---|---|---|
-| توقيع الإصدار | `build.gradle.kts` يقرأ `KEYSTORE_BASE64` وبياناته من البيئة فقط، وينشئ `release.keystore` محلياً عند توافرها؛ `.gitignore` يستثني `*.jks` و`*.keystore`. | `IMPLEMENTED` للحماية من الإيداع العرضي، لكن `EXTERNAL_VERIFICATION_REQUIRED` لتوقيع حقيقي ورفع Play. | اختبار workflow/keystore في CI أو بيئة إصدار معتمدة؛ لا توضع مفاتيح في المستودع أو ملفات التطبيق. |
-| تقليص وحماية APK | `release` يفعّل R8 وresource shrinking، ويحتوي على فحص JNI مخصص لكل APK. | `PARTIAL` حتى يكتمل assembleRelease ويفحص APK الناتج. | إعادة تشغيل release assembly في CI/ذاكرة كافية؛ جمع mapping والتحقق من APK/AAB. |
+| توقيع الإصدار | `build.gradle.kts` يقرأ `KEYSTORE_BASE64` وبياناته من البيئة فقط، وينشئ `release.keystore` محلياً عند توافرها؛ `.gitignore` يستثني `*.jks` و`*.keystore`. على `main` مع الأسرار الكاملة، ينفذ CI packaging ثم `apksigner verify` و`apksigner --print-certs` ويحفظ SHA-256 وmapping ضمن artifact evidence. GitHub Actions run `32707768137` للالتزام `fa0e62da` اجتاز الحارس والبناء والاختبارات، وظهرت خطوة التحقق الجديدة لكنها skipped كما هو مقصود على `cp-foundation`. | `IMPLEMENTED` لحماية الإدخال وبوابة evidence، لكن `EXTERNAL_VERIFICATION_REQUIRED` لتوقيع main حقيقي ورفع Play. | شغّل main في بيئة إصدار معتمدة مع الأسرار؛ احفظ APK/AAB و`mapping.txt` و`SHA256SUMS` ومخرجات apksigner. لا توضع مفاتيح في المستودع أو ملفات التطبيق. |
+| تقليص وحماية APK | `release` يفعّل R8 وresource shrinking، ويحتوي على فحص JNI مخصص لكل APK. بوابة signing على main تفشل إن غاب `mapping.txt` وتحسب SHA-256 للـAPK/AAB/mapping قبل رفع evidence. | `PARTIAL` حتى يكتمل `assembleRelease`/`bundleRelease` الموقّع وتُفحص مخرجاته الفعلية. | شغّل release assembly في CI المحمي؛ اجمع mapping وSHA-256 ونتيجة apksigner وفحص APK/AAB. |
 | الشبكة | `main` صار TLS-only؛ استثناءات `localhost` و`127.0.0.1` و`10.0.2.2` انتقلت إلى `src/debug` فقط. | `IMPLEMENTED` / `BUILD_VERIFIED` بالحارس وتجميع Kotlin. | تحقق release manifest وprovider traffic في artifact/device قبل الإطلاق. |
 | R8 entry point | قاعدة ProGuard تحتفظ الآن بـ`com.airi.assistant.app.AIRIApplication` المطابق للـmanifest. | `IMPLEMENTED` / `BUILD_VERIFIED` بالحارس وتجميع Kotlin. | إثبات shrinking في APK release مكتمل ما زال مطلوباً. |
 | النسخ الاحتياطي والتجميع الخفي | `allowBackup="false"` وCrashlytics/Analytics معطلة افتراضياً في manifest حتى consent runtime. | `IMPLEMENTED` ثابتاً. | تحقق device/consent/network قبل إطلاق المتجر. |
@@ -54,7 +54,7 @@
 2. **مكتمل:** جعل onboarding محلياً لكل اللغات، وإبقاء طلب microphone/notification/calendar خلف زر صريح مع مسار Settings لاحق، وإزالة ادعاء التحكم العام للوكيل.
 3. **مكتمل:** إعادة تشغيل `connectedDebugAndroidTest` في CI على إصلاح النص القصير؛ اجتازت run `32677555213` الاختبارين وفحص native artifact.
 4. تنفيذ `RELEASE_DEVICE_AND_STORE_MATRIX.md` على أجهزة فعلية/CI لتدقيق الرفض والعودة من Settings والواجهة/قارئ الشاشة وتسجيل الأدلة.
-5. إعادة تشغيل release package/R8 وتوقيع ضمن CI على `main` مع أسرار معتمدة؛ لا تكرر الضغط في sandbox الحالي.
+5. تشغيل release package/R8 والتوقيع ضمن CI على `main` مع أسرار معتمدة؛ عند النجاح، احفظ `mapping.txt` و`SHA256SUMS` ونتائج apksigner التي ترفعها البوابة تلقائياً. لا تكرر الضغط في sandbox الحالي.
 6. تجهيز release documentation وstore/legal gates بعد وجود artifact موقع ونتائج runtime.
 
 ## 5. تدقيق مسارات المنتج والخصوصية والاستمرارية

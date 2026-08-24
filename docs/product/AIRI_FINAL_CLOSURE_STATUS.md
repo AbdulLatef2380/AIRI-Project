@@ -1,8 +1,12 @@
 # AIRI Final Closure Status
 
-**Branch:** `cp-foundation`  
-**Program status:** `IN_PROGRESS`  
-**Source of execution scope:** [`AIRI_FINAL_CLOSURE_MAP.md`](AIRI_FINAL_CLOSURE_MAP.md)
+**Branch:** `cp-foundation`
+
+**Program status:** `IN_PROGRESS`
+
+**Release-priority authority:** [`AIRI_RELEASE_CLOSURE.md`](AIRI_RELEASE_CLOSURE.md)
+
+**Technical execution trace:** [`AIRI_FINAL_CLOSURE_MAP.md`](AIRI_FINAL_CLOSURE_MAP.md)
 
 ## Current milestone
 

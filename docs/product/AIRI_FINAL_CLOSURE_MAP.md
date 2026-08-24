@@ -1,7 +1,7 @@
 # AIRI Final Closure Map
 
 **Branch:** `cp-foundation`  
-**Purpose:** This is the single execution map for the final closure pass. A status is not upgraded by the existence of a class, screen, or unit test alone. Each row must have a live ownership path, relevant persistence and security boundary, an appropriate test, and acceptance evidence.
+**Purpose:** This is the detailed technical ownership map for the final closure pass. [`AIRI_RELEASE_CLOSURE.md`](AIRI_RELEASE_CLOSURE.md) is the release-priority authority and persistent execution ledger; this map supplies its implementation trace. A status is not upgraded by the existence of a class, screen, or unit test alone. Each row must have a live ownership path, relevant persistence and security boundary, an appropriate test, and acceptance evidence.
 
 ## Status vocabulary
 
@@ -75,4 +75,4 @@
 | Exact-step GitHub continuation | `IMPLEMENTED` / `TESTED` / `BUILD_VERIFIED` | `APPROVAL_CONTINUATION_CONTRACT.md`, durable pause/claim runtime, Trust Center resume, targeted Product Kernel and ConnectorRuntimeManager tests. |
 | AgentLoop typed calendar continuation | `IMPLEMENTED` / `TESTED` / `BUILD_VERIFIED` / `RUNTIME_VERIFICATION_PENDING` | `AGENT_LOOP_DURABLE_APPROVAL_CONTRACT.md`; a project-scoped calendar request creates a private proposal and real task/run/step, pauses one hash-only continuation, requires a dedicated Trust Center review, claims once, makes one Calendar provider attempt, and records bounded evidence. `AgentLoopExecutionContextTest`, `AgentLoopSideEffectPolicyTest`, `DurableTaskProductKernelTest`, core guard, and Kotlin compilation pass. Calendar provider permission, insert, denial/recovery, process recreation, UI accessibility, and duplicate-insert checks require a device/emulator. All non-calendar AgentLoop side effects remain fail-closed. |
 | Artifact execution provenance | `IMPLEMENTED` / `TESTED` / `BUILD_VERIFIED` | `ARTIFACT_PROVENANCE_CONTRACT.md`, Room v9, orchestrator result artifact route, targeted tests and core verifier. |
-| Final closure pass | `IN_PROGRESS` | This map and `AIRI_FINAL_CLOSURE_STATUS.md` are updated only at meaningful closure milestones. |
+| Final closure pass | `IN_PROGRESS` | `AIRI_RELEASE_CLOSURE.md` governs Release Candidate priority and records current state, evidence, blockers, next action, files, tests, commit, and remaining risk; this map and `AIRI_FINAL_CLOSURE_STATUS.md` are updated only at meaningful closure milestones. |

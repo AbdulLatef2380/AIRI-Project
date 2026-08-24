@@ -1,5 +1,12 @@
 # AIRI — Changelog
 
+## Unreleased — Release Closure Control
+
+- Added [`docs/product/AIRI_RELEASE_CLOSURE.md`](docs/product/AIRI_RELEASE_CLOSURE.md) as the persistent execution ledger for the nearest Android Release Candidate.
+- Added [`docs/product/PRODUCT_CONTRACT.md`](docs/product/PRODUCT_CONTRACT.md) to define the minimum end-to-end project journey, release blockers, evidence discipline, and explicit post-release scope.
+- Reclassified `AIRI_PRODUCT_GAP_MATRIX.md` as long-term strategy and linked `AIRI_FINAL_CLOSURE_MAP.md` and `AIRI_FINAL_CLOSURE_STATUS.md` to the Release Closure authority.
+- This entry does not claim a release artifact, signed APK/AAB, device verification, provider verification, legal review, or store publication.
+
 ## Phase 1: Feature Restoration
 
 ### ChatScreen (2786 lines restored from 540)

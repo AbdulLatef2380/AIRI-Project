@@ -2,7 +2,7 @@
 
 ## الغرض
 
-هذه المصفوفة هي خط الأساس التجاري الجديد لـAIRI بعد مراجعة المرفق ولقطات الشاشة التي تُظهر بنية مساحة عمل Manus: البحث والملفات، الوكيل، المهارات، التخزين، Canvas، Console، Database، Developer، Domains، Git، Growth، Integrations، Invite، Monitoring، Preview، Secrets، Security Center، Shell، User Settings، Users & Auth، وWorkflows.
+هذه المصفوفة هي خط الأساس التجاري وخارطة المنتج طويلة الأجل لـAIRI بعد مراجعة المرفق ولقطات الشاشة التي تُظهر بنية مساحة عمل Manus: البحث والملفات، الوكيل، المهارات، التخزين، Canvas، Console، Database، Developer، Domains، Git، Growth، Integrations، Invite، Monitoring، Preview، Secrets، Security Center، Shell، User Settings، Users & Auth، وWorkflows.
 
 المصفوفة لا تعتبر وجود واجهة أو صنف أو اختبار وحدة دليلاً على اكتمال القدرة. لا تُغلق القدرة إلا عبر العقد، التكامل الحقيقي، اختبار الفشل، اختبار الواجهة، واختبار الأداء ودليل قابل لإعادة التشغيل.
 
@@ -78,7 +78,7 @@
 
 ## قرار الأولوية
 
-الأولوية التنفيذية ليست إضافة عشرات الأصناف، بل وصل الموجود فعلياً. يبدأ العمل بربط `WorkspaceRuntime` و`AgentWorkspace` في نموذج Project Context واحد، ثم إغلاق File Intelligence وMemory Governance، وبعدها Execution/Approval/Terminal. Browser وMarketplace وTeam/Billing تبقى مسارات لاحقة أو خارجية حتى تتوفر بيئة تشغيل واعتمادات وأدلة حقيقية.
+هذه الوثيقة لا تضبط أولوية Release Candidate. الأولوية التنفيذية للإغلاق الفوري هي [`AIRI_RELEASE_CLOSURE.md`](AIRI_RELEASE_CLOSURE.md): رحلة Android واحدة قابلة للاستخدام من المشروع حتى الاستعادة، مع عوائقها المحددة فقط. تبقى هذه المصفوفة مرجعاً لاستراتيجية المنتج والفجوات طويلة الأجل؛ Browser وMarketplace وTeam/Billing وDesktop/Cloud تبقى مسارات لاحقة أو خارجية حتى تتوفر بيئة تشغيل واعتمادات وأدلة حقيقية.
 
 ## الهوية المقترحة
 

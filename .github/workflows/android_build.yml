@@ -75,8 +75,10 @@ jobs:
       run: |
         test -f app/build/outputs/mapping/release/mapping.txt
         mkdir -p app/build/release-evidence
+        aapt_bin="$(find "${ANDROID_HOME:?}/build-tools" -type f -name aapt -print | sort -V | tail -n 1)"
+        test -x "$aapt_bin"
         for apk in app/build/outputs/apk/release/*.apk; do
-          aapt dump badging "$apk" > "app/build/release-evidence/$(basename "$apk").badging.txt"
+          "$aapt_bin" dump badging "$apk" > "app/build/release-evidence/$(basename "$apk").badging.txt"
         done
         for bundle in app/build/outputs/bundle/release/*.aab; do
           unzip -t "$bundle" > "app/build/release-evidence/$(basename "$bundle").ziptest.txt"

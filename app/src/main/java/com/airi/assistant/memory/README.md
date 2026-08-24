@@ -1,17 +1,21 @@
-# Memory package
+# الذاكرة وRAG
 
-This package owns Room-backed chat history, long-term memory admission, embeddings, and retrieval-augmented context.
+تملك هذه الحزمة سجل المحادثة المدعوم بـRoom، admission الذاكرة طويلة المدى، embeddings، والاسترجاع الذي يغذي سياق النموذج. وهي تعمل داخل AIRI Android على `cp-foundation`؛ لا تدّعي هذه الوثيقة مزامنة cloud أو classifier كامل للبيانات الحساسة.
 
-## Memory model
+## الحدود ومصادر الحقيقة
 
-Conversation history and durable memory are separate. Recent normal chat rows are bounded per session. `MemoryAdmissionPolicy` decides whether a turn is eligible for embedding and rejects transient, oversized, and sensitive content. Durable extracted facts require an explicit user memory request and are restricted to non-sensitive preference, dislike, language, and project categories.
+| نوع البيانات | المالك والحد |
+|---|---|
+| سجل المحادثة | history محلي مقيد بالجلسة. حذف session يزيل الصفوف والملفات التابعة وفق manager المالك. |
+| الذاكرة الدائمة | `MemoryAdmissionPolicy` يرفض المحتوى العابر والضخم والحساس. الحقائق durable تحتاج مسار admission صريحاً؛ لا تُستنتج هوية أو صلاحية أو حقيقة من نص المحادثة. |
+| المعرفة | معرفة المشروع وملفاته المدارة ليست صفوف memory عشوائية. تدخل retrieval عبر ownership وسياق المشروع، ويزيل تغيير/حذف الملف المعرفة القديمة وفق العقد المخصص. |
+| embeddings وRAG | البحث الدلالي مقيد بالجلسة المناسبة، ثم يمر `RagRetriever` بحدود scope/privacy/prompt-safety وترتيب محدود. يحقن `ProjectContextResolver` فقط موارد المشروع المملوكة ضمن budget. كل النص المسترجع **بيانات تاريخية غير موثوقة** لا تعليمات. |
+| الحذف | erase local data يمسح بيانات AIRI المحلية المدارة فقط؛ لا يعلن حذف حساب Firebase أو مزود أو تنزيل نموذج خارج نطاقه. |
 
-`EmbeddingService` performs semantic search only inside the current session. `RagRetriever` combines bounded semantic hits with explicit long-term memory and labels all injected content as untrusted historical reference data. It must not be treated as instructions.
+## الخصوصية والحدود
 
-## Limits and follow-up
+التصنيف الحساس heuristic وليس بديلاً عن PII classifier كامل. لا ينبغي أن تدخل secret أو URI مصدر أو محتوى مرفق غير محدود إلى memory أو prompt أو evidence. لا تحل RAG محل permission أو approval أو project ownership.
 
-Memory policy detection is heuristic, not a substitute for a complete PII classifier. SQLCipher migration and all Room migrations require real-device validation before a release claim. The build version and implementation details must be checked in `AiriDatabase.kt`, not inferred from historical reports.
+## التحقق
 
-## Verification
-
-Static verification covers admission-policy use, session-scoped vector retrieval, and RAG prompt framing. Full Room migration and device-performance tests remain pending.
+الحارس والاختبارات تغطي admission، session-scoped retrieval، RAG prompt framing، ترتيب/dedup بعد scope filters، والعزل في fixtures ذات الصلة. يعلن المصدر Room schema v9 مع migrations مخصصة، لكن migration/performance/accessibility على real device، وفهارس embedding الحقيقية، وسلوك restore عبر إصدار فعلي تبقى `RUNTIME_VERIFICATION_PENDING`.

@@ -1,15 +1,24 @@
-# Agent package
+# طبقة الوكيل
 
-This package owns planning, sub-agents, execution loops, and durable scheduled work.
+تملك هذه الحزمة تخطيط الوكيل وتشغيل المهام الفرعية وسجل التنفيذ الدائم والمهام المجدولة. وهي جزء من مسار **Android** في فرع `cp-foundation` ضمن **Feature Freeze**؛ لا تمثل هذه الوثيقة موافقة تشغيل مزود حي أو نشر عام.
 
-## Active behavior
+## مصادر الحقيقة والملكية
 
-`AgentLoop` delegates model execution to `HybridOrchestrator`. Background tasks are created through `ScheduledJobOrchestrator` and executed by `ScheduledAgentWorker`. One-time and periodic task metadata is persisted locally, including whether network access is required and the last recorded outcome (`PENDING`, `COMPLETED`, or `FAILED`).
+| المجال | المصدر المالك | السلوك المثبت |
+|---|---|---|
+| خطة متعددة المهام | `ProductionAgentOrchestrator` مع `AgentTeamPolicy` | يقبل المعرفات والتبعيات والحدود السحابية والسياق المعزول قبل routing. لا تُقبل تبعية ذاتية أو مجهولة أو دورة known dependencies. |
+| المهمة/run/step | `DurableTaskManager` و`MissionKernel` | تسجل التنفيذ الدائم والموافقات وملكية project/task/run/step؛ لا يكفي UI state لإثبات التنفيذ. |
+| نتيجة الخطة | `ExecutionResult` | لا تنتج `Success` إلا بعد اكتمال كل task. دورة أو تبعية غير قابلة للحل أو إلغاء قبل الإكمال تنتج فشلاً جزئياً، ولا يجوز لواجهة execution graph تحويلها إلى completion. |
+| المهام المجدولة | `ScheduledJobOrchestrator` و`ScheduledAgentWorker` | metadata محلية دائمة، unique WorkManager request، outcome (`PENDING`/`RETRYING`/`COMPLETED`/`FAILED`) وlink اختياري إلى durable task. |
 
-## Safety and limitations
+## حدود الجدولة والأمان
 
-A background task is not an interactive UI session. It has a bounded execution budget and must not assume foreground permissions or user interaction. Worker domain failures are recorded for the task UI; they are not blindly retried as infrastructure failures.
+المهمة الخلفية ليست جلسة UI تفاعلية: لها budget محدود ولا تفترض إذناً أمامياً أو موافقة حية. أخطاء domain تسجل للواجهة ولا تعاد تلقائياً إلا للأخطاء transient المحددة. `runNow` يحتاج تأكيداً مرئياً ولا يستبدل cadence المجدول ولا يسمح بطلبين يدويين نشطين للمهمة نفسها.
 
-## Verification
+المعرف المحجوز `system` ليس وكيلًا عاماً. لا يقبل إلا صيانة `sandbox_reaper` و`audit_log_pruner` و`context_cache_pruner`. أي payload غير معروف يُرفض قبل التخزين، وتغلق worker المدخلات القديمة أو المعدلة بفشل مسجل بدلاً من تمريرها إلى orchestrator.
 
-The scheduler persistence and worker-result paths are covered by the project static verifier. WorkManager behavior, Doze timing, and device reboot restoration still require instrumentation and physical-device testing.
+`AgentLoop` لا يمنح أثراً جانبياً عاماً من جلسة chat. تتطلب الأدوات المتغيرة durable task/run/step وسياستها typed approval، وتبقى مسارات غير المصرح بها fail-closed.
+
+## الدليل والحدود
+
+اختبارات JVM تغطي قبول/رفض خطط الفريق، ومن ضمنها cycle، وحجز payload النظام، واستمرارية scope بعد `cancelAll`. يتحقق الحارس الثابت من عقد no-false-success ومسار run-now. تؤكد CI التجميع والاختبارات وinstrumentation المتاح، لكنها لا تثبت WorkManager في Doze/OEM/reboot أو صلاحيات ومزودين حقيقيين؛ تبقى هذه ضمن مصفوفة real-device قبل أي إطلاق.

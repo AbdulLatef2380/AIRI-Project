@@ -1,15 +1,20 @@
-# Voice package
+# طبقة الصوت
 
-This package contains the active local voice pipeline: Vosk speech recognition, Android text-to-speech, wake-word services, voice-session state, and audio-focus handling.
+تحتوي هذه الحزمة مسار الصوت المحلي في AIRI Android: Vosk للنص المنطوق، Android TTS، حالة جلسة الصوت، audio focus، وخدمات wake word الاختيارية. يعمل هذا الوصف على `cp-foundation` ضمن Feature Freeze ولا يثبت سلوك ميكروفون أو Bluetooth أو مزود حي على جهاز فعلي.
 
-## Active route
+## المسار المملوك
 
-The supported chat route is local Vosk STT plus Android TTS. `LiveVoiceService` records whether listening was explicitly requested by the user, cancels delayed recovery after an explicit stop, and only resumes after an audio-focus gain when the user still requested listening. `HotwordService` applies a 2.5-second detection cooldown to avoid duplicate wake events.
+| القدرة | السلوك والحد |
+|---|---|
+| STT/TTS | مسار chat المدعوم هو Vosk محلي عند وجود model صالح مع Android TTS. النص الجزئي يبقى feedback أثناء الاستماع ولا يتحول إلى message قبل النتيجة النهائية. |
+| إيقاف واستعادة الجلسة | `LiveVoiceService` يتذكر أن المستخدم طلب الاستماع صراحة، ويلغي delayed recovery بعد stop، ولا يستأنف بعد audio-focus gain إلا إن بقي الطلب صالحاً. |
+| wake word | `HotwordService` يطبق cooldown لمنع wake events المكررة. لا يبدأ capture أو أداة تلقائية لمجرد wake. |
+| الأصول والمفاتيح | OpenWakeWord يعمل فقط مع asset صحيح. Picovoice يحتاج asset/AccessKey صحيحين؛ عند غيابهما يفشل المسار بوضوح ولا يدّعي حالة listening جاهزة. |
 
-## Realtime-provider limitation
+## realtime cloud غير نشط
 
-`RealtimeVoiceProvider` defines contracts for Gemini and OpenAI realtime transports, but the PCM microphone capture and AudioTrack playback path is not wired end-to-end in `LiveVoiceService`. Cloud realtime voice is therefore not an active chat route and must not be advertised as one until live transport tests pass.
+`RealtimeVoiceProvider` يعرّف عقود Gemini/OpenAI realtime، لكن مسار PCM microphone وAudioTrack ليس موصولاً end-to-end في `LiveVoiceService`. لذلك realtime cloud ليس مسار chat نشطاً ولا يدخل ادعاء الإصدار أو التحقق الداخلي.
 
-## External requirements
+## الدليل والحواجز
 
-Local STT requires a compatible Vosk model and microphone permission. Wake word additionally needs a working OpenWakeWord asset or valid Picovoice setup. Voice behavior must be tested with real hardware, interruptions, Bluetooth devices, and Android background restrictions.
+CI والحراس يثبتان بعض ownership/cooldown/stop boundaries والتجميع. أما microphone permission وhardware interruptions وBluetooth وforeground/background وmodel download واستهلاك البطارية وجودة STT/TTS فهي `RUNTIME_VERIFICATION_PENDING` على أجهزة حقيقية. لا يثبت وجود dependency أو واجهة إعداد نجاح مزود أو سياسة store.

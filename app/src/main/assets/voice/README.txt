@@ -1,104 +1,69 @@
 AIRI — Voice assets
 ===================
 
-This directory serves two independent voice subsystems:
+This directory is an optional input for two independent Android voice paths:
 
   1. Porcupine wake-word ("Hey AIRI")
-  2. Vosk offline speech-recognition model (auto-bundle)
+  2. Vosk offline speech-recognition model
 
+It is not a release asset manifest. A file in this directory, a UI setting, or
+an internal CI build does not prove microphone, wake-word, Bluetooth, or model
+runtime behavior on a physical device.
 
 =============================================================
 1. PORCUPINE WAKE-WORD ("Hey AIRI")
 =============================================================
 
-Read at runtime by PorcupineEngine.kt to locate the "Hey AIRI"
-wake-word file when `res/raw/hey_airi.ppn` is NOT present.
+PorcupineEngine.kt can locate a custom keyword file named hey_airi.ppn when it
+is supplied in either location (res/raw is preferred):
 
-How to enable wake-word detection
-----------------------------------
-1.  Sign in to https://console.picovoice.ai/ (free tier is fine).
+  app/src/main/res/raw/hey_airi.ppn
+  app/src/main/assets/voice/hey_airi.ppn
 
-2.  Generate a custom keyword:
-       Picovoice Console → "Porcupine" → "Create Wake Word"
-       Phrase:    Hey AIRI
-       Platform:  Android
-       Language:  English (or any language Porcupine supports)
-    Download the resulting `.ppn` file.
+The keyword file must be named exactly hey_airi.ppn. Porcupine also requires a
+valid Picovoice AccessKey. Keep that key outside Git, source, chat, test logs,
+and release artifacts. A user-entered runtime key is handled only by the
+application's encrypted local storage path; it must never be copied into this
+README or a Gradle command committed to the repository.
 
-3.  Drop the file at ONE of these paths (preferred first):
-       app/src/main/res/raw/hey_airi.ppn        ← preferred
-       app/src/main/assets/voice/hey_airi.ppn   ← fallback
+When the keyword file or valid AccessKey is absent, the wake-word service must
+stay disabled and UI must report configuration state rather than listening.
+When both are present, a displayed eligible/ready state means only that the
+local preconditions were observed; it is not evidence that detection succeeds
+for a specific microphone, language, Android version, or background policy.
 
-    The filename MUST be exactly `hey_airi.ppn` (lower-case, underscore).
+Required runtime evidence before making a wake-word claim:
 
-4.  Provide your Picovoice AccessKey via either:
-
-       a) build time:
-            ./gradlew assembleDebug -PpicovoiceAccessKey=YOUR_KEY_HERE
-          or set the PICOVOICE_ACCESS_KEY environment variable.
-
-       b) at runtime: open AIRI → Settings → Voice & Wake Word
-          and paste the key. It is stored in EncryptedSharedPreferences
-          and overrides the build-time value.
-
-5.  Re-launch the app. The Voice Settings screen will show a green
-    "Wake word ready" status. Toggle "Hey AIRI" detection on.
-
-When either the .ppn OR the AccessKey is missing, AIRI silently disables
-the wake-word foreground service and the Voice Settings screen tells you
-exactly what's missing — no false claims, no fake "listening" state.
-
+  - user-granted microphone permission and denial/revocation behavior;
+  - a compatible real device, lock/background behavior, and audio focus;
+  - duplicate wake suppression, interruption recovery, and explicit-stop tests;
+  - bundled-asset and downloaded-key recovery without secret disclosure.
 
 =============================================================
-2. VOSK OFFLINE SPEECH-RECOGNITION — AUTO-BUNDLE (P0-V1)
+2. VOSK OFFLINE SPEECH RECOGNITION
 =============================================================
 
-AIRI can ship with speech recognition working on a clean install,
-with airplane mode enabled, and with no internet required — if the
-Vosk model zip is bundled here before building the APK.
+A compatible Vosk model zip may be bundled at:
 
-How to bundle the model
-------------------------
-1.  Download the small English model (≈40 MB zip) from:
-      https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
+  app/src/main/assets/voice/vosk-model-small-en-us-0.15.zip
 
-    SHA-256 (lowercase hex):
-      30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498
+VoskModelManager searches assets/voice on first initialization, extracts a
+present bundle into app-private filesDir, checks the expected model structure,
+and removes partial output after an extraction failure. The extraction path has
+ZipSlip path containment checks. If no bundle is present, text-mode features
+remain usable and any optional download path remains subject to network and
+runtime verification.
 
-2.  Place the downloaded file at EXACTLY this path:
-      app/src/main/assets/voice/vosk-model-small-en-us-0.15.zip
+The expected model file name and published checksum, if an owner deliberately
+adds a model, must be recorded in a controlled asset/SBOM decision. Do not add
+large models, provider credentials, or unreviewed binaries during Feature
+Freeze. This repository's current unsigned CI evidence does not establish APK
+integrity for a distributed binary. Only a later signed release artifact,
+verified with its recorded certificate and SHA-256 evidence, can provide that
+claim.
 
-3.  The file MUST be named exactly:
-      vosk-model-small-en-us-0.15.zip
-
-4.  Rebuild the APK. The zip will be packaged inside assets/voice/.
-
-What happens at runtime (VoskModelManager.extractBundledModelIfPresent)
-------------------------------------------------------------------------
-- Called from VoskModelManager.init() on first launch (Dispatchers.IO).
-- Checks assets/voice/ for the zip via AssetManager.list("voice").
-- If present, extracts the zip into:
-    <filesDir>/vosk_models/vosk-model-small-en-us-0.15/
-  stripping the top-level directory prefix.
-- Validates the extraction via isValidVoskModel() — checks that the
-  extracted directory contains am/ and conf/ subdirectories.
-- On success: auto-selects the model as active.
-- On failure (corrupt zip, extraction error): deletes partial output
-  and logs a warning — safe no-op, user can download manually.
-- ZipSlip protection: every entry path is canonicalized and verified
-  to remain inside the destination directory before writing.
-- APK signing provides integrity for the bundled asset — no separate
-  SHA-256 check is needed on the extracted bundle (unlike downloads).
-
-If the asset is absent (CI builds, development without the 40 MB file)
------------------------------------------------------------------------
-- extractBundledModelIfPresent() is a safe no-op (logs one debug line).
-- VoiceSettingsScreen will offer a "Download" button to fetch the model
-  over the network via VoskModelManager.triggerFirstRunDownloadIfNeeded().
-- All text-mode features work without any Vosk model installed.
-
-Offline guarantee
------------------
-Once the model is extracted (either from the bundle or via download),
-AIRI performs speech recognition 100% on-device with NO network calls.
-The Vosk recognizer never contacts external servers.
+Once a valid model is installed, recognition is designed to execute locally;
+this design statement is not a real-device guarantee. Verify extraction,
+first-run storage, airplane-mode operation, memory/thermal behavior, error
+recovery, language quality, and app-data erase/restore on supported devices
+before advertising offline voice.

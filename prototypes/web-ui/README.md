@@ -1,5 +1,7 @@
 # Web UI prototype
 
-This directory contains an independent Vite/React prototype that is not part of the Android build, Android runtime, or Android CI pipeline.
+هذا الدليل نموذج Vite/React مستقل مرجعي فقط. **ليس** جزءاً من Android build أو Android runtime أو Android CI، ولا يمثل واجهة ويب مدعومة أو capability إطلاق في فرع `cp-foundation`.
 
-It is retained for reference only. Run its Node scripts from this directory if it is intentionally maintained as a separate product. Do not treat it as an AIRI Android application dependency.
+خلال `FEATURE_FREEZE / INTERNAL_CANDIDATE_EVIDENCED / SIGNING_SECRETS_BLOCKED` يبقى النموذج خارج نطاق الإصلاحات والاختبارات والنشر. لا تعامل ملفات Node فيه كاعتماد لتطبيق AIRI Android ولا تنسب إليه مسارات agent أو model runtime أو secrets أو provider integration في إصدار Android.
+
+إذا تقرر صيانته لاحقاً كمنتج مستقل، ينفذ ويختبر داخل هذا الدليل ببرنامج نطاق منفصل وأدلة build/security/runtime مستقلة.

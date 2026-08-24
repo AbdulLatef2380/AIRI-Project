@@ -1,61 +1,37 @@
-# برنامج تحويل AIRI إلى منصة متعددة المنصات
+# تخطيط AIRI متعدد المنصات
 
-## الهدف وحدود العمل
+هذه الشجرة وثائق **استراتيجية post-release** وليست جزءاً من نطاق Android Release Closure الحالي. فرع العمل التنفيذي هو `cp-foundation` وحالته `FEATURE_FREEZE / INTERNAL_CANDIDATE_EVIDENCED / SIGNING_SECRETS_BLOCKED`. لا تنشئ هذه الوثائق وعداً بدعم Desktop أو Web ولا تبرر تعديل أو دمج `architecture-refactor`.
 
-يحوّل هذا البرنامج AIRI من منتج Android أولاً إلى **منصة وكيل ذكاء اصطناعي ذات نواة مشتركة** تدعم Android اليوم، ثم سطح المكتب على Windows وLinux، ثم Web حين تتوفر أدلة بناء وتشغيل حقيقية. لا يعني وجود هدف Gradle أو واجهة فارغة أن المنصة مدعومة؛ الدعم لا يُعلن إلا مع أدلة قابلة للتكرار.
+> Android هو المنتج الوحيد قيد الإغلاق. Windows وLinux وWeb وVNC وdesktop runtime وbrowser automation تظل خارج هذا الإصدار حتى تتوفر حزم واختبارات قبول وأدلة تشغيل مستقلة.
 
-> الخط المرجعي `architecture-refactor` محمي ومخصص لاستقرار Android. لا تُنفذ عليه تجارب متعددة المنصات ولا يُدمج إليه أي عمل من هذا البرنامج قبل اجتياز بوابة ترقية مستقلة.
+## الحالة الواقعية
 
-| عنصر التحكم | الحالة الفعلية | الدليل |
-| --- | --- | --- |
-| خط Android المرجعي | `architecture-refactor` عند `1027dee2` | فرع بعيد محمي، لا توجد عليه تعديلات من البرنامج. |
-| نقطة الاستعادة | `checkpoint/cp-main-preflight` عند `c81ecd6b` | فرع منشور قبل أي عمل متعدد المنصات. |
-| فرع العمل | `cp-foundation` | مشتق من `main` ثم يدمج الخط المرجعي في اتجاه واحد فقط لحفظ إصلاحات Android. |
-| اتجاه الدمج المسموح حالياً | `architecture-refactor` → `cp-foundation` | لا يوجد دمج عكسي أو تعديل للخط المحمي. |
-| النواة متعددة المنصات | `BUILDS` لنطاق `core-domain` المحدود | سياسة قبول الذاكرة تبني من `commonMain` لاختبار JVM Desktop وAndroid؛ لا يوجد بعد منتج Desktop/Web أو نواة كاملة. |
+| المنصة أو الطبقة | الحالة | الدليل المسموح | ما لا يجوز ادعاؤه |
+|---|---|---|---|
+| Android | مسار build/CI داخلي موثق؛ real-device/store ما زالا خارجيين. | compile/lint/JVM/R8 unsigned/instrumentation API 29/native في CI. | تطبيق موقّع أو منشور أو تحقق شامل على جهاز فعلي. |
+| `core-domain` | مشاركة محدودة لسياسات/نماذج نقية مع desktop test. | CI تبني الاختبارات المشتركة. | نواة منتج كاملة أو تطبيق سطح مكتب. |
+| Windows وLinux | `PLANNED`. | قرارات ومخاطر ترحيل موثقة فقط. | حزمة أو جلسة agent أو native runtime مدعوم. |
+| Web | `PLANNED`. | حدود أمن/تخزين/تشغيل مقترحة فقط. | واجهة ويب مدعومة أو local inference في المتصفح. |
 
-## حالة المنصات
+## حدود العمل
 
-تستخدم AIRI الكلمات التالية حصراً: `PLANNED` و`ARCHITECTED` و`IMPLEMENTED` و`BUILDS` و`RUNTIME_VERIFIED` و`EXTERNAL_VERIFICATION_REQUIRED` و`BLOCKED`. تعني `RUNTIME_VERIFIED` اختبار السلوك في بيئة منصة حقيقية أو محاكي موثق؛ أما اكتمال الترجمة وحده فحالته `BUILDS`.
+`architecture-refactor` مرجع محمي ولا يُعدل أو يُدمج ضمن هذه الدفعة. لا يستخرج هذا البرنامج Room أو JNI أو Compose UI أو أسرار أو runtimes إلى `commonMain` تلقائياً. أي استخراج لاحق يبدأ بعقد خالص قابل للاختبار ويحتاج دليل بناء وتشغيل منفصل.
 
-| منصة | حالة المنتج | ما هو مثبت الآن | ما لا يجوز ادعاؤه الآن |
-| --- | --- | --- | --- |
-| Android | `RUNTIME_VERIFIED` لبوابة الاختبارات الأساسية | مسار CI وinstrumentation مستقلان في الخط المرجعي. | لا يعد هذا دليلاً منفصلاً على تشغيل كل مزود أو ميزة على جهاز مادي. |
-| Windows | `PLANNED` | قرار البدء بسطح المكتب موثق. | لا توجد حزمة أو جلسة دردشة أو runtime متحقق منها. |
-| Linux | `PLANNED` | قرار البدء بسطح المكتب موثق. | لا توجد حزمة أو جلسة دردشة أو runtime متحقق منها. |
-| Web | `PLANNED` | حدود الأمن والتخزين والتشغيل المحلي موثقة. | لا توجد واجهة ويب مدعومة أو استدلال محلي في المتصفح. |
-
-## قرار التقنية
-
-تم اعتماد **Kotlin Multiplatform (KMP)** للنواة المشتركة، مع إبقاء تبني Compose Multiplatform تدريجياً ومنفصلاً عن أول استخراج. هذا يتفق مع نموذج KMP الذي يمنع APIs الخاصة بالمنصة من `commonMain` ويوفر source sets خاصة بالمنصات عند الحاجة [1]. كما أن KMP وCompose Multiplatform يعلنان Android وDesktop (JVM) مستقرين، بينما Compose Web/Wasm في Beta [2]. لذلك يكون Desktop أول هدف خارجي، وتبقى Web هدفاً مستقلاً بعد استقرار طبقات النواة والأمن.
-
-| قرار | السبب | النتيجة العملية |
-| --- | --- | --- |
-| استخراج تدريجي لا إعادة كتابة | Android يعمل ويحتوي على منطق وكيل وذاكرة وأمان متراكم. | يبدأ النقل بالسياسات والنماذج الخالصة مع اختبارات، لا بالواجهات أو Room أو JNI. |
-| KMP للنواة فقط في البداية | يحقق مشاركة منطق الأعمال دون فرض UI موحد. | أول milestone: وحدة مستقلة تبني بلا Android. |
-| Desktop قبل Web | استقرار Android/Desktop أعلى، وبيئة الملفات وnative أقرب إلى runtime المحلي. [2] | Windows/Linux لا يعلنان مدعومين إلا بعد بناء وتشغيل اختبارات القبول. |
-| Repository contracts قبل قرار تخزين موحد | Room الحالي مرتبط بحالة Android، وWeb بيئة أمن وتخزين مختلفة. | تبقى Room adapter على Android؛ لا تُنقل قاعدة البيانات كما هي إلى `commonMain`. |
-| ModelRuntime كحد صريح | JNI/NDK الخاصان بـ Android غير قابلين للنقل المباشر. | تبقى مكتبة Android native في Android، وتُبنى runtimeات مستقلة لسطح المكتب وWeb عند إمكانها. |
-
-## مخرجات التحليل
+## وثائق التخطيط
 
 | المستند | الغرض |
-| --- | --- |
-| [فحص تبعيات المنصة](PLATFORM_DEPENDENCY_SCAN.md) | نتائج قابلة للتكرار لكل ملفات Kotlin وnative. |
-| [رسم تبعيات المنصة](PLATFORM_DEPENDENCY_GRAPH.md) | يبيّن مواضع تسرب Android عبر طبقات المنتج. |
-| [البنية المستهدفة](CROSS_PLATFORM_ARCHITECTURE.md) | حدود الوحدات، العقود، واتجاه التبعيات. |
-| [خطة الترحيل](MIGRATION_PLAN.md) | milestones وبوابات القبول وعدم الانحدار. |
-| [مصفوفة المنصات](PLATFORM_MATRIX.md) | حالة كل قدرة ودليلها المطلوب. |
-| [استراتيجية runtime](RUNTIME_STRATEGY.md) | فصل llama.cpp وcloud runtimes حسب المنصة. |
-| [استراتيجية التخزين](STORAGE_STRATEGY.md) | فصل الـrepositories عن Room وتحديد قرار النقل. |
-| [استراتيجية المصادقة](AUTH_STRATEGY.md) | عقد OAuth/PKCE مشترك وتفاصيل callback حسب المنصة. |
-| [نموذج الأمن](SECURITY_MODEL.md) | حدود الثقة وتحديداً Web والـsecrets. |
-| [سجل المخاطر](RISK_REGISTER.md) | المخاطر الحقيقية، المالك، ومعيار الإغلاق. |
+|---|---|
+| [فحص تبعيات المنصة](PLATFORM_DEPENDENCY_SCAN.md) | جرد مواضع Android/native في المصدر. |
+| [رسم التبعيات](PLATFORM_DEPENDENCY_GRAPH.md) | تصور اتجاهات التبعيات ومخاطر النقل. |
+| [البنية المستهدفة](CROSS_PLATFORM_ARCHITECTURE.md) | حدود modules وعقود مستقبلية، لا implementation مُعلن. |
+| [خطة الترحيل](MIGRATION_PLAN.md) | milestones وبوابات قبول مستقلة. |
+| [سجل المخاطر](RISK_REGISTER.md) | المخاطر والمالكية ومعيار الإغلاق. |
 
-## أوامر التحقق
+## أوامر تحليل مستقبلية
+
+نفّذ التحليل من جذر المستودع النشط، لا من مسار sandbox تاريخي:
 
 ```bash
-cd /home/ubuntu/AIRI-Project-git
 python3 scripts/airi_platform_dependency_scan.py
 python3 tools/verify_core_changes.py
 python3 tools/security_scan.py
@@ -63,10 +39,4 @@ python3 scripts/airi_core_health.py
 python3 scripts/supply_chain_inventory.py
 ```
 
-لا يُنشأ extraction جديد قبل اكتمال بوابة التحليل. وكل milestone لاحق يجب أن يسجل الأوامر الفعلية ونتائجها في المستندات المرتبطة به.
-
-## المراجع
-
-[1]: https://kotlinlang.org/docs/multiplatform/multiplatform-discover-project.html "The basics of Kotlin Multiplatform project structure"
-[2]: https://kotlinlang.org/docs/multiplatform/supported-platforms.html "Stability of supported platforms | Kotlin Multiplatform"
-[3]: https://developer.android.com/kotlin/multiplatform "Kotlin Multiplatform | Android Developers"
+لا يُعاد فتح برنامج المنصات قبل إغلاق signing/device/provider/legal/store gates للإصدار Android أو قرار نطاق مستقل موثق.

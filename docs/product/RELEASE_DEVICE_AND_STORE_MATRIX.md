@@ -35,7 +35,7 @@
 | `CAMERA` | إرفاق صورة من زر الدردشة فقط. | لا camera launch أو crash عند denial. | Data safety للمرفق والصور إن حفظت/أرسلت. |
 | `READ_CALENDAR` / `WRITE_CALENDAR` | قراءة/إنشاء تقويم مقيد بموافقة Trust Center. | لا provider I/O أو proposal replay بلا الإذن والموافقة. | justification للتقويم ووصف الآثار والاحتفاظ. |
 | `READ_CONTACTS` | Contacts connector عندما يختاره المستخدم. | لا listing أو sync ضمني عند denial أو disconnect. | justification واضح؛ قرر إزالة الإعلان من first release إن لم يكن connector ضمن رحلة المستخدم الأولى. |
-| `SCHEDULE_EXACT_ALARM` | Alarm local صريح فقط، وليس إعادة تشغيل وكيل. | fallback واضح إلى inexact أو رفض مفهوم. | تحقق سياسة Google Play المعاصرة قبل إعلانه؛ لا يكفي وجود manifest. |
+| `SCHEDULE_EXACT_ALARM` | **غير معلن في الإصدار الحالي**؛ أزيل لأن AlarmTool لا يملك مسار تنفيذ/receiver مملوكاً. | لا يجب أن يظهر prompt أو إعداد أو قدرة agent alarm؛ أي إعادة إدراج تتطلب عقداً محلياً مستقلاً وطلباً صريحاً. | لا يوجد إفصاح/اختبار متجر لهذا الإصدار. إن أعيد لاحقاً، يلزم تبرير Play واختبار fallback قبل إضافة manifest. |
 | `POST_NOTIFICATIONS` | تنبيه مرئي بعد خيار مستخدم. | التطبيق usable بلا إذن ولا spam. | وصف الإشعارات/القنوات وإلغاء الاشتراك. |
 | `INTERNET` وFirebase | نموذج/موصل اختاره المستخدم؛ analytics/crash reporting بعد consent. | local path يعمل حيثما أمكن؛ لا analytics/crash upload بلا opt-in. | Data safety، consent flows، وقائمة processors. |
 

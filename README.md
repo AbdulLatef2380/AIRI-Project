@@ -6,7 +6,7 @@
 
 ## نطاق الإصدار وحالته
 
-هذا المستودع في **Feature Freeze** لإصدار Android محدد. الحالة الدقيقة هي **`FEATURE_FREEZE / INTERNAL_CANDIDATE_EVIDENCED / SIGNING_SECRETS_BLOCKED`**. أي أن بوابات المصدر والبناء والاختبار الداخلية موثقة، لكن لا توجد حتى الآن APK أو AAB موقّعة قابلة للتثبيت أو النشر، ولا دليل جهاز حقيقي أو مزود حي أو متجر أو مراجعة قانونية.
+هذا المستودع في **Feature Freeze** لإصدار Android محدد. الحالة الدقيقة هي **`FEATURE_FREEZE / SIGNED_RELEASE_CANDIDATE_EVIDENCED / EXTERNAL_GATE_HANDOFF`**. بوابات المصدر والبناء والاختبار الداخلية والتوقيع موثقة لحزمة محددة، لكن لا يوجد حتى الآن دليل جهاز حقيقي أو مزود حي أو متجر أو مراجعة قانونية؛ لذلك لا توجد دعوى إطلاق عام أو قبول Play.
 
 | المجال | السلوك الحالي | مستوى الدليل |
 |---|---|---|
@@ -24,12 +24,12 @@
 
 | بوابة أو دليل | النتيجة المثبتة | الحد الصريح |
 |---|---|---|
-| [Android CI — المرشح الداخلي الحالي](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32761300619) | `cp-foundation` عند `ec359054` اجتاز contracts 80/80 والتوطين وshared core وdebug وJVM/lint و`assembleRelease`/`bundleRelease` مع R8 وAPI 29 instrumentation وفحص JNI/native. أصلح المرشح cycle/incomplete plan، حجز صيانة النظام، وإبلاغ فشل الأدوات. | APK/AAB وmapping الناتجة **غير موقعة**؛ لا تصلح للتثبيت أو النشر. SHA-256 ودليل badging/AAB ZIP موجود في سجل التدقيق. |
-| [Android CI على main](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32742046966) | اكتملت البوابات الداخلية لمرشح `fe3fb68b` التاريخي بعد ترقية مفوضة إلى `main`. | المرشح الأحدث `ec359054` لم يرقَّ إلى `main` بعد. التوقيع تخطّي بأمان لأن `RELEASE_SIGNING_READY=false`؛ لم ينشأ artifact موقع أو دليل `apksigner`. |
-| تحقيق هوية التوقيع | لم يظهر keystore أو مسار مفتاح متتبع/غير متتبع أو تاريخ Git قابل للاستعادة؛ الأصل العام السابق الوحيد `airi-debug.apk` موقّع بشهادة Android Debug. | لا تُستبدل هوية الإصدار قبل تحديد backup خاص يحتفظ به مالك الإصدار خارج GitHub وManus. |
+| [Android CI — signed candidate](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32783660291) | `main` و`cp-foundation` عند `ca881a1b` اجتازا contracts 80/80 والتوطين وshared core وdebug وJVM/lint وrelease compile وsigned APK/AAB و`apksigner` وAPI 29 instrumentation وفحص JNI/native. | يثبت artifact محدداً فقط؛ لا يثبت Play أو device runtime أو مزوداً حياً أو قانوناً. |
+| الحزمة الموقعة | APK SHA-256 `2faf1ec9d269d58eb93c98379bf93a2fc25b4a449c6f1a6bd2c36275e32b4b98`؛ AAB `f8816b28d7751ab974fe9a0a064baf18e9558a6a94415098e784f720b40eb30a`؛ R8 mapping `c988f131c9f44200a0b7be7419696d1ebadccce667ec019a7b72b8384b987b1c`. | hashes تخص evidence المرفوع في CI ولا تعني rollout أو نشر عام. |
+| تحقيق وهوية التوقيع | لم يظهر مفتاح سابق قابل للاستعادة؛ أنشئت هوية production جديدة مع recovery مشفرة خارج GitHub. `apksigner` يثبت شهادة V2 fingerprint `EE:B5:1E:58:A3:71:85:F8:EC:1A:48:77:64:8F:9A:59:69:61:49:E7:0D:39:56:64:DF:F5:91:9C:82:C2:1A:F8`. | لا يكشف README مفتاحاً خاصاً أو كلمة مرور أو alias أو passphrase. |
 | الجهاز والمزود والمتجر والقانون | مصفوفة التحقق وخطوات الحوكمة موجودة. | لا يوجد دليل API 26 وAPI 35/36 على جهاز arm64 حقيقي، أو Firebase/OAuth/Calendar/GitHub حي، أو سياسة خصوصية/Data Safety/Play. |
 
-يحتوي [handoff النشر](docs/product/RELEASE_PUBLICATION_HANDOFF.md) على الأدلة غير الموقعة للمرشح الحالي، وخطوة التوقيع الآمنة التالية، وقائمة الحواجز الخارجية. يحتفظ [سجل التدقيق](docs/product/RELEASE_AUDIT_REGISTER.md) بالنتائج والحدود دون تخزين أسرار أو مفاتيح.
+يحتوي [handoff النشر](docs/product/RELEASE_PUBLICATION_HANDOFF.md) على الأدلة الموقعة للمرشح الحالي، وقائمة الحواجز الخارجية التالية. يحتفظ [سجل التدقيق](docs/product/RELEASE_AUDIT_REGISTER.md) بالنتائج والحدود دون تخزين أسرار أو مفاتيح.
 
 ## البنية
 
@@ -71,7 +71,7 @@ python3 tools/security_scan.py
 python3 scripts/airi_core_health.py
 ```
 
-عند غياب أسرار التوقيع، ينتج `release` مخرجات **غير موقعة فقط**. لا تستخدمها للتوزيع. يُنفذ التوقيع النهائي في CI المحمي على `main` بعد إعداد `KEYSTORE_BASE64` و`STORE_PASSWORD` و`KEY_ALIAS` و`KEY_PASSWORD` عبر قناة آمنة؛ لا تضع قيمة من هذه القيم أو keystore في المستودع أو issue أو سجل بناء.
+ينتج `release` المحلي مخرجات **غير موقعة فقط** ولا تستخدم للتوزيع. التوقيع المرجعي الحالي نفذ في CI المحمي على `main` بعد إعداد الأسرار الأربع عبر قناة آمنة. لا تضع قيمة من هذه القيم أو keystore في المستودع أو issue أو سجل بناء؛ تدوير الهوية أو إعادة التوقيع يتطلب evidence جديداً وحفظ recovery مشفر خارج GitHub.
 
 ## الوثائق
 

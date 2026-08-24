@@ -43,8 +43,8 @@
 
 | البوابة | المالك | دليل القبول |
 |---|---|---|
-| Signing identity وversioning | release engineer | **شرط غير متحقق حالياً:** backup خاص ومشفر تحت ملكية الناشر خارج GitHub/Manus، ثم keystore ثابت غير debug خارج repo، signed AAB، SHA-256، versionCode متزايد، وmapping محفوظ بأمان. التحقيق لم يجد هوية إصدار قابلة للاستعادة في المستودع/تاريخه/أصوله؛ لا تستخدم APK debug القديم كبديل. |
-| CI release evidence | release engineer | workflow successful على commit المرشح، artifacts وreports محفوظة، native check/R8/Lint مكتملة. |
+| Signing identity وversioning | release engineer | **متحقق في CI للحزمة المرجعية:** هوية production جديدة مع recovery مشفرة خارج GitHub؛ signed APK/AAB وSHA-256 وmapping و`apksigner` موجودة في run `32783660291` عند `ca881a1b`. قبل الرفع، يتحقق المالك من versionCode متزايد مقابل Play ويحتفظ بالـmapping/recovery خارج المستودع. |
+| CI release evidence | release engineer | run `32783660291` ناجحة على `ca881a1b`؛ signed artifacts و`SHA256SUMS` وcertificate evidence وmapping وreports محفوظة، مع native/R8/lint/instrumentation مكتملة. |
 | Data safety وسياسة الخصوصية | product/legal owner | إجابات مطابقة للسلوك الفعلي لكل إذن وFirebase/provider، رابط سياسة ساري، ومسار حذف بيانات مختبر. |
 | Play pre-launch | release engineer | تقرير على أجهزة Play أو سبب/إصلاح كل failure وعدم وجود crash/blocker. |
 | Provider credentials | connector owner | حسابات اختبار، redirect URIs، revocation، errors/cancel، وعدم ظهور أسرار في التقرير أو UI. |

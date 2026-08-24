@@ -20,11 +20,11 @@ jobs:
 
       - name: Install Oracle Requirements
         run: |
-          pip install -r tools/airi_oracle/requirements.txt
+          python -m pip install --disable-pip-version-check networkx rich
 
       - name: Run AIRI Oracle
         run: |
-          python tools/airi_oracle/oracle.py
+          python .github/workflows/oracly.py
 
       - name: Upload Oracle Report
         uses: actions/upload-artifact@v4

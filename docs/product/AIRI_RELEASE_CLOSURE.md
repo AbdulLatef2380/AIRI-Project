@@ -2,15 +2,17 @@
 
 **Branch:** `cp-foundation`
 
-**Program status:** `IN_PROGRESS`
+**Program status:** `FEATURE_FREEZE` / `RELEASE_PUBLICATION_CLOSURE`
 
 **Release target:** Nearest Android Release Candidate supported by reproducible evidence
 
-**Last reviewed source revision:** `d96c6ce8`
+**Last reviewed source revision:** `a46af9f0`
 
 **Scope authority:** [`PRODUCT_CONTRACT.md`](PRODUCT_CONTRACT.md)
 
 > **Execution rule:** Work toward one complete Android user journey, not toward completing every row in the long-term roadmap. Independent blockers may progress in parallel, but a result is recorded only when its ownership, persistence, security boundary, failure behavior, and evidence are real.
+>
+> **Feature Freeze:** No new capability family, architectural redesign, connector breadth, marketplace, billing, teams, desktop/VNC, advanced browser runtime, Canvas, or long-term roadmap item may enter `cp-foundation`. A change is admissible only when it directly fixes a Release Candidate blocker, verifies a release artifact, or records required evidence. The operating loop is **BLOCKER → FIX → TEST → VERIFY → DOCUMENT → CONTINUE**.
 
 ## 1. Release decision boundary
 
@@ -44,7 +46,19 @@ New user
 
 The reference release path must favour a **local, owned, testable operation**. It must not depend on unconfigured OAuth, a live provider, or an external connector merely to demonstrate approval and recovery. Existing Calendar and GitHub paths remain useful typed-contract evidence, but do not become a release prerequisite without credentials, device evidence, and a deliberate scope decision.
 
-## 3. Current state
+## 3. Feature Freeze release gate
+
+| Gate class | Decision during Feature Freeze | Required result |
+|---|---|---|
+| Internal product and CI | Close only a demonstrated release-path defect; no speculative P0 or scope expansion. | Focused test plus a passing relevant CI gate. |
+| Release artifact | Produce only through the authorized release environment. | Release APK/AAB, R8 result, mapping where generated, native verification, and SHA-256 evidence. |
+| Physical device | Do not simulate or infer it. | Recorded API/ABI/device result for the defined matrix, including local erase and the reference journey. |
+| Live provider | Do not substitute mocks for external acceptance. | Credentialed consent, cancel/revoke, failure, and recovery evidence for each declared provider. |
+| Store/legal | Do not infer acceptance from source or CI. | Publisher-owned Play, Data safety, privacy policy, declarations, and pre-launch evidence. |
+
+Items such as deeper mission aggregates, Canvas, marketplace, teams, billing, advanced browser runtime, desktop PTY, broad connectors, and other Manus-like expansion remain **post-release roadmap** items unless they directly break the frozen release journey.
+
+## 4. Current state
 
 | Release area | Current state | Existing evidence | Closure gap |
 |---|---|---|---|
@@ -59,7 +73,7 @@ The reference release path must favour a **local, owned, testable operation**. I
 | Build/package | Debug, lint, release-source compile, instrumentation API 29, and native verification succeed in CI. | [Android CI run 32692865948](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32692865948). | Complete package/R8/mapping/hash and controlled signing on the release-authorized branch/environment. |
 | External publishing | No false claim. | Matrix and audit documents enumerate required evidence. | Signing key owner, Play/legal/Data safety/privacy policy, store pre-launch, and real-device/provider gates. |
 
-## 4. Active blocker ledger
+## 5. Active blocker ledger
 
 | ID | Blocker | Owner path | Next proof | Status |
 |---|---|---|---|---|
@@ -74,7 +88,7 @@ The reference release path must favour a **local, owned, testable operation**. I
 | RC-B09 | Release build/R8 | Gradle release configuration and CI | `assembleRelease` or `bundleRelease`, R8, native check, mapping, SHA-256. | `OPEN` |
 | RC-B10 | Signed APK/AAB | Release owner and protected signing environment | Controlled key use and signed artifact verification. | `EXTERNAL` |
 
-## 5. Parallel quality guardrails
+## 6. Parallel quality guardrails
 
 Fix a parallel quality issue only when it blocks the acceptance journey, introduces a privacy/security inconsistency, or invalidates required Android accessibility/layout behavior. Do not initiate broad redesigns or new capability families.
 
@@ -86,7 +100,7 @@ Fix a parallel quality issue only when it blocks the acceptance journey, introdu
 | Calendar | Retain current fail-closed typed path. Do not add OAuth, retries, or provider breadth to release scope absent a verified release need. |
 | Browser | Retain public, user-confirmed handoff. Full DOM/authenticated automation is post-release. |
 
-## 6. Evidence and milestone log
+## 7. Evidence and milestone log
 
 Every milestone entry must include the fields below. A source edit without a passing appropriate test is not a completed milestone, and a CI run does not substitute for a device or external result.
 
@@ -95,11 +109,11 @@ Every milestone entry must include the fields below. A source edit without a pas
 | 2026-08-24 — Local device-data erase evidence | Local device-data erase is implemented as a separate confirmed local action. | Audit register and closure status record that it stops AIRI-owned work, wipes owned local stores, and locally signs out without remote/Firebase deletion. | Physical cancel/confirm/wipe and remote-account-retained proof; model downloads/provider/cloud data are outside the action. | Keep it in device matrix; do not broaden deletion claims. | `DataDeletionCoordinator`, privacy UI/resources, audit/status docs. | Core guard 76/76, strict localization, CI `32690168612` and `32692865948`. | `87797631`, `aea732d3`, `d96c6ce8` | No device proof, signed artifact, or store/legal evidence. |
 | 2026-08-24 — Local approval/recovery journey | The reference local file path now has Android integration coverage across task ownership, approval/denial, runtime recreation, one apply, provenance, duplicate-resume refusal, denied no-apply/no-resume behavior, and explicit owner selection when a project has concurrent eligible tasks. | `ProjectFileApprovalRecoveryTest` creates a managed project file and running owned task, persists a private proposal and decision, recreates the durable/workspace/file/artifact/proposal runtimes, verifies the approved branch applies and links project/task/run/step evidence exactly once, and verifies the denied branch creates no artifact, changes no file bytes, and cannot resume. `ProjectFileEditTaskSelector` exposes only a unique owner automatically; Library requires the user to choose an eligible task when more than one could own the edit, and JVM tests prove it cannot take first-record ordering as authority. | Physical-device UI approval/denial, deliberate process kill, TalkBack, and full Chat→Tasks→Trust→Library traversal remain. | Extend only the defined journey; do not introduce provider or browser scope. | `ProjectFileApprovalRecoveryTest.kt`, `ProjectFileEditTaskSelector.kt`, `ProjectFileEditTaskSelectorTest.kt`, Library resources. | Core guard 76/76, strict localization, Android CI `32695492715`, `32697399760`, and `32702865271`: debug/unit/lint/release-source, API 29 instrumentation, and native verification passed. | `73ac96ad`, `bfef9bb3`, `6d78e0d0` | This is CI emulator evidence, not signed artifact, physical-device, provider, or store proof. |
 
-## 7. Next action
+## 8. Next action
 
-**Audit the reference acceptance journey against live source ownership and existing tests, then fix the smallest demonstrable internal blocker.** The audit must identify one local reference operation for the approval/resume step and one reopen/failure scenario. It must not begin marketplace, billing, teams, cloud, desktop, VNC, public API, broad connectors, or full browser automation.
+**Perform one repository-wide Release Candidate audit under Feature Freeze.** Record only blockers that prevent the frozen Android release path or its publication evidence. Resolve each internal blocker inside this closure loop; classify physical-device, protected-signing, live-provider, and publisher/legal steps as external gates with an executable evidence checklist. Do not open a new product P0.
 
-## 8. External release gates
+## 9. External release gates
 
 | Gate | Required evidence | Why this cannot be inferred from the repository |
 |---|---|---|
@@ -109,6 +123,6 @@ Every milestone entry must include the fields below. A source edit without a pas
 | Provider evidence | Consent, cancellation, revocation, recovery, and error behavior for every declared production provider. | Requires real credentials and third-party runtime. |
 | Store and legal | Play pre-launch, Data safety, privacy policy, permission declarations, model/provider terms, package/version policy. | Requires publisher account, final artifact, and legal/policy review. |
 
-## 9. Change control
+## 10. Change control
 
 This document governs release execution. [`AIRI_PRODUCT_GAP_MATRIX.md`](AIRI_PRODUCT_GAP_MATRIX.md) remains strategy and long-term product scope; it must not be used to pull a new product family into this closure program. [`AIRI_FINAL_CLOSURE_MAP.md`](AIRI_FINAL_CLOSURE_MAP.md) remains the detailed technical trace. When the two differ, this document controls release priority while the technical map records implementation detail.

@@ -54,6 +54,21 @@ class AgentTeamPolicyTest {
         assertFalse(AgentTeamPolicy.admit(unsafeParallelPlan, emptyList()).accepted)
     }
 
+    @Test
+    fun rejectsKnownDependencyCycleBeforeExecution() {
+        val cyclicPlan = plan(
+            tasks = listOf(
+                task("first", dependencies = listOf("second")),
+                task("second", dependencies = listOf("first"))
+            )
+        )
+
+        val admission = AgentTeamPolicy.admit(cyclicPlan, emptyList())
+
+        assertFalse(admission.accepted)
+        assertTrue(admission.reason.contains("dependency cycle"))
+    }
+
     private fun plan(
         tasks: List<ProductionAgentOrchestrator.OrchestratorTask>,
         teamBudget: Int? = null,

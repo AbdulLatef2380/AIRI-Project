@@ -38,6 +38,7 @@ import com.airi.assistant.agent.scheduler.ScheduledJob
 import com.airi.assistant.agent.scheduler.ScheduledJobOrchestrator
 import com.airi.assistant.agent.scheduler.ScheduleType
 import com.airi.assistant.agent.scheduler.ScheduledJobOutcome
+import com.airi.assistant.agent.scheduler.ScheduledJobInputPolicy
 import com.airi.assistant.R
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.ui.theme.CosmicAccent
@@ -435,7 +436,7 @@ private fun ScheduledTasksContent(
                 job = job,
                 onCancel = { onCancel(job.id) },
                 onOpenExecution = onOpenExecution,
-                onRunNow = if (job.agentId != "system") ({ onRunNow(job) }) else null
+                onRunNow = if (job.agentId != ScheduledJobInputPolicy.SYSTEM_AGENT_ID) ({ onRunNow(job) }) else null
             )
         }
     }

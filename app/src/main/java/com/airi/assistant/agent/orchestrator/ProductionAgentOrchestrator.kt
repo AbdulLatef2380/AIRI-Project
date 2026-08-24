@@ -380,9 +380,24 @@ class ProductionAgentOrchestrator {
             )
         }
 
+        if (remaining.isNotEmpty()) {
+            val reason = if (executionScope.isActive) {
+                "Task dependencies could not be resolved"
+            } else {
+                "Execution cancelled before all tasks completed"
+            }
+            remaining.forEach { task ->
+                if (taskErrors.putIfAbsent(task.id, reason) == null) {
+                    durableTaskManager?.markStepFailed(executionId, task.id, reason)
+                }
+            }
+        }
+
         val durationMs = System.currentTimeMillis() - startMs
 
-        val succeeded = taskErrors.isEmpty()
+        val succeeded = taskErrors.isEmpty() &&
+            completedIds.size == plan.tasks.size &&
+            executionScope.isActive
         planSpanId?.let {
             observabilityHub?.endSpan(
                 spanId     = it,

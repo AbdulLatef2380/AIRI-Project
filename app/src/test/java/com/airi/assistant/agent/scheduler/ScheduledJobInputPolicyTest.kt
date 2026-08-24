@@ -63,6 +63,28 @@ class ScheduledJobInputPolicyTest {
         )
     }
 
+    @Test
+    fun acceptsKnownSystemMaintenancePayload() {
+        val result = ScheduledJobInputPolicy.validate(
+            agentId = ScheduledJobInputPolicy.SYSTEM_AGENT_ID,
+            payload = "context_cache_pruner",
+            label = "Prune context cache"
+        )
+
+        assertEquals(ScheduledJobInputPolicy.ValidationResult.Accepted, result)
+    }
+
+    @Test
+    fun rejectsUnknownSystemMaintenancePayload() {
+        assertRejected(
+            ScheduledJobInputPolicy.validate(
+                agentId = ScheduledJobInputPolicy.SYSTEM_AGENT_ID,
+                payload = "arbitrary_instruction",
+                label = "Unexpected system work"
+            )
+        )
+    }
+
     private fun assertRejected(result: ScheduledJobInputPolicy.ValidationResult) {
         assertTrue(result is ScheduledJobInputPolicy.ValidationResult.Rejected)
     }

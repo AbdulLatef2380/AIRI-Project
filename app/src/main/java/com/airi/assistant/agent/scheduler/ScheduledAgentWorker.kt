@@ -80,7 +80,19 @@ class ScheduledAgentWorker(
         // : System maintenance payloads are handled directly — they don't route
         // through the agent/orchestrator stack because they are infrastructure tasks,
         // not user-facing agent actions.
-        if (agentId == "system") {
+        if (agentId == ScheduledJobInputPolicy.SYSTEM_AGENT_ID) {
+            if (!ScheduledJobInputPolicy.isAllowedSystemMaintenancePayload(payload)) {
+                ScheduledJobOrchestrator(applicationContext).recordRunResult(
+                    jobId = jobId,
+                    outcome = ScheduledJobOutcome.FAILED,
+                    completedManualRunRequestId = manualRunRequestId
+                )
+                LoggingService.warn(
+                    TAG,
+                    "AIRI SCHEDULED_MAINTENANCE_REJECTED id=$jobId payload=$payload"
+                )
+                return Result.failure()
+            }
             val maintenanceResult = runCatching {
                 when (payload) {
                     "sandbox_reaper" -> {
@@ -97,7 +109,7 @@ class ScheduledAgentWorker(
                         AiriDatabase.getDatabase(applicationContext).contextCacheDao().cleanupOld(now)
                         "Context cache pruner: removed expired entries"
                     }
-                    else -> null  // unknown system payload — fall through to agent routing
+                    else -> error("Validated system maintenance payload was not handled")
                 }
             }
             val handled = maintenanceResult.getOrNull()

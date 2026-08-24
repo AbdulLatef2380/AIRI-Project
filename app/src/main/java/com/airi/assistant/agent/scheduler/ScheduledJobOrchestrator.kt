@@ -46,7 +46,6 @@ class ScheduledJobOrchestrator(private val context: Context) {
         private const val PREFS_NAME   = "airi_scheduled_jobs"
         private const val KEY_JOBS     = "jobs_v1"
         private const val MIN_PERIODIC_MINUTES = 15L
-        private const val SYSTEM_AGENT_ID = "system"
     }
 
     private val prefs      = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -190,7 +189,7 @@ class ScheduledJobOrchestrator(private val context: Context) {
      */
     fun runNow(jobId: String): ManualRunRequestResult {
         val job = listJobs().firstOrNull { it.id == jobId } ?: return ManualRunRequestResult.NOT_FOUND
-        if (job.agentId == SYSTEM_AGENT_ID) return ManualRunRequestResult.NOT_ALLOWED
+        if (job.agentId == ScheduledJobInputPolicy.SYSTEM_AGENT_ID) return ManualRunRequestResult.NOT_ALLOWED
         val existingManualId = job.manualRunRequestId
         if (existingManualId != null && isWorkActive(existingManualId)) {
             return ManualRunRequestResult.ALREADY_ACTIVE
@@ -236,7 +235,7 @@ class ScheduledJobOrchestrator(private val context: Context) {
      * for sandbox, audit-log, and context-cache maintenance.
      */
     fun cancelAllUserJobs(): Int {
-        val userJobs = listJobs().filter { it.agentId != SYSTEM_AGENT_ID }
+        val userJobs = listJobs().filter { it.agentId != ScheduledJobInputPolicy.SYSTEM_AGENT_ID }
         userJobs.forEach { job ->
             workManager.cancelUniqueWork(uniqueWorkName(job.id))
             workManager.cancelUniqueWork(manualWorkName(job.id))

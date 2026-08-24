@@ -49,6 +49,9 @@ object AgentTeamPolicy {
                 return rejected("Task ${task.id} belongs to a different project")
             }
         }
+        if (hasDependencyCycle(plan.tasks)) {
+            return rejected("Team plan contains a dependency cycle")
+        }
 
         val availableBudget = plan.teamCloudTokenBudget
             ?: plan.tasks.minOf { it.context.remainingCloudTokenBudget }
@@ -84,6 +87,23 @@ object AgentTeamPolicy {
             maxParallelTasks = plan.maxParallelTasks,
             taskCloudBudgets = allocations
         )
+    }
+
+    private fun hasDependencyCycle(tasks: List<ProductionAgentOrchestrator.OrchestratorTask>): Boolean {
+        val dependenciesByTask = tasks.associate { it.id to it.dependencies }
+        val visiting = mutableSetOf<String>()
+        val visited = mutableSetOf<String>()
+
+        fun visit(taskId: String): Boolean {
+            if (taskId in visited) return false
+            if (!visiting.add(taskId)) return true
+            val hasCycle = dependenciesByTask.getValue(taskId).any(::visit)
+            visiting.remove(taskId)
+            if (!hasCycle) visited.add(taskId)
+            return hasCycle
+        }
+
+        return dependenciesByTask.keys.any(::visit)
     }
 
     private fun rejected(reason: String) = Admission(accepted = false, reason = reason)

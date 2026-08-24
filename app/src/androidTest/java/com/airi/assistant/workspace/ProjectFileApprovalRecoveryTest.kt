@@ -135,4 +135,105 @@ class ProjectFileApprovalRecoveryTest {
         assertTrue(recoveredFiles.purge(imported.file.id))
         recoveredWorkspace.closeSession(project.sessionId)
     }
+
+    @Test
+    fun deniedProjectFileEditDoesNotApplyAfterRuntimeRecreation() = runBlocking {
+        val suffix = UUID.randomUUID().toString().take(8)
+        val taskId = "denied-task-$suffix"
+        val missionId = "denied-mission-$suffix"
+        val runId = "denied-run-$suffix"
+        val stepId = "deny-edit-$suffix"
+
+        val initialTasks = DurableTaskManager(context)
+        val initialArtifacts = ArtifactManager(context, durableTaskManager = initialTasks)
+        val initialFiles = ProjectFileManager(context, MediaLibrary(context))
+        val initialWorkspace = WorkspaceRuntime(
+            context = context,
+            sandboxManager = SandboxManager(context),
+            artifactManager = initialArtifacts,
+            durableTaskManager = initialTasks,
+            projectFileManager = initialFiles
+        )
+        val project = initialWorkspace.createSession("denied-$suffix")
+        val imported = initialFiles.importFromBytes(
+            projectId = project.sessionId,
+            name = "denied-journey.txt",
+            mimeType = "text/plain",
+            bytes = "before-denial-$suffix".toByteArray()
+        ) as ProjectFileManager.ImportResult.Imported
+
+        initialTasks.registerInProcess(
+            DurableTask(
+                id = taskId,
+                projectId = project.sessionId,
+                missionId = missionId,
+                ownerId = "fixture-owner-$suffix",
+                title = "Reject local project-file edit",
+                description = "Release journey denial fixture",
+                agentId = "fixture-agent",
+                input = "Reject one local edit",
+                plan = listOf(TaskPlanStep(id = stepId, title = "Reject local edit"))
+            )
+        )
+        initialTasks.beginRun(taskId, runId, stepId)
+
+        val initialRuntime = ProjectFileEditRuntime(
+            context = context,
+            workspaceRuntime = initialWorkspace,
+            projectFileManager = initialFiles,
+            durableTaskManager = initialTasks,
+            artifactManager = initialArtifacts
+        )
+        val created = initialRuntime.createProposal(
+            projectId = project.sessionId,
+            taskId = taskId,
+            missionId = missionId,
+            runId = runId,
+            stepId = stepId,
+            targetFileId = imported.file.id,
+            candidateText = "after-denial-$suffix"
+        ) as ProjectFileEditRuntime.ProposalResult.Created
+        val pending = initialRuntime.requestApproval(created.proposal.id)
+            as ProjectFileEditRuntime.ProposalResult.ApprovalPending
+        val approvalId = requireNotNull(pending.proposal.approvalId)
+        assertTrue(
+            initialTasks.decideApproval(
+                approvalId = approvalId,
+                status = TaskApprovalStatus.DENIED,
+                reason = "Fixture denial before runtime recreation"
+            )
+        )
+
+        val recoveredTasks = DurableTaskManager(context)
+        val recoveredArtifacts = ArtifactManager(context, durableTaskManager = recoveredTasks)
+        val recoveredFiles = ProjectFileManager(context, MediaLibrary(context))
+        val recoveredWorkspace = WorkspaceRuntime(
+            context = context,
+            sandboxManager = SandboxManager(context),
+            artifactManager = recoveredArtifacts,
+            durableTaskManager = recoveredTasks,
+            projectFileManager = recoveredFiles
+        )
+        val recoveredRuntime = ProjectFileEditRuntime(
+            context = context,
+            workspaceRuntime = recoveredWorkspace,
+            projectFileManager = recoveredFiles,
+            durableTaskManager = recoveredTasks,
+            artifactManager = recoveredArtifacts
+        )
+
+        assertTrue(recoveredRuntime.reconcileApproval(approvalId))
+        assertEquals(
+            ProjectFileEditRuntime.ProposalStatus.REJECTED,
+            recoveredRuntime.getProposalForProject(created.proposal.id, project.sessionId)?.status
+        )
+        assertTrue(recoveredRuntime.resumeApprovedAfterRecovery().isEmpty())
+        assertEquals("before-denial-$suffix", recoveredFiles.readTextForEdit(project.sessionId, imported.file.id))
+        assertTrue(recoveredArtifacts.forProject(project.sessionId).isEmpty())
+
+        recoveredTasks.markCompleted(taskId, "Fixture denial complete")
+        assertTrue(recoveredFiles.delete(imported.file.id))
+        assertTrue(recoveredFiles.purge(imported.file.id))
+        recoveredWorkspace.closeSession(project.sessionId)
+    }
 }

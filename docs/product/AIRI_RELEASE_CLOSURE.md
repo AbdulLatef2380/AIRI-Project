@@ -113,7 +113,7 @@ Every milestone entry must include the fields below. A source edit without a pas
 
 ## 8. Next action
 
-**Perform one repository-wide Release Candidate audit under Feature Freeze.** Record only blockers that prevent the frozen Android release path or its publication evidence. Resolve each internal blocker inside this closure loop; classify physical-device, protected-signing, live-provider, and publisher/legal steps as external gates with an executable evidence checklist. Do not open a new product P0.
+**Execute publication gates in this order, without new product work:** (1) the protected `main` signing run with its APK/AAB, mapping, SHA-256, and apksigner evidence; (2) the API/ABI real-device matrix, including the reference project-file journey and local erase; (3) live provider consent/cancel/revoke evidence only for providers declared for the release; and (4) publisher-owned privacy, Data safety, legal, and Play pre-launch evidence. Record each result in `RELEASE_DEVICE_AND_STORE_MATRIX.md`; a missing external result remains a gate, not a defect to solve by expanding `cp-foundation`.
 
 ## 9. External release gates
 

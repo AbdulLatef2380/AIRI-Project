@@ -17,13 +17,13 @@
 
 ## 1.1 نتيجة بوابة التوقيع على main
 
-رُقّي commit المرشح `fe3fb68b` إلى `main` بتفويض المالك، وشُغلت GitHub Actions run [`32742046966`](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32742046966). اجتاز التشغيل الحارسات وdebug/unit/lint وrelease-source وinstrumentation API 29 وفحص native، لكنه لم ينشئ artifact موقعاً: الخطوة المنشورة سجلت `RELEASE_SIGNING_READY=false` وتخطت packaging و`apksigner` كما يجب. السبب الوحيد المثبت هو أن واحداً أو أكثر من المدخلات الآمنة التالية غير مهيأ: `KEYSTORE_BASE64` و`STORE_PASSWORD` و`KEY_ALIAS` و`KEY_PASSWORD`.
+رُقّي commit المرشح `fe3fb68b` إلى `main` بتفويض المالك، وشُغلت GitHub Actions run [`32742046966`](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32742046966). اجتاز التشغيل الحارسات وdebug/unit/lint وrelease-source وinstrumentation API 29 وفحص native، لكنه لم ينشئ artifact موقعاً: الخطوة المنشورة سجلت `RELEASE_SIGNING_READY=false` وتخطت packaging و`apksigner` كما يجب. التحقيق لم يعثر على هوية إصدار قابلة للاستعادة في شجرة العمل أو تاريخ Git أو أصول الإصدار؛ الأصل السابق الوحيد APK debug بشهادة `Android Debug`. لذلك ليس من الآمن افتراض وجود keystore قديم. السبب التشغيلي المثبت هو أن واحداً أو أكثر من المدخلات الآمنة التالية غير مهيأ: `KEYSTORE_BASE64` و`STORE_PASSWORD` و`KEY_ALIAS` و`KEY_PASSWORD`.
 
 | بوابة | النتيجة | الإجراء التالي المسموح |
 |---|---|---|
 | ترقية main | `PASS`؛ fast-forward إلى المرشح بلا merge commit. | لا تغيير للشفرة. |
 | CI الداخلي على main | `PASS`؛ كل البوابات غير الموقعة/المحاكي/native نجحت. | احتفظ برابط CI ضمن سجل الإصدار. |
-| توقيع الحزمة | `BLOCKED`؛ لا APK/AAB موقعة ولا apksigner/mapping/hash نهائية. | يهيئ مالك الإصدار الأسرار الأربعة داخل GitHub ثم يعيد تشغيل workflow على `main`. |
+| توقيع الحزمة | `BLOCKED`؛ لا APK/AAB موقعة ولا apksigner/mapping/hash نهائية، ولا هوية إصدار قابلة للاستعادة ظهرت في التحقيق. | يحدد مالك الإصدار backup خاصاً خارج GitHub/Manus، ثم ينشئ أو يستورد هوية ثابتة ويهيئ الأسرار الأربعة داخل GitHub قبل إعادة تشغيل workflow على `main`. |
 
 ## 2. نطاق الإصدار المجمّد
 

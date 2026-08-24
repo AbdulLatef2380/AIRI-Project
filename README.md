@@ -24,12 +24,12 @@
 
 | بوابة أو دليل | النتيجة المثبتة | الحد الصريح |
 |---|---|---|
-| [Android CI — R8 unsigned package](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32720458806) | اكتملت عقود المصدر والترجمة وshared core وdebug وJVM/lint و`assembleRelease` و`bundleRelease` وinstrumentation API 29 وفحص JNI. | APK/AAB وmapping الناتجة **غير موقعة**؛ لا تصلح للتثبيت أو النشر. |
-| [Android CI على main](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32742046966) | اكتملت البوابات الداخلية نفسها بعد ترقية المرشح `fe3fb68b` إلى `main`. | التوقيع تخطّي بأمان لأن `RELEASE_SIGNING_READY=false`؛ لم ينشأ artifact موقع أو دليل `apksigner`. |
+| [Android CI — المرشح الداخلي الحالي](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32761300619) | `cp-foundation` عند `ec359054` اجتاز contracts 80/80 والتوطين وshared core وdebug وJVM/lint و`assembleRelease`/`bundleRelease` مع R8 وAPI 29 instrumentation وفحص JNI/native. أصلح المرشح cycle/incomplete plan، حجز صيانة النظام، وإبلاغ فشل الأدوات. | APK/AAB وmapping الناتجة **غير موقعة**؛ لا تصلح للتثبيت أو النشر. SHA-256 ودليل badging/AAB ZIP موجود في سجل التدقيق. |
+| [Android CI على main](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32742046966) | اكتملت البوابات الداخلية لمرشح `fe3fb68b` التاريخي بعد ترقية مفوضة إلى `main`. | المرشح الأحدث `ec359054` لم يرقَّ إلى `main` بعد. التوقيع تخطّي بأمان لأن `RELEASE_SIGNING_READY=false`؛ لم ينشأ artifact موقع أو دليل `apksigner`. |
 | تحقيق هوية التوقيع | لم يظهر keystore أو مسار مفتاح متتبع/غير متتبع أو تاريخ Git قابل للاستعادة؛ الأصل العام السابق الوحيد `airi-debug.apk` موقّع بشهادة Android Debug. | لا تُستبدل هوية الإصدار قبل تحديد backup خاص يحتفظ به مالك الإصدار خارج GitHub وManus. |
 | الجهاز والمزود والمتجر والقانون | مصفوفة التحقق وخطوات الحوكمة موجودة. | لا يوجد دليل API 26 وAPI 35/36 على جهاز arm64 حقيقي، أو Firebase/OAuth/Calendar/GitHub حي، أو سياسة خصوصية/Data Safety/Play. |
 
-يحتوي [handoff النشر](docs/product/RELEASE_PUBLICATION_HANDOFF.md) على الأدلة غير الموقعة، وخطوة التوقيع الآمنة التالية، وقائمة الحواجز الخارجية. يحتفظ [سجل التدقيق](docs/product/RELEASE_AUDIT_REGISTER.md) بالنتائج والحدود دون تخزين أسرار أو مفاتيح.
+يحتوي [handoff النشر](docs/product/RELEASE_PUBLICATION_HANDOFF.md) على الأدلة غير الموقعة للمرشح الحالي، وخطوة التوقيع الآمنة التالية، وقائمة الحواجز الخارجية. يحتفظ [سجل التدقيق](docs/product/RELEASE_AUDIT_REGISTER.md) بالنتائج والحدود دون تخزين أسرار أو مفاتيح.
 
 ## البنية
 

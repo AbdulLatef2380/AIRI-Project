@@ -1,30 +1,44 @@
-# قائمة جاهزية إصدار AIRI
+# قائمة جاهزية إصدار AIRI Android
 
-**تاريخ التحقق:** 18 أغسطس 2026
-**الفرع:** `architecture-refactor`
+**تاريخ المراجعة:** 24 أغسطس 2026
+**الفرع التنفيذي:** `cp-foundation`
+**الحالة المعتمدة:** `FEATURE_FREEZE / INTERNAL_CANDIDATE_EVIDENCED / SIGNING_SECRETS_BLOCKED`
 
-| بوابة القبول | الحالة | الدليل |
+> هذه القائمة لا تمنح موافقة نشر. إنها تفصل ما أثبتته CI والمصدر عن متطلبات التوقيع والجهاز والمزود والناشر والقانون التي لم تُنفذ بعد.
+
+## البوابات الداخلية المثبتة
+
+| بوابة القبول | الحالة | الدليل والحد |
 |---|---|---|
-| Android API | PASS | `compileSdk = 36` و`targetSdk = 36` باستخدام AGP 8.10.1 وGradle 8.11.1 وJDK 17. [1] [2] |
-| اختبارات JVM | PASS | 26 اختباراً؛ 0 failures؛ 0 errors. |
-| المتحقق الثابت | PASS | 25/25 فحصاً. |
-| lint Debug | PASS | `:app:lintDebug` بلا أخطاء. |
-| Debug APK | PASS | `:app:assembleDebug` وتحقق JNI للـ`arm64-v8a`. |
-| Android test APK | PASS | `:app:assembleDebugAndroidTest` نجح، ويضم Room migration ومخزن المفاتيح المشفر. |
-| Release APK | PASS | `:app:assembleRelease` نجح عبر R8 وتحقق JNI. |
-| Release AAB | PASS | `:app:bundleRelease` نجح؛ AAB نحو 23 MB. |
-| R8 mapping | PASS | mapping مُنشأ مع إصدار Release. |
-| توقيع upload | CI CONFIGURED | workflow يمرر أسرار keystore إلى Gradle ويحذف الملف المؤقت بعد البناء. |
+| Android API/toolchain | **CI_VERIFIED** | `compileSdk=36` و`targetSdk=36` وAGP 8.10.1 وGradle 8.11.1 وJDK 17؛ لا يثبت ذلك توافق أجهزة فعلية. |
+| عقود المصدر والترجمة | **CI_VERIFIED** | core verifier 77/77 وترجمات en/ar/es/zh الصارمة اجتازت في CI. |
+| Debug وJVM وlint | **CI_VERIFIED** | Android CI اجتازت build debug واختبارات JVM وlint؛ ليست دليلاً للتوزيع. |
+| Android instrumentation | **CI_VERIFIED** | API 29/x86_64 emulator اجتاز المسارات المتاحة، بما فيها اختبار الاستعادة المحلي المحدد. |
+| Release APK/AAB مع R8 | **CI_UNSIGNED_PACKAGE_VERIFIED** | run [`32720458806`](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32720458806) أنتج APK/AAB غير موقّعين و`mapping.txt` وAPK badging وAAB ZIP و`UNSIGNED_SHA256SUMS`. |
+| الحزمة الأصلية JNI | **CI_VERIFIED** | CI تحققت من `libairi_native.so` ضمن مخرجات APK المناسبة. |
+| مسار Feature Freeze التجاري | **CI_VERIFIED** | أسطح الدفع/Stripe/الفوترة/Marketplace/Community Skills محجوبة fail-closed، وإذن Billing المدمج محذوف. |
+| توقيع upload | **SIGNING_SECRETS_BLOCKED** | run [`32742046966`](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32742046966) اجتازت كل البوابات غير الموقعة على `main`، لكن `RELEASE_SIGNING_READY=false`؛ لا APK/AAB موقّعة أو `apksigner` أو SHA-256 نهائية. |
 
-## إغلاق مسار الإصدار
+## هوية التوقيع
 
-تنتج البيئة المحلية artifacts غير موقعة عند غياب keystore، وهو السلوك المقصود كي لا تدخل مادة توقيع إلى المستودع. لإغلاق مسار upload في CI، تُضبط الأسرار الأربعة: `KEYSTORE_BASE64` و`STORE_PASSWORD` و`KEY_ALIAS` و`KEY_PASSWORD`. يبني workflow بعد ذلك APK وAAB موقّعين ويحتفظ بتقارير البناء.
+التحقيق الآمن في شجرة العمل وتاريخ Git وأسماء artifacts وassets المنشورة لم يجد keystore أو هوية إصدار قابلة للاستعادة. الأصل العام السابق الوحيد `v0.1.0-alpha/airi-debug.apk` يحمل شهادة **Android Debug** ولا يصلح كهوية نشر. لا تُنشأ بدائل debug ولا يُفترض أن GitHub secrets نسخة استرداد وحيدة.
 
-## التحقق الميداني المخصص
+| القرار المطلوب قبل signing | الشرط |
+|---|---|
+| حفظ الهوية | يحدد مالك الإصدار backup خاصاً ومشفراً خارج GitHub وManus. |
+| إنشاء أو استيراد key | يستعمل هوية ثابتة غير debug تحت ملكية الجهة الناشرة فقط بعد تثبيت backup. |
+| تهيئة CI | تحفظ فقط `KEYSTORE_BASE64` و`STORE_PASSWORD` و`KEY_ALIAS` و`KEY_PASSWORD` في secrets الآمنة؛ لا تظهر القيم في Git أو issue أو log. |
+| دليل النجاح | تشغيل `main` محمي ينتج APK/AAB موقعة، `mapping.txt`، `SHA256SUMS`، و`apksigner verify --verbose` و`--print-certs`. |
 
-رحلة Android الحقيقية هي خطوة الاختبار المتبقية: chat وstreaming وStop وملحقات، استرداد Room، تخزين keystore، الصوت، الموفرات وOAuth، WorkManager في Doze/reboot، وRTL/TalkBack. لا تعدّل هذه الخطوة الشفرة أو artifacts، بل تؤكد سلوكها على أجهزة مستهدفة.
+## البوابات الخارجية غير المكتملة
 
-## المراجع
+| البوابة | الحالة | الحد المطلوب |
+|---|---|---|
+| جهاز Android حقيقي | **RUNTIME_VERIFICATION_PENDING** | API 26 وAPI 35/36، arm64، الصلاحيات، الملفات، WorkManager/Doze، TalkBack، RTL/LTR، والاستعادة وlocal erase. |
+| مزودون حيّون | **EXTERNAL_VERIFICATION_REQUIRED** | Firebase/OAuth/Calendar/GitHub فقط إذا أعلنوا ضمن الإصدار؛ إثبات consent/cancel/revoke/failure/recovery ببيانات منزوعة الحساسية. |
+| الخصوصية والقانون | **EXTERNAL_VERIFICATION_REQUIRED** | سياسة خصوصية، Data Safety، declarations، مراجعة التبعيات والنماذج وشروط المزود. |
+| Google Play | **EXTERNAL_VERIFICATION_REQUIRED** | حساب ناشر، artifact موقع، listing، internal track، pre-launch، وقرار rollout. |
 
-[1]: https://developer.android.com/about/versions/16/setup-sdk "إعداد Android 16 SDK"
-[2]: https://developer.android.com/build/releases/agp-8-10-0-release-notes "توافق Android Gradle Plugin 8.10"
+## مصادر الحقيقة
+
+تُقرأ هذه القائمة مع [إغلاق الإصدار](product/AIRI_RELEASE_CLOSURE.md)، و[سجل التدقيق](product/RELEASE_AUDIT_REGISTER.md)، و[handoff النشر](product/RELEASE_PUBLICATION_HANDOFF.md)، و[مصفوفة الجهاز والمتجر](product/RELEASE_DEVICE_AND_STORE_MATRIX.md). عند التعارض، تكون وثائق `docs/product/` هي السلطة التنفيذية.

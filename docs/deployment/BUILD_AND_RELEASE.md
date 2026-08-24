@@ -51,11 +51,12 @@ python3 scripts/supply_chain_inventory.py
 
 ## توقيع الإنتاج
 
-1. أنشئ أو انقل keystore عبر قناة آمنة وتحت ملكية الجهة الناشرة.
-2. وفر aliases وكلمات المرور وBase64 keystore عبر secrets الخاصة بالبيئة فقط.
-3. لا تغيّر `applicationId` أو signing lineage بعد توزيع Play من دون خطة ترحيل مدروسة.
-4. احتفظ بملف `app/build/release-evidence/SHA256SUMS` ونتائج `apksigner` مع APK/AAB وmapping وبيانات CI تحت سجل إصدار قابل للتدقيق.
-5. لا تعتبر مسارات evidence دليلاً لحزمة قابلة للنشر إلا إذا صدرت من تشغيل `main` الذي مرّ ببوابة `RELEASE_SIGNING_READY`. تشغيلات `cp-foundation` تثبت المصدر والاختبارات وتعبئة R8 غير الموقعة فقط، ولا تثبت توقيعاً أو هوية ناشر أو artifact صالحاً للتوزيع.
+1. افحص أولاً أي هوية إصدار سابقة؛ لا تستبدل مفتاحاً قابلاً للاستعادة أو signing lineage مستخدماً في Play. التحقيق الحالي لم يجد keystore قابلاً للاستعادة في العمل أو تاريخ Git أو assets، والأصل العام السابق debug فقط؛ لا يعفي هذا من مراجعة Play Console إن وُجدت.
+2. قبل إنشاء هوية جديدة، يحدد مالك الإصدار backup خاصاً ومشفراً يحتفظ به خارج GitHub وManus. لا تجعل GitHub secrets النسخة الوحيدة للمفتاح.
+3. أنشئ أو انقل keystore ثابتاً غير debug عبر قناة آمنة وتحت ملكية الجهة الناشرة، ثم وفر alias وكلمات المرور وBase64 keystore عبر secrets الخاصة بالبيئة فقط.
+4. لا تغيّر `applicationId` أو signing lineage بعد توزيع Play من دون خطة ترحيل مدروسة.
+5. احتفظ بملف `app/build/release-evidence/SHA256SUMS` ونتائج `apksigner` مع APK/AAB وmapping وبيانات CI تحت سجل إصدار قابل للتدقيق.
+6. لا تعتبر مسارات evidence دليلاً لحزمة قابلة للنشر إلا إذا صدرت من تشغيل `main` الذي مرّ ببوابة `RELEASE_SIGNING_READY`. تشغيلات `cp-foundation` تثبت المصدر والاختبارات وتعبئة R8 غير الموقعة فقط، ولا تثبت توقيعاً أو هوية ناشر أو artifact صالحاً للتوزيع.
 
 ## بنود خارج بيئة البناء
 

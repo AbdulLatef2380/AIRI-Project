@@ -41,19 +41,21 @@ python3 scripts/supply_chain_inventory.py
 | Debug APK | `app/build/outputs/apk/debug/` | تثبيت/اختبار محاكي، ووجود JNI للـABI المطلوب. |
 | Release APK | `app/build/outputs/apk/release/` | signing وR8 وغياب metadata تشخيصية. |
 | Release AAB | `app/build/outputs/bundle/release/` | signing، R8 mapping، وفحص Manifest. |
-| R8 mapping | `app/build/outputs/mapping/release/` | حفظ آمن مع artifact الإصدار. |
+| R8 mapping | `app/build/outputs/mapping/release/` | يُحفظ مع artifact الإصدار؛ بوابة CI الموقعة تفشل إن لم يوجد `mapping.txt`. |
+| Release evidence | `app/build/release-evidence/` | `SHA256SUMS` لكل APK/AAB/mapping ونتيجة `apksigner verify --verbose` وبيانات الشهادة لكل APK؛ تتولد فقط بعد packaging الموقّع. |
 | Room schemas | `app/schemas/` | تضمين migration/test عند تغيير schema. |
 
 ## CI
 
-ينفذ `.github/workflows/android_build.yml` build Debug وlint وJVM وRelease وAAB وتحضير/تشغيل Android instrumentation والتحقق من المكتبة الأصلية ثم رفع artifacts. لا يعتمد CI على ملف signing في Git؛ تُستخدم secrets البيئية المخصصة.
+ينفذ `.github/workflows/android_build.yml` build Debug وlint وJVM وcompile لمصادر release وتحضير/تشغيل Android instrumentation والتحقق من المكتبة الأصلية ثم رفع artifacts. Packaging الفعلي لـRelease APK/AAB لا يعمل إلا على `main` عند توفر secrets التوقيع؛ عندئذ يتحقق CI من APK عبر `apksigner` ويولد mapping وSHA-256 وبيانات الشهادة ضمن artifact evidence. لا يعتمد CI على ملف signing في Git؛ تُستخدم secrets البيئية المخصصة.
 
 ## توقيع الإنتاج
 
 1. أنشئ أو انقل keystore عبر قناة آمنة وتحت ملكية الجهة الناشرة.
 2. وفر aliases وكلمات المرور وBase64 keystore عبر secrets الخاصة بالبيئة فقط.
 3. لا تغيّر `applicationId` أو signing lineage بعد توزيع Play من دون خطة ترحيل مدروسة.
-4. احفظ artifact الموقع وAAB وmapping وSHA-256 وبيانات CI تحت سجل إصدار قابل للتدقيق.
+4. احتفظ بملف `app/build/release-evidence/SHA256SUMS` ونتائج `apksigner` مع APK/AAB وmapping وبيانات CI تحت سجل إصدار قابل للتدقيق.
+5. لا تعتبر مسارات evidence دليلاً للإصدار إلا إذا صدرت من تشغيل `main` الذي مرّ ببوابة `RELEASE_SIGNING_READY`؛ تشغيلات `cp-foundation` تثبت المصدر والاختبارات فقط.
 
 ## بنود خارج بيئة البناء
 

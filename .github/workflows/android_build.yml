@@ -75,6 +75,21 @@ jobs:
           '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -XX:+UseSerialGC' \
           :app:assembleRelease :app:bundleRelease --stacktrace
 
+    - name: Verify signed release outputs and record evidence
+      if: github.ref == 'refs/heads/main' && env.RELEASE_SIGNING_READY == 'true'
+      run: |
+        test -f app/build/outputs/mapping/release/mapping.txt
+        mkdir -p app/build/release-evidence
+        for apk in app/build/outputs/apk/release/*.apk; do
+          apksigner verify --verbose "$apk"
+          apksigner verify --print-certs "$apk" > "app/build/release-evidence/$(basename "$apk").apksigner.txt"
+        done
+        sha256sum \
+          app/build/outputs/apk/release/*.apk \
+          app/build/outputs/bundle/release/*.aab \
+          app/build/outputs/mapping/release/mapping.txt \
+          > app/build/release-evidence/SHA256SUMS
+
     - name: Report unavailable release signing
       if: github.ref == 'refs/heads/main' && env.RELEASE_SIGNING_READY != 'true'
       run: |
@@ -127,6 +142,8 @@ jobs:
           app/build/outputs/apk/debug/*.apk
           app/build/outputs/apk/release/*.apk
           app/build/outputs/bundle/release/*.aab
+          app/build/outputs/mapping/release/
+          app/build/release-evidence/
           app/build/reports/
           app/build/test-results/
           app/build/outputs/androidTest-results/

@@ -106,9 +106,11 @@ jobs:
       run: |
         test -f app/build/outputs/mapping/release/mapping.txt
         mkdir -p app/build/release-evidence
+        apksigner_bin="$(find "${ANDROID_HOME:?}/build-tools" -type f -name apksigner -print | sort -V | tail -n 1)"
+        test -x "$apksigner_bin"
         for apk in app/build/outputs/apk/release/*.apk; do
-          apksigner verify --verbose "$apk"
-          apksigner verify --print-certs "$apk" > "app/build/release-evidence/$(basename "$apk").apksigner.txt"
+          "$apksigner_bin" verify --verbose "$apk"
+          "$apksigner_bin" verify --print-certs "$apk" > "app/build/release-evidence/$(basename "$apk").apksigner.txt"
         done
         sha256sum \
           app/build/outputs/apk/release/*.apk \

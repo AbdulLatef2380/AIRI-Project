@@ -88,6 +88,9 @@
     <string name="delete_account">حذف الحساب</string>
     <string name="delete_account_sublabel">إزالة حساب Firebase نهائيًا</string>
     <string name="delete_account_message">سيحاول هذا حذف حساب Firebase. عند نجاح الحذف البعيد، يزيل AIRI سجل المحادثات والذاكرة المحلية المُدارة من هذا الجهاز؛ وقد تبقى تنزيلات النماذج المحلية.</string>
+    <string name="erase_local_data">محو البيانات المحلية</string>
+    <string name="erase_local_data_sublabel">إزالة بيانات AIRI المُدارة من هذا الجهاز دون حذف حسابك البعيد</string>
+    <string name="erase_local_data_message">يزيل هذا المحادثات المُدارة والذاكرة وملفات المشاريع وبيانات الاعتماد والإعدادات والبيانات المؤقتة من هذا الجهاز. لا يُحذف حسابك البعيد.</string>
     <string name="app_info">معلومات التطبيق</string>
     <string name="name">الاسم</string>
     <string name="version">الإصدار</string>

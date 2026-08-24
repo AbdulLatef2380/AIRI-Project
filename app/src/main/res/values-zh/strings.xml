@@ -54,6 +54,9 @@
     <string name="delete_account">删除账户</string>
     <string name="delete_account_sublabel">从 Firebase 移除当前用户</string>
     <string name="delete_account_message">这会尝试删除你的 Firebase 账户。聊天历史和本地记忆也会从此设备移除。</string>
+    <string name="erase_local_data">清除本地数据</string>
+    <string name="erase_local_data_sublabel">从此设备移除 AIRI 管理的数据，但不删除你的远程账户</string>
+    <string name="erase_local_data_message">这会从此设备移除受管理的聊天、记忆、项目文件、凭据、设置和缓存数据。你的远程账户不会被删除。</string>
     <string name="app_info">应用信息</string>
     <string name="name">名称</string>
     <string name="version">版本</string>

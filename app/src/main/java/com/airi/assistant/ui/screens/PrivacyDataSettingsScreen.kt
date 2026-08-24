@@ -53,6 +53,7 @@ fun PrivacyDataSettingsScreen(
     val profile by profileRepository.profile.collectAsState()
 
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showEraseLocalDataDialog by remember { mutableStateOf(false) }
 
     val exportChatLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -187,6 +188,15 @@ fun PrivacyDataSettingsScreen(
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
                 SettingsActionRow(
+                    label       = stringResource(R.string.erase_local_data),
+                    sublabel    = stringResource(R.string.erase_local_data_sublabel),
+                    destructive = true
+                ) { showEraseLocalDataDialog = true }
+                Divider(
+                    color    = AiriTheme.onBackground.copy(alpha = 0.06f),
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+                SettingsActionRow(
                     label       = stringResource(R.string.delete_account),
                     sublabel    = stringResource(R.string.delete_account_sublabel),
                     destructive = true
@@ -197,6 +207,46 @@ fun PrivacyDataSettingsScreen(
 
             Spacer(Modifier.height(8.dp))
         }
+    }
+
+    if (showEraseLocalDataDialog) {
+        AlertDialog(
+            onDismissRequest  = { showEraseLocalDataDialog = false },
+            containerColor    = Color(0xFF12162E),
+            titleContentColor = AiriTheme.onSurface,
+            textContentColor  = AiriTheme.onSurface.copy(alpha = 0.7f),
+            shape             = AIRIShapes.xl,
+            title = { Text(stringResource(R.string.erase_local_data), fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.erase_local_data_message)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showEraseLocalDataDialog = false
+                        scope.launch {
+                            when (coordinator.eraseLocalData()) {
+                                is DataDeletionCoordinator.DeletionResult.Success,
+                                is DataDeletionCoordinator.DeletionResult.PartialSuccess -> onLogout()
+                                is DataDeletionCoordinator.DeletionResult.RemoteDataDeletionUnavailable,
+                                is DataDeletionCoordinator.DeletionResult.RemoteDataDeletionFailed,
+                                is DataDeletionCoordinator.DeletionResult.FirebaseAuthFailed -> {
+                                    snackbarHost.showSnackbar(
+                                        message = context.getString(R.string.delete_account_error_generic),
+                                        actionLabel = context.getString(R.string.ok),
+                                        duration = SnackbarDuration.Long
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SemanticError)
+                ) { Text(stringResource(R.string.erase_local_data)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEraseLocalDataDialog = false }) {
+                    Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
+                }
+            }
+        )
     }
 
     if (showDeleteDialog) {

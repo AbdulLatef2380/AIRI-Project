@@ -54,6 +54,9 @@
     <string name="delete_account">Eliminar cuenta</string>
     <string name="delete_account_sublabel">Eliminar el usuario actual de Firebase</string>
     <string name="delete_account_message">Esto intentará eliminar tu cuenta de Firebase. El historial y la memoria local también se eliminarán de este dispositivo.</string>
+    <string name="erase_local_data">Borrar datos locales</string>
+    <string name="erase_local_data_sublabel">Eliminar los datos administrados por AIRI de este dispositivo sin borrar tu cuenta remota</string>
+    <string name="erase_local_data_message">Esto elimina chats, memoria, archivos de proyecto, credenciales, ajustes y datos en caché administrados de este dispositivo. Tu cuenta remota no se elimina.</string>
     <string name="app_info">Información de la app</string>
     <string name="name">Nombre</string>
     <string name="version">Versión</string>

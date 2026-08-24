@@ -312,6 +312,54 @@ class DataDeletionCoordinator(
         }
     }
 
+    /**
+     * Erases only device-owned AIRI data. It deliberately does not call the remote
+     * account-data service or Firebase account deletion, so a user can recover
+     * local privacy even while offline or when a remote deletion endpoint is absent.
+     */
+    suspend fun eraseLocalData(): DeletionResult {
+        val failures = mutableListOf<StepFailure>()
+        val completed = mutableListOf<Step>()
+        auditRepository.log("GDPR", "LOCAL_DATA_ERASE_INITIATED", AuditLogEntity.Level.WARN)
+
+        runStep(Step.STOP_BACKGROUND_WORK, failures, completed) {
+            WorkManager.getInstance(context.applicationContext).cancelAllWork()
+        }
+        runStep(Step.ROOM_DATA_WIPE, failures, completed) { storageRepository.deleteAllData() }
+        runStep(Step.FILESYSTEM_WIPE, failures, completed) {
+            withContext(Dispatchers.IO) {
+                artifactManager.deleteAll()
+                projectFileManager.deleteAll()
+                projectKnowledgeManager.deleteAll()
+                File(context.cacheDir, "chat_attachments").deleteRecursively()
+                File(context.cacheDir, "mmproj_active.gguf").delete()
+            }
+        }
+        runStep(Step.CREDENTIAL_WIPE, failures, completed) { secureStorage.clearAll() }
+        runStep(Step.PREFERENCE_RESET, failures, completed) {
+            preferenceCoordinator.resetAllToDefaults()
+            withContext(Dispatchers.IO) {
+                val sharedPrefsDir = File(context.filesDir.parent ?: return@withContext, "shared_prefs")
+                sharedPrefsDir.listFiles()?.forEach { it.delete() }
+            }
+        }
+        runStep(Step.CACHE_WIPE, failures, completed) {
+            withContext(Dispatchers.IO) {
+                context.cacheDir.deleteRecursively()
+                context.cacheDir.mkdirs()
+            }
+        }
+        runStep(Step.LOCAL_SIGN_OUT, failures, completed) { authService.signOut() }
+
+        return if (failures.isEmpty()) {
+            auditRepository.log("GDPR", "LOCAL_DATA_ERASE_SUCCESS", AuditLogEntity.Level.WARN)
+            DeletionResult.Success
+        } else {
+            auditRepository.warn("GDPR", "LOCAL_DATA_ERASE_PARTIAL failedSteps=${failures.joinToString { it.step.name }}")
+            DeletionResult.PartialSuccess(completed, failures)
+        }
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     /**

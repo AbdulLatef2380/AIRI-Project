@@ -90,6 +90,9 @@
     <string name="delete_account_message">This attempts to delete your Firebase account. If remote deletion succeeds, AIRI removes managed chat history and local memory from this device; local model downloads may remain.</string>
     <string name="delete_account_error_generic">Account deletion failed. If your session has expired, sign out and sign back in, then try again.</string>
     <string name="delete_account_reauth_required">Your session has expired. Please sign out, sign back in, and then try deleting your account again.</string>
+    <string name="erase_local_data">Erase Local Data</string>
+    <string name="erase_local_data_sublabel">Remove AIRI-managed data from this device without deleting your remote account</string>
+    <string name="erase_local_data_message">This removes managed chats, memory, project files, credentials, settings, and cached data from this device. Your remote account is not deleted.</string>
     <string name="app_info">App Info</string>
     <string name="name">Name</string>
     <string name="version">Version</string>

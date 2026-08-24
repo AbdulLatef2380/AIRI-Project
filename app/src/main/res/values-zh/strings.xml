@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">AIRI</string>
-    <string name="accessibility_service_description">AIRI 助手需要辅助功能访问以帮助您控制设备。</string>
+    <string name="accessibility_service_description">启用后提供可选的本地交互支持。AIRI 不会自动启用此服务，设备操作仍受策略控制。</string>
     <string name="back">返回</string>
     <string name="cancel">取消</string>
     <string name="continue_action">继续</string>
@@ -1350,4 +1350,8 @@
     <string name="onboarding_privacy_telemetry_body">分析和崩溃报告在您明确同意前保持关闭。</string>
     <string name="onboarding_privacy_deletion_title">数据删除</string>
     <string name="onboarding_privacy_deletion_body">您可以在相关设置和隐私控制中删除本地数据。</string>
+    <string name="permissions_accessibility_rationale">只有在您启用 Android 无障碍服务后，可选的本地无障碍功能才能读取屏幕上的界面。</string>
+    <string name="permissions_accessibility_why_needed">AIRI 只会在您选择启用后打开 Android 设置。该服务本身不授权智能体执行设备操作。</string>
+    <string name="permissions_accessibility_enable_title">启用无障碍服务</string>
+    <string name="permissions_accessibility_enable_body">打开 Android 设置以启用本地服务。智能体设备操作仍受独立控制。</string>
 </resources>

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AIRI</string>
-    <string name="accessibility_service_description">AIRI Assistant needs accessibility access to help you control your device.</string>
+    <string name="accessibility_service_description">Enables optional local interaction support after you turn it on. AIRI never enables this service automatically, and device actions remain policy-controlled.</string>
     <string name="back">Back</string>
     <string name="cancel">Cancel</string>
     <string name="continue_action">Continue</string>
@@ -1682,4 +1682,8 @@
     <string name="onboarding_privacy_telemetry_body">Analytics and crash reporting stay off until you give explicit consent.</string>
     <string name="onboarding_privacy_deletion_title">Data deletion</string>
     <string name="onboarding_privacy_deletion_body">You can remove local data from the relevant Settings and privacy controls.</string>
+    <string name="permissions_accessibility_rationale">Optional local accessibility features can read the on-screen UI only after you enable Android\'s Accessibility service.</string>
+    <string name="permissions_accessibility_why_needed">AIRI opens Android Settings only after you choose Enable. This service alone does not authorize agent device actions.</string>
+    <string name="permissions_accessibility_enable_title">Enable Accessibility service</string>
+    <string name="permissions_accessibility_enable_body">Open Android Settings to enable the local service. Agent device actions remain separately governed.</string>
 </resources>

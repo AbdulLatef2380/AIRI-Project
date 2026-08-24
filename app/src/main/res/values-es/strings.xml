@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">AIRI</string>
-    <string name="accessibility_service_description">AIRI Assistant necesita acceso de accesibilidad para ayudarte a controlar tu dispositivo.</string>
+    <string name="accessibility_service_description">Habilita asistencia local opcional para interactuar después de activarla. AIRI nunca activa este servicio automáticamente y las acciones en el dispositivo siguen sujetas a políticas.</string>
     <string name="back">Atrás</string>
     <string name="cancel">Cancelar</string>
     <string name="continue_action">Continuar</string>
@@ -1350,4 +1350,8 @@
     <string name="onboarding_privacy_telemetry_body">La analítica y los informes de fallos permanecen desactivados hasta que des tu consentimiento explícito.</string>
     <string name="onboarding_privacy_deletion_title">Eliminación de datos</string>
     <string name="onboarding_privacy_deletion_body">Puedes eliminar datos locales desde los ajustes y controles de privacidad correspondientes.</string>
+    <string name="permissions_accessibility_rationale">Las funciones locales opcionales de accesibilidad solo pueden leer la interfaz en pantalla después de activar el servicio de accesibilidad de Android.</string>
+    <string name="permissions_accessibility_why_needed">AIRI abre los ajustes de Android solo cuando eliges Activar. Este servicio por sí solo no autoriza acciones del agente en el dispositivo.</string>
+    <string name="permissions_accessibility_enable_title">Activar servicio de accesibilidad</string>
+    <string name="permissions_accessibility_enable_body">Abre los ajustes de Android para activar el servicio local. Las acciones del agente en el dispositivo siguen teniendo controles independientes.</string>
 </resources>

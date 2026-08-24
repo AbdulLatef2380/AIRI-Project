@@ -60,6 +60,8 @@ data class PermissionInfo(
 @Composable
 fun PermissionsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val accessibilityRationale = stringResource(R.string.permissions_accessibility_rationale)
+    val accessibilityWhyNeeded = stringResource(R.string.permissions_accessibility_why_needed)
 
     val allPermissions = remember {
         listOf(
@@ -133,16 +135,6 @@ fun PermissionsScreen(onBack: () -> Unit) {
                 group       = "Storage",
                 isDangerous = true
             ),
-            PermissionInfo(
-                permission  = Manifest.permission.SCHEDULE_EXACT_ALARM,
-                label       = "Exact Alarms",
-                icon        = Icons.Outlined.Alarm,
-                iconTint    = Color(0xFFFFD600),
-                rationale   = "Schedule precise reminders and tasks at exact times you specify.",
-                whyNeeded   = "Without this, reminders fire approximately — not at the exact time requested.",
-                group       = "Alarms",
-                isDangerous = false
-            )
         )
     }
 
@@ -154,8 +146,8 @@ fun PermissionsScreen(onBack: () -> Unit) {
                 label       = "Accessibility Service",
                 icon        = Icons.Outlined.Accessibility,
                 iconTint    = Color(0xFF00E5FF),
-                rationale   = "Allows AIRI to read the UI tree and perform actions (tap, swipe, type) on your behalf.",
-                whyNeeded   = "The core automation layer. Without it AIRI cannot control apps. Enabled in Accessibility Settings.",
+                rationale   = accessibilityRationale,
+                whyNeeded   = accessibilityWhyNeeded,
                 group       = "Automation",
                 isSpecial   = true
             ),
@@ -368,9 +360,8 @@ private fun PermissionRow(perm: PermissionInfo, isGranted: Boolean) {
             }
             Spacer(Modifier.width(8.dp))
             if (perm.isSpecial) {
-                // : For accessibility (full device control), show a biometric-gated
-                // "Enable" button instead of a static badge. Non-accessibility special
-                // permissions retain the old badge.
+                // Accessibility opens Android Settings only after a visible user action.
+                // It is not a blanket authorization for AgentLoop device actions.
                 val ctx = LocalContext.current
                 val scope = rememberCoroutineScope()
                 if (perm.permission == "android.permission.BIND_ACCESSIBILITY_SERVICE") {
@@ -391,8 +382,8 @@ private fun PermissionRow(perm: PermissionInfo, isGranted: Boolean) {
                                         }
                                         val passed = BiometricGatekeeper.authenticate(
                                             activity = activity,
-                                            title    = "Enable Accessibility Service",
-                                            subtitle = "This grants AIRI control over your device UI."
+                                            title    = ctx.getString(R.string.permissions_accessibility_enable_title),
+                                            subtitle = ctx.getString(R.string.permissions_accessibility_enable_body)
                                         )
                                         if (passed) ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                                     } else {

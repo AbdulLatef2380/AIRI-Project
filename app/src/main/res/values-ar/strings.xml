@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AIRI</string>
-    <string name="accessibility_service_description">يحتاج مساعد AIRI إلى صلاحية إمكانية الوصول لمساعدتك على التحكم بجهازك.</string>
+    <string name="accessibility_service_description">يتيح دعماً محلياً اختيارياً للتفاعل بعد تمكينه. لا يفعّل AIRI هذه الخدمة تلقائياً، وتبقى إجراءات الجهاز خاضعة للسياسة.</string>
     <string name="back">رجوع</string>
     <string name="cancel">إلغاء</string>
     <string name="continue_action">متابعة</string>
@@ -1581,4 +1581,8 @@
     <string name="onboarding_privacy_telemetry_body">يبقى التحليل والإبلاغ عن الأعطال متوقفين حتى تمنح موافقة صريحة.</string>
     <string name="onboarding_privacy_deletion_title">حذف البيانات</string>
     <string name="onboarding_privacy_deletion_body">يمكنك إزالة البيانات المحلية من الإعدادات وعناصر تحكم الخصوصية ذات الصلة.</string>
+    <string name="permissions_accessibility_rationale">يمكن لميزات تسهيل الاستخدام المحلية الاختيارية قراءة واجهة الشاشة فقط بعد تمكين خدمة تسهيل الاستخدام في Android.</string>
+    <string name="permissions_accessibility_why_needed">لا يفتح AIRI إعدادات Android إلا بعد اختيارك تمكين. هذه الخدمة وحدها لا تخوّل إجراءات جهاز الوكيل.</string>
+    <string name="permissions_accessibility_enable_title">تمكين خدمة تسهيل الاستخدام</string>
+    <string name="permissions_accessibility_enable_body">افتح إعدادات Android لتمكين الخدمة المحلية. تبقى إجراءات جهاز الوكيل خاضعة لضوابط منفصلة.</string>
 </resources>

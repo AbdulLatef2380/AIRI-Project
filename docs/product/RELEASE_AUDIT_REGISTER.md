@@ -14,6 +14,7 @@
 | Android device availability | `RUNTIME_VERIFICATION_PENDING` | `adb devices -l` لم يعرض جهازاً. | لا يجوز وصف صلاحيات أو UI أو WorkManager أو Calendar بأنها اجتازت وقت التشغيل. |
 | Release assembly | `PARTIAL` | أول محاولة ثبتت CMake 3.22.1 ثم توقف daemon؛ المحاولة المنفصلة وصلت `minifyReleaseWithR8` ثم أوقفت لحماية ذاكرة sandbox. وCI الحالي نجح في `compileReleaseKotlin` فقط؛ توقيع/package على `cp-foundation` مقصود أن يتخطى لأن signing محصور في `main` مع الأسرار. | لا APK/AAB release مكتمل، لا native-APK check مكتمل، ولا توقيع تحقق. |
 | Android Lint | `CI_VERIFIED` | محاولة sandbox المحلية قُطعت لحماية الذاكرة، لكن GitHub Actions run `32672299812` أكمل `:app:lintDebug` بنجاح للالتزام `8c90a53b`. | هذه نتيجة CI لنسخة debug؛ لا تعوض فحص lint/release artifact أو تشغيل جهاز. |
+| Android permission surface | `BUILD_VERIFIED` / `RUNTIME_VERIFICATION_PENDING` | التدقيق الثابت أثبت أن `SCHEDULE_EXACT_ALARM` لم يكن له مستدعٍ أو receiver مملوك؛ أزيل من manifest ومن شاشة الصلاحيات. أذونات Calendar وContacts تبقى لمساراتها الصريحة، وCamera يطلب عند زر المحادثة. صار وصف خدمة Accessibility وواجهة الإعدادات يوضحان أنها تُفعّل يدوياً وأن إجراءات الجهاز محكومة بالسياسة؛ حارس النواة 74/74 وstrict localization و`:app:compileDebugKotlin` اجتازت. | يجب تجربة grant/deny وSettings return وAccessibility disclosure على جهاز وعلى إصدارات Android المستهدفة؛ لا يثبت التدقيق الثابت قبول Play أو تشغيل خدمة Accessibility. |
 
 ## 2. تكوين الإصدار والنتائج الثابتة
 

@@ -6,13 +6,13 @@
 
 ## 1. نقطة البداية المثبتة
 
-المرشح الداخلي الحالي هو الالتزام `099e503f` على `cp-foundation`. بنيت GitHub Actions run [`32720458806`](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32720458806) المسار غير الموقّع كاملاً: الحارسات والتوطين، debug/unit/lint، `assembleRelease` و`bundleRelease` مع R8، APK badging، فحص ZIP للـAAB، `mapping.txt`، instrumentation API 29، وفحص native.
+المرشح الداخلي الحالي هو الالتزام `ec359054` على `cp-foundation`. بنيت GitHub Actions run [`32761300619`](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32761300619) المسار غير الموقّع كاملاً: الحارسات 80/80 والتوطين الصارم، shared-core/debug/unit/lint، `assembleRelease` و`bundleRelease` مع R8، APK badging، فحص ZIP للـAAB، `mapping.txt`، instrumentation API 29، وفحص native. لم يرقَّ هذا الالتزام إلى `main` ولم تُشغل عليه بوابة signing.
 
 | عنصر الدليل البنيوي | القيمة المتحققة في artifact غير الموقّع | الحد الصريح |
 |---|---|---|
-| APK | `app-release-unsigned.apk`، SHA-256: `20c6fffb578feee017d4ef25b0eda9944863f365bc8613f6747969e0bf77a236` | لا توقيع ولا تثبيت ولا توزيع. |
-| AAB | `app-release.aab`، SHA-256: `647166abd6c955c7f68ab2f528b0a85b998776f79117c9b79c1ea81227569dcf` | لا Play upload ولا هوية ناشر. |
-| R8 mapping | `mapping.txt`، 815,811 سطراً، SHA-256: `d82ae1096fcbdaaf493952997b2a32bd3cf8ab7acfabc085c5c4ca9a0aced5a7` | لا mapping نهائي قبل تشغيل signed `main`. |
+| APK | `app-release-unsigned.apk`، SHA-256: `2496de134f9d7de4248ded074e5831a697e82ed0f0ad450b5e7f41e8114806e6` | لا توقيع ولا تثبيت ولا توزيع. |
+| AAB | `app-release.aab`، SHA-256: `1e0c56fdc930b2cf612c1ec8014749f85bf1f76ee9dd416bd1c1ff3a83ec3b50` | لا Play upload ولا هوية ناشر. |
+| R8 mapping | `mapping.txt`، 815,949 سطراً، SHA-256: `c988f131c9f44200a0b7be7419696d1ebadccce667ec019a7b72b8384b987b1c` | لا mapping نهائي قبل تشغيل signed `main`. |
 | Manifest المرصود | `com.airi.assistant`، `versionCode=1`، `minSdk=26`، `targetSdk=36`، `arm64-v8a`، وإذن Billing غير موجود في APK المفحوص. | لا يغني عن manifest الحزمة الموقعة أو device install. |
 
 ## 1.1 نتيجة بوابة التوقيع على main
@@ -21,9 +21,9 @@
 
 | بوابة | النتيجة | الإجراء التالي المسموح |
 |---|---|---|
-| ترقية main | `PASS`؛ fast-forward إلى المرشح بلا merge commit. | لا تغيير للشفرة. |
-| CI الداخلي على main | `PASS`؛ كل البوابات غير الموقعة/المحاكي/native نجحت. | احتفظ برابط CI ضمن سجل الإصدار. |
-| توقيع الحزمة | `BLOCKED`؛ لا APK/AAB موقعة ولا apksigner/mapping/hash نهائية، ولا هوية إصدار قابلة للاستعادة ظهرت في التحقيق. | يحدد مالك الإصدار backup خاصاً خارج GitHub/Manus، ثم ينشئ أو يستورد هوية ثابتة ويهيئ الأسرار الأربعة داخل GitHub قبل إعادة تشغيل workflow على `main`. |
+| ترقية main | `PASS` تاريخياً للالتزام `fe3fb68b` فقط؛ تمت fast-forward بلا merge commit. | يتطلب المرشح `ec359054` تفويض release-owner جديد قبل أي ترقية؛ لا تدمج أو تجبر الفرع. |
+| CI الداخلي على main | `PASS` تاريخياً للمرشح القديم؛ كل البوابات غير الموقعة/المحاكي/native نجحت في run `32742046966`. | لا يمثل هذا دليل الشفرة الأحدث على `cp-foundation`. |
+| توقيع الحزمة | `BLOCKED`؛ لا APK/AAB موقعة ولا apksigner/mapping/hash نهائية، ولا هوية إصدار قابلة للاستعادة ظهرت في التحقيق. | يحدد مالك الإصدار backup خاصاً خارج GitHub/Manus، ثم ينشئ أو يستورد هوية ثابتة ويهيئ الأسرار الأربعة داخل GitHub قبل تشغيل workflow على `main` المرشح المفوض. |
 
 ## 2. نطاق الإصدار المجمّد
 
@@ -40,7 +40,7 @@
 
 | الترتيب | المالك | الإجراء | evidence المطلوب للقبول | ما لا يثبته الإجراء |
 |---:|---|---|---|---|
-| 1 | Release engineer | شغّل workflow المحمي على `main` من commit مرشح مع أسرار signing المعتمدة فقط. | APK/AAB موقعان، `mapping.txt`، `SHA256SUMS`، مخرجات `apksigner verify --verbose` و`--print-certs`، `versionCode` نهائي، ورابط CI. | لا يثبت تجربة المستخدم أو Play acceptance. |
+| 1 | Release owner + release engineer | بعد تفويض fast-forward للمرشح `ec359054` فقط، شغّل workflow المحمي على `main` مع أسرار signing المعتمدة فقط. | SHA/قرار الترقيـة، APK/AAB موقعان، `mapping.txt`، `SHA256SUMS`، مخرجات `apksigner verify --verbose` و`--print-certs`، `versionCode` نهائي، ورابط CI. | لا يثبت تجربة المستخدم أو Play acceptance. |
 | 2 | Release engineer + QA | ثبت APK الموقع على API 26 وAPI 35/36 حقيقيين، ABI `arm64-v8a`. | اسم الجهاز/API/ABI/build، نتيجة تثبيت وstartup، logcat منقح، ونتيجة JNI/native. | لا يثبت المزودات أو Data safety. |
 | 3 | QA | نفذ صفوف P0 في `RELEASE_DEVICE_AND_STORE_MATRIX.md`: مشروع→ملف→رفض/موافقة/reopen، عزل A/B، local erase، WorkManager، Browser handoff، Calendar حيث يعلن، والصلاحيات. | فيديو/لقطات منقحة، hash/room/artifact منقح، خطوات ونتيجة لكل صف، وشواهد cancel/fail-safe. | لا يثبت deletion بعيداً أو provider configuration. |
 | 4 | Connector owner | قبل أي وصف لمزود، يحدد قائمة المزودات المشمولة ثم يختبر opt-in/opt-out/cancel/error/revoke وحماية السر لكل مزود. | حساب اختبار، وقت/خطوات/نتيجة منقحة، redirect URI عند OAuth، ودليل عدم ظهور secret في UI/log/evidence. | لا يثبت المراجعة القانونية أو Play. |

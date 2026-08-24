@@ -63,6 +63,30 @@ jobs:
     - name: Compile release sources
       run: ./gradlew :app:compileReleaseKotlin --stacktrace
 
+    - name: Package unsigned release verification
+      if: github.ref != 'refs/heads/main'
+      run: |
+        ./gradlew --no-daemon --max-workers=1 \
+          '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -XX:+UseSerialGC' \
+          :app:assembleRelease :app:bundleRelease --stacktrace
+
+    - name: Verify unsigned release outputs and record evidence
+      if: github.ref != 'refs/heads/main'
+      run: |
+        test -f app/build/outputs/mapping/release/mapping.txt
+        mkdir -p app/build/release-evidence
+        for apk in app/build/outputs/apk/release/*.apk; do
+          aapt dump badging "$apk" > "app/build/release-evidence/$(basename "$apk").badging.txt"
+        done
+        for bundle in app/build/outputs/bundle/release/*.aab; do
+          unzip -t "$bundle" > "app/build/release-evidence/$(basename "$bundle").ziptest.txt"
+        done
+        sha256sum \
+          app/build/outputs/apk/release/*.apk \
+          app/build/outputs/bundle/release/*.aab \
+          app/build/outputs/mapping/release/mapping.txt \
+          > app/build/release-evidence/UNSIGNED_SHA256SUMS
+
     - name: Package signed release outputs
       if: github.ref == 'refs/heads/main' && env.RELEASE_SIGNING_READY == 'true'
       env:

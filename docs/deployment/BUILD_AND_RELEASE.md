@@ -39,15 +39,15 @@ python3 scripts/supply_chain_inventory.py
 | المخرج | المسار | التحقق المطلوب |
 |---|---|---|
 | Debug APK | `app/build/outputs/apk/debug/` | تثبيت/اختبار محاكي، ووجود JNI للـABI المطلوب. |
-| Release APK | `app/build/outputs/apk/release/` | signing وR8 وغياب metadata تشخيصية. |
-| Release AAB | `app/build/outputs/bundle/release/` | signing، R8 mapping، وفحص Manifest. |
-| R8 mapping | `app/build/outputs/mapping/release/` | يُحفظ مع artifact الإصدار؛ بوابة CI الموقعة تفشل إن لم يوجد `mapping.txt`. |
-| Release evidence | `app/build/release-evidence/` | `SHA256SUMS` لكل APK/AAB/mapping ونتيجة `apksigner verify --verbose` وبيانات الشهادة لكل APK؛ تتولد فقط بعد packaging الموقّع. |
+| Release APK | `app/build/outputs/apk/release/` | فروع غير `main` تثبت تعبئة R8 غير الموقعة فقط؛ حزمة النشر تتطلب توقيع `main`. |
+| Release AAB | `app/build/outputs/bundle/release/` | فروع غير `main` تثبت بنية AAB وR8؛ حزمة النشر تتطلب توقيع `main` وفحص manifest النهائي. |
+| R8 mapping | `app/build/outputs/mapping/release/` | يثبت CI غير الموقع وجود `mapping.txt`؛ بوابة `main` الموقعة تحفظه مع artifact النهائي. |
+| Release evidence | `app/build/release-evidence/` | على غير `main`: `UNSIGNED_SHA256SUMS` وbadging للـAPK ونتيجة فحص ZIP للـAAB. على `main` الموقّع: `SHA256SUMS` و`apksigner verify --verbose` وبيانات الشهادة لكل APK. |
 | Room schemas | `app/schemas/` | تضمين migration/test عند تغيير schema. |
 
 ## CI
 
-ينفذ `.github/workflows/android_build.yml` build Debug وlint وJVM وcompile لمصادر release وتحضير/تشغيل Android instrumentation والتحقق من المكتبة الأصلية ثم رفع artifacts. Packaging الفعلي لـRelease APK/AAB لا يعمل إلا على `main` عند توفر secrets التوقيع؛ عندئذ يتحقق CI من APK عبر `apksigner` ويولد mapping وSHA-256 وبيانات الشهادة ضمن artifact evidence. لا يعتمد CI على ملف signing في Git؛ تُستخدم secrets البيئية المخصصة.
+ينفذ `.github/workflows/android_build.yml` build Debug وlint وJVM وcompile لمصادر release وتحضير/تشغيل Android instrumentation والتحقق من المكتبة الأصلية ثم رفع artifacts. على الفروع غير `main` يعبئ CI APK/AAB غير موقّعين مع R8، ويتحقق من `mapping.txt` وAPK badging وبنية AAB و`UNSIGNED_SHA256SUMS`. لا تعد هذه artifact قابلة للتثبيت أو النشر. Packaging الموقّع لا يعمل إلا على `main` عند توفر secrets التوقيع؛ عندئذ يتحقق CI من APK عبر `apksigner` ويولد mapping وSHA-256 وبيانات الشهادة ضمن artifact evidence. لا يعتمد CI على ملف signing في Git؛ تُستخدم secrets البيئية المخصصة.
 
 ## توقيع الإنتاج
 
@@ -55,7 +55,7 @@ python3 scripts/supply_chain_inventory.py
 2. وفر aliases وكلمات المرور وBase64 keystore عبر secrets الخاصة بالبيئة فقط.
 3. لا تغيّر `applicationId` أو signing lineage بعد توزيع Play من دون خطة ترحيل مدروسة.
 4. احتفظ بملف `app/build/release-evidence/SHA256SUMS` ونتائج `apksigner` مع APK/AAB وmapping وبيانات CI تحت سجل إصدار قابل للتدقيق.
-5. لا تعتبر مسارات evidence دليلاً للإصدار إلا إذا صدرت من تشغيل `main` الذي مرّ ببوابة `RELEASE_SIGNING_READY`؛ تشغيلات `cp-foundation` تثبت المصدر والاختبارات فقط.
+5. لا تعتبر مسارات evidence دليلاً لحزمة قابلة للنشر إلا إذا صدرت من تشغيل `main` الذي مرّ ببوابة `RELEASE_SIGNING_READY`. تشغيلات `cp-foundation` تثبت المصدر والاختبارات وتعبئة R8 غير الموقعة فقط، ولا تثبت توقيعاً أو هوية ناشر أو artifact صالحاً للتوزيع.
 
 ## بنود خارج بيئة البناء
 

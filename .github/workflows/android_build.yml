@@ -108,6 +108,16 @@ jobs:
           exit 1
         fi
 
+    - name: Upload Android test reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: AIRI-Android-Test-Reports
+        path: |
+          app/build/reports/androidTests/
+          app/build/outputs/androidTest-results/
+        if-no-files-found: warn
+
     - name: Upload build outputs and reports
       if: always()
       uses: actions/upload-artifact@v4

@@ -10,7 +10,7 @@
 | JVM targeted tests | `TESTED` | `WorkspaceContextTest` و`UserPreferenceProfileTest` والاختبارات المستهدفة السابقة للمهام/RAG اجتازت. | لا يثبت Room أو Android provider أو UI على جهاز. |
 | Android instrumentation compilation | `BUILD_VERIFIED` | `:app:compileDebugAndroidTestKotlin` نجحت بعد محاولة release، وCI جهز APK الاختبار. | لا يثبت تشغيل الاختبارات أو سلوك device. |
 | Android CI: debug/lint/release-source | `CI_VERIFIED` | GitHub Actions run `32672299812` للالتزام `8c90a53b` نجح في source contracts والتوطين، shared-core tests، `assembleDebug`، unit tests و`lintDebug`، ثم `compileReleaseKotlin`. | لا ينشئ artifact release موقعاً على `cp-foundation`، ولا يثبت R8/package release. |
-| Android CI: instrumentation runtime | `FAILED` / `TRIAGE_ACTIVE` | run `32672299812` أعاد اختبار المحاكي مرة واحدة طبقاً للـscript ثم سجل فشلين في `connectedDebugAndroidTest`. لم يُظهر Gradle الاسمين في log، وكان رفع report يأتي بعد مرحلة فاشلة فيُتخطى. | لا يجوز الادعاء بنجاح instrumentation. workflow الآن يرفع `androidTests`/reports عبر `if: always()` في الالتزام اللاحق كي يكشف أسماء الاختبارات وstack traces من artifact قبل إصلاح المصدر. |
+| Android CI: instrumentation runtime | `FAILED` / `TRIAGE_ACTIVE` | run `32672299812` ثم إعادة التشغيل التشخيصية `32673822966` أعادا اختبار المحاكي مرة واحدة طبقاً للـscript وسجلا فشلين في `connectedDebugAndroidTest`. لم يُظهر Gradle الاسمين في log. رفع الحزمة الكاملة الآن يستمر بعد الفشل لكنه حجمه كبير؛ أضيف artifact مستقل صغير باسم `AIRI-Android-Test-Reports` قبل الحزمة الكاملة، ويحتوي `androidTests`/results حتى تكشف الدفعة التالية أسماء الاختبارات وstack traces. | لا يجوز الادعاء بنجاح instrumentation. يجب استخراج التقرير المستقل في التشغيل اللاحق وإصلاح المصدر أو الاختبار بناءً على stack trace فقط. |
 | Android device availability | `RUNTIME_VERIFICATION_PENDING` | `adb devices -l` لم يعرض جهازاً. | لا يجوز وصف صلاحيات أو UI أو WorkManager أو Calendar بأنها اجتازت وقت التشغيل. |
 | Release assembly | `PARTIAL` | أول محاولة ثبتت CMake 3.22.1 ثم توقف daemon؛ المحاولة المنفصلة وصلت `minifyReleaseWithR8` ثم أوقفت لحماية ذاكرة sandbox. وCI الحالي نجح في `compileReleaseKotlin` فقط؛ توقيع/package على `cp-foundation` مقصود أن يتخطى لأن signing محصور في `main` مع الأسرار. | لا APK/AAB release مكتمل، لا native-APK check مكتمل، ولا توقيع تحقق. |
 | Android Lint | `CI_VERIFIED` | محاولة sandbox المحلية قُطعت لحماية الذاكرة، لكن GitHub Actions run `32672299812` أكمل `:app:lintDebug` بنجاح للالتزام `8c90a53b`. | هذه نتيجة CI لنسخة debug؛ لا تعوض فحص lint/release artifact أو تشغيل جهاز. |
@@ -45,7 +45,7 @@
 
 1. **مكتمل:** فصل سياسة شبكة debug عن release وإصلاح R8 entry point؛ اجتازا `compileDebugKotlin` وحارس النواة والتوطين.
 2. **مكتمل:** جعل onboarding محلياً لكل اللغات، وإبقاء طلب microphone/notification/calendar خلف زر صريح مع مسار Settings لاحق، وإزالة ادعاء التحكم العام للوكيل.
-3. استخراج تقرير `connectedDebugAndroidTest` من artifact الذي سيرفع دائماً في التشغيل اللاحق، ثم إصلاح الاختبار أو المصدر بحسب stack trace؛ لا تعاد تسمية النتيجة نجاحاً قبل ذلك.
+3. استخراج تقرير `connectedDebugAndroidTest` من artifact المستقل `AIRI-Android-Test-Reports` في التشغيل اللاحق، ثم إصلاح الاختبار أو المصدر بحسب stack trace؛ لا تعاد تسمية النتيجة نجاحاً قبل ذلك.
 4. تنفيذ `RELEASE_DEVICE_AND_STORE_MATRIX.md` على أجهزة فعلية/CI لتدقيق الرفض والعودة من Settings والواجهة/قارئ الشاشة وتسجيل الأدلة.
 5. إعادة تشغيل release package/R8 وتوقيع ضمن CI على `main` مع أسرار معتمدة؛ لا تكرر الضغط في sandbox الحالي.
 6. تجهيز release documentation وstore/legal gates بعد وجود artifact موقع ونتائج runtime.

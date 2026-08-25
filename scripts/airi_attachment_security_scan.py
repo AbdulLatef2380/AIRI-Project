@@ -15,6 +15,18 @@ def check(name: str, passed: bool, detail: str) -> dict[str, object]:
     return {"name": name, "status": "SOURCE_VERIFIED" if passed else "FAIL", "detail": detail}
 
 
+def has_bounded_text_attachment_read(chat: str) -> bool:
+    """Return true only when text attachments are read through a bounded loop."""
+    required_fragments = (
+        "bufferedReader().use { reader ->",
+        "val bounded = StringBuilder()",
+        "while (bounded.length < readLimit)",
+        "reader.read(buffer",
+        "readLimit - bounded.length",
+    )
+    return all(fragment in chat for fragment in required_fragments)
+
+
 def main() -> int:
     chat = CHAT_VIEW_MODEL.read_text(encoding="utf-8")
     vision = VISION_IMAGE.read_text(encoding="utf-8")
@@ -26,7 +38,7 @@ def main() -> int:
         ),
         check(
             "bounded_text_attachment_read",
-            "reader.readText()" not in chat and "while (bounded.length < remaining)" in chat,
+            "reader.readText()" not in chat and has_bounded_text_attachment_read(chat),
             "Text attachment reads must stop at the context cap before the full file enters memory.",
         ),
         check(

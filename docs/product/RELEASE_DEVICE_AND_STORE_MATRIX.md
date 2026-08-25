@@ -27,6 +27,19 @@
 | P1 | صوت/Hotword | يمنح/يرفض mic، يبدأ/يوقف wake word، ينتقل foreground/background. | لا يبدأ capture بلا mic؛ تظهر خدمة foreground مع إشعار واضح؛ wake word يفتح AIRI فقط ولا ينفذ أداة. | شاشة الإذن/الإشعار، battery/foreground observation، وlogcat منقح. |
 | P1 | الموصلات والأسرار | GitHub project secret مفقود/موجود ومشروع مخالف. | لا global fallback؛ لا raw preview/copy؛ مِلْكية task/run/step شرط للاستهلاك؛ provider failure لا يعرض السر. | UI presence فقط، logs منقحة، نتائج adapter/no-network والاختبار الحي عند توفر حساب تجريبي. |
 
+## نتيجة فحص الوصول وتنفيذ P0
+
+فُحصت بيئة التنفيذ الحالية: لا يوجد `adb`، ولا هاتف Android فعلي متصل، ولا emulator محلي، ولا إعداد Firebase Test Lab أو device-farm مصرح يمكن تشغيله بهذه الجلسة. لذلك لا تُستنتج نتائج أجهزة من CI emulator، وتُوسم الصفوف الفعلية التالية صراحةً بـ`BLOCKED / REAL_DEVICE_ACCESS_REQUIRED`:
+
+| صف P0 | النتيجة الحالية | سبب الحجب | الدليل غير الجهازي المتاح |
+|---|---|---|---|
+| مسار مشروع → ملف → موافقة → تطبيق | `BLOCKED / REAL_DEVICE_ACCESS_REQUIRED` | يتطلب UI حقيقية، process death، وإعادة فتح على جهاز. | CI API 29 instrumentation يغطي runtime reconstruction، لا الجهاز الفعلي. |
+| عزل المشروع | `BLOCKED / REAL_DEVICE_ACCESS_REQUIRED` | يتطلب تشغيل الرحلة على Android فعلي مع تخزين/إعادة تشغيل الجهاز. | `ProjectResourceIsolationTest` في Android CI ناجح. |
+| تقويم AgentLoop | `BLOCKED / REAL_DEVICE_ACCESS_REQUIRED` | يتطلب Android permissions وDoze/process death، كما أن live provider credentials غير متاحة. | typed contract وno-network tests فقط؛ لا live provider evidence. |
+| Browser handoff | `BLOCKED / REAL_DEVICE_ACCESS_REQUIRED` | يتطلب handler ومتصفحاً وإلغاء/تأكيد مرئيين على جهاز. | policy/source guards فقط؛ لا launch فعلي. |
+| WorkManager schedule/run-now | `BLOCKED / REAL_DEVICE_ACCESS_REQUIRED` | يتطلب WorkManager/Doze/OEM وprocess death على جهاز. | CI instrumentation لا يثبت OEM/Doze الحقيقي. |
+| توقيع release وJNI — التثبيت وبدء التشغيل | `BLOCKED / REAL_DEVICE_ACCESS_REQUIRED` | التوقيع ووجود native output متحققان في CI، لكن install/startup على ARM64 فعلي غير متاح. | signed APK/AAB و`apksigner` وnative verification في Android CI. |
+
 ## مصفوفة الصلاحيات والإفصاح
 
 | الإذن أو الإعلان | السطح المصرح به | اختبار الرفض | شرط متجر/إفصاح قبل الإصدار |

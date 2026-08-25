@@ -8,15 +8,20 @@
 
 المرشح الموقع الحالي هو الالتزام `ca881a1b` على `cp-foundation` و`main`. بعد تحقيق هوية التوقيع الذي ثبت عدم وجود هوية إصدار سابقة قابلة للاستعادة، أنشئت هوية production جديدة مع نسخة recovery مشفرة خارج GitHub ومملوكة للمالك فقط. لم تدخل مادة خاصة إلى Git أو CI logs أو هذا المستند.
 
-GitHub Actions run [`32783660291`](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32783660291) اجتازت contracts والتوطين وshared-core/debug/unit/lint وrelease compile وsigned packaging و`apksigner` وAPI 29 instrumentation وفحص native. أصلح commit `ca881a1b` عائق runner السابق باكتشاف `apksigner` من Android build-tools بدلاً من افتراضه في PATH.
+GitHub Actions run [`32783660291`](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32783660291) اجتازت contracts والتوطين وshared-core/debug/unit/lint وrelease compile وsigned packaging و`apksigner` وAPI 29 instrumentation وفحص native. أصلح commit `ca881a1b` عائق runner السابق باكتشاف `apksigner` من Android build-tools بدلاً من افتراضه في PATH. وأعادت run [`32786481014`](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/32786481014) التحقق الكامل عند `8656fd12` بعد إغلاق التوثيق وإصلاح Oracle.
 
 | عنصر الدليل | القيمة المتحققة | الحد الصريح |
 |---|---|---|
+| إعادة التحقق الأخيرة | APK SHA-256 `670581e7be7255140b74d240921ae92d0217d9785ea7f5711a4a3813f15d9c10`؛ AAB SHA-256 `02698932e850d6b51acebd19c6efbaa1f513a0a10c3d81bc76238c8e7a2b020b`؛ mapping SHA-256 `c988f131c9f44200a0b7be7419696d1ebadccce667ec019a7b72b8384b987b1c` من run `32786481014` عند `8656fd12`. | هذه إعادة تحقق CI؛ لا تثبت جهاز ARM64 فعلياً أو OEM/Doze أو Play. |
 | APK موقّع | `app-release.apk`، SHA-256: `2faf1ec9d269d58eb93c98379bf93a2fc25b4a449c6f1a6bd2c36275e32b4b98` | لا يثبت تثبيت جهاز أو قبول Play. |
 | AAB موقّع | `app-release.aab`، SHA-256: `f8816b28d7751ab974fe9a0a064baf18e9558a6a94415098e784f720b40eb30a` | لا يثبت رفعاً إلى Play أو rollout. |
 | R8 mapping | `mapping.txt`، 815,949 سطراً، SHA-256: `c988f131c9f44200a0b7be7419696d1ebadccce667ec019a7b72b8384b987b1c` | يجب حفظه محفوظاً مع كل build لاحق، ولا يوضع في مستودع عام إن تضمن رموزاً حساسة. |
 | شهادة APK | V2 signer: `CN=AIRI Android Release, OU=Release Engineering, O=AIRI, L=Khartoum, ST=Khartoum, C=SD`؛ SHA-256: `EE:B5:1E:58:A3:71:85:F8:EC:1A:48:77:64:8F:9A:59:69:61:49:E7:0D:39:56:64:DF:F5:91:9C:82:C2:1A:F8`. | fingerprint يثبت artifact المفحوص، ولا يكشف المفتاح الخاص. |
 | سلامة AAB | `unzip -t` بلا أخطاء في البيانات المضغوطة. | لا يتحقق من Play validation أو runtime. |
+
+## 1.1 نتيجة الوصول إلى الجهاز
+
+فحصت جلسة التحقق `adb` والعمليات والبيئة وإعدادات المستودع: لا يوجد جهاز Android فعلي ARM64، ولا emulator محلي، ولا Firebase Test Lab أو device-farm مصرح متاح. لذلك صفوف P0 المعتمدة على UI/permissions/process death/OEM موسومة في `RELEASE_DEVICE_AND_STORE_MATRIX.md` بـ`BLOCKED / REAL_DEVICE_ACCESS_REQUIRED`. لا تُستبدل هذه النتيجة بأدلة محاكي CI.
 
 ## 2. نطاق الإصدار المجمّد
 

@@ -1,6 +1,6 @@
 # مصفوفة تحقق الجهاز والمتجر للإطلاق
 
-> **الحالة:** `RUNTIME_VERIFICATION_PENDING`. هذه مصفوفة تنفيذ، وليست نتيجة اختبار. لا يجوز تحويل أي صف إلى `TESTED` أو `READY` قبل إرفاق جهاز/نسخة/وقت/نتيجة وشاهد للأثر أو للفشل الآمن.
+> **الحالة:** `EXTERNAL_GATE_HANDOFF / P0_DEVICE_ROWS_BLOCKED`. هذه مصفوفة تنفيذ، وليست نتيجة اختبار. التوقيع وCI موثقان؛ لا يجوز تحويل أي صف جهازي إلى `TESTED` أو `READY` قبل إرفاق جهاز/نسخة/وقت/نتيجة وشاهد للأثر أو للفشل الآمن.
 
 ## نطاق الأجهزة
 
@@ -56,8 +56,8 @@
 
 | البوابة | المالك | دليل القبول |
 |---|---|---|
-| Signing identity وversioning | release engineer | **متحقق في CI للحزمة المرجعية:** هوية production جديدة مع recovery مشفرة خارج GitHub؛ signed APK/AAB وSHA-256 وmapping و`apksigner` موجودة في run `32783660291` عند `ca881a1b`. قبل الرفع، يتحقق المالك من versionCode متزايد مقابل Play ويحتفظ بالـmapping/recovery خارج المستودع. |
-| CI release evidence | release engineer | run `32783660291` ناجحة على `ca881a1b`؛ signed artifacts و`SHA256SUMS` وcertificate evidence وmapping وreports محفوظة، مع native/R8/lint/instrumentation مكتملة. |
+| Signing identity وversioning | release engineer | **متحقق في CI:** هوية production جديدة مع recovery مشفرة خارج GitHub؛ signed APK/AAB وSHA-256 وmapping و`apksigner` موجودة في run `32805967708` عند `8868656e`، مع baseline سابق في `32783660291` عند `ca881a1b`. قبل الرفع، يتحقق المالك من versionCode متزايد مقابل Play ويحتفظ بالـmapping/recovery خارج المستودع. |
+| CI release evidence | release engineer | run `32805967708` ناجحة على `8868656e`؛ signed artifacts و`SHA256SUMS` وcertificate evidence وmapping وreports محفوظة، مع native/R8/lint/instrumentation مكتملة. |
 | Data safety وسياسة الخصوصية | product/legal owner | إجابات مطابقة للسلوك الفعلي لكل إذن وFirebase/provider، رابط سياسة ساري، ومسار حذف بيانات مختبر. |
 | Play pre-launch | release engineer | تقرير على أجهزة Play أو سبب/إصلاح كل failure وعدم وجود crash/blocker. |
 | Provider credentials | connector owner | حسابات اختبار، redirect URIs، revocation، errors/cancel، وعدم ظهور أسرار في التقرير أو UI. |

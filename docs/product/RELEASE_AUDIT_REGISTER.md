@@ -53,6 +53,16 @@
 | Provider/no-network | `SOURCE_VERIFIED / EXTERNAL_VERIFICATION_REQUIRED` | `airi_remote_control_health.py` و`airi_remote_control_security.py` وFirestore rules test نجحت؛ لا توجد credentials أو جلسة provider حية متاحة، ولذلك لا يوجد consent/revoke/cancel live evidence. | يلزم حساب اختبار وبيئة provider يملكها المالك لكل integration معلنة. |
 | Privacy/Data Safety | `SOURCE_CONSISTENT / EXTERNAL_REVIEW_REQUIRED` | `security_scan.py` نجح 8/8 بلا secret findings، localization strict أعاد 0، ومسارات consent وFirebase configuration وpermissions موثقة في المصدر. | لا يثبت إعداد Play Data Safety أو سياسة خصوصية قانونية أو إرسال الشبكة الفعلي؛ يلزم owner/legal review. |
 
+## 1.4 بوابات الإصدار الخارجية — تنفيذ قابل للتدقيق
+
+| المجال | النتيجة المثبتة | الدليل | الحد الصريح |
+|---|---|---|---|
+| artifact P0 المرجعي | `VERIFIED` | أعيد حساب APK SHA-256 `cec8f92801d897619c110eef14434a747fa8190df8c326e62da9ac337d575f6e` وAAB SHA-256 `d8ad5ee0f12282e245d4f0004b1f606f3e7dd04a0d340940235b5e98ec2b10a7` وmapping SHA-256 `c988f131c9f44200a0b7be7419696d1ebadccce667ec019a7b72b8384b987b1c` من evidence المحلية لـrun `32805967708` عند `8868656e`. ملف `apksigner` يثبت subject والشهادة SHA-256 `EE:B5:1E:58:A3:71:85:F8:EC:1A:48:77:64:8F:9A:59:69:61:49:E7:0D:39:56:64:DF:F5:91:9C:82:C2:1A:F8`، و`unzip -t` للـAAB بلا أخطاء. | لا يثبت تثبيت/بدء تشغيل على جهاز ARM64. |
+| P0 device access | `BLOCKED / REAL_DEVICE_ACCESS_REQUIRED` | لا يوجد `adb` أو Android SDK أو emulator أو هاتف ARM64 متصل، ولا device-farm/Test Lab مصرح في هذه الجلسة. كل صفوف P0 الستة موسومة صراحةً في `RELEASE_DEVICE_AND_STORE_MATRIX.md`. | CI API 29 ليس بديلاً عن API 26 وAPI 35/36 على أجهزة ARM64 فعلية. |
+| provider live verification | `BLOCKED / OWNER_TEST_CREDENTIALS_REQUIRED` | إعدادات الجلسة تعرض GitHub وGoogle Workspace وMy Browser فقط؛ لا يوجد موصل provider خاص بـAIRI أو credentials اختبارية مفعلة. نجحت فحوص source/rules/remote-control بلا مزود حي. | لا توجد evidence consent/cancel/revoke/error حية ولا يجوز استنتاجها من الحارسات. |
+| Play Console access | `BLOCKED / OWNER_AUTH_REQUIRED` | زيارة Play Console read-only وصلت إلى صفحة Google sign-in؛ لا توجد جلسة ناشر مصادق عليها أو قائمة تطبيقات أو upload access. | لا upload أو pre-launch أو rollout أو فحص versionCode مقابل Play. |
+| Privacy/Data Safety preparation | `SOURCE_DERIVED / OWNER_AND_LEGAL_REVIEW_REQUIRED` | أضيف `PLAY_DATA_SAFETY_SOURCE_INVENTORY.md` مع package/version، hashes، permissions، consent defaults، مسارات المحو المحلي، والمواد الناقصة. | لا سياسة خصوصية عامة أو Data Safety معتمدة أو قرار قانوني أو runtime network proof. |
+
 ## 2. تكوين الإصدار والنتائج الثابتة
 
 | المجال | ما وجد | التقييم | الإجراء |

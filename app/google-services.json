@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "93237507759-5kgebv17srq5gtguu0l2u8ej43m510le.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.airi.assistant",
+            "certificate_hash": "6c6efe1241eafe28748e036ae1472dc93d7d911d"
+          }
+        },
+        {
           "client_id": "93237507759-19cg5lphcvisuekv3j52f7ibigt71rm5.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -37,4 +45,3 @@
   ],
   "configuration_version": "1"
 }
-

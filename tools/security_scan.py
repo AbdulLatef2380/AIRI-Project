@@ -73,6 +73,7 @@ def manifest_checks() -> list[tuple[str, bool, str]]:
 
 def firebase_client_config_check() -> tuple[str, bool, str]:
     config_path = ROOT / "app/google-services.json"
+    production_sha1 = "6c6efe1241eafe28748e036ae1472dc93d7d911d"
     try:
         config = json.loads(config_path.read_text(encoding="utf-8"))
         clients = config.get("client", [])
@@ -80,13 +81,19 @@ def firebase_client_config_check() -> tuple[str, bool, str]:
             client.get("client_info", {}).get("android_client_info", {}).get("package_name")
             for client in clients
         }
+        oauth_sha1_fingerprints = {
+            oauth.get("android_info", {}).get("certificate_hash", "").lower().replace(":", "")
+            for client in clients
+            for oauth in client.get("oauth_client", [])
+            if oauth.get("client_type") == 1
+        }
         return (
-            "Firebase client configuration scope",
-            "com.airi.assistant" in package_names,
-            "google-services.json declares the AIRI Android package",
+            "Firebase production Google Sign-In configuration",
+            "com.airi.assistant" in package_names and production_sha1 in oauth_sha1_fingerprints,
+            "google-services.json declares the AIRI package and the Android OAuth client for the production signing SHA-1",
         )
     except (OSError, json.JSONDecodeError):
-        return ("Firebase client configuration scope", False, "google-services.json could not be parsed")
+        return ("Firebase production Google Sign-In configuration", False, "google-services.json could not be parsed")
 
 
 def source_checks() -> list[tuple[str, bool, str]]:

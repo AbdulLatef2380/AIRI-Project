@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "93237507759",
+    "project_id": "fir-96852",
+    "storage_bucket": "fir-96852.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:93237507759:android:6674582bd8d62b1871065a",
+        "android_client_info": {
+          "package_name": "com.airi.assistant"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "93237507759-5kgebv17srq5gtguu0l2u8ej43m510le.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.airi.assistant",
+            "certificate_hash": "6c6efe1241eafe28748e036ae1472dc93d7d911d"
+          }
+        },
+        {
+          "client_id": "93237507759-19cg5lphcvisuekv3j52f7ibigt71rm5.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEr1XpMIrTM9zIjjvUegKUdjQsopriY0E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "93237507759-19cg5lphcvisuekv3j52f7ibigt71rm5.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

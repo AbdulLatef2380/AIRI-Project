@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
@@ -32,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,6 +52,8 @@ import androidx.compose.ui.semantics.semantics
 import kotlinx.coroutines.delay
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airi.assistant.ui.theme.*
+import com.airi.assistant.core.ExecutionTraceEvent
+import com.airi.assistant.core.ExecutionTraceKind
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 
 /**
@@ -70,6 +75,11 @@ fun AgentPlanContent(
     val steps by viewModel.steps.collectAsStateWithLifecycle()
     val stage by viewModel.currentStage.collectAsStateWithLifecycle()
     val goal  by viewModel.goalDescription.collectAsStateWithLifecycle()
+    val traceEntries by viewModel.traceEntries.collectAsStateWithLifecycle()
+    val traceFilter by viewModel.traceFilter.collectAsStateWithLifecycle()
+    val traceAutoScroll by viewModel.traceAutoScroll.collectAsStateWithLifecycle()
+    val unreadTraceCount by viewModel.unreadTraceCount.collectAsStateWithLifecycle()
+    val showTraceJumpToLatest by viewModel.showTraceJumpToLatest.collectAsStateWithLifecycle()
 
     val listState = rememberLazyListState()
     val runningIdx = steps.indexOfLast { it.status.isActive }
@@ -122,6 +132,18 @@ fun AgentPlanContent(
 
         Divider(color = AiriTheme.outline)
 
+        AgentTraceSection(
+            entries = traceEntries,
+            selectedFilter = traceFilter,
+            autoScroll = traceAutoScroll,
+            unreadCount = unreadTraceCount,
+            showJumpToLatest = showTraceJumpToLatest,
+            onSelectFilter = viewModel::setTraceFilter,
+            onPauseFollowing = viewModel::pauseTraceAutoScroll,
+            onFollowLatest = viewModel::followTraceLatest,
+            onObserved = viewModel::markTraceObserved,
+        )
+
         // ── Steps ────────────────────────────────────────────────────────────
         if (steps.isEmpty()) {
             Box(
@@ -147,6 +169,211 @@ fun AgentPlanContent(
             }
         }
     }
+}
+
+// ── Structured execution trace ────────────────────────────────────────────
+
+@Composable
+private fun AgentTraceSection(
+    entries: List<ExecutionTraceEvent>,
+    selectedFilter: ExecutionTraceFilter,
+    autoScroll: Boolean,
+    unreadCount: Int,
+    showJumpToLatest: Boolean,
+    onSelectFilter: (ExecutionTraceFilter) -> Unit,
+    onPauseFollowing: () -> Unit,
+    onFollowLatest: () -> Unit,
+    onObserved: (Long) -> Unit,
+) {
+    val traceListState = rememberLazyListState()
+    val latestSequence = entries.lastOrNull()?.sequence
+
+    LaunchedEffect(latestSequence, autoScroll, entries.size) {
+        val latestIndex = entries.lastIndex
+        if (autoScroll && latestIndex >= 0) {
+            traceListState.animateScrollToItem(latestIndex)
+            onObserved(entries[latestIndex].sequence)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                stringResource(R.string.agent_plan_trace_title),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = AiriTheme.onSurface,
+            )
+            Text(
+                text = stringResource(
+                    if (autoScroll) R.string.agent_plan_trace_pause_follow
+                    else R.string.agent_plan_trace_follow_latest,
+                ),
+                fontSize = 11.sp,
+                color = CosmicAccent,
+                modifier = Modifier
+                    .semantics {
+                        contentDescription = stringResource(
+                            if (autoScroll) R.string.agent_plan_trace_pause_follow
+                            else R.string.agent_plan_trace_follow_latest,
+                        )
+                    }
+                    .clickable { if (autoScroll) onPauseFollowing() else onFollowLatest() },
+            )
+        }
+
+        LazyRow(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            items(ExecutionTraceFilter.values().asList()) { filter ->
+                FilterChip(
+                    selected = filter == selectedFilter,
+                    onClick = { onSelectFilter(filter) },
+                    label = { Text(traceFilterLabel(filter), fontSize = 11.sp) },
+                )
+            }
+        }
+
+        if (entries.isEmpty()) {
+            Text(
+                stringResource(R.string.agent_plan_trace_empty),
+                fontSize = 11.sp,
+                color = AiriTheme.onSurface.copy(alpha = 0.45f),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+        } else {
+            LazyColumn(
+                state = traceListState,
+                modifier = Modifier.fillMaxWidth().heightIn(max = 210.dp),
+                contentPadding = PaddingValues(bottom = 6.dp),
+            ) {
+                items(entries, key = { it.sequence }) { entry ->
+                    TraceEntryRow(entry)
+                }
+            }
+        }
+
+        if (showJumpToLatest) {
+            Text(
+                text = stringResource(R.string.agent_plan_trace_jump_to_latest, unreadCount),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = CosmicAccent,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(vertical = 6.dp)
+                    .clickable { onFollowLatest() },
+            )
+        }
+        Divider(color = AiriTheme.outline, thickness = 0.5.dp)
+    }
+}
+
+@Composable
+private fun TraceEntryRow(entry: ExecutionTraceEvent) {
+    var expanded by remember(entry.sequence) { mutableStateOf(false) }
+    val kindLabel = traceKindLabel(entry.kind)
+    val label = "${entry.sequence} · $kindLabel"
+    val rowColor = traceKindColor(entry.kind)
+    val entryContentDescription = stringResource(
+        R.string.agent_plan_trace_entry_cd,
+        entry.sequence,
+        kindLabel,
+    )
+    val detailsContentDescription = stringResource(
+        if (expanded) R.string.agent_plan_trace_hide_details
+        else R.string.agent_plan_trace_show_details,
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !entry.detail.isNullOrBlank()) { expanded = !expanded }
+            .semantics {
+                contentDescription = "$entryContentDescription. $detailsContentDescription"
+            }
+            .padding(horizontal = 16.dp, vertical = 7.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = traceKindIcon(entry.kind),
+                contentDescription = null,
+                tint = rowColor,
+                modifier = Modifier.size(15.dp),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(label, fontSize = 10.sp, color = rowColor, fontWeight = FontWeight.SemiBold)
+                Text(entry.summary, fontSize = 12.sp, color = AiriTheme.onSurface, maxLines = 2)
+            }
+            entry.durationMs?.let { duration ->
+                Text(
+                    stringResource(R.string.agent_plan_trace_duration_ms, duration),
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = AiriTheme.onSurface.copy(alpha = 0.55f),
+                )
+            }
+        }
+        if (expanded && !entry.detail.isNullOrBlank()) {
+            Text(
+                entry.detail,
+                fontSize = 11.sp,
+                color = AiriTheme.onSurface.copy(alpha = 0.65f),
+                modifier = Modifier
+                    .padding(start = 23.dp, top = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun traceFilterLabel(filter: ExecutionTraceFilter): String = stringResource(when (filter) {
+    ExecutionTraceFilter.ALL -> R.string.agent_plan_trace_filter_all
+    ExecutionTraceFilter.PLANNING -> R.string.agent_plan_trace_filter_planning
+    ExecutionTraceFilter.STEPS -> R.string.agent_plan_trace_filter_steps
+    ExecutionTraceFilter.TOOLS -> R.string.agent_plan_trace_filter_tools
+    ExecutionTraceFilter.ERRORS -> R.string.agent_plan_trace_filter_errors
+})
+
+@Composable
+private fun traceKindLabel(kind: ExecutionTraceKind): String = stringResource(when (kind) {
+    ExecutionTraceKind.PLANNING -> R.string.agent_trace_kind_planning
+    ExecutionTraceKind.STEP_STARTED -> R.string.agent_trace_kind_step_started
+    ExecutionTraceKind.STEP_COMPLETED -> R.string.agent_trace_kind_step_completed
+    ExecutionTraceKind.TOOL_STARTED -> R.string.agent_trace_kind_tool_started
+    ExecutionTraceKind.TOOL_COMPLETED -> R.string.agent_trace_kind_tool_completed
+    ExecutionTraceKind.TOOL_FAILED -> R.string.agent_trace_kind_tool_failed
+    ExecutionTraceKind.TOOL_CANCELLED -> R.string.agent_trace_kind_tool_cancelled
+    ExecutionTraceKind.RECOVERING -> R.string.agent_trace_kind_recovering
+    ExecutionTraceKind.REFLECTING -> R.string.agent_trace_kind_reflecting
+    ExecutionTraceKind.COMPLETED -> R.string.agent_trace_kind_completed
+    ExecutionTraceKind.FAILED -> R.string.agent_trace_kind_failed
+    ExecutionTraceKind.CANCELLED -> R.string.agent_trace_kind_cancelled
+})
+
+@Composable
+private fun traceKindColor(kind: ExecutionTraceKind): Color = when (kind) {
+    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED -> SemanticError
+    ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED -> AiriTheme.onSurface.copy(alpha = 0.5f)
+    ExecutionTraceKind.RECOVERING -> SemanticWarn
+    ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.COMPLETED -> SemanticSuccess
+    else -> CosmicAccent
+}
+
+private fun traceKindIcon(kind: ExecutionTraceKind) = when (kind) {
+    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED -> Icons.Outlined.ErrorOutline
+    ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.COMPLETED -> Icons.Outlined.Check
+    ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED -> Icons.Outlined.Close
+    else -> Icons.Outlined.PlayArrow
 }
 
 // ── Step row with live timing () ────────────────────────────────────────

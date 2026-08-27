@@ -1782,4 +1782,31 @@
     <string name="chat_starter_ideas_prompt">Give me 10 ideas for:</string>
     <string name="chat_starter_research_label">Research a topic</string>
     <string name="chat_starter_research_prompt">Research and summarize this topic:</string>
+    <!-- Agent execution trace panel -->
+    <string name="agent_plan_trace_title">Execution trace</string>
+    <string name="agent_plan_trace_empty">No execution updates yet</string>
+    <string name="agent_plan_trace_filter_all">All</string>
+    <string name="agent_plan_trace_filter_planning">Planning</string>
+    <string name="agent_plan_trace_filter_steps">Steps</string>
+    <string name="agent_plan_trace_filter_tools">Tools</string>
+    <string name="agent_plan_trace_filter_errors">Issues</string>
+    <string name="agent_plan_trace_jump_to_latest">Jump to latest (%1$d)</string>
+    <string name="agent_plan_trace_pause_follow">Pause following</string>
+    <string name="agent_plan_trace_follow_latest">Follow latest</string>
+    <string name="agent_plan_trace_entry_cd">Update %1$d: %2$s</string>
+    <string name="agent_plan_trace_show_details">Show safe details</string>
+    <string name="agent_plan_trace_hide_details">Hide details</string>
+    <string name="agent_plan_trace_duration_ms">%1$d ms</string>
+    <string name="agent_trace_kind_planning">Planning</string>
+    <string name="agent_trace_kind_step_started">Step started</string>
+    <string name="agent_trace_kind_step_completed">Step completed</string>
+    <string name="agent_trace_kind_tool_started">Tool started</string>
+    <string name="agent_trace_kind_tool_completed">Tool completed</string>
+    <string name="agent_trace_kind_tool_failed">Tool failed</string>
+    <string name="agent_trace_kind_tool_cancelled">Tool cancelled</string>
+    <string name="agent_trace_kind_recovering">Recovering</string>
+    <string name="agent_trace_kind_reflecting">Reviewing</string>
+    <string name="agent_trace_kind_completed">Execution completed</string>
+    <string name="agent_trace_kind_failed">Execution failed</string>
+    <string name="agent_trace_kind_cancelled">Execution cancelled</string>
 </resources>

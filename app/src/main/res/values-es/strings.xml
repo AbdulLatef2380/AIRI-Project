@@ -1450,4 +1450,31 @@
     <string name="chat_starter_ideas_prompt">Dame 10 ideas para:</string>
     <string name="chat_starter_research_label">Investigar un tema</string>
     <string name="chat_starter_research_prompt">Investiga y resume este tema:</string>
+    <!-- Panel de seguimiento de ejecución del agente -->
+    <string name="agent_plan_trace_title">Seguimiento de ejecución</string>
+    <string name="agent_plan_trace_empty">Aún no hay actualizaciones de ejecución</string>
+    <string name="agent_plan_trace_filter_all">Todo</string>
+    <string name="agent_plan_trace_filter_planning">Planificación</string>
+    <string name="agent_plan_trace_filter_steps">Pasos</string>
+    <string name="agent_plan_trace_filter_tools">Herramientas</string>
+    <string name="agent_plan_trace_filter_errors">Problemas</string>
+    <string name="agent_plan_trace_jump_to_latest">Ir al último (%1$d)</string>
+    <string name="agent_plan_trace_pause_follow">Pausar seguimiento</string>
+    <string name="agent_plan_trace_follow_latest">Seguir lo último</string>
+    <string name="agent_plan_trace_entry_cd">Actualización %1$d: %2$s</string>
+    <string name="agent_plan_trace_show_details">Mostrar detalles seguros</string>
+    <string name="agent_plan_trace_hide_details">Ocultar detalles</string>
+    <string name="agent_plan_trace_duration_ms">%1$d ms</string>
+    <string name="agent_trace_kind_planning">Planificación</string>
+    <string name="agent_trace_kind_step_started">Paso iniciado</string>
+    <string name="agent_trace_kind_step_completed">Paso completado</string>
+    <string name="agent_trace_kind_tool_started">Herramienta iniciada</string>
+    <string name="agent_trace_kind_tool_completed">Herramienta completada</string>
+    <string name="agent_trace_kind_tool_failed">Herramienta fallida</string>
+    <string name="agent_trace_kind_tool_cancelled">Herramienta cancelada</string>
+    <string name="agent_trace_kind_recovering">Recuperando</string>
+    <string name="agent_trace_kind_reflecting">Revisando</string>
+    <string name="agent_trace_kind_completed">Ejecución completada</string>
+    <string name="agent_trace_kind_failed">Ejecución fallida</string>
+    <string name="agent_trace_kind_cancelled">Ejecución cancelada</string>
 </resources>

@@ -1,6 +1,7 @@
 package com.airi.assistant.core
 
 import android.util.Log
+import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.runtime.profiler.FlowPressureMonitor
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.ExecutionStage
@@ -34,11 +35,15 @@ object ExecutionStatusBus {
     private const val TAG = "ExecutionStatusBus"
 
     private val _status = MutableStateFlow(AgentState())
+    private val traceBuffer = ExecutionTraceBuffer()
+    private val _trace = MutableStateFlow<List<ExecutionTraceEvent>>(emptyList())
 
     // : Wrap status with FlowPressureMonitor to detect slow collectors.
     // monitorFlow wraps the Flow at the read-side; _status remains a MutableStateFlow
     // for internal writes. Backpressure events log to RuntimeProfiler ().
     val status: StateFlow<AgentState> = _status.asStateFlow()
+    /** Ordered, bounded, user-safe summaries for the active execution trace. */
+    val trace: StateFlow<List<ExecutionTraceEvent>> = _trace.asStateFlow()
     // Wrapped version for collectors that want pressure detection:
     val monitoredStatus = FlowPressureMonitor.monitorFlow("ExecutionStatusBus", _status)
 
@@ -46,6 +51,10 @@ object ExecutionStatusBus {
 
     /** Signal that a DAG graph execution has started. */
     fun onGraphStarted(goalDescription: String, totalNodes: Int, executionId: String) {
+        if (executionId.isBlank()) {
+            Log.w(TAG, "EXEC_STATUS_REJECTED missing executionId")
+            return
+        }
         _status.value = AgentState(
             isWorking             = true,
             currentAction         = goalDescription.take(80),
@@ -55,6 +64,8 @@ object ExecutionStatusBus {
             nodesTotal            = totalNodes,
             executionStage        = ExecutionStage.PLANNING
         )
+        traceBuffer.begin(executionId)
+        appendTrace(executionId, ExecutionTraceKind.PLANNING, "Planning task", goalDescription)
         Log.i(TAG, "EXEC_STATUS_PLANNING goalChars=${goalDescription.length} nodes=$totalNodes")
     }
 
@@ -73,6 +84,9 @@ object ExecutionStatusBus {
                 currentAction   = nodeActions.joinToString(", ").take(80)
             )
         }
+        if (acceptsEvent(_status.value.executionId, executionId)) {
+            appendTrace(executionId, ExecutionTraceKind.STEP_STARTED, "Executing step", nodeActions.firstOrNull())
+        }
     }
 
     /** Signal that a node has completed successfully. */
@@ -88,6 +102,9 @@ object ExecutionStatusBus {
                 currentStep    = nodesCompleted,
                 activeNodeId   = nodeId
             )
+        }
+        if (acceptsEvent(_status.value.executionId, executionId)) {
+            appendTrace(executionId, ExecutionTraceKind.STEP_COMPLETED, "Step completed", nodeId)
         }
     }
 
@@ -108,6 +125,9 @@ object ExecutionStatusBus {
                 currentAction  = "Recovering: ${reason.take(60)}"
             )
         }
+        if (acceptsEvent(_status.value.executionId, executionId)) {
+            appendTrace(executionId, ExecutionTraceKind.RECOVERING, "Recovering step", reason)
+        }
         Log.i(TAG, "EXEC_STATUS_RECOVERING node=$nodeId attempt=$retryCount reasonChars=${reason.length}")
     }
 
@@ -116,6 +136,9 @@ object ExecutionStatusBus {
         _status.update { current ->
             if (!belongsToActiveExecution(current, executionId)) current
             else current.copy(executionStage = ExecutionStage.REFLECTING, currentAction = "Analysing results...")
+        }
+        if (acceptsEvent(_status.value.executionId, executionId)) {
+            appendTrace(executionId, ExecutionTraceKind.REFLECTING, "Reviewing execution result")
         }
     }
 
@@ -135,6 +158,10 @@ object ExecutionStatusBus {
                 activeNodeAction = ""
             )
         }
+        if (acceptsEvent(_status.value.executionId, executionId)) {
+            appendTrace(executionId, if (success) ExecutionTraceKind.COMPLETED else ExecutionTraceKind.FAILED,
+                if (success) "Execution completed" else "Execution failed")
+        }
         Log.i(TAG, "EXEC_STATUS ${stage.name}")
     }
 
@@ -150,12 +177,31 @@ object ExecutionStatusBus {
                 activeNodeAction = "",
             )
         }
+        if (acceptsEvent(_status.value.executionId, executionId)) {
+            appendTrace(executionId, ExecutionTraceKind.CANCELLED, "Execution cancelled")
+        }
         Log.i(TAG, "EXEC_STATUS_CANCELLED")
     }
 
     /** Reset to idle (e.g. on session clear or ViewModel cleared). */
     fun reset() {
         _status.value = AgentState()
+    }
+
+    private fun appendTrace(
+        executionId: String,
+        kind: ExecutionTraceKind,
+        summary: String,
+        detail: String? = null,
+    ) {
+        val event = traceBuffer.append(
+            executionId = executionId,
+            kind = kind,
+            summary = PrivacyGuard.redactForTrace(summary),
+            detail = detail?.let { PrivacyGuard.redactForTrace(it) },
+        ) ?: return
+        _trace.value = traceBuffer.snapshot()
+        Log.d(TAG, "TRACE kind=${event.kind} seq=${event.sequence} execution=${event.executionId.take(8)}")
     }
 
     // ── Internal helper ───────────────────────────────────────────────────────

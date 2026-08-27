@@ -26,6 +26,8 @@ data class ExecutionRequest(
     val requiresStructuredOutput: Boolean    = false,
     val estimatedPromptTokens:    Int        = 0,
     val sessionTag:               String     = "",
+    /** Stable model identity captured when the execution was admitted. */
+    val requestedModelId:         String     = "",
     val conversationHistory:      List<ConversationTurn> = emptyList()
 ) {
     data class ConversationTurn(val role: String, val content: String)
@@ -39,6 +41,7 @@ data class ExecutionRequest(
         if (requiresLongContext)      append(" longCtx=true")
         if (requiresOffline)          append(" offline=true")
         if (requiresStructuredOutput) append(" structured=true")
+        if (requestedModelId.isNotBlank()) append(" model=$requestedModelId")
         if (conversationHistory.isNotEmpty()) append(" history=${conversationHistory.size}")
     }
 }

@@ -484,6 +484,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * once at the message-add site (line ~556) and then cleared. Always
      * `null` for plain text sends, so default behaviour is unchanged.
      */
+    /** Attachment metadata is valid only for the session that staged it. */
+    private var pendingAttachmentSessionId: String? = null
     private var pendingImageUriForNextSend: String? = null
     private var pendingAttachmentJsonForNextSend: String? = null
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -1479,7 +1481,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun sendMessage(input: String): Boolean =
         sendMessageInternal(input, allowLongTextConversion = true)
 
-    private fun sendMessageInternal(input: String, allowLongTextConversion: Boolean): Boolean {
+    private fun sendMessageInternal(
+        input: String,
+        allowLongTextConversion: Boolean,
+        expectedSessionId: String? = null,
+    ): Boolean {
+        if (expectedSessionId != null &&
+            (expectedSessionId.isBlank() || _currentSessionId.value != expectedSessionId)
+        ) return false
         val directives = parseInputDirectives(input)
         val trimmedInput = directives.userText.trim()
         if (trimmedInput.isEmpty() || _modelState.value.isModelLoading) return false
@@ -1520,6 +1529,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         // ── Intent classification (before any async work) ─────────────────────
+        val selectedModelIdAtDispatch = _modelState.value.selectedModelId
         val queryType = QueryClassifier.classifyQuery(trimmedInput)
         val wordCount = trimmedInput.split(Regex("\\s+")).size
         Log.d("AIRI_INTENT", "type=${queryType.name} input_words=$wordCount")
@@ -1586,14 +1596,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _isGenerating.value = true
             generationStartMs = System.currentTimeMillis()
             val perfMode = _performanceMode.value
-            val sessionId = currentSessionOrCreate()
+            val sessionId = expectedSessionId ?: currentSessionOrCreate()
+            if (expectedSessionId != null && _currentSessionId.value != expectedSessionId) {
+                finishGeneration(generationId)
+                return@launch
+            }
             val activeProjectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
             val ragPrivacyLevel = if (execModePrefs.effectiveMode == ExecutionMode.LOCAL_ONLY) 0 else 1
             val wasEmpty = _messages.value.isEmpty()
-            val attachedForBubble = pendingImageUriForNextSend
-            val attachmentJson = pendingAttachmentJsonForNextSend
-            pendingImageUriForNextSend = null
-            pendingAttachmentJsonForNextSend = null
+            val stagedForSession = pendingAttachmentSessionId == sessionId
+            val attachedForBubble = pendingImageUriForNextSend.takeIf { stagedForSession }
+            val attachmentJson = pendingAttachmentJsonForNextSend.takeIf { stagedForSession }
+            if (stagedForSession) {
+                pendingAttachmentSessionId = null
+                pendingImageUriForNextSend = null
+                pendingAttachmentJsonForNextSend = null
+            }
             val rawHistory = memoryManager.loadSession(sessionId)
             val history    = ResponseOptimizer.smartTrim(rawHistory, isAgentMode = true)
             Log.d("AIRI_TRIM", "before=${rawHistory.size} after=${history.size}")
@@ -1779,6 +1797,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     systemPrompt = systemPrompt,
                     tools        = activeTools,
                     queryType    = queryType,
+                    modelId      = selectedModelIdAtDispatch,
                     onToken      = token@{ tok ->
                         if (!isCurrentGeneration(generationId) || _isCancelled.get()) return@token
                         tokenCount += tok.length / 4 + 1
@@ -2708,6 +2727,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             onRejected(ownershipFailure)
             return@launch
         }
+        pendingAttachmentSessionId = sessionAtDispatch
         pendingAttachmentJsonForNextSend = attachmentMetadataJson(persistedAttachments)
         val trimmed = input.trim()
         val textAttachmentContext = withContext(Dispatchers.IO) {
@@ -2726,7 +2746,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
 
         if (primaryImage != null && !visionReady) {
-            pendingAttachmentJsonForNextSend = null
+            if (pendingAttachmentSessionId == sessionAtDispatch) {
+                pendingAttachmentSessionId = null
+                pendingAttachmentJsonForNextSend = null
+            }
             onRejected(AttachmentDispatchFailure.VISION_UNAVAILABLE)
             return@launch
         }
@@ -2747,10 +2770,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 textAttachmentContext
             ).filter { it.isNotBlank() }.joinToString(separator = "\n\n")
             val fullText = if (trimmed.isBlank()) attachmentContext else "$trimmed\n\n$attachmentContext"
-            if (sendMessageInternal(fullText, allowLongTextConversion = false)) {
+            if (sendMessageInternal(
+                    fullText,
+                    allowLongTextConversion = false,
+                    expectedSessionId = sessionAtDispatch,
+                )) {
                 onAccepted()
             } else {
-                pendingAttachmentJsonForNextSend = null
+                if (pendingAttachmentSessionId == sessionAtDispatch) {
+                    pendingAttachmentSessionId = null
+                    pendingAttachmentJsonForNextSend = null
+                }
             }
         }
             } finally {
@@ -2859,8 +2889,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Branch B: real vision call.
-        val attachmentJson = pendingAttachmentJsonForNextSend
-        pendingAttachmentJsonForNextSend = null
+        val sessionAtDispatch = _currentSessionId.value
+        val attachmentJson = pendingAttachmentJsonForNextSend.takeIf {
+            pendingAttachmentSessionId == sessionAtDispatch
+        }
+        if (pendingAttachmentSessionId == sessionAtDispatch) {
+            pendingAttachmentSessionId = null
+            pendingAttachmentJsonForNextSend = null
+        }
         val current = ModelManager.getCurrent()
         if (current == null || !_modelState.value.isModelReady) {
             _messages.update {
@@ -2869,16 +2905,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        val modelIdAtDispatch = current.id
+        if (sessionAtDispatch.isBlank()) return
         val generationId = generationSequence.incrementAndGet()
         activeGenerationId = generationId
         viewModelScope.launch {
             if (!isCurrentGeneration(generationId)) return@launch
+            if (_currentSessionId.value != sessionAtDispatch ||
+                ModelManager.getCurrent()?.id != modelIdAtDispatch
+            ) {
+                finishGeneration(generationId)
+                return@launch
+            }
             _agentState.value = AgentState(isWorking = true, currentAction = "Preparing image…")
             _generationPhase.value = GenerationPhase.PREFILL
             _isGenerating.value = true
             _isCancelled.set(false)
             generationStartMs = System.currentTimeMillis()
-            val sessionId = currentSessionOrCreate()
+            val sessionId = sessionAtDispatch
             val activeProjectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
             val wasEmpty = _messages.value.isEmpty()
 

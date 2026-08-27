@@ -113,7 +113,8 @@ Do not mix tool_call JSON with prose in the same message.
         input:          String,
         systemPrompt:   String,
         tools:          List<ToolSchema>,
-        queryType:      QueryType              = QueryType.UNKNOWN,
+        queryType:     QueryType              = QueryType.UNKNOWN,
+        modelId:        String                 = "",
         onToken:        suspend (String) -> Unit,
         onStepComplete: suspend (StepEvent) -> String? = { null },
         executionContextFactory: AgentLoopExecutionContextFactory? = null
@@ -128,7 +129,7 @@ Do not mix tool_call JSON with prose in the same message.
 
         // If no tools provided, single-pass inference
         if (tools.isEmpty()) {
-            val response = callLLM(input, systemPrompt, history, tools, queryType, onToken)
+            val response = callLLM(input, systemPrompt, history, tools, queryType, modelId, onToken)
             return LoopResult(response, 1, emptyList())
         }
 
@@ -155,7 +156,8 @@ Do not mix tool_call JSON with prose in the same message.
                     history      = history,
                     tools        = tools,
                     queryType    = queryType,
-                    onToken      = { tok ->
+                    modelId       = modelId,
+                    onToken       = { tok ->
                         tokenBuffer.append(tok)
                         onToken(tok)
                     }
@@ -185,8 +187,9 @@ Do not mix tool_call JSON with prose in the same message.
                             systemPrompt = fullSystemPrompt,
                             history      = retryHistory,
                             tools        = tools,
-                            queryType    = queryType,
-                            onToken      = {}   // don't stream retry to UI
+                            queryType      = queryType,
+                            modelId        = modelId,
+                            onToken        = {}   // don't stream retry to UI
                         )
                     } catch (e: Exception) {
                         Log.w(TAG, "Tool call retry callLLM failed: ${e.message}")
@@ -340,7 +343,7 @@ Do not mix tool_call JSON with prose in the same message.
             // Exhausted step budget — ask LLM to summarise what it has
             Log.w(TAG, "AgentLoop exhausted $MAX_STEPS steps — asking LLM to summarise")
             history.add(ConversationTurn.User("You have reached your step limit. Summarise what you have done and what the final answer is."))
-            val summary = callLLM("", fullSystemPrompt, history, emptyList(), queryType, onToken)
+            val summary = callLLM("", fullSystemPrompt, history, emptyList(), queryType, modelId, onToken)
             ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
             return LoopResult(summary, stepsUsed, toolsInvoked)
 
@@ -359,8 +362,9 @@ Do not mix tool_call JSON with prose in the same message.
         systemPrompt: String,
         history:      List<ConversationTurn>,
         tools:        List<ToolSchema>,
-        queryType:    QueryType = QueryType.UNKNOWN,
-        onToken:      suspend (String) -> Unit
+        queryType:      QueryType = QueryType.UNKNOWN,
+        modelId:        String = "",
+        onToken:       suspend (String) -> Unit
     ): String {
         // Build the full prompt from history
         val fullPrompt = when {
@@ -403,6 +407,8 @@ Do not mix tool_call JSON with prose in the same message.
                 requiresLongContext   = estimatedTokens > longContextThreshold,
                 estimatedPromptTokens = estimatedTokens,
                 sessionTag            = "agent_loop",
+                requestedModelId      = modelId,
+
                 conversationHistory   = history.mapNotNull { turn ->
                     when (turn) {
                         is ConversationTurn.User ->

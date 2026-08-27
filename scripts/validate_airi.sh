@@ -9,14 +9,14 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 KT_DIR="$REPO_ROOT/app/src/main/java"
 PASS=0; FAIL=0; WARN=0
 
-green() { printf "\033[32m✓ %s\033[0m\n" "$*"; ((PASS++)); }
-red()   { printf "\033[31m✗ %s\033[0m\n" "$*"; ((FAIL++)); }
-warn()  { printf "\033[33m⚠ %s\033[0m\n" "$*"; ((WARN++)); }
+green() { printf "\033[32m✓ %s\033[0m\n" "$*"; PASS=$((PASS + 1)); }
+red()   { printf "\033[31m✗ %s\033[0m\n" "$*"; FAIL=$((FAIL + 1)); }
+warn()  { printf "\033[33m⚠ %s\033[0m\n" "$*"; WARN=$((WARN + 1)); }
 
 # ── 1. Dead onClick = {} ──────────────────────────────────────────────────────
 echo ""
 echo "═══ 1. Dead onClick lambdas ════════════════════════════════════════════"
-dead=$(grep -rn "onClick = {}" "$KT_DIR" --include="*.kt" 2>/dev/null | grep -v "// ok")
+dead=$(grep -rn "onClick = {}" "$KT_DIR" --include="*.kt" 2>/dev/null | grep -v "// ok" || true)
 if [ -z "$dead" ]; then green "No orphaned onClick = {} found"
 else red "Dead onClick lambdas:"; echo "$dead"; fi
 
@@ -39,9 +39,13 @@ try:
     src = open(airiapp).read()
 except FileNotFoundError:
     print("\033[31m✗ AiriApp.kt not found\033[0m"); sys.exit(0)
-declared = set(re.findall(r'const val \w+ = "(\w+)"', src))
-registered = set(re.findall(r'composable\("([^"]+)"', src))
-missing = declared - registered
+declared_pairs = dict(re.findall(r'const val (\w+)\s*=\s*"(\w+)"', src))
+registered_values = set(re.findall(r'composable\("([^"]+)"', src))
+registered_names = set(re.findall(r'(?:composable\(AiriRoute\.|route\s*=\s*"\$\{AiriRoute\.)(\w+)', src))
+missing = {
+    value for name, value in declared_pairs.items()
+    if value not in registered_values and name not in registered_names
+}
 if not missing:
     print("\033[32m✓ All declared routes registered in NavHost\033[0m")
 else:

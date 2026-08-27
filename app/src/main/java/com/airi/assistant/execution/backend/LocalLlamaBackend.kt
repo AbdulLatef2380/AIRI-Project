@@ -116,6 +116,13 @@ class LocalLlamaBackend(
             onError("LocalLlamaBackend: no model loaded")
             return
         }
+        val requestedModelId = request.requestedModelId
+        val loadedModelId = ModelManager.getCurrent()?.id.orEmpty()
+        if (requestedModelId.isNotBlank() && requestedModelId != loadedModelId) {
+            Log.w(TAG, "model binding rejected requested=$requestedModelId loaded=$loadedModelId")
+            onError("LocalLlamaBackend: selected model is no longer loaded")
+            return
+        }
         val startMs  = System.currentTimeMillis()
         val fullText = StringBuilder()
 
@@ -188,6 +195,17 @@ class LocalLlamaBackend(
                 origin    = ExecOrigin.LOCAL,
                 retryable = false,
                 code      = "not_loaded"
+            )
+        }
+        val requestedModelId = request.requestedModelId
+        val loadedModelId = ModelManager.getCurrent()?.id.orEmpty()
+        if (requestedModelId.isNotBlank() && requestedModelId != loadedModelId) {
+            Log.w(TAG, "model binding rejected requested=$requestedModelId loaded=$loadedModelId")
+            return ExecutionResult.Failure(
+                error = "Selected model is no longer loaded",
+                origin = ExecOrigin.LOCAL,
+                retryable = false,
+                code = "model_changed"
             )
         }
 

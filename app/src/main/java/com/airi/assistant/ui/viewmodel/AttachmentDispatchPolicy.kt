@@ -35,7 +35,7 @@ internal object AttachmentDispatchPolicy {
         sessionAtDispatch: String,
         currentSession: String,
     ): AttachmentDispatchFailure? = if (
-        sessionAtDispatch.isNotBlank() && sessionAtDispatch != currentSession
+        sessionAtDispatch.isBlank() || currentSession.isBlank() || sessionAtDispatch != currentSession
     ) {
         AttachmentDispatchFailure.SESSION_CHANGED
     } else {

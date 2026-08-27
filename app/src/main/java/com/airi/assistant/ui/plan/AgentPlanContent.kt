@@ -196,6 +196,11 @@ private fun AgentTraceSection(
         }
     }
 
+    val followControlDescription = stringResource(
+        if (autoScroll) R.string.agent_plan_trace_pause_follow
+        else R.string.agent_plan_trace_follow_latest,
+    )
+
     Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -209,19 +214,11 @@ private fun AgentTraceSection(
                 color = AiriTheme.onSurface,
             )
             Text(
-                text = stringResource(
-                    if (autoScroll) R.string.agent_plan_trace_pause_follow
-                    else R.string.agent_plan_trace_follow_latest,
-                ),
+                text = followControlDescription,
                 fontSize = 11.sp,
                 color = CosmicAccent,
                 modifier = Modifier
-                    .semantics {
-                        contentDescription = stringResource(
-                            if (autoScroll) R.string.agent_plan_trace_pause_follow
-                            else R.string.agent_plan_trace_follow_latest,
-                        )
-                    }
+                    .semantics { contentDescription = followControlDescription }
                     .clickable { if (autoScroll) onPauseFollowing() else onFollowLatest() },
             )
         }

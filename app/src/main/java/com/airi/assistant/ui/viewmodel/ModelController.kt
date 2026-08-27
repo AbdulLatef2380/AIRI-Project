@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * ModelController — owns all model lifecycle logic extracted from ChatViewModel.
@@ -73,6 +74,7 @@ internal class ModelController(
     }
 
     private val gson = Gson()
+    private val loadRequestSequence = AtomicLong(0L)
 
     /** Set when a model is loaded successfully. Used for uptime + diagnostics. */
     var modelLoadedAtMs: Long = 0L
@@ -84,6 +86,7 @@ internal class ModelController(
     // ── Model loading ─────────────────────────────────────────────────────────
 
     internal fun loadModel(model: ModelInfo) {
+        val requestId = loadRequestSequence.incrementAndGet()
         val file       = File(model.path)
         val validation = ModelValidator.validate(file, appContext, model.ramRequiredMb)
         if (validation !is ValidationResult.Valid) {
@@ -113,9 +116,13 @@ internal class ModelController(
             availableModels          = ModelManager.getAllModels()
         )
         ModelManager.load(model, onProgress = { percent ->
-            modelState.value = modelState.value.copy(loadProgress = percent)
+            if (ModelLoadRequestPolicy.shouldApply(requestId, loadRequestSequence.get())) {
+                modelState.value = modelState.value.copy(loadProgress = percent)
+            }
         }) { success ->
-            if (success) {
+            if (!ModelLoadRequestPolicy.shouldApply(requestId, loadRequestSequence.get())) {
+                Log.i(TAG, "Ignoring stale model-load callback request=$requestId model=${model.name}")
+            } else if (success) {
                 val loadMs = System.currentTimeMillis() - loadStart
                 perfPrefs.edit().putLong("last_model_load_ms", loadMs).apply()
                 AnalyticsService.modelLoaded(model.name, loadMs)
@@ -146,19 +153,21 @@ internal class ModelController(
                     "MODEL_LOAD", false, failure
                 )
             }
-            val newCaps = if (success) ModelCapabilities.detect(model)
-                          else ModelCapabilities.textOnlyFallback()
-            modelState.value = modelState.value.copy(
-                isModelLoading = false,
-                isModelReady   = success,
-                loadError      = if (success) null
-                    else "Model failed to load: ${llamaManager.getLastLoadFailure() ?: "unknown"}",
-                loadErrorType  = if (success) LoadErrorType.NONE else LoadErrorType.LOAD_FAILED,
-                loadProgress   = -1,
-                availableModels = ModelManager.getAllModels(),
-                capabilities   = newCaps
-            )
-            if (success) autoLoadVisionProjectorIfPresent(model)
+            if (ModelLoadRequestPolicy.shouldApply(requestId, loadRequestSequence.get())) {
+                val newCaps = if (success) ModelCapabilities.detect(model)
+                              else ModelCapabilities.textOnlyFallback()
+                modelState.value = modelState.value.copy(
+                    isModelLoading = false,
+                    isModelReady   = success,
+                    loadError      = if (success) null
+                        else "Model failed to load: ${llamaManager.getLastLoadFailure() ?: "unknown"}",
+                    loadErrorType  = if (success) LoadErrorType.NONE else LoadErrorType.LOAD_FAILED,
+                    loadProgress   = -1,
+                    availableModels = ModelManager.getAllModels(),
+                    capabilities   = newCaps
+                )
+                if (success) autoLoadVisionProjectorIfPresent(model)
+            }
         }
     }
 

@@ -26,3 +26,10 @@
 ## قواعد منع التوسع الوهمي
 
 لا يُسمح بإضافة fallback عشوائي، fake provider، simulated progress، fake update، hardcoded account، أو نجاح placeholder. الميزة التي لا تملك backend/credential/authorization/جهازاً مناسباً تعرض `Not Configured` أو `Not Available` مترجمة، مع إبقاء عقد الربط المستقبلي واضحاً.
+
+
+## سجل تنفيذ M2 — Conversation Core
+
+أُغلقت هذه الدفعة في commit `3770e221cf97d7e0c875f9e72a9fd07cda119adb` بعد نجاح Architecture Audit وDeep Audit وOracle وAndroid CI (`33066904307`، `33066904321`، `33066904340`، `33066904320`). شمل الإغلاق session-owned attachment metadata، expected session admission، model snapshot عبر AgentLoop/ExecutionRequest، وfail-closed model mismatch في LocalLlamaBackend. يبقى الاختبار المحلي Gradle محجوباً فقط لغياب Android SDK في البيئة، بينما نفّذ CI compile/unit/lint/packaging/instrumentation/native verification بنجاح. التفاصيل في `AIRI_M2_CONVERSATION_CORE_REPORT.md`.
+
+بعد هذا الإغلاق تنتقل الخطة إلى M3 — AI Execution، ولا يُعاد فتح M1/M2 إلا إذا كشف CI أو runtime دليلاً جديداً.

@@ -30,3 +30,14 @@
 ## حدود المصفوفة
 
 لا تمثل هذه المصفوفة دليلاً على provider أو جهاز أو متجر. كل علاقة تحتاج اختباراً مناسباً: unit/JVM للسياسات، integration للـrepositories/connectors، instrumentation لمكوّنات Android، UI لـCompose/navigation، وruntime على أجهزة ARM64 عندما يتطلب المسار ذلك.
+
+
+## Evidence register — M2
+
+| Root cause | Evidence status | Applied change | Verification |
+|---|---|---|---|
+| RC-01: split ownership بين session/model/request | **MITIGATED FOR M2** | `expectedSessionId` في مسار الإرسال، `requestedModelId` في ExecutionRequest، وsnapshot عبر AgentLoop | Android CI `33066904320`، Deep Audit `33066904321` |
+| RC-03: فقدان state أو عبور attachment بين lifecycle transitions | **MITIGATED FOR M2** | metadata المرفق keyed by `pendingAttachmentSessionId` مع fail-closed ownership policy | Attachment policy regression + Android CI `33066904320` |
+| RC-01: تنفيذ native على نموذج تغيّر بعد admission | **MITIGATED FOR LOCAL BACKEND** | LocalLlamaBackend يرفض streaming وbatch عند `model_changed` | Architecture Audit `33066904307` وAndroid CI `33066904320` |
+
+هذه الحالة لا تعني أن كل طبقات المحادثة أو التنفيذ أُغلقت؛ cancellation، provider fallback، event ledger، وruntime device/provider gates تبقى ضمن M3–M9 حسب `AIRI_FIX_PLAN.md`. التقرير التفصيلي هو `AIRI_M2_CONVERSATION_CORE_REPORT.md`.

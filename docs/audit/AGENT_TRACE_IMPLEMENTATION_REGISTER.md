@@ -30,12 +30,12 @@ ChatScreen → ChatViewModel → AgentLoop / AdaptiveGraphEngine
 | المجال | التكامل المعتمد | الحالة الحالية | معيار الإغلاق |
 |---|---|---|---|
 | Structured planning | توسيع graph/planner القائم؛ validation للخطط غير الصحيحة والاعتمادات والدورات | PARTIALLY_DONE | parsing + validation + invalid/empty/duplicate/cycle tests. |
-| Execution ownership | `executionId` من admission حتى terminal state | PARTIALLY_DONE | جميع الأحداث تُرفض عند id فارغ أو stale؛ test وCI. |
-| Safe trace | summaries عالية المستوى فقط، لا reasoning خام | OPEN | redaction policy + negative tests للـsecrets والـCoT. |
-| Tool tracing | event typed للبداية/النجاح/الفشل/المدة من dispatcher القائم | OPEN | tool invocations يظهر لها executionId وduration وsanitised summary. |
-| Live event stream | StateFlow/SharedFlow bounded داخل التطبيق، لا SSE/WebSocket غير مبرر | PARTIALLY_DONE | sequence ordering وbounded retention وlifecycle tests. |
-| Progress tree | `TaskExecutionTracker` و`AgentPlanViewModel` | PARTIALLY_DONE | running/retry/fail/cancel/complete، بلا placeholder steps. |
-| Live log UI | تطوير السطح المدمج في Chat، فلترة وعرض تفاصيل وإيقاف auto-scroll | OPEN | Compose/UI tests للفلترة وjump-to-latest والتفاصيل. |
+| Execution ownership | `executionId` من admission حتى terminal state | PARTIALLY_DONE | AgentLoop وAdaptiveGraphEngine يملكان مساراً صريحاً؛ يجب أن تتبناه بقية مصادر Skill/Tool القديمة. |
+| Safe trace | summaries عالية المستوى فقط، لا reasoning خام | MITIGATED | حجب مركزي للـtrace وAgentTrace وإسقاط AppEvent مع اختبارات secrets/fields؛ يلزم تدقيق كل producer وsink متبقٍ. |
+| Tool tracing | event typed للبداية/النجاح/الفشل/الإلغاء والمدة من dispatcher القائم | PARTIALLY_DONE | AgentLoop ينشر actionId/executionId/sequence/duration، وgraph executor يملك overload واعياً بالـexecution؛ مسارات SkillService القديمة لا تزال بلا سياق تنفيذ. |
+| Live event stream | StateFlow/SharedFlow bounded داخل التطبيق، لا SSE/WebSocket غير مبرر | PARTIALLY_DONE | sequence ordering وretention محدود ورفض lifecycle stale/duplicate مثبتة في JVM؛ لا يوجد بعد دليل rotation/process-death. |
+| Progress tree | `TaskExecutionTracker` و`AgentPlanViewModel` | PARTIALLY_DONE | trace الحالي يظهر مع الخطة، والحالات مصدرها أحداث فعلية؛ يلزم دليل UI device/RTL وfont-scale. |
+| Live log UI | تطوير السطح المدمج في Chat، فلترة وعرض تفاصيل وإيقاف auto-scroll | PARTIALLY_DONE | AgentPlanContent يعرض trace الحالي بالـfilters والتفاصيل والجديد/القفز؛ اختبارات policy على JVM فقط حتى الآن. |
 | Cancellation | Chat → ViewModel → orchestrator → local/cloud backend | PARTIALLY_DONE | cancel يوقف retries/fallbacks ولا يسلم terminal مزدوج. |
 | Persistence/recovery | إعادة استخدام مخازن execution history/checkpoint القائمة فقط حيث تناسب | OPEN | process/lifecycle evidence أو BLOCKED بوضوح. |
 | LLM/connectors | `HybridOrchestrator` وRuntimeRouter وToolDispatcher دون duplicate abstraction | PARTIALLY_DONE | local/cloud/provider runtime matrix؛ provider live = external gate. |
@@ -61,3 +61,13 @@ ChatScreen → ChatViewModel → AgentLoop / AdaptiveGraphEngine
 | Live stream | ترتيب deterministic، retention محدود، lifecycle وbackpressure وrotation آمنة، ولا يقتل collector التنفيذ. |
 | Progress/UI | حالات queued/running/retrying/completed/failed/cancelled مصدرها أحداث تنفيذ فعلية، مع RTL/LTR وaccessibility وfont-scale UI evidence. |
 | Ownership | snapshots صريحة لـsession/model/request/execution، ورفض stale/mismatch وعدم انتقال النتيجة أو attachment أو trace إلى session آخر. |
+
+## أدلة التنفيذ الحالية
+
+| Commit | النتيجة المثبتة | الاختبارات والبوابات |
+|---|---|---|
+| `e4559f2f` | أضاف lifecycle نقيّاً لأفعال الأدوات، وحقول `actionId`/`durationMs` في trace، وربط AgentLoop بالـexecutionId الصريح، وoverload متوافقاً خلفياً لمنفذ AdaptiveGraphEngine، وحجب AppEvent عند الإسقاط. | `ExecutionToolTraceLifecycleTest` و`ExecutionTraceBufferTest` و`GlobalAgentEventDispatcherTest`. Android CI `33118602936`، Deep `33118602894`، Architecture `33118602895`، Oracle `33118602886`: **success**. |
+| `380c0a54` | أضاف presentation policy وواجهة trace داخل AgentPlanContent وموارد ar/en/es/zh. | كشف Deep Audit `33120815009` خطأ Compose حقيقياً: `stringResource` استُدعي داخل semantics lambda؛ لم يُعتمد هذا الرأس كنجاح. |
+| `064f9034` | أصلح invocation غير الصحيح بنقل stringResource إلى قيمة composable محسوبة قبل semantics. | Android CI `33121217462`، Deep `33121217471`، Architecture `33121217381`، Oracle `33121217398`: **success**. |
+
+> يبقى دليل العرض المرئي على جهاز ARM64، واختبارات RTL/font-scale الحقيقية، ودليل provider/OAuth الحي **BLOCKED / EXTERNAL_PENDING** إلى أن يُنفذ فعلاً. نجاح CI يثبت التجميع والاختبارات الداخلية ولا يحول هذه البنود إلى DONE.

@@ -1,35 +1,48 @@
-# AIRI — تقرير تقدم Agent Planning & Execution Trace
+# AIRI — تقرير التقدم المدقق لنظام Agent Planning & Execution Trace
 
-> **الحالة:** تنفيذ مرحلي. لا يساوي نجاح CI إغلاق تجربة المستخدم أو بوابات runtime الخارجية.
+> **التصنيف الحالي: PARTIALLY_DONE / MITIGATED.** يثبت هذا التقرير ما جرى اختباره فعلاً داخل المصدر وCI، ولا يحوّل غياب جهاز ARM64 أو حساب موفر حي أو دليل RTL مرئي إلى نجاح افتراضي.
 
-## الدفعات المنفذة
+## النطاق المعماري المعتمد
 
-| Commit | التغيير المثبت | الدليل |
+يعتمد النظام على الطبقات القائمة بدلاً من بناء قناة موازية: يملك `ExecutionStatusBus` سجل trace محدوداً ومتسلسلاً، ويُنقل إليه سياق التنفيذ صراحة من `AgentLoop` أو من overload واعٍ بهوية التنفيذ في `AdaptiveGraphEngine`. يراقب `AgentPlanViewModel` السجل ويطبّق سياسة عرض نقية، بينما تعرض `AgentPlanContent` الحالة فقط ولا تنفذ عملاً وكيلياً أو تستنتج هوية التنفيذ من الواجهة.
+
+| طبقة | النتيجة المثبتة | الحد المتبقي |
 |---|---|---|
-| `19befb7d4c7e62dafe9f9e9e3579189d764fe534` | احتفاظ `ActivityEvent` بـ`executionId` وربط أحداث الحالة به. | Android CI `33090117930`، Deep `33090117913`، Architecture `33090117902`، Oracle `33090117983`. |
-| `5dfc7afbd53baa8eab203e3a3a0e9e2366ebfa5c` | `PrivacyGuard.redactForTrace` وحجب محتوى trace المعروض، مع اختبار سلبي للأسرار والمسارات. | Android CI `33102945878`، Deep `33102945872`، Architecture `33102945882`، Oracle `33102945908`. |
-| `aff4df606b4d7cd69260a8f43ad1f5f5bded3b6c` | حجب مدخل pipeline في سجل تشخيص الوكيل. | Android CI `33105515450`، Deep `33105515447`، Architecture `33105515510`، Oracle `33105515429`. |
-| `b06bfd143b6a5125139f97b03fd282c5c7987ac6` | `ExecutionTraceBuffer` محدود ومتسلسل، و`ExecutionStatusBus.trace` الذي ينشر مراحل graph الصحيحة فقط. | Android CI `33108069796`، Deep `33108069822`، Architecture `33108069818`، Oracle `33108069801`. |
-| `34016308c607ca33b26f72cef637aa4ede26f51b` | عزل `ActivityFeedComposable` داخل Chat بالـ`executionId` النشط. | Android CI `33109969920`، Deep `33109969956`، Architecture `33109969945`، Oracle `33109969935`. |
-| `8be8d049faa02d23000bad45ff55d8f5f7a2fbf7` | حجب مدخلات ومخرجات وأخطاء AgentTrace المخزنة مركزياً. | فشل Android CI الأول `33112525371` كشف سيناريو cookie field؛ لم يُخفَ. |
-| `3b04224ed83e87e4347511670eca49d8634be192` | حجب قيم حقول trace الحساسة اعتماداً على اسم الحقل؛ أعاد الاختبار السابق إلى النجاح. | Android CI `33113695184`، Deep `33113695208`، Architecture `33113695300`، Oracle `33113695280`. |
+| ملكية التنفيذ | الأحداث المعروضة من حالة التنفيذ تحمل `executionId`، ويرفض lifecycle الخاص بالأداة الأحداث الفارغة أو المتقادمة. | ما زالت مسارات `SkillService` القديمة لا تمرر identity صريحة. |
+| سجل trace | مخزن محدود بـ150 حدثاً، sequence متزايد، مع `actionId` و`durationMs` لأحداث الأدوات. | لا دليل بعد على process death أو rotation. |
+| دورة حياة الأدوات | `AgentLoop` ينشر start ثم terminal وحيداً: completed أو failed أو cancelled، مع مدة آمنة. | منفذ graph يملك الآن overload بثلاثة معاملات؛ لا يوجد بعد producer tools فعلي يستخدمه. |
+| الخصوصية | الحجب مركزي في trace وAgentTrace وإسقاط AppEvent إلى النشاط. لا تُعرض مخرجات الأداة الخام في trace. | يلزم تدقيق باقي producers وanalytics/crash sinks في دفعات مستقلة. |
+| واجهة المستخدم | لوحة الخطة تعرض trace التنفيذ الحالي زمنياً، مع All/Planning/Steps/Tools/Issues وتفاصيل موسعة مُنقّاة وإيقاف/استئناف المتابعة وقفز إلى الأحدث. | لا دليل مرئي بعد على ARM64/RTL/font-scale أو اختبار Compose مخصص. |
+| التوطين | أضيفت المعرفات الجديدة بالتوازي إلى ar/en/es/zh، وفحص parity النصي نجح. | يلزم دليل لقطة/قارئ شاشة واتجاه فعلي. |
 
-## النتائج المثبتة
+## الدفعات والأدلة
 
-| المجال | الحالة | الدليل المتوفر | ما لا يزال غير مغلق |
-|---|---|---|---|
-| execution ownership في feed | **MITIGATED** | Activity events القادمة من ExecutionStatusBus تحمل executionId؛ Chat يعرض السجل المطابق للتنفيذ النشط. | ربط جميع tool/skill event sources بهوية التنفيذ. |
-| trace safety | **MITIGATED** | Redaction للـlive trace وAgentTrace المخزن، مع tests سلبية للأسرار والمسارات. | مراجعة كل producer وكل crash/analytics sink. |
-| event sequence/retention | **PARTIALLY_DONE** | Buffer محدود بـ150، sequence monotonic، ورفض event بلا owner/summary. | دمج sequence داخل كل tool event واختبارات lifecycle/rotation. |
-| planning progress | **PARTIALLY_DONE** | يبدأ trace عند graph admission وينشر planning/step/retry/reflection/terminal. | validation شامل للخطة وdependency/cycle/hierarchy والتفاصيل المستمرة. |
-| live trace UI | **PARTIALLY_DONE** | Feed موجود في Chat، filtered بسياق التنفيذ الحالي؛ plan panel قائم. | UI trace مخصص بالـsequence، filters وظيفية، auto-scroll pause/jump-to-latest وUI evidence. |
-| tool tracing | **OPEN** | توجد AppEvent للأدوات لكن لا تحمل executionId/actionId/sequence/duration كاملة. | عقد typed وربط المصدر من graph إلى Skill/Tool service. |
-| external runtime | **BLOCKED / EXTERNAL_PENDING** | لا ادعاء باختبار Provider أو ARM64 فعلي أو OAuth. | أجهزة ARM64، provider credentials/authorization، واختبارات UI الحقيقية. |
+| Commit | التغيير | نتيجة التحقق |
+|---|---|---|
+| `19befb7d` | احتفظ `ActivityEvent` بـ`executionId` وربط أحداث الحالة به. | Android CI `33090117930`، Deep `33090117913`، Architecture `33090117902`، Oracle `33090117983`: **success**. |
+| `5dfc7afb` / `3b04224e` | أنشأ حجب trace وأصلح حجب قيم الحقول الحساسة بالاسم بعد كشف سيناريو cookie في الاختبار. | Android CI `33113695184`، Deep `33113695208`، Architecture `33113695300`، Oracle `33113695280`: **success**. |
+| `e4559f2f` | أضاف lifecycle مملوكاً للأداة، sequence/action/duration، تمرير executionId إلى ToolDispatcher، overload واعياً بالـexecution في graph، وحجب AppEvent عند projection. | Android CI `33118602936`، Deep `33118602894`، Architecture `33118602895`، Oracle `33118602886`: **success**. |
+| `380c0a54` | أضاف presentation policy وواجهة trace داخل لوحة الخطة وموارد اللغات الأربع. | Deep Audit `33120815009` كشف خطأ Compose حقيقياً؛ لا يعتمد هذا الرأس كنجاح. |
+| `064f9034` | أصلح استدعاء `stringResource` غير المسموح داخل semantics lambda عبر حساب النص قبل lambda. | Android CI `33121217462`، Deep `33121217471`، Architecture `33121217381`، Oracle `33121217398`: **success**. |
 
-## الفشل المصحح
+## الاختبارات الانحدارية
 
-أظهر Android CI `33112525371` أن اختبار `AgentTraceManagerRedactionTest` يفشل عندما تكون قيمة cookie الحساسة منفصلة عن اسم الحقل. كان ذلك عيب حماية حقيقياً؛ تم إصلاحه في `PrivacyGuard.redactTraceField`، الذي يحجب القيمة اعتماداً على اسم الحقل، ثم نجحت إعادة CI في `33113695184`.
+تغطي اختبارات JVM إضافة الحدث للـtrace مع sequence وbounded eviction وتطبيع المدة السالبة؛ وتغطي lifecycle للأداة رفض executionId/actionId الفارغين أو المتقادمين ومنع البداية أو terminal المكرر؛ وتغطي سياسة العرض العزل حسب executionId، الترتيب، filters، وعدّ الأحداث الجديدة؛ كما تختبر إسقاط AppEvent عدم تسريب input أو cookie أو password أو API key إلى activity feed. أثبتت Android CI النهائي compile وunit/lint وrelease packaging وinstrumentation الموجودة ضمن سير العمل.
 
-## القرار التالي
+## الفشل الذي عولج من جذره
 
-الدفعة التالية يجب أن تنقل `executionId` من graph/pipeline إلى SkillService وtool event contract، ثم تربط terminal tool event والمدة والـsequence بالسجل المحدود. لا يجوز وضع UI جديد قبل أن يملك مصدر الأحداث هذه الهوية.
+كشف `33120815009` خطأ تجميع في `AgentPlanContent.kt`: استُدعي `stringResource` داخل lambda غير composable خاص بـsemantics. لم تُخفَ التغطية ولم يُصنّف الرأس ناجحاً. نقل `064f9034` النص المترجم إلى قيمة محسوبة داخل composable قبل lambda، ثم اجتازت جميع بوابات CI الأربع.
+
+## بوابات غير مغلقة
+
+| البوابة | الحالة | السبب الدقيق |
+|---|---|---|
+| Structured planner validation | **OPEN** | لا parser/validator مثبت بعد لحالات JSON غير صالح أو خطة فارغة أو IDs مكررة أو cycles أو dependencies غير قابلة للحل أو حدود الخطوات. |
+| SkillService legacy tool tracing | **OPEN** | المسارات القديمة تصدر events بلا executionId/actionId ومدة/terminal كاملة؛ لا يجوز إسنادها تخمينياً إلى واجهة نشطة. |
+| Process recreation/recovery | **OPEN** | trace في الذاكرة عمداً؛ لم يُثبت بعد checkpoint/history مناسب للحالة المباشرة. |
+| UI/RTL/accessibility runtime | **BLOCKED / REAL_DEVICE_ACCESS_REQUIRED** | لا يتوفر جهاز ARM64/محاكي Android محلي قادر على تقديم دليل لقطة وfont-scale وقارئ شاشة. |
+| Local/cloud/provider runtime | **BLOCKED / EXTERNAL_PENDING** | لا تتوفر credentials أو تفويض provider حي للتحقق من local/cloud tools أو OAuth، ولا يُنشأ ادعاء نجاح من CI. |
+
+## الخطوة التقنية التالية
+
+تُغلق الدفعة التالية parser/validator لخطة التنفيذ قبل توسيع واجهة المستخدم أكثر، مع اختبارات invalid JSON وempty/duplicate/cycle/dependency/limit والدخول الفعلي إلى التنفيذ. بعد ذلك فقط يُراجع تصميم ledger الائتمانات M4 كعقد معاملات idempotent موحد؛ لا يُنفذ تعديل requestId جزئي.

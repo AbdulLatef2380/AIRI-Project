@@ -9,6 +9,7 @@ import com.airi.assistant.domain.event.EventBus
 import com.airi.assistant.domain.logging.LoggingService
 import com.airi.assistant.domain.monetization.SubscriptionManager
 import com.airi.assistant.domain.policy.PolicyEngine
+import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.memory.entity.ChatMessage
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
@@ -41,7 +42,7 @@ class AgentExecutionPipeline(
 
         // ── Step 1: Emit started event ─────────────────────────────────────────
         EventBus.emitSync(AppEvent.AgentExecutionStarted(input.take(120), traceId))
-        LoggingService.debug(TAG, "[$traceId] Pipeline start: '${input.take(60)}'")
+        LoggingService.debug(TAG, "[$traceId] Pipeline start: '${PrivacyGuard.redactForTrace(input, 60)}'")
 
         // ── Step 2: Validate input ─────────────────────────────────────────────
         val inputCheck = PolicyEngine.checkAgentExecution(input)

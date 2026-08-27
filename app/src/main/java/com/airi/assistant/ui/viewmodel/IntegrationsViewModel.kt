@@ -49,10 +49,12 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
      * Returns true if valid, false if CSRF attack or replay.
      */
     fun validateOAuthState(incomingState: String): Boolean {
-        val valid = incomingState.isNotBlank() && incomingState == oauthStateToken
+        val valid = OAuthCallbackStateValidator.matches(
+            expectedState = oauthStateToken,
+            incomingState = incomingState
+        )
         if (!valid) {
-            android.util.Log.w("IntegrationsVM", "SECURITY: OAuth state mismatch — possible CSRF. " +
-                "incoming='${incomingState.take(8)}…' expected='${oauthStateToken.take(8)}…'")
+            android.util.Log.w("IntegrationsVM", "OAuth callback state mismatch")
         }
         return valid
     }

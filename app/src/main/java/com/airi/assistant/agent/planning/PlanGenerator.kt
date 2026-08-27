@@ -65,11 +65,15 @@ class PlanGenerator {
         // Apply accumulated learning: strip avoided action types, collapse
         // Wait sequences, enforce max-step caps. No-op when no hints are set.
         val adapted    = reduceComplexity(normalized)
+        val admitted   = if (validateSteps(adapted.steps).isValid) adapted else {
+            Log.w(TAG, "DAG plan validation failed; using fallback plan")
+            createFallbackPlan(adapted.description)
+        }
         return ActionPlan(
-            intent               = adapted.description,
-            confidence           = scoreGoalConfidence(adapted),
-            steps                = adapted.steps,
-            requiresConfirmation = adapted.steps.size > 3
+            intent               = admitted.description,
+            confidence           = scoreGoalConfidence(admitted),
+            steps                = admitted.steps,
+            requiresConfirmation = admitted.steps.size > 3
         )
     }
 
@@ -86,8 +90,9 @@ class PlanGenerator {
             }
         }
 
-        if (!validateDependencies(steps)) {
-            Log.w(TAG, "Plan has invalid dependencies, using fallback")
+        val validation = validateSteps(steps)
+        if (!validation.isValid) {
+            Log.w(TAG, "Plan rejected before admission: reasons=${validation.errors}")
             return createFallbackPlan(goalDescription)
         }
 
@@ -100,7 +105,7 @@ class PlanGenerator {
 
     private fun parseStep(stepJson: JSONObject): PlanStep? {
         return try {
-            val id = stepJson.optString("id", "step_${System.currentTimeMillis()}")
+            val id = stepJson.optString("id", "").trim()
             val action = stepJson.optString("action", "").lowercase()
             val params = stepJson.optJSONObject("params") ?: JSONObject()
             val dependsOn = parseDependencies(stepJson.optJSONArray("depends_on"))
@@ -261,18 +266,12 @@ class PlanGenerator {
         return map
     }
 
-    private fun validateDependencies(steps: List<PlanStep>): Boolean {
-        val stepIds = steps.map { it.id }.toSet()
-        for (step in steps) {
-            for (depId in step.dependsOn) {
-                if (depId !in stepIds) {
-                    Log.w(TAG, "Step ${step.id} depends on non-existent step: $depId")
-                    return false
-                }
+    internal fun validateSteps(steps: List<PlanStep>): PlanValidationResult =
+        PlanStructureValidator.validate(
+            nodes = steps.map { step ->
+                PlanNodeReference(id = step.id, dependsOn = step.dependsOn)
             }
-        }
-        return true
-    }
+        )
 
     private fun createFallbackPlan(description: String): AgentGoal {
         return AgentGoal(

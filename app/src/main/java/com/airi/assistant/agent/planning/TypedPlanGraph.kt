@@ -75,6 +75,8 @@ class TypedPlanGraph(
 
     @Synchronized
     fun addNode(node: GoalNode): TypedPlanGraph {
+        require(node.id.isNotBlank()) { "Plan node id is required" }
+        require(node.id !in nodes) { "Duplicate plan node id: ${node.id}" }
         nodes[node.id] = node
         return this
     }
@@ -83,7 +85,15 @@ class TypedPlanGraph(
     fun nodeCount(): Int = nodes.size
 
     @Synchronized
-    fun allNodes(): List<GoalNode> = nodes.values.toList()
+    fun allNodes(): List<GoalNode> = nodes.values.sortedBy { it.id }
+
+    /** Validates the current structure before it can be admitted to execution. */
+    @Synchronized
+    fun validateStructure(): PlanValidationResult = PlanStructureValidator.validate(
+        nodes = nodes.values.map { node ->
+            PlanNodeReference(id = node.id, dependsOn = node.dependsOn)
+        }
+    )
 
     // ── Dependency resolution ─────────────────────────────────────────────────
 
@@ -94,10 +104,14 @@ class TypedPlanGraph(
      */
     @Synchronized
     fun readyNodes(): List<GoalNode> {
-        return nodes.values.filter { node ->
-            node.status == NodeStatus.PENDING &&
-            node.dependsOn.all { depId -> nodes[depId]?.status == NodeStatus.DONE }
-        }
+        return nodes.values
+            .asSequence()
+            .filter { node ->
+                node.status == NodeStatus.PENDING &&
+                    node.dependsOn.all { depId -> nodes[depId]?.status == NodeStatus.DONE }
+            }
+            .sortedBy { it.id }
+            .toList()
     }
 
     /** True when every node is either DONE or SKIPPED (graph finished). */

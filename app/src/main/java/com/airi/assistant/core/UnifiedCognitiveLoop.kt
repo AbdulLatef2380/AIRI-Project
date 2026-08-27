@@ -154,6 +154,23 @@ class UnifiedCognitiveLoop {
         graph:     TypedPlanGraph,
         workspace: SandboxWorkspace = WorkspaceRegistry.get(graph.goalId)
     ): GraphExecutionResult {
+        // Structural admission is evaluated before UI status or workspace work.
+        // A malformed graph must never create a plan placeholder or execute a node.
+        val structureValidation = graph.validateStructure()
+        if (!structureValidation.isValid) {
+            Log.w(TAG, "PLAN_STRUCTURE_REJECT reasons=${structureValidation.errors}")
+            WorkspaceRegistry.release(graph.goalId)
+            return GraphExecutionResult(
+                goalId = graph.goalId,
+                success = false,
+                nodeResults = emptyList(),
+                graphSnapshot = graph.snapshot(),
+                workspace = workspace,
+                reflection = null,
+                rejectionReason = "Plan structure is not executable."
+            )
+        }
+
         // ── : Pre-execution plan quality gate ──────────────────────────
         val qualityScore = planQualityScorer.score(graph)
         if (qualityScore.confidence < MIN_PLAN_CONFIDENCE) {
@@ -335,6 +352,15 @@ class UnifiedCognitiveLoop {
     }
 
     private suspend fun executeActionPlan(actionPlan: ActionPlan, worldState: WorldState?): CognitiveResult {
+        val structureValidation = planGenerator.validateSteps(actionPlan.steps)
+        if (!structureValidation.isValid) {
+            Log.w(TAG, "ACTION_PLAN_STRUCTURE_REJECT reasons=${structureValidation.errors}")
+            return CognitiveResult.Failed(
+                plan = actionPlan,
+                results = emptyList(),
+                reason = "Plan structure is not executable."
+            )
+        }
         val results = mutableListOf<StepResult>()
         for (step in actionPlan.steps) {
             val result = CommandRouter.execute(step)

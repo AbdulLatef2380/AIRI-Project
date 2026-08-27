@@ -3,6 +3,7 @@ package com.airi.assistant.ui.activity
 import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
+import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,7 +37,7 @@ object GlobalAgentEventDispatcher {
             }
             AgentActivityBus.emit(
                 ActivityEvent(
-                    message = msg,
+                    message = PrivacyGuard.redactForTrace(msg),
                     executionId = state.executionId.takeIf { it.isNotBlank() },
                     category = ActivityCategory.ORCHESTRATION,
                     severity = sev,

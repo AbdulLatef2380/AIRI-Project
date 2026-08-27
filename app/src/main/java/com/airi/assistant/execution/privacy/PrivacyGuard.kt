@@ -66,6 +66,19 @@ object PrivacyGuard {
         )
     }
 
+    /**
+     * Produces a compact, user-visible execution-trace summary without retaining
+     * credentials, bearer headers, cookies, passwords, filesystem locations, or
+     * other context categories handled by this guard. It never exposes the
+     * stripped values themselves.
+     */
+    fun redactForTrace(value: String, maximumChars: Int = 240): String {
+        val stripped = mutableListOf<String>()
+        return sanitizeText(value, stripped)
+            .replaceTracked(TRACE_SECRET_REGEX, "[SECRET_REDACTED]", "trace_secret", stripped)
+            .limitTo(maximumChars.coerceIn(1, 1_000), "trace_truncated", stripped)
+    }
+
     private fun sanitizeHistory(
         history: List<ExecutionRequest.ConversationTurn>,
         stripped: MutableList<String>
@@ -133,6 +146,10 @@ object PrivacyGuard {
     private val API_KEY_REGEX = Regex(
         """(?:sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z\-_]{35}|ghp_[A-Za-z0-9]{36}|Bearer\s+[A-Za-z0-9\-._~+/]{20,}|api[_\-]?key\s*[:=]\s*['"]?[A-Za-z0-9\-_]{16,})""",
         setOf(RegexOption.IGNORE_CASE)
+    )
+
+    private val TRACE_SECRET_REGEX = Regex(
+        """(?i)(?:authorization|proxy-authorization|cookie|set-cookie|password|passwd|secret|token)\s*[:=]\s*[^\s,;]{1,240}"""
     )
 
     private val PRIVATE_IP_REGEX = Regex(

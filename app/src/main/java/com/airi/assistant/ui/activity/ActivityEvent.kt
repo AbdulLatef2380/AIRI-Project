@@ -7,6 +7,8 @@ data class ActivityEvent(
     val timestampMs: Long = System.currentTimeMillis(),
     val message: String,
     val detail: String? = null,
+    /** Owning agent execution when the event originates from a live trace. */
+    val executionId: String? = null,
     val category: ActivityCategory,
     val severity: ActivitySeverity = ActivitySeverity.INFO
 )

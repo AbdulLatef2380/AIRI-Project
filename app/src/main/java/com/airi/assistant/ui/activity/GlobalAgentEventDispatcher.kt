@@ -34,7 +34,14 @@ object GlobalAgentEventDispatcher {
                 ExecutionStage.CANCELLED   -> "Execution cancelled" to ActivitySeverity.WARN
                 ExecutionStage.IDLE        -> return@onEach
             }
-            AgentActivityBus.emit(msg, ActivityCategory.ORCHESTRATION, sev)
+            AgentActivityBus.emit(
+                ActivityEvent(
+                    message = msg,
+                    executionId = state.executionId.takeIf { it.isNotBlank() },
+                    category = ActivityCategory.ORCHESTRATION,
+                    severity = sev,
+                )
+            )
         }.launchIn(scope)
     }
 

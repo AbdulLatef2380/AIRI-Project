@@ -711,7 +711,8 @@ fun ChatScreen(
                 ) {
                     com.airi.assistant.ui.activity.ActivityFeedComposable(
                         modifier        = Modifier.fillMaxWidth(),
-                        compactMaxItems = 3
+                        compactMaxItems = 3,
+                        executionId     = agentState.executionId.takeIf { it.isNotBlank() },
                     )
                 }
                 // : AgentPlanOverlay replaced with ModalBottomSheet (see below Box scope).

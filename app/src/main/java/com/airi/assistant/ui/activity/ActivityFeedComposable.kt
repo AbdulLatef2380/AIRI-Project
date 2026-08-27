@@ -30,12 +30,20 @@ import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
 
 @Composable
-fun ActivityFeedComposable(modifier: Modifier = Modifier, compactMaxItems: Int = 3) {
+fun ActivityFeedComposable(
+    modifier: Modifier = Modifier,
+    compactMaxItems: Int = 3,
+    executionId: String? = null,
+) {
     val events by AgentActivityBus.recentEvents.collectAsStateWithLifecycle()
     var isExpanded by remember { mutableStateOf(false) }
     var categoryFilter by remember { mutableStateOf<ActivityCategory?>(null) }
-    val displayEvents = remember(events, categoryFilter) {
-        if (categoryFilter != null) events.filter { it.category == categoryFilter } else events
+    val displayEvents = remember(events, categoryFilter, executionId) {
+        events
+            .asSequence()
+            .filter { executionId == null || it.executionId == executionId }
+            .filter { categoryFilter == null || it.category == categoryFilter }
+            .toList()
     }
     if (displayEvents.isEmpty()) return
 

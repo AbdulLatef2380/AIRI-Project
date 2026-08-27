@@ -7,7 +7,7 @@ package com.airi.assistant.ui.viewmodel
  * both the ViewModel and unit tests can make the same decision before the UI
  * clears a user's staged attachments.
  */
-internal enum class AttachmentDispatchFailure {
+enum class AttachmentDispatchFailure {
     MODEL_LOADING,
     GENERATION_IN_PROGRESS,
     VISION_UNAVAILABLE,

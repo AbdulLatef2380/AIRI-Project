@@ -62,7 +62,7 @@ object ExecutionStatusBus {
     fun onWaveStarted(
         nodeIds: List<String>,
         nodeActions: List<String>,
-        executionId: String = _status.value.executionId,
+        executionId: String = "",
     ) {
         _status.update { current ->
             if (!belongsToActiveExecution(current, executionId)) return@update current
@@ -79,7 +79,7 @@ object ExecutionStatusBus {
     fun onNodeCompleted(
         nodeId: String,
         nodesCompleted: Int,
-        executionId: String = _status.value.executionId,
+        executionId: String = "",
     ) {
         _status.update { current ->
             if (!belongsToActiveExecution(current, executionId)) return@update current
@@ -96,7 +96,7 @@ object ExecutionStatusBus {
         nodeId: String,
         reason: String,
         retryCount: Int,
-        executionId: String = _status.value.executionId,
+        executionId: String = "",
     ) {
         _status.update { current ->
             if (!belongsToActiveExecution(current, executionId)) return@update current
@@ -112,7 +112,7 @@ object ExecutionStatusBus {
     }
 
     /** Signal that reflection is running post-graph. */
-    fun onReflecting(executionId: String = _status.value.executionId) {
+    fun onReflecting(executionId: String = "") {
         _status.update { current ->
             if (!belongsToActiveExecution(current, executionId)) current
             else current.copy(executionStage = ExecutionStage.REFLECTING, currentAction = "Analysing results...")
@@ -122,7 +122,7 @@ object ExecutionStatusBus {
     /** Signal graph completion. */
     fun onGraphCompleted(
         success: Boolean,
-        executionId: String = _status.value.executionId,
+        executionId: String = "",
     ) {
         val stage = if (success) ExecutionStage.COMPLETED else ExecutionStage.FAILED
         _status.update { current ->

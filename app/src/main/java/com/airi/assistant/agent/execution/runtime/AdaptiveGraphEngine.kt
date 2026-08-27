@@ -101,6 +101,7 @@ class AdaptiveGraphEngine(
     ): GraphExecutionResult {
         val resolvedStart = startNodeId ?: nodes.firstOrNull()?.nodeId
             ?: return GraphExecutionResult(success = false, output = "Empty graph", completedNodes = 0)
+        val executionId = UUID.randomUUID().toString()
         _engineState.value = EngineState.RUNNING
         nodeRegistry.putAll(nodes.associateBy { it.nodeId })
         checkpointStore.load(plan.intent)?.let { cp ->
@@ -109,18 +110,26 @@ class AdaptiveGraphEngine(
         }
 
         AgentActivityBus.emit("Graph execution started: ${plan.intent.take(60)}", ActivityCategory.ORCHESTRATION)
+        ExecutionStatusBus.onGraphStarted(
+            goalDescription = plan.intent,
+            totalNodes = nodes.size,
+            executionId = executionId,
+        )
 
         return try {
-            val result = executeFromNode(resolvedStart, context, executor, plan)
+            val result = executeFromNode(resolvedStart, context, executor, plan, executionId)
             _engineState.value = EngineState.COMPLETED
+            ExecutionStatusBus.onGraphCompleted(success = result.success, executionId = executionId)
             checkpointStore.clear(plan.intent)
             AgentActivityBus.emit("Graph completed ", ActivityCategory.ORCHESTRATION)
             result
         } catch (e: CancellationException) {
             _engineState.value = EngineState.IDLE
+            ExecutionStatusBus.onGraphCancelled(executionId)
             GraphExecutionResult(success = false, output = "Cancelled", completedNodes = completedIds.size)
         } catch (e: Exception) {
             _engineState.value = EngineState.FAILED
+            ExecutionStatusBus.onGraphCompleted(success = false, executionId = executionId)
             Log.e(TAG, "Graph execution failed: ${e.message}")
             AgentActivityBus.emit("Graph failed: ${e.message?.take(60)}", ActivityCategory.ORCHESTRATION)
             GraphExecutionResult(success = false, output = e.message ?: "Error", completedNodes = completedIds.size)
@@ -134,6 +143,7 @@ class AdaptiveGraphEngine(
         context:  SubAgentContext,
         executor: suspend (GraphNode, SubAgentContext) -> NodeResult,
         plan:     ActionPlan,
+        executionId: String,
         depth:    Int = 0
     ): GraphExecutionResult = coroutineScope {
         if (depth > MAX_DEPTH) {
@@ -145,7 +155,7 @@ class AdaptiveGraphEngine(
             val node = nodeRegistry[nodeId]
             val nextId = node?.edges?.firstOrNull()
             return@coroutineScope if (nextId != null)
-                executeFromNode(nextId, context, executor, plan, depth + 1)
+                executeFromNode(nextId, context, executor, plan, executionId, depth + 1)
             else
                 GraphExecutionResult(true, nodeResults[nodeId]?.output ?: "", completedIds.size)
         }
@@ -154,7 +164,7 @@ class AdaptiveGraphEngine(
             ?: return@coroutineScope GraphExecutionResult(false, "Node not found: $nodeId", completedIds.size)
 
         // Execute with retry + self-correction
-        val result = executeNodeWithRetry(node, context, executor, plan)
+        val result = executeNodeWithRetry(node, context, executor, plan, executionId)
 
         if (result.success) {
             completedIds.add(nodeId)
@@ -181,7 +191,7 @@ class AdaptiveGraphEngine(
         // Execute parallel branches concurrently
         if (parallelEdges.isNotEmpty()) {
             val branchJobs = parallelEdges.map { edgeId ->
-                async { executeFromNode(edgeId, context, executor, plan, depth + 1) }
+                async { executeFromNode(edgeId, context, executor, plan, executionId, depth + 1) }
             }
             branchJobs.awaitAll()
         }
@@ -189,7 +199,7 @@ class AdaptiveGraphEngine(
         // Execute sequential chain
         var lastResult = GraphExecutionResult(true, result.output, completedIds.size)
         for (edgeId in sequentialEdges) {
-            lastResult = executeFromNode(edgeId, context, executor, plan, depth + 1)
+            lastResult = executeFromNode(edgeId, context, executor, plan, executionId, depth + 1)
             if (!lastResult.success) break
         }
         lastResult
@@ -201,7 +211,8 @@ class AdaptiveGraphEngine(
         node:     GraphNode,
         context:  SubAgentContext,
         executor: suspend (GraphNode, SubAgentContext) -> NodeResult,
-        plan:     ActionPlan
+        plan:     ActionPlan,
+        executionId: String,
     ): NodeResult {
         var lastResult: NodeResult = NodeResult(node.nodeId, false, "Not executed", 0)
         repeat(node.maxRetries + 1) { attempt ->
@@ -209,7 +220,7 @@ class AdaptiveGraphEngine(
                 AgentActivityBus.emit("Retrying node '${node.label}' (attempt ${attempt + 1})", ActivityCategory.ORCHESTRATION)
                 delay(500L * attempt)
             }
-            ExecutionStatusBus.onNodeRunning(nodeId = node.nodeId, nodeLabel = node.label)
+            ExecutionStatusBus.onNodeRunning(nodeId = node.nodeId, nodeLabel = node.label, executionId = executionId)
             val t0 = System.currentTimeMillis()
             lastResult = runCatching {
                 withTimeoutOrNull(node.timeoutMs) { executor(node, context) }
@@ -219,11 +230,11 @@ class AdaptiveGraphEngine(
             }.copy(attempt = attempt + 1)
 
             if (lastResult.success) {
-                ExecutionStatusBus.onNodeCompleted(nodeId = node.nodeId, nodesCompleted = completedIds.size + 1)
+                ExecutionStatusBus.onNodeCompleted(nodeId = node.nodeId, nodesCompleted = completedIds.size + 1, executionId = executionId)
                 AgentActivityBus.emit(" ${node.label} (${lastResult.durationMs}ms)", ActivityCategory.ORCHESTRATION)
                 return lastResult
             }
-            ExecutionStatusBus.onNodeRecovering(node.nodeId, lastResult.output, attempt + 1)
+            ExecutionStatusBus.onNodeRecovering(node.nodeId, lastResult.output, attempt + 1, executionId)
         }
         return lastResult
     }
@@ -305,19 +316,19 @@ class AdaptiveGraphEngine(
 
 // ── Extension helpers on ExecutionStatusBus ───────────────────────────────────
 
-private fun ExecutionStatusBus.onNodeRunning(nodeId: String, nodeLabel: String) {
+private fun ExecutionStatusBus.onNodeRunning(nodeId: String, nodeLabel: String, executionId: String) {
     // ExecutionStatusBus.onWaveStarted(listOf(nodeId), listOf(nodeLabel)) is the existing API
     // We call it here for continuity with the existing plan overlay
-    try { ExecutionStatusBus.onWaveStarted(listOf(nodeId), listOf(nodeLabel)) }
+    try { ExecutionStatusBus.onWaveStarted(listOf(nodeId), listOf(nodeLabel), executionId) }
     catch (_: Exception) {}
 }
 
-private fun ExecutionStatusBus.onNodeCompleted(nodeId: String, nodesCompleted: Int) {
-    try { ExecutionStatusBus.onNodeCompleted(nodeId, nodesCompleted) }
+private fun ExecutionStatusBus.onNodeCompleted(nodeId: String, nodesCompleted: Int, executionId: String) {
+    try { ExecutionStatusBus.onNodeCompleted(nodeId, nodesCompleted, executionId) }
     catch (_: Exception) {}
 }
 
-private fun ExecutionStatusBus.onNodeRecovering(nodeId: String, reason: String, retryCount: Int) {
-    try { ExecutionStatusBus.onNodeRecovering(nodeId, reason, retryCount) }
+private fun ExecutionStatusBus.onNodeRecovering(nodeId: String, reason: String, retryCount: Int, executionId: String) {
+    try { ExecutionStatusBus.onNodeRecovering(nodeId, reason, retryCount, executionId) }
     catch (_: Exception) {}
 }

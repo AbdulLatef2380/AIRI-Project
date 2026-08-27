@@ -183,6 +183,8 @@ data class AgentState(
     val totalSteps:             Int     = 0,
     // ── Live graph execution status ( / UX maturity) ──────────────────
     val activeGoalDescription:  String  = "",
+    /** Stable identifier for the admitted graph/agent execution that owns this state. */
+    val executionId:            String  = "",
     val activeNodeId:           String  = "",
     val activeNodeAction:       String  = "",
     val nodesCompleted:         Int     = 0,
@@ -205,7 +207,7 @@ data class AgentState(
 }
 
 enum class ExecutionStage {
-    IDLE, PLANNING, EXECUTING, RECOVERING, REFLECTING, COMPLETED, FAILED
+    IDLE, PLANNING, EXECUTING, RECOVERING, REFLECTING, COMPLETED, FAILED, CANCELLED
 }
 
 enum class LoadErrorType {

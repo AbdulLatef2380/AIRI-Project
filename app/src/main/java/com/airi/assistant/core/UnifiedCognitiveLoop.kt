@@ -159,7 +159,7 @@ class UnifiedCognitiveLoop {
         if (qualityScore.confidence < MIN_PLAN_CONFIDENCE) {
             Log.w(TAG, "PLAN_QUALITY_GATE_REJECT confidence=${qualityScore.confidence} reason=${qualityScore.critique}")
             WorkspaceRegistry.release(graph.goalId)
-            ExecutionStatusBus.onGraphCompleted(false)
+            ExecutionStatusBus.onGraphCompleted(false, executionId = graph.goalId)
             return GraphExecutionResult(
                 goalId        = graph.goalId,
                 success       = false,
@@ -175,7 +175,8 @@ class UnifiedCognitiveLoop {
         val initialSnapshot = graph.snapshot()
         ExecutionStatusBus.onGraphStarted(
             goalDescription = graph.description.ifBlank { graph.goalId },
-            totalNodes      = initialSnapshot.totalNodes
+            totalNodes      = initialSnapshot.totalNodes,
+            executionId     = graph.goalId,
         )
 
         val nodeResults     = mutableListOf<NodeExecutionRecord>()
@@ -217,7 +218,8 @@ class UnifiedCognitiveLoop {
                 // ── : Signal wave start to UI ─────────────────────────
                 ExecutionStatusBus.onWaveStarted(
                     nodeIds     = waveNodes.map { it.id },
-                    nodeActions = waveNodes.map { it.activeAction }
+                    nodeActions = waveNodes.map { it.activeAction },
+                    executionId = graph.goalId,
                 )
 
                 // ── Parallel node execution ───────────────────────────────────
@@ -252,7 +254,11 @@ class UnifiedCognitiveLoop {
                         nodeResults.add(NodeExecutionRecord(node, true, result.message))
                         Log.i(TAG, "AIRI GRAPH_NODE_DONE id=${node.id} latency=${latency}ms")
                         
-                        ExecutionStatusBus.onNodeCompleted(node.id, ++nodesCompleted)
+                        ExecutionStatusBus.onNodeCompleted(
+                            node.id,
+                            ++nodesCompleted,
+                            executionId = graph.goalId,
+                        )
                     } else {
                         when (val recovery = graph.markFailed(node.id, result.message ?: "unknown")) {
                             is RecoveryDecision.Retry -> {
@@ -267,7 +273,8 @@ class UnifiedCognitiveLoop {
                                 ExecutionStatusBus.onNodeRecovering(
                                     nodeId     = node.id,
                                     reason     = result.message ?: "retry",
-                                    retryCount = node.attempts
+                                    retryCount = node.attempts,
+                                    executionId = graph.goalId,
                                 )
                             }
                             is RecoveryDecision.RequestReplan -> {
@@ -300,13 +307,13 @@ class UnifiedCognitiveLoop {
         hub?.updateGraphSnapshot(finalSnapshot)
 
         // ── : Post-execution reflection ────────────────────────────────
-        ExecutionStatusBus.onReflecting()
+        ExecutionStatusBus.onReflecting(executionId = graph.goalId)
         val reflection = reflector.reflect(nodeResults, finalSnapshot)
         Log.i(TAG, "REFLECTION confidence=${reflection.executionConfidence} critiqueChars=${reflection.critiqueText.length}")
 
         // ── : Signal graph completion to UI ────────────────────────────
         val graphSuccess = finalSnapshot.failedNodes == 0
-        ExecutionStatusBus.onGraphCompleted(graphSuccess)
+        ExecutionStatusBus.onGraphCompleted(graphSuccess, executionId = graph.goalId)
 
         return GraphExecutionResult(
             goalId        = graph.goalId,

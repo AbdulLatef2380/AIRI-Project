@@ -45,12 +45,13 @@ object ExecutionStatusBus {
     // ── Write API (called by UCL / orchestrators) ─────────────────────────────
 
     /** Signal that a DAG graph execution has started. */
-    fun onGraphStarted(goalDescription: String, totalNodes: Int) {
+    fun onGraphStarted(goalDescription: String, totalNodes: Int, executionId: String) {
         _status.value = AgentState(
             isWorking             = true,
             currentAction         = goalDescription.take(80),
             totalSteps            = totalNodes,
             activeGoalDescription = goalDescription,
+            executionId           = executionId,
             nodesTotal            = totalNodes,
             executionStage        = ExecutionStage.PLANNING
         )
@@ -58,8 +59,13 @@ object ExecutionStatusBus {
     }
 
     /** Signal that a specific node wave has started executing. */
-    fun onWaveStarted(nodeIds: List<String>, nodeActions: List<String>) {
+    fun onWaveStarted(
+        nodeIds: List<String>,
+        nodeActions: List<String>,
+        executionId: String = _status.value.executionId,
+    ) {
         _status.update { current ->
+            if (!belongsToActiveExecution(current, executionId)) return@update current
             current.copy(
                 executionStage  = ExecutionStage.EXECUTING,
                 activeNodeId    = nodeIds.firstOrNull() ?: "",
@@ -70,8 +76,13 @@ object ExecutionStatusBus {
     }
 
     /** Signal that a node has completed successfully. */
-    fun onNodeCompleted(nodeId: String, nodesCompleted: Int) {
+    fun onNodeCompleted(
+        nodeId: String,
+        nodesCompleted: Int,
+        executionId: String = _status.value.executionId,
+    ) {
         _status.update { current ->
+            if (!belongsToActiveExecution(current, executionId)) return@update current
             current.copy(
                 nodesCompleted = nodesCompleted,
                 currentStep    = nodesCompleted,
@@ -81,8 +92,14 @@ object ExecutionStatusBus {
     }
 
     /** Signal that a node failed and recovery is in progress. */
-    fun onNodeRecovering(nodeId: String, reason: String, retryCount: Int) {
+    fun onNodeRecovering(
+        nodeId: String,
+        reason: String,
+        retryCount: Int,
+        executionId: String = _status.value.executionId,
+    ) {
         _status.update { current ->
+            if (!belongsToActiveExecution(current, executionId)) return@update current
             current.copy(
                 executionStage = ExecutionStage.RECOVERING,
                 activeNodeId   = nodeId,
@@ -95,14 +112,21 @@ object ExecutionStatusBus {
     }
 
     /** Signal that reflection is running post-graph. */
-    fun onReflecting() {
-        _status.update { it.copy(executionStage = ExecutionStage.REFLECTING, currentAction = "Analysing results...") }
+    fun onReflecting(executionId: String = _status.value.executionId) {
+        _status.update { current ->
+            if (!belongsToActiveExecution(current, executionId)) current
+            else current.copy(executionStage = ExecutionStage.REFLECTING, currentAction = "Analysing results...")
+        }
     }
 
     /** Signal graph completion. */
-    fun onGraphCompleted(success: Boolean) {
+    fun onGraphCompleted(
+        success: Boolean,
+        executionId: String = _status.value.executionId,
+    ) {
         val stage = if (success) ExecutionStage.COMPLETED else ExecutionStage.FAILED
         _status.update { current ->
+            if (!belongsToActiveExecution(current, executionId)) return@update current
             current.copy(
                 isWorking      = false,
                 executionStage = stage,
@@ -114,12 +138,30 @@ object ExecutionStatusBus {
         Log.i(TAG, "EXEC_STATUS ${stage.name}")
     }
 
+    /** Signal explicit user or lifecycle cancellation of the active graph. */
+    fun onGraphCancelled(executionId: String) {
+        _status.update { current ->
+            if (!belongsToActiveExecution(current, executionId)) return@update current
+            current.copy(
+                isWorking = false,
+                executionStage = ExecutionStage.CANCELLED,
+                currentAction = "Cancelled",
+                activeNodeId = "",
+                activeNodeAction = "",
+            )
+        }
+        Log.i(TAG, "EXEC_STATUS_CANCELLED")
+    }
+
     /** Reset to idle (e.g. on session clear or ViewModel cleared). */
     fun reset() {
         _status.value = AgentState()
     }
 
     // ── Internal helper ───────────────────────────────────────────────────────
+
+    private fun belongsToActiveExecution(current: AgentState, executionId: String): Boolean =
+        executionId.isNotBlank() && current.executionId == executionId
 
     private fun MutableStateFlow<AgentState>.update(transform: (AgentState) -> AgentState) {
         value = transform(value)

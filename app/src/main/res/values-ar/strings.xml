@@ -1492,6 +1492,7 @@
     <string name="agent_plan_stage_reflecting">جارٍ المراجعة</string>
     <string name="agent_plan_stage_completed">اكتمل</string>
     <string name="agent_plan_stage_failed">فشل</string>
+    <string name="agent_plan_stage_cancelled">أُلغي</string>
     <string name="agent_plan_stage_idle">بانتظار البدء</string>
     <string name="agent_plan_step_queued">في الانتظار</string>
     <string name="agent_plan_step_running">قيد التنفيذ</string>

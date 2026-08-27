@@ -54,7 +54,7 @@ fun AgentPlanOverlay(
         Column(
             modifier = Modifier.fillMaxWidth()
                 .clip(shape)
-                .background(Color(0xFF111827).copy(alpha = 0.97f))
+                .background(AiriTheme.surface.copy(alpha = 0.97f))
                 .border(0.5.dp, stageAccent(stage).copy(alpha = 0.30f), shape)
         ) {
             // Header
@@ -73,7 +73,10 @@ fun AgentPlanOverlay(
                 if (steps.isNotEmpty()) Text("$done/${steps.size}", fontSize = 11.sp, color = AiriTheme.onSurface.copy(alpha = 0.4f), modifier = Modifier.padding(end = 10.dp))
                 Text(if (isExpanded) "⌃" else "⌄", fontSize = 14.sp, color = AiriTheme.onSurface.copy(alpha = 0.5f))
                 Spacer(Modifier.width(10.dp))
-                if (stage == ExecutionStage.COMPLETED || stage == ExecutionStage.FAILED || stage == ExecutionStage.IDLE)
+                if (stage == ExecutionStage.COMPLETED ||
+                    stage == ExecutionStage.FAILED ||
+                    stage == ExecutionStage.CANCELLED ||
+                    stage == ExecutionStage.IDLE)
                     Text("", fontSize = 12.sp, color = AiriTheme.onSurface.copy(alpha = 0.3f),
                         modifier = Modifier.clickable { planViewModel.dismissPanel() })
             }
@@ -116,15 +119,18 @@ private fun stageAccent(stage: ExecutionStage) = when (stage) {
     ExecutionStage.REFLECTING -> Color(0xFFB57BFF)
     ExecutionStage.COMPLETED  -> SemanticSuccess
     ExecutionStage.FAILED     -> SemanticError
+    ExecutionStage.CANCELLED  -> AiriTheme.onSurface.copy(alpha = 0.5f)
     ExecutionStage.IDLE       -> AiriTheme.onSurface.copy(alpha = 0.4f)
 }
 
+@Composable
 private fun stageLabel(stage: ExecutionStage) = when (stage) {
-    ExecutionStage.PLANNING   -> "Planning"
-    ExecutionStage.EXECUTING  -> "Executing"
-    ExecutionStage.RECOVERING -> "Recovering"
-    ExecutionStage.REFLECTING -> "Reflecting"
-    ExecutionStage.COMPLETED  -> "Completed"
-    ExecutionStage.FAILED     -> "Failed"
-    ExecutionStage.IDLE       -> "Idle"
+    ExecutionStage.PLANNING   -> stringResource(R.string.agent_plan_stage_planning)
+    ExecutionStage.EXECUTING  -> stringResource(R.string.agent_plan_stage_executing)
+    ExecutionStage.RECOVERING -> stringResource(R.string.agent_plan_stage_recovering)
+    ExecutionStage.REFLECTING -> stringResource(R.string.agent_plan_stage_reflecting)
+    ExecutionStage.COMPLETED  -> stringResource(R.string.agent_plan_stage_completed)
+    ExecutionStage.FAILED     -> stringResource(R.string.agent_plan_stage_failed)
+    ExecutionStage.CANCELLED  -> stringResource(R.string.agent_plan_stage_cancelled)
+    ExecutionStage.IDLE       -> stringResource(R.string.agent_plan_stage_idle)
 }

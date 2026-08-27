@@ -1261,6 +1261,7 @@
     <string name="agent_plan_stage_reflecting">Revisando</string>
     <string name="agent_plan_stage_completed">Completado</string>
     <string name="agent_plan_stage_failed">Falló</string>
+    <string name="agent_plan_stage_cancelled">Cancelado</string>
     <string name="agent_plan_stage_idle">En espera</string>
     <string name="agent_plan_step_queued">En cola</string>
     <string name="agent_plan_step_running">En ejecución</string>

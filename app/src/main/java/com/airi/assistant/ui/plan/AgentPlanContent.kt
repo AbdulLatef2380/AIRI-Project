@@ -268,6 +268,7 @@ private fun stageColor(stage: ExecutionStage) = when (stage) {
     ExecutionStage.REFLECTING -> Color(0xFFB57BFF)
     ExecutionStage.COMPLETED  -> SemanticSuccess
     ExecutionStage.FAILED     -> SemanticError
+    ExecutionStage.CANCELLED  -> AiriTheme.onSurface.copy(alpha = 0.5f)
     ExecutionStage.IDLE       -> AiriTheme.onSurface.copy(alpha = 0.4f)
 }
 
@@ -279,6 +280,7 @@ private fun stageLabel(stage: ExecutionStage) = when (stage) {
     ExecutionStage.REFLECTING -> stringResource(R.string.agent_plan_stage_reflecting)
     ExecutionStage.COMPLETED  -> stringResource(R.string.agent_plan_stage_completed)
     ExecutionStage.FAILED     -> stringResource(R.string.agent_plan_stage_failed)
+    ExecutionStage.CANCELLED  -> stringResource(R.string.agent_plan_stage_cancelled)
     ExecutionStage.IDLE       -> stringResource(R.string.agent_plan_stage_idle)
 }
 

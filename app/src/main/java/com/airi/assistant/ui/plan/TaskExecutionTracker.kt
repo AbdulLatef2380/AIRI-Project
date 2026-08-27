@@ -1,6 +1,7 @@
 package com.airi.assistant.ui.plan
 
 import com.airi.assistant.core.ExecutionStatusBus
+import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,23 +13,17 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * TaskExecutionTracker — builds a live step-by-step plan view from the
- * [ExecutionStatusBus] events emitted during agent loop execution.
+ * Projects admitted agent execution events into the user-facing plan timeline.
  *
- * This bridges the gap between the AgentLoop's internal step tracking
- * (callLLM, parseToolCall, executeTool, onStepComplete) and the UI
- * planning dashboard shown in the ModalBottomSheet.
- *
- * The tracker listens to two event streams:
- *   1. [ExecutionStatusBus.status] — high-level stage changes
- *   2. Direct callbacks from AgentLoop (via start with scope)
- *
- * Each step has a clear lifecycle: QUEUED → RUNNING → COMPLETED/FAILED/RETRYING
+ * The timeline never invents numbered steps from a maximum-iteration limit.
+ * A plan appears only when an execution carries both an execution identifier and
+ * a goal, then records actions as the runtime actually begins them.
  */
 class TaskExecutionTracker {
 
     private val stepRegistry = ConcurrentHashMap<String, PlanStepModel>()
-    private val stepOrder    = CopyOnWriteArrayList<String>()
+    private val stepOrder = CopyOnWriteArrayList<String>()
+    private var activeExecutionId: String? = null
 
     private val _steps = MutableStateFlow<List<PlanStepModel>>(emptyList())
     val steps: StateFlow<List<PlanStepModel>> = _steps.asStateFlow()
@@ -38,59 +33,98 @@ class TaskExecutionTracker {
 
     fun start(scope: CoroutineScope) {
         ExecutionStatusBus.status
-            .onEach { state -> handleUpdate(state) }
+            .onEach(::onExecutionState)
             .launchIn(scope)
     }
 
-    private fun handleUpdate(state: com.airi.assistant.ui.viewmodel.AgentState) {
+    /** Internal for focused regression tests of timeline ownership and states. */
+    internal fun onExecutionState(state: AgentState) {
         when (state.executionStage) {
             ExecutionStage.PLANNING -> {
-                stepRegistry.clear(); stepOrder.clear()
-                val rootId = "goal_root"
-                upsert(PlanStepModel(id = rootId, label = state.activeGoalDescription.take(80).ifBlank { "Running task" },
-                    status = PlanStepStatus.RUNNING, startedAtMs = System.currentTimeMillis()))
-                if (state.nodesTotal > 0) {
-                    repeat(state.nodesTotal) { idx ->
-                        upsert(PlanStepModel(id = "node_ph_$idx", label = "Step ${idx + 1}", status = PlanStepStatus.QUEUED))
-                    }
+                if (!hasAdmittedPlan(state)) {
+                    clear()
+                    return
                 }
-                _isVisible.value = true
+                beginExecution(state)
             }
             ExecutionStage.EXECUTING -> {
-                val nodeId    = state.activeNodeId.ifBlank { return }
-                val nodeLabel = state.activeNodeAction.ifBlank { state.currentAction }
-                val placeholder = stepOrder.firstOrNull { id ->
-                    stepRegistry[id]?.status == PlanStepStatus.QUEUED && stepRegistry[id]?.label?.startsWith("Step ") == true
-                }
-                if (placeholder != null) {
-                    val updated = stepRegistry[placeholder]!!.copy(id = nodeId, label = nodeLabel.take(60),
-                        status = PlanStepStatus.RUNNING, startedAtMs = System.currentTimeMillis())
-                    stepRegistry.remove(placeholder)
-                    val idx = stepOrder.indexOf(placeholder)
-                    if (idx >= 0) stepOrder[idx] = nodeId
-                    stepRegistry[nodeId] = updated
-                } else {
-                    val existing = stepRegistry[nodeId]
-                    upsert((existing ?: PlanStepModel(id = nodeId, label = nodeLabel.take(60))).copy(
-                        label = nodeLabel.take(60).ifBlank { existing?.label ?: "Processing" },
+                if (!accepts(state)) return
+                val nodeId = state.activeNodeId
+                val nodeLabel = state.activeNodeAction.trim()
+                if (nodeId.isBlank() || nodeLabel.isBlank()) return
+                val existing = stepRegistry[nodeId]
+                upsert(
+                    (existing ?: PlanStepModel(id = nodeId, label = nodeLabel.take(MAX_LABEL_CHARS))).copy(
+                        label = nodeLabel.take(MAX_LABEL_CHARS),
                         status = PlanStepStatus.RUNNING,
-                        startedAtMs = existing?.startedAtMs ?: System.currentTimeMillis()))
-                }
+                        startedAtMs = existing?.startedAtMs ?: System.currentTimeMillis(),
+                    )
+                )
             }
             ExecutionStage.RECOVERING -> {
+                if (!accepts(state) || state.activeNodeId.isBlank()) return
                 val existing = stepRegistry[state.activeNodeId] ?: return
-                upsert(existing.copy(status = PlanStepStatus.RETRYING, retryCount = state.retryCount,
-                    detail = state.recoveryReason.take(120)))
+                upsert(
+                    existing.copy(
+                        status = PlanStepStatus.RETRYING,
+                        retryCount = state.retryCount,
+                        detail = state.recoveryReason.take(MAX_DETAIL_CHARS),
+                    )
+                )
             }
-            ExecutionStage.REFLECTING -> markAllRunning(PlanStepStatus.COMPLETED)
-            ExecutionStage.COMPLETED  -> { markAllRunning(PlanStepStatus.COMPLETED); _isVisible.value = true }
-            ExecutionStage.FAILED     -> { markAllRunning(PlanStepStatus.FAILED);    _isVisible.value = true }
-            ExecutionStage.IDLE       -> { /* keep visible — auto-hide handled by ViewModel */ }
+            ExecutionStage.REFLECTING -> {
+                if (!accepts(state)) return
+                markAllRunning(PlanStepStatus.COMPLETED)
+            }
+            ExecutionStage.COMPLETED -> {
+                if (!accepts(state)) return
+                markAllRunning(PlanStepStatus.COMPLETED)
+                _isVisible.value = true
+            }
+            ExecutionStage.FAILED -> {
+                if (!accepts(state)) return
+                markAllRunning(PlanStepStatus.FAILED)
+                _isVisible.value = true
+            }
+            ExecutionStage.CANCELLED -> {
+                if (!accepts(state)) return
+                markAllRunning(PlanStepStatus.CANCELLED)
+                _isVisible.value = true
+            }
+            ExecutionStage.IDLE -> Unit // delayed clear is owned by AgentPlanViewModel
         }
         publish()
     }
 
-    fun clear() { stepRegistry.clear(); stepOrder.clear(); _isVisible.value = false; publish() }
+    fun clear() {
+        stepRegistry.clear()
+        stepOrder.clear()
+        activeExecutionId = null
+        _isVisible.value = false
+        publish()
+    }
+
+    private fun hasAdmittedPlan(state: AgentState): Boolean =
+        state.executionId.isNotBlank() && state.activeGoalDescription.isNotBlank()
+
+    private fun accepts(state: AgentState): Boolean =
+        hasAdmittedPlan(state) && activeExecutionId == state.executionId
+
+    private fun beginExecution(state: AgentState) {
+        if (activeExecutionId == state.executionId) return
+        stepRegistry.clear()
+        stepOrder.clear()
+        activeExecutionId = state.executionId
+        upsert(
+            PlanStepModel(
+                id = "goal_${state.executionId}",
+                label = state.activeGoalDescription.trim().take(MAX_LABEL_CHARS),
+                status = PlanStepStatus.RUNNING,
+                startedAtMs = System.currentTimeMillis(),
+            )
+        )
+        _isVisible.value = true
+    }
 
     private fun upsert(step: PlanStepModel) {
         if (!stepOrder.contains(step.id)) stepOrder.add(step.id)
@@ -99,10 +133,19 @@ class TaskExecutionTracker {
 
     private fun markAllRunning(target: PlanStepStatus) {
         stepOrder.forEach { id ->
-            val s = stepRegistry[id] ?: return@forEach
-            if (s.status.isActive) stepRegistry[id] = s.copy(status = target, finishedAtMs = System.currentTimeMillis())
+            val step = stepRegistry[id] ?: return@forEach
+            if (step.status.isActive) {
+                stepRegistry[id] = step.copy(status = target, finishedAtMs = System.currentTimeMillis())
+            }
         }
     }
 
-    private fun publish() { _steps.value = stepOrder.mapNotNull { stepRegistry[it] } }
+    private fun publish() {
+        _steps.value = stepOrder.mapNotNull { stepRegistry[it] }
+    }
+
+    private companion object {
+        const val MAX_LABEL_CHARS = 80
+        const val MAX_DETAIL_CHARS = 120
+    }
 }

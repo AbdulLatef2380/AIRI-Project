@@ -1593,6 +1593,7 @@
     <string name="agent_plan_stage_reflecting">Reviewing</string>
     <string name="agent_plan_stage_completed">Completed</string>
     <string name="agent_plan_stage_failed">Failed</string>
+    <string name="agent_plan_stage_cancelled">Cancelled</string>
     <string name="agent_plan_stage_idle">Waiting</string>
     <string name="agent_plan_step_queued">Queued</string>
     <string name="agent_plan_step_running">Running</string>

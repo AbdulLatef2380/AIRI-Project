@@ -16,6 +16,7 @@ import com.airi.assistant.execution.HybridOrchestrator
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 import kotlinx.coroutines.CancellationException
+import java.util.UUID
 import kotlinx.coroutines.isActive
 import org.json.JSONObject
 import kotlin.coroutines.coroutineContext
@@ -121,6 +122,8 @@ Do not mix tool_call JSON with prose in the same message.
         val toolsInvoked = mutableListOf<String>()
         val history      = mutableListOf<ConversationTurn>()
         var stepsUsed    = 0
+        val executionId   = UUID.randomUUID().toString()
+        var isPlanPublished = false
         var durableExecutionContext: AgentLoopExecutionContext? = null
 
         // If no tools provided, single-pass inference
@@ -132,16 +135,11 @@ Do not mix tool_call JSON with prose in the same message.
         val fullSystemPrompt = systemPrompt + "\n\n" + buildToolBlock(tools) + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
 
-        ExecutionStatusBus.onGraphStarted(
-            goalDescription = input.take(80),
-            totalNodes      = MAX_STEPS
-        )
-
         try {
             while (stepsUsed < MAX_STEPS && coroutineContext.isActive) {
                 if (System.currentTimeMillis() - startMs > TIMEOUT_MS) {
                     Log.w(TAG, "AgentLoop timed out after ${stepsUsed} steps")
-                    ExecutionStatusBus.onGraphCompleted(false)
+                    ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
                     val partial = history.lastOrNull { it is ConversationTurn.Assistant }
                         ?.let { (it as ConversationTurn.Assistant).content }
                         ?: "Task timed out. Please try again."
@@ -149,7 +147,6 @@ Do not mix tool_call JSON with prose in the same message.
                 }
 
                 stepsUsed++
-                ExecutionStatusBus.onWaveStarted(listOf("step_$stepsUsed"), listOf("Step $stepsUsed"))
 
                 val tokenBuffer = StringBuilder()
                 val rawResponse = callLLM(
@@ -206,8 +203,7 @@ Do not mix tool_call JSON with prose in the same message.
                 if (toolCall == null) {
                     // Final answer — LLM decided it's done (or retry also failed)
                     history.add(ConversationTurn.Assistant(rawResponse))
-                    ExecutionStatusBus.onNodeCompleted("step_$stepsUsed", stepsUsed)
-                    ExecutionStatusBus.onGraphCompleted(true)
+                    ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
                     onStepComplete(StepEvent.FinalAnswer(rawResponse, stepsUsed))
                     return LoopResult(rawResponse, stepsUsed, toolsInvoked)
                 }
@@ -218,7 +214,21 @@ Do not mix tool_call JSON with prose in the same message.
                 toolsInvoked.add(toolName)
 
                 Log.i(TAG, "AIRI TOOL_CALL step=$stepsUsed tool=$toolName args=${toolArgs.keys.joinToString()}")
-                ExecutionStatusBus.onWaveStarted(listOf("tool_$toolName"), listOf("Tool: $toolName"))
+                if (!isPlanPublished) {
+                    ExecutionStatusBus.onGraphStarted(
+                        goalDescription = input.take(80),
+                        // Actions are discovered incrementally; the ceiling is not a plan.
+                        totalNodes = 0,
+                        executionId = executionId,
+                    )
+                    isPlanPublished = true
+                }
+                val toolStepId = "tool_${stepsUsed}_$toolName"
+                ExecutionStatusBus.onWaveStarted(
+                    nodeIds = listOf(toolStepId),
+                    nodeActions = listOf(toolName),
+                    executionId = executionId,
+                )
 
                 // Direct chat retains a fail-closed boundary. The first allowed
                 // mutation is a typed calendar proposal, and it is admitted only
@@ -297,7 +307,11 @@ Do not mix tool_call JSON with prose in the same message.
 
                 Log.i(TAG, "AIRI TOOL_RESULT tool=$toolName success=${toolResult is ToolDispatcher.ToolResult.Success} len=${resultText.length}")
 
-                ExecutionStatusBus.onNodeCompleted("tool_$toolName", stepsUsed)
+                ExecutionStatusBus.onNodeCompleted(
+                    toolStepId,
+                    stepsUsed,
+                    executionId = executionId,
+                )
                 // P0-2: onStepComplete may return a non-null String to replace the tool result
                 // (used when the agent calls ask_confirmation and ChatViewModel suspends for user input)
                 val effectiveResult = onStepComplete(StepEvent.ToolExecuted(toolName, toolArgs, resultText, stepsUsed))
@@ -327,11 +341,11 @@ Do not mix tool_call JSON with prose in the same message.
             Log.w(TAG, "AgentLoop exhausted $MAX_STEPS steps — asking LLM to summarise")
             history.add(ConversationTurn.User("You have reached your step limit. Summarise what you have done and what the final answer is."))
             val summary = callLLM("", fullSystemPrompt, history, emptyList(), queryType, onToken)
-            ExecutionStatusBus.onGraphCompleted(true)
+            ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
             return LoopResult(summary, stepsUsed, toolsInvoked)
 
         } catch (e: CancellationException) {
-            ExecutionStatusBus.onGraphCompleted(false)
+            ExecutionStatusBus.onGraphCancelled(executionId)
             val last = history.lastOrNull { it is ConversationTurn.Assistant }
                 ?.let { (it as ConversationTurn.Assistant).content } ?: ""
             return LoopResult(last.ifBlank { "Task cancelled." }, stepsUsed, toolsInvoked, cancelled = true)

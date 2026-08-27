@@ -48,11 +48,15 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
             // : Auto-collapse panel when execution finishes (COMPLETED/FAILED/IDLE)
             if (state.executionStage == ExecutionStage.COMPLETED ||
                 state.executionStage == ExecutionStage.FAILED ||
+                state.executionStage == ExecutionStage.CANCELLED ||
                 state.executionStage == ExecutionStage.IDLE) {
                 viewModelScope.launch {
                     delay(4_000)
                     val cur = ExecutionStatusBus.status.value.executionStage
-                    if (cur == ExecutionStage.COMPLETED || cur == ExecutionStage.FAILED || cur == ExecutionStage.IDLE) {
+                    if (cur == ExecutionStage.COMPLETED ||
+                        cur == ExecutionStage.FAILED ||
+                        cur == ExecutionStage.CANCELLED ||
+                        cur == ExecutionStage.IDLE) {
                         tracker.clear()
                     }
                 }

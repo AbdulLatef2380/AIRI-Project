@@ -41,3 +41,15 @@
 | RC-01: تنفيذ native على نموذج تغيّر بعد admission | **MITIGATED FOR LOCAL BACKEND** | LocalLlamaBackend يرفض streaming وbatch عند `model_changed` | Architecture Audit `33066904307` وAndroid CI `33066904320` |
 
 هذه الحالة لا تعني أن كل طبقات المحادثة أو التنفيذ أُغلقت؛ cancellation، provider fallback، event ledger، وruntime device/provider gates تبقى ضمن M3–M9 حسب `AIRI_FIX_PLAN.md`. التقرير التفصيلي هو `AIRI_M2_CONVERSATION_CORE_REPORT.md`.
+
+
+## Evidence register — M3 AI Execution
+
+| Root cause | Evidence status | Applied change | Verification |
+|---|---|---|---|
+| RC-01: stale execution events attach to active plan | **MITIGATED FOR GRAPH EVENTS** | `ExecutionStatusBus` requires explicit nonblank matching executionId; `AdaptiveGraphEngine` owns one id per graph | `ExecutionStatusBusTest`, Android CI `33070581767` |
+| RC-03: graph lifecycle loses ownership at terminal state | **MITIGATED FOR AdaptiveGraphEngine** | graph admission and completion/cancel/failure events carry the same executionId | Architecture Audit `33070581824`, Android CI `33070581767` |
+| M3-open: network cancellation may still rely on adapter cooperation | **OPEN / NEXT AUDIT** | Requires cancellation and retry regression across HybridOrchestrator/CloudBackend | No DONE claim; scheduled for next M3 iteration |
+| M3-open: terminal event idempotency across fallback | **OPEN / NEXT AUDIT** | Requires explicit request/execution ledger semantics | No DONE claim; scheduled for next M3 iteration |
+
+التقرير التفصيلي: `AIRI_M3_AI_EXECUTION_REPORT.md`.

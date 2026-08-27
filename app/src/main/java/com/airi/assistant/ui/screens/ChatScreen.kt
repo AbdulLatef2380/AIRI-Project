@@ -926,6 +926,7 @@ fun ChatScreen(
                     voiceManager.speak(text)
                 },
                 onSuggestionClick  = { suggestion -> viewModel.sendMessage(suggestion) },
+                profileDisplayName = profileDisplayName,
                 onEditMessage      = { text -> viewModel.prefillInput(text) },
                 onDeleteMessage    = { message ->
                     scope.launch {
@@ -1864,6 +1865,7 @@ fun ChatMessageList(
     onShareAiResponse: (String) -> Unit = {},
     onSpeak: (String) -> Unit = {},
     onSuggestionClick: (String) -> Unit = {},
+    profileDisplayName: String = "",
     onEditMessage: (String) -> Unit = {},
     onDeleteMessage: (ChatMessage) -> Unit = {},
     onExportPdf: (String) -> Unit = {},

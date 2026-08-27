@@ -2,7 +2,17 @@
 
 > **نوع الوثيقة:** خط أساس تدقيق قبل دفعة إصلاح جديدة. لا تعتبر هذه الوثيقة أي feature مكتملة لمجرد وجود route أو class أو نجاح CI. الحالات المستخدمة هي الحالات المعيارية في المرفق، مع فصل صريح بين `SOURCE_VERIFIED` و`CI_VERIFIED` و`RUNTIME_PENDING` و`EXTERNAL_PENDING`.
 >
-> **نقطة التدقيق:** فرع `cp-foundation`، والرأس الحالي `b4ea839788d04b25d8ea1c7648ccddf15f2acf7b`، المتطابق حالياً مع `main`. يحتوي المصدر على 658 ملف Kotlin و66 اختبار JVM و55 شاشة، وقد فُحصت بنية التطبيق وManifest ومواضع الحالة والتخزين والشبكة ودورة الحياة. الرأس المرجعي الذي ذكره المرفق (`8656fd12`) ليس نقطة الرأس الحالية؛ لذلك استُخدمت فروق Git والأدلة الحالية بدلاً من نسب نتائج جديدة إلى ذلك الرأس.
+> **نقطة التدقيق:** فرع `cp-foundation`، والرأس الحالي `0c74840d5f391ca557bee8aab759739e5a9a909c`، المتطابق حالياً مع `main`. يحتوي المصدر على 658 ملف Kotlin و66 اختبار JVM و55 شاشة، وقد فُحصت بنية التطبيق وManifest ومواضع الحالة والتخزين والشبكة ودورة الحياة. الرأس المرجعي الذي ذكره المرفق (`8656fd12`) ليس نقطة الرأس الحالية؛ لذلك استُخدمت فروق Git والأدلة الحالية بدلاً من نسب نتائج جديدة إلى ذلك الرأس.
+
+## تحقق نقطة التدقيق M0
+
+| الدليل | النتيجة |
+|---|---|
+| Android CI على `main` | `PASS` — run [`33061011381`](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/33061011381) أكملت source contracts والتوطين وshared-core وdebug وunit/lint وrelease compilation وsigned packaging و`apksigner` وinstrumentation وnative verification ورفع التقارير. |
+| Deep Audit على `main` | `PASS` — run [`33061011446`](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/33061011446). |
+| Oracle على `main` | `PASS` — run [`33061011435`](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/33061011435). |
+| Architecture Audit على `main` | `PASS` — run [`33061011376`](https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/33061011376). |
+| حدود الدليل | هذه نتائج CI للرأس الموثق؛ لا تثبت UX المرئي أو device/provider/store/legal. كما أن artifact hashes ليست محفوظة هنا إلا عندما تُفحص صراحة في سجل الإصدار. |
 
 ## خلاصة جذور مشتركة أولية
 

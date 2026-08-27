@@ -175,6 +175,12 @@ fun ChatScreen(
     val composerDrafts        by viewModel.composerDrafts.collectAsState()
     val currentComposerDraft = composerDrafts[currentSessionId]
     val currentSession = sessions.firstOrNull { it.id == currentSessionId }
+    val sessionActions = ChatSessionActionPolicy.availability(
+        hasPersistedSession = currentSession?.id == currentSessionId,
+        sessionId = currentSessionId,
+        messageCount = maxOf(currentSession?.messageCount ?: 0, messages.size),
+        title = currentSession?.title.orEmpty(),
+    )
     var skillSuggestions by remember { mutableStateOf<List<ChatInputSuggestion>>(emptyList()) }
     var knowledgeSuggestions by remember { mutableStateOf<List<ChatInputSuggestion>>(emptyList()) }
     var knowledgeSearchVersion by remember { mutableStateOf(0) }
@@ -670,6 +676,7 @@ fun ChatScreen(
                 onExportChat      = { showMenu = false; exportChatLauncher.launch(ChatExporter.buildFileName("md")) },
                 onShareChat       = { showMenu = false; shareChatTranscript(context, messages) },
                 currentSessionTitle = currentSession?.title.orEmpty(),
+                sessionActions = sessionActions,
                 isCurrentSessionPinned = currentSession?.isPinned == true,
                 onSetSessionPinned = { isPinned -> viewModel.setCurrentSessionPinned(isPinned) },
                 onRenameChat      = { title -> viewModel.renameCurrentSession(title) },
@@ -1297,6 +1304,7 @@ private fun AiriChatTopBar(
     onExportChat: () -> Unit,
     onShareChat: () -> Unit,
     currentSessionTitle: String,
+    sessionActions: ChatSessionActionAvailability,
     isCurrentSessionPinned: Boolean,
     onSetSessionPinned: (Boolean) -> Unit,
     onRenameChat: (String) -> Unit,
@@ -1462,45 +1470,53 @@ private fun AiriChatTopBar(
                             leadingIcon = { Icon(Icons.Outlined.Memory, contentDescription = null, tint = CosmicAccent) },
                             onClick = onSwitchModel
                         )
-                        Divider(color = AiriTheme.outline.copy(alpha = 0.35f))
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.share_chat), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
-                            onClick = onShareChat
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    stringResource(if (isCurrentSessionPinned) R.string.unpin_chat else R.string.pin_chat),
-                                    color = AiriTheme.onBackground
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    if (isCurrentSessionPinned) Icons.Outlined.PushPin else Icons.Outlined.PushPin,
-                                    contentDescription = null,
-                                    tint = AiriTheme.onSurfaceVariant
-                                )
-                            },
-                            onClick = {
-                                onSetSessionPinned(!isCurrentSessionPinned)
-                                onDismissDropdown()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.rename_chat), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
-                            onClick = {
-                                renameDraft = currentSessionTitle
-                                showRenameDialog = true
-                                onDismissDropdown()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text  = { Text(stringResource(R.string.export_chat), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
-                            onClick = onExportChat
-                        )
+                        if (sessionActions.canShareOrExport || sessionActions.canPinOrRename) {
+                            Divider(color = AiriTheme.outline.copy(alpha = 0.35f))
+                        }
+                        if (sessionActions.canShareOrExport) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.share_chat), color = AiriTheme.onBackground) },
+                                leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
+                                onClick = onShareChat,
+                            )
+                        }
+                        if (sessionActions.canPinOrRename) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        stringResource(if (isCurrentSessionPinned) R.string.unpin_chat else R.string.pin_chat),
+                                        color = AiriTheme.onBackground,
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Outlined.PushPin,
+                                        contentDescription = null,
+                                        tint = AiriTheme.onSurfaceVariant,
+                                    )
+                                },
+                                onClick = {
+                                    onSetSessionPinned(!isCurrentSessionPinned)
+                                    onDismissDropdown()
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.rename_chat), color = AiriTheme.onBackground) },
+                                leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
+                                onClick = {
+                                    renameDraft = currentSessionTitle
+                                    showRenameDialog = true
+                                    onDismissDropdown()
+                                },
+                            )
+                        }
+                        if (sessionActions.canShareOrExport) {
+                            DropdownMenuItem(
+                                text  = { Text(stringResource(R.string.export_chat), color = AiriTheme.onBackground) },
+                                leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
+                                onClick = onExportChat,
+                            )
+                        }
                         // : Templates entry — was unreachable; now wired to AiriRoute.TEMPLATES
                         DropdownMenuItem(
                             text  = { Text(stringResource(R.string.chat_templates_title), color = AiriTheme.onBackground) },

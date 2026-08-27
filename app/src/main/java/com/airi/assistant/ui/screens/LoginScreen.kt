@@ -143,10 +143,10 @@ fun LoginScreen(
         feedback = validation
         return validation == null
     }
-    val bgColor     = Color(0xFF000000)
-    val buttonBg    = Color(0xFF1A1A1A)
-    val accentColor = Color(0xFF7C3AED)
-    val dividerLine = Color(0xFF333333)
+    val bgColor     = AiriTheme.background
+    val buttonBg    = AiriTheme.surfaceVariant
+    val accentColor = AiriTheme.primary
+    val dividerLine = AiriTheme.outline
 
     Box(
         modifier = Modifier
@@ -338,7 +338,7 @@ fun LoginScreen(
             Text(
                 text      = stringResource(R.string.login_terms_privacy),
                 fontSize  = 11.sp,
-                color     = Color(0xFF888888),
+                color     = AiriTheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 lineHeight = 17.sp
             )
@@ -435,13 +435,13 @@ private fun LoginButton(
 
 @Composable
 private fun loginFieldColors(accentColor: Color) = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor     = accentColor,
-    unfocusedBorderColor   = AiriTheme.onSurface.copy(alpha = 0.15f),
-    focusedTextColor       = AiriTheme.onSurface,
-    unfocusedTextColor     = AiriTheme.onSurface,
-    focusedLabelColor      = accentColor,
-    unfocusedLabelColor    = AiriTheme.onSurface.copy(alpha = 0.45f),
-    cursorColor            = accentColor,
-    focusedContainerColor  = Color(0xFF0D0D0D),
-    unfocusedContainerColor = Color(0xFF0D0D0D)
+    focusedBorderColor      = accentColor,
+    unfocusedBorderColor    = AiriTheme.outline,
+    focusedTextColor        = AiriTheme.onSurface,
+    unfocusedTextColor      = AiriTheme.onSurface,
+    focusedLabelColor       = accentColor,
+    unfocusedLabelColor     = AiriTheme.onSurfaceVariant,
+    cursorColor             = accentColor,
+    focusedContainerColor   = AiriTheme.surface,
+    unfocusedContainerColor = AiriTheme.surface,
 )

@@ -62,3 +62,11 @@
 | Cloud retry/failover continues after user cancellation | **MITIGATED IN CloudBackend** | Atomic `cancelRequested`, non-blocking `cancelStream()`, retry and provider-loop cancellation guards | Android CI `33073079681`, Deep Audit `33073079638` |
 | Runtime backend cancellation contract is no-op by default | **OPEN BY DESIGN** | Cloud and local backends now implement their concrete propagation paths; future custom backends must implement `cancelStream()` | Architecture Audit `33073079670`; provider-specific runtime remains external |
 | Exactly-once terminal event across all adapters | **OPEN / NEXT AUDIT** | Requires provider adapter integration tests and event ledger assertions | No DONE claim |
+
+
+## Evidence register — M3 terminal delivery
+
+| Root cause | Evidence status | Applied change | Verification |
+|---|---|---|---|
+| Adapter callback may deliver completion more than once | **MITIGATED IN HybridOrchestrator** | `completionDelivered` guard accepts only the first completion for a generation | Android CI `33075669176`, Deep Audit `33075669201` |
+| Terminal delivery across every provider implementation | **PARTIALLY OPEN** | Orchestrator guard is closed; provider-specific integration coverage remains required for live adapters | No live-provider DONE claim |

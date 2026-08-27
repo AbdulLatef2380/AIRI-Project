@@ -78,6 +78,9 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     private val _items = MutableStateFlow(buildItems())
     val items: StateFlow<List<IntegrationItem>> = _items.asStateFlow()
 
+    private val _googleFeedback = MutableStateFlow<Int?>(null)
+    val googleFeedback: StateFlow<Int?> = _googleFeedback.asStateFlow()
+
     fun refresh() {
         _items.value = buildItems()
     }
@@ -208,12 +211,25 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun onGoogleSignInSuccess(account: GoogleSignInAccount) {
+        if (!GoogleIntegrationSignInPolicy.canConnect(account.email)) {
+            _googleFeedback.value = GoogleIntegrationSignInPolicy.missingEmailFeedback()
+            return
+        }
         googleAuthService.handleSignInSuccess(account)
         refresh()
+        _googleFeedback.value = GoogleIntegrationSignInPolicy.connectedFeedback()
+    }
+
+    fun onGoogleSignInCancelled() {
+        _googleFeedback.value = GoogleIntegrationSignInPolicy.cancelledFeedback()
     }
 
     fun onGoogleSignInFailed() {
-        // No state change needed — user cancelled or error occurred
+        _googleFeedback.value = GoogleIntegrationSignInPolicy.providerFailureFeedback()
+    }
+
+    fun consumeGoogleFeedback() {
+        _googleFeedback.value = null
     }
 
     /**

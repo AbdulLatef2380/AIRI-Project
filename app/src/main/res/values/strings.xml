@@ -25,6 +25,10 @@
     <string name="integration_telegram_description">Link a Telegram bot for messaging workflows.</string>
     <string name="integration_google_name">Google</string>
     <string name="integration_google_description">Access Gmail, Drive, and Calendar (read-only).</string>
+    <string name="integration_google_connected">Google account connected.</string>
+    <string name="integration_google_sign_in_cancelled">Google sign-in was cancelled. No account was connected.</string>
+    <string name="integration_google_sign_in_failed">Google sign-in could not be completed. Check your connection and configuration, then try again.</string>
+    <string name="integration_google_missing_email">Google did not return an email address, so no account was connected.</string>
     <string name="integration_connect">Connect</string>
     <string name="integration_disconnect">Disconnect</string>
     <string name="integration_status_connected">Connected</string>

@@ -242,6 +242,10 @@
     <string name="integration_telegram_description">Vincula un bot de Telegram para flujos de mensajería.</string>
     <string name="integration_google_name">Google</string>
     <string name="integration_google_description">Accede a Gmail, Drive y Calendar (solo lectura).</string>
+    <string name="integration_google_connected">Cuenta de Google conectada.</string>
+    <string name="integration_google_sign_in_cancelled">Se canceló el inicio de sesión de Google. No se conectó ninguna cuenta.</string>
+    <string name="integration_google_sign_in_failed">No se pudo completar el inicio de sesión de Google. Comprueba tu conexión y configuración, e inténtalo de nuevo.</string>
+    <string name="integration_google_missing_email">Google no devolvió una dirección de correo, por lo que no se conectó ninguna cuenta.</string>
     <string name="integration_connect">Conectar</string>
     <string name="integration_disconnect">Desconectar</string>
     <string name="integration_status_connected">Conectado</string>

@@ -56,6 +56,12 @@ class CloudBackend(
     private val _requestCount  = java.util.concurrent.atomic.AtomicInteger(0)
     private val _errorCount    = java.util.concurrent.atomic.AtomicInteger(0)
     private val _totalLatencyMs = java.util.concurrent.atomic.AtomicLong(0)
+    private val cancelRequested = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    override fun cancelStream() {
+        cancelRequested.set(true)
+        RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.INFO, "Cloud cancellation requested")
+    }
 
     data class NetworkStats(
         val requestCount: Int,
@@ -83,6 +89,7 @@ class CloudBackend(
         onComplete: suspend (String, Long) -> Unit,
         onError: suspend (String) -> Unit
     ) {
+        cancelRequested.set(false)
         when (val guard = NetworkGuard.evaluate(prefs)) {
             is NetworkGuard.Decision.Block -> { onError("Network blocked: ${guard.reason}"); return }
             NetworkGuard.Decision.Allow -> {}
@@ -105,6 +112,10 @@ class CloudBackend(
         _requestCount.incrementAndGet(); _globalRequestCount.incrementAndGet()
 
         for ((attemptIdx, provider) in providerQueue.withIndex()) {
+            if (cancelRequested.get()) {
+                onError("Cancelled")
+                return
+            }
             val isFallback = attemptIdx > 0
             if (isFallback) {
                 RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.WARN,
@@ -125,6 +136,14 @@ class CloudBackend(
             var compTok = 0
 
             val result = RetryPolicy.withRetry(maxAttempts = MAX_RETRIES) { attempt ->
+                if (cancelRequested.get()) {
+                    return@withRetry CloudProviderAdapter.AdapterResult.Failure(
+                        error = "Cancelled",
+                        errorType = CloudErrorType.CANCELLED,
+                        retryable = false,
+                        httpCode = -3,
+                    )
+                }
                 if (attempt > 0) {
                     RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.WARN,
                         "Retry attempt $attempt/${MAX_RETRIES - 1} for ${provider.displayName}")
@@ -136,6 +155,14 @@ class CloudBackend(
                     onToken = { token -> onToken(token) },
                     onUsage = { p, c -> promptTok = p; compTok = c }
                 )
+            }
+
+            if (cancelRequested.get() ||
+                (result is CloudProviderAdapter.AdapterResult.Failure &&
+                    result.errorType == CloudErrorType.CANCELLED)
+            ) {
+                onError("Cancelled")
+                return
             }
 
             when (result) {
@@ -189,6 +216,14 @@ class CloudBackend(
 
     override suspend fun generate(request: ExecutionRequest): ExecutionResult =
         withContext(Dispatchers.IO) {
+            if (cancelRequested.get()) {
+                return@withContext ExecutionResult.Failure(
+                    error = "Cancelled",
+                    origin = ExecOrigin.CLOUD,
+                    retryable = false,
+                    code = "cancelled",
+                )
+            }
             when (val guard = NetworkGuard.evaluate(prefs)) {
                 is NetworkGuard.Decision.Block -> ExecutionResult.Failure(
                     error = guard.reason, origin = ExecOrigin.CLOUD,

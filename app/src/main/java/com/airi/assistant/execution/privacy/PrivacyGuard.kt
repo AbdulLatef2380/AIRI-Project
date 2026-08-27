@@ -79,6 +79,11 @@ object PrivacyGuard {
             .limitTo(maximumChars.coerceIn(1, 1_000), "trace_truncated", stripped)
     }
 
+    /** Redacts trace payload values whose field name itself is sensitive. */
+    fun redactTraceField(fieldName: String, value: String): String =
+        if (TRACE_SECRET_FIELD_REGEX.containsMatchIn(fieldName)) "[SECRET_REDACTED]"
+        else redactForTrace(value)
+
     private fun sanitizeHistory(
         history: List<ExecutionRequest.ConversationTurn>,
         stripped: MutableList<String>
@@ -146,6 +151,10 @@ object PrivacyGuard {
     private val API_KEY_REGEX = Regex(
         """(?:sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z\-_]{35}|ghp_[A-Za-z0-9]{36}|Bearer\s+[A-Za-z0-9\-._~+/]{20,}|api[_\-]?key\s*[:=]\s*['"]?[A-Za-z0-9\-_]{16,})""",
         setOf(RegexOption.IGNORE_CASE)
+    )
+
+    private val TRACE_SECRET_FIELD_REGEX = Regex(
+        """(?i)^(?:authorization|proxy-authorization|cookie|set-cookie|password|passwd|secret|token|api[_-]?key)$"""
     )
 
     private val TRACE_SECRET_REGEX = Regex(

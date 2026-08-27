@@ -42,7 +42,7 @@ class AgentTraceManager private constructor() {
         if (builder.steps.size < MAX_STEPS) {
             builder.steps.add(
                 step.copy(
-                    inputParams = step.inputParams.mapValues { (_, value) -> PrivacyGuard.redactForTrace(value) },
+                    inputParams = step.inputParams.mapValues { (key, value) -> PrivacyGuard.redactTraceField(key, value) },
                     outputSummary = PrivacyGuard.redactForTrace(step.outputSummary),
                     error = step.error?.let { PrivacyGuard.redactForTrace(it) },
                 )

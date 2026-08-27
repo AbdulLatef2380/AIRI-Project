@@ -598,24 +598,30 @@ fun AiriApp() {
                     }
 
                     composable(AiriRoute.AGENT_LOGS) {
-                        AgentLogsScreen(
-                            viewModel       = agentViewModel,
-                            onBack          = { navController.popBackStack() },
-                            onTraceSelected = {
-                                navController.navigate(AiriRoute.AGENT_TRACE_DETAIL) { launchSingleTop = true }
-                            }
-                        )
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                            AgentLogsScreen(
+                                viewModel       = agentViewModel,
+                                onBack          = { navController.popBackStack() },
+                                onTraceSelected = {
+                                    navController.navigate(AiriRoute.AGENT_TRACE_DETAIL) { launchSingleTop = true }
+                                }
+                            )
+                        }
                     }
 
                     composable(AiriRoute.AGENT_TRACE_DETAIL) {
-                        AgentTraceDetailScreen(
-                            viewModel = agentViewModel,
-                            onBack    = { navController.popBackStack() }
-                        )
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                            AgentTraceDetailScreen(
+                                viewModel = agentViewModel,
+                                onBack    = { navController.popBackStack() }
+                            )
+                        }
                     }
 
                     composable(AiriRoute.OBSERVABILITY) {
-                        ObservabilityScreen(onBack = { navController.popBackStack() })
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                            ObservabilityScreen(onBack = { navController.popBackStack() })
+                        }
                     }
 
                     composable(AiriRoute.PAYWALL) {
@@ -675,7 +681,9 @@ fun AiriApp() {
                     }
 
                     composable(AiriRoute.DEBUG_PANEL) {
-                        DebugPanelScreen(viewModel = chatViewModel, onBack = { navController.popBackStack() })
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                            DebugPanelScreen(viewModel = chatViewModel, onBack = { navController.popBackStack() })
+                        }
                     }
 
                     // : TemplatesScreen and AppInfoScreen — now reachable
@@ -691,16 +699,22 @@ fun AiriApp() {
                     }
 
                     composable(AiriRoute.DEBUG_SCREEN) {
-                        DebugScreen(onBack = { navController.popBackStack() })
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                            DebugScreen(onBack = { navController.popBackStack() })
+                        }
                     }
 
                     composable(AiriRoute.EXEC_DIAGNOSTICS) {
-                        ExecDiagnosticsScreen(viewModel = chatViewModel, onBack = { navController.popBackStack() })
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                            ExecDiagnosticsScreen(viewModel = chatViewModel, onBack = { navController.popBackStack() })
+                        }
                     }
                     composable(AiriRoute.SANDBOX_WORKSPACE) {
-                        com.airi.assistant.ui.screens.SandboxWorkspaceScreen(
-                            onBack = { navController.popBackStack() }
-                        )
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                            com.airi.assistant.ui.screens.SandboxWorkspaceScreen(
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
                     }
                     composable(AiriRoute.WORKSPACE) {
                         com.airi.assistant.ui.screens.WorkspaceScreen(
@@ -713,14 +727,18 @@ fun AiriApp() {
                         )
                     }
                     composable(AiriRoute.TERMINAL) {
-                        com.airi.assistant.ui.screens.TerminalScreen(
-                            onBack = { navController.popBackStack() }
-                        )
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                            com.airi.assistant.ui.screens.TerminalScreen(
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
                     }
                     composable(AiriRoute.DEVELOPER_CENTER) {
-                        com.airi.assistant.ui.screens.DeveloperCenterScreen(
-                            onBack = { navController.popBackStack() }
-                        )
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                            com.airi.assistant.ui.screens.DeveloperCenterScreen(
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
                     }
 
                     composable(
@@ -752,16 +770,20 @@ fun AiriApp() {
 
                     // ── Security Scanner ────────────────────────────
                     composable(AiriRoute.SECURITY_SCANNER) {
-                        SecurityScannerScreen(
-                            onBack = { navController.popBackStack() }
-                        )
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                            SecurityScannerScreen(
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
                     }
 
                     // ── Secret Manager ──────────────────────────────
                     composable(AiriRoute.SECRET_MANAGER) {
-                        SecretManagerScreen(
-                            onBack = { navController.popBackStack() }
-                        )
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                            SecretManagerScreen(
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
                     }
                 }
             }
@@ -809,5 +831,17 @@ fun AiriApp() {
                 }
             )
         }
+    }
+}
+
+@Composable
+private fun InternalSurfaceRoute(
+    onBack: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    if (ReleaseScopePolicy.internalSurfacesEnabled) {
+        content()
+    } else {
+        FeatureFreezeUnavailableScreen(onBack = onBack)
     }
 }

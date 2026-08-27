@@ -44,6 +44,7 @@ import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.system.LanguageOption
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.domain.monetization.PaywallTriggerEngine
+import com.airi.assistant.domain.release.ReleaseScopePolicy
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.components.PremiumBadge
 import com.airi.assistant.ui.theme.CosmicAccent
@@ -259,11 +260,10 @@ fun SettingsScreen(
                     onClick  = { onNavigate(AiriRoute.ZAPIER_IFTTT) }
                 )
             }
-            // These tools were previously unreachable from any UI path.
-            // Now exposed here so developers and power users can access
-            // the terminal, workspace, sandbox, diagnostics, and agent
-            // observability tools that already exist in the project.
-            SettingsGroup {
+            // Internal tooling is visible only in development builds. Release
+            // routing independently fails closed for direct deep links.
+            if (ReleaseScopePolicy.internalSurfacesEnabled) {
+                SettingsGroup {
                 SettingsNavItem(
                     icon     = Icons.Outlined.Terminal,
                     iconTint = Color(0xFF80CBC4),
@@ -335,6 +335,7 @@ fun SettingsScreen(
                     label    = "Security Scanner",
                     onClick  = { onNavigate(AiriRoute.SECURITY_SCANNER) }
                 )
+                }
             }
 
             // : About AIRI — was unreachable; SETTINGS_ABOUT route now has a caller.

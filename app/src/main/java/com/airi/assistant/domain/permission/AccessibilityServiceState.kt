@@ -1,6 +1,5 @@
 package com.airi.assistant.domain.permission
 
-import android.content.ComponentName
 import android.content.Context
 import android.provider.Settings
 
@@ -18,7 +17,7 @@ object AccessibilityServiceState {
         enabledServices
             ?.split(':')
             ?.any { component ->
-                ComponentName.unflattenFromString(component)?.packageName == packageName
+                component.substringBefore('/').equals(packageName, ignoreCase = true)
             }
             ?: false
 }

@@ -2030,7 +2030,7 @@ fun ChatMessageList(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             row.forEach { (labelRes, promptRes) ->
                                 Surface(
-                                    onClick = { onSuggestionClick(context.getString(promptRes)) },
+                                    onClick = { onSuggestionClick(stringResource(promptRes)) },
                                     modifier = Modifier.weight(1f),
                                     shape = AIRIShapes.md,
                                     color = SurfaceRaised,

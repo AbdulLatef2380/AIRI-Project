@@ -40,3 +40,8 @@
 أُغلقت دفعة هوية أحداث التنفيذ في commit `06115624fac5954ca9919ff4368392fada88c99b` بعد نجاح Android CI `33070581767` وDeep Audit `33070581782` وOracle `33070581804` وArchitecture Audit `33070581824`. عالجت الدفعة fail-closed execution event ownership في `ExecutionStatusBus`، وربطت `AdaptiveGraphEngine` بهوية graph ثابتة من admission إلى completion/cancellation/recovery، وأضافت regression tests. حدث فشل أولي في Android CI على commit `0ccf5175` بسبب استدعاء Android Log من JVM test؛ أُصلح الاختبار دون حذف التغطية، ثم نجح CI المعاد. التفاصيل في `AIRI_M3_AI_EXECUTION_REPORT.md`.
 
 العناصر التالية المفتوحة ضمن M3 هي cancellation الشبكي العميق، منع retry/fallback بعد الإلغاء، وضمان terminal event idempotency.
+
+
+## متطلب محوري مضاف — Agent Planning & Execution Trace
+
+المستند `AGENT_TRACE_IMPLEMENTATION_REGISTER.md` هو سجل التنفيذ الملزم لنظام تخطيط الوكيل وتتبع التنفيذ الحي. يغطي structured planning، execution identity، safe reasoning summaries، tool tracing، stream bounded، شجرة التقدم، سجل حي في Chat، cancellation، persistence الملائم، وربط local/cloud/tools. هذا المسار يعالج 09 و23 و27B مباشرةً، ويدعم الأدلة المطلوبة للبنود 07 و08 و11 و12 و19 و24 و25. لا يعيد بناء AIRI أو يضيف transport شبكياً غير مطلوب؛ كل تعديل يوسع الطبقات الحالية ويخضع لبوابات source/test/CI/runtime المحددة في السجل.

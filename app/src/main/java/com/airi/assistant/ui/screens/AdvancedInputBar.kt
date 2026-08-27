@@ -51,12 +51,13 @@ import com.airi.assistant.ui.viewmodel.ModelUiState
 fun AdvancedChatInputBar(
     modelState:             ModelUiState,
     isGenerating:           Boolean,
+    isDispatchingAttachment: Boolean = false,
     voiceInput:             String,
     voicePartial:           String                  = "",
     voiceState:             VoiceSessionState       = VoiceSessionState.IDLE,
     isVadInterrupting:      Boolean                 = false,
     smartReplies:           List<String>            = emptyList(),
-    onSend:                 (String) -> Unit,
+    onSend:                 (String, () -> Unit) -> Unit,
     onCancel:               () -> Unit              = {},
     onSmartReply:           (String) -> Unit        = {},
     onPickImage:            () -> Unit              = {},
@@ -116,6 +117,7 @@ fun AdvancedChatInputBar(
         AiriChatInputBar(
             modelState              = modelState,
             isGenerating            = isGenerating,
+            isDispatchingAttachment = isDispatchingAttachment,
             voiceInput              = voiceInput,
             voicePartial            = voicePartial,
             voiceState              = voiceState,

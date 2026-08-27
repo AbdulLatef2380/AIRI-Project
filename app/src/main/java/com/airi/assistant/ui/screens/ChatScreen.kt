@@ -78,6 +78,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.AgentMode
+import com.airi.assistant.ui.viewmodel.AttachmentDispatchFailure
 import com.airi.assistant.ui.viewmodel.ChatInputSuggestion
 import com.airi.assistant.ui.viewmodel.ChatMessage
 import com.airi.assistant.ui.viewmodel.ChatViewModel
@@ -156,6 +157,7 @@ fun ChatScreen(
     val modelState    by viewModel.modelState.collectAsState()
     val agentMode     by viewModel.agentMode.collectAsState()
     val smartReplies  by viewModel.smartReplies.collectAsState()
+    val attachmentDispatchInFlight by viewModel.attachmentDispatchInFlight.collectAsState()
     val dailyCreditsRemaining  by viewModel.dailyCreditsRemaining.collectAsState()
     // : real-time network state — drives offline banner
     val isOnline      by viewModel.isOnline.collectAsState()
@@ -739,16 +741,32 @@ fun ChatScreen(
                 AdvancedChatInputBar(
                     modelState    = modelState,
                     isGenerating  = agentState.isWorking,
+                    isDispatchingAttachment = attachmentDispatchInFlight,
                     voiceInput    = voiceInput,
                     voicePartial  = partialVoiceInput,
                     smartReplies  = smartReplies,
-                    onSend        = { text ->
+                    onSend        = { text, onAccepted ->
                         val toSend = pendingAttachments
                         if (toSend.isNotEmpty()) {
-                            viewModel.sendMessageWithAttachments(text, toSend)
-                            pendingAttachments = emptyList()
-                        } else {
-                            viewModel.sendMessage(text)
+                            viewModel.sendMessageWithAttachments(
+                                input = text,
+                                attachments = toSend,
+                                onAccepted = {
+                                    pendingAttachments = emptyList()
+                                    onAccepted()
+                                },
+                                onRejected = { failure ->
+                                    val messageRes = when (failure) {
+                                        AttachmentDispatchFailure.MODEL_LOADING -> R.string.attachment_model_loading
+                                        AttachmentDispatchFailure.GENERATION_IN_PROGRESS -> R.string.attachment_generation_in_progress
+                                        AttachmentDispatchFailure.VISION_UNAVAILABLE -> R.string.attachment_vision_unavailable
+                                        AttachmentDispatchFailure.STAGING_FAILED -> R.string.attachment_staging_failed
+                                    }
+                                    scope.launch { snackbarHost.showSnackbar(context.getString(messageRes)) }
+                                },
+                            )
+                        } else if (viewModel.sendMessage(text)) {
+                            onAccepted()
                         }
                     },
                     onCancel      = { viewModel.cancelGeneration() },
@@ -2472,7 +2490,8 @@ fun AiStreamingBubble(text: String) {
 @Composable
 private fun AttachmentChip(
     attachment: com.airi.assistant.domain.ChatAttachment,
-    onRemove: () -> Unit
+    isRemovalEnabled: Boolean = true,
+    onRemove: () -> Unit,
 ) {
     val accent = CosmicAccent
     val typeLabel = when (attachment.contentType) {
@@ -2515,8 +2534,17 @@ private fun AttachmentChip(
             Text(attachment.safeDisplayName, color = AiriTheme.onBackground, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(subtitle, color = AiriTheme.onBackground.copy(0.55f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
-            Icon(Icons.Default.Close, contentDescription = null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp))
+        IconButton(
+            onClick = onRemove,
+            enabled = isRemovalEnabled,
+            modifier = Modifier.size(28.dp),
+        ) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = null,
+                tint = AiriTheme.onBackground.copy(if (isRemovalEnabled) 0.7f else 0.3f),
+                modifier = Modifier.size(16.dp),
+            )
         }
     }
 }
@@ -2539,12 +2567,13 @@ private fun BlinkingCursor() {
 fun AiriChatInputBar(
     modelState: ModelUiState,
     isGenerating: Boolean,
+    isDispatchingAttachment: Boolean = false,
     voiceInput: String,
     voicePartial: String = "",
     voiceState: VoiceSessionState = VoiceSessionState.IDLE,
     isVadInterrupting: Boolean = false,
     smartReplies: List<String> = emptyList(),
-    onSend: (String) -> Unit,
+    onSend: (String, () -> Unit) -> Unit,
     onCancel: () -> Unit = {},
     onSmartReply: (String) -> Unit = {},
     onPickImage: () -> Unit = {},
@@ -2579,7 +2608,8 @@ fun AiriChatInputBar(
     var text by rememberSaveable { mutableStateOf("") }
     var isExpanded by remember { mutableStateOf(false) }
     val isInferenceReady = modelState.isModelReady || modelState.isCloudReady
-    val canSend = text.isNotBlank() && isInferenceReady && !modelState.isModelLoading && !isGenerating
+    val isInteractionLocked = isGenerating || isDispatchingAttachment
+    val canSend = text.isNotBlank() && isInferenceReady && !modelState.isModelLoading && !isInteractionLocked
     val isTyping = text.isNotBlank()
     val shortcutInput = text.trimStart()
     val showingSkillShortcuts = shortcutInput.startsWith("/")
@@ -2605,7 +2635,7 @@ fun AiriChatInputBar(
             onExternalInputConsumed()
         }
     }
-    val showSend = isTyping || isGenerating
+    val showSend = isTyping || isInteractionLocked
 
     val micPulse = remember { androidx.compose.animation.core.Animatable(1f) }
     LaunchedEffect(voiceState) {
@@ -2796,7 +2826,8 @@ fun AiriChatInputBar(
                     items(attachments, key = { it.uid }) { attachment ->
                         AttachmentChip(
                             attachment = attachment,
-                            onRemove   = { onRemoveAttachment(attachment.uid) }
+                            isRemovalEnabled = !isDispatchingAttachment,
+                            onRemove   = { onRemoveAttachment(attachment.uid) },
                         )
                     }
                 }
@@ -2904,7 +2935,7 @@ fun AiriChatInputBar(
                             }
                         }
                     },
-                    enabled = isInferenceReady && !isGenerating,
+                    enabled = isInferenceReady && !isInteractionLocked,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 32.dp, max = if (isExpanded) 180.dp else 60.dp)
@@ -2924,6 +2955,7 @@ fun AiriChatInputBar(
                                 Text(
                                     text = when {
                                         isGenerating              -> stringResource(R.string.generating)
+                                        isDispatchingAttachment   -> stringResource(R.string.attachment_preparing)
                                         modelState.isModelLoading -> stringResource(R.string.model_is_loading)
                                         else                      -> stringResource(R.string.chat_assign_task_hint)
                                     },
@@ -2946,6 +2978,7 @@ fun AiriChatInputBar(
                 val mainScale = if (!showSend && voiceState != VoiceSessionState.IDLE) micPulse.value else 1f
                 val mainActionDescription = when {
                     isGenerating -> stringResource(R.string.cd_cancel_generation)
+                    isDispatchingAttachment -> stringResource(R.string.attachment_preparing)
                     showSend -> stringResource(R.string.cd_send_message)
                     else -> stringResource(R.string.cd_start_voice_chat)
                 }
@@ -2963,6 +2996,7 @@ fun AiriChatInputBar(
                         .clip(CircleShape)
                         .background(when {
                             isGenerating -> Color(0xFFFF6B6B)
+                            isDispatchingAttachment -> CosmicAccent
                             isInferenceReady || showSend -> CosmicAccent
                             else -> CosmicAccent.copy(0.30f)
                         })
@@ -2970,10 +3004,11 @@ fun AiriChatInputBar(
                             contentDescription = mainActionDescription
                             role = Role.Button
                         }
-                        .clickable(enabled = isInferenceReady || isGenerating) {
+                        .clickable(enabled = isInferenceReady || isInteractionLocked) {
                             when {
                                 isGenerating -> onCancel()
-                                showSend && canSend -> { onSend(text); text = "" }
+                                isDispatchingAttachment -> Unit
+                                showSend && canSend -> onSend(text) { text = "" }
                                 !showSend -> onVoiceChatClick()
                             }
                         },
@@ -2982,6 +3017,7 @@ fun AiriChatInputBar(
                     AnimatedContent(
                         targetState = when {
                             isGenerating -> "stop"
+                            isDispatchingAttachment -> "preparing"
                             showSend     -> "send"
                             else         -> "live"
                         },
@@ -2993,6 +3029,11 @@ fun AiriChatInputBar(
                     ) { state ->
                         when (state) {
                             "stop" -> Icon(Icons.Default.Stop, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                            "preparing" -> CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = AiriTheme.onBackground,
+                                strokeWidth = 2.dp,
+                            )
                             "send" -> Icon(Icons.Default.ArrowUpward, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
                             else -> Icon(Icons.Default.GraphicEq, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
                         }
@@ -3009,10 +3050,15 @@ fun AiriChatInputBar(
                             contentDescription = attachmentDescription
                             role = Role.Button
                         }
-                        .clickable(enabled = !isGenerating) { showAttachPopup = true },
+                        .clickable(enabled = !isInteractionLocked) { showAttachPopup = true },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Add, attachmentDescription, tint = AiriTheme.onBackground.copy(if (!isGenerating) 0.7f else 0.3f), modifier = Modifier.size(20.dp))
+                    Icon(
+                        Icons.Default.Add,
+                        attachmentDescription,
+                        tint = AiriTheme.onBackground.copy(if (!isInteractionLocked) 0.7f else 0.3f),
+                        modifier = Modifier.size(20.dp),
+                    )
                 }
 
                 // Mic button

@@ -1426,17 +1426,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // and keeps the token budget manageable.
     private val LONG_TEXT_THRESHOLD = 3000
 
-    fun sendMessage(input: String) {
+    fun sendMessage(input: String): Boolean =
         sendMessageInternal(input, allowLongTextConversion = true)
-    }
 
-    private fun sendMessageInternal(input: String, allowLongTextConversion: Boolean) {
+    private fun sendMessageInternal(input: String, allowLongTextConversion: Boolean): Boolean {
         val directives = parseInputDirectives(input)
         val trimmedInput = directives.userText.trim()
-        if (trimmedInput.isEmpty() || _modelState.value.isModelLoading) return
+        if (trimmedInput.isEmpty() || _modelState.value.isModelLoading) return false
         // The composer stays disabled while an execution owns the stream. This
         // guard also protects programmatic callers from queuing a second request.
-        if (_agentState.value.isWorking) return
+        if (_agentState.value.isWorking) return false
         // ── Long-text-to-file conversion (3000+ chars) ────────────────────────
         // When the user pastes/sends very long text (e.g. code, articles, logs),
         // convert it to a .txt file attachment instead of embedding it inline.
@@ -1467,7 +1466,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     )
                 )
-                return
+                return true
             }
         }
         // ── Intent classification (before any async work) ─────────────────────
@@ -1497,7 +1496,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 refreshPowerLevel()
                 _paywallTrigger.value = true
-                return
+                return false
             }
         }
 
@@ -1525,7 +1524,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _messages.update {
                 it + ChatMessage(appContext.getString(R.string.err_select_model_first), isUser = false)
             }
-            return
+            return false
         }
 
         val generationId = generationSequence.incrementAndGet()
@@ -1934,6 +1933,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 modelController.refreshDiagnosticsSnapshot()
             }
         }
+        return true
     }
 
     // ── Prompt building (delegates to PromptService) ──────────────────────────
@@ -2580,23 +2580,46 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _stagedAttachmentUri = MutableSharedFlow<android.net.Uri>(extraBufferCapacity = 4)
     val stagedAttachmentUri: SharedFlow<android.net.Uri> = _stagedAttachmentUri.asSharedFlow()
 
+    private val _attachmentDispatchInFlight = MutableStateFlow(false)
+    val attachmentDispatchInFlight: StateFlow<Boolean> = _attachmentDispatchInFlight.asStateFlow()
+
     fun sendMessageWithAttachments(
         input: String,
-        attachments: List<com.airi.assistant.domain.ChatAttachment>
+        attachments: List<com.airi.assistant.domain.ChatAttachment>,
+        onAccepted: () -> Unit = {},
+        onRejected: (AttachmentDispatchFailure) -> Unit = {},
     ) {
         if (attachments.isEmpty()) {
             sendMessage(input.trim())
             return
         }
-        if (_modelState.value.isModelLoading) return
+        if (_attachmentDispatchInFlight.value) {
+            onRejected(AttachmentDispatchFailure.GENERATION_IN_PROGRESS)
+            return
+        }
 
+        val visionReady = _modelState.value.capabilities.vision &&
+            runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
+        val preflightFailure = AttachmentDispatchPolicy.preflight(
+            modelLoading = _modelState.value.isModelLoading,
+            generationInProgress = _agentState.value.isWorking,
+            hasVisualImage = attachments.any { it.isVisualImage },
+            visionReady = visionReady,
+        )
+        if (preflightFailure != null) {
+            onRejected(preflightFailure)
+            return
+        }
+
+        _attachmentDispatchInFlight.value = true
         viewModelScope.launch {
+            try {
         // Persist attachment bytes before sending. Only a generated local file
         // name is retained in message metadata; source URIs and absolute paths
         // are intentionally not written to Room.
-        val persistedAttachments = withContext(Dispatchers.IO) {
-            attachments.map { att ->
-            runCatching {
+        val persistedAttachments: List<ChatAttachment> = withContext(Dispatchers.IO) {
+            attachments.mapNotNull { att ->
+            runCatching<ChatAttachment?> {
                 val attachDir = File(appContext.filesDir, "attachments").also { it.mkdirs() }
                 val sourceName = att.fileName ?: "file"
                 val safeName = sourceName
@@ -2617,7 +2640,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                 }
-                if (!destFile.exists() || destFile.length() == 0L) return@runCatching att
+                if (!destFile.exists() || destFile.length() == 0L) {
+                    destFile.delete()
+                    return@runCatching null
+                }
 
                 if (att.isVisualImage) {
                     viewModelScope.launch(Dispatchers.IO) {
@@ -2632,17 +2658,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 att.copy(persistedPath = destFile.absolutePath)
-            }.getOrDefault(att)
+            }.getOrNull()
             }
+        }
+        val stagingFailure = AttachmentDispatchPolicy.afterStaging(
+            allAttachmentsPersisted = persistedAttachments.size == attachments.size,
+        )
+        if (stagingFailure != null) {
+            onRejected(stagingFailure)
+            return@launch
         }
         pendingAttachmentJsonForNextSend = attachmentMetadataJson(persistedAttachments)
         val trimmed = input.trim()
         val textAttachmentContext = withContext(Dispatchers.IO) {
             buildTextAttachmentContext(persistedAttachments, trimmed)
         }
-
-        val visionReady = _modelState.value.capabilities.vision &&
-            runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
 
         // Find the first visual image attachment, if any.
         val primaryImage = persistedAttachments.firstOrNull { it.isVisualImage }
@@ -2657,16 +2687,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         if (primaryImage != null && !visionReady) {
             pendingAttachmentJsonForNextSend = null
-            _messages.update {
-                it + ChatMessage(
-                    "لا يوجد نموذج رؤية جاهز لتحليل الصورة. لم تُرسل الصورة إلى نموذج نصي؛ اختر نموذجاً يدعم الرؤية ثم أعد المحاولة.",
-                    isUser = false
-                )
-            }
+            onRejected(AttachmentDispatchFailure.VISION_UNAVAILABLE)
             return@launch
         }
 
         if (primaryImage != null) {
+            onAccepted()
             val attachmentContext = listOf(
                 extras.joinToString(separator = "\n") { it.toTextMarker() },
                 textAttachmentContext
@@ -2681,8 +2707,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 textAttachmentContext
             ).filter { it.isNotBlank() }.joinToString(separator = "\n\n")
             val fullText = if (trimmed.isBlank()) attachmentContext else "$trimmed\n\n$attachmentContext"
-            sendMessageInternal(fullText, allowLongTextConversion = false)
+            if (sendMessageInternal(fullText, allowLongTextConversion = false)) {
+                onAccepted()
+            } else {
+                pendingAttachmentJsonForNextSend = null
+            }
         }
+            } finally {
+                _attachmentDispatchInFlight.value = false
+            }
         }
     }
 

@@ -1376,4 +1376,9 @@
     <string name="permissions_accessibility_enable_body">打开 Android 设置以启用本地服务。智能体设备操作仍受独立控制。</string>
     <string name="release_scope_unavailable_title">此版本不可用</string>
     <string name="release_scope_unavailable_message">此版本不提供付款、账单历史记录和社区市场功能。未发起任何购买或外部市场连接。</string>
+    <string name="attachment_model_loading">所选模型仍在加载。您的附件已保留；准备就绪后请重试。</string>
+    <string name="attachment_generation_in_progress">请等待当前回复结束。您的附件已保留。</string>
+    <string name="attachment_vision_unavailable">分析此图像需要支持视觉的模型。附件已保留；请选择视觉模型后重试。</string>
+    <string name="attachment_staging_failed">无法准备一个或多个附件。它们已保留，您可以再次尝试。</string>
+    <string name="attachment_preparing">正在准备附件</string>
 </resources>

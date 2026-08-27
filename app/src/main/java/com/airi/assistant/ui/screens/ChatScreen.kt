@@ -172,6 +172,8 @@ fun ChatScreen(
     val pendingSummary        by viewModel.pendingSummary.collectAsState()
     val currentSessionId      by viewModel.currentSessionId.collectAsState()
     val sessions              by viewModel.sessions.collectAsState()
+    val composerDrafts        by viewModel.composerDrafts.collectAsState()
+    val currentComposerDraft = composerDrafts[currentSessionId]
     val currentSession = sessions.firstOrNull { it.id == currentSessionId }
     var skillSuggestions by remember { mutableStateOf<List<ChatInputSuggestion>>(emptyList()) }
     var knowledgeSuggestions by remember { mutableStateOf<List<ChatInputSuggestion>>(emptyList()) }
@@ -528,9 +530,7 @@ fun ChatScreen(
         }
     }
 
-    var pendingAttachments by remember {
-        mutableStateOf<List<com.airi.assistant.domain.ChatAttachment>>(emptyList())
-    }
+    val pendingAttachments = currentComposerDraft?.attachments.orEmpty()
 
     fun addAttachment(att: ChatAttachment) {
         if (pendingAttachments.any { existing ->
@@ -544,7 +544,8 @@ fun ChatScreen(
             return
         }
         when (AttachmentPolicy.validateSize(att.sizeBytes, att.contentType)) {
-            AttachmentPolicy.ValidationResult.Accepted -> pendingAttachments = pendingAttachments + att
+            AttachmentPolicy.ValidationResult.Accepted ->
+                viewModel.updateComposerAttachments(pendingAttachments + att)
             AttachmentPolicy.ValidationResult.TooLarge -> scope.launch {
                 snackbarHost.showSnackbar(context.getString(R.string.attachment_too_large))
             }
@@ -554,7 +555,7 @@ fun ChatScreen(
         }
     }
     fun removeAttachment(id: String) {
-        pendingAttachments = pendingAttachments.filterNot { it.id == id }
+        viewModel.updateComposerAttachments(pendingAttachments.filterNot { it.id == id })
     }
 
     fun stageUriAttachment(uri: Uri, kind: ChatAttachment.Kind, fallbackName: String) {
@@ -593,6 +594,14 @@ fun ChatScreen(
     }
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) cameraLauncher.launch(null)
+    }
+
+    // Converted long prompts arrive from the ViewModel as a URI and must be
+    // staged into the active conversation draft before the original field is cleared.
+    LaunchedEffect(Unit) {
+        viewModel.stagedAttachmentUri.collect { uri ->
+            stageUriAttachment(uri, ChatAttachment.Kind.FILE, "prompt.txt")
+        }
     }
 
     val exportMdLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri: Uri? ->
@@ -752,13 +761,14 @@ fun ChatScreen(
                                 input = text,
                                 attachments = toSend,
                                 onAccepted = {
-                                    pendingAttachments = emptyList()
+                                    viewModel.clearCurrentComposerAttachments()
                                     onAccepted()
                                 },
                                 onRejected = { failure ->
                                     val messageRes = when (failure) {
                                         AttachmentDispatchFailure.MODEL_LOADING -> R.string.attachment_model_loading
                                         AttachmentDispatchFailure.GENERATION_IN_PROGRESS -> R.string.attachment_generation_in_progress
+                                        AttachmentDispatchFailure.SESSION_CHANGED -> R.string.attachment_session_changed
                                         AttachmentDispatchFailure.VISION_UNAVAILABLE -> R.string.attachment_vision_unavailable
                                         AttachmentDispatchFailure.STAGING_FAILED -> R.string.attachment_staging_failed
                                     }
@@ -832,6 +842,8 @@ fun ChatScreen(
                     onNavigate           = onNavigate,
                     // : stage converted file as attachment
                     onStageFile          = { uri -> viewModel.stageAttachmentUri(uri) },
+                    draftText            = currentComposerDraft?.text.orEmpty(),
+                    onDraftTextChanged   = viewModel::updateComposerText,
                     externalInputText    = externalInputText,
                     onExternalInputConsumed = { externalInputText = null },
                     onUserStartedTyping  = {
@@ -866,7 +878,11 @@ fun ChatScreen(
                     },
                     // Pass attachments so they render inside the pill
                     attachments         = pendingAttachments,
-                    onRemoveAttachment  = { uid -> pendingAttachments = pendingAttachments.filterNot { it.id == uid || it.uid == uid } }
+                    onRemoveAttachment  = { uid ->
+                        viewModel.updateComposerAttachments(
+                            pendingAttachments.filterNot { it.id == uid || it.uid == uid }
+                        )
+                    }
                 )
             }
         }
@@ -2588,6 +2604,8 @@ fun AiriChatInputBar(
     onNavigate: (String) -> Unit = {},
     // : called when user converts large prompt to attached file
     onStageFile: (android.net.Uri) -> Unit = {},
+    draftText: String = "",
+    onDraftTextChanged: (String) -> Unit = {},
     // When non-null, pre-fills the text field
     externalInputText: String? = null,
     onExternalInputConsumed: () -> Unit = {},
@@ -2605,7 +2623,7 @@ fun AiriChatInputBar(
     val context          = LocalContext.current
     var showAttachPopup by remember { mutableStateOf(false) }
     val attachSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var text by rememberSaveable { mutableStateOf("") }
+    val text = draftText
     var isExpanded by remember { mutableStateOf(false) }
     val isInferenceReady = modelState.isModelReady || modelState.isCloudReady
     val isInteractionLocked = isGenerating || isDispatchingAttachment
@@ -2631,7 +2649,7 @@ fun AiriChatInputBar(
     LaunchedEffect(externalInputText) {
         val prefill = externalInputText
         if (prefill != null) {
-            text = prefill
+            onDraftTextChanged(prefill)
             onExternalInputConsumed()
         }
     }
@@ -2649,7 +2667,9 @@ fun AiriChatInputBar(
 
     LaunchedEffect(voiceInput) {
         if (voiceInput.isNotBlank()) {
-            text = listOf(text, voiceInput).filter { it.isNotBlank() }.joinToString(" ")
+            onDraftTextChanged(
+                listOf(text, voiceInput).filter { it.isNotBlank() }.joinToString(" ")
+            )
             onVoiceConsumed()
         }
     }
@@ -2698,7 +2718,7 @@ fun AiriChatInputBar(
                         }.getOrNull()
                         if (uri != null) {
                             onStageFile(uri)
-                            text = ""
+                            onDraftTextChanged("")
                             hasDismissedBottomSheet = true
                         }
                     },
@@ -2856,10 +2876,12 @@ fun AiriChatInputBar(
                         ).filterNotNull().joinToString(", ")
                         Surface(
                             onClick = {
-                                text = com.airi.assistant.ui.composer.ComposerDirectivePolicy.applySelection(
-                                    currentText = text,
-                                    directiveId = suggestion.id,
-                                    isKnowledge = suggestion.isKnowledge
+                                onDraftTextChanged(
+                                    com.airi.assistant.ui.composer.ComposerDirectivePolicy.applySelection(
+                                        currentText = text,
+                                        directiveId = suggestion.id,
+                                        isKnowledge = suggestion.isKnowledge,
+                                    )
                                 )
                                 onSkillQueryChanged("")
                                 onKnowledgeQueryChanged("")
@@ -2916,7 +2938,7 @@ fun AiriChatInputBar(
                     value = text,
                     onValueChange = { newValue ->
                         if (text.isEmpty() && newValue.isNotEmpty()) onUserStartedTyping()
-                        text = newValue
+                        onDraftTextChanged(newValue)
                         val query = newValue.trimStart()
                         when {
                             query.startsWith("/skill:") || query.startsWith("@knowledge:") -> {
@@ -3008,7 +3030,7 @@ fun AiriChatInputBar(
                             when {
                                 isGenerating -> onCancel()
                                 isDispatchingAttachment -> Unit
-                                showSend && canSend -> onSend(text) { text = "" }
+                                showSend && canSend -> onSend(text) { onDraftTextChanged("") }
                                 !showSend -> onVoiceChatClick()
                             }
                         },
@@ -3212,7 +3234,13 @@ fun AiriChatInputBar(
                     label = stringResource(R.string.attach_spreadsheet)
                 ) {
                     showAttachPopup = false
-                    text = text + if (text.isBlank()) context.getString(R.string.chat_create_spreadsheet_prefix) else "\n${context.getString(R.string.chat_create_spreadsheet_prefix)}"
+                    onDraftTextChanged(
+                        text + if (text.isBlank()) {
+                            context.getString(R.string.chat_create_spreadsheet_prefix)
+                        } else {
+                            "\n${context.getString(R.string.chat_create_spreadsheet_prefix)}"
+                        }
+                    )
                 }
                 AttachListRow(
                     icon = Icons.Outlined.History,
@@ -3233,7 +3261,13 @@ fun AiriChatInputBar(
                     label = stringResource(R.string.attach_edit_image)
                 ) {
                     showAttachPopup = false
-                    text = text + if (text.isBlank()) context.getString(R.string.chat_edit_image_prefix) else "\n${context.getString(R.string.chat_edit_image_prefix)}"
+                    onDraftTextChanged(
+                        text + if (text.isBlank()) {
+                            context.getString(R.string.chat_edit_image_prefix)
+                        } else {
+                            "\n${context.getString(R.string.chat_edit_image_prefix)}"
+                        }
+                    )
                     onPickImage()
                 }
             }

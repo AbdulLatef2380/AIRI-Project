@@ -1710,6 +1710,7 @@
     <string name="release_scope_unavailable_message">Payments, billing history, and community marketplace features are not available in this release. No purchase or external marketplace connection has been started.</string>
     <string name="attachment_model_loading">The selected model is still loading. Your attachments were kept. Try again when it is ready.</string>
     <string name="attachment_generation_in_progress">Wait for the current response to finish. Your attachments were kept.</string>
+    <string name="attachment_session_changed">The conversation changed while the attachments were being prepared. They were kept in the original conversation; return there and try again.</string>
     <string name="attachment_vision_unavailable">A vision-ready model is required to analyze this image. Your attachment was kept; choose a vision model and try again.</string>
     <string name="attachment_staging_failed">We couldn\'t prepare one or more attachments. They were kept so you can try again.</string>
     <string name="attachment_preparing">Preparing attachments</string>

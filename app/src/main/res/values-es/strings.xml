@@ -1378,6 +1378,7 @@
     <string name="release_scope_unavailable_message">Las funciones de pago, historial de facturación y mercado comunitario no están disponibles en esta versión. No se ha iniciado ninguna compra ni conexión a un mercado externo.</string>
     <string name="attachment_model_loading">El modelo seleccionado aún se está cargando. Tus archivos adjuntos se conservaron. Inténtalo de nuevo cuando esté listo.</string>
     <string name="attachment_generation_in_progress">Espera a que termine la respuesta actual. Tus archivos adjuntos se conservaron.</string>
+    <string name="attachment_session_changed">La conversación cambió mientras se preparaban los archivos adjuntos. Se conservaron en la conversación original; vuelve allí e inténtalo de nuevo.</string>
     <string name="attachment_vision_unavailable">Se necesita un modelo compatible con visión para analizar esta imagen. El archivo adjunto se conservó; elige un modelo de visión e inténtalo de nuevo.</string>
     <string name="attachment_staging_failed">No se pudieron preparar uno o más archivos adjuntos. Se conservaron para que puedas volver a intentarlo.</string>
     <string name="attachment_preparing">Preparando archivos adjuntos</string>

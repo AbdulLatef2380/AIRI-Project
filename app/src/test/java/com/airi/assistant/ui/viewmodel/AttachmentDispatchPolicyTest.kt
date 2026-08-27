@@ -54,6 +54,23 @@ class AttachmentDispatchPolicyTest {
     }
 
     @Test
+    fun stagingIsRejectedWhenTheOwningSessionChanges() {
+        assertEquals(
+            AttachmentDispatchFailure.SESSION_CHANGED,
+            AttachmentDispatchPolicy.sessionOwnership(
+                sessionAtDispatch = "session-a",
+                currentSession = "session-b",
+            ),
+        )
+        assertNull(
+            AttachmentDispatchPolicy.sessionOwnership(
+                sessionAtDispatch = "session-a",
+                currentSession = "session-a",
+            ),
+        )
+    }
+
+    @Test
     fun stagingFailureRemainsVisibleToTheComposer() {
         assertEquals(
             AttachmentDispatchFailure.STAGING_FAILED,

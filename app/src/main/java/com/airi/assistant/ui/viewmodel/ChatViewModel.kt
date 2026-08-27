@@ -734,6 +734,37 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentSessionId = MutableStateFlow("")
     val currentSessionId: StateFlow<String> = _currentSessionId.asStateFlow()
 
+    // Composer input is transient but owned by a durable conversation ID. It is
+    // intentionally not written to Room because picker URIs and camera bitmaps
+    // must not become persisted chat metadata before the user sends them.
+    private val _composerDrafts = MutableStateFlow<Map<String, ChatComposerDraft>>(emptyMap())
+    val composerDrafts: StateFlow<Map<String, ChatComposerDraft>> = _composerDrafts.asStateFlow()
+
+    fun updateComposerText(text: String) {
+        val sessionId = _currentSessionId.value
+        _composerDrafts.update { drafts ->
+            ChatComposerDraftPolicy.replaceText(drafts, sessionId, text)
+        }
+    }
+
+    fun updateComposerAttachments(attachments: List<ChatAttachment>) {
+        val sessionId = _currentSessionId.value
+        _composerDrafts.update { drafts ->
+            ChatComposerDraftPolicy.replaceAttachments(drafts, sessionId, attachments)
+        }
+    }
+
+    fun clearCurrentComposerAttachments() {
+        val sessionId = _currentSessionId.value
+        _composerDrafts.update { drafts ->
+            ChatComposerDraftPolicy.clearAttachments(drafts, sessionId)
+        }
+    }
+
+    private fun removeComposerDraft(sessionId: String) {
+        _composerDrafts.update { drafts -> ChatComposerDraftPolicy.removeSession(drafts, sessionId) }
+    }
+
     private val _agentMode = MutableStateFlow(
         runCatching {
             AgentMode.valueOf(
@@ -1280,6 +1311,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         return try {
             memoryManager.deleteSession(sessionId)
+            removeComposerDraft(sessionId)
             val replacement = memoryManager.createSession()
             _currentSessionId.value = replacement.id
             preferences.edit().putString(KEY_SESSION_ID, replacement.id).apply()
@@ -1330,6 +1362,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteSession(sessionId: String) {
         viewModelScope.launch {
             runCatching { memoryManager.deleteSession(sessionId) }
+            removeComposerDraft(sessionId)
             refreshSessions()
             if (_currentSessionId.value == sessionId) {
                 val next = _sessions.value.firstOrNull()?.id ?: memoryManager.createSession().id
@@ -2611,6 +2644,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        val sessionAtDispatch = _currentSessionId.value
         _attachmentDispatchInFlight.value = true
         viewModelScope.launch {
             try {
@@ -2666,6 +2700,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
         if (stagingFailure != null) {
             onRejected(stagingFailure)
+            return@launch
+        }
+        val ownershipFailure = AttachmentDispatchPolicy.sessionOwnership(
+            sessionAtDispatch = sessionAtDispatch,
+            currentSession = _currentSessionId.value,
+        )
+        if (ownershipFailure != null) {
+            onRejected(ownershipFailure)
             return@launch
         }
         pendingAttachmentJsonForNextSend = attachmentMetadataJson(persistedAttachments)

@@ -1609,6 +1609,7 @@
     <string name="release_scope_unavailable_message">ميزات الدفع وسجل الفوترة ومتجر المجتمع غير متاحة في هذا الإصدار. لم تبدأ أي عملية شراء أو اتصال بمتجر خارجي.</string>
     <string name="attachment_model_loading">لا يزال النموذج المختار قيد التحميل. احتُفظ بمرفقاتك؛ أعد المحاولة عندما يصبح جاهزاً.</string>
     <string name="attachment_generation_in_progress">انتظر حتى تنتهي الاستجابة الحالية. احتُفظ بمرفقاتك.</string>
+    <string name="attachment_session_changed">تغيّرت المحادثة أثناء تجهيز المرفقات. احتُفظ بها في المحادثة الأصلية؛ ارجع إليها ثم أعد المحاولة.</string>
     <string name="attachment_vision_unavailable">يتطلب تحليل هذه الصورة نموذجاً جاهزاً للرؤية. احتُفظ بالمرفق؛ اختر نموذج رؤية ثم أعد المحاولة.</string>
     <string name="attachment_staging_failed">تعذر تجهيز مرفق واحد أو أكثر. احتُفظ بها لكي تتمكن من المحاولة مجدداً.</string>
     <string name="attachment_preparing">جارٍ تجهيز المرفقات</string>

@@ -10,6 +10,7 @@ package com.airi.assistant.ui.viewmodel
 enum class AttachmentDispatchFailure {
     MODEL_LOADING,
     GENERATION_IN_PROGRESS,
+    SESSION_CHANGED,
     VISION_UNAVAILABLE,
     STAGING_FAILED,
 }
@@ -29,4 +30,15 @@ internal object AttachmentDispatchPolicy {
 
     fun afterStaging(allAttachmentsPersisted: Boolean): AttachmentDispatchFailure? =
         if (allAttachmentsPersisted) null else AttachmentDispatchFailure.STAGING_FAILED
+
+    fun sessionOwnership(
+        sessionAtDispatch: String,
+        currentSession: String,
+    ): AttachmentDispatchFailure? = if (
+        sessionAtDispatch.isNotBlank() && sessionAtDispatch != currentSession
+    ) {
+        AttachmentDispatchFailure.SESSION_CHANGED
+    } else {
+        null
+    }
 }

@@ -72,6 +72,8 @@ fun AdvancedChatInputBar(
     onNavigate:             (String) -> Unit        = {},
     // : called when user converts large prompt to attached file
     onStageFile:            (android.net.Uri) -> Unit = {},
+    draftText:              String                  = "",
+    onDraftTextChanged:     (String) -> Unit        = {},
     externalInputText:      String?                 = null,
     onExternalInputConsumed: () -> Unit             = {},
     onUserStartedTyping:    () -> Unit              = {},
@@ -137,6 +139,8 @@ fun AdvancedChatInputBar(
             onOpenModels            = onOpenModels,
             onNavigate              = onNavigate,
             onStageFile             = onStageFile,
+            draftText                = draftText,
+            onDraftTextChanged       = onDraftTextChanged,
             externalInputText       = externalInputText,
             onExternalInputConsumed = onExternalInputConsumed,
             onUserStartedTyping     = onUserStartedTyping,

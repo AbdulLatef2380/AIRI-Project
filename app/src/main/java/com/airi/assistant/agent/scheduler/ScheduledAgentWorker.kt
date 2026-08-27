@@ -58,8 +58,6 @@ class ScheduledAgentWorker(
         const val KEY_OWNER_ID = "owner_id"
         const val KEY_PRIVACY_LEVEL = "privacy_level"
         const val KEY_MANUAL_RUN = "manual_run"
-        private const val MAX_RETRY_ATTEMPTS = 3
-
         private fun Throwable.isTransientFailure(): Boolean =
             this is IOException || this is UnknownHostException || this is SocketTimeoutException
     }
@@ -123,12 +121,24 @@ class ScheduledAgentWorker(
                 LoggingService.info(TAG, "Scheduled job completed id=$jobId")
                 return Result.success()
             }
-            maintenanceResult.exceptionOrNull()?.let { err ->
-                LoggingService.warn(
-                    TAG,
-                    "AIRI SCHEDULED_MAINTENANCE_FAILED id=$jobId error=${err.javaClass.simpleName}"
-                )
-            }
+            val error = maintenanceResult.exceptionOrNull()
+                ?: IllegalStateException("Maintenance task did not produce a result")
+            val outcome = ScheduledWorkerOutcomePolicy.failureOutcome(
+                isTransient = error.isTransientFailure(),
+                runAttemptCount = runAttemptCount,
+            )
+            ScheduledJobOrchestrator(applicationContext).recordRunResult(
+                jobId = jobId,
+                outcome = outcome,
+                completedManualRunRequestId = if (
+                    ScheduledWorkerOutcomePolicy.keepsManualRunActive(outcome)
+                ) null else manualRunRequestId,
+            )
+            LoggingService.warn(
+                TAG,
+                "AIRI SCHEDULED_MAINTENANCE_FAILED id=$jobId outcome=$outcome error=${error.javaClass.simpleName}"
+            )
+            return if (outcome == ScheduledJobOutcome.RETRYING) Result.retry() else Result.failure()
         }
 
         // Agent jobs always use the production orchestrator so every background
@@ -189,17 +199,22 @@ class ScheduledAgentWorker(
                 Result.success()
             },
             onFailure = { error ->
-                val transient = error.isTransientFailure()
-                val canRetry = transient && runAttemptCount < MAX_RETRY_ATTEMPTS
+                val outcome = ScheduledWorkerOutcomePolicy.failureOutcome(
+                    isTransient = error.isTransientFailure(),
+                    runAttemptCount = runAttemptCount,
+                )
+                val canRetry = outcome == ScheduledJobOutcome.RETRYING
                 ScheduledJobOrchestrator(applicationContext).recordRunResult(
                     jobId = jobId,
-                    outcome = if (canRetry) ScheduledJobOutcome.RETRYING else ScheduledJobOutcome.FAILED,
+                    outcome = outcome,
                     durableTaskId = (error as? ScheduledExecutionFailure)?.taskId,
-                    completedManualRunRequestId = manualRunRequestId
+                    completedManualRunRequestId = if (
+                        ScheduledWorkerOutcomePolicy.keepsManualRunActive(outcome)
+                    ) null else manualRunRequestId,
                 )
                 LoggingService.warn(
                     TAG,
-                    "Scheduled job failed id=$jobId transient=$transient attempt=$runAttemptCount error=${error.javaClass.simpleName}"
+                    "Scheduled job failed id=$jobId outcome=$outcome attempt=$runAttemptCount error=${error.javaClass.simpleName}"
                 )
                 EventBus.emitSync(
                     AppEvent.GenericInfo(

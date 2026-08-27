@@ -234,6 +234,7 @@ class HybridOrchestrator(
                 "gen#$genId → ${backend.id} (attempt ${idx + 1}/${allBackends.size})")
 
             var backendSucceeded = false
+            var completionDelivered = false
             val streamStart      = System.currentTimeMillis()
 
             activeBackend_ = backend
@@ -245,7 +246,8 @@ class HybridOrchestrator(
                     }
                 },
                 onComplete = { fullText, latencyMs ->
-                    if (generationGate.accepts(genId)) {
+                    if (generationGate.accepts(genId) && !completionDelivered) {
+                        completionDelivered = true
                         backendSucceeded = true
                         updateDiagnostics { copy(
                             isStreaming          = false,

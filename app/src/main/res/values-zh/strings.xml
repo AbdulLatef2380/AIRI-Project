@@ -1030,6 +1030,8 @@
     <string name="security_scanner_no_results">无结果——点击刷新以扫描。</string>
     <string name="security_scanner_scanning">正在扫描…</string>
     <string name="security_scanner_title">安全扫描器</string>
+    <string name="settings_reset_section_title">恢复默认设置</string>
+    <string name="settings_reset_section_body">将执行、语音、主题和模型偏好恢复为默认设置。不会删除对话历史。</string>
     <string name="settings_reset_all">重置所有设置</string>
     <string name="settings_reset_confirm">重置</string>
     <string name="settings_reset_dialog_body">执行模式、语音设置、主题和已下载的模型路径将被清除。此操作无法撤消。</string>

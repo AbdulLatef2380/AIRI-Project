@@ -39,11 +39,6 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.launch
 
-private const val PREFS_PROFILE    = "airi_profile"
-private const val KEY_DISPLAY_NAME = "display_name"
-private const val KEY_USERNAME     = "username"
-private const val KEY_PHOTO_PATH   = "local_photo_path"
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
@@ -51,8 +46,9 @@ fun ProfileScreen(
     onSignOut: (() -> Unit)? = null
 ) {
     val context     = LocalContext.current
-    val prefs       = remember { context.getSharedPreferences(PREFS_PROFILE, Context.MODE_PRIVATE) }
     val authService = remember { ServiceLocator.authService }
+    val profileRepository = remember { ServiceLocator.userProfileRepository }
+    val profile by profileRepository.profile.collectAsState()
     val fbUser      = authService.currentUser()
     val scope       = rememberCoroutineScope()
     val snackbar    = remember { SnackbarHostState() }
@@ -63,15 +59,15 @@ fun ProfileScreen(
         SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date(it))
     } ?: "—"
 
-    var displayName by remember {
-        mutableStateOf(prefs.getString(KEY_DISPLAY_NAME, fbUser?.displayName.orEmpty()).orEmpty())
+    var displayName by remember(profile.displayName, fbUser?.displayName) {
+        mutableStateOf(profile.displayName.ifBlank { fbUser?.displayName.orEmpty() })
     }
-    var username by remember {
-        mutableStateOf(prefs.getString(KEY_USERNAME, "").orEmpty())
+    var username by remember(profile.username) {
+        mutableStateOf(profile.username)
     }
-    // Local photo URI — persisted to private cache across sessions
-    var localPhotoPath by remember {
-        mutableStateOf(prefs.getString(KEY_PHOTO_PATH, null))
+    // Local photo path is profile-owned and persisted by UserProfileRepository.
+    var localPhotoPath by remember(profile.localPhotoPath) {
+        mutableStateOf(profile.localPhotoPath.ifBlank { null })
     }
 
     var isSaving          by remember { mutableStateOf(false) }
@@ -88,7 +84,7 @@ fun ProfileScreen(
                 val cached = cachePhotoLocally(context, uri)
                 if (cached != null) {
                     localPhotoPath = cached
-                    prefs.edit().putString(KEY_PHOTO_PATH, cached).apply()
+                    profileRepository.update { copy(localPhotoPath = cached) }
                     snackbar.showSnackbar(context.getString(R.string.profile_photo_saved))
                 }
             }
@@ -164,10 +160,9 @@ fun ProfileScreen(
 
     fun saveProfile() {
         isSaving = true
-        prefs.edit()
-            .putString(KEY_DISPLAY_NAME, displayName.trim())
-            .putString(KEY_USERNAME,     username.trim())
-            .apply()
+        profileRepository.update {
+            copy(displayName = displayName.trim(), username = username.trim())
+        }
         fbUser?.updateProfile(userProfileChangeRequest { displayName = displayName.trim() })
             ?.addOnCompleteListener { task ->
                 isSaving = false
@@ -286,7 +281,7 @@ fun ProfileScreen(
                             showPhotoMenu = false
                             localPhotoPath?.let { File(it).delete() }
                             localPhotoPath = null
-                            prefs.edit().remove(KEY_PHOTO_PATH).apply()
+                            profileRepository.update { copy(localPhotoPath = "") }
                             scope.launch { snackbar.showSnackbar(context.getString(R.string.profile_photo_removed)) }
                         }
                     )

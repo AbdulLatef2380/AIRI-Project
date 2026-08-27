@@ -20,8 +20,10 @@ data class UserPreferences(
 
     // ── Identity ──────────────────────────────────────────────────────────
     val displayName:          String  = "",
+    val username:             String  = "",
     val avatarUrl:            String  = "",
-    val preferredLanguage:    String  = "en",
+    val localPhotoPath:       String  = "",
+    val preferredLanguage:    String  = "ar",
 
     // ── Personality / AI persona ──────────────────────────────────────────
     val airiPersonaName:      String  = "AIRI",

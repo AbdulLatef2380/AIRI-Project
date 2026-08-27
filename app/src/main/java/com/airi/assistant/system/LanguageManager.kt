@@ -25,13 +25,13 @@ object LanguageManager {
 
     fun getCurrentLanguage(context: Context): String {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_LANGUAGE, LANGUAGE_ENGLISH)
-            ?.takeIf { code -> supportedLanguages.any { it.code == code } }
-            ?: LANGUAGE_ENGLISH
+            .getString(KEY_LANGUAGE, LanguageSelectionPolicy.DEFAULT_LANGUAGE)
+            ?.let(LanguageSelectionPolicy::sanitize)
+            ?: LanguageSelectionPolicy.DEFAULT_LANGUAGE
     }
 
     fun saveLanguage(context: Context, languageCode: String) {
-        val safeCode = languageCode.takeIf { code -> supportedLanguages.any { it.code == code } } ?: LANGUAGE_ENGLISH
+        val safeCode = LanguageSelectionPolicy.sanitize(languageCode)
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_LANGUAGE, safeCode)
@@ -80,7 +80,9 @@ object LanguageManager {
     }
 
     fun getLanguageOption(languageCode: String): LanguageOption {
-        return supportedLanguages.firstOrNull { it.code == languageCode } ?: supportedLanguages.first()
+        val safeCode = LanguageSelectionPolicy.sanitize(languageCode)
+        return supportedLanguages.firstOrNull { it.code == safeCode }
+            ?: supportedLanguages.first { it.code == LANGUAGE_ARABIC }
     }
 }
 

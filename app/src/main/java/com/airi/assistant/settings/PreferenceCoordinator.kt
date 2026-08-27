@@ -7,6 +7,8 @@ import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.PrivacyLevel
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.voice.VoicePreferencesStore
+import com.airi.assistant.ui.theme.ThemeMode
+import com.airi.assistant.ui.theme.ThemePreferences
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -120,8 +122,11 @@ class PreferenceCoordinator(
     // ── Theme preferences ─────────────────────────────────────────────────────
 
     var darkMode: String
-        get() = themePrefs.getString(KEY_DARK_MODE, "SYSTEM") ?: "SYSTEM"
-        set(value) { themePrefs.edit().putString(KEY_DARK_MODE, value).apply() }
+        get() = ThemePreferences.get(context).themeMode.value.name
+        set(value) {
+            val mode = runCatching { ThemeMode.valueOf(value) }.getOrDefault(ThemeMode.SYSTEM)
+            ThemePreferences.get(context).mode = mode
+        }
 
     var accentColorHex: String
         get() = themePrefs.getString(KEY_ACCENT_COLOR, "#6C63FF") ?: "#6C63FF"
@@ -205,8 +210,8 @@ class PreferenceCoordinator(
             .apply()
 
         // ── Theme prefs ───────────────────────────────────────────────────────
+        ThemePreferences.get(context).mode = ThemeMode.SYSTEM
         themePrefs.edit()
-            .putString(KEY_DARK_MODE,    "SYSTEM")
             .putString(KEY_ACCENT_COLOR, "#6C63FF")
             .apply()
 

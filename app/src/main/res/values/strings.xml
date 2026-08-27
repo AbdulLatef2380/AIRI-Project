@@ -1314,6 +1314,8 @@
     <string name="git_repo_error">Could not load repositories</string>
     <string name="git_repo_retry">Retry</string>
     <!-- GeneralSettingsScreen -->
+    <string name="settings_reset_section_title">Reset to Defaults</string>
+    <string name="settings_reset_section_body">Reset execution, voice, theme, and model preferences to factory defaults. Conversation history is not deleted.</string>
     <string name="settings_reset_all">Reset All Settings</string>
     <string name="settings_reset_dialog_title">Reset All Settings?</string>
     <string name="settings_reset_dialog_body">Execution mode, voice settings, theme, and downloaded model paths will be cleared. This cannot be undone.</string>

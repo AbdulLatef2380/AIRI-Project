@@ -11,6 +11,7 @@ import com.airi.assistant.memory.entity.ChatMessage
 import com.airi.assistant.memory.repository.MemoryManager
 import com.airi.assistant.profile.UserPreferences
 import com.airi.assistant.profile.UserProfileRepository
+import com.airi.assistant.system.LanguageSelectionPolicy
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -438,6 +439,7 @@ class CloudSyncCoordinator(
 
     private fun prefsToDocument(p: UserPreferences): Map<String, Any?> = mapOf(
         "displayName"           to p.displayName,
+        "username"              to p.username,
         "avatarUrl"             to p.avatarUrl,
         "preferredLanguage"     to p.preferredLanguage,
         "airiPersonaName"       to p.airiPersonaName,
@@ -467,8 +469,11 @@ class CloudSyncCoordinator(
 
         return base.copy(
             displayName              = str("displayName", base.displayName),
+            username                 = str("username", base.username),
             avatarUrl                = str("avatarUrl", base.avatarUrl),
-            preferredLanguage        = str("preferredLanguage", base.preferredLanguage),
+            preferredLanguage        = LanguageSelectionPolicy.sanitize(
+                str("preferredLanguage", base.preferredLanguage)
+            ),
             airiPersonaName          = str("airiPersonaName", base.airiPersonaName),
             airiPersonaTone          = runCatching { UserPreferences.Tone.valueOf(str("airiPersonaTone", base.airiPersonaTone.name)) }.getOrDefault(base.airiPersonaTone),
             airiResponseLength       = runCatching { UserPreferences.Length.valueOf(str("airiResponseLength", base.airiResponseLength.name)) }.getOrDefault(base.airiResponseLength),

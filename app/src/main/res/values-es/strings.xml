@@ -1030,6 +1030,8 @@
     <string name="security_scanner_no_results">Sin resultados — toca actualizar para escanear.</string>
     <string name="security_scanner_scanning">Escaneando…</string>
     <string name="security_scanner_title">Escáner de seguridad</string>
+    <string name="settings_reset_section_title">Restablecer valores predeterminados</string>
+    <string name="settings_reset_section_body">Restablece la ejecución, la voz, el tema y las preferencias de modelos a sus valores predeterminados. El historial de conversaciones no se elimina.</string>
     <string name="settings_reset_all">Restablecer todos los ajustes</string>
     <string name="settings_reset_confirm">Restablecer</string>
     <string name="settings_reset_dialog_body">Se borrarán el modo de ejecución, los ajustes de voz, el tema y las rutas de modelos descargados. Esta acción no se puede deshacer.</string>

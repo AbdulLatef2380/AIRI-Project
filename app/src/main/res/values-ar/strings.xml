@@ -1250,6 +1250,8 @@
     <string name="security_scanner_title">فاحص الأمان</string>
 
     <!-- Settings Reset -->
+    <string name="settings_reset_section_title">إعادة التعيين إلى الإعدادات الافتراضية</string>
+    <string name="settings_reset_section_body">إعادة وضع التنفيذ والصوت والسمة وإعدادات النماذج إلى الإعدادات الافتراضية. لن يُحذف سجل المحادثات.</string>
     <string name="settings_reset_all">إعادة تعيين كل الإعدادات</string>
     <string name="settings_reset_confirm">إعادة التعيين</string>
     <string name="settings_reset_dialog_body">سيتم مسح وضع التنفيذ وإعدادات الصوت والسمة ومسارات النماذج المنزّلة. لا يمكن التراجع عن هذا.</string>

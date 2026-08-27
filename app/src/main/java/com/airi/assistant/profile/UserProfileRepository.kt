@@ -80,6 +80,7 @@ class UserProfileRepository(private val context: Context) {
             val local = _profile.value
             val merged = local.copy(
                 displayName          = remote.displayName.ifBlank { local.displayName },
+                username             = remote.username.ifBlank { local.username },
                 avatarUrl            = remote.avatarUrl.ifBlank { local.avatarUrl },
                 airiPersonaName      = remote.airiPersonaName.ifBlank { local.airiPersonaName },
                 airiPersonaTone      = remote.airiPersonaTone,

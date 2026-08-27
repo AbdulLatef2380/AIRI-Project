@@ -122,12 +122,11 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
             SettingsSurface {
                 SettingsCategoryHeader(
                     icon  = Icons.Outlined.RestartAlt,
-                    title = "Reset to Defaults"
+                    title = stringResource(R.string.settings_reset_section_title)
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Resets all execution, voice, theme, and model preferences to factory defaults. " +
-                    "Conversation history is not deleted.",
+                    stringResource(R.string.settings_reset_section_body),
                     fontSize = 12.sp,
                     color    = AiriTheme.onSurfaceVariant.copy(0.7f),
                     lineHeight = 17.sp

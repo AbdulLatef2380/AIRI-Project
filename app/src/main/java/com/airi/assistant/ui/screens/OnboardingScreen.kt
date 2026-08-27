@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.domain.growth.OnboardingManager
+import com.airi.assistant.domain.permission.AccessibilityServiceState
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -229,12 +230,12 @@ fun OnboardingScreen(
 @Composable
 private fun AccessibilityPermissionCard(context: android.content.Context) {
     val isEnabled = remember {
-        mutableStateOf(isAccessibilityEnabled(context))
+        mutableStateOf(AccessibilityServiceState.isEnabled(context))
     }
 
     // Refresh on recompose (user may return from Settings)
     LaunchedEffect(Unit) {
-        isEnabled.value = isAccessibilityEnabled(context)
+        isEnabled.value = AccessibilityServiceState.isEnabled(context)
     }
 
     PermissionCard(
@@ -376,14 +377,6 @@ private fun SocialProofStrip() {
         Text(stringResource(R.string.onboarding_tagline), color = AiriTheme.onBackground.copy(alpha = 0.76f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
-
-private fun isAccessibilityEnabled(context: android.content.Context): Boolean = runCatching {
-    val enabledServices = Settings.Secure.getString(
-        context.contentResolver,
-        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-    ) ?: return@runCatching false
-    enabledServices.contains(context.packageName, ignoreCase = true)
-}.getOrDefault(false)
 
 private data class OnboardingPage(
     val icon:          ImageVector,

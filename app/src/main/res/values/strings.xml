@@ -1000,6 +1000,43 @@
     <string name="permissions_title">Permissions</string>
     <string name="permissions_special_badge">Special</string>
     <string name="permissions_why_needed">Why AIRI needs this</string>
+    <string name="permissions_summary_count">%1$d/%2$d</string>
+    <string name="permissions_summary_all_enabled">All required permissions are enabled</string>
+    <string name="permissions_summary_some_enabled">%1$d of %2$d required permissions enabled</string>
+    <string name="permissions_summary_description">AIRI requests each permission only for the capability described below. Permissions are never granted automatically.</string>
+    <string name="permissions_status_granted">Granted</string>
+    <string name="permissions_status_not_granted">Not granted</string>
+    <string name="permissions_status_not_required">Not required on this Android version</string>
+    <string name="permissions_status_enabled">Enabled</string>
+    <string name="permissions_group_voice">Voice</string>
+    <string name="permissions_group_notifications">Notifications</string>
+    <string name="permissions_group_camera">Camera</string>
+    <string name="permissions_group_calendar">Calendar</string>
+    <string name="permissions_group_contacts">Contacts</string>
+    <string name="permissions_group_storage">Storage</string>
+    <string name="permissions_group_accessibility">Accessibility</string>
+    <string name="permissions_microphone_label">Microphone</string>
+    <string name="permissions_microphone_rationale">Required for user-started speech recognition, voice commands, and configured wake-word detection.</string>
+    <string name="permissions_microphone_why_needed">Without this permission, AIRI cannot capture your voice. It is used only after you start a voice action.</string>
+    <string name="permissions_notifications_label">Notifications</string>
+    <string name="permissions_notifications_rationale">Shows alerts for scheduled-task results and other notifications you choose to enable.</string>
+    <string name="permissions_notifications_why_needed">On Android 13 and later, notifications require your permission. Earlier Android versions do not request it at runtime.</string>
+    <string name="permissions_camera_label">Camera</string>
+    <string name="permissions_camera_rationale">Lets you take a photo to attach to a chat for a request you initiate.</string>
+    <string name="permissions_camera_why_needed">The camera is used only when you choose the camera attachment action in chat.</string>
+    <string name="permissions_read_calendar_label">Read calendar</string>
+    <string name="permissions_read_calendar_rationale">Lets AIRI read calendar entries when you explicitly ask it to use your schedule.</string>
+    <string name="permissions_read_calendar_why_needed">Calendar access is requested only for a calendar task you start and remains subject to the task approval flow.</string>
+    <string name="permissions_write_calendar_label">Write calendar</string>
+    <string name="permissions_write_calendar_rationale">Lets AIRI propose and create a calendar event only after your explicit approval.</string>
+    <string name="permissions_write_calendar_why_needed">Creating an event remains a user-approved action. AIRI does not write calendar entries silently.</string>
+    <string name="permissions_contacts_label">Contacts</string>
+    <string name="permissions_contacts_rationale">Lets AIRI look up a contact when you ask it to use contact information.</string>
+    <string name="permissions_contacts_why_needed">Contact access is used only for a user-requested contact task.</string>
+    <string name="permissions_storage_label">Read storage</string>
+    <string name="permissions_storage_rationale">Lets AIRI read a model or document that you choose from shared storage.</string>
+    <string name="permissions_storage_why_needed">This runtime permission applies only on Android 12 and earlier when loading a file from shared storage.</string>
+    <string name="permissions_accessibility_label">Accessibility service</string>
 
     <!-- Privacy &amp; Data settings screen -->
 

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -38,6 +39,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.airi.assistant.auth.identity.BiometricGatekeeper
+import com.airi.assistant.domain.permission.AccessibilityServiceState
+import com.airi.assistant.domain.permission.PermissionDisplayPolicy
 import com.airi.assistant.ui.theme.*
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
@@ -52,8 +55,9 @@ data class PermissionInfo(
     val rationale:    String,
     val whyNeeded:    String,
     val group:        String,
-    val isDangerous:  Boolean = true,
-    val isSpecial:    Boolean = false   // e.g. Accessibility, Notification Policy
+    val requiredOnDevice: Boolean = true,
+    val includedInSummary: Boolean = true,
+    val isSpecial:    Boolean = false
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,118 +67,114 @@ fun PermissionsScreen(onBack: () -> Unit) {
     val accessibilityRationale = stringResource(R.string.permissions_accessibility_rationale)
     val accessibilityWhyNeeded = stringResource(R.string.permissions_accessibility_why_needed)
 
-    val allPermissions = remember {
-        listOf(
+    val allPermissions = listOf(
             PermissionInfo(
                 permission  = Manifest.permission.RECORD_AUDIO,
-                label       = "Microphone",
+                label       = stringResource(R.string.permissions_microphone_label),
                 icon        = Icons.Outlined.Mic,
                 iconTint    = Color(0xFF4CAF50),
-                rationale   = "Required for voice commands, speech-to-text (Vosk), and wake-word detection (\"Hey AIRI\").",
-                whyNeeded   = "Without this, AIRI cannot hear you. Voice input, live conversation, and hotword detection all depend on it.",
-                group       = "Voice",
-                isDangerous = true
+                rationale   = stringResource(R.string.permissions_microphone_rationale),
+                whyNeeded   = stringResource(R.string.permissions_microphone_why_needed),
+                group       = stringResource(R.string.permissions_group_voice)
             ),
             PermissionInfo(
                 permission  = Manifest.permission.POST_NOTIFICATIONS,
-                label       = "Notifications",
+                label       = stringResource(R.string.permissions_notifications_label),
                 icon        = Icons.Outlined.Notifications,
                 iconTint    = Color(0xFF7B8DFF),
-                rationale   = "Send alerts when scheduled tasks complete, agents finish work, or usage limits are approaching.",
-                whyNeeded   = "AIRI runs tasks in the background. Without this you won't know when they finish.",
-                group       = "Notifications",
-                isDangerous = true
+                rationale   = stringResource(R.string.permissions_notifications_rationale),
+                whyNeeded   = stringResource(R.string.permissions_notifications_why_needed),
+                group       = stringResource(R.string.permissions_group_notifications),
+                requiredOnDevice = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
             ),
             PermissionInfo(
                 permission  = Manifest.permission.CAMERA,
-                label       = "Camera",
+                label       = stringResource(R.string.permissions_camera_label),
                 icon        = Icons.Outlined.CameraAlt,
                 iconTint    = Color(0xFFFF9800),
-                rationale   = "Take photos to send to AIRI for visual analysis and vision-based queries.",
-                whyNeeded   = "Only used when you tap the camera button in chat. AIRI never accesses your camera automatically.",
-                group       = "Camera",
-                isDangerous = true
+                rationale   = stringResource(R.string.permissions_camera_rationale),
+                whyNeeded   = stringResource(R.string.permissions_camera_why_needed),
+                group       = stringResource(R.string.permissions_group_camera),
             ),
             PermissionInfo(
                 permission  = Manifest.permission.READ_CALENDAR,
-                label       = "Read Calendar",
+                label       = stringResource(R.string.permissions_read_calendar_label),
                 icon        = Icons.Outlined.CalendarMonth,
                 iconTint    = Color(0xFF00BCD4),
-                rationale   = "Allow AIRI to read your schedule to help plan tasks and answer \"what's on my calendar today?\"",
-                whyNeeded   = "Used by the CalendarTool and ProductivityAgent. No calendar data is sent to the cloud.",
-                group       = "Calendar",
-                isDangerous = true
+                rationale   = stringResource(R.string.permissions_read_calendar_rationale),
+                whyNeeded   = stringResource(R.string.permissions_read_calendar_why_needed),
+                group       = stringResource(R.string.permissions_group_calendar),
             ),
             PermissionInfo(
                 permission  = Manifest.permission.WRITE_CALENDAR,
-                label       = "Write Calendar",
+                label       = stringResource(R.string.permissions_write_calendar_label),
                 icon        = Icons.Outlined.EditCalendar,
                 iconTint    = Color(0xFF00BCD4),
-                rationale   = "Allow AIRI to create calendar events when you ask it to schedule something.",
-                whyNeeded   = "Only triggered when you explicitly ask AIRI to add an event. No silent writes.",
-                group       = "Calendar",
-                isDangerous = true
+                rationale   = stringResource(R.string.permissions_write_calendar_rationale),
+                whyNeeded   = stringResource(R.string.permissions_write_calendar_why_needed),
+                group       = stringResource(R.string.permissions_group_calendar),
             ),
             PermissionInfo(
                 permission  = Manifest.permission.READ_CONTACTS,
-                label       = "Contacts",
+                label       = stringResource(R.string.permissions_contacts_label),
                 icon        = Icons.Outlined.Contacts,
                 iconTint    = Color(0xFF9C27B0),
-                rationale   = "Look up contact names and details when you ask AIRI to message or call someone.",
-                whyNeeded   = "The ContactsConnector uses this. Contact data stays on-device and is never synced.",
-                group       = "Contacts",
-                isDangerous = true
+                rationale   = stringResource(R.string.permissions_contacts_rationale),
+                whyNeeded   = stringResource(R.string.permissions_contacts_why_needed),
+                group       = stringResource(R.string.permissions_group_contacts),
             ),
             PermissionInfo(
                 permission  = Manifest.permission.READ_EXTERNAL_STORAGE,
-                label       = "Read Storage",
+                label       = stringResource(R.string.permissions_storage_label),
                 icon        = Icons.Outlined.FolderOpen,
                 iconTint    = Color(0xFFFF5722),
-                rationale   = "Read local AI model files and user documents you share with AIRI.",
-                whyNeeded   = "Required on Android 12 and below for loading GGUF model files from external storage.",
-                group       = "Storage",
-                isDangerous = true
+                rationale   = stringResource(R.string.permissions_storage_rationale),
+                whyNeeded   = stringResource(R.string.permissions_storage_why_needed),
+                group       = stringResource(R.string.permissions_group_storage),
+                requiredOnDevice = Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2
             ),
         )
-    }
 
-    // Special permissions (non-standard — checked differently)
-    val specialPermissions = remember {
-        listOf(
+    // Service state is not a runtime permission; Android tracks it separately.
+    val specialPermissions = listOf(
             PermissionInfo(
                 permission  = "android.permission.BIND_ACCESSIBILITY_SERVICE",
-                label       = "Accessibility Service",
+                label       = stringResource(R.string.permissions_accessibility_label),
                 icon        = Icons.Outlined.Accessibility,
                 iconTint    = Color(0xFF00E5FF),
                 rationale   = accessibilityRationale,
                 whyNeeded   = accessibilityWhyNeeded,
-                group       = "Automation",
-                isSpecial   = true
-            ),
-            PermissionInfo(
-                permission  = "android.permission.FOREGROUND_SERVICE_MICROPHONE",
-                label       = "Foreground Mic Service",
-                icon        = Icons.Outlined.Mic,
-                iconTint    = Color(0xFF4CAF50),
-                rationale   = "Keeps the voice session alive when AIRI is in the background.",
-                whyNeeded   = "LiveVoiceService requires this to maintain audio focus during barge-in mode.",
-                group       = "Voice",
+                group       = stringResource(R.string.permissions_group_accessibility),
+                includedInSummary = false,
                 isSpecial   = true
             )
         )
-    }
 
     // Check grant status for each regular permission
     fun isGranted(perm: String): Boolean =
         ContextCompat.checkSelfPermission(context, perm) == PackageManager.PERMISSION_GRANTED
 
-    val groups = (allPermissions + specialPermissions).groupBy { it.group }
+    fun statusFor(permission: PermissionInfo): PermissionDisplayPolicy.Status =
+        if (permission.isSpecial) {
+            PermissionDisplayPolicy.status(
+                requiredOnDevice = true,
+                granted = AccessibilityServiceState.isEnabled(context)
+            )
+        } else {
+            PermissionDisplayPolicy.status(
+                requiredOnDevice = permission.requiredOnDevice,
+                granted = isGranted(permission.permission)
+            )
+        }
+
+    val allPermissionItems = allPermissions + specialPermissions
+    val groups = allPermissionItems.groupBy { it.group }
 
     var expandedGroups by remember { mutableStateOf(groups.keys.toSet()) }
 
-    // Summary counts
-    val grantedCount  = allPermissions.count { isGranted(it.permission) }
-    val totalCount    = allPermissions.size
+    val summaryStatuses = allPermissions.map(::statusFor)
+    val grantedCount = PermissionDisplayPolicy.grantedRequiredCount(summaryStatuses)
+    val totalCount = PermissionDisplayPolicy.requiredCount(summaryStatuses)
 
     Scaffold(
         topBar = {
@@ -226,20 +226,24 @@ fun PermissionsScreen(onBack: () -> Unit) {
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                "$grantedCount/$totalCount",
+                                stringResource(R.string.permissions_summary_count, grantedCount, totalCount),
                                 fontSize = 13.sp, fontWeight = FontWeight.Bold,
                                 color = if (grantedCount == totalCount) SemanticSuccess else CosmicAccent
                             )
                         }
                         Column {
                             Text(
-                                if (grantedCount == totalCount) "All permissions granted"
-                                else "$grantedCount of $totalCount permissions granted",
+                                stringResource(
+                                    if (grantedCount == totalCount) R.string.permissions_summary_all_enabled
+                                    else R.string.permissions_summary_some_enabled,
+                                    grantedCount,
+                                    totalCount
+                                ),
                                 fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
                                 color = AiriTheme.onBackground
                             )
                             Text(
-                                "AIRI requests only what it needs. No permission is used silently.",
+                                stringResource(R.string.permissions_summary_description),
                                 fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 16.sp
                             )
                         }
@@ -288,14 +292,18 @@ fun PermissionsScreen(onBack: () -> Unit) {
                                     groupName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                                     color = AiriTheme.onBackground, modifier = Modifier.weight(1f)
                                 )
-                                val groupGranted = perms.count { p ->
-                                    if (p.isSpecial) false else isGranted(p.permission)
+                                val groupStatuses = perms
+                                    .filter { it.includedInSummary }
+                                    .map(::statusFor)
+                                val groupGranted = PermissionDisplayPolicy.grantedRequiredCount(groupStatuses)
+                                val groupTotal = PermissionDisplayPolicy.requiredCount(groupStatuses)
+                                if (groupStatuses.isNotEmpty()) {
+                                    Text(
+                                        stringResource(R.string.permissions_summary_count, groupGranted, groupTotal),
+                                        fontSize = 12.sp, color = AiriTheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    )
                                 }
-                                Text(
-                                    "$groupGranted/${perms.filter { !it.isSpecial }.size}",
-                                    fontSize = 12.sp, color = AiriTheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(end = 8.dp)
-                                )
                                 Icon(
                                     if (groupName in expandedGroups) Icons.Filled.ExpandLess
                                     else Icons.Filled.ExpandMore,
@@ -318,8 +326,8 @@ fun PermissionsScreen(onBack: () -> Unit) {
                                             )
                                         }
                                         PermissionRow(
-                                            perm      = perm,
-                                            isGranted = if (perm.isSpecial) false else isGranted(perm.permission)
+                                            perm = perm,
+                                            status = statusFor(perm)
                                         )
                                     }
                                 }
@@ -335,7 +343,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun PermissionRow(perm: PermissionInfo, isGranted: Boolean) {
+private fun PermissionRow(perm: PermissionInfo, status: PermissionDisplayPolicy.Status) {
     var showRationale by remember { mutableStateOf(false) }
 
     Column(
@@ -364,7 +372,7 @@ private fun PermissionRow(perm: PermissionInfo, isGranted: Boolean) {
                 // It is not a blanket authorization for AgentLoop device actions.
                 val ctx = LocalContext.current
                 val scope = rememberCoroutineScope()
-                if (perm.permission == "android.permission.BIND_ACCESSIBILITY_SERVICE") {
+                if (perm.permission == "android.permission.BIND_ACCESSIBILITY_SERVICE" && status != PermissionDisplayPolicy.Status.GRANTED) {
                     Surface(
                         shape = AIRIShapes.xs,
                         color = CosmicAccent.copy(0.12f),
@@ -398,18 +406,30 @@ private fun PermissionRow(perm: PermissionInfo, isGranted: Boolean) {
                 } else {
                     Surface(
                         shape = AIRIShapes.xs,
-                        color = SemanticWarn.copy(0.12f),
-                        modifier = Modifier.border(0.5.dp, SemanticWarn.copy(0.3f), AIRIShapes.xs)
+                        color = SemanticSuccess.copy(0.12f),
+                        modifier = Modifier.border(0.5.dp, SemanticSuccess.copy(0.3f), AIRIShapes.xs)
                     ) {
-                        Text(stringResource(R.string.permissions_special_badge), fontSize = 10.sp, color = SemanticWarn,
+                        Text(stringResource(R.string.permissions_status_enabled), fontSize = 10.sp, color = SemanticSuccess,
                             fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
                     }
                 }
             } else {
                 Icon(
-                    if (isGranted) Icons.Filled.CheckCircle else Icons.Filled.Error,
-                    contentDescription = if (isGranted) "Granted" else "Not granted",
-                    tint = if (isGranted) SemanticSuccess else SemanticError.copy(alpha = 0.7f),
+                    imageVector = when (status) {
+                        PermissionDisplayPolicy.Status.GRANTED -> Icons.Filled.CheckCircle
+                        PermissionDisplayPolicy.Status.NOT_GRANTED -> Icons.Filled.Error
+                        PermissionDisplayPolicy.Status.NOT_REQUIRED -> Icons.Outlined.Info
+                    },
+                    contentDescription = stringResource(
+                        if (status == PermissionDisplayPolicy.Status.GRANTED) R.string.permissions_status_granted
+                        else if (status == PermissionDisplayPolicy.Status.NOT_REQUIRED) R.string.permissions_status_not_required
+                        else R.string.permissions_status_not_granted
+                    ),
+                    tint = when (status) {
+                        PermissionDisplayPolicy.Status.GRANTED -> SemanticSuccess
+                        PermissionDisplayPolicy.Status.NOT_GRANTED -> SemanticError.copy(alpha = 0.7f)
+                        PermissionDisplayPolicy.Status.NOT_REQUIRED -> AiriTheme.onSurfaceVariant
+                    },
                     modifier = Modifier.size(20.dp)
                 )
             }

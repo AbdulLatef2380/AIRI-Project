@@ -31,6 +31,7 @@ object GlobalAgentEventDispatcher {
                 ExecutionStage.REFLECTING  -> "Analysing results…" to ActivitySeverity.INFO
                 ExecutionStage.COMPLETED   -> "Execution completed " to ActivitySeverity.INFO
                 ExecutionStage.FAILED      -> "Execution failed — ${state.currentAction.take(60)}" to ActivitySeverity.ERROR
+                ExecutionStage.CANCELLED   -> "Execution cancelled" to ActivitySeverity.WARN
                 ExecutionStage.IDLE        -> return@onEach
             }
             AgentActivityBus.emit(msg, ActivityCategory.ORCHESTRATION, sev)

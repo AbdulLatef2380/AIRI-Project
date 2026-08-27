@@ -651,6 +651,13 @@
     <string name="downloading_model">正在下载…</string>
     <string name="model_not_supported_device">此设备不支持</string>
     <string name="voice_system_section">语音系统</string>
+    <string name="voice_status_wake_word">唤醒词</string>
+    <string name="voice_status_speech_recognition">语音识别</string>
+    <string name="voice_status_voice_activity_detection">语音活动检测</string>
+    <string name="voice_status_live_duplex">实时语音双工</string>
+    <string name="voice_status_ready">可用</string>
+    <string name="voice_status_unavailable">不可用</string>
+    <string name="vosk_download_failed_generic">无法下载语音模型。请检查网络连接后重试。</string>
     <string name="installed_models_section">已安装模型</string>
     <string name="vosk_active_badge">活跃</string>
     <string name="vosk_activate_button">激活</string>

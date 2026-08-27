@@ -276,35 +276,6 @@ object VoskModelManager {
      * @param customId  override id (used when downloading a custom URL)
      * @param expectedSha256  optional override; pass null to use [Preset.sha256]
      */
-    /**
-     * P0-V1 companion: trigger an automatic download of the small-EN model
-     * when no model is installed AND no bundled asset was found.
-     *
-     * Called from [VoiceSettingsScreen] on first open. Shows a progress dialog.
-     * This is the safety net for release builds that don't bundle the 40MB asset.
-     *
-     * Flow:
-     *   1. [init] tries bundled asset → sets installed if found
-     *   2. If still empty, [VoiceSettingsScreen] calls this method
-     *   3. Downloads vosk-model-small-en-us-0.15 in background
-     *   4. Activates the model when complete
-     *
-     * @return true if download was triggered (model was absent), false if model already present
-     */
-    suspend fun triggerFirstRunDownloadIfNeeded(
-        context: Context,
-        onProgress: (Int) -> Unit = {}
-    ): Boolean {
-        if (_installed.value.isNotEmpty()) return false   // already have a model
-
-        Log.i(TAG, "AIRI VOSK_FIRST_RUN_DOWNLOAD no bundled asset found — downloading small model")
-        val preset = PRESETS.firstOrNull { it.id.contains("small-en") }
-            ?: return false   // no preset available
-
-        val result = downloadAndInstall(context, preset, onProgress = onProgress)
-        return result is DownloadResult.Ok
-    }
-
     suspend fun downloadAndInstall(
         context: Context,
         preset: Preset,

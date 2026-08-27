@@ -1,10 +1,7 @@
 package com.airi.assistant.ui.screens
 
-import android.content.ComponentName
-import android.content.Intent
-import android.content.ServiceConnection
-import android.os.IBinder
-import com.airi.assistant.voice.LiveVoiceService
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -36,11 +33,8 @@ import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.voice.OpenWakeWordEngine
 import com.airi.assistant.voice.PorcupineEngine
+import com.airi.assistant.voice.VoiceCapabilityPolicy
 import com.airi.assistant.voice.VoskModelManager
-import com.airi.assistant.voice.realtime.GeminiLiveProvider
-import com.airi.assistant.voice.realtime.OpenAIRealtimeProvider
-import com.airi.assistant.execution.security.SecureApiKeyStore
-import com.airi.assistant.execution.CloudProvider
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,22 +48,10 @@ fun VoiceSettingsScreen(
     val scope    = rememberCoroutineScope()
 
     var downloadProgress by remember { mutableStateOf<Int?>(null) }
-    var downloadError    by remember { mutableStateOf<String?>(null) }
+    var downloadFailed by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         VoskModelManager.refreshInstalled(context)
-        if (VoskModelManager.installed.value.isEmpty()) {
-            scope.launch {
-                val triggered = VoskModelManager.triggerFirstRunDownloadIfNeeded(
-                    context,
-                    onProgress = { pct -> downloadProgress = pct }
-                )
-                if (triggered) {
-                    downloadProgress = null
-                    snackbar.showSnackbar("Voice model downloaded and activated")
-                }
-            }
-        }
     }
 
     val installed by VoskModelManager.installed.collectAsState()
@@ -122,7 +104,7 @@ fun VoiceSettingsScreen(
                     Icon(Icons.Outlined.Tune, null, tint = CosmicAccent, modifier = Modifier.size(22.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Voice Personalization",
+                            stringResource(R.string.voice_personalization_title),
                             fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                             color = AiriTheme.onBackground
                         )
@@ -137,8 +119,9 @@ fun VoiceSettingsScreen(
             }
             VoiceStatusCard(
                 porcupineStatus = porcupineStatus,
-                owwStatus       = owwStatus,
-                voskReady       = VoskModelManager.isReady(context)
+                owwStatus = owwStatus,
+                voskReady = VoskModelManager.isReady(context),
+                microphoneGranted = context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
             )
             if (installed.isEmpty()) {
                 Surface(
@@ -165,8 +148,12 @@ fun VoiceSettingsScreen(
                             stringResource(R.string.vosk_download_small_desc),
                             color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 18.sp
                         )
-                        downloadError?.let {
-                            Text(it, color = SemanticError, fontSize = 12.sp)
+                        if (downloadFailed) {
+                            Text(
+                                text = stringResource(R.string.vosk_download_failed_generic),
+                                color = SemanticError,
+                                fontSize = 12.sp
+                            )
                         }
                         if (downloadProgress != null) {
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -184,7 +171,7 @@ fun VoiceSettingsScreen(
                         } else {
                             Button(
                                 onClick = {
-                                    downloadError = null
+                                    downloadFailed = false
                                     scope.launch {
                                         val result = VoskModelManager.downloadAndInstall(
                                             context  = context,
@@ -196,7 +183,7 @@ fun VoiceSettingsScreen(
                                             is VoskModelManager.DownloadResult.Ok ->
                                                 snackbar.showSnackbar(context.getString(R.string.vosk_install_success))
                                             is VoskModelManager.DownloadResult.Failed ->
-                                                downloadError = "Download failed: ${result.reason}"
+                                                downloadFailed = true
                                         }
                                     }
                                 },
@@ -235,11 +222,6 @@ fun VoiceSettingsScreen(
                 onActivate = { id -> VoskModelManager.setActive(context, id) },
                 onDelete   = { id -> VoskModelManager.delete(context, id) }
             )
-            CloudVoiceCard(
-                context  = context,
-                onSnackbar = { msg -> scope.launch { snackbar.showSnackbar(msg) } }
-            )
-
             Spacer(Modifier.height(32.dp))
         }
     }
@@ -248,14 +230,15 @@ fun VoiceSettingsScreen(
 @Composable
 private fun VoiceStatusCard(
     porcupineStatus: PorcupineEngine.Status,
-    owwStatus:       OpenWakeWordEngine.Status,
-    voskReady:       Boolean
+    owwStatus: OpenWakeWordEngine.Status,
+    voskReady: Boolean,
+    microphoneGranted: Boolean
 ) {
-    val wakeWordReady   = owwStatus.ready || porcupineStatus.ready
-    val sttReady        = voskReady
-    val vadReady        = voskReady
-    val ttsReady        = true
-    val liveReady       = false
+    val capability = VoiceCapabilityPolicy.snapshot(
+        wakeWordConfigured = owwStatus.ready || porcupineStatus.ready,
+        activeSpeechModelReady = voskReady,
+        microphoneGranted = microphoneGranted
+    )
 
     Surface(
         shape    = AIRIShapes.md,
@@ -264,25 +247,24 @@ private fun VoiceStatusCard(
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(stringResource(R.string.voice_system_section), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
-            StatusRow("Wake Word", wakeWordReady)
-            StatusRow("Speech-to-Text", sttReady)
-            StatusRow("Voice Activity Detection", vadReady)
-            StatusRow("Text-to-Speech", ttsReady)
-            StatusRow("Live Duplex", liveReady)
+            StatusRow(R.string.voice_status_wake_word, capability.wakeWordReady)
+            StatusRow(R.string.voice_status_speech_recognition, capability.speechRecognitionReady)
+            StatusRow(R.string.voice_status_voice_activity_detection, capability.voiceActivityDetectionReady)
+            StatusRow(R.string.voice_status_live_duplex, capability.liveDuplexReady)
         }
     }
 }
 
 @Composable
-private fun StatusRow(label: String, isReady: Boolean) {
+private fun StatusRow(@androidx.annotation.StringRes label: Int, isReady: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
+        Text(stringResource(label), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
         Text(
-            if (isReady) "READY" else "NOT READY",
+            stringResource(if (isReady) R.string.voice_status_ready else R.string.voice_status_unavailable),
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = if (isReady) SemanticSuccess else SemanticError
@@ -362,23 +344,6 @@ private fun InstalledModelsCard(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun CloudVoiceCard(
-    context: android.content.Context,
-    onSnackbar: (String) -> Unit
-) {
-    Surface(
-        shape = AIRIShapes.md,
-        color = AiriTheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.voice_cloud_realtime_title), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = AiriTheme.onBackground)
-            Text(stringResource(R.string.voice_cloud_realtime_desc), fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
         }
     }
 }

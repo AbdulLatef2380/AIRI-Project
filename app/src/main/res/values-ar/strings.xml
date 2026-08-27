@@ -784,6 +784,13 @@
 
     <!-- Voice Settings sections -->
     <string name="voice_system_section">نظام الصوت</string>
+    <string name="voice_status_wake_word">كلمة التنبيه</string>
+    <string name="voice_status_speech_recognition">التعرّف على الكلام</string>
+    <string name="voice_status_voice_activity_detection">اكتشاف النشاط الصوتي</string>
+    <string name="voice_status_live_duplex">المحادثة الصوتية الحية</string>
+    <string name="voice_status_ready">جاهز</string>
+    <string name="voice_status_unavailable">غير متاح</string>
+    <string name="vosk_download_failed_generic">تعذّر تنزيل نموذج الصوت. تحقق من الاتصال ثم حاول مرة أخرى.</string>
     <string name="installed_models_section">النماذج المثبتة</string>
     <string name="vosk_active_badge">نشط</string>
     <string name="vosk_activate_button">تفعيل</string>

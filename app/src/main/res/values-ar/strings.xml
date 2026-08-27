@@ -1086,6 +1086,22 @@
     <string name="agent_logs_no_traces">لا توجد تتبعات وكيل بعد</string>
     <string name="login_email_label">البريد الإلكتروني</string>
     <string name="login_password_label">كلمة المرور</string>
+    <string name="continue_with_email">المتابعة بالبريد الإلكتروني</string>
+    <string name="login_hide_password">إخفاء كلمة المرور</string>
+    <string name="login_show_password">إظهار كلمة المرور</string>
+    <string name="login_existing_account">لديك حساب بالفعل؟ سجّل الدخول</string>
+    <string name="login_new_account">ليس لديك حساب؟ أنشئ حسابًا</string>
+    <string name="login_terms_privacy">بالمتابعة، فإنك توافق على شروط الخدمة وسياسة الخصوصية.</string>
+    <string name="login_google_not_configured">تسجيل الدخول عبر Google غير مهيأ في هذا التطبيق. اختر طريقة دخول أخرى أو تواصل مع الدعم.</string>
+    <string name="login_google_cancelled">تم إلغاء تسجيل الدخول عبر Google.</string>
+    <string name="login_google_no_id_token">لم تُعد Google رمز تسجيل الدخول. حاول مرة أخرى.</string>
+    <string name="login_google_exchange_failed">تعذر إكمال تسجيل الدخول عبر Google. تحقق من اتصالك ثم حاول مرة أخرى.</string>
+    <string name="login_github_context_unavailable">لا يمكن فتح تسجيل الدخول عبر GitHub من هذه الشاشة. حاول مرة أخرى من تطبيق AIRI.</string>
+    <string name="login_github_failed">تعذر إكمال تسجيل الدخول عبر GitHub. تحقق من اتصالك ثم حاول مرة أخرى.</string>
+    <string name="login_email_required">أدخل عنوان بريدك الإلكتروني.</string>
+    <string name="login_email_invalid">أدخل عنوان بريد إلكتروني صالحًا.</string>
+    <string name="login_password_too_short">استخدم ستة أحرف على الأقل لكلمة المرور.</string>
+    <string name="login_email_auth_failed">تعذر إكمال تسجيل الدخول بالبريد الإلكتروني. تحقق من بياناتك ثم حاول مرة أخرى.</string>
     <string name="testing_label">جارٍ الاختبار…</string>
 
     <!-- احتياطي عنوان الجلسة (المرحلة الثالثة) -->

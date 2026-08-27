@@ -37,6 +37,7 @@ import com.airi.assistant.R
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.CommonStatusCodes
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.domain.auth.AuthService
 import androidx.compose.ui.res.stringResource
@@ -66,7 +67,7 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var feedback by remember { mutableStateOf<LoginFeedback?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var isSignUp by remember { mutableStateOf(false) }
     var showEmailForm by remember { mutableStateOf(false) }
@@ -89,34 +90,41 @@ fun LoginScreen(
     val googleLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        val cancelled = result.resultCode != Activity.RESULT_OK
         try {
-            val account = task.getResult(ApiException::class.java)
-            val idToken = account?.idToken
-            if (idToken != null) {
+            val account = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                .getResult(ApiException::class.java)
+            val validation = LoginFeedbackPolicy.googleProviderResult(
+                wasCancelled = cancelled,
+                hasIdToken = !account?.idToken.isNullOrBlank(),
+            )
+            if (validation != null) {
+                feedback = validation
+            } else {
                 isLoading = true
-                // Delegate credential exchange to AuthService — no FirebaseAuth in UI.
-                authService.signInWithGoogleCredential(idToken) { error ->
+                authService.signInWithGoogleCredential(requireNotNull(account?.idToken)) { error ->
                     isLoading = false
                     if (error == null) {
                         AnalyticsService.login("google")
                         onGoogleLoginSuccess()
                     } else {
-                        errorMessage = error
+                        feedback = LoginFeedback.GOOGLE_EXCHANGE_FAILED
                     }
                 }
-            } else {
-                errorMessage = "Google sign-in failed: no ID token"
             }
-        } catch (e: ApiException) {
-            errorMessage = "Google sign-in cancelled"
+        } catch (exception: ApiException) {
+            feedback = LoginFeedbackPolicy.googleApiFailure(
+                wasCancelled = cancelled || exception.statusCode == CommonStatusCodes.CANCELED,
+            )
         }
     }
     fun signInWithGitHub() {
-        if (activity == null) { errorMessage = "Cannot open sign-in from this context"; return }
+        if (activity == null) {
+            feedback = LoginFeedback.GITHUB_CONTEXT_UNAVAILABLE
+            return
+        }
         isLoading = true
-        errorMessage = null
-        // Delegate GitHub OAuth to AuthService — no OAuthProvider in UI.
+        feedback = null
         authService.signInWithGitHub(
             activity  = activity,
             onSuccess = {
@@ -124,17 +132,16 @@ fun LoginScreen(
                 AnalyticsService.login("github")
                 onGoogleLoginSuccess()
             },
-            onFailure = { msg ->
+            onFailure = {
                 isLoading = false
-                errorMessage = msg
+                feedback = LoginFeedback.GITHUB_FAILED
             }
         )
     }
-    fun validateInputs(): Boolean = when {
-        email.isBlank()       -> { errorMessage = "Email is required"; false }
-        !email.contains("@") -> { errorMessage = "Enter a valid email address"; false }
-        password.length < 6  -> { errorMessage = "Password must be at least 6 characters"; false }
-        else -> true
+    fun validateInputs(): Boolean {
+        val validation = LoginFeedbackPolicy.emailValidation(email, password)
+        feedback = validation
+        return validation == null
     }
     val bgColor     = Color(0xFF000000)
     val buttonBg    = Color(0xFF1A1A1A)
@@ -170,28 +177,30 @@ fun LoginScreen(
                 color      = AiriTheme.onBackground,
                 textAlign  = TextAlign.Center
             )
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(24.dp))
+            feedback?.let { LoginFeedbackBanner(it) }
+            Spacer(Modifier.height(if (feedback == null) 16.dp else 12.dp))
             LoginButton(
                 onClick  = { signInWithGitHub() },
                 enabled  = !isLoading,
                 bgColor  = buttonBg,
                 iconResId = R.drawable.ic_github,
-                text     = "Continue with GitHub"
+                text     = stringResource(R.string.continue_with_github)
             )
             Spacer(Modifier.height(12.dp))
             LoginButton(
                 onClick = {
-                    errorMessage = null
+                    feedback = null
                     if (googleSignInClient != null) {
                         googleLauncher.launch(googleSignInClient.signInIntent)
                     } else {
-                        errorMessage = "Google Sign-In is not configured for this build"
+                        feedback = LoginFeedback.GOOGLE_NOT_CONFIGURED
                     }
                 },
                 enabled   = !isLoading,
                 bgColor   = buttonBg,
                 iconResId = R.drawable.ic_google,
-                text      = "Continue with Google"
+                text      = stringResource(R.string.continue_with_google)
             )
             Spacer(Modifier.height(24.dp))
             Row(
@@ -214,18 +223,18 @@ fun LoginScreen(
             }
             Spacer(Modifier.height(24.dp))
             LoginButton(
-                onClick   = { showEmailForm = !showEmailForm; errorMessage = null },
+                onClick   = { showEmailForm = !showEmailForm; feedback = null },
                 enabled   = !isLoading,
                 bgColor   = buttonBg,
                 icon      = Icons.Outlined.Email,
-                text      = "Continue with Email"
+                text      = stringResource(R.string.continue_with_email)
             )
             if (showEmailForm) {
                 Spacer(Modifier.height(24.dp))
 
                 OutlinedTextField(
                     value         = email,
-                    onValueChange = { email = it; errorMessage = null },
+                    onValueChange = { email = it; feedback = null },
                     label         = { Text(stringResource(R.string.login_email_label)) },
                     leadingIcon   = {
                         Icon(Icons.Outlined.Email, contentDescription = null,
@@ -241,7 +250,7 @@ fun LoginScreen(
 
                 OutlinedTextField(
                     value         = password,
-                    onValueChange = { password = it; errorMessage = null },
+                    onValueChange = { password = it; feedback = null },
                     label         = { Text(stringResource(R.string.login_password_label)) },
                     leadingIcon   = {
                         Icon(Icons.Outlined.Lock, contentDescription = null,
@@ -252,7 +261,9 @@ fun LoginScreen(
                             Icon(
                                 imageVector = if (passwordVisible) Icons.Outlined.Visibility
                                               else Icons.Outlined.VisibilityOff,
-                                contentDescription = if (passwordVisible) "Hide" else "Show",
+                                contentDescription = stringResource(
+                                    if (passwordVisible) R.string.login_hide_password else R.string.login_show_password
+                                ),
                                 tint = AiriTheme.onSurfaceVariant
                             )
                         }
@@ -265,33 +276,22 @@ fun LoginScreen(
                     colors     = loginFieldColors(accentColor)
                 )
 
-                errorMessage?.let { err ->
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text       = err,
-                        color      = Color(0xFFFF6B6B),
-                        fontSize   = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier   = Modifier.fillMaxWidth()
-                    )
-                }
-
                 Spacer(Modifier.height(20.dp))
 
                 Button(
                     onClick = {
                         if (!validateInputs()) return@Button
                         isLoading = true
-                        errorMessage = null
+                        feedback = null
                         if (isSignUp) {
                             onCreateAccount(email, password) { error ->
                                 isLoading = false
-                                errorMessage = error
+                                feedback = if (error == null) null else LoginFeedback.EMAIL_AUTH_FAILED
                             }
                         } else {
                             onSignIn(email, password) { error ->
                                 isLoading = false
-                                errorMessage = error
+                                feedback = if (error == null) null else LoginFeedback.EMAIL_AUTH_FAILED
                             }
                         }
                     },
@@ -314,7 +314,7 @@ fun LoginScreen(
                         )
                     } else {
                         Text(
-                            text       = if (isSignUp) "Create Account" else "Sign In",
+                            text       = stringResource(if (isSignUp) R.string.create_account else R.string.sign_in),
                             fontWeight = FontWeight.SemiBold,
                             fontSize   = 16.sp
                         )
@@ -323,10 +323,11 @@ fun LoginScreen(
 
                 Spacer(Modifier.height(12.dp))
 
-                TextButton(onClick = { isSignUp = !isSignUp; errorMessage = null }) {
+                TextButton(onClick = { isSignUp = !isSignUp; feedback = null }) {
                     Text(
-                        text       = if (isSignUp) "Already have an account? Sign in"
-                                     else "Don't have an account? Sign up",
+                        text       = stringResource(
+                            if (isSignUp) R.string.login_existing_account else R.string.login_new_account
+                        ),
                         fontSize   = 14.sp,
                         color      = accentColor,
                         fontWeight = FontWeight.Medium
@@ -335,7 +336,7 @@ fun LoginScreen(
             }
             Spacer(Modifier.height(40.dp))
             Text(
-                text      = "By continuing, you agree to our Terms of Service and Privacy Policy",
+                text      = stringResource(R.string.login_terms_privacy),
                 fontSize  = 11.sp,
                 color     = Color(0xFF888888),
                 textAlign = TextAlign.Center,
@@ -343,6 +344,36 @@ fun LoginScreen(
             )
             Spacer(Modifier.height(24.dp))
         }
+    }
+}
+
+@Composable
+private fun LoginFeedbackBanner(feedback: LoginFeedback) {
+    val message = when (feedback) {
+        LoginFeedback.GOOGLE_NOT_CONFIGURED -> stringResource(R.string.login_google_not_configured)
+        LoginFeedback.GOOGLE_CANCELLED -> stringResource(R.string.login_google_cancelled)
+        LoginFeedback.GOOGLE_NO_ID_TOKEN -> stringResource(R.string.login_google_no_id_token)
+        LoginFeedback.GOOGLE_EXCHANGE_FAILED -> stringResource(R.string.login_google_exchange_failed)
+        LoginFeedback.GITHUB_CONTEXT_UNAVAILABLE -> stringResource(R.string.login_github_context_unavailable)
+        LoginFeedback.GITHUB_FAILED -> stringResource(R.string.login_github_failed)
+        LoginFeedback.EMAIL_REQUIRED -> stringResource(R.string.login_email_required)
+        LoginFeedback.EMAIL_INVALID -> stringResource(R.string.login_email_invalid)
+        LoginFeedback.PASSWORD_TOO_SHORT -> stringResource(R.string.login_password_too_short)
+        LoginFeedback.EMAIL_AUTH_FAILED -> stringResource(R.string.login_email_auth_failed)
+    }
+    Surface(
+        color = AiriTheme.error.copy(alpha = 0.14f),
+        contentColor = AiriTheme.onBackground,
+        shape = AIRIShapes.md,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = message,
+            color = AiriTheme.error,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+        )
     }
 }
 

@@ -1145,6 +1145,22 @@
     <!-- Login screen -->
     <string name="login_email_label">Email</string>
     <string name="login_password_label">Password</string>
+    <string name="continue_with_email">Continue with email</string>
+    <string name="login_hide_password">Hide password</string>
+    <string name="login_show_password">Show password</string>
+    <string name="login_existing_account">Already have an account? Sign in</string>
+    <string name="login_new_account">Don\'t have an account? Create one</string>
+    <string name="login_terms_privacy">By continuing, you agree to the Terms of Service and Privacy Policy.</string>
+    <string name="login_google_not_configured">Google sign-in is not configured in this app. Choose another sign-in method or contact support.</string>
+    <string name="login_google_cancelled">Google sign-in was cancelled.</string>
+    <string name="login_google_no_id_token">Google did not return a sign-in token. Try again.</string>
+    <string name="login_google_exchange_failed">Google sign-in could not be completed. Check your connection and try again.</string>
+    <string name="login_github_context_unavailable">GitHub sign-in cannot open from this screen. Try again from the AIRI app.</string>
+    <string name="login_github_failed">GitHub sign-in could not be completed. Check your connection and try again.</string>
+    <string name="login_email_required">Enter your email address.</string>
+    <string name="login_email_invalid">Enter a valid email address.</string>
+    <string name="login_password_too_short">Use at least 6 characters for your password.</string>
+    <string name="login_email_auth_failed">Email sign-in could not be completed. Check your details and try again.</string>
 
     <!-- Testing state -->
     <string name="testing_label">Testing…</string>

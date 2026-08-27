@@ -13,6 +13,17 @@ class PlanGenerator {
         private const val TAG = "PlanGenerator"
     }
 
+    /** Keeps malformed LLM output testable in JVM environments without Android logging. */
+    private fun logValidationWarning(message: String) {
+        runCatching { Log.w(TAG, message) }
+    }
+
+    private fun logParseError(message: String, error: Throwable? = null) {
+        runCatching {
+            if (error == null) Log.e(TAG, message) else Log.e(TAG, message, error)
+        }
+    }
+
     fun createActionPlanFromLLM(llmResponse: String, fallbackDescription: String = "Unknown goal"): ActionPlan {
         val agentGoal = createPlanFromLLM(llmResponse, fallbackDescription)
         return toActionPlan(agentGoal)
@@ -25,11 +36,11 @@ class PlanGenerator {
                 val json = JSONObject(jsonStr)
                 parsePlanFromJSON(json, fallbackDescription)
             } else {
-                Log.w(TAG, "No JSON found in LLM response, creating fallback plan")
+                logValidationWarning("No JSON found in LLM response, creating fallback plan")
                 createFallbackPlan(fallbackDescription)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse LLM plan: ${e.message}", e)
+            logParseError("Failed to parse LLM plan: ${e.message}", e)
             createFallbackPlan(fallbackDescription)
         }
     }
@@ -66,7 +77,7 @@ class PlanGenerator {
         // Wait sequences, enforce max-step caps. No-op when no hints are set.
         val adapted    = reduceComplexity(normalized)
         val admitted   = if (validateSteps(adapted.steps).isValid) adapted else {
-            Log.w(TAG, "DAG plan validation failed; using fallback plan")
+            logValidationWarning("DAG plan validation failed; using fallback plan")
             createFallbackPlan(adapted.description)
         }
         return ActionPlan(
@@ -92,7 +103,7 @@ class PlanGenerator {
 
         val validation = validateSteps(steps)
         if (!validation.isValid) {
-            Log.w(TAG, "Plan rejected before admission: reasons=${validation.errors}")
+            logValidationWarning("Plan rejected before admission: reasons=${validation.errors}")
             return createFallbackPlan(goalDescription)
         }
 
@@ -238,7 +249,7 @@ class PlanGenerator {
                 )
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse step: ${e.message}")
+            logParseError("Failed to parse step: ${e.message}")
             null
         }
     }

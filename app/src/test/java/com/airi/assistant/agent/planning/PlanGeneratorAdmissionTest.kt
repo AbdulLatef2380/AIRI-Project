@@ -12,6 +12,7 @@ class PlanGeneratorAdmissionTest {
     @Test
     fun createDAGPlanFromLLM_fallsBackForInvalidJsonAndEmptyPlan() {
         assertFallback(generator.createDAGPlanFromLLM("not valid JSON", "recover"))
+        assertFallback(generator.createDAGPlanFromLLM("{not-valid-json}", "recover"))
         assertFallback(generator.createDAGPlanFromLLM("{\"goal\":\"recover\",\"steps\":[]}", "recover"))
     }
 

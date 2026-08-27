@@ -2031,11 +2031,12 @@ fun ChatMessageList(
                     suggestions.chunked(2).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             row.forEach { (labelRes, promptRes) ->
+                                val prompt = stringResource(promptRes)
                                 Surface(
-                                    onClick = { onSuggestionClick(stringResource(promptRes)) },
+                                    onClick = { onSuggestionClick(prompt) },
                                     modifier = Modifier.weight(1f),
                                     shape = AIRIShapes.md,
-                                    color = SurfaceRaised,
+                                    color = AiriTheme.surfaceVariant,
                                     border = androidx.compose.foundation.BorderStroke(
                                         0.5.dp, AiriTheme.outline.copy(alpha = 0.50f)
                                     )

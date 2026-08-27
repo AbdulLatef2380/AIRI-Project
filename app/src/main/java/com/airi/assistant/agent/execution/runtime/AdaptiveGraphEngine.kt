@@ -98,6 +98,21 @@ class AdaptiveGraphEngine(
         startNodeId: String? = null,
         context:     SubAgentContext,
         executor:    suspend (GraphNode, SubAgentContext) -> NodeResult
+    ): GraphExecutionResult = execute(plan, nodes, startNodeId, context) { node, nodeContext, _ ->
+        executor(node, nodeContext)
+    }
+
+    /**
+     * Execution-aware overload. New graph executors receive the runtime-owned
+     * [executionId] and must pass it explicitly to tool tracing; no global or UI
+     * state is used to infer ownership.
+     */
+    suspend fun execute(
+        plan:        ActionPlan,
+        nodes:       List<GraphNode>,
+        startNodeId: String? = null,
+        context:     SubAgentContext,
+        executor:    suspend (GraphNode, SubAgentContext, String) -> NodeResult
     ): GraphExecutionResult {
         val resolvedStart = startNodeId ?: nodes.firstOrNull()?.nodeId
             ?: return GraphExecutionResult(success = false, output = "Empty graph", completedNodes = 0)
@@ -141,7 +156,7 @@ class AdaptiveGraphEngine(
     private suspend fun executeFromNode(
         nodeId:   String,
         context:  SubAgentContext,
-        executor: suspend (GraphNode, SubAgentContext) -> NodeResult,
+        executor: suspend (GraphNode, SubAgentContext, String) -> NodeResult,
         plan:     ActionPlan,
         executionId: String,
         depth:    Int = 0
@@ -173,7 +188,7 @@ class AdaptiveGraphEngine(
         } else {
             failedIds.add(nodeId)
             // Self-correction: try to mutate graph and recover
-            val recovered = attemptSelfCorrection(node, result, context, executor, plan)
+            val recovered = attemptSelfCorrection(node, result, context, executor, plan, executionId)
             if (!recovered) {
                 return@coroutineScope GraphExecutionResult(false, result.output, completedIds.size)
             }
@@ -210,7 +225,7 @@ class AdaptiveGraphEngine(
     private suspend fun executeNodeWithRetry(
         node:     GraphNode,
         context:  SubAgentContext,
-        executor: suspend (GraphNode, SubAgentContext) -> NodeResult,
+        executor: suspend (GraphNode, SubAgentContext, String) -> NodeResult,
         plan:     ActionPlan,
         executionId: String,
     ): NodeResult {
@@ -223,7 +238,7 @@ class AdaptiveGraphEngine(
             ExecutionStatusBus.onNodeRunning(nodeId = node.nodeId, nodeLabel = node.label, executionId = executionId)
             val t0 = System.currentTimeMillis()
             lastResult = runCatching {
-                withTimeoutOrNull(node.timeoutMs) { executor(node, context) }
+                withTimeoutOrNull(node.timeoutMs) { executor(node, context, executionId) }
                     ?: NodeResult(node.nodeId, false, "Timeout after ${node.timeoutMs}ms", System.currentTimeMillis() - t0, attempt + 1)
             }.getOrElse { e ->
                 NodeResult(node.nodeId, false, e.message ?: "Exception", System.currentTimeMillis() - t0, attempt + 1)
@@ -249,8 +264,9 @@ class AdaptiveGraphEngine(
         failedNode: GraphNode,
         failResult: NodeResult,
         context:    SubAgentContext,
-        executor:   suspend (GraphNode, SubAgentContext) -> NodeResult,
-        plan:       ActionPlan
+        executor:   suspend (GraphNode, SubAgentContext, String) -> NodeResult,
+        plan:       ActionPlan,
+        executionId: String,
     ): Boolean {
         if (failedNode.maxRetries <= 0) return false
         _engineState.value = EngineState.RECOVERING

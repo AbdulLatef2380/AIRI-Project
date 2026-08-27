@@ -10,7 +10,9 @@ import com.airi.assistant.tools.execution.AlarmTool
 import com.airi.assistant.tools.execution.CalendarTool
 import com.airi.assistant.tools.execution.NotesTool
 import com.airi.assistant.tools.execution.SearchTool
+import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.ui.activity.ActivityCategory
+import com.airi.assistant.ui.activity.ActivityEvent
 import com.airi.assistant.ui.activity.AgentActivityBus
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -49,10 +51,18 @@ class ToolDispatcher(
     suspend fun execute(
         toolName: String,
         args:     Map<String, String>,
-        context:  Context
+        context:  Context,
+        /** Explicit owner supplied by the runtime; never inferred from UI state. */
+        executionId: String? = null,
     ): ToolResult {
         Log.i(TAG, "TOOL_DISPATCH tool=$toolName argCount=${args.size}")
-        AgentActivityBus.emit("Tool: $toolName", ActivityCategory.TOOL)
+        AgentActivityBus.emit(
+            ActivityEvent(
+                message = PrivacyGuard.redactForTrace("Tool dispatched: $toolName"),
+                executionId = executionId?.takeIf { it.isNotBlank() },
+                category = ActivityCategory.TOOL,
+            )
+        )
 
         return when (toolName) {
 

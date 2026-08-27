@@ -36,6 +36,7 @@ object ExecutionStatusBus {
 
     private val _status = MutableStateFlow(AgentState())
     private val traceBuffer = ExecutionTraceBuffer()
+    private val toolTraceLifecycle = ExecutionToolTraceLifecycle()
     private val _trace = MutableStateFlow<List<ExecutionTraceEvent>>(emptyList())
 
     // : Wrap status with FlowPressureMonitor to detect slow collectors.
@@ -65,6 +66,7 @@ object ExecutionStatusBus {
             executionStage        = ExecutionStage.PLANNING
         )
         traceBuffer.begin(executionId)
+        toolTraceLifecycle.begin(executionId)
         appendTrace(executionId, ExecutionTraceKind.PLANNING, "Planning task", goalDescription)
         Log.i(TAG, "EXEC_STATUS_PLANNING goalChars=${goalDescription.length} nodes=$totalNodes")
     }
@@ -107,6 +109,83 @@ object ExecutionStatusBus {
             appendTrace(executionId, ExecutionTraceKind.STEP_COMPLETED, "Step completed", nodeId)
         }
     }
+
+    /**
+     * Adds a tool start event only when it belongs to the active execution and
+     * has a fresh action identity. The dispatcher must pass the execution id it
+     * received from the execution runtime; this method never infers it from UI state.
+     */
+    fun onToolStarted(
+        executionId: String,
+        actionId: String,
+        toolName: String,
+        detail: String? = null,
+    ) {
+        if (!acceptsEvent(_status.value.executionId, executionId) ||
+            !toolTraceLifecycle.admitStart(executionId, actionId)
+        ) {
+            Log.w(TAG, "TRACE_TOOL_START_REJECTED owner=${executionId.take(8)}")
+            return
+        }
+        appendTrace(
+            executionId = executionId,
+            kind = ExecutionTraceKind.TOOL_STARTED,
+            summary = "Running tool: $toolName",
+            detail = detail,
+            actionId = actionId,
+        )
+    }
+
+    /** Adds the single successful terminal event for an owned tool action. */
+    fun onToolCompleted(
+        executionId: String,
+        actionId: String,
+        toolName: String,
+        durationMs: Long,
+        detail: String? = null,
+    ) = onToolTerminal(
+        executionId = executionId,
+        actionId = actionId,
+        toolName = toolName,
+        kind = ExecutionTraceKind.TOOL_COMPLETED,
+        summaryPrefix = "Tool completed",
+        durationMs = durationMs,
+        detail = detail,
+    )
+
+    /** Adds the single failed terminal event for an owned tool action. */
+    fun onToolFailed(
+        executionId: String,
+        actionId: String,
+        toolName: String,
+        durationMs: Long,
+        detail: String? = null,
+    ) = onToolTerminal(
+        executionId = executionId,
+        actionId = actionId,
+        toolName = toolName,
+        kind = ExecutionTraceKind.TOOL_FAILED,
+        summaryPrefix = "Tool failed",
+        durationMs = durationMs,
+        detail = detail,
+    )
+
+    /** Adds the single cancelled terminal event for an owned tool action. */
+    fun onToolCancelled(
+        executionId: String,
+        actionId: String,
+        toolName: String,
+        durationMs: Long,
+        detail: String? = null,
+    ) = onToolTerminal(
+        executionId = executionId,
+        actionId = actionId,
+        toolName = toolName,
+        kind = ExecutionTraceKind.TOOL_CANCELLED,
+        summaryPrefix = "Tool cancelled",
+        durationMs = durationMs,
+        detail = detail,
+    )
 
     /** Signal that a node failed and recovery is in progress. */
     fun onNodeRecovering(
@@ -188,17 +267,46 @@ object ExecutionStatusBus {
         _status.value = AgentState()
     }
 
+    private fun onToolTerminal(
+        executionId: String,
+        actionId: String,
+        toolName: String,
+        kind: ExecutionTraceKind,
+        summaryPrefix: String,
+        durationMs: Long,
+        detail: String?,
+    ) {
+        if (!acceptsEvent(_status.value.executionId, executionId) ||
+            !toolTraceLifecycle.admitTerminal(executionId, actionId)
+        ) {
+            Log.w(TAG, "TRACE_TOOL_TERMINAL_REJECTED owner=${executionId.take(8)}")
+            return
+        }
+        appendTrace(
+            executionId = executionId,
+            kind = kind,
+            summary = "$summaryPrefix: $toolName",
+            detail = detail,
+            actionId = actionId,
+            durationMs = durationMs,
+        )
+    }
+
     private fun appendTrace(
         executionId: String,
         kind: ExecutionTraceKind,
         summary: String,
         detail: String? = null,
+        actionId: String? = null,
+        durationMs: Long? = null,
     ) {
         val event = traceBuffer.append(
             executionId = executionId,
             kind = kind,
             summary = PrivacyGuard.redactForTrace(summary),
             detail = detail?.let { PrivacyGuard.redactForTrace(it) },
+            actionId = actionId,
+            durationMs = durationMs,
         ) ?: return
         _trace.value = traceBuffer.snapshot()
         Log.d(TAG, "TRACE kind=${event.kind} seq=${event.sequence} execution=${event.executionId.take(8)}")

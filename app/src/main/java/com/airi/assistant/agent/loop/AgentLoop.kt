@@ -126,6 +126,7 @@ Do not mix tool_call JSON with prose in the same message.
         val executionId   = UUID.randomUUID().toString()
         var isPlanPublished = false
         var durableExecutionContext: AgentLoopExecutionContext? = null
+        var activeToolTrace: ActiveToolTrace? = null
 
         // If no tools provided, single-pass inference
         if (tools.isEmpty()) {
@@ -227,10 +228,24 @@ Do not mix tool_call JSON with prose in the same message.
                     isPlanPublished = true
                 }
                 val toolStepId = "tool_${stepsUsed}_$toolName"
+                val toolStartedAtMs = System.currentTimeMillis()
                 ExecutionStatusBus.onWaveStarted(
                     nodeIds = listOf(toolStepId),
                     nodeActions = listOf(toolName),
                     executionId = executionId,
+                )
+
+                ExecutionStatusBus.onToolStarted(
+                    executionId = executionId,
+                    actionId = toolStepId,
+                    toolName = toolName,
+                    detail = "Agent step $stepsUsed",
+                )
+                activeToolTrace = ActiveToolTrace(
+                    executionId = executionId,
+                    actionId = toolStepId,
+                    toolName = toolName,
+                    startedAtMs = toolStartedAtMs,
                 )
 
                 // Direct chat retains a fail-closed boundary. The first allowed
@@ -287,10 +302,10 @@ Do not mix tool_call JSON with prose in the same message.
                         if (agentSandbox != null) {
                             agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
                                 ctx.guardTool(toolName)
-                                dispatcher.execute(toolName, toolArgs, appContext)
+                                dispatcher.execute(toolName, toolArgs, appContext, executionId)
                             }
                         } else {
-                            dispatcher.execute(toolName, toolArgs, appContext)
+                            dispatcher.execute(toolName, toolArgs, appContext, executionId)
                         }
                     } catch (e: CancellationException) {
                         throw e
@@ -308,6 +323,25 @@ Do not mix tool_call JSON with prose in the same message.
                     is ToolDispatcher.ToolResult.Error   -> "Error: ${toolResult.message}"
                 }
 
+                val toolDurationMs = System.currentTimeMillis() - toolStartedAtMs
+                when (toolResult) {
+                    is ToolDispatcher.ToolResult.Success -> ExecutionStatusBus.onToolCompleted(
+                        executionId = executionId,
+                        actionId = toolStepId,
+                        toolName = toolName,
+                        durationMs = toolDurationMs,
+                        detail = "Tool returned a result.",
+                    )
+                    is ToolDispatcher.ToolResult.Error -> ExecutionStatusBus.onToolFailed(
+                        executionId = executionId,
+                        actionId = toolStepId,
+                        toolName = toolName,
+                        durationMs = toolDurationMs,
+                        detail = "Tool reported an error.",
+                    )
+                }
+
+                activeToolTrace = null
                 Log.i(TAG, "AIRI TOOL_RESULT tool=$toolName success=${toolResult is ToolDispatcher.ToolResult.Success} len=${resultText.length}")
 
                 ExecutionStatusBus.onNodeCompleted(
@@ -348,6 +382,15 @@ Do not mix tool_call JSON with prose in the same message.
             return LoopResult(summary, stepsUsed, toolsInvoked)
 
         } catch (e: CancellationException) {
+            activeToolTrace?.let { active ->
+                ExecutionStatusBus.onToolCancelled(
+                    executionId = active.executionId,
+                    actionId = active.actionId,
+                    toolName = active.toolName,
+                    durationMs = System.currentTimeMillis() - active.startedAtMs,
+                    detail = "Tool was cancelled.",
+                )
+            }
             ExecutionStatusBus.onGraphCancelled(executionId)
             val last = history.lastOrNull { it is ConversationTurn.Assistant }
                 ?.let { (it as ConversationTurn.Assistant).content } ?: ""
@@ -522,6 +565,13 @@ Do not mix tool_call JSON with prose in the same message.
     }
 
     // ── Conversation model ─────────────────────────────────────────────────────
+
+    private data class ActiveToolTrace(
+        val executionId: String,
+        val actionId: String,
+        val toolName: String,
+        val startedAtMs: Long,
+    )
 
     sealed class ConversationTurn {
         data class User(val content: String) : ConversationTurn()

@@ -30,6 +30,8 @@ class ExecutionTraceBuffer(
         kind: ExecutionTraceKind,
         summary: String,
         detail: String? = null,
+        actionId: String? = null,
+        durationMs: Long? = null,
         timestampMs: Long = System.currentTimeMillis(),
     ): ExecutionTraceEvent? {
         if (executionId.isBlank() || summary.isBlank()) return null
@@ -40,6 +42,8 @@ class ExecutionTraceBuffer(
             kind = kind,
             summary = summary,
             detail = detail,
+            actionId = actionId?.takeIf { it.isNotBlank() },
+            durationMs = durationMs?.coerceAtLeast(0L),
         )
         entries.addLast(event)
         while (entries.size > maxEntries) entries.removeFirst()
@@ -61,12 +65,20 @@ data class ExecutionTraceEvent(
     val kind: ExecutionTraceKind,
     val summary: String,
     val detail: String? = null,
+    /** Stable owner for a single tool action when [kind] is a tool lifecycle event. */
+    val actionId: String? = null,
+    /** Elapsed execution time when a terminal tool event provides it. */
+    val durationMs: Long? = null,
 )
 
 enum class ExecutionTraceKind {
     PLANNING,
     STEP_STARTED,
     STEP_COMPLETED,
+    TOOL_STARTED,
+    TOOL_COMPLETED,
+    TOOL_FAILED,
+    TOOL_CANCELLED,
     RECOVERING,
     REFLECTING,
     COMPLETED,

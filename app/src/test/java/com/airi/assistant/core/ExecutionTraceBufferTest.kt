@@ -30,6 +30,23 @@ class ExecutionTraceBufferTest {
     }
 
     @Test
+    fun append_retainsActionIdentityAndNormalizesNegativeDuration() {
+        val buffer = ExecutionTraceBuffer(maxEntries = 2)
+        buffer.begin("exec-1")
+
+        val event = buffer.append(
+            executionId = "exec-1",
+            kind = ExecutionTraceKind.TOOL_COMPLETED,
+            summary = "Tool completed",
+            actionId = "tool-1",
+            durationMs = -4L,
+        )!!
+
+        assertEquals("tool-1", event.actionId)
+        assertEquals(0L, event.durationMs)
+    }
+
+    @Test
     fun append_evictsOldestEntriesAtBoundedCapacity() {
         val buffer = ExecutionTraceBuffer(maxEntries = 2)
         buffer.begin("exec-1")

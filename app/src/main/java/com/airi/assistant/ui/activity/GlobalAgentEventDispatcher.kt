@@ -53,29 +53,88 @@ object GlobalAgentEventDispatcher {
         }.launchIn(scope)
     }
 
-    private fun mapAppEvent(event: AppEvent): ActivityEvent? = when (event) {
-        is AppEvent.AgentExecutionStarted   -> ActivityEvent(message = "Agent started — ${event.input.take(60)}", category = ActivityCategory.REASONING)
-        is AppEvent.AgentExecutionSuccess   -> ActivityEvent(message = "Agent completed in ${event.durationMs}ms", category = ActivityCategory.REASONING)
-        is AppEvent.AgentExecutionFailed    -> ActivityEvent(message = "Agent failed: ${event.error.take(80)}", category = ActivityCategory.REASONING, severity = ActivitySeverity.ERROR)
-        is AppEvent.AgentExecutionTimeout   -> ActivityEvent(message = "Agent timed out", category = ActivityCategory.REASONING, severity = ActivitySeverity.WARN)
-        is AppEvent.AgentExecutionCancelled -> ActivityEvent(message = "Agent cancelled: ${event.reason}", category = ActivityCategory.REASONING, severity = ActivitySeverity.WARN)
-        is AppEvent.SkillExecutionStarted   -> ActivityEvent(message = "Running skill: ${event.skillName}", category = ActivityCategory.TOOL)
-        is AppEvent.SkillExecutionCompleted -> ActivityEvent(
-            message  = "${if (event.success) "" else ""} Skill ${event.skillName} (${event.durationMs}ms)",
+    internal fun mapAppEvent(event: AppEvent): ActivityEvent? = when (event) {
+        is AppEvent.AgentExecutionStarted -> safeActivity(
+            message = "Agent started — ${event.input}",
+            category = ActivityCategory.REASONING,
+            executionId = event.traceId,
+        )
+        is AppEvent.AgentExecutionSuccess -> safeActivity(
+            message = "Agent completed in ${event.durationMs.coerceAtLeast(0L)}ms",
+            category = ActivityCategory.REASONING,
+            executionId = event.traceId,
+        )
+        is AppEvent.AgentExecutionFailed -> safeActivity(
+            message = "Agent failed: ${event.error}",
+            category = ActivityCategory.REASONING,
+            severity = ActivitySeverity.ERROR,
+            executionId = event.traceId,
+        )
+        is AppEvent.AgentExecutionTimeout -> safeActivity(
+            message = "Agent timed out",
+            category = ActivityCategory.REASONING,
+            severity = ActivitySeverity.WARN,
+            executionId = event.traceId,
+        )
+        is AppEvent.AgentExecutionCancelled -> safeActivity(
+            message = "Agent cancelled: ${event.reason}",
+            category = ActivityCategory.REASONING,
+            severity = ActivitySeverity.WARN,
+            executionId = event.traceId,
+        )
+        is AppEvent.SkillExecutionStarted -> safeActivity(
+            message = "Running skill: ${event.skillName}",
             category = ActivityCategory.TOOL,
-            severity = if (event.success) ActivitySeverity.INFO else ActivitySeverity.WARN)
-        is AppEvent.ToolCallExecuted        -> ActivityEvent(
-            message  = "${if (event.success) "" else ""} Tool: ${event.toolName}",
+        )
+        is AppEvent.SkillExecutionCompleted -> safeActivity(
+            message = "Skill ${event.skillName} (${event.durationMs.coerceAtLeast(0L)}ms)",
             category = ActivityCategory.TOOL,
-            severity = if (event.success) ActivitySeverity.INFO else ActivitySeverity.WARN)
-        is AppEvent.RagContextBuilt         -> ActivityEvent(message = "Retrieved memory (${event.hitsCount} hits, ${event.chars} chars)", category = ActivityCategory.MEMORY)
-        is AppEvent.ModelGovernanceDecision -> ActivityEvent(message = "Routing → ${event.strategy}: ${event.rationale.take(60)}", category = ActivityCategory.ROUTING)
-        is AppEvent.ScheduledJobQueued      -> ActivityEvent(message = "Job queued: ${event.label}", category = ActivityCategory.ORCHESTRATION)
-        is AppEvent.ScheduledJobFired       -> ActivityEvent(message = "Job fired: ${event.jobId}", category = ActivityCategory.ORCHESTRATION)
-        is AppEvent.PolicyChecked           -> if (!event.passed) ActivityEvent(message = "Policy blocked: ${event.rule}", category = ActivityCategory.SYSTEM, severity = ActivitySeverity.WARN) else null
-        is AppEvent.GenericInfo             -> ActivityEvent(message = event.message.take(100), category = ActivityCategory.SYSTEM)
+            severity = if (event.success) ActivitySeverity.INFO else ActivitySeverity.WARN,
+        )
+        is AppEvent.ToolCallExecuted -> safeActivity(
+            message = "Tool: ${event.toolName}",
+            category = ActivityCategory.TOOL,
+            severity = if (event.success) ActivitySeverity.INFO else ActivitySeverity.WARN,
+        )
+        is AppEvent.RagContextBuilt -> safeActivity(
+            message = "Retrieved memory (${event.hitsCount} hits, ${event.chars} chars)",
+            category = ActivityCategory.MEMORY,
+        )
+        is AppEvent.ModelGovernanceDecision -> safeActivity(
+            message = "Routing → ${event.strategy}: ${event.rationale}",
+            category = ActivityCategory.ROUTING,
+        )
+        is AppEvent.ScheduledJobQueued -> safeActivity(
+            message = "Job queued: ${event.label}",
+            category = ActivityCategory.ORCHESTRATION,
+        )
+        is AppEvent.ScheduledJobFired -> safeActivity(
+            message = "Job fired: ${event.jobId}",
+            category = ActivityCategory.ORCHESTRATION,
+        )
+        is AppEvent.PolicyChecked -> if (!event.passed) safeActivity(
+            message = "Policy blocked: ${event.rule}",
+            category = ActivityCategory.SYSTEM,
+            severity = ActivitySeverity.WARN,
+        ) else null
+        is AppEvent.GenericInfo -> safeActivity(
+            message = event.message,
+            category = ActivityCategory.SYSTEM,
+        )
         else -> null
     }
+
+    private fun safeActivity(
+        message: String,
+        category: ActivityCategory,
+        severity: ActivitySeverity = ActivitySeverity.INFO,
+        executionId: String? = null,
+    ): ActivityEvent = ActivityEvent(
+        message = PrivacyGuard.redactForTrace(message),
+        executionId = executionId?.takeIf { it.isNotBlank() },
+        category = category,
+        severity = severity,
+    )
 
     fun registerCustomSource(source: suspend (emit: suspend (ActivityEvent) -> Unit) -> Unit) {
         kotlinx.coroutines.flow.flow<ActivityEvent> { source { emit(it) } }

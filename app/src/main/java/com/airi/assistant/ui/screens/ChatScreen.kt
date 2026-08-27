@@ -2,6 +2,7 @@ package com.airi.assistant.ui.screens
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.WindowInsets
 import android.content.pm.PackageManager
@@ -150,6 +151,21 @@ fun ChatScreen(
     onLogout: () -> Unit = {}
 ) {
     val context       = LocalContext.current
+    val profilePreferences = remember {
+        context.getSharedPreferences("airi_profile", Context.MODE_PRIVATE)
+    }
+    var profileDisplayName by remember {
+        mutableStateOf(profilePreferences.getString("display_name", "").orEmpty())
+    }
+    DisposableEffect(profilePreferences) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "display_name") {
+                profileDisplayName = profilePreferences.getString("display_name", "").orEmpty()
+            }
+        }
+        profilePreferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { profilePreferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     val scope         = rememberCoroutineScope()
     val messages      by viewModel.messages.collectAsState()
     val streamingText by viewModel.streamingText.collectAsState()
@@ -1968,8 +1984,13 @@ fun ChatMessageList(
                     }
                 }
                 Spacer(Modifier.height(22.dp))
+                val greetingName = profileDisplayName.trim().take(48)
                 Text(
-                    text = stringResource(R.string.chat_how_can_help),
+                    text = if (greetingName.isBlank()) {
+                        stringResource(R.string.chat_how_can_help)
+                    } else {
+                        stringResource(R.string.chat_how_can_help_name, greetingName)
+                    },
                     color = AiriTheme.onBackground.copy(alpha = 0.92f),
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 22.sp,
@@ -1978,7 +1999,7 @@ fun ChatMessageList(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "Your on-device AI assistant — private by default",
+                    text = stringResource(R.string.chat_empty_state_tagline),
                     color = AiriTheme.onSurfaceVariant.copy(alpha = 0.60f),
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
@@ -1999,17 +2020,17 @@ fun ChatMessageList(
                 // Suggestion chips — quick starter prompts
                 Spacer(Modifier.height(28.dp))
                 val suggestions = listOf(
-                    "  Draft an email" to "Help me write a professional email",
-                    "  Analyze data" to "Analyze this data and explain the trends",
-                    "  Brainstorm ideas" to "Give me 10 creative ideas for",
-                    "  Research topic" to "Research and summarize the topic:"
+                    R.string.chat_starter_email_label to R.string.chat_starter_email_prompt,
+                    R.string.chat_starter_data_label to R.string.chat_starter_data_prompt,
+                    R.string.chat_starter_ideas_label to R.string.chat_starter_ideas_prompt,
+                    R.string.chat_starter_research_label to R.string.chat_starter_research_prompt,
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     suggestions.chunked(2).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            row.forEach { (label, prompt) ->
+                            row.forEach { (labelRes, promptRes) ->
                                 Surface(
-                                    onClick = { onSuggestionClick(prompt) },
+                                    onClick = { onSuggestionClick(context.getString(promptRes)) },
                                     modifier = Modifier.weight(1f),
                                     shape = AIRIShapes.md,
                                     color = SurfaceRaised,
@@ -2018,7 +2039,7 @@ fun ChatMessageList(
                                     )
                                 ) {
                                     Text(
-                                        text = label,
+                                        text = stringResource(labelRes),
                                         fontSize = 12.sp,
                                         color = AiriTheme.onSurface.copy(alpha = 0.80f),
                                         fontWeight = FontWeight.Medium,

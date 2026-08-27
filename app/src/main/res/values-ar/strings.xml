@@ -1613,4 +1613,14 @@
     <string name="attachment_vision_unavailable">يتطلب تحليل هذه الصورة نموذجاً جاهزاً للرؤية. احتُفظ بالمرفق؛ اختر نموذج رؤية ثم أعد المحاولة.</string>
     <string name="attachment_staging_failed">تعذر تجهيز مرفق واحد أو أكثر. احتُفظ بها لكي تتمكن من المحاولة مجدداً.</string>
     <string name="attachment_preparing">جارٍ تجهيز المرفقات</string>
+    <string name="chat_how_can_help_name">كيف يمكنني مساعدتك يا %1$s؟</string>
+    <string name="chat_empty_state_tagline">العمل محلياً هو الافتراضي، وأي اتصال سحابي تختاره أنت.</string>
+    <string name="chat_starter_email_label">صياغة بريد</string>
+    <string name="chat_starter_email_prompt">ساعدني في صياغة رسالة بريد إلكتروني احترافية.</string>
+    <string name="chat_starter_data_label">تحليل بيانات</string>
+    <string name="chat_starter_data_prompt">حلل هذه البيانات واشرح الاتجاهات.</string>
+    <string name="chat_starter_ideas_label">استكشاف أفكار</string>
+    <string name="chat_starter_ideas_prompt">أعطني 10 أفكار من أجل:</string>
+    <string name="chat_starter_research_label">بحث موضوع</string>
+    <string name="chat_starter_research_prompt">ابحث هذا الموضوع ولخّصه:</string>
 </resources>

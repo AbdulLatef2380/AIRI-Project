@@ -1714,4 +1714,14 @@
     <string name="attachment_vision_unavailable">A vision-ready model is required to analyze this image. Your attachment was kept; choose a vision model and try again.</string>
     <string name="attachment_staging_failed">We couldn\'t prepare one or more attachments. They were kept so you can try again.</string>
     <string name="attachment_preparing">Preparing attachments</string>
+    <string name="chat_how_can_help_name">How can I help, %1$s?</string>
+    <string name="chat_empty_state_tagline">On-device by default. You choose any cloud connection.</string>
+    <string name="chat_starter_email_label">Draft an email</string>
+    <string name="chat_starter_email_prompt">Help me draft a professional email.</string>
+    <string name="chat_starter_data_label">Analyze data</string>
+    <string name="chat_starter_data_prompt">Analyze this data and explain the trends.</string>
+    <string name="chat_starter_ideas_label">Explore ideas</string>
+    <string name="chat_starter_ideas_prompt">Give me 10 ideas for:</string>
+    <string name="chat_starter_research_label">Research a topic</string>
+    <string name="chat_starter_research_prompt">Research and summarize this topic:</string>
 </resources>

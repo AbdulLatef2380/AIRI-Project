@@ -1382,4 +1382,14 @@
     <string name="attachment_vision_unavailable">Se necesita un modelo compatible con visión para analizar esta imagen. El archivo adjunto se conservó; elige un modelo de visión e inténtalo de nuevo.</string>
     <string name="attachment_staging_failed">No se pudieron preparar uno o más archivos adjuntos. Se conservaron para que puedas volver a intentarlo.</string>
     <string name="attachment_preparing">Preparando archivos adjuntos</string>
+    <string name="chat_how_can_help_name">¿Cómo puedo ayudarte, %1$s?</string>
+    <string name="chat_empty_state_tagline">Funciona en el dispositivo de forma predeterminada. Tú eliges cualquier conexión en la nube.</string>
+    <string name="chat_starter_email_label">Redactar un correo</string>
+    <string name="chat_starter_email_prompt">Ayúdame a redactar un correo profesional.</string>
+    <string name="chat_starter_data_label">Analizar datos</string>
+    <string name="chat_starter_data_prompt">Analiza estos datos y explica las tendencias.</string>
+    <string name="chat_starter_ideas_label">Explorar ideas</string>
+    <string name="chat_starter_ideas_prompt">Dame 10 ideas para:</string>
+    <string name="chat_starter_research_label">Investigar un tema</string>
+    <string name="chat_starter_research_prompt">Investiga y resume este tema:</string>
 </resources>

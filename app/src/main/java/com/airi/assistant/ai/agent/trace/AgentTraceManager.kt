@@ -1,5 +1,6 @@
 package com.airi.assistant.ai.agent.trace
 
+import com.airi.assistant.execution.privacy.PrivacyGuard
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,7 +32,7 @@ class AgentTraceManager private constructor() {
     fun startTrace(originalInput: String): String {
         val traceId = UUID.randomUUID().toString()
         activeBuilders[traceId] = ActiveTrace(
-            base = AgentTrace(id = traceId, originalInput = originalInput)
+            base = AgentTrace(id = traceId, originalInput = PrivacyGuard.redactForTrace(originalInput))
         )
         return traceId
     }
@@ -39,7 +40,13 @@ class AgentTraceManager private constructor() {
     fun addStep(traceId: String, step: AgentStep) {
         val builder = activeBuilders[traceId] ?: return
         if (builder.steps.size < MAX_STEPS) {
-            builder.steps.add(step)
+            builder.steps.add(
+                step.copy(
+                    inputParams = step.inputParams.mapValues { (_, value) -> PrivacyGuard.redactForTrace(value) },
+                    outputSummary = PrivacyGuard.redactForTrace(step.outputSummary),
+                    error = step.error?.let { PrivacyGuard.redactForTrace(it) },
+                )
+            )
         }
     }
 
@@ -47,7 +54,7 @@ class AgentTraceManager private constructor() {
         val builder = activeBuilders.remove(traceId) ?: return
         val finalized = builder.base.copy(
             steps       = builder.steps.toList(),
-            finalResult = finalResult.take(300),
+            finalResult = PrivacyGuard.redactForTrace(finalResult, 300),
             success     = success
         )
         _traces.update { current ->

@@ -1869,29 +1869,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             latencyMs = 0L  // approximate — latency tracked separately by TokenAccountant
                         )
                     }
-                    // Token-based credit deduction: local=1000, cloud=200-300.
-                    // This supplements the per-action MESSAGE weight (1 credit) with a
-                    // real token-volume cost so users see the actual resource impact.
-                    runCatching {
-                        val isCloud = _lastExecOrigin.value == ExecOrigin.CLOUD
-                        val tokenCreditCost = if (isCloud) {
-                            // Cloud: deduct 200-300 based on token count (proportional)
-                            when {
-                                tokenCount > 1000 -> 300
-                                tokenCount > 500  -> 250
-                                else              -> 200
-                            }
-                        } else {
-                            // Local: flat 1000 tokens credit cost
-                            1000
-                        }
-                        ServiceLocator.creditMeteringEngine.recordTokenCost(
-                            origin  = _lastExecOrigin.value,
-                            tokens  = tokenCount,
-                            credits = tokenCreditCost
-                        )
-                        refreshTodayTokens()
-                    }
+                    // Token volume is recorded by TokenAccountant in the execution
+                    // backends. It is intentionally not charged again as a daily
+                    // interaction credit, which would exhaust the visible budget.
+                    refreshTodayTokens()
                     _smartReplies.value = ResponseOptimizer.generateSuggestions(loopResult.finalAnswer)
                     subscriptionManager.recordConsecutiveSuccess()
                     val successes = subscriptionManager.getConsecutiveSuccesses()

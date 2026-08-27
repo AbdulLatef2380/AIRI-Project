@@ -86,8 +86,8 @@ class CreditMeteringEngine(
                       else         FREE_WEIGHTS[action]    ?: 1
         val budget  = if (premium) PREMIUM_DAILY_CREDITS else FREE_DAILY_CREDITS
 
-        val remaining = budget - meter.dailyTotal
-        if (remaining < weight) {
+        val remaining = CreditBudgetPolicy.remaining(meter.dailyTotal, budget)
+        if (!CreditBudgetPolicy.canConsume(meter.dailyTotal, budget, weight)) {
             val denial = ConsumeResult.Denied(
                 action         = action,
                 dailyTotal     = meter.dailyTotal,
@@ -128,7 +128,7 @@ class CreditMeteringEngine(
             creditsUsed = weight,
             dailyTotal  = updated.dailyTotal,
             budget      = budget,
-            remaining   = budget - updated.dailyTotal
+                        remaining     = CreditBudgetPolicy.remaining(updated.dailyTotal, budget)
         )
     }
 
@@ -142,8 +142,8 @@ class CreditMeteringEngine(
             dailyTotal    = meter.dailyTotal,
             lifetimeTotal = meter.lifetimeTotal,
             budget        = budget,
-            remaining     = (budget - meter.dailyTotal).coerceAtLeast(0),
-            usedFraction  = meter.dailyTotal.toFloat() / budget.toFloat(),
+            remaining     = CreditBudgetPolicy.remaining(meter.dailyTotal, budget),
+            usedFraction  = CreditBudgetPolicy.clampedUsed(meter.dailyTotal, budget).toFloat() / budget.toFloat(),
             perActionDay  = meter.perActionDay.mapKeys {
                 runCatching { ActionType.valueOf(it.key) }.getOrNull() ?: ActionType.MESSAGE
             }
@@ -162,28 +162,40 @@ class CreditMeteringEngine(
 
     private fun loadMeter(): MeterData {
         val raw = prefs.getString(KEY_DATA, null) ?: return MeterData(date = today())
-        return runCatching {
+        val parsed = runCatching {
             val json  = JSONObject(raw)
             val saved = json.getString("date")
             if (saved != today()) {
-                // New day — reset daily counters but keep lifetime
-                return MeterData(
+                // New day — reset daily counters but keep lifetime.
+                MeterData(
                     date          = today(),
                     dailyTotal    = 0,
                     lifetimeTotal = json.optLong("lifetime_total", 0L),
                     perActionDay  = emptyMap()
                 )
+            } else {
+                val perAction = mutableMapOf<String, Int>()
+                val perObj    = json.optJSONObject("per_action") ?: JSONObject()
+                perObj.keys().forEach { k -> perAction[k] = perObj.getInt(k) }
+                MeterData(
+                    date          = saved,
+                    dailyTotal    = json.getInt("daily_total"),
+                    lifetimeTotal = json.getLong("lifetime_total"),
+                    perActionDay  = perAction
+                )
             }
-            val perAction = mutableMapOf<String, Int>()
-            val perObj    = json.optJSONObject("per_action") ?: JSONObject()
-            perObj.keys().forEach { k -> perAction[k] = perObj.getInt(k) }
-            MeterData(
-                date          = saved,
-                dailyTotal    = json.getInt("daily_total"),
-                lifetimeTotal = json.getLong("lifetime_total"),
-                perActionDay  = perAction
-            )
         }.getOrDefault(MeterData(date = today()))
+        val migration = CreditBudgetPolicy.removeLegacyTokenCharges(
+            dailyTotal = parsed.dailyTotal,
+            lifetimeTotal = parsed.lifetimeTotal,
+            perActionDay = parsed.perActionDay,
+        )
+        if (!migration.migrated) return parsed
+        return parsed.copy(
+            dailyTotal = migration.dailyTotal,
+            lifetimeTotal = migration.lifetimeTotal,
+            perActionDay = migration.perActionDay,
+        ).also { saveMeter(it) }
     }
 
     private fun saveMeter(data: MeterData) {
@@ -198,28 +210,6 @@ class CreditMeteringEngine(
         prefs.edit().putString(KEY_DATA, json.toString()).apply()
     }
 
-        /**
-     * Record token-based credit cost after a completed inference.
-     * This is separate from the per-action [consume] call — it tracks the
-     * actual token volume impact on the user's daily budget.
-     *
-     * Local inference: 1000 token cost (cheap, runs on device)
-     * Cloud inference: 200-300 token cost (proportional to response length)
-     */
-    @Synchronized
-    fun recordTokenCost(origin: com.airi.assistant.execution.ExecOrigin, tokens: Int, credits: Int) {
-        val meter = loadMeter()
-        val updated = meter.copy(
-            dailyTotal    = meter.dailyTotal + credits,
-            lifetimeTotal = meter.lifetimeTotal + credits.toLong(),
-            perActionDay  = meter.perActionDay.toMutableMap().also { m ->
-                val key = if (origin == com.airi.assistant.execution.ExecOrigin.CLOUD) "CLOUD_TOKENS" else "LOCAL_TOKENS"
-                m[key] = (m[key] ?: 0) + credits
-            }
-        )
-        saveMeter(updated)
-        Log.d(TAG, "Token cost recorded origin=$origin tokens=$tokens credits=$credits total=${updated.dailyTotal}")
-    }
 
     private fun today(): String = SimpleDateFormat(DATE_FMT, Locale.getDefault()).format(Date())
     private data class MeterData(

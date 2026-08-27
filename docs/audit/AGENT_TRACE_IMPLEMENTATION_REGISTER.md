@@ -47,3 +47,17 @@ ChatScreen → ChatViewModel → AgentLoop / AdaptiveGraphEngine
 ## قاعدة عدم الادعاء
 
 `MITIGATED ROOT CAUSE` لا تساوي `USER PROBLEM DONE`. يجب أن يذكر كل تحديث: root cause، الملفات، الاختبارات الإيجابية والسلبية، lifecycle/runtime evidence، CI، وأي بوابة خارجية متبقية.
+
+
+## بوابة الإغلاق الملزمة
+
+لا يستخدم هذا البرنامج حالة **DONE** إلا عندما تتحقق جميع الشروط التالية للمشكلة المعنية: سبب جذري مثبت، إصلاح مكتمل، اختبارات إيجابية وسلبية/انحدار، CI ناجح، دليل Runtime أو UI عند الانطباق، وعدم وجود بوابة خارجية مفتوحة مرتبطة بها. تعني **MITIGATED** إصلاحاً موضعياً أو معمارياً لا يكفي وحده لإغلاق تجربة المستخدم. ويجب أن تسجل البوابات التي تتطلب جهاز ARM64 أو provider حي أو OAuth أو Play Console كـ **BLOCKED / EXTERNAL_PENDING**، ولا تتحول إلى DONE بسبب وجود الكود أو نجاح CI.
+
+| نطاق trace | بوابة DONE المحددة |
+|---|---|
+| Planning | admission حقيقي بعد validation؛ رفض empty/duplicate/cycle/dependency غير الصالح والـstale event؛ لا خطوات UI مصطنعة. |
+| Trace الآمن | لا CoT خام أو system prompt أو credential/header/cookie؛ redaction مركزية واختبارات سرية وهمية سلبية. |
+| Tool trace | start وterminal واحد لكل tool، executionId/actionId، sequence/timestamp، مدة وملخص sanitized، ورفض stale/duplicate callbacks. |
+| Live stream | ترتيب deterministic، retention محدود، lifecycle وbackpressure وrotation آمنة، ولا يقتل collector التنفيذ. |
+| Progress/UI | حالات queued/running/retrying/completed/failed/cancelled مصدرها أحداث تنفيذ فعلية، مع RTL/LTR وaccessibility وfont-scale UI evidence. |
+| Ownership | snapshots صريحة لـsession/model/request/execution، ورفض stale/mismatch وعدم انتقال النتيجة أو attachment أو trace إلى session آخر. |

@@ -1363,12 +1363,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteSession(sessionId: String) {
         viewModelScope.launch {
-            runCatching { memoryManager.deleteSession(sessionId) }
-            removeComposerDraft(sessionId)
+            val wasActive = _currentSessionId.value == sessionId
+            val deletion = runCatching { memoryManager.deleteSession(sessionId) }
+            if (deletion.isFailure) {
+                Log.w("AIRI", "SESSION_DELETE_FAILED id=$sessionId", deletion.exceptionOrNull())
+                refreshSessions()
+                return@launch
+            }
+
+            if (SessionDeletionPolicy.shouldRemoveDraft(deleteSucceeded = true)) {
+                removeComposerDraft(sessionId)
+            }
             refreshSessions()
-            if (_currentSessionId.value == sessionId) {
-                val next = _sessions.value.firstOrNull()?.id ?: memoryManager.createSession().id
-                loadSession(next)
+            val replacementId = SessionDeletionPolicy.replacementSessionId(
+                activeSessionId = if (wasActive) sessionId else _currentSessionId.value,
+                deletedSessionId = sessionId,
+                remainingSessionIds = _sessions.value.map { it.id },
+            )
+            if (replacementId != null) {
+                loadSession(replacementId)
+            } else if (wasActive) {
+                createNewSession()
             }
         }
     }

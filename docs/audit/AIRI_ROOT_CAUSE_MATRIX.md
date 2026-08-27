@@ -53,3 +53,12 @@
 | M3-open: terminal event idempotency across fallback | **OPEN / NEXT AUDIT** | Requires explicit request/execution ledger semantics | No DONE claim; scheduled for next M3 iteration |
 
 التقرير التفصيلي: `AIRI_M3_AI_EXECUTION_REPORT.md`.
+
+
+## Evidence register — M3 cancellation
+
+| Root cause | Evidence status | Applied change | Verification |
+|---|---|---|---|
+| Cloud retry/failover continues after user cancellation | **MITIGATED IN CloudBackend** | Atomic `cancelRequested`, non-blocking `cancelStream()`, retry and provider-loop cancellation guards | Android CI `33073079681`, Deep Audit `33073079638` |
+| Runtime backend cancellation contract is no-op by default | **OPEN BY DESIGN** | Cloud and local backends now implement their concrete propagation paths; future custom backends must implement `cancelStream()` | Architecture Audit `33073079670`; provider-specific runtime remains external |
+| Exactly-once terminal event across all adapters | **OPEN / NEXT AUDIT** | Requires provider adapter integration tests and event ledger assertions | No DONE claim |

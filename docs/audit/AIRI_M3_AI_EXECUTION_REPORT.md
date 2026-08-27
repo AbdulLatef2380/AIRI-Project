@@ -46,3 +46,10 @@
 [3]: https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/33070581824 "AIRI Architecture Audit — commit 06115624"
 
 [4]: https://github.com/AbdulLatef2380/AIRI-Project/actions/runs/33070581804 "AIRI Oracle — commit 06115624"
+
+
+## جولة cancellation اللاحقة
+
+في commit `84da7434892551d2da6d18499d028cea30aded47` أضيف `cancelRequested` ذري إلى `CloudBackend` مع `cancelStream()` غير حاجز. يتوقف مسار provider failover وRetryPolicy فوراً عند الإلغاء أو `CloudErrorType.CANCELLED`، ولا يبدأ طلباً جديداً بعد الإشارة. كما يعيد `generate()` نتيجة `cancelled` عند وجود signal سابق.
+
+نجحت تشغيلات CI الأربعة لهذه الجولة: Android CI `33073079681`، Deep Audit `33073079638`، Oracle `33073079615`، وArchitecture Audit `33073079670`. شمل Android CI unit tests وlint وcompile وrelease signing وinstrumentation والتحقق من native output والـartifacts. لا يثبت ذلك اختبار مزود حي أو جهاز ARM64 فعلياً خارج بيئة CI.

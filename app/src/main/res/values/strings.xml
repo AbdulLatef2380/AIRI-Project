@@ -1048,6 +1048,11 @@
     <string name="updates_install">Install</string>
     <string name="updates_whats_new">What\'s new</string>
     <string name="updates_bug_fixes">Bug fixes</string>
+    <string name="updates_installed_version">Installed version %1$s</string>
+    <string name="updates_installed_build">Build %1$d</string>
+    <string name="updates_check_unavailable_title">Automatic update checks are not configured</string>
+    <string name="updates_check_unavailable_body">This build does not query an update server or install releases automatically. Check the source where you obtained AIRI for an available update.</string>
+    <string name="updates_release_information_body">The version and build number above describe this installed copy. AIRI does not include a verified release-note catalog in this build.</string>
 
     <!-- Voice Personalization screen -->
     <string name="voice_pitch_low">Low</string>

@@ -851,6 +851,11 @@
     <string name="updates_install">安装</string>
     <string name="updates_whats_new">新增内容</string>
     <string name="updates_bug_fixes">错误修复</string>
+    <string name="updates_installed_version">已安装版本 %1$s</string>
+    <string name="updates_installed_build">构建号 %1$d</string>
+    <string name="updates_check_unavailable_title">未配置自动更新检查</string>
+    <string name="updates_check_unavailable_body">此构建不会查询更新服务器，也不会自动安装版本。请在你获取 AIRI 的来源处查看是否有可用更新。</string>
+    <string name="updates_release_information_body">以上版本和构建号描述当前已安装的副本。此构建中未包含经验证的发布说明目录。</string>
     <string name="voice_pitch_low">低</string>
     <string name="voice_pitch_high">高</string>
     <string name="voice_speed_slow">慢</string>

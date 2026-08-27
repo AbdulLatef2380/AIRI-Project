@@ -851,6 +851,11 @@
     <string name="updates_install">Instalar</string>
     <string name="updates_whats_new">Novedades</string>
     <string name="updates_bug_fixes">Corrección de errores</string>
+    <string name="updates_installed_version">Versión instalada %1$s</string>
+    <string name="updates_installed_build">Compilación %1$d</string>
+    <string name="updates_check_unavailable_title">Las comprobaciones automáticas de actualización no están configuradas</string>
+    <string name="updates_check_unavailable_body">Esta compilación no consulta un servidor de actualizaciones ni instala versiones automáticamente. Consulta la fuente desde la que obtuviste AIRI para ver si hay una actualización disponible.</string>
+    <string name="updates_release_information_body">La versión y el número de compilación anteriores describen esta copia instalada. AIRI no incluye un catálogo verificado de notas de versión en esta compilación.</string>
     <string name="voice_pitch_low">Bajo</string>
     <string name="voice_pitch_high">Alto</string>
     <string name="voice_speed_slow">Lento</string>

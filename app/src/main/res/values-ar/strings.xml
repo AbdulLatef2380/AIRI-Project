@@ -1005,6 +1005,11 @@
     <string name="updates_install">تثبيت</string>
     <string name="updates_whats_new">ما الجديد</string>
     <string name="updates_bug_fixes">إصلاحات الأخطاء</string>
+    <string name="updates_installed_version">الإصدار المثبّت %1$s</string>
+    <string name="updates_installed_build">رقم البناء %1$d</string>
+    <string name="updates_check_unavailable_title">لم يتم إعداد التحقق التلقائي من التحديثات</string>
+    <string name="updates_check_unavailable_body">لا يستعلم هذا البناء عن خادم تحديثات ولا يثبّت الإصدارات تلقائياً. تحقق من المصدر الذي حصلت منه على AIRI لمعرفة ما إذا كان هناك تحديث.</string>
+    <string name="updates_release_information_body">يصف الإصدار ورقم البناء أعلاه هذه النسخة المثبّتة. لا يتضمن هذا البناء فهرساً موثقاً لملاحظات الإصدار.</string>
     <string name="voice_pitch_low">منخفض</string>
     <string name="voice_pitch_high">مرتفع</string>
     <string name="voice_speed_slow">بطيء</string>

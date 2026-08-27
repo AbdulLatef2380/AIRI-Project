@@ -3,6 +3,7 @@ package com.airi.assistant.connector.app
 import android.util.Log
 import com.airi.assistant.connector.*
 import com.airi.assistant.connector.oauth.OAuthStateRegistry
+import com.airi.assistant.domain.release.ReleaseScopePolicy
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.Dispatchers
@@ -85,7 +86,9 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
 
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
-    fun isOAuthConfigured(): Boolean = CLIENT_ID != "ZAPIER_CLIENT_ID_PLACEHOLDER"
+    fun isOAuthConfigured(): Boolean =
+        ReleaseScopePolicy.externalAutomationIntegrationsEnabled &&
+            CLIENT_ID != "ZAPIER_CLIENT_ID_PLACEHOLDER"
 
     // ── Auth URL ──────────────────────────────────────────────────────────────
 
@@ -134,6 +137,7 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
         code: String,
         requestContext: OAuthStateRegistry.ConsumedRequest
     ): Boolean = withContext(Dispatchers.IO) {
+        if (!ReleaseScopePolicy.externalAutomationIntegrationsEnabled) return@withContext false
         if (requestContext.connectorId != id || requestContext.codeVerifier.isNullOrBlank()) {
             Log.w(TAG, "Rejected OAuth callback with invalid request context")
             return@withContext false
@@ -182,6 +186,14 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     override suspend fun connect(): ConnectorState = withContext(Dispatchers.IO) {
+        if (!ReleaseScopePolicy.externalAutomationIntegrationsEnabled) {
+            _state.value = ConnectorState(
+                connected = false,
+                statusLine = "Unavailable in this release",
+                errorMessage = "External automation integration is not enabled."
+            )
+            return@withContext _state.value
+        }
         if (!authManager.isTokenValid(id)) {
             _state.value = ConnectorState(false, statusLine = "Not authenticated", errorMessage = "Complete OAuth to connect")
             return@withContext _state.value
@@ -205,6 +217,12 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
     // ── Execute ───────────────────────────────────────────────────────────────
 
     override suspend fun execute(input: ConnectorInput): ConnectorOutput = withContext(Dispatchers.IO) {
+        if (!ReleaseScopePolicy.externalAutomationIntegrationsEnabled) {
+            return@withContext ConnectorOutput.Failure(
+                "integration_unavailable",
+                "External automation integrations are unavailable in this release."
+            )
+        }
         if (!authManager.isTokenValid(id)) {
             return@withContext ConnectorOutput.Failure("not_connected", "Zapier not authenticated. Complete OAuth first.")
         }

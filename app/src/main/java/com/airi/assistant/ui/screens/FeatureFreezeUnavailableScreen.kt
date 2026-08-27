@@ -16,6 +16,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.annotation.StringRes
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -23,11 +24,15 @@ import com.airi.assistant.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FeatureFreezeUnavailableScreen(onBack: () -> Unit) {
+fun FeatureFreezeUnavailableScreen(
+    onBack: () -> Unit,
+    @StringRes titleRes: Int = R.string.release_scope_unavailable_title,
+    @StringRes messageRes: Int = R.string.release_scope_unavailable_message
+) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.release_scope_unavailable_title)) },
+                title = { Text(stringResource(titleRes)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -45,7 +50,7 @@ fun FeatureFreezeUnavailableScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = stringResource(R.string.release_scope_unavailable_message),
+                text = stringResource(messageRes),
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center
             )

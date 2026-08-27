@@ -1430,6 +1430,8 @@
     <string name="permissions_accessibility_enable_body">Abre los ajustes de Android para activar el servicio local. Las acciones del agente en el dispositivo siguen teniendo controles independientes.</string>
     <string name="release_scope_unavailable_title">No disponible en esta versión</string>
     <string name="release_scope_unavailable_message">Las funciones de pago, historial de facturación y mercado comunitario no están disponibles en esta versión. No se ha iniciado ninguna compra ni conexión a un mercado externo.</string>
+    <string name="external_automation_unavailable_title">La automatización externa no está disponible</string>
+    <string name="external_automation_unavailable_message">Zapier e IFTTT no están configurados en esta versión. No se ha iniciado autorización de proveedor, prueba de webhook ni almacenamiento de credenciales.</string>
     <string name="attachment_model_loading">El modelo seleccionado aún se está cargando. Tus archivos adjuntos se conservaron. Inténtalo de nuevo cuando esté listo.</string>
     <string name="attachment_generation_in_progress">Espera a que termine la respuesta actual. Tus archivos adjuntos se conservaron.</string>
     <string name="attachment_session_changed">La conversación cambió mientras se preparaban los archivos adjuntos. Se conservaron en la conversación original; vuelve allí e inténtalo de nuevo.</string>

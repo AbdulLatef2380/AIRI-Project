@@ -11,6 +11,11 @@ class ReleaseScopePolicyTest {
     }
 
     @Test
+    fun externalAutomationIntegrationsRemainDisabledWithoutProviderEvidence() {
+        assertFalse(ReleaseScopePolicy.externalAutomationIntegrationsEnabled)
+    }
+
+    @Test
     fun internalSurfacesAreAvailableOnlyInDevelopmentBuilds() {
         assertTrue(ReleaseScopePolicy.allowsInternalSurfaces(isDebugBuild = true))
         assertFalse(ReleaseScopePolicy.allowsInternalSurfaces(isDebugBuild = false))

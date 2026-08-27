@@ -252,13 +252,15 @@ fun SettingsScreen(
                     onClick  = { onNavigate(AiriRoute.UPDATE_SCREEN) }
                 )
             }
-            SettingsGroup {
-                SettingsNavItem(
-                    icon     = Icons.Outlined.AutoAwesome,
-                    iconTint = Color(0xFFFF4A00),
-                    label    = stringResource(R.string.settings_zapier_ifttt),
-                    onClick  = { onNavigate(AiriRoute.ZAPIER_IFTTT) }
-                )
+            if (ReleaseScopePolicy.externalAutomationIntegrationsEnabled) {
+                SettingsGroup {
+                    SettingsNavItem(
+                        icon = Icons.Outlined.AutoAwesome,
+                        iconTint = Color(0xFFFF4A00),
+                        label = stringResource(R.string.settings_zapier_ifttt),
+                        onClick = { onNavigate(AiriRoute.ZAPIER_IFTTT) }
+                    )
+                }
             }
             // Internal tooling is visible only in development builds. Release
             // routing independently fails closed for direct deep links.

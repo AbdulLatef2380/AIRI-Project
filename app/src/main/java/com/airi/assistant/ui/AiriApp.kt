@@ -419,15 +419,23 @@ fun AiriApp() {
                         UpdateScreen(onBack = { navController.popBackStack() })
                     }
 
-                    // ──  screens ───────────────────────────────────────
+                    // ── External automation integrations ───────────────────
                     composable(AiriRoute.ZAPIER_IFTTT) {
-                        val zapier = com.airi.assistant.core.ServiceLocator.zapierConnector
-                        val ifttt  = com.airi.assistant.core.ServiceLocator.iftttConnector
-                        com.airi.assistant.ui.screens.ZapierIftttScreen(
-                            zapierConnector = zapier,
-                            iftttConnector  = ifttt,
-                            onBack          = { navController.popBackStack() }
-                        )
+                        if (ReleaseScopePolicy.externalAutomationIntegrationsEnabled) {
+                            val zapier = com.airi.assistant.core.ServiceLocator.zapierConnector
+                            val ifttt = com.airi.assistant.core.ServiceLocator.iftttConnector
+                            com.airi.assistant.ui.screens.ZapierIftttScreen(
+                                zapierConnector = zapier,
+                                iftttConnector = ifttt,
+                                onBack = { navController.popBackStack() }
+                            )
+                        } else {
+                            FeatureFreezeUnavailableScreen(
+                                onBack = { navController.popBackStack() },
+                                titleRes = R.string.external_automation_unavailable_title,
+                                messageRes = R.string.external_automation_unavailable_message
+                            )
+                        }
                     }
 
                     composable(AiriRoute.STRIPE_PAYMENT) {

@@ -1762,6 +1762,8 @@
     <string name="permissions_accessibility_enable_body">Open Android Settings to enable the local service. Agent device actions remain separately governed.</string>
     <string name="release_scope_unavailable_title">Not available in this release</string>
     <string name="release_scope_unavailable_message">Payments, billing history, and community marketplace features are not available in this release. No purchase or external marketplace connection has been started.</string>
+    <string name="external_automation_unavailable_title">External automation is unavailable</string>
+    <string name="external_automation_unavailable_message">Zapier and IFTTT are not configured in this release. No provider authorization, webhook test, or credential storage has been started.</string>
     <string name="attachment_model_loading">The selected model is still loading. Your attachments were kept. Try again when it is ready.</string>
     <string name="attachment_generation_in_progress">Wait for the current response to finish. Your attachments were kept.</string>
     <string name="attachment_session_changed">The conversation changed while the attachments were being prepared. They were kept in the original conversation; return there and try again.</string>

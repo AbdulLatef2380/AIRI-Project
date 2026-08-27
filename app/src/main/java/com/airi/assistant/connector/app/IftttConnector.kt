@@ -2,6 +2,7 @@ package com.airi.assistant.connector.app
 
 import android.util.Log
 import com.airi.assistant.connector.*
+import com.airi.assistant.domain.release.ReleaseScopePolicy
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.Dispatchers
@@ -77,6 +78,14 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     override suspend fun connect(): ConnectorState = withContext(Dispatchers.IO) {
+        if (!ReleaseScopePolicy.externalAutomationIntegrationsEnabled) {
+            _state.value = ConnectorState(
+                connected = false,
+                statusLine = "Unavailable in this release",
+                errorMessage = "External automation integration is not enabled."
+            )
+            return@withContext _state.value
+        }
         val key = authManager.getCredential(id, CRED_KEY)
         if (key.isNullOrBlank()) {
             _state.value = ConnectorState(false, statusLine = "No webhook key set",
@@ -96,6 +105,12 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
     // ── Execute ───────────────────────────────────────────────────────────────
 
     override suspend fun execute(input: ConnectorInput): ConnectorOutput = withContext(Dispatchers.IO) {
+        if (!ReleaseScopePolicy.externalAutomationIntegrationsEnabled) {
+            return@withContext ConnectorOutput.Failure(
+                "integration_unavailable",
+                "External automation integrations are unavailable in this release."
+            )
+        }
         try {
             val t0 = System.currentTimeMillis()
             val result = when (input.action) {
@@ -122,6 +137,9 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
     // ── Actions ───────────────────────────────────────────────────────────────
 
     fun setKey(key: String): String {
+        if (!ReleaseScopePolicy.externalAutomationIntegrationsEnabled) {
+            return "External automation integrations are unavailable in this release."
+        }
         if (key.isBlank()) return "Webhook key cannot be empty."
         if (!authManager.storeCredential(id, CRED_KEY, key)) {
             _state.value = ConnectorState(
@@ -135,7 +153,11 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
         return "IFTTT Maker Webhook key saved"
     }
 
-    fun getWebhookKey(): String? = authManager.getCredential(id, CRED_KEY)
+    fun getWebhookKey(): String? = if (ReleaseScopePolicy.externalAutomationIntegrationsEnabled) {
+        authManager.getCredential(id, CRED_KEY)
+    } else {
+        null
+    }
 
     private fun triggerEvent(eventName: String, value1: String, value2: String?, value3: String?): String {
         val key = authManager.getCredential(id, CRED_KEY)

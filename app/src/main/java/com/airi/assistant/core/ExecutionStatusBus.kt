@@ -160,8 +160,12 @@ object ExecutionStatusBus {
 
     // ── Internal helper ───────────────────────────────────────────────────────
 
+    internal fun acceptsEvent(activeExecutionId: String, eventExecutionId: String): Boolean =
+        activeExecutionId.isNotBlank() && eventExecutionId.isNotBlank() &&
+            activeExecutionId == eventExecutionId
+
     private fun belongsToActiveExecution(current: AgentState, executionId: String): Boolean =
-        executionId.isNotBlank() && current.executionId == executionId
+        acceptsEvent(current.executionId, executionId)
 
     private fun MutableStateFlow<AgentState>.update(transform: (AgentState) -> AgentState) {
         value = transform(value)

@@ -24,11 +24,15 @@
     <string name="integration_telegram_name">Telegram</string>
     <string name="integration_telegram_description">Link a Telegram bot for messaging workflows.</string>
     <string name="integration_google_name">Google</string>
-    <string name="integration_google_description">Access Gmail, Drive, and Calendar (read-only).</string>
+    <string name="integration_google_description">Connect Gmail, Drive, and Calendar with your approval for each data capability.</string>
     <string name="integration_google_connected">Google account connected.</string>
     <string name="integration_google_sign_in_cancelled">Google sign-in was cancelled. No account was connected.</string>
     <string name="integration_google_sign_in_failed">Google sign-in could not be completed. Check your connection and configuration, then try again.</string>
     <string name="integration_google_missing_email">Google did not return an email address, so no account was connected.</string>
+    <string name="integration_google_data_authorized">Google data access is authorized.</string>
+    <string name="integration_google_authorization_cancelled">Google data authorization was cancelled. Your account remains signed in.</string>
+    <string name="integration_google_authorization_failed">Google data authorization could not be completed. Check your Google configuration and try again.</string>
+    <string name="integration_status_authorization_required">Authorization required</string>
     <string name="integration_connect">Connect</string>
     <string name="integration_disconnect">Disconnect</string>
     <string name="integration_status_connected">Connected</string>
@@ -1454,7 +1458,9 @@
     <string name="connectors_connected_count">%1$d connected</string>
     <string name="connectors_empty_category">No connectors in this category yet</string>
     <string name="connectors_status_connected">Connected</string>
+    <string name="connectors_status_needs_attention">Needs attention</string>
     <string name="connectors_status_disconnected">Disconnected</string>
+    <string name="connectors_manage_authorization">Manage authorization</string>
     <string name="connectors_tab_apps">Apps</string>
     <string name="connectors_tab_device">Device</string>
     <string name="connectors_tab_system">System</string>

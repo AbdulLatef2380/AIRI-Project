@@ -17,5 +17,14 @@ internal object GoogleIntegrationSignInPolicy {
     @StringRes
     fun connectedFeedback(): Int = R.string.integration_google_connected
 
+    @StringRes
+    fun dataAuthorizedFeedback(): Int = R.string.integration_google_data_authorized
+
+    @StringRes
+    fun authorizationCancelledFeedback(): Int = R.string.integration_google_authorization_cancelled
+
+    @StringRes
+    fun authorizationFailedFeedback(): Int = R.string.integration_google_authorization_failed
+
     fun canConnect(email: String?): Boolean = !email.isNullOrBlank()
 }

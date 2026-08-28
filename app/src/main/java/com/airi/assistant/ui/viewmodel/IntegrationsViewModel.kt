@@ -1,6 +1,7 @@
 package com.airi.assistant.ui.viewmodel
 
 import android.app.Application
+import android.app.PendingIntent
 import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,10 +11,14 @@ import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.integrations.github.GithubService
 import com.airi.assistant.integrations.google.GoogleAuthService
+import com.airi.assistant.integrations.google.GoogleDataAuthorization
 import com.airi.assistant.integrations.telegram.TelegramService
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.security.SecureRandom
@@ -72,16 +77,29 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         val name: String,
         val description: String,
         val emoji: String,
-        val isConnected: Boolean,
+        val readiness: IntegrationReadiness,
         val connectedAs: String,
         val lastUpdated: Long
-    )
+    ) {
+        val isReady: Boolean
+            get() = readiness == IntegrationReadiness.READY
+    }
+
+    sealed interface GoogleAuthorizationEffect {
+        data class LaunchConsent(val pendingIntent: PendingIntent) : GoogleAuthorizationEffect
+    }
 
     private val _items = MutableStateFlow(buildItems())
     val items: StateFlow<List<IntegrationItem>> = _items.asStateFlow()
 
     private val _googleFeedback = MutableStateFlow<Int?>(null)
     val googleFeedback: StateFlow<Int?> = _googleFeedback.asStateFlow()
+
+    private val _googleAuthorizationEffects = MutableSharedFlow<GoogleAuthorizationEffect>(
+        extraBufferCapacity = 1
+    )
+    val googleAuthorizationEffects: SharedFlow<GoogleAuthorizationEffect> =
+        _googleAuthorizationEffects.asSharedFlow()
 
     fun refresh() {
         _items.value = buildItems()
@@ -97,7 +115,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 name        = ctx.getString(R.string.integration_github_name),
                 description = ctx.getString(R.string.integration_github_description),
                 emoji       = "",
-                isConnected = secureStorage.isGithubConnected(),
+                readiness   = IntegrationReadinessPolicy.credentialBacked(secureStorage.isGithubConnected()),
                 connectedAs = secureStorage.getGithubUsername(),
                 lastUpdated = secureStorage.getGithubUpdated()
             ),
@@ -106,7 +124,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 name        = ctx.getString(R.string.integration_telegram_name),
                 description = ctx.getString(R.string.integration_telegram_description),
                 emoji       = "",
-                isConnected = secureStorage.isTelegramConnected(),
+                readiness   = IntegrationReadinessPolicy.credentialBacked(secureStorage.isTelegramConnected()),
                 connectedAs = secureStorage.getTelegramUsername(),
                 lastUpdated = secureStorage.getTelegramUpdated()
             ),
@@ -115,8 +133,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 name        = ctx.getString(R.string.integration_google_name),
                 description = ctx.getString(R.string.integration_google_description),
                 emoji       = "",
-                isConnected = secureStorage.isGoogleConnected(),
-                connectedAs = secureStorage.getGoogleEmail() ?: "",
+                readiness   = IntegrationReadinessPolicy.google(
+                    hasSignedInIdentity = !googleAuthService.getLastSignedInEmail().isNullOrBlank(),
+                    hasDataAccessToken = !googleAuthService.getDataAccessToken().isNullOrBlank()
+                ),
+                connectedAs = googleAuthService.getLastSignedInEmail().orEmpty(),
                 lastUpdated = secureStorage.getGoogleUpdated()
             )
         )
@@ -219,7 +240,42 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         }
         googleAuthService.handleSignInSuccess(account)
         refresh()
-        _googleFeedback.value = GoogleIntegrationSignInPolicy.connectedFeedback()
+        requestGoogleDataAuthorization()
+    }
+
+    fun requestGoogleDataAuthorization() {
+        googleAuthService.authorizeDataAccess()
+            .addOnSuccessListener(::handleGoogleDataAuthorization)
+            .addOnFailureListener {
+                refresh()
+                _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
+            }
+    }
+
+    fun onGoogleDataAuthorizationResult(resultIntent: Intent?) {
+        handleGoogleDataAuthorization(googleAuthService.completeDataAuthorization(resultIntent))
+    }
+
+    private fun handleGoogleDataAuthorization(result: GoogleDataAuthorization) {
+        when (result) {
+            GoogleDataAuthorization.Authorized -> {
+                refresh()
+                _googleFeedback.value = GoogleIntegrationSignInPolicy.dataAuthorizedFeedback()
+            }
+            is GoogleDataAuthorization.ConsentRequired -> {
+                _googleAuthorizationEffects.tryEmit(
+                    GoogleAuthorizationEffect.LaunchConsent(result.pendingIntent)
+                )
+            }
+            GoogleDataAuthorization.Cancelled -> {
+                refresh()
+                _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationCancelledFeedback()
+            }
+            GoogleDataAuthorization.Unavailable -> {
+                refresh()
+                _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
+            }
+        }
     }
 
     fun onGoogleSignInCancelled() {

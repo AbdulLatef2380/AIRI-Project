@@ -25,11 +25,15 @@
     <string name="integration_telegram_name">Telegram</string>
     <string name="integration_telegram_description">ربط بوت Telegram لسير عمل المراسلة.</string>
     <string name="integration_google_name">Google</string>
-    <string name="integration_google_description">الوصول إلى Gmail و Drive و Calendar (قراءة فقط).</string>
+    <string name="integration_google_description">ربط Gmail وDrive وCalendar بموافقتك لكل قدرة تتعامل مع البيانات.</string>
     <string name="integration_google_connected">تم ربط حساب Google.</string>
     <string name="integration_google_sign_in_cancelled">أُلغي تسجيل الدخول إلى Google. لم يتم ربط أي حساب.</string>
     <string name="integration_google_sign_in_failed">تعذّر إكمال تسجيل الدخول إلى Google. تحقق من الاتصال والإعداد، ثم حاول مرة أخرى.</string>
     <string name="integration_google_missing_email">لم تُرجع Google عنوان بريد إلكتروني، لذلك لم يتم ربط أي حساب.</string>
+    <string name="integration_google_data_authorized">تم تفويض الوصول إلى بيانات Google.</string>
+    <string name="integration_google_authorization_cancelled">أُلغي تفويض بيانات Google. ما زال حسابك مسجلاً.</string>
+    <string name="integration_google_authorization_failed">تعذّر إكمال تفويض بيانات Google. تحقق من إعدادات Google ثم حاول مرة أخرى.</string>
+    <string name="integration_status_authorization_required">التفويض مطلوب</string>
     <string name="integration_connect">اتصال</string>
     <string name="integration_disconnect">قطع الاتصال</string>
     <string name="integration_status_connected">متصل</string>
@@ -1374,7 +1378,9 @@
     <string name="connectors_connected_count">%1$d متصل</string>
     <string name="connectors_empty_category">لا توجد موصلات في هذه الفئة بعد</string>
     <string name="connectors_status_connected">متصل</string>
+    <string name="connectors_status_needs_attention">يحتاج متابعة</string>
     <string name="connectors_status_disconnected">غير متصل</string>
+    <string name="connectors_manage_authorization">إدارة التفويض</string>
     <string name="connectors_tab_apps">التطبيقات</string>
     <string name="connectors_tab_device">الجهاز</string>
     <string name="connectors_tab_system">النظام</string>

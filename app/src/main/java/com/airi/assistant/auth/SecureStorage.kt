@@ -158,8 +158,9 @@ class SecureStorage(context: Context) {
         publishIntegrationConnections()
     }
 
-    fun saveGoogleIdToken(token: String) =
-        prefs.edit().safePutString(KEY_GOOGLE_ID_TOKEN, token).apply()
+    /** Legacy identity-token access retained only to clear pre-authorization data. */
+    fun clearGoogleIdToken() =
+        prefs.edit().remove(KEY_GOOGLE_ID_TOKEN).apply()
 
     fun getGoogleIdToken(): String? = prefs.getString(KEY_GOOGLE_ID_TOKEN, null)
     fun isGoogleConnected(): Boolean = prefs.getBoolean(KEY_GOOGLE_CONNECTED, false)

@@ -64,31 +64,47 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
 
     override suspend fun connect(): ConnectorState = withContext(Dispatchers.IO) {
         val email = googleAuthService.getLastSignedInEmail()
-        if (email != null) {
-            _state.value = ConnectorState(
-                connected  = true,
-                statusLine = "Signed in as $email"
+        val accessToken = googleAuthService.getDataAccessToken()
+        _state.value = when {
+            email.isNullOrBlank() -> ConnectorState(
+                connected = false,
+                healthy = false,
+                statusLine = "Google sign-in required",
+                errorMessage = "Sign in before authorizing Google data access."
             )
-        } else {
-            _state.value = ConnectorState(
-                connected    = false,
-                statusLine   = "Not signed in",
-                errorMessage = "Sign in with Google in the Integrations screen"
+            accessToken.isNullOrBlank() -> ConnectorState(
+                connected = true,
+                healthy = false,
+                statusLine = "Data authorization required",
+                errorMessage = "Authorize Gmail, Calendar, and Drive access in Integrations."
+            )
+            else -> ConnectorState(
+                connected = true,
+                healthy = true,
+                statusLine = "Google data access authorized",
+                lastUpdatedMs = System.currentTimeMillis()
             )
         }
         _state.value
     }
 
     override suspend fun disconnect() {
-        _state.value = ConnectorState(connected = false, statusLine = "Not signed in")
+        googleAuthService.disconnect()
+        _state.value = ConnectorState(connected = false, healthy = false, statusLine = "Not signed in")
     }
 
     override suspend fun execute(input: ConnectorInput): ConnectorOutput = withContext(Dispatchers.IO) {
-        val token = googleAuthService.getIdToken()
+        val token = googleAuthService.getDataAccessToken()
         if (token.isNullOrBlank()) {
+            _state.value = ConnectorState(
+                connected = !googleAuthService.getLastSignedInEmail().isNullOrBlank(),
+                healthy = false,
+                statusLine = "Data authorization required",
+                errorMessage = "Authorize Google data access in Integrations."
+            )
             return@withContext ConnectorOutput.Failure(
-                code    = "auth_required",
-                message = "Sign in with Google in the Integrations screen to use this feature."
+                code = "authorization_required",
+                message = "Google data access requires user authorization in Integrations."
             )
         }
         when (input.action) {
@@ -125,8 +141,8 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
                 data = mapOf("count" to count.toString())
             )
         } catch (e: Exception) {
-            Log.e(TAG, "gmail_list error: ${e.message}")
-            ConnectorOutput.Failure(code = "network_error", message = "Gmail list failed: ${e.message}", retryable = true)
+            Log.w(TAG, "gmail_list request failed")
+            googleRequestFailure("Gmail list", e)
         }
     }
 
@@ -148,8 +164,8 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
                 data = mapOf("messageId" to messageId, "subject" to subject)
             )
         } catch (e: Exception) {
-            Log.e(TAG, "gmail_read error: ${e.message}")
-            ConnectorOutput.Failure(code = "network_error", message = "Gmail read failed: ${e.message}", retryable = true)
+            Log.w(TAG, "gmail_read request failed")
+            googleRequestFailure("Gmail read", e)
         }
     }
 
@@ -172,16 +188,16 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
                 .header("Authorization", "Bearer $token")
                 .post(requestBody)
                 .build()
-            val response = http.newCall(request).execute()
-            val responseBody = response.body?.string() ?: ""
-            if (response.isSuccessful) {
-                ConnectorOutput.Success(text = "Email sent to $to", data = mapOf("to" to to, "subject" to subject))
-            } else {
-                ConnectorOutput.Failure(code = "api_error", message = "Gmail send failed (${response.code}): $responseBody")
+            http.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    ConnectorOutput.Success(text = "Email sent to $to", data = mapOf("to" to to, "subject" to subject))
+                } else {
+                    googleRequestFailure("Gmail send", GoogleApiHttpException(response.code))
+                }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "gmail_send error: ${e.message}")
-            ConnectorOutput.Failure(code = "network_error", message = "Gmail send failed: ${e.message}", retryable = true)
+            Log.w(TAG, "gmail_send request failed")
+            googleRequestFailure("Gmail send", e)
         }
     }
 
@@ -210,8 +226,8 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
                 data = mapOf("count" to count.toString())
             )
         } catch (e: Exception) {
-            Log.e(TAG, "calendar_list error: ${e.message}")
-            ConnectorOutput.Failure(code = "network_error", message = "Calendar list failed: ${e.message}", retryable = true)
+            Log.w(TAG, "calendar_list request failed")
+            googleRequestFailure("Calendar list", e)
         }
     }
 
@@ -236,20 +252,20 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
                 .header("Authorization", "Bearer $token")
                 .post(requestBody)
                 .build()
-            val response = http.newCall(request).execute()
-            val responseBody = response.body?.string() ?: ""
-            if (response.isSuccessful) {
-                val created = JSONObject(responseBody)
-                ConnectorOutput.Success(
-                    text = "Event created: $title",
-                    data = mapOf("eventId" to created.optString("id"), "title" to title)
-                )
-            } else {
-                ConnectorOutput.Failure(code = "api_error", message = "Calendar create failed (${response.code}): $responseBody")
+            http.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val created = JSONObject(response.body?.string() ?: "{}")
+                    ConnectorOutput.Success(
+                        text = "Event created: $title",
+                        data = mapOf("eventId" to created.optString("id"), "title" to title)
+                    )
+                } else {
+                    googleRequestFailure("Calendar create", GoogleApiHttpException(response.code))
+                }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "calendar_create error: ${e.message}")
-            ConnectorOutput.Failure(code = "network_error", message = "Calendar create failed: ${e.message}", retryable = true)
+            Log.w(TAG, "calendar_create request failed")
+            googleRequestFailure("Calendar create", e)
         }
     }
 
@@ -277,8 +293,8 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
                 data = mapOf("count" to count.toString(), "query" to query)
             )
         } catch (e: Exception) {
-            Log.e(TAG, "drive_search error: ${e.message}")
-            ConnectorOutput.Failure(code = "network_error", message = "Drive search failed: ${e.message}", retryable = true)
+            Log.w(TAG, "drive_search request failed")
+            googleRequestFailure("Drive search", e)
         }
     }
 
@@ -289,11 +305,34 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
             .url(url)
             .header("Authorization", "Bearer $token")
             .build()
-        val response = http.newCall(request).execute()
-        val body = response.body?.string() ?: "{}"
-        if (!response.isSuccessful) {
-            throw Exception("HTTP ${response.code}: $body")
+        return http.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw GoogleApiHttpException(response.code)
+            }
+            JSONObject(response.body?.string() ?: "{}")
         }
-        return JSONObject(body)
     }
+
+    private fun googleRequestFailure(operation: String, error: Exception): ConnectorOutput.Failure =
+        if (error is GoogleApiHttpException) {
+            val authorizationInvalid = error.statusCode == 401 || error.statusCode == 403
+            if (authorizationInvalid) googleAuthService.clearDataAccessToken()
+            ConnectorOutput.Failure(
+                code = if (authorizationInvalid) "authorization_required" else "api_error",
+                message = if (authorizationInvalid) {
+                    "Google data authorization must be renewed in Integrations."
+                } else {
+                    "$operation request was rejected (HTTP ${error.statusCode})."
+                },
+                retryable = error.statusCode >= 500
+            )
+        } else {
+            ConnectorOutput.Failure(
+                code = "network_error",
+                message = "$operation request could not be completed.",
+                retryable = true
+            )
+        }
+
+    private class GoogleApiHttpException(val statusCode: Int) : Exception()
 }

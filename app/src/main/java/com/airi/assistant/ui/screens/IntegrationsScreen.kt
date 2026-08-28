@@ -5,6 +5,7 @@ import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.theme.AiriTheme
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
@@ -85,6 +86,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airi.assistant.R
 import com.airi.assistant.ui.viewmodel.IntegrationsViewModel
+import com.airi.assistant.ui.viewmodel.IntegrationReadiness
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
 import java.text.SimpleDateFormat
@@ -114,11 +116,27 @@ fun IntegrationsScreen(onBack: () -> Unit) {
                 val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
                 val account = task.getResult(ApiException::class.java)
                 vm.onGoogleSignInSuccess(account)
-            } catch (e: ApiException) {
+            } catch (_: ApiException) {
                 vm.onGoogleSignInFailed()
             }
         } else {
             vm.onGoogleSignInCancelled()
+        }
+    }
+    val googleAuthorizationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        vm.onGoogleDataAuthorizationResult(result.data)
+    }
+    LaunchedEffect(vm) {
+        vm.googleAuthorizationEffects.collect { effect ->
+            when (effect) {
+                is IntegrationsViewModel.GoogleAuthorizationEffect.LaunchConsent -> {
+                    googleAuthorizationLauncher.launch(
+                        IntentSenderRequest.Builder(effect.pendingIntent.intentSender).build()
+                    )
+                }
+            }
         }
     }
 
@@ -235,9 +253,9 @@ private fun IntegrationCard(
     onConnect: () -> Unit,
     onDisconnect: () -> Unit
 ) {
-    val connected = item.isConnected
-    val cardAlpha = if (connected) 0.10f else 0.04f
-    val borderColor = if (connected) Color(0xFF4ADE80).copy(alpha = 0.35f)
+    val ready = item.isReady
+    val cardAlpha = if (ready) 0.10f else 0.04f
+    val borderColor = if (ready) Color(0xFF4ADE80).copy(alpha = 0.35f)
     else AiriTheme.outline
 
     Surface(
@@ -300,10 +318,10 @@ private fun IntegrationCard(
                     )
                 }
                 Spacer(Modifier.width(10.dp))
-                StatusBadge(connected)
+                StatusBadge(item.readiness)
             }
             AnimatedVisibility(
-                visible = connected && item.connectedAs.isNotBlank(),
+                visible = item.readiness != IntegrationReadiness.DISCONNECTED && item.connectedAs.isNotBlank(),
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
@@ -355,7 +373,7 @@ private fun IntegrationCard(
             // "Connect" / "Disconnect" affordance is reliably tappable even on
             // small screens and in RTL layouts.
             Spacer(Modifier.height(14.dp))
-            if (connected) {
+            if (ready) {
                 OutlinedButton(
                     onClick  = onDisconnect,
                     modifier = Modifier.fillMaxWidth(),
@@ -382,19 +400,28 @@ private fun IntegrationCard(
     }
 }
 @Composable
-private fun StatusBadge(connected: Boolean) {
-    val bgColor = if (connected) Color(0xFF4ADE80).copy(alpha = 0.15f)
-    else AiriTheme.outline
-    val textColor = if (connected) Color(0xFF4ADE80) else AiriTheme.onSurface.copy(alpha = 0.45f)
+private fun StatusBadge(readiness: IntegrationReadiness) {
+    val ready = readiness == IntegrationReadiness.READY
+    val authorizationRequired = readiness == IntegrationReadiness.AUTHORIZATION_REQUIRED
+    val accent = when {
+        ready -> Color(0xFF4ADE80)
+        authorizationRequired -> MaterialTheme.colorScheme.tertiary
+        else -> AiriTheme.onSurface.copy(alpha = 0.35f)
+    }
+    val bgColor = if (ready || authorizationRequired) accent.copy(alpha = 0.15f) else AiriTheme.outline
+    val textColor = if (ready || authorizationRequired) accent else AiriTheme.onSurface.copy(alpha = 0.45f)
     val transition = rememberInfiniteTransition(label = "integration_status")
     val pulse = transition.animateFloat(
         initialValue = 1f,
-        targetValue = if (connected) 1.5f else 1f,
+        targetValue = if (ready) 1.5f else 1f,
         animationSpec = infiniteRepeatable(animation = tween(1200), repeatMode = RepeatMode.Reverse),
         label = "status_pulse"
     ).value
-    val label = if (connected) stringResource(R.string.integration_status_connected)
-                else stringResource(R.string.integration_status_offline)
+    val label = when (readiness) {
+        IntegrationReadiness.READY -> stringResource(R.string.integration_status_connected)
+        IntegrationReadiness.AUTHORIZATION_REQUIRED -> stringResource(R.string.integration_status_authorization_required)
+        IntegrationReadiness.DISCONNECTED -> stringResource(R.string.integration_status_offline)
+    }
 
     Row(
         modifier = Modifier
@@ -405,20 +432,20 @@ private fun StatusBadge(connected: Boolean) {
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            if (connected) {
+            if (ready) {
                 Box(
                     modifier = Modifier
                         .size(8.dp)
                         .scale(pulse)
                         .clip(CircleShape)
-                        .background(Color(0xFF4ADE80).copy(alpha = 0.22f))
+                        .background(accent.copy(alpha = 0.22f))
                 )
             }
             Box(
                 modifier = Modifier
                     .size(7.dp)
                     .clip(CircleShape)
-                    .background(if (connected) Color(0xFF4ADE80) else AiriTheme.onSurface.copy(alpha = 0.35f))
+                    .background(accent)
             )
         }
         Text(

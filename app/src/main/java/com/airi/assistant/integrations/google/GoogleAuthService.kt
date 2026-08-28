@@ -3,57 +3,49 @@ package com.airi.assistant.integrations.google
 import android.content.Context
 import android.content.Intent
 import com.airi.assistant.auth.SecureStorage
+import com.google.android.gms.auth.api.identity.AuthorizationRequest
+import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.Scope
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.tasks.Task
 
 class GoogleAuthService(
     private val context: Context,
     private val secureStorage: SecureStorage
 ) {
 
+    /**
+     * In-memory user-data access token. It is intentionally never persisted:
+     * Google Identity Services can renew a previously granted authorization in
+     * a later foreground session, while a stolen on-device token expires.
+     */
+    @Volatile
+    private var dataAccessToken: String? = null
+
     private val gso: GoogleSignInOptions by lazy {
-        val builder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
-            .requestScopes(
-                Scope("https://www.googleapis.com/auth/gmail.readonly"),
-                Scope("https://www.googleapis.com/auth/drive.readonly"),
-                Scope("https://www.googleapis.com/auth/calendar.readonly")
-            )
-
-        try {
-            val webClientId = context.getString(
-                context.resources.getIdentifier(
-                    "default_web_client_id", "string", context.packageName
-                )
-            )
-            if (webClientId.isConfiguredGoogleWebClientId()) {
-                builder.requestIdToken(webClientId)
-            }
-        } catch (e: Exception) {
-        }
-
-        builder.build()
+            .build()
     }
 
     fun getSignInIntent(): Intent = GoogleSignIn.getClient(context, gso).signInIntent
 
-    private fun String.isConfiguredGoogleWebClientId(): Boolean =
-        isNotBlank() && !startsWith("REPLACE_WITH_")
-
     fun handleSignInSuccess(account: GoogleSignInAccount) {
         val email = account.email ?: ""
         secureStorage.saveGoogleConnected(true, email)
-        account.idToken?.takeIf { it.isNotBlank() }?.let { token ->
-            secureStorage.saveGoogleIdToken(token)
-        }
+        // ID tokens authenticate identity; they never authorize Google APIs.
+        // Remove credentials retained by older application versions.
+        secureStorage.clearGoogleIdToken()
     }
 
     fun disconnect() {
+        dataAccessToken = null
         try {
             GoogleSignIn.getClient(context, gso).signOut()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
+            // Best effort only; encrypted credentials are still cleared below.
         }
         secureStorage.disconnect("google")
     }
@@ -61,13 +53,52 @@ class GoogleAuthService(
     fun getLastSignedInEmail(): String? = GoogleSignIn.getLastSignedInAccount(context)?.email
 
     /**
-     * AP-10: Returns the stored Google ID token for API bearer auth.
-     * Prefer the live account token when available; fall back to the cached
-     * SecureStorage token saved during [handleSignInSuccess].
+     * Requests the Google API scopes only after a user deliberately connects
+     * the Google data integration. A successful no-resolution result means
+     * consent already exists; a pending intent must be launched by the UI.
      */
-    fun getIdToken(): String? {
-        val liveToken = GoogleSignIn.getLastSignedInAccount(context)?.idToken
-        if (!liveToken.isNullOrBlank()) return liveToken
-        return secureStorage.getGoogleIdToken()
+    fun authorizeDataAccess(): Task<GoogleDataAuthorization> {
+        val request = AuthorizationRequest.builder()
+            .setRequestedScopes(GoogleDataScopes.all)
+            .build()
+        return Identity.getAuthorizationClient(context)
+            .authorize(request)
+            .continueWith { task ->
+                if (!task.isSuccessful) {
+                    return@continueWith GoogleDataAuthorization.Unavailable
+                }
+                authorizationFromResult(task.result)
+            }
+    }
+
+    /** Handles the result from the UI-owned authorization resolution. */
+    fun completeDataAuthorization(resultIntent: Intent?): GoogleDataAuthorization =
+        try {
+            val result = Identity.getAuthorizationClient(context)
+                .getAuthorizationResultFromIntent(resultIntent)
+            authorizationFromResult(result)
+        } catch (_: ApiException) {
+            GoogleDataAuthorization.Cancelled
+        }
+
+    /** Only user-data OAuth access tokens may authenticate Google API calls. */
+    fun getDataAccessToken(): String? = dataAccessToken
+
+    /** Called when a Google resource server rejects the cached short-lived token. */
+    fun clearDataAccessToken() {
+        dataAccessToken = null
+    }
+
+    private fun authorizationFromResult(
+        result: com.google.android.gms.auth.api.identity.AuthorizationResult
+    ): GoogleDataAuthorization {
+        if (result.hasResolution()) {
+            val pendingIntent = result.pendingIntent ?: return GoogleDataAuthorization.Unavailable
+            return GoogleDataAuthorization.ConsentRequired(pendingIntent)
+        }
+        val accessToken = result.accessToken
+        if (accessToken.isNullOrBlank()) return GoogleDataAuthorization.Unavailable
+        dataAccessToken = accessToken
+        return GoogleDataAuthorization.Authorized
     }
 }

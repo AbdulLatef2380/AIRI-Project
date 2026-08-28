@@ -557,7 +557,14 @@ fun AiriApp() {
                     }
 
                     composable(AiriRoute.CONNECTORS) {
-                        ConnectorsScreen(onBack = { navController.popBackStack() })
+                        ConnectorsScreen(
+                            onBack = { navController.popBackStack() },
+                            onManageAuthorization = {
+                                navController.navigate(AiriRoute.INTEGRATIONS) {
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
                     }
 
                     composable(AiriRoute.PROFILE) {

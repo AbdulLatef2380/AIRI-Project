@@ -7,10 +7,13 @@ import com.airi.assistant.connector.ConnectorMeta
 import com.airi.assistant.connector.ConnectorState
 import com.airi.assistant.connector.ConnectorType
 import com.airi.assistant.core.ServiceLocator
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 /**
@@ -32,11 +35,14 @@ class ConnectorsViewModel(application: Application) : AndroidViewModel(applicati
     val items: StateFlow<List<ConnectorRow>> = _items.asStateFlow()
 
     init {
-        // Subscribe to registry meta changes; for each connector also
-        // subscribe to its state flow so the row stays live.
+        // The registry can add or remove connectors; each new metadata snapshot
+        // replaces the previous state subscriptions. This keeps the UI live when
+        // a connector changes authorization or health without being re-registered.
         viewModelScope.launch {
-            registry.meta.collect { metas ->
-                refreshItems(metas)
+            registry.meta.collectLatest { metas ->
+                observeItems(metas).collect { rows ->
+                    _items.value = rows
+                }
             }
         }
     }
@@ -46,28 +52,28 @@ class ConnectorsViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun connect(id: String) {
-        val c = registry.get(id) ?: return
+        val connector = registry.get(id) ?: return
         viewModelScope.launch {
-            runCatching { c.connect() }
-            refreshItems(registry.meta.value)
+            runCatching { connector.connect() }
         }
     }
 
     fun disconnect(id: String) {
-        val c = registry.get(id) ?: return
+        val connector = registry.get(id) ?: return
         viewModelScope.launch {
-            runCatching { c.disconnect() }
-            refreshItems(registry.meta.value)
+            runCatching { connector.disconnect() }
         }
     }
 
-    private fun refreshItems(metas: List<ConnectorMeta>) {
-        _items.value = metas.map { m ->
-            val live = registry.get(m.id)
-            ConnectorRow(
-                meta  = m,
-                state = live?.state()?.value ?: ConnectorState(connected = false),
-            )
+    private fun observeItems(metas: List<ConnectorMeta>): Flow<List<ConnectorRow>> {
+        if (metas.isEmpty()) return flowOf(emptyList())
+        val stateFlows = metas.map { meta ->
+            registry.get(meta.id)?.state() ?: flowOf(ConnectorState(connected = false))
+        }
+        return combine(stateFlows) { states ->
+            metas.mapIndexed { index, meta ->
+                ConnectorRow(meta = meta, state = states[index])
+            }
         }
     }
 

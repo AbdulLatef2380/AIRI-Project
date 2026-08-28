@@ -32,6 +32,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airi.assistant.connector.ConnectorType
+import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicBlack
@@ -76,13 +77,14 @@ private fun iconForId(id: String): ImageVector = when {
 @Composable
 fun ConnectorsScreen(
     viewModel: ConnectorsViewModel = viewModel(),
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onManageAuthorization: (String) -> Unit = {}
 ) {
     val allItems     by viewModel.items.collectAsState()
     val selectedTab  by viewModel.selectedTab.collectAsState()
 
     val visibleItems   = allItems.filter { it.meta.type == selectedTab }
-    val connectedCount = allItems.count { it.state.connected }
+    val connectedCount = allItems.count { it.state.connected && it.state.healthy }
 
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -243,7 +245,8 @@ fun ConnectorsScreen(
                                     viewModel.connect(row.meta.id)
                                 }
                             },
-                            onDisconnect = { viewModel.disconnect(row.meta.id) }
+                            onDisconnect = { viewModel.disconnect(row.meta.id) },
+                            onManageAuthorization = onManageAuthorization
                         )
                     }
                 }
@@ -256,11 +259,23 @@ fun ConnectorsScreen(
 private fun ConnectorCard(
     row: ConnectorsViewModel.ConnectorRow,
     onConnect: () -> Unit,
-    onDisconnect: () -> Unit
+    onDisconnect: () -> Unit,
+    onManageAuthorization: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     val isConnected = row.state.connected
-    val statusColor = if (isConnected) SemanticSuccess else AiriTheme.onSurface.copy(0.30f)
+    val isReady = isConnected && row.state.healthy
+    val needsAttention = isConnected && !row.state.healthy
+    val statusColor = when {
+        isReady -> SemanticSuccess
+        needsAttention -> MaterialTheme.colorScheme.tertiary
+        else -> AiriTheme.onSurface.copy(0.30f)
+    }
+    val statusLabel = when {
+        isReady -> stringResource(R.string.connectors_status_connected)
+        needsAttention -> stringResource(R.string.connectors_status_needs_attention)
+        else -> stringResource(R.string.connectors_status_disconnected)
+    }
 
     Box(
         modifier = Modifier
@@ -269,7 +284,7 @@ private fun ConnectorCard(
             .background(AiriTheme.surface)
             .border(
                 width = 1.dp,
-                color = if (isConnected) SemanticSuccess.copy(0.25f) else AiriTheme.onSurface.copy(0.07f),
+                color = if (isReady) SemanticSuccess.copy(0.25f) else if (needsAttention) statusColor.copy(0.30f) else AiriTheme.onSurface.copy(0.07f),
                 shape = AIRIShapes.md
             )
             .clickable { expanded = !expanded }
@@ -317,7 +332,7 @@ private fun ConnectorCard(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            if (isConnected) stringResource(R.string.connectors_status_connected) else stringResource(R.string.connectors_status_disconnected),
+                            statusLabel,
                             color = statusColor,
                             fontSize = 11.sp
                         )
@@ -352,7 +367,16 @@ private fun ConnectorCard(
                         fontSize = 13.sp,
                         lineHeight = 18.sp
                     )
-                    if (row.state.errorMessage != null) {
+                    if (needsAttention && row.meta.id == "google") {
+                        Spacer(Modifier.height(8.dp))
+                        TextButton(onClick = { onManageAuthorization(row.meta.id) }) {
+                            Text(stringResource(R.string.connectors_manage_authorization))
+                        }
+                    }
+                    val sanitizedError = row.state.errorMessage?.let {
+                        PrivacyGuard.redactForTrace(it)
+                    }
+                    if (!sanitizedError.isNullOrBlank()) {
                         Spacer(Modifier.height(8.dp))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -365,7 +389,7 @@ private fun ConnectorCard(
                                 modifier = Modifier.size(14.dp)
                             )
                             Text(
-                                row.state.errorMessage,
+                                sanitizedError,
                                 color    = SemanticError,
                                 fontSize = 12.sp,
                                 maxLines = 2,

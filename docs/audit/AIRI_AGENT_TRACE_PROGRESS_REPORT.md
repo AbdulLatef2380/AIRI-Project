@@ -24,10 +24,12 @@
 | `e4559f2f` | أضاف lifecycle مملوكاً للأداة، sequence/action/duration، تمرير executionId إلى ToolDispatcher، overload واعياً بالـexecution في graph، وحجب AppEvent عند projection. | Android CI `33118602936`، Deep `33118602894`، Architecture `33118602895`، Oracle `33118602886`: **success**. |
 | `380c0a54` | أضاف presentation policy وواجهة trace داخل لوحة الخطة وموارد اللغات الأربع. | Deep Audit `33120815009` كشف خطأ Compose حقيقياً؛ لا يعتمد هذا الرأس كنجاح. |
 | `064f9034` | أصلح استدعاء `stringResource` غير المسموح داخل semantics lambda عبر حساب النص قبل lambda. | Android CI `33121217462`، Deep `33121217471`، Architecture `33121217381`، Oracle `33121217398`: **success**. |
+| `d84f4390` / `215c4a4c` / `d0173d90` | أضاف `PlanStructureValidator` admission حقيقياً للخطط، رفض empty/limit/blank/duplicate/missing/self/cycle، وترتيباً topological حتمياً؛ أصلح `215c4a4c` اعتماد JVM على Android Log من دون حذف اختبار JSON السلبي. | Android CI `33128852900`، Deep `33128852894`، Architecture `33128852886`، Oracle `33128852905`: **success**. |
+| `c61d7131` / `7a24d723` | دفعة Google منفصلة عن trace، لكنها نفذت release regression للرأس وراجعت الاستقرار العام. | Android CI `33133058954`، Deep `33133058955`، Architecture `33133058940`، Oracle `33133058947`: **success**. |
 
 ## الاختبارات الانحدارية
 
-تغطي اختبارات JVM إضافة الحدث للـtrace مع sequence وbounded eviction وتطبيع المدة السالبة؛ وتغطي lifecycle للأداة رفض executionId/actionId الفارغين أو المتقادمين ومنع البداية أو terminal المكرر؛ وتغطي سياسة العرض العزل حسب executionId، الترتيب، filters، وعدّ الأحداث الجديدة؛ كما تختبر إسقاط AppEvent عدم تسريب input أو cookie أو password أو API key إلى activity feed. أثبتت Android CI النهائي compile وunit/lint وrelease packaging وinstrumentation الموجودة ضمن سير العمل.
+تغطي اختبارات JVM إضافة الحدث للـtrace مع sequence وbounded eviction وتطبيع المدة السالبة؛ وتغطي lifecycle للأداة رفض executionId/actionId الفارغين أو المتقادمين ومنع البداية أو terminal المكرر؛ وتغطي سياسة العرض العزل حسب executionId، الترتيب، filters، وعدّ الأحداث الجديدة؛ كما تختبر إسقاط AppEvent عدم تسريب input أو cookie أو password أو API key إلى activity feed. وتغطي `PlanStructureValidatorTest` و`PlanGeneratorAdmissionTest` قبول ترتيب حتمي ورفض invalid JSON وempty/limit/blank/duplicate/missing/self/cycle. أثبتت Android CI للرأس `7a24d723` compile وunit/lint وrelease packaging وinstrumentation وnative verification ضمن سير العمل.
 
 ## الفشل الذي عولج من جذره
 
@@ -37,7 +39,7 @@
 
 | البوابة | الحالة | السبب الدقيق |
 |---|---|---|
-| Structured planner validation | **OPEN** | لا parser/validator مثبت بعد لحالات JSON غير صالح أو خطة فارغة أو IDs مكررة أو cycles أو dependencies غير قابلة للحل أو حدود الخطوات. |
+| Structured planner validation | **PARTIALLY_DONE / CI_VERIFIED** | `PlanStructureValidator` صار admission حقيقياً قبل التنفيذ ويغطي invalid JSON وempty/limit/blank/duplicate/missing/self/cycle وترتيباً حتمياً؛ تبقى أدلة runtime/UI للخطط الحقيقية خارج CI. |
 | SkillService legacy tool tracing | **OPEN** | المسارات القديمة تصدر events بلا executionId/actionId ومدة/terminal كاملة؛ لا يجوز إسنادها تخمينياً إلى واجهة نشطة. |
 | Process recreation/recovery | **OPEN** | trace في الذاكرة عمداً؛ لم يُثبت بعد checkpoint/history مناسب للحالة المباشرة. |
 | UI/RTL/accessibility runtime | **BLOCKED / REAL_DEVICE_ACCESS_REQUIRED** | لا يتوفر جهاز ARM64/محاكي Android محلي قادر على تقديم دليل لقطة وfont-scale وقارئ شاشة. |
@@ -45,4 +47,4 @@
 
 ## الخطوة التقنية التالية
 
-تُغلق الدفعة التالية parser/validator لخطة التنفيذ قبل توسيع واجهة المستخدم أكثر، مع اختبارات invalid JSON وempty/duplicate/cycle/dependency/limit والدخول الفعلي إلى التنفيذ. بعد ذلك فقط يُراجع تصميم ledger الائتمانات M4 كعقد معاملات idempotent موحد؛ لا يُنفذ تعديل requestId جزئي.
+تتجه الدفعة التالية إلى توسيع `executionId` و`actionId` إلى مسارات `SkillService` القديمة وإثبات lifecycle عبر أدوات فعلية وprocess recreation، مع إبقاء trace آمناً ومحدوداً. يراجع تصميم ledger الائتمانات M4 لاحقاً كعقد معاملات idempotent موحد؛ لا يُنفذ تعديل requestId جزئي.

@@ -63,3 +63,11 @@
 كشف CI خطأين عاديين في هذه الدفعة ولم تُخفَ نتائجهما: أصلح `0f352a9011de6dae64b8652ff4567da3723e1d83` توازن أقواس فرع اختيار الصوت واستبدل أيقونة اتجاه غير متاحة، ثم أصلح `bb77c18447c40798d7a1d26755f001b73e14e74f` سهم Settings إلى `AutoMirrored.ArrowForward` المدعوم. كشف Lint لاحقاً قراءة `Configuration` عبر `LocalContext`؛ أصلح `fd9f90c9133b2f0cd71afae4c8c2765f3f04482c` ذلك باستخدام `LocalConfiguration` كي يعيد Compose تكوين قائمة TTS عند تغير لغة التطبيق. اجتازت البوابات للرأس الأخير: Android CI `33138024292`، وDeep Audit `33138024268`، وArchitecture Audit `33138024276`، وOracle `33138024272`؛ كما نجحت تشغيلات `cp-foundation` النظيرة.
 
 **الحالة:** `PARTIALLY_DONE` / `CI_VERIFIED`. ما زالت صحة محرك TTS الفعلي، توفر حزم اللغة، Force RTL، TalkBack، font scale، وتباين light/dark على ARM64 API 26 و35/36 بوابات جهاز حقيقية منفصلة؛ لا تستنتج من CI أو من قائمة أصوات افتراضية.
+
+## سجل تنفيذ M8 — شريط الإدخال وأدوات المحادثة
+
+عالجت دفعة `e838b5b3567952145241692eef2aeabf5af14e93` النصوص الصلبة في `AdvancedInputBar`: أصبحت شرائح الخطة والأدوات والمهارات وWeb/Code واختصارات الكاميرا والملف تستخدم موارد `ar/en/es/zh`، مع صيغ عدد مترجمة وحالة خطة نشطة. رُفعت أهداف الشرائح إلى حد أدنى 48dp وأضيفت semantics وظيفية بدور زر، مع حساب وصف الخطة خارج `semantics` لتجنب استدعاء Compose من lambda غير composable. لم يتغير مسار callbacks أو الإرسال أو الإلغاء أو المرفقات.
+
+خلال الحارس المحلي كُشفت fixtures اختبارية تشبه مفتاح Google API في اختبارَي redaction؛ لم تكن أسراراً فعلية، لكنها سببت إنذاراً صحيحاً للحارس. استُبدلت بقيمة fixture محايدة مع الإبقاء على assertions الخاصة بالحجب. بعد التصحيح نجح `tools/security_scan.py` بلا secret findings، ونجح `scripts/airi_localization_health.py --strict`، كما نجح تحقق XML وparity للموارد الأربع (1518 مفتاحاً لكل مورد). اجتازت بوابات الرأس Android CI `33149044041` وDeep Audit `33149044067` وArchitecture Audit `33149044079` وOracle `33149044235`، وكلها `success`.
+
+**الحالة:** `PARTIALLY_DONE` / `CI_VERIFIED` / `RUNTIME_PENDING`. ما زالت مراجعة RTL المرئية، TalkBack، font scale، وقياس أهداف اللمس على أجهزة ARM64، إضافة إلى اختبار picker/camera/keyboard وcancel على جهاز فعلي، خارج البيئة الحالية ولا تُستنتج من CI.

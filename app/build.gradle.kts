@@ -237,8 +237,9 @@ dependencies {
     // Biometric auth (BiometricPrompt)
     implementation("androidx.biometric:biometric:1.1.0")
 
-    // Google Identity: sign-in plus AuthorizationClient for scoped Google API access.
-    implementation("com.google.android.gms:play-services-auth:22.0.0")
+    // Google Identity: existing GoogleSignIn flow plus AuthorizationClient for scoped access.
+    // 20.7.0 retains the legacy GoogleSignIn APIs used by the current login UI.
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
 
     // Secure Storage (EncryptedSharedPreferences)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")

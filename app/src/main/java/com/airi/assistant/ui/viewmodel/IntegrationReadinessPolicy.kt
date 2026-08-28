@@ -1,7 +1,7 @@
 package com.airi.assistant.ui.viewmodel
 
 /** User-visible truthfulness state for an external integration. */
-internal enum class IntegrationReadiness {
+enum class IntegrationReadiness {
     DISCONNECTED,
     AUTHORIZATION_REQUIRED,
     READY

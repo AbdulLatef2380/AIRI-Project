@@ -279,20 +279,21 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                         )
                         else -> {
                             VoiceOption(
-                                name       = stringResource(R.string.voice_system_default),
-                                locale     = stringResource(R.string.voice_automatic_locale),
-                            isSelected = selectedVoice.isBlank(),
-                            onClick    = { selectedVoice = "" }
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        availableVoices.take(8).forEach { voice ->
-                            VoiceOption(
-                                name       = voice.name.replace("#", " ").replace("-", " ").split(" ").take(3).joinToString(" "),
-                                locale     = voice.locale.displayName,
-                                isSelected = selectedVoice == voice.name,
-                                onClick    = { selectedVoice = voice.name }
+                                name = stringResource(R.string.voice_system_default),
+                                locale = stringResource(R.string.voice_automatic_locale),
+                                isSelected = selectedVoice.isBlank(),
+                                onClick = { selectedVoice = "" }
                             )
                             Spacer(Modifier.height(4.dp))
+                            availableVoices.take(8).forEach { voice ->
+                                VoiceOption(
+                                    name = voice.name.replace("#", " ").replace("-", " ").split(" ").take(3).joinToString(" "),
+                                    locale = voice.locale.displayName,
+                                    isSelected = selectedVoice == voice.name,
+                                    onClick = { selectedVoice = voice.name }
+                                )
+                                Spacer(Modifier.height(4.dp))
+                            }
                         }
                     }
                 }

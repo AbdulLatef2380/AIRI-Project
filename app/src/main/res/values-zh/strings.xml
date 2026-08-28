@@ -241,7 +241,7 @@
     <string name="integration_telegram_name">Telegram</string>
     <string name="integration_telegram_description">链接 Telegram 机器人以实现消息工作流。</string>
     <string name="integration_google_name">Google</string>
-    <string name="integration_google_description">在你同意后连接 Gmail、Drive 和日历的各项数据能力。</string>
+    <string name="integration_google_description">在此同意后，以连接范围的只读访问连接 Gmail、Drive 和日历。</string>
     <string name="integration_google_connected">Google 帐号已连接。</string>
     <string name="integration_google_sign_in_cancelled">Google 登录已取消。未连接任何帐号。</string>
     <string name="integration_google_sign_in_failed">无法完成 Google 登录。请检查网络连接和配置，然后重试。</string>

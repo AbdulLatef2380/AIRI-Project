@@ -10,7 +10,6 @@ import com.airi.assistant.connector.ConnectorAuthManager
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.integrations.github.GithubService
-import com.airi.assistant.integrations.google.GoogleAuthService
 import com.airi.assistant.integrations.google.GoogleDataAuthorization
 import com.airi.assistant.integrations.telegram.TelegramService
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
@@ -26,10 +25,11 @@ import java.security.SecureRandom
 class IntegrationsViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Private services (internal domain — ViewModels do not expose services) ─
-    // : Use ServiceLocator singleton — eliminates split-brain on Keystore failure.
-    private val secureStorage    = ServiceLocator.secureStorage
-    // : ConnectorAuthManager — canonical credential store that connectors read from.
+    private val secureStorage = ServiceLocator.secureStorage
     private val authManager: ConnectorAuthManager = ServiceLocator.connectorAuthManager
+    // The registered GoogleConnector uses this same process-scoped service. Keeping
+    // data access tokens only here prevents per-ViewModel token split-brain.
+    private val googleAuthService = ServiceLocator.googleAuthService
 
     /**
      * SECURITY: Per-session CSRF state token for OAuth flows.
@@ -66,9 +66,8 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     /** Returns the current OAuth state token for inclusion in authorization URLs. */
     fun getOAuthStateToken(): String = oauthStateToken
-    private val githubService    = GithubService(secureStorage)
-    private val telegramService  = TelegramService(secureStorage)
-    private val googleAuthService = GoogleAuthService(application, secureStorage)
+    private val githubService = GithubService(secureStorage)
+    private val telegramService = TelegramService(secureStorage)
 
     // ── Integration UI State ──────────────────────────────────────────────────
 
@@ -103,6 +102,14 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun refresh() {
         _items.value = buildItems()
+    }
+
+    /** Re-evaluates the registered connector after an explicit Google account action. */
+    private fun refreshGoogleConnectorState() {
+        viewModelScope.launch {
+            ServiceLocator.connectorRegistry.get("google")?.connect()
+            refresh()
+        }
     }
 
     private fun buildItems(): List<IntegrationItem> {
@@ -239,7 +246,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
             return
         }
         googleAuthService.handleSignInSuccess(account)
-        refresh()
+        refreshGoogleConnectorState()
         requestGoogleDataAuthorization()
     }
 
@@ -247,7 +254,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         googleAuthService.authorizeDataAccess()
             .addOnSuccessListener(::handleGoogleDataAuthorization)
             .addOnFailureListener {
-                refresh()
+                refreshGoogleConnectorState()
                 _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
             }
     }
@@ -259,7 +266,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     private fun handleGoogleDataAuthorization(result: GoogleDataAuthorization) {
         when (result) {
             GoogleDataAuthorization.Authorized -> {
-                refresh()
+                refreshGoogleConnectorState()
                 _googleFeedback.value = GoogleIntegrationSignInPolicy.dataAuthorizedFeedback()
             }
             is GoogleDataAuthorization.ConsentRequired -> {
@@ -268,11 +275,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 )
             }
             GoogleDataAuthorization.Cancelled -> {
-                refresh()
+                refreshGoogleConnectorState()
                 _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationCancelledFeedback()
             }
             GoogleDataAuthorization.Unavailable -> {
-                refresh()
+                refreshGoogleConnectorState()
                 _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
             }
         }
@@ -326,9 +333,15 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun disconnect(id: String) {
         when (id) {
-            "google" -> googleAuthService.disconnect()
-            else     -> secureStorage.disconnect(id)
+            "google" -> viewModelScope.launch {
+                val connector = ServiceLocator.connectorRegistry.get("google")
+                if (connector != null) connector.disconnect() else googleAuthService.disconnect()
+                refresh()
+            }
+            else -> {
+                secureStorage.disconnect(id)
+                refresh()
+            }
         }
-        refresh()
     }
 }

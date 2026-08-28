@@ -7,6 +7,13 @@ internal enum class IntegrationReadiness {
     READY
 }
 
+/** The explicit next user action for the Google connection button. */
+internal enum class GoogleConnectionAction {
+    START_IDENTITY_SIGN_IN,
+    REQUEST_DATA_AUTHORIZATION,
+    NONE
+}
+
 /**
  * Separates account identity from OAuth data authorization. An account visible
  * after sign-in does not prove it has a usable access token for Google APIs.
@@ -23,4 +30,10 @@ internal object IntegrationReadinessPolicy {
 
     fun credentialBacked(isConnected: Boolean): IntegrationReadiness =
         if (isConnected) IntegrationReadiness.READY else IntegrationReadiness.DISCONNECTED
+
+    fun googleConnectionAction(readiness: IntegrationReadiness): GoogleConnectionAction = when (readiness) {
+        IntegrationReadiness.DISCONNECTED -> GoogleConnectionAction.START_IDENTITY_SIGN_IN
+        IntegrationReadiness.AUTHORIZATION_REQUIRED -> GoogleConnectionAction.REQUEST_DATA_AUTHORIZATION
+        IntegrationReadiness.READY -> GoogleConnectionAction.NONE
+    }
 }

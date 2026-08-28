@@ -25,7 +25,7 @@
     <string name="integration_telegram_name">Telegram</string>
     <string name="integration_telegram_description">ربط بوت Telegram لسير عمل المراسلة.</string>
     <string name="integration_google_name">Google</string>
-    <string name="integration_google_description">ربط Gmail وDrive وCalendar بموافقتك لكل قدرة تتعامل مع البيانات.</string>
+    <string name="integration_google_description">اربط Gmail وDrive وCalendar بوصول قراءة موحّد للتكامل توافق عليه هنا.</string>
     <string name="integration_google_connected">تم ربط حساب Google.</string>
     <string name="integration_google_sign_in_cancelled">أُلغي تسجيل الدخول إلى Google. لم يتم ربط أي حساب.</string>
     <string name="integration_google_sign_in_failed">تعذّر إكمال تسجيل الدخول إلى Google. تحقق من الاتصال والإعداد، ثم حاول مرة أخرى.</string>

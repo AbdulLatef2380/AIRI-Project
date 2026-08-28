@@ -8,10 +8,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
@@ -24,16 +22,15 @@ import java.util.concurrent.TimeUnit
  * no Google connector was registered.
  *
  * Supported actions:
- *   - gmail_list      : GET /gmail/v1/users/me/messages (recent messages)
- *   - gmail_read      : GET /gmail/v1/users/me/messages/{id} (single message)
- *   - gmail_send      : POST /gmail/v1/users/me/messages/send
- *   - calendar_list   : GET /calendar/v3/calendars/primary/events
- *   - calendar_create : POST /calendar/v3/calendars/primary/events
- *   - drive_search    : GET /drive/v3/files?q=...
+ *   - gmail_list      : reads recent message identifiers
+ *   - gmail_read      : reads one message
+ *   - calendar_list   : reads upcoming events
+ *   - drive_search    : searches file metadata
  *
- * Authentication: Google Sign-In (GoogleAuthService) using the user's Google account.
- * The connector requires the user to be signed in via the Integrations screen.
- * Unauthenticated requests return ConnectorOutput.Failure(code = "auth_required").
+ * Write actions (gmail_send and calendar_create) are rejected in this release:
+ * OAuth consent alone is not a durable, reviewable approval for a side effect.
+ * Authentication uses Google Identity and a memory-only OAuth access token issued
+ * after the user explicitly authorizes the read-only connection in Integrations.
  */
 class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connector {
 
@@ -107,13 +104,17 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
                 message = "Google data access requires user authorization in Integrations."
             )
         }
+        GoogleConnectorActionPolicy.blockedWriteAction(input.action)?.let { message ->
+            return@withContext ConnectorOutput.Failure(
+                code = "approval_required",
+                message = message
+            )
+        }
         when (input.action) {
-            "gmail_list"      -> executeGmailList(token, input)
-            "gmail_read"      -> executeGmailRead(token, input)
-            "gmail_send"      -> executeGmailSend(token, input)
-            "calendar_list"   -> executeCalendarList(token, input)
-            "calendar_create" -> executeCalendarCreate(token, input)
-            "drive_search"    -> executeDriveSearch(token, input)
+            "gmail_list" -> executeGmailList(token, input)
+            "gmail_read" -> executeGmailRead(token, input)
+            "calendar_list" -> executeCalendarList(token, input)
+            "drive_search" -> executeDriveSearch(token, input)
             else -> ConnectorOutput.Failure(
                 code    = "unknown_action",
                 message = "Unknown Google action: ${input.action}"
@@ -121,7 +122,7 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
         }
     }
 
-    // ── Gmail ─────────────────────────────────────────────────────────────────
+    // ── Gmail (read-only) ─────────────────────────────────────────────────────
 
     private fun executeGmailList(token: String, input: ConnectorInput): ConnectorOutput {
         val maxResults = input.params["max_results"]?.toIntOrNull() ?: 10
@@ -169,39 +170,7 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
         }
     }
 
-    private fun executeGmailSend(token: String, input: ConnectorInput): ConnectorOutput {
-        val to      = input.params["to"]      ?: return ConnectorOutput.Failure("invalid_params", "'to' is required")
-        val subject = input.params["subject"] ?: "(no subject)"
-        val body    = input.params["body"]    ?: input.text
-        return try {
-            val raw = buildString {
-                append("To: $to\r\n")
-                append("Subject: $subject\r\n")
-                append("Content-Type: text/plain; charset=utf-8\r\n\r\n")
-                append(body)
-            }
-            val encoded = android.util.Base64.encodeToString(raw.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
-            val requestBody = JSONObject().put("raw", encoded).toString()
-                .toRequestBody("application/json".toMediaType())
-            val request = Request.Builder()
-                .url("https://gmail.googleapis.com/gmail/v1/users/me/messages/send")
-                .header("Authorization", "Bearer $token")
-                .post(requestBody)
-                .build()
-            http.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    ConnectorOutput.Success(text = "Email sent to $to", data = mapOf("to" to to, "subject" to subject))
-                } else {
-                    googleRequestFailure("Gmail send", GoogleApiHttpException(response.code))
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "gmail_send request failed")
-            googleRequestFailure("Gmail send", e)
-        }
-    }
-
-    // ── Calendar ──────────────────────────────────────────────────────────────
+    // ── Calendar (read-only) ──────────────────────────────────────────────────
 
     private fun executeCalendarList(token: String, input: ConnectorInput): ConnectorOutput {
         val maxResults = input.params["max_results"]?.toIntOrNull() ?: 10
@@ -228,44 +197,6 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
         } catch (e: Exception) {
             Log.w(TAG, "calendar_list request failed")
             googleRequestFailure("Calendar list", e)
-        }
-    }
-
-    private fun executeCalendarCreate(token: String, input: ConnectorInput): ConnectorOutput {
-        val title    = input.params["title"]    ?: input.text.trim().ifBlank { return ConnectorOutput.Failure("invalid_params", "'title' is required") }
-        val start    = input.params["start"]    ?: return ConnectorOutput.Failure("invalid_params", "'start' datetime is required (ISO 8601)")
-        val end      = input.params["end"]      ?: start
-        val timeZone = input.params["timezone"] ?: "UTC"
-        return try {
-            val event = JSONObject().apply {
-                put("summary", title)
-                put("start", JSONObject().apply {
-                    put("dateTime", start); put("timeZone", timeZone)
-                })
-                put("end", JSONObject().apply {
-                    put("dateTime", end); put("timeZone", timeZone)
-                })
-            }
-            val requestBody = event.toString().toRequestBody("application/json".toMediaType())
-            val request = Request.Builder()
-                .url("https://www.googleapis.com/calendar/v3/calendars/primary/events")
-                .header("Authorization", "Bearer $token")
-                .post(requestBody)
-                .build()
-            http.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val created = JSONObject(response.body?.string() ?: "{}")
-                    ConnectorOutput.Success(
-                        text = "Event created: $title",
-                        data = mapOf("eventId" to created.optString("id"), "title" to title)
-                    )
-                } else {
-                    googleRequestFailure("Calendar create", GoogleApiHttpException(response.code))
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "calendar_create request failed")
-            googleRequestFailure("Calendar create", e)
         }
     }
 

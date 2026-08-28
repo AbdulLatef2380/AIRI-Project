@@ -19,14 +19,15 @@ sealed interface GoogleDataAuthorization {
 }
 
 /**
- * Scope inventory for the capabilities implemented by [GoogleConnector].
- * A user starts this authorization deliberately from the integrations screen.
+ * Connection-wide read-only scope bundle for the capabilities exposed in this
+ * release. A user starts it deliberately from the integrations screen. OAuth
+ * consent does not approve a write: Gmail sending and Calendar creation remain
+ * disabled until each has a durable, user-reviewable approval path.
  */
 object GoogleDataScopes {
-    val all: List<Scope> = listOf(
+    val connectionReadOnly: List<Scope> = listOf(
         Scope("https://www.googleapis.com/auth/gmail.readonly"),
-        Scope("https://www.googleapis.com/auth/gmail.send"),
-        Scope("https://www.googleapis.com/auth/calendar.events"),
+        Scope("https://www.googleapis.com/auth/calendar.events.readonly"),
         Scope("https://www.googleapis.com/auth/drive.metadata.readonly")
     )
 }

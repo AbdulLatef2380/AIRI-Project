@@ -39,6 +39,30 @@ class IntegrationReadinessPolicyTest {
     }
 
     @Test
+    fun googleConnectionActionStartsIdentitySignInOnlyWhenDisconnected() {
+        assertEquals(
+            GoogleConnectionAction.START_IDENTITY_SIGN_IN,
+            IntegrationReadinessPolicy.googleConnectionAction(IntegrationReadiness.DISCONNECTED)
+        )
+    }
+
+    @Test
+    fun googleConnectionActionRequestsDataAuthorizationForSignedInIdentity() {
+        assertEquals(
+            GoogleConnectionAction.REQUEST_DATA_AUTHORIZATION,
+            IntegrationReadinessPolicy.googleConnectionAction(IntegrationReadiness.AUTHORIZATION_REQUIRED)
+        )
+    }
+
+    @Test
+    fun googleConnectionActionIsNoOpWhenAlreadyReady() {
+        assertEquals(
+            GoogleConnectionAction.NONE,
+            IntegrationReadinessPolicy.googleConnectionAction(IntegrationReadiness.READY)
+        )
+    }
+
+    @Test
     fun credentialBackedIntegrationHasOnlyReadyOrDisconnectedStates() {
         assertEquals(
             IntegrationReadiness.READY,

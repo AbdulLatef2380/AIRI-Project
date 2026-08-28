@@ -33,6 +33,9 @@ class GoogleAuthService(
     fun getSignInIntent(): Intent = GoogleSignIn.getClient(context, gso).signInIntent
 
     fun handleSignInSuccess(account: GoogleSignInAccount) {
+        // Identity may have changed within the same process; its data grant must
+        // never inherit the previous account's memory-only access token.
+        dataAccessToken = null
         val email = account.email ?: ""
         secureStorage.saveGoogleConnected(true, email)
         // ID tokens authenticate identity; they never authorize Google APIs.
@@ -59,7 +62,7 @@ class GoogleAuthService(
      */
     fun authorizeDataAccess(): Task<GoogleDataAuthorization> {
         val request = AuthorizationRequest.builder()
-            .setRequestedScopes(GoogleDataScopes.all)
+            .setRequestedScopes(GoogleDataScopes.connectionReadOnly)
             .build()
         return Identity.getAuthorizationClient(context)
             .authorize(request)

@@ -85,8 +85,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airi.assistant.R
+import com.airi.assistant.ui.viewmodel.GoogleConnectionAction
 import com.airi.assistant.ui.viewmodel.IntegrationsViewModel
 import com.airi.assistant.ui.viewmodel.IntegrationReadiness
+import com.airi.assistant.ui.viewmodel.IntegrationReadinessPolicy
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
 import java.text.SimpleDateFormat
@@ -199,9 +201,17 @@ fun IntegrationsScreen(onBack: () -> Unit) {
                         when (item.id) {
                             "github" -> vm.openGithubDialog()
                             "telegram" -> vm.openTelegramDialog()
-                            "google" -> googleLauncher.launch(
-                                vm.getGoogleSignInIntent()
-                            )
+                            "google" -> when (
+                                IntegrationReadinessPolicy.googleConnectionAction(item.readiness)
+                            ) {
+                                GoogleConnectionAction.START_IDENTITY_SIGN_IN -> {
+                                    googleLauncher.launch(vm.getGoogleSignInIntent())
+                                }
+                                GoogleConnectionAction.REQUEST_DATA_AUTHORIZATION -> {
+                                    vm.requestGoogleDataAuthorization()
+                                }
+                                GoogleConnectionAction.NONE -> Unit
+                            }
                         }
                     },
                     onDisconnect = { vm.disconnect(item.id) }

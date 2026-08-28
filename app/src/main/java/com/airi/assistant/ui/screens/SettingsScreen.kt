@@ -21,7 +21,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -69,7 +70,7 @@ fun SettingsScreen(
 ) {
     // Route through AuthService instead of direct FirebaseAuth.getInstance() call.
     val authService = remember { ServiceLocator.authService }
-    val email     = authService.currentUser()?.email ?: "guest"
+    val email     = authService.currentUser()?.email ?: stringResource(R.string.settings_guest)
     val isPremium = remember { viewModel.isPremium() }
     val scope     = rememberCoroutineScope()
     val snackbar  = remember { SnackbarHostState() }
@@ -83,7 +84,7 @@ fun SettingsScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background.copy(alpha = 0.92f)),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
@@ -113,7 +114,7 @@ fun SettingsScreen(
             if (!isStorageEncrypted) {
                 Surface(
                     shape = AIRIShapes.md,
-                    color = Color(0xFF3A2800),
+                    color = SemanticWarnContainer,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -124,20 +125,20 @@ fun SettingsScreen(
                         Icon(
                             Icons.Outlined.Warning,
                             contentDescription = null,
-                            tint = Color(0xFFFFB340),
+                            tint = SemanticWarn,
                             modifier = Modifier.size(20.dp)
                         )
                         Column {
                             Text(
-                                "Secure storage unavailable",
+                                stringResource(R.string.settings_storage_unavailable_title),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFFFFB340)
+                                color = SemanticWarn
                             )
                             Text(
-                                "Android Keystore failed to initialize. Connector tokens and API keys cannot be persisted and will be lost when the app closes. Restart the device to restore encrypted storage.",
+                                stringResource(R.string.settings_storage_unavailable_body),
                                 fontSize = 11.sp,
-                                color = Color(0xFFFFB340).copy(0.75f),
+                                color = SemanticWarn.copy(alpha = 0.80f),
                                 lineHeight = 15.sp
                             )
                         }
@@ -147,42 +148,42 @@ fun SettingsScreen(
             SettingsGroup {
                 SettingsNavItem(
                     icon     = Icons.Outlined.History,
-                    iconTint = Color(0xFF7B8DFF),
+                    iconTint = CosmicAccent,
                     label    = stringResource(R.string.settings_agent_tasks),
                     onClick  = { onNavigate(AiriRoute.AGENT_TASKS) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Psychology,
-                    iconTint = Color(0xFFB0B8CC),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.settings_knowledge),
                     onClick  = { onNavigate(AiriRoute.MEMORY) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Settings,
-                    iconTint = Color(0xFFB0B8CC),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.settings_data_controls),
                     onClick  = { onNavigate(AiriRoute.SETTINGS_PRIVACY) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Star,
-                    iconTint = Color(0xFFB0B8CC),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.settings_skills),
                     onClick  = { onNavigate(AiriRoute.SKILL_MANAGER) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Hub,
-                    iconTint = Color(0xFFB0B8CC),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.settings_connectors),
                     onClick  = { onNavigate(AiriRoute.CONNECTORS) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Extension,
-                    iconTint = Color(0xFFB0B8CC),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.integrations),
                     onClick  = { onNavigate(AiriRoute.INTEGRATIONS) }
                 )
@@ -190,7 +191,7 @@ fun SettingsScreen(
             SettingsGroup {
                 SettingsNavItem(
                     icon     = Icons.Outlined.Language,
-                    iconTint = Color(0xFFB0B8CC),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.language),
                     trailing = LanguageManager.getLanguageOption(LanguageManager.getCurrentLanguage(context)).displayName,
                     onClick  = { onNavigate(AiriRoute.SETTINGS_GENERAL) }
@@ -198,15 +199,14 @@ fun SettingsScreen(
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Palette,
-                    iconTint = Color(0xFFB0B8CC),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.appearance),
-                    trailing = stringResource(R.string.settings_follow_system),
                     onClick  = { onNavigate(AiriRoute.SETTINGS_CUSTOMIZATION) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.AutoAwesome,
-                    iconTint = Color(0xFF7C4DFF),
+                    iconTint = CosmicAccent,
                     label    = stringResource(R.string.settings_ai_library),
                     trailing = stringResource(R.string.settings_smart_routing),
                     onClick  = { onNavigate(AiriRoute.MODEL_LIBRARY) }
@@ -217,15 +217,15 @@ fun SettingsScreen(
                 // OfflineFallback, and PreferredProvider to the user.
                 SettingsNavItem(
                     icon     = Icons.Outlined.Psychology,
-                    iconTint = Color(0xFF00BCD4),
-                    label    = "AI Execution Settings",
-                    trailing = "Mode, privacy, provider",
+                    iconTint = CosmicAccent,
+                    label    = stringResource(R.string.settings_ai_execution),
+                    trailing = stringResource(R.string.settings_ai_execution_summary),
                     onClick  = { onNavigate(AiriRoute.SETTINGS_AI_MODELS) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Mic,
-                    iconTint = Color(0xFF4CAF50),
+                    iconTint = SemanticSuccess,
                     label    = stringResource(R.string.settings_voice_wakeword),
                     onClick  = { onNavigate(AiriRoute.VOICE_SETTINGS) }
                 )
@@ -233,21 +233,21 @@ fun SettingsScreen(
             SettingsGroup {
                 SettingsNavItem(
                     icon     = Icons.Outlined.Token,
-                    iconTint = Color(0xFF7C6AF7),
+                    iconTint = CosmicAccent,
                     label    = stringResource(R.string.settings_credits_usage),
                     onClick  = { onNavigate(AiriRoute.CREDITS) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Security,
-                    iconTint = Color(0xFF22C55E),
+                    iconTint = SemanticSuccess,
                     label    = stringResource(R.string.settings_permissions),
                     onClick  = { onNavigate(AiriRoute.PERMISSIONS_SCREEN) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.SystemUpdate,
-                    iconTint = Color(0xFF06B6D4),
+                    iconTint = CosmicAccent,
                     label    = stringResource(R.string.settings_updates),
                     onClick  = { onNavigate(AiriRoute.UPDATE_SCREEN) }
                 )
@@ -256,7 +256,7 @@ fun SettingsScreen(
                 SettingsGroup {
                     SettingsNavItem(
                         icon = Icons.Outlined.AutoAwesome,
-                        iconTint = Color(0xFFFF4A00),
+                        iconTint = SemanticWarn,
                         label = stringResource(R.string.settings_zapier_ifttt),
                         onClick = { onNavigate(AiriRoute.ZAPIER_IFTTT) }
                     )
@@ -268,56 +268,56 @@ fun SettingsScreen(
                 SettingsGroup {
                 SettingsNavItem(
                     icon     = Icons.Outlined.Terminal,
-                    iconTint = Color(0xFF80CBC4),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.settings_terminal),
                     onClick  = { onNavigate(AiriRoute.TERMINAL) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Workspaces,
-                    iconTint = Color(0xFF80CBC4),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.settings_workspace),
                     onClick  = { onNavigate(AiriRoute.WORKSPACE) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Science,
-                    iconTint = Color(0xFF80CBC4),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.settings_sandbox),
                     onClick  = { onNavigate(AiriRoute.SANDBOX_WORKSPACE) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Analytics,
-                    iconTint = Color(0xFF80CBC4),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.settings_exec_diagnostics),
                     onClick  = { onNavigate(AiriRoute.EXEC_DIAGNOSTICS) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Monitor,
-                    iconTint = Color(0xFF80CBC4),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.performance),
                     onClick  = { onNavigate(AiriRoute.PERFORMANCE) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Visibility,
-                    iconTint = Color(0xFF80CBC4),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.settings_agent_observability),
                     onClick  = { onNavigate(AiriRoute.OBSERVABILITY) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Code,
-                    iconTint = Color(0xFF80CBC4),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.settings_developer_center),
                     onClick  = { onNavigate(AiriRoute.DEVELOPER_CENTER) }
                 )
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.BugReport,
-                    iconTint = Color(0xFF80CBC4),
+                    iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.settings_debug_panel),
                     onClick  = { onNavigate(AiriRoute.DEBUG_PANEL) }
                 )
@@ -325,16 +325,16 @@ fun SettingsScreen(
                 // Secret Manager
                 SettingsNavItem(
                     icon     = Icons.Outlined.Key,
-                    iconTint = Color(0xFFFFD54F),
-                    label    = "Secret Manager",
+                    iconTint = SemanticWarn,
+                    label    = stringResource(R.string.settings_secret_manager),
                     onClick  = { onNavigate(AiriRoute.SECRET_MANAGER) }
                 )
                 SettingsDivider()
                 // Security Scanner
                 SettingsNavItem(
                     icon     = Icons.Outlined.Security,
-                    iconTint = Color(0xFF80CBC4),
-                    label    = "Security Scanner",
+                    iconTint = AiriTheme.onSurfaceVariant,
+                    label    = stringResource(R.string.settings_security_scanner),
                     onClick  = { onNavigate(AiriRoute.SECURITY_SCANNER) }
                 )
                 }
@@ -345,8 +345,8 @@ fun SettingsScreen(
                 SettingsDivider()
                 SettingsNavItem(
                     icon     = Icons.Outlined.Info,
-                    iconTint = Color(0xFF90CAF9),
-                    label    = "About AIRI",
+                    iconTint = AiriTheme.onSurfaceVariant,
+                    label    = stringResource(R.string.settings_about_airi),
                     onClick  = { onNavigate(AiriRoute.SETTINGS_ABOUT) }
                 )
             }
@@ -406,12 +406,12 @@ fun SettingsNavItem(
             Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp))
         }
 
-        // Label + badge (RTL: end side)
+        // The start edge follows the active layout direction, including RTL.
         Row(
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (badge != null) {
@@ -434,7 +434,7 @@ fun SettingsNavItem(
 
         // Trailing arrow
         Icon(
-            Icons.Outlined.ChevronRight,
+            Icons.AutoMirrored.Outlined.ChevronRight,
             contentDescription = null,
             tint = AiriTheme.outline.copy(alpha = 0.28f),
             modifier = Modifier.size(18.dp)
@@ -472,7 +472,7 @@ fun SettingsToggleItem(
             color = AiriTheme.onBackground,
             fontSize = 15.sp,
             modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-            textAlign = TextAlign.End
+            textAlign = TextAlign.Start
         )
 
         Switch(

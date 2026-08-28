@@ -23,18 +23,19 @@ object VoicePreferencesStore {
     private const val KEY_VOICE_ENABLED  = "voice_enabled"
     private const val KEY_HOTWORD_ENABLED = "hotword_enabled"
 
+    /**
+     * Stable preference identifiers and acoustic values only.
+     * User-facing labels and descriptions belong to localized UI resources.
+     */
     enum class PersonalityPreset(
-        val label: String,
-        val emoji: String,
         val pitch: Float,
-        val rate: Float,
-        val description: String
+        val rate: Float
     ) {
-        STANDARD("Standard",  "", 0.95f, 1.05f, "Default AIRI voice — balanced and clear"),
-        CALM    ("Calm",      "", 0.85f, 0.85f, "Slow and measured — great for focus"),
-        ENERGETIC("Energetic","", 1.10f, 1.20f, "Upbeat and fast — best for quick tasks"),
-        FORMAL  ("Formal",   "", 0.90f, 0.90f, "Professional and deliberate"),
-        PLAYFUL ("Playful",  "", 1.20f, 1.10f, "Light and expressive — casual use")
+        STANDARD(0.95f, 1.05f),
+        CALM(0.85f, 0.85f),
+        ENERGETIC(1.10f, 1.20f),
+        FORMAL(0.90f, 0.90f),
+        PLAYFUL(1.20f, 1.10f)
     }
 
     data class Snapshot(

@@ -14,7 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.MicNone
@@ -31,9 +31,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.theme.*
+import com.airi.assistant.voice.VoiceLocalePolicy
 import com.airi.assistant.voice.VoicePreferencesStore
 import kotlinx.coroutines.launch
-import java.util.Locale
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
 
@@ -54,36 +54,50 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
     var voiceEnabled   by remember { mutableStateOf(stored.voiceEnabled) }
     var hotwordEnabled by remember { mutableStateOf(stored.hotwordEnabled) }
 
-    // Available system TTS voices
+    // Available on-device TTS voices for the app language. Network-only voices are never
+    // presented as an offline option.
     val availableVoices = remember { mutableStateListOf<Voice>() }
     var ttsInstance by remember { mutableStateOf<TextToSpeech?>(null) }
+    var ttsInitialized by remember { mutableStateOf(false) }
+    var ttsReady by remember { mutableStateOf(false) }
+    val appLocale = context.resources.configuration.locales[0]
+    val previewText = stringResource(R.string.voice_preview_text)
 
-    DisposableEffect(Unit) {
+    DisposableEffect(context, appLocale) {
         val tts = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                ttsInstance = (ttsInstance ?: return@TextToSpeech).also { /* set below */ }
+            ttsInitialized = true
+            ttsReady = status == TextToSpeech.SUCCESS
+            if (ttsReady) {
+                availableVoices.clear()
+                availableVoices.addAll(
+                    ttsInstance?.voices.orEmpty()
+                        .filter { voice ->
+                            VoiceLocalePolicy.isOnDeviceVoiceFor(
+                                appLocale = appLocale,
+                                voiceLocale = voice.locale,
+                                requiresNetwork = voice.isNetworkConnectionRequired
+                            )
+                        }
+                        .sortedBy { voice -> voice.name }
+                )
             }
         }
         ttsInstance = tts
-        // Collect English voices
-        val voices = runCatching {
-            tts.voices?.filter {
-                it.locale.language == Locale.ENGLISH.language && !it.isNetworkConnectionRequired
-            }?.sortedBy { it.name } ?: emptyList()
-        }.getOrDefault(emptyList())
-        availableVoices.addAll(voices)
-        onDispose { tts.shutdown() }
+        onDispose {
+            ttsInstance = null
+            tts.shutdown()
+        }
     }
 
     fun previewVoice() {
-        ttsInstance?.let { tts ->
-            tts.setSpeechRate(rate)
-            tts.setPitch(pitch)
-            if (selectedVoice.isNotBlank()) {
-                tts.voices?.firstOrNull { it.name == selectedVoice }?.let { tts.voice = it }
-            }
-            tts.speak("Hello, I am AIRI, your personal AI assistant.", TextToSpeech.QUEUE_FLUSH, null, "preview")
+        val tts = ttsInstance ?: return
+        if (!ttsReady) return
+        tts.setSpeechRate(rate)
+        tts.setPitch(pitch)
+        if (selectedVoice.isNotBlank()) {
+            tts.voices?.firstOrNull { it.name == selectedVoice }?.let { tts.voice = it }
         }
+        tts.speak(previewText, TextToSpeech.QUEUE_FLUSH, null, "preview")
     }
 
     fun saveSettings() {
@@ -96,7 +110,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
             voiceEnabled   = voiceEnabled,
             hotwordEnabled = hotwordEnabled
         )
-        scope.launch { snackbar.showSnackbar("Voice preferences saved") }
+        scope.launch { snackbar.showSnackbar(context.getString(R.string.voice_preferences_saved)) }
     }
 
     Scaffold(
@@ -107,7 +121,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 actions = {
@@ -130,9 +144,9 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
             item {
-                VoiceCard(title = "Personality Preset", icon = "◈") {
+                VoiceCard(title = stringResource(R.string.voice_personality_preset_title)) {
                     Text(
-                        "Presets automatically set pitch and speed to match a voice personality.",
+                        stringResource(R.string.voice_personality_preset_description),
                         fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 17.sp,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
@@ -154,6 +168,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                                         if (isSelected) CosmicAccent.copy(0.6f) else AiriTheme.outline,
                                         AIRIShapes.md
                                     )
+                                    .heightIn(min = 48.dp)
                                     .clickable {
                                         selectedPreset = preset
                                         pitch = preset.pitch
@@ -161,10 +176,9 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                                     }
                                     .padding(10.dp)
                             ) {
-                                Text(preset.emoji, fontSize = 24.sp, textAlign = TextAlign.Center)
-                                Spacer(Modifier.height(4.dp))
                                 Text(
-                                    preset.label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                                    stringResource(voicePresetLabelResource(preset)),
+                                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
                                     color = if (isSelected) CosmicAccent else AiriTheme.onBackground,
                                     textAlign = TextAlign.Center
                                 )
@@ -180,14 +194,14 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        selectedPreset.description,
+                        stringResource(voicePresetDescriptionResource(selectedPreset)),
                         fontSize = 11.sp, color = CosmicAccent.copy(alpha = 0.8f),
                         textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
             item {
-                VoiceCard(title = "Voice Pitch", icon = "") {
+                VoiceCard(title = stringResource(R.string.voice_pitch_title)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -195,7 +209,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                     ) {
                         Text(stringResource(R.string.voice_pitch_low), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                         Text(
-                            "%.2fx".format(pitch), fontSize = 14.sp,
+                            stringResource(R.string.voice_rate_multiplier, pitch), fontSize = 14.sp,
                             fontWeight = FontWeight.Bold, color = CosmicAccent
                         )
                         Text(stringResource(R.string.voice_pitch_high), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
@@ -218,7 +232,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                 }
             }
             item {
-                VoiceCard(title = "Speech Rate", icon = "⏱") {
+                VoiceCard(title = stringResource(R.string.voice_speech_rate_title)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -226,7 +240,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                     ) {
                         Text(stringResource(R.string.voice_speed_slow), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                         Text(
-                            "%.2fx".format(rate), fontSize = 14.sp,
+                            stringResource(R.string.voice_rate_multiplier, rate), fontSize = 14.sp,
                             fontWeight = FontWeight.Bold, color = CosmicAccent
                         )
                         Text(stringResource(R.string.voice_speed_fast), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
@@ -249,17 +263,24 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                 }
             }
             item {
-                VoiceCard(title = "TTS Voice", icon = "") {
-                    if (availableVoices.isEmpty()) {
-                        Text(
-                            "No offline English voices found. Install language packs in Android Settings → Text-to-Speech.",
+                VoiceCard(title = stringResource(R.string.voice_tts_voice_title)) {
+                    when {
+                        !ttsInitialized -> Text(
+                            stringResource(R.string.voice_tts_initializing),
                             fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 17.sp
                         )
-                    } else {
-                        // Default option
-                        VoiceOption(
-                            name       = "System Default",
-                            locale     = "Auto",
+                        !ttsReady -> Text(
+                            stringResource(R.string.voice_tts_unavailable),
+                            fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 17.sp
+                        )
+                        availableVoices.isEmpty() -> Text(
+                            stringResource(R.string.voice_no_offline_app_language),
+                            fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 17.sp
+                        )
+                        else -> {
+                            VoiceOption(
+                                name       = stringResource(R.string.voice_system_default),
+                                locale     = stringResource(R.string.voice_automatic_locale),
                             isSelected = selectedVoice.isBlank(),
                             onClick    = { selectedVoice = "" }
                         )
@@ -277,10 +298,10 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                 }
             }
             item {
-                VoiceCard(title = "Voice Features", icon = "") {
+                VoiceCard(title = stringResource(R.string.voice_features_title)) {
                     ToggleRow(
-                        label       = "Enable Voice Input & Output",
-                        description = "Allow AIRI to listen and speak",
+                        label       = stringResource(R.string.voice_enabled_title),
+                        description = stringResource(R.string.voice_enabled_description),
                         checked     = voiceEnabled,
                         onChecked   = { voiceEnabled = it }
                     )
@@ -289,8 +310,8 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                         color = AiriTheme.outline
                     )
                     ToggleRow(
-                        label       = "Wake Word Detection",
-                        description = "\"Hey AIRI\" always-on listening",
+                        label       = stringResource(R.string.voice_wake_word_title),
+                        description = stringResource(R.string.voice_wake_word_description),
                         checked     = hotwordEnabled,
                         onChecked   = { hotwordEnabled = it },
                         enabled     = voiceEnabled
@@ -300,6 +321,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
             item {
                 Button(
                     onClick  = ::previewVoice,
+                    enabled  = ttsReady,
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     colors   = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
                     shape    = AIRIShapes.md
@@ -323,21 +345,36 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
     }
 }
 
-/** Returns the same preset if pitch/rate still match, otherwise keeps current preset label */
+/** Returns the same preset identifier while the user fine-tunes pitch or rate. */
 private fun customPresetFor(current: VoicePreferencesStore.PersonalityPreset) = current
 
+@androidx.annotation.StringRes
+private fun voicePresetLabelResource(preset: VoicePreferencesStore.PersonalityPreset): Int = when (preset) {
+    VoicePreferencesStore.PersonalityPreset.STANDARD -> R.string.voice_preset_standard
+    VoicePreferencesStore.PersonalityPreset.CALM -> R.string.voice_preset_calm
+    VoicePreferencesStore.PersonalityPreset.ENERGETIC -> R.string.voice_preset_energetic
+    VoicePreferencesStore.PersonalityPreset.FORMAL -> R.string.voice_preset_formal
+    VoicePreferencesStore.PersonalityPreset.PLAYFUL -> R.string.voice_preset_playful
+}
+
+@androidx.annotation.StringRes
+private fun voicePresetDescriptionResource(preset: VoicePreferencesStore.PersonalityPreset): Int = when (preset) {
+    VoicePreferencesStore.PersonalityPreset.STANDARD -> R.string.voice_preset_standard_description
+    VoicePreferencesStore.PersonalityPreset.CALM -> R.string.voice_preset_calm_description
+    VoicePreferencesStore.PersonalityPreset.ENERGETIC -> R.string.voice_preset_energetic_description
+    VoicePreferencesStore.PersonalityPreset.FORMAL -> R.string.voice_preset_formal_description
+    VoicePreferencesStore.PersonalityPreset.PLAYFUL -> R.string.voice_preset_playful_description
+}
+
 @Composable
-private fun VoiceCard(title: String, icon: String, content: @Composable ColumnScope.() -> Unit) {
+private fun VoiceCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     Surface(
         shape    = AIRIShapes.md,
         color    = AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(icon, fontSize = 16.sp)
-                Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
-            }
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
             Spacer(Modifier.height(12.dp))
             content()
         }
@@ -352,6 +389,7 @@ private fun VoiceOption(name: String, locale: String, isSelected: Boolean, onCli
             .clip(AIRIShapes.sm)
             .background(if (isSelected) CosmicAccent.copy(0.12f) else AiriTheme.onSurface.copy(alpha = 0.03f))
             .border(0.5.dp, if (isSelected) CosmicAccent.copy(0.4f) else AiriTheme.outline, AIRIShapes.sm)
+            .heightIn(min = 48.dp)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically

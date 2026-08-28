@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ChevronRight
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -113,7 +114,7 @@ fun VoiceSettingsScreen(
                             fontSize = 12.sp, color = AiriTheme.onSurfaceVariant
                         )
                     }
-                    Icon(Icons.Filled.ChevronRight, null, tint = AiriTheme.onSurfaceVariant,
+                    Icon(Icons.AutoMirrored.Filled.ChevronRight, null, tint = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp))
                 }
             }

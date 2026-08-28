@@ -1520,4 +1520,12 @@
     <string name="voice_enabled_description">使用语音模式时允许 AIRI 倾听和讲话。</string>
     <string name="voice_wake_word_title">唤醒词检测</string>
     <string name="voice_wake_word_description">启用语音模式时监听已配置的唤醒词。</string>
+    <string name="input_plan">计划</string>
+    <string name="input_plan_active">计划已启用</string>
+    <string name="input_tools">工具</string>
+    <string name="input_tools_count">工具（%1$d）</string>
+    <string name="input_skills">技能</string>
+    <string name="input_skills_count">技能（%1$d）</string>
+    <string name="input_web">网页</string>
+    <string name="input_code">代码</string>
 </resources>

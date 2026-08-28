@@ -1520,4 +1520,12 @@
     <string name="voice_enabled_description">Permite que AIRI escuche y hable cuando uses el modo de voz.</string>
     <string name="voice_wake_word_title">Detección de palabra de activación</string>
     <string name="voice_wake_word_description">Escucha la palabra de activación configurada mientras el modo de voz está activado.</string>
+    <string name="input_plan">Plan</string>
+    <string name="input_plan_active">Plan activo</string>
+    <string name="input_tools">Herramientas</string>
+    <string name="input_tools_count">Herramientas (%1$d)</string>
+    <string name="input_skills">Habilidades</string>
+    <string name="input_skills_count">Habilidades (%1$d)</string>
+    <string name="input_web">Web</string>
+    <string name="input_code">Código</string>
 </resources>

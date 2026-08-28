@@ -32,6 +32,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import com.airi.assistant.R
 import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.viewmodel.ChatInputSuggestion
 import com.airi.assistant.ui.viewmodel.ModelUiState
@@ -183,7 +189,7 @@ private fun InputActionToolbar(
 
         // Tool Picker
         ActionChip(
-            label      = if (activeToolCount > 0) "Tools ($activeToolCount)" else "Tools",
+            label      = if (activeToolCount > 0) stringResource(R.string.input_tools_count, activeToolCount) else stringResource(R.string.input_tools),
             icon       = Icons.Outlined.Build,
             iconTint   = Color(0xFF06B6D4),
             isActive   = activeToolCount > 0,
@@ -192,22 +198,22 @@ private fun InputActionToolbar(
 
         // Skill Picker
         ActionChip(
-            label      = if (activeSkillCount > 0) "Skills ($activeSkillCount)" else "Skills",
+            label      = if (activeSkillCount > 0) stringResource(R.string.input_skills_count, activeSkillCount) else stringResource(R.string.input_skills),
             icon       = Icons.Outlined.AutoAwesome,
             iconTint   = Color(0xFFEC4899),
             isActive   = activeSkillCount > 0,
             onClick    = onOpenSkillPicker
         )
 
-        QuickToolChip(label = "Web", onClick = onWebClick)
-        QuickToolChip(label = "Code", onClick = onCodeClick)
+        QuickToolChip(label = stringResource(R.string.input_web), onClick = onWebClick)
+        QuickToolChip(label = stringResource(R.string.input_code), onClick = onCodeClick)
 
         // Divider
         Box(modifier = Modifier.width(1.dp).height(20.dp).background(DividerColor))
 
         // Attachment shortcuts
         ActionChip(
-            label = "Camera",
+            label = stringResource(R.string.attach_camera),
             icon = Icons.Outlined.PhotoCamera,
             iconTint = AiriTheme.onSurfaceVariant,
             isActive = false,
@@ -215,7 +221,7 @@ private fun InputActionToolbar(
         )
 
         ActionChip(
-            label = "File",
+            label = stringResource(R.string.attach_files),
             icon = Icons.Outlined.AttachFile,
             iconTint = AiriTheme.onSurfaceVariant,
             isActive = false,
@@ -226,6 +232,7 @@ private fun InputActionToolbar(
 
 @Composable
 private fun PlanModeChip(isActive: Boolean, onClick: () -> Unit) {
+    val planDescription = stringResource(if (isActive) R.string.input_plan_active else R.string.input_plan)
     val bg by animateColorAsState(
         if (isActive) CosmicAccent.copy(0.20f) else Color.White.copy(0.04f), tween(AIRIAnimations.FAST), label = "plan_bg"
     )
@@ -234,10 +241,14 @@ private fun PlanModeChip(isActive: Boolean, onClick: () -> Unit) {
     )
     Row(
         modifier = Modifier
-            .height(30.dp)
+            .heightIn(min = 48.dp)
             .clip(AIRIShapes.xs)
             .background(bg)
             .border(1.dp, border, AIRIShapes.xs)
+            .semantics {
+                contentDescription = planDescription
+                role = Role.Button
+            }
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp),
         verticalAlignment     = Alignment.CenterVertically,
@@ -245,7 +256,7 @@ private fun PlanModeChip(isActive: Boolean, onClick: () -> Unit) {
     ) {
         Text("", fontSize = 12.sp)
         Text(
-            "Plan",
+            stringResource(if (isActive) R.string.input_plan_active else R.string.input_plan),
             fontSize    = 11.sp,
             fontWeight  = if (isActive) FontWeight.Bold else FontWeight.Medium,
             color       = if (isActive) CosmicAccent else AiriTheme.onSurfaceVariant
@@ -278,7 +289,7 @@ private fun ActionChip(
     )
     Row(
         modifier = Modifier
-            .height(30.dp)
+            .heightIn(min = 48.dp)
             .clip(AIRIShapes.xs)
             .background(bg)
             .border(
@@ -286,6 +297,10 @@ private fun ActionChip(
                 if (isActive) iconTint.copy(0.50f) else DividerColor,
                 AIRIShapes.xs
             )
+            .semantics {
+                contentDescription = label
+                role = Role.Button
+            }
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp),
         verticalAlignment     = Alignment.CenterVertically,
@@ -305,10 +320,14 @@ private fun ActionChip(
 private fun QuickToolChip(label: String, onClick: () -> Unit = {}) {
     Row(
         modifier = Modifier
-            .height(30.dp)
+            .heightIn(min = 48.dp)
             .clip(AIRIShapes.xs)
             .background(Color.White.copy(0.03f))
             .border(0.5.dp, DividerColor, AIRIShapes.xs)
+            .semantics {
+                contentDescription = label
+                role = Role.Button
+            }
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp),
         verticalAlignment     = Alignment.CenterVertically,

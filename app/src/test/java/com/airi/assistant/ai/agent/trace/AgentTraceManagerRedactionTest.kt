@@ -19,7 +19,7 @@ class AgentTraceManagerRedactionTest {
                 name = "file_search",
                 inputParams = mapOf("cookie" to "session=private-cookie"),
                 outputSummary = "password=unsafe-value",
-                error = "api_key=AIza12345678901234567890123456789012345",
+                error = "api_key=fixture-google-key-value-1234567890",
             )
         )
         manager.finalizeTrace(traceId, "/data/user/0/com.airi.assistant/private.txt", success = false)
@@ -38,7 +38,7 @@ class AgentTraceManagerRedactionTest {
         assertFalse(flattened.contains("secret-agent-token-1234567890"))
         assertFalse(flattened.contains("private-cookie"))
         assertFalse(flattened.contains("unsafe-value"))
-        assertFalse(flattened.contains("AIza12345678901234567890123456789012345"))
+        assertFalse(flattened.contains("fixture-google-key-value-1234567890"))
         assertFalse(flattened.contains("/data/user/0/com.airi.assistant/private.txt"))
     }
 }

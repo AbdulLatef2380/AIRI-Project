@@ -1852,4 +1852,12 @@
     <string name="voice_enabled_description">Allow AIRI to listen and speak when voice mode is used.</string>
     <string name="voice_wake_word_title">Wake-word detection</string>
     <string name="voice_wake_word_description">Listen for the configured wake word while voice mode is enabled.</string>
+    <string name="input_plan">Plan</string>
+    <string name="input_plan_active">Plan active</string>
+    <string name="input_tools">Tools</string>
+    <string name="input_tools_count">Tools (%1$d)</string>
+    <string name="input_skills">Skills</string>
+    <string name="input_skills_count">Skills (%1$d)</string>
+    <string name="input_web">Web</string>
+    <string name="input_code">Code</string>
 </resources>

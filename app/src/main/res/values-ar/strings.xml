@@ -1751,4 +1751,12 @@
     <string name="voice_enabled_description">اسمح لـAIRI بالاستماع والتحدث عند استخدام وضع الصوت.</string>
     <string name="voice_wake_word_title">اكتشاف كلمة التنبيه</string>
     <string name="voice_wake_word_description">استمع لكلمة التنبيه المُعدّة ما دام وضع الصوت مفعّلاً.</string>
+    <string name="input_plan">خطة</string>
+    <string name="input_plan_active">الخطة مفعّلة</string>
+    <string name="input_tools">الأدوات</string>
+    <string name="input_tools_count">الأدوات (%1$d)</string>
+    <string name="input_skills">المهارات</string>
+    <string name="input_skills_count">المهارات (%1$d)</string>
+    <string name="input_web">ويب</string>
+    <string name="input_code">كود</string>
 </resources>

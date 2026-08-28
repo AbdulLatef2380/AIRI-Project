@@ -12,7 +12,7 @@ class PrivacyGuardTraceRedactionTest {
             Authorization: Bearer super-secret-token-value-1234567890
             Cookie=session=private-cookie-value
             password = correct-horse-battery-staple
-            api_key=AIza12345678901234567890123456789012345
+            api_key=fixture-google-key-value-1234567890
             path=/data/user/0/com.airi.assistant/files/private.txt
         """.trimIndent()
 
@@ -24,7 +24,7 @@ class PrivacyGuardTraceRedactionTest {
         assertFalse(redacted.contains("super-secret-token-value-1234567890"))
         assertFalse(redacted.contains("private-cookie-value"))
         assertFalse(redacted.contains("correct-horse-battery-staple"))
-        assertFalse(redacted.contains("AIza12345678901234567890123456789012345"))
+        assertFalse(redacted.contains("fixture-google-key-value-1234567890"))
         assertFalse(redacted.contains("/data/user/0/com.airi.assistant/files/private.txt"))
     }
 

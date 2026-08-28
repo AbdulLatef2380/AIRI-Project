@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -60,7 +61,7 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
     var ttsInstance by remember { mutableStateOf<TextToSpeech?>(null) }
     var ttsInitialized by remember { mutableStateOf(false) }
     var ttsReady by remember { mutableStateOf(false) }
-    val appLocale = context.resources.configuration.locales[0]
+    val appLocale = LocalConfiguration.current.locales[0]
     val previewText = stringResource(R.string.voice_preview_text)
 
     DisposableEffect(context, appLocale) {

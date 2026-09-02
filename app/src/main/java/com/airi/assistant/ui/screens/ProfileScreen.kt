@@ -157,7 +157,9 @@ fun ProfileScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val trimmed = editNameValue.trim()
+                        val displayName = editNameValue
+                        val username = profile.username
+                        val trimmed = displayName.trim()
                         when {
                             trimmed.isBlank() -> editNameError =
                                 context.getString(R.string.profile_name_empty_error)
@@ -165,7 +167,9 @@ fun ProfileScreen(
                                 context.getString(R.string.profile_name_too_long)
                             else -> {
                                 isSavingName = true
-                                profileRepository.update { copy(displayName = trimmed) }
+                                profileRepository.update {
+                                    copy(displayName = displayName.trim(), username = username.trim())
+                                }
                                 fbUser?.updateProfile(
                                     userProfileChangeRequest { displayName = trimmed }
                                 )?.addOnCompleteListener { task ->

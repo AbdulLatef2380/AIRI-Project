@@ -1860,4 +1860,13 @@
     <string name="input_skills_count">Skills (%1$d)</string>
     <string name="input_web">Web</string>
     <string name="input_code">Code</string>
+    <string name="account_screen_title">Account</string>
+    <string name="profile_user_id_label">User ID</string>
+    <string name="profile_tap_change_photo">Tap to change profile photo</string>
+    <string name="profile_name_edit_title">Edit Name</string>
+    <string name="profile_name_empty_error">Name cannot be empty</string>
+    <string name="profile_name_too_long">Name is too long (max 60 characters)</string>
+    <string name="settings_logout">Sign Out</string>
+    <string name="settings_logout_confirm_title">Sign Out?</string>
+    <string name="settings_logout_confirm_body">You will need to sign in again to use your account.</string>
 </resources>

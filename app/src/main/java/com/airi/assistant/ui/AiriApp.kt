@@ -366,6 +366,7 @@ fun AiriApp() {
                                 navController.navigate(route) { launchSingleTop = true }
                             },
                             onLogout = {
+                                ServiceLocator.userProfileRepository.resetIdentity()
                                 authService.signOut()
                                 chatViewModel.clearMessages()
                                 chatIsActive = false
@@ -492,6 +493,7 @@ fun AiriApp() {
                                 navController.navigate(route) { launchSingleTop = true }
                             },
                             onLogout = {
+                                ServiceLocator.userProfileRepository.resetIdentity()
                                 authService.signOut()
                                 chatViewModel.clearMessages()
                                 chatIsActive = false
@@ -529,6 +531,7 @@ fun AiriApp() {
                             onBack     = { navController.popBackStack() },
                             onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } },
                             onLogout   = {
+                                ServiceLocator.userProfileRepository.resetIdentity()
                                 authService.signOut()
                                 chatViewModel.clearMessages()
                                 chatIsActive = false
@@ -571,6 +574,7 @@ fun AiriApp() {
                         ProfileScreen(
                             onBack = { navController.popBackStack() },
                             onSignOut = {
+                                ServiceLocator.userProfileRepository.resetIdentity()
                                 authService.signOut()
                                 chatViewModel.clearMessages()
                                 chatIsActive = false

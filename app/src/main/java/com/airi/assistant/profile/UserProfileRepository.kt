@@ -32,6 +32,14 @@ import kotlinx.coroutines.withContext
  *   [CloudSyncCoordinator] reads the current preferences via [current] and
  *   calls [merge] when it receives a remote update. The merge applies only
  *   fields that differ, preserving local-only fields (e.g. hardware profile).
+ *
+ * ── ACCOUNT OWNERSHIP ─────────────────────────────────────────────────────
+ *
+ *   Identity fields (displayName, username, localPhotoPath, avatarUrl) are
+ *   account-scoped. Call [resetIdentity] on sign-out so that a subsequent
+ *   login loads a fresh profile rather than the previous account's identity.
+ *   Non-identity fields (theme, AI persona, voice, notifications) are device
+ *   preferences and persist across account switches by design.
  */
 class UserProfileRepository(private val context: Context) {
 
@@ -114,6 +122,35 @@ class UserProfileRepository(private val context: Context) {
             _profile.value = fresh
             persist(fresh)
             LoggingService.info(TAG, "AIRI PROFILE_RESET")
+        }
+    }
+
+    /**
+     * Clear only account-identity fields so they are not visible after sign-out
+     * when a different account signs in. Non-identity preferences (theme, AI
+     * persona, voice, notifications) intentionally persist — they are device
+     * preferences, not account data.
+     *
+     * Identity fields cleared:
+     *   - displayName
+     *   - username
+     *   - localPhotoPath   (the file is left on disk until the OS reclaims it
+     *                       or the user sets a new photo; the path is cleared
+     *                       so no UI renders the previous account's photo)
+     *   - avatarUrl
+     */
+    fun resetIdentity() {
+        repoScope.launch {
+            val cleared = _profile.value.copy(
+                displayName    = "",
+                username       = "",
+                localPhotoPath = "",
+                avatarUrl      = "",
+                lastUpdatedAtMs = System.currentTimeMillis()
+            )
+            _profile.value = cleared
+            persist(cleared)
+            LoggingService.info(TAG, "AIRI PROFILE_IDENTITY_CLEARED")
         }
     }
 

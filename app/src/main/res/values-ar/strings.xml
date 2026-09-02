@@ -1759,4 +1759,13 @@
     <string name="input_skills_count">المهارات (%1$d)</string>
     <string name="input_web">ويب</string>
     <string name="input_code">كود</string>
+    <string name="account_screen_title">الحساب</string>
+    <string name="profile_user_id_label">معرّف المستخدم</string>
+    <string name="profile_tap_change_photo">اضغط لتغيير الصورة الشخصية</string>
+    <string name="profile_name_edit_title">تعديل الاسم</string>
+    <string name="profile_name_empty_error">لا يمكن أن يكون الاسم فارغاً</string>
+    <string name="profile_name_too_long">الاسم طويل جداً (الحد الأقصى 60 حرفاً)</string>
+    <string name="settings_logout">تسجيل الخروج</string>
+    <string name="settings_logout_confirm_title">تسجيل الخروج؟</string>
+    <string name="settings_logout_confirm_body">ستحتاج إلى تسجيل الدخول مرة أخرى للوصول إلى حسابك.</string>
 </resources>

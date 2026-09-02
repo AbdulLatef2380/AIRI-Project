@@ -352,6 +352,20 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(8.dp))
+
+            // ── Account: Sign Out ─────────────────────────────────────────────
+            // Per UI policy: Settings main screen exposes Logout only.
+            // Delete Account, photo, and name editing live in ProfileScreen.
+            SettingsGroup {
+                SettingsNavItem(
+                    icon     = Icons.Outlined.Logout,
+                    iconTint = SemanticError,
+                    label    = stringResource(R.string.settings_logout),
+                    onClick  = { onLogout() }
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
         }
     }
 }

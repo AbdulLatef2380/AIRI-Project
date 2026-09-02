@@ -1528,4 +1528,13 @@
     <string name="input_skills_count">Habilidades (%1$d)</string>
     <string name="input_web">Web</string>
     <string name="input_code">Código</string>
+    <string name="account_screen_title">Cuenta</string>
+    <string name="profile_user_id_label">ID de usuario</string>
+    <string name="profile_tap_change_photo">Toca para cambiar la foto de perfil</string>
+    <string name="profile_name_edit_title">Editar nombre</string>
+    <string name="profile_name_empty_error">El nombre no puede estar vacío</string>
+    <string name="profile_name_too_long">El nombre es demasiado largo (máximo 60 caracteres)</string>
+    <string name="settings_logout">Cerrar sesión</string>
+    <string name="settings_logout_confirm_title">¿Cerrar sesión?</string>
+    <string name="settings_logout_confirm_body">Tendrás que iniciar sesión de nuevo para usar tu cuenta.</string>
 </resources>

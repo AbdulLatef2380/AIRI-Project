@@ -1528,4 +1528,13 @@
     <string name="input_skills_count">技能（%1$d）</string>
     <string name="input_web">网页</string>
     <string name="input_code">代码</string>
+    <string name="account_screen_title">账户</string>
+    <string name="profile_user_id_label">用户 ID</string>
+    <string name="profile_tap_change_photo">点击更换头像</string>
+    <string name="profile_name_edit_title">编辑姓名</string>
+    <string name="profile_name_empty_error">姓名不能为空</string>
+    <string name="profile_name_too_long">姓名过长（最多 60 个字符）</string>
+    <string name="settings_logout">退出登录</string>
+    <string name="settings_logout_confirm_title">退出登录？</string>
+    <string name="settings_logout_confirm_body">再次登录后才能使用你的账户。</string>
 </resources>

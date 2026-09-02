@@ -13,7 +13,7 @@ import org.junit.Test
 class LogoutContractTest {
 
     @Test
-    fun `logout with pending double-click: second click is no-op when isLoggingOut is true`() {
+    fun `logout with pending double-click second click is no-op when isLoggingOut is true`() {
         var logoutCallCount = 0
         var isLoggingOut    = false
 
@@ -72,7 +72,7 @@ class LogoutContractTest {
     }
 
     @Test
-    fun `account switch: new account starts with blank identity`() {
+    fun `account switch new account starts with blank identity`() {
         // Account A signs out → identity reset
         var profile = UserPreferences(
             displayName    = "Account A",

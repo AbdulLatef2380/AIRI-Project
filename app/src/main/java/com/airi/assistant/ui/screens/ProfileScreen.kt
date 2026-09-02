@@ -171,7 +171,7 @@ fun ProfileScreen(
                                     copy(displayName = displayName.trim(), username = username.trim())
                                 }
                                 fbUser?.updateProfile(
-                                    userProfileChangeRequest { displayName = trimmed }
+                                    userProfileChangeRequest { this.displayName = trimmed }
                                 )?.addOnCompleteListener { task ->
                                     isSavingName = false
                                     showEditName = false

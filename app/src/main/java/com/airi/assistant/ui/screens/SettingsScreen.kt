@@ -58,6 +58,7 @@ import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.util.ChatImporter
 import com.airi.assistant.core.ServiceLocator
+import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,7 +71,14 @@ fun SettingsScreen(
 ) {
     // Route through AuthService instead of direct FirebaseAuth.getInstance() call.
     val authService = remember { ServiceLocator.authService }
-    val email     = authService.currentUser()?.email ?: stringResource(R.string.settings_guest)
+    val profileRepository = remember { ServiceLocator.userProfileRepository }
+    val profile by profileRepository.profile.collectAsState()
+    val authUser = authService.currentUser()
+    val email     = authUser?.email ?: stringResource(R.string.settings_guest)
+    val profileName = profile.displayName
+        .ifBlank { authUser?.displayName.orEmpty() }
+        .ifBlank { email.substringBefore("@").ifBlank { stringResource(R.string.profile_title) } }
+    val profilePhoto = profile.localPhotoPath.takeIf { it.isNotBlank() } ?: authUser?.photoUrl
     val isPremium = remember { viewModel.isPremium() }
     val scope     = rememberCoroutineScope()
     val snackbar  = remember { SnackbarHostState() }
@@ -108,6 +116,66 @@ fun SettingsScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigate(AiriRoute.PROFILE) },
+                shape = AIRIShapes.xl,
+                colors = CardDefaults.cardColors(containerColor = AiriTheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(68.dp)
+                            .clip(CircleShape)
+                            .background(CosmicAccent.copy(alpha = 0.16f))
+                            .border(1.dp, CosmicAccent.copy(alpha = 0.45f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (profilePhoto != null) {
+                            AsyncImage(
+                                model = profilePhoto,
+                                contentDescription = stringResource(R.string.profile_photo_cd),
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            Text(
+                                text = profileName.firstOrNull()?.uppercase() ?: "A",
+                                color = CosmicAccent,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = profileName,
+                            color = AiriTheme.onBackground,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = stringResource(R.string.profile_title),
+                            color = AiriTheme.onSurfaceVariant,
+                            fontSize = 13.sp
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                        contentDescription = stringResource(R.string.open_settings),
+                        tint = AiriTheme.onSurfaceVariant
+                    )
+                }
+            }
             val isStorageEncrypted = remember {
                 runCatching { ServiceLocator.secureStorage.isEncrypted }.getOrDefault(true)
             }

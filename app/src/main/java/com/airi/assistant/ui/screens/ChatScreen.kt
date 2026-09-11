@@ -20,6 +20,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.unit.Dp
 import androidx.compose.animation.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -54,6 +55,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -600,10 +602,10 @@ fun ChatScreen(
         uri?.let { stageUriAttachment(it, ChatAttachment.Kind.IMAGE, "image") }
     }
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let { stageUriAttachment(it, ChatAttachment.Kind.FILE, "video") }
+        uri?.let { stageUriAttachment(it, ChatAttachment.Kind.VIDEO, "video") }
     }
     val textPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let { stageUriAttachment(it, ChatAttachment.Kind.FILE, "text") }
+        uri?.let { stageUriAttachment(it, ChatAttachment.Kind.FILE, "text.txt") }
     }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
         if (bitmap != null) {
@@ -1976,13 +1978,10 @@ fun ChatMessageList(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Inner core — "A" for AIRI
-                        Text(
-                            text = "A",
-                            color = CosmicAccent,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-1).sp
+                        Image(
+                            painter = painterResource(R.drawable.ic_launcher_fg),
+                            contentDescription = stringResource(R.string.app_name),
+                            modifier = Modifier.size(44.dp)
                         )
                     }
                 }
@@ -2560,14 +2559,27 @@ private fun AttachmentChip(
     }
     val subtitle = listOfNotNull(typeLabel, attachment.displaySize).joinToString(" • ")
     Row(
-        modifier = Modifier.widthIn(min = 140.dp, max = 240.dp)
-            .clip(AIRIShapes.md)
-            .background(AiriTheme.surface.copy(0.55f))
-            .border(1.dp, accent.copy(0.35f), AIRIShapes.md)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+        modifier = Modifier
+            .widthIn(min = 164.dp, max = 250.dp)
+            .shadow(3.dp, AIRIShapes.lg, ambientColor = accent.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.24f))
+            .clip(AIRIShapes.lg)
+            .background(
+                Brush.horizontalGradient(
+                    listOf(AiriTheme.surfaceVariant.copy(alpha = 0.96f), AiriTheme.surface.copy(alpha = 0.96f))
+                )
+            )
+            .border(1.dp, accent.copy(alpha = 0.30f), AIRIShapes.lg)
+            .padding(horizontal = 9.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.size(36.dp).clip(AIRIShapes.xs).background(accent.copy(0.18f)), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(AIRIShapes.md)
+                .background(accent.copy(alpha = 0.16f))
+                .border(1.dp, accent.copy(alpha = 0.22f), AIRIShapes.md),
+            contentAlignment = Alignment.Center
+        ) {
             val fallback = when (attachment.contentType) {
                 AttachmentPolicy.ContentType.IMAGE -> Icons.Default.Image
                 AttachmentPolicy.ContentType.VIDEO -> Icons.Outlined.Videocam
@@ -2581,15 +2593,28 @@ private fun AttachmentChip(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current).data(thumbModel).crossfade(true).build(),
                     contentDescription = attachment.displayName,
-                    modifier = Modifier.matchParentSize().clip(AIRIShapes.xs),
+                    modifier = Modifier.matchParentSize().clip(AIRIShapes.md),
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
                 )
             }
         }
         Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(attachment.safeDisplayName, color = AiriTheme.onBackground, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, color = AiriTheme.onBackground.copy(0.55f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                attachment.safeDisplayName,
+                color = AiriTheme.onBackground,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                subtitle,
+                color = AiriTheme.onBackground.copy(0.58f),
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
         IconButton(
             onClick = onRemove,
@@ -2668,7 +2693,7 @@ fun AiriChatInputBar(
     var isExpanded by remember { mutableStateOf(false) }
     val isInferenceReady = modelState.isModelReady || modelState.isCloudReady
     val isInteractionLocked = isGenerating || isDispatchingAttachment
-    val canSend = text.isNotBlank() && isInferenceReady && !modelState.isModelLoading && !isInteractionLocked
+    val canSend = (text.isNotBlank() || attachments.isNotEmpty()) && isInferenceReady && !modelState.isModelLoading && !isInteractionLocked
     val isTyping = text.isNotBlank()
     val shortcutInput = text.trimStart()
     val showingSkillShortcuts = shortcutInput.startsWith("/")
@@ -2680,8 +2705,9 @@ fun AiriChatInputBar(
     }
 
     // : Large prompt detection
-    val showWarningBanner = text.length in 2001..2999
-    val showLimitBottomSheet = text.length >= 3000
+    // Long prompts are staged silently as text attachments; keep the composer quiet.
+    val showWarningBanner = false
+    val showLimitBottomSheet = false
     var hasDismissedBottomSheet by remember(text.length < 3000) { mutableStateOf(false) }
 
     val limitSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -2694,7 +2720,23 @@ fun AiriChatInputBar(
             onExternalInputConsumed()
         }
     }
-    val showSend = isTyping || isInteractionLocked
+    LaunchedEffect(text) {
+        if (text.length >= 3000 || text.lineSequence().count() > 200) {
+            val uri = runCatching {
+                val dir = java.io.File(context.cacheDir, "chat_attachments").apply { mkdirs() }
+                val file = java.io.File(dir, "prompt_${System.currentTimeMillis()}.txt")
+                file.writeText(text)
+                androidx.core.content.FileProvider.getUriForFile(
+                    context, "${context.packageName}.fileprovider", file
+                )
+            }.getOrNull()
+            if (uri != null) {
+                onStageFile(uri)
+                onDraftTextChanged("")
+            }
+        }
+    }
+    val showSend = isTyping || attachments.isNotEmpty() || isInteractionLocked
 
     val micPulse = remember { androidx.compose.animation.core.Animatable(1f) }
     LaunchedEffect(voiceState) {
@@ -3108,7 +3150,11 @@ fun AiriChatInputBar(
                 // Attach + button
                 Box(
                     modifier = Modifier
-                        .size(36.dp).clip(CircleShape)
+                        .size(40.dp)
+                        .shadow(4.dp, CircleShape, ambientColor = CosmicAccent.copy(alpha = 0.28f), spotColor = CosmicAccent.copy(alpha = 0.24f))
+                        .clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(CosmicAccent.copy(alpha = 0.24f), SurfaceFloating)))
+                        .border(1.dp, CosmicAccent.copy(alpha = 0.42f), CircleShape)
                         .semantics {
                             contentDescription = attachmentDescription
                             role = Role.Button
@@ -3120,7 +3166,7 @@ fun AiriChatInputBar(
                         Icons.Default.Add,
                         attachmentDescription,
                         tint = AiriTheme.onBackground.copy(if (!isInteractionLocked) 0.7f else 0.3f),
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(22.dp),
                     )
                 }
 

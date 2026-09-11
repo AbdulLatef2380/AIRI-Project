@@ -21,12 +21,14 @@ data class ChatAttachment(
     enum class Kind {
         IMAGE,
         CAMERA,
+        VIDEO,
         FILE
     }
 
     val contentType: AttachmentPolicy.ContentType
         get() = when (kind) {
             Kind.IMAGE, Kind.CAMERA -> AttachmentPolicy.ContentType.IMAGE
+            Kind.VIDEO -> AttachmentPolicy.ContentType.VIDEO
             Kind.FILE -> AttachmentPolicy.contentType(mimeType, fileName)
         }
 

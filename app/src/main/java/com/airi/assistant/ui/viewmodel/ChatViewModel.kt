@@ -2696,13 +2696,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     return@runCatching null
                 }
 
-                if (att.isVisualImage) {
+                val mediaType = when (att.contentType) {
+                    com.airi.core.attachments.AttachmentPolicy.ContentType.IMAGE -> com.airi.assistant.media.MediaLibrary.MediaType.IMAGE
+                    com.airi.core.attachments.AttachmentPolicy.ContentType.VIDEO -> com.airi.assistant.media.MediaLibrary.MediaType.VIDEO
+                    else -> null
+                }
+                if (mediaType != null) {
                     viewModelScope.launch(Dispatchers.IO) {
                         runCatching {
                             ServiceLocator.mediaLibrary.importFile(
                                 sourceFile = destFile,
-                                type = com.airi.assistant.media.MediaLibrary.MediaType.IMAGE,
-                                mimeType = att.mimeType ?: "image/jpeg",
+                                type = mediaType,
+                                mimeType = att.mimeType ?: if (att.contentType == com.airi.core.attachments.AttachmentPolicy.ContentType.VIDEO) "video/*" else "image/jpeg",
                                 sessionId = _currentSessionId.value
                             )
                         }

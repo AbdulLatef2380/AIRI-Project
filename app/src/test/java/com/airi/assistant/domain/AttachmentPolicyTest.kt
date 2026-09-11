@@ -22,6 +22,18 @@ class AttachmentPolicyTest {
     }
 
     @Test
+    fun videoAttachmentKeepsVideoContentType() {
+        val attachment = ChatAttachment(
+            kind = ChatAttachment.Kind.VIDEO,
+            displayName = "clip.mp4",
+            mimeType = "video/mp4"
+        )
+
+        assertTrue(attachment.contentType == com.airi.core.attachments.AttachmentPolicy.ContentType.VIDEO)
+        assertTrue(!attachment.isVisualImage)
+    }
+
+    @Test
     fun attachmentMarkerFormatsSizeOnce() {
         val attachment = ChatAttachment(
             kind = ChatAttachment.Kind.FILE,

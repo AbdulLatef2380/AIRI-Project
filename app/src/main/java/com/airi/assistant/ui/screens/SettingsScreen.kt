@@ -170,7 +170,7 @@ fun SettingsScreen(
                         )
                     }
                     Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = stringResource(R.string.open_settings),
                         tint = AiriTheme.onSurfaceVariant
                     )

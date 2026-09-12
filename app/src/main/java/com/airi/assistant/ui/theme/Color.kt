@@ -66,12 +66,17 @@ val TokenBadgeColor    = CosmicAccent.copy(alpha = 0.90f)
 val ModelPillBg        = Color(0xFF1A1E34)
 val ModelPillBorder    = Color.White.copy(alpha = 0.10f)
 
-// ── Light-mode palette (system follows light theme) ──────────────────────────
-// Clean whites with accent-colored primary — accent remains the same across modes
-val LightBackground    = Color(0xFFF7F8FC)   // clear app background
-val LightSurface       = Color(0xFFFFFFFF)
-val LightSurfaceRaised = Color(0xFFEFF1F7)
-val LightSurfaceCard   = Color(0xFFFFFFFF)
-val LightOnBackground  = Color(0xFF171923)   // high-contrast label
-val LightOnSurface     = Color(0xFF171923)
-val LightOutline       = Color(0xFF303342).copy(alpha = 0.24f)
+// ── Light-mode palette ───────────────────────────────────────────────────────
+// Explicit high-contrast tokens. Light mode must not inherit translucent
+// white-on-dark colors from the dark palette.
+val LightBackground     = Color(0xFFF6F7FB)
+val LightSurface        = Color(0xFFFFFFFF)
+val LightSurfaceRaised  = Color(0xFFEDEFF5)
+val LightSurfaceCard    = Color(0xFFFFFFFF)
+val LightOnBackground   = Color(0xFF171923)
+val LightOnSurface      = Color(0xFF171923)
+val LightOnSurfaceMuted = Color(0xFF454858)
+val LightPrimary        = Color(0xFF5143C7)
+val LightSecondary      = Color(0xFF5A4BCB)
+val LightOutline        = Color(0xFF303342).copy(alpha = 0.28f)
+val LightDivider        = Color(0xFF303342).copy(alpha = 0.18f)

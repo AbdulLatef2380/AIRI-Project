@@ -3256,12 +3256,23 @@ fun AiriChatInputBar(
                 }
             }
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(0.dp)
+            // Material3 animates the sheet itself; this animates its content as it appears.
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn(animationSpec = tween(220)) +
+                    slideInVertically(
+                        initialOffsetY = { fullHeight -> fullHeight / 12 },
+                        animationSpec = tween(260, easing = FastOutSlowInEasing)
+                    ),
+                exit = fadeOut(animationSpec = tween(120)) +
+                    shrinkVertically(animationSpec = tween(160))
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 32.dp),
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                ) {
                 Text(
                     text = stringResource(R.string.attach_section_media),
                     color = AiriTheme.onSurfaceVariant,
@@ -3360,6 +3371,7 @@ fun AiriChatInputBar(
                     onPickImage()
                 }
             }
+        }
         }
     }
 }

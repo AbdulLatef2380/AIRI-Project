@@ -3237,8 +3237,10 @@ fun AiriChatInputBar(
         ModalBottomSheet(
             onDismissRequest = { showAttachPopup = false },
             sheetState = attachSheetState,
-            containerColor = AiriTheme.surfaceVariant,
-            contentColor = AiriTheme.onBackground,
+            containerColor = AiriTheme.surface,
+            contentColor = AiriTheme.onSurface,
+            tonalElevation = 8.dp,
+            scrimColor = Color.Black.copy(alpha = if (AiriTheme.onBackground == Color.White) 0.62f else 0.28f),
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
             dragHandle = {
                 Box(
@@ -3262,7 +3264,7 @@ fun AiriChatInputBar(
             ) {
                 Text(
                     text = stringResource(R.string.attach_section_media),
-                    color = AiriTheme.onBackground.copy(0.45f),
+                    color = AiriTheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
@@ -3311,7 +3313,7 @@ fun AiriChatInputBar(
                 Spacer(Modifier.height(12.dp))
                 Text(
                     text = stringResource(R.string.attach_section_actions),
-                    color = AiriTheme.onBackground.copy(0.45f),
+                    color = AiriTheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
@@ -3372,8 +3374,8 @@ private fun AttachCard(
     Column(
         modifier = modifier
             .clip(AIRIShapes.md)
-            .background(CosmicAccent.copy(0.12f))
-            .border(1.dp, CosmicAccent.copy(0.35f), AIRIShapes.md)
+            .background(AiriTheme.surfaceVariant)
+            .border(1.dp, AiriTheme.outline.copy(alpha = 0.9f), AIRIShapes.md)
             .clickable { onClick() }
             .padding(vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -3382,7 +3384,7 @@ private fun AttachCard(
         Icon(icon, contentDescription = label, tint = CosmicAccent, modifier = Modifier.size(26.dp))
         Text(
             text = label,
-            color = AiriTheme.onBackground.copy(0.85f),
+            color = AiriTheme.onSurface,
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
@@ -3409,15 +3411,15 @@ private fun AttachListRow(
             modifier = Modifier
                 .size(40.dp)
                 .clip(AIRIShapes.md)
-                .background(CosmicAccent.copy(0.12f))
-                .border(1.dp, CosmicAccent.copy(0.28f), AIRIShapes.md),
+                .background(AiriTheme.surfaceVariant)
+                .border(1.dp, AiriTheme.outline.copy(alpha = 0.9f), AIRIShapes.md),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = label, tint = CosmicAccent, modifier = Modifier.size(20.dp))
         }
         Text(
             text = label,
-            color = AiriTheme.onBackground.copy(0.85f),
+            color = AiriTheme.onSurface,
             fontSize = 14.sp,
             fontWeight = FontWeight.Normal
         )

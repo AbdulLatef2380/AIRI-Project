@@ -68,10 +68,10 @@ val ModelPillBorder    = Color.White.copy(alpha = 0.10f)
 
 // ── Light-mode palette (system follows light theme) ──────────────────────────
 // Clean whites with accent-colored primary — accent remains the same across modes
-val LightBackground    = Color(0xFFF2F2F7)   // iOS system grouped background
+val LightBackground    = Color(0xFFF7F8FC)   // clear app background
 val LightSurface       = Color(0xFFFFFFFF)
-val LightSurfaceRaised = Color(0xFFF5F5FA)
+val LightSurfaceRaised = Color(0xFFEFF1F7)
 val LightSurfaceCard   = Color(0xFFFFFFFF)
-val LightOnBackground  = Color(0xFF1C1C1E)   // iOS label
-val LightOnSurface     = Color(0xFF1C1C1E)
-val LightOutline       = Color(0xFF000000).copy(alpha = 0.12f)
+val LightOnBackground  = Color(0xFF171923)   // high-contrast label
+val LightOnSurface     = Color(0xFF171923)
+val LightOutline       = Color(0xFF303342).copy(alpha = 0.24f)

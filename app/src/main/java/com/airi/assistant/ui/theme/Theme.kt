@@ -46,7 +46,7 @@ private val LightColorScheme = lightColorScheme(
     onSecondary      = Color.Black,
     onBackground     = LightOnBackground,
     onSurface        = LightOnSurface,
-    onSurfaceVariant = LightOnSurface.copy(alpha = 0.65f),
+    onSurfaceVariant = Color(0xFF454858),
     outline          = LightOutline,
     error            = SemanticError,
     onError          = Color.Black,

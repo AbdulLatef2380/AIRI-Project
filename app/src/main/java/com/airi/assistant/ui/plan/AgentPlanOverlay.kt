@@ -116,7 +116,7 @@ private fun stageAccent(stage: ExecutionStage) = when (stage) {
     ExecutionStage.PLANNING   -> CosmicAccent
     ExecutionStage.EXECUTING  -> CosmicAccent
     ExecutionStage.RECOVERING -> SemanticWarn
-    ExecutionStage.REFLECTING -> Color(0xFFB57BFF)
+    ExecutionStage.REFLECTING -> CosmicAccentAlt
     ExecutionStage.COMPLETED  -> SemanticSuccess
     ExecutionStage.FAILED     -> SemanticError
     ExecutionStage.CANCELLED  -> AiriTheme.onSurface.copy(alpha = 0.5f)

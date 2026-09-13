@@ -1554,4 +1554,22 @@
     <string name="attach_app">开发应用</string>
     <string name="archive_chat">归档</string>
     <string name="history_no_messages">暂无消息</string>
+    <string name="task_info_title">任务信息</string>
+    <string name="task_info_open">详情</string>
+    <string name="task_info_running">代理正在工作…</string>
+    <string name="task_info_status_running">执行中</string>
+    <string name="task_info_status_finished">最近一次执行</string>
+    <string name="task_info_what">正在发生什么？</string>
+    <string name="task_info_no_details">暂无执行详情。</string>
+    <string name="task_info_when">什么时候？</string>
+    <string name="task_info_when_value">已用时间：%1$s</string>
+    <string name="task_info_why">为什么显示？</string>
+    <string name="task_info_why_value">仅在代理或计划对话中有执行事件时显示此面板。</string>
+    <string name="task_info_conditions">显示条件</string>
+    <string name="task_info_conditions_value">代理执行或计划模式必须处于活动状态；面板只使用当前执行的事件。</string>
+    <string name="task_info_has_errors">部分执行事件报告了错误。</string>
+    <string name="task_metric_tools">工具调用</string>
+    <string name="task_metric_files">工作区事件</string>
+    <string name="task_metric_api">连接器调用</string>
+    <string name="task_metric_events">执行事件</string>
 </resources>

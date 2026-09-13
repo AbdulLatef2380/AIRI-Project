@@ -1554,4 +1554,22 @@
     <string name="attach_app">Crear una aplicación</string>
     <string name="archive_chat">Archivar</string>
     <string name="history_no_messages">Aún no hay mensajes</string>
+    <string name="task_info_title">Información de la tarea</string>
+    <string name="task_info_open">Detalles</string>
+    <string name="task_info_running">El agente está trabajando…</string>
+    <string name="task_info_status_running">En ejecución</string>
+    <string name="task_info_status_finished">Última ejecución</string>
+    <string name="task_info_what">¿Qué ocurre?</string>
+    <string name="task_info_no_details">Aún no hay detalles de ejecución.</string>
+    <string name="task_info_when">¿Cuándo?</string>
+    <string name="task_info_when_value">Tiempo transcurrido: %1$s</string>
+    <string name="task_info_why">¿Por qué se muestra?</string>
+    <string name="task_info_why_value">Solo aparece en conversaciones de agente o plan cuando hay eventos de ejecución.</string>
+    <string name="task_info_conditions">Condiciones de aparición</string>
+    <string name="task_info_conditions_value">Debe estar activo el agente o el modo plan; solo se usan eventos de la ejecución actual.</string>
+    <string name="task_info_has_errors">Algunos eventos de ejecución informaron de un error.</string>
+    <string name="task_metric_tools">Llamadas de herramientas</string>
+    <string name="task_metric_files">Eventos del espacio</string>
+    <string name="task_metric_api">Llamadas de conectores</string>
+    <string name="task_metric_events">Eventos de ejecución</string>
 </resources>

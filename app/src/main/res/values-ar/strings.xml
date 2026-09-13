@@ -1785,4 +1785,22 @@
     <string name="attach_app">تطوير تطبيق</string>
     <string name="archive_chat">أرشفة</string>
     <string name="history_no_messages">لا توجد رسائل بعد</string>
+    <string name="task_info_title">معلومات المهمة</string>
+    <string name="task_info_open">التفاصيل</string>
+    <string name="task_info_running">الوكيل يعمل…</string>
+    <string name="task_info_status_running">قيد التنفيذ</string>
+    <string name="task_info_status_finished">آخر تنفيذ</string>
+    <string name="task_info_what">ماذا يحدث؟</string>
+    <string name="task_info_no_details">لا توجد تفاصيل تنفيذ بعد.</string>
+    <string name="task_info_when">متى؟</string>
+    <string name="task_info_when_value">الوقت المنقضي: %1$s</string>
+    <string name="task_info_why">لماذا تظهر؟</string>
+    <string name="task_info_why_value">تظهر هذه اللوحة فقط في محادثات الوكيل أو الخطة عند توفر أحداث تنفيذ.</string>
+    <string name="task_info_conditions">شروط الظهور</string>
+    <string name="task_info_conditions_value">يجب أن يكون تنفيذ الوكيل أو وضع الخطة نشطاً؛ وتستخدم اللوحة أحداث التنفيذ الحالي فقط.</string>
+    <string name="task_info_has_errors">أبلغت بعض أحداث التنفيذ عن خطأ.</string>
+    <string name="task_metric_tools">استدعاءات الأدوات</string>
+    <string name="task_metric_files">أحداث مساحة العمل</string>
+    <string name="task_metric_api">استدعاءات الموصلات</string>
+    <string name="task_metric_events">أحداث التنفيذ</string>
 </resources>

@@ -63,7 +63,7 @@ fun ActivityFeedComposable(
 private fun CompactFeed(events: List<ActivityEvent>, totalCount: Int, onExpand: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()
         .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
-        .background(Color(0xFF0B1120).copy(alpha = 0.92f))
+        .background(AiriTheme.surface.copy(alpha = 0.96f))
         .clickable(onClick = onExpand)
         .padding(horizontal = 14.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -85,7 +85,7 @@ private fun ExpandedFeed(events: List<ActivityEvent>, categoryFilter: ActivityCa
     onFilterChange: (ActivityCategory?) -> Unit, onCollapse: () -> Unit, onClear: () -> Unit) {
     val shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
     Column(modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp)
-        .clip(shape).background(Color(0xFF0D1526).copy(alpha = 0.98f))
+        .clip(shape).background(AiriTheme.surface.copy(alpha = 0.98f))
         .border(0.5.dp, AiriTheme.outline, shape)) {
         // Header
         Row(verticalAlignment = Alignment.CenterVertically,

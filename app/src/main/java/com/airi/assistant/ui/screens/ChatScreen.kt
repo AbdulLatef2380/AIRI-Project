@@ -91,6 +91,8 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.airi.assistant.ui.viewmodel.ModelUiState
 import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.ui.activity.TaskInfoBottomSheet
+import com.airi.assistant.ui.activity.TaskInfoTrigger
 import com.airi.assistant.auth.identity.BiometricGatekeeper
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
@@ -670,6 +672,8 @@ fun ChatScreen(
 
     // History panel state (replaces drawer for RTL history side panel)
     var showHistoryPanel by remember { mutableStateOf(false) }
+    var showTaskInfo by remember { mutableStateOf(false) }
+    val isTaskConversation = agentState.isWorking || isPlanModeActive
 
     Scaffold(
         modifier             = Modifier.fillMaxSize(),
@@ -705,9 +709,15 @@ fun ChatScreen(
                 onNavigate        = onNavigate
             )
         },
-        bottomBar = {
-            Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
-                // Activity feed only visible while agent is executing
+            bottomBar = {
+                Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
+                    TaskInfoTrigger(
+                        isWorking = agentState.isWorking,
+                        isTaskConversation = isTaskConversation,
+                        executionId = agentState.executionId.takeIf { it.isNotBlank() },
+                        onClick = { showTaskInfo = true }
+                    )
+                    // Activity feed only visible while agent is executing
                 AnimatedVisibility(
                     visible = agentState.isWorking,
                     enter   = fadeIn() + expandVertically(),
@@ -1123,6 +1133,14 @@ fun ChatScreen(
         )
     }
 
+    if (showTaskInfo) {
+        TaskInfoBottomSheet(
+            isWorking = agentState.isWorking,
+            executionId = agentState.executionId.takeIf { it.isNotBlank() },
+            onDismiss = { showTaskInfo = false }
+        )
+    }
+
     // Model picker bottom sheet
     if (showModelPicker) {
         AiriModelPickerSheet(
@@ -1142,7 +1160,7 @@ fun ChatScreen(
     agentState.confirmationRequest?.let { req ->
         AlertDialog(
             onDismissRequest = { viewModel.confirmAccessibilityAction(false) },
-            containerColor   = Color(0xFF1A1F35),
+            containerColor   = AiriTheme.surface,
             shape            = AIRIShapes.xl,
             icon = {
                 Icon(
@@ -1169,7 +1187,7 @@ fun ChatScreen(
                     )
                     Surface(
                         shape = AIRIShapes.sm,
-                        color = Color(0xFF252B42)
+                        color = AiriTheme.surfaceVariant
                     ) {
                         Text(
                             req.actionDisplayName,
@@ -1207,7 +1225,7 @@ fun ChatScreen(
             dismissButton = {
                 OutlinedButton(
                     onClick = { viewModel.confirmAccessibilityAction(false) },
-                    border  = BorderStroke(1.dp, Color.White.copy(0.3f)),
+                    border  = BorderStroke(1.dp, AiriTheme.outline.copy(0.7f)),
                     shape   = AIRIShapes.md
                 ) {
                     Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(0.8f))
@@ -1231,7 +1249,7 @@ fun ChatScreen(
             onDismissRequest = { agentPlanViewModel.collapse() },
             sheetState       = planSheetState,
             dragHandle       = { androidx.compose.material3.BottomSheetDefaults.DragHandle() },
-            containerColor   = androidx.compose.ui.graphics.Color(0xFF0D1117)
+            containerColor   = AiriTheme.surface
         ) {
             com.airi.assistant.ui.plan.AgentPlanContent(
                 viewModel = agentPlanViewModel,
@@ -1723,8 +1741,8 @@ private fun AiriHistoryPanel(
     val sessions by viewModel.sessions.collectAsState()
 
     ModalDrawerSheet(
-        drawerContainerColor = Color(0xFF0D1124),
-        drawerContentColor   = Color.White,
+        drawerContainerColor = AiriTheme.surface,
+        drawerContentColor   = AiriTheme.onSurface,
         modifier = Modifier.fillMaxWidth(0.88f)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -3408,7 +3426,7 @@ private fun ModelErrorDialog(error: String, errorType: String, onDismiss: () -> 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = AiriTheme.surface,
-        titleContentColor = Color.White, textContentColor = Color.White,
+        titleContentColor = AiriTheme.onSurface, textContentColor = AiriTheme.onSurface,
         shape = AIRIShapes.xl,
         title = { Text(stringResource(R.string.model_error), fontWeight = FontWeight.Bold) },
         text = {
@@ -3438,8 +3456,8 @@ fun AiriDrawer(
     val initial = email.firstOrNull()?.uppercaseChar()?.toString() ?: "A"
 
     ModalDrawerSheet(
-        drawerContainerColor = Color(0xFF0D1124),
-        drawerContentColor   = Color.White,
+        drawerContainerColor = AiriTheme.surface,
+        drawerContentColor   = AiriTheme.onSurface,
         modifier = Modifier.width(300.dp)
     ) {
         Box(modifier = Modifier.fillMaxHeight()) {
@@ -3477,7 +3495,7 @@ fun AiriDrawer(
             }
             Box(
                 modifier = Modifier.fillMaxWidth().height(32.dp).align(Alignment.BottomCenter).offset(y = (-112).dp)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xFF0D1124))))
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, AiriTheme.surface)))
             )
             Column(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(AiriTheme.surface)) {
                 Divider(color = AiriTheme.onBackground.copy(0.08f))
@@ -3531,7 +3549,7 @@ private fun DrawerNavItem(icon: androidx.compose.ui.graphics.vector.ImageVector,
 }
 
 @Composable
-private fun DrawerActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color = Color.White.copy(0.7f), onClick: () -> Unit) {
+private fun DrawerActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color = AiriTheme.onBackground.copy(0.7f), onClick: () -> Unit) {
     NavigationDrawerItem(
         icon = { Icon(icon, null, tint = tint) },
         label = { Text(label, color = tint) },
@@ -3549,7 +3567,7 @@ private fun GenerationSettingsDialog(viewModel: ChatViewModel, onDismiss: () -> 
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = AiriTheme.surface, titleContentColor = Color.White, textContentColor = Color.White,
+        containerColor = AiriTheme.surface, titleContentColor = AiriTheme.onSurface, textContentColor = AiriTheme.onSurface,
         shape = AIRIShapes.xl,
         title = { Text(stringResource(R.string.generation_settings), fontWeight = FontWeight.Bold) },
         text = {

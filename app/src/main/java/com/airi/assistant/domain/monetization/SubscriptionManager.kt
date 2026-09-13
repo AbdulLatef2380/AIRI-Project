@@ -37,6 +37,11 @@ class SubscriptionManager(context: Context) {
 
     fun isPremium(): Boolean = getCurrentTier() == SubscriptionTier.PREMIUM
 
+    /** User-facing name for the new commercial plan. */
+    fun isPro(): Boolean = isPremium()
+
+    fun currentPlanName(): String = if (isPro()) "Pro" else "Free"
+
     // ── Daily usage tracking ──────────────────────────────────────────────────
 
     private fun today(): String = SimpleDateFormat(DATE_FORMAT, Locale.getDefault()).format(Date())
@@ -77,8 +82,9 @@ class SubscriptionManager(context: Context) {
     fun canExecuteAgent(): Boolean {
         resetIfNewDay()
         if (isPremium()) return true
+        // Free chat is available, but autonomous Agent execution is Pro-only.
         val count   = prefs.getInt(KEY_AGENTS, 0)
-        val allowed = count < PricingConfig.FREE_DAILY_AGENT_EXECUTIONS
+        val allowed = false
         EventBus.emitSync(AppEvent.SubscriptionChecked(getCurrentTier().name, allowed, "agent"))
         if (!allowed) EventBus.emitSync(
             AppEvent.UsageLimitReached("daily_agents", count, PricingConfig.FREE_DAILY_AGENT_EXECUTIONS)

@@ -7,6 +7,7 @@ import com.android.billingclient.api.*
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.domain.monetization.SubscriptionManager
 import com.airi.assistant.domain.monetization.SubscriptionTier
+import com.airi.assistant.domain.monetization.PricingConfig
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +20,7 @@ class BillingManager(
     companion object {
         private const val TAG = "BillingManager"
         const val PRODUCT_PREMIUM_MONTHLY = "premium_monthly"
+        const val PRODUCT_PRO_ANNUAL = "pro_annual"
     }
 
     sealed class BillingState {
@@ -46,6 +48,10 @@ class BillingManager(
     // ── Connect ───────────────────────────────────────────────────────────────
 
     fun connect() {
+        if (!PricingConfig.BILLING_ENABLED) {
+            _billingState.value = BillingState.Error("Pro billing is not enabled in this build yet.")
+            return
+        }
         if (billingClient.isReady) {
             scope.launch { queryProductDetails() }
             return
@@ -83,6 +89,10 @@ class BillingManager(
                         .setProductId(PRODUCT_PREMIUM_MONTHLY)
                         .setProductType(BillingClient.ProductType.SUBS)
                         .build()
+                    ,QueryProductDetailsParams.Product.newBuilder()
+                        .setProductId(PRODUCT_PRO_ANNUAL)
+                        .setProductType(BillingClient.ProductType.SUBS)
+                        .build()
                 )
             )
             .build()
@@ -100,6 +110,10 @@ class BillingManager(
     // ── Launch purchase flow ──────────────────────────────────────────────────
 
     fun launchPurchaseFlow(activity: Activity) {
+        if (!PricingConfig.BILLING_ENABLED) {
+            _billingState.value = BillingState.Error("Subscriptions are prepared for a future release.")
+            return
+        }
         val details = _productDetails.value
         if (details == null) {
             _billingState.value = BillingState.Error("Product not available. Check your connection.")

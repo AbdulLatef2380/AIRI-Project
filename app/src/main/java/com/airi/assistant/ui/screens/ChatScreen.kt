@@ -181,6 +181,7 @@ fun ChatScreen(
     val smartReplies  by viewModel.smartReplies.collectAsState()
     val attachmentDispatchInFlight by viewModel.attachmentDispatchInFlight.collectAsState()
     val dailyCreditsRemaining  by viewModel.dailyCreditsRemaining.collectAsState()
+    val isProPlan = ServiceLocator.subscriptionManager.isPro()
     // : real-time network state — drives offline banner
     val isOnline      by viewModel.isOnline.collectAsState()
     // LiveVoiceService — voice mode state
@@ -705,7 +706,8 @@ fun ChatScreen(
                 onSetSessionPinned = { isPinned -> viewModel.setCurrentSessionPinned(isPinned) },
                 onRenameChat      = { title -> viewModel.renameCurrentSession(title) },
                 onNewChat         = { viewModel.clearMessages() },
-                onPointsClick     = { onNavigate(AiriRoute.CREDITS) },
+                planLabel          = if (isProPlan) "Pro" else "Free",
+                onPointsClick     = { onNavigate(if (isProPlan) AiriRoute.PRO_PLAN else AiriRoute.FREE_PLAN) },
                 onNavigate        = onNavigate
             )
         },
@@ -1334,6 +1336,7 @@ private fun AiriChatTopBar(
     agentMode: AgentMode,
     showMenu: Boolean,
     dailyCreditsRemaining: Int = 200,
+    planLabel: String = "Free",
     onHistoryOpen: () -> Unit,
     onModelPickerOpen: () -> Unit,
     onToggleDropdown: () -> Unit,
@@ -1352,9 +1355,6 @@ private fun AiriChatTopBar(
     onPointsClick: () -> Unit = {},
     onNavigate: (String) -> Unit = {}
 ) {
-    // Show credits remaining (correct source) instead of raw token count
-    val tokenDisplay = dailyCreditsRemaining.toString()
-
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = AiriTheme.background.copy(alpha = 0.92f)
@@ -1364,12 +1364,12 @@ private fun AiriChatTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(start = 8.dp)
             ) {
-                // Credits badge — tapping opens Credits/Usage screen
+                // Plan badge — tapping opens the matching Free/Pro screen.
                 Box(
                     modifier = Modifier
                         .clip(AIRIShapes.pill)
-                        .background(CosmicAccent.copy(alpha = 0.12f))
-                        .border(0.5.dp, CosmicAccent.copy(alpha = 0.40f), AIRIShapes.pill)
+                        .background(if (planLabel == "Pro") SemanticSuccess.copy(alpha = 0.12f) else AiriTheme.surfaceVariant)
+                        .border(0.5.dp, if (planLabel == "Pro") SemanticSuccess.copy(alpha = 0.40f) else AiriTheme.outline, AIRIShapes.pill)
                         .clickable { onPointsClick() }
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
@@ -1377,12 +1377,12 @@ private fun AiriChatTopBar(
                         Icon(
                             Icons.Outlined.Bolt,
                             contentDescription = null,
-                            tint = CosmicAccent,
+                            tint = if (planLabel == "Pro") SemanticSuccess else AiriTheme.onSurfaceVariant,
                             modifier = Modifier.size(11.dp)
                         )
                         Text(
-                            text = tokenDisplay,
-                            color = CosmicAccent,
+                            text = planLabel,
+                            color = if (planLabel == "Pro") SemanticSuccess else AiriTheme.onSurface,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = (-0.3).sp

@@ -36,7 +36,7 @@ import com.airi.assistant.R
  *
  * Tabs:
  *  - Credits  → buy one-time credit packs
- *  - Premium  → buy monthly / annual premium subscription
+ *  - Pro      → future monthly / annual Pro subscription
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,7 +50,7 @@ fun StripePaymentScreen(
     val paymentState by stripeManager.paymentState.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Credits", "Premium")
+    val tabs = listOf("Usage", "Pro")
 
     val isPremium = subscriptionManager.isPremium()
 
@@ -217,11 +217,11 @@ private fun PremiumTab(
                 ) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(verticalAlignment = Alignment.Bottom) {
-                            Text(if (annual) "$79.99" else "$9.99", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = CosmicAccent)
+                            Text(if (annual) "$19.90" else "$4.90", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = CosmicAccent)
                             Text(if (annual) "/year" else "/month", color = AiriTheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
                         }
                         Divider(color = AiriTheme.outline)
-                        val features = listOf("2,000 daily credits (10× free)", "Priority model access", "All connectors unlocked", "Community skill marketplace", "Developer API access", "Priority support")
+                        val features = listOf("Full Agent execution", "Unlimited chat", "Priority model access", "All connectors unlocked", "Advanced skills and API", "No advertisements")
                         features.forEach { f ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.CheckCircle, null, Modifier.size(16.dp), tint = SemanticSuccess)

@@ -18,6 +18,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.unit.dp
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.unit.Dp
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
@@ -3087,7 +3089,7 @@ fun AiriChatInputBar(
                         .clickable(enabled = isInferenceReady || isInteractionLocked) {
                             when {
                                 isGenerating -> onCancel()
-                                showSend && canSend -> { onSend(text); text = ""; draftPrefs.edit().remove("current").apply() }
+                                showSend && canSend -> { onSend(text) {}; text = ""; draftPrefs.edit().remove("current").apply() }
                                 !showSend -> onVoiceChatClick()
                             }
                         },

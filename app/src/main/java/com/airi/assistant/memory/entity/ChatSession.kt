@@ -8,6 +8,7 @@ data class ChatSession(
     @PrimaryKey val id: String,
     val title: String,
     val isPinned: Boolean = false,
+    val isArchived: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

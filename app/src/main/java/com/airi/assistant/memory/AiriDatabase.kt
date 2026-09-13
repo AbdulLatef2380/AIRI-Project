@@ -39,6 +39,7 @@ import java.io.File
      *   v6 → v7: Added durable chat-session pin state.
      *   v7 → v8: Added memory provenance, scope, confidence, retention, and privacy metadata.
      *   v8 → v9: Added project/task/run/step/tool/model provenance to workspace artifacts.
+     *   v9 → v10: Added durable chat-session archive state.
 
  *
  * [exportBackup] copies the live database file to a destination [File] using
@@ -56,7 +57,7 @@ import java.io.File
         AuditLogEntity::class,
         ArtifactEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 @TypeConverters(AuditLogTypeConverters::class)
@@ -199,6 +200,12 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_sessions ADD COLUMN isArchived INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         internal fun migrations(): Array<Migration> = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -207,7 +214,8 @@ abstract class AiriDatabase : RoomDatabase() {
             MIGRATION_5_6,
             MIGRATION_6_7,
             MIGRATION_7_8,
-            MIGRATION_8_9
+            MIGRATION_8_9,
+            MIGRATION_9_10
         )
 
         fun getDatabase(context: Context): AiriDatabase {

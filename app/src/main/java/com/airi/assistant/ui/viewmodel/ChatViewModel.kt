@@ -1403,6 +1403,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun renameSession(sessionId: String, title: String) {
+        val normalized = title.trim().replace(Regex("[\\r\\n]+"), " ").take(80)
+        if (sessionId.isBlank() || normalized.isBlank()) return
+        viewModelScope.launch {
+            memoryManager.renameSession(sessionId, normalized)
+            refreshSessions()
+        }
+    }
+
+    fun setSessionPinned(sessionId: String, isPinned: Boolean) {
+        if (sessionId.isBlank()) return
+        viewModelScope.launch {
+            memoryManager.setSessionPinned(sessionId, isPinned)
+            refreshSessions()
+        }
+    }
+
     fun setCurrentSessionPinned(isPinned: Boolean) {
         setSessionPinned(_currentSessionId.value, isPinned)
     }
@@ -1412,6 +1429,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             memoryManager.setSessionPinned(sessionId, isPinned)
             refreshSessions()
+        }
+    }
+
+    fun archiveSession(sessionId: String) {
+        viewModelScope.launch {
+            runCatching { memoryManager.setSessionArchived(sessionId, true) }
+            refreshSessions()
+            if (_currentSessionId.value == sessionId) {
+                val next = _sessions.value.firstOrNull()?.id ?: memoryManager.createSession().id
+                loadSession(next)
+            }
         }
     }
 

@@ -14,6 +14,7 @@ data class ChatSessionSummary(
     val id: String,
     val title: String,
     val isPinned: Boolean,
+    val isArchived: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
     val lastMessage: String?,
@@ -53,11 +54,15 @@ interface SessionDao {
     @Query("UPDATE chat_sessions SET isPinned = :isPinned WHERE id = :sessionId")
     suspend fun setSessionPinned(sessionId: String, isPinned: Boolean)
 
+    @Query("UPDATE chat_sessions SET isArchived = :isArchived WHERE id = :sessionId")
+    suspend fun setSessionArchived(sessionId: String, isArchived: Boolean)
+
     @Query("""
-        SELECT s.id, s.title, s.isPinned, s.createdAt, s.updatedAt,
+        SELECT s.id, s.title, s.isPinned, s.isArchived, s.createdAt, s.updatedAt,
             (SELECT m.content FROM episodic_memory m WHERE m.sessionId = s.id AND m.isMemory = 0 ORDER BY m.timestamp DESC LIMIT 1) AS lastMessage,
             (SELECT COUNT(*) FROM episodic_memory m WHERE m.sessionId = s.id AND m.isMemory = 0) AS messageCount
         FROM chat_sessions s
+        WHERE s.isArchived = 0
         ORDER BY s.isPinned DESC, s.updatedAt DESC
     """)
     suspend fun getAllSessions(): List<ChatSessionSummary>

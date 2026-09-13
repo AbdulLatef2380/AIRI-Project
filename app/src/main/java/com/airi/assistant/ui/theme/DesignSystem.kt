@@ -98,11 +98,11 @@ object AIRISurfaces {
 
 // ── Gradient system ───────────────────────────────────────────────────────────
 object AIRIGradients {
-    // Atmospheric background glow (top-center violet)
+    // Atmospheric background glow (top-center neutral blue)
     val atmosphericGlow = Brush.radialGradient(
         colors = listOf(
-            Color(0xFF2D1B69).copy(alpha = 0.55f),
-            Color(0xFF1A0F4A).copy(alpha = 0.30f),
+            Color(0xFF26313D).copy(alpha = 0.30f),
+            Color(0xFF171D24).copy(alpha = 0.20f),
             Color.Transparent
         )
     )
@@ -167,7 +167,7 @@ object AIRIColors {
     // Agent state colors
     val agentPlanning   = CosmicAccent
     val agentExecuting  = Color(0xFF4FC3F7)
-    val agentReflecting = Color(0xFFB57BFF)
+    val agentReflecting = CosmicAccentAlt
     val agentCompleted  = SemanticSuccess
     val agentFailed     = SemanticError
     val agentRecovering = SemanticWarn

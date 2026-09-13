@@ -1886,4 +1886,22 @@
     <string name="attach_app">Build an app</string>
     <string name="archive_chat">Archive</string>
     <string name="history_no_messages">No messages yet</string>
+    <string name="task_info_title">Task information</string>
+    <string name="task_info_open">Details</string>
+    <string name="task_info_running">Agent is working…</string>
+    <string name="task_info_status_running">Running</string>
+    <string name="task_info_status_finished">Latest execution</string>
+    <string name="task_info_what">What is happening?</string>
+    <string name="task_info_no_details">No execution details yet.</string>
+    <string name="task_info_when">When?</string>
+    <string name="task_info_when_value">Elapsed time: %1$s</string>
+    <string name="task_info_why">Why is this shown?</string>
+    <string name="task_info_why_value">This panel appears only for agent or plan conversations while execution events are available.</string>
+    <string name="task_info_conditions">Display conditions</string>
+    <string name="task_info_conditions_value">Agent execution or plan mode must be active; the panel uses only events from the current execution.</string>
+    <string name="task_info_has_errors">Some execution events reported an error.</string>
+    <string name="task_metric_tools">Tool calls</string>
+    <string name="task_metric_files">Workspace events</string>
+    <string name="task_metric_api">Connector calls</string>
+    <string name="task_metric_events">Execution events</string>
 </resources>

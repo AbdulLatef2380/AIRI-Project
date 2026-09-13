@@ -210,7 +210,7 @@ fun ModelLibraryScreen(
                     icon  = Icons.Outlined.AutoAwesome,
                     title = "Smart Routing Models",
                     badge = "AUTO",
-                    badgeColor = Color(0xFF7C4DFF)
+                    badgeColor = CosmicAccent
                 )
             }
             item {
@@ -267,7 +267,7 @@ private fun BraveSearchApiCard(
 ) {
     Surface(
         shape    = AIRIShapes.md,
-        color    = Color(0xFF1C1C1E),
+        color    = AiriTheme.surface,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 4.dp)
@@ -299,7 +299,7 @@ private fun BraveSearchApiCard(
                     color = AiriTheme.outline)
             }
             TextButton(onClick = onEnterKey) {
-                Text(if (hasBraveKey) "Update" else "Add Key", color = Color(0xFF0A84FF), fontSize = 12.sp)
+                Text(if (hasBraveKey) "Update" else "Add Key", color = CosmicAccent, fontSize = 12.sp)
             }
         }
     }
@@ -315,7 +315,7 @@ private fun BraveKeyEntryDialog(
     var input by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor   = Color(0xFF1C1C1E),
+        containerColor   = AiriTheme.surface,
         title = { Text("${provider.displayName} API Key", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -657,9 +657,9 @@ private fun OpenRouterTaskModelCard(entry: TaskModelEntry) {
             }
             Surface(
                 shape = AIRIShapes.xs,
-                color = Color(0xFF7C4DFF).copy(alpha = 0.15f)
+                color = CosmicAccent.copy(alpha = 0.15f)
             ) {
-                Text(stringResource(R.string.auto_badge), color = Color(0xFF7C4DFF), fontSize = 9.sp,
+                Text(stringResource(R.string.auto_badge), color = CosmicAccent, fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
             }

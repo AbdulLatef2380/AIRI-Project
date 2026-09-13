@@ -54,9 +54,9 @@ private val TermOutput     = Color(0xFFCDD5E0)   // output — off-white
 private val TermError      = Color(0xFFFF6B6B)   // errors — red
 private val TermWarn       = Color(0xFFFFD54F)   // warnings — amber
 private val TermSuccess    = Color(0xFF4CAF50)   // ok status — green
-private val TermPrompt     = Color(0xFF6B5CE7)   // prompt $ — accent violet
+private val TermPrompt     = CosmicAccent     // prompt $ — shared accent
 private val TermComment    = Color(0xFF546E7A)   // greyed-out comments
-private val TermKeyword    = Color(0xFFB39DDB)   // keywords — light violet
+private val TermKeyword    = Color(0xFF8DB5FF)   // keywords — light blue
 private val TermString     = Color(0xFF80CBC4)   // string literals — teal
 private val TermNumber     = Color(0xFFFFCC80)   // numbers — amber
 

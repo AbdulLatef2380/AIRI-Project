@@ -60,8 +60,8 @@ fun ProPlanScreen(onBack: () -> Unit) {
             PlanItem(Icons.Outlined.Block, stringResource(R.string.plan_pro_no_ads), stringResource(R.string.plan_pro_no_ads_desc), true)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PriceCard(stringResource(R.string.plan_monthly), "${PricingConfig.PRO_MONTHLY_PRICE_USD}")
-            PriceCard(stringResource(R.string.plan_annual), "${PricingConfig.PRO_ANNUAL_PRICE_USD}")
+            PriceCard(Modifier.weight(1f), stringResource(R.string.plan_monthly), "${PricingConfig.PRO_MONTHLY_PRICE_USD}")
+            PriceCard(Modifier.weight(1f), stringResource(R.string.plan_annual), "${PricingConfig.PRO_ANNUAL_PRICE_USD}")
         }
         Button(onClick = { }, enabled = false, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)) {
             Text(stringResource(R.string.plan_subscribe_pro), fontWeight = FontWeight.Bold)
@@ -100,8 +100,8 @@ private fun PlanScaffold(title: String, onBack: () -> Unit, content: @Composable
     }
 }
 
-@Composable private fun PriceCard(label: String, price: String) {
-    Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant), shape = RoundedCornerShape(14.dp)) {
+@Composable private fun PriceCard(modifier: Modifier, label: String, price: String) {
+    Card(modifier, colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant), shape = RoundedCornerShape(14.dp)) {
         Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(label, color = AiriTheme.onSurfaceVariant); Text("${'$'}$price", color = CosmicAccent, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
     }
 }

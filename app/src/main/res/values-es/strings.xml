@@ -274,7 +274,7 @@
     <string name="continue_with_google">Continuar con Google</string>
     <string name="continue_with_github">Continuar con GitHub</string>
     <string name="report_a_problem">Reportar un problema</string>
-    <string name="report_a_problem_sublabel">Envía comentarios o un informe de error por correo</string>
+    <string name="report_a_problem_sublabel">Describe un problema dentro de AIRI</string>
     <string name="report_email_subject">Informe de error AIRI — v1.0.0-alpha</string>
     <string name="report_email_body">Por favor describe el problema:\n\n\n\n--- Info del dispositivo ---\n</string>
     <string name="upgrade_to_premium">Actualizar a Premium</string>
@@ -1537,4 +1537,21 @@
     <string name="settings_logout">Cerrar sesión</string>
     <string name="settings_logout_confirm_title">¿Cerrar sesión?</string>
     <string name="settings_logout_confirm_body">Tendrás que iniciar sesión de nuevo para usar tu cuenta.</string>
+    <!-- Report and composer shortcuts -->
+    <string name="report_problem_title">Informar de un problema</string>
+    <string name="report_problem_subtitle">Describe lo ocurrido. Revisaremos tu informe para mejorar AIRI.</string>
+    <string name="report_problem_field_label">¿Qué ocurrió?</string>
+    <string name="report_problem_hint">Cuéntanos qué estabas haciendo y qué salió mal…</string>
+    <string name="report_send">Enviar informe</string>
+    <string name="report_sent_title">Gracias por tu informe</string>
+    <string name="report_sent_message">El informe se guardó para su revisión y nos ayudará a mejorar AIRI.</string>
+    <string name="attach_recent_files">Archivos recientes</string>
+    <string name="attach_recent_tasks">Tareas recientes</string>
+    <string name="attach_skills">Habilidades</string>
+    <string name="attach_plan">Crear un plan</string>
+    <string name="attach_slides">Crear presentación</string>
+    <string name="attach_website">Crear sitio web</string>
+    <string name="attach_app">Crear una aplicación</string>
+    <string name="archive_chat">Archivar</string>
+    <string name="history_no_messages">Aún no hay mensajes</string>
 </resources>

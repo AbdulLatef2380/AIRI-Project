@@ -417,6 +417,14 @@ fun SettingsScreen(
                     label    = stringResource(R.string.settings_about_airi),
                     onClick  = { onNavigate(AiriRoute.SETTINGS_ABOUT) }
                 )
+                SettingsDivider()
+                SettingsNavItem(
+                    icon     = Icons.Outlined.BugReport,
+                    iconTint = SemanticWarn,
+                    label    = stringResource(R.string.report_a_problem),
+                    trailing = stringResource(R.string.report_problem_subtitle),
+                    onClick  = { onNavigate(AiriRoute.REPORT_PROBLEM) }
+                )
             }
 
             Spacer(Modifier.height(8.dp))

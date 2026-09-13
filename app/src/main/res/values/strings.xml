@@ -255,7 +255,7 @@
     <string name="profile_title">Profile</string>
     <!-- Bug Report -->
     <string name="report_a_problem">Report a Problem</string>
-    <string name="report_a_problem_sublabel">Send feedback or bug report via email</string>
+    <string name="report_a_problem_sublabel">Describe a problem inside AIRI</string>
     <string name="report_email_subject">AIRI Bug Report — v1.0.0-alpha</string>
     <string name="report_email_body">Please describe the issue:\n\n\n\n--- Device Info ---\n</string>
     <!-- Paywall -->
@@ -1869,4 +1869,21 @@
     <string name="settings_logout">Sign Out</string>
     <string name="settings_logout_confirm_title">Sign Out?</string>
     <string name="settings_logout_confirm_body">You will need to sign in again to use your account.</string>
+    <!-- Report and composer shortcuts -->
+    <string name="report_problem_title">Report a problem</string>
+    <string name="report_problem_subtitle">Describe what happened. Your report will be reviewed to improve AIRI.</string>
+    <string name="report_problem_field_label">What happened?</string>
+    <string name="report_problem_hint">Tell us what you were doing and what went wrong…</string>
+    <string name="report_send">Send report</string>
+    <string name="report_sent_title">Thank you for your report</string>
+    <string name="report_sent_message">Your report has been saved for review. It will help us improve AIRI.</string>
+    <string name="attach_recent_files">Recent files</string>
+    <string name="attach_recent_tasks">Recent tasks</string>
+    <string name="attach_skills">Skills</string>
+    <string name="attach_plan">Create a plan</string>
+    <string name="attach_slides">Create presentation</string>
+    <string name="attach_website">Create website</string>
+    <string name="attach_app">Build an app</string>
+    <string name="archive_chat">Archive</string>
+    <string name="history_no_messages">No messages yet</string>
 </resources>

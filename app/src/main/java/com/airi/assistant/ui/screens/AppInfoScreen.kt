@@ -211,27 +211,6 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                     }
                 }
             }
-            SettingsSurface {
-                SettingsCategoryHeader(icon = Icons.Outlined.BugReport, title = "Support")
-                Spacer(Modifier.height(8.dp))
-            SettingsActionRow(
-                    label    = "Report a Problem",
-                    sublabel = "Send feedback or bug report privately"
-                ) {
-                    val deviceInfo = "Device: ${Build.MANUFACTURER} ${Build.MODEL}\n" +
-                                     "Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n" +
-                                     "App version: 1.0"
-                    val body = "Please describe the issue:\n\n\n\n--- Device Info ---\n$deviceInfo"
-                    val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
-                        data = Uri.parse("mailto:")
-                        putExtra(Intent.EXTRA_EMAIL,   arrayOf("xwenbrr@gmail.com"))
-                        putExtra(Intent.EXTRA_SUBJECT, "[AIRI] Bug Report")
-                        putExtra(Intent.EXTRA_TEXT,    body)
-                    }
-                    runCatching { context.startActivity(emailIntent) }
-                }
-            }
-
             Spacer(Modifier.height(24.dp))
 
             Text(

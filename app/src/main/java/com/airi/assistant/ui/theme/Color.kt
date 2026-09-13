@@ -10,21 +10,21 @@ import androidx.compose.ui.graphics.Color
 // ── Brand identity ────────────────────────────────────────────────────────────
 // Core violet — the AIRI signature color. Derived from a 290° hue with
 // high saturation, positioned between ultraviolet and indigo for distinctiveness.
-val CosmicAccent     = Color(0xFF6B5CE7)   // Primary — violet 290°
-val CosmicAccentAlt  = Color(0xFF8B78F0)   // Lighter — lighter tint for gradients
-val CosmicAccentDark = Color(0xFF4B3DB5)   // Darker — pressed state, deep glow
-val CosmicGlow       = Color(0xFF6B5CE7)   // Equals accent — used for shadow tinting
+val CosmicAccent     = Color(0xFF4F8CFF)   // Neutral blue accent
+val CosmicAccentAlt  = Color(0xFF8DB5FF)   // Accessible light accent
+val CosmicAccentDark = Color(0xFF245FCC)   // Pressed state
+val CosmicGlow       = Color(0xFF4F8CFF)   // Accent glow
 
 // ── Dark background ladder ────────────────────────────────────────────────────
 // Five-step depth system. Higher index = closer to user = lighter.
-val CosmicBlack      = Color(0xFF080B14)   // Base layer — deepest background
-val CosmicDarkBlue   = Color(0xFF0D1020)   // Nav bar, bottom anchors
+val CosmicBlack      = Color(0xFF080808)   // Base layer
+val CosmicDarkBlue   = Color(0xFF101214)   // Nav bar, bottom anchors
 
-val SurfaceBase      = Color(0xFF0C0F1C)   // Sheet backgrounds
-val SurfaceRaised    = Color(0xFF111525)   // Cards, chips, secondary elements
-val SurfaceFloating  = Color(0xFF171B2E)   // Popovers, tooltips
-val SurfaceHighlight = Color(0xFF1E2438)   // Selected state, active rows
-val SurfaceCard      = Color(0xFF131728)   // Card surfaces — slightly warmer
+val SurfaceBase      = Color(0xFF101112)   // Sheet backgrounds
+val SurfaceRaised    = Color(0xFF181A1C)   // Cards, chips, secondary elements
+val SurfaceFloating  = Color(0xFF222426)   // Popovers, tooltips
+val SurfaceHighlight = Color(0xFF292C2F)   // Selected state, active rows
+val SurfaceCard      = Color(0xFF151719)   // Card surfaces
 
 // ── Glass / translucent surfaces ─────────────────────────────────────────────
 val GlassWhite       = Color.White.copy(alpha = 0.06f)
@@ -76,7 +76,7 @@ val LightSurfaceCard    = Color(0xFFFFFFFF)
 val LightOnBackground   = Color(0xFF171923)
 val LightOnSurface      = Color(0xFF171923)
 val LightOnSurfaceMuted = Color(0xFF454858)
-val LightPrimary        = Color(0xFF5143C7)
-val LightSecondary      = Color(0xFF5A4BCB)
+val LightPrimary        = Color(0xFF245FCC)
+val LightSecondary      = Color(0xFF356FAE)
 val LightOutline        = Color(0xFF303342).copy(alpha = 0.28f)
 val LightDivider        = Color(0xFF303342).copy(alpha = 0.18f)

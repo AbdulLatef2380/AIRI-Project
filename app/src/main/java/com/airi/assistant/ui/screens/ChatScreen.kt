@@ -1930,60 +1930,32 @@ fun ChatMessageList(
                     ),
                     label = "idle_scale"
                 )
-                Spacer(Modifier.height(24.dp))
-                // Layered orb with outer halo
-                Box(
-                    modifier = Modifier.size(110.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Outer halo
-                    Box(
-                        modifier = Modifier
-                            .size(110.dp)
-                            .graphicsLayer { scaleX = orbScale; scaleY = orbScale }
-                            .clip(CircleShape)
-                            .background(
-                                Brush.radialGradient(
-                                    colors = listOf(
-                                        CosmicAccent.copy(alpha = orbAlpha * 0.7f),
-                                        CosmicAccentAlt.copy(alpha = orbAlpha * 0.4f),
-                                        Color.Transparent
-                                    )
-                                )
-                            )
-                    )
-                    // Middle ring
-                    Box(
-                        modifier = Modifier
-                            .size(80.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.radialGradient(
-                                    colors = listOf(
-                                        CosmicAccent.copy(alpha = 0.18f),
-                                        SurfaceFloating.copy(alpha = 0.9f)
-                                    )
-                                )
-                            )
-                            .border(
-                                width = 1.dp,
-                                brush = Brush.sweepGradient(
-                                    listOf(
-                                        CosmicAccent.copy(alpha = 0.60f),
-                                        CosmicAccentAlt.copy(alpha = 0.30f),
-                                        CosmicAccent.copy(alpha = 0.60f)
-                                    )
-                                ),
-                                shape = CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_launcher_fg),
-                            contentDescription = stringResource(R.string.app_name),
-                            modifier = Modifier.size(44.dp)
-                        )
+                Spacer(Modifier.height(28.dp))
+                val greetings = listOf(
+                    "مرحباً، أنا AIRI. ماذا سنفعل اليوم؟",
+                    "أهلاً بك. ما الجديد الذي تريد إنجازه؟",
+                    "أنا هنا لمساعدتك — من أين نبدأ؟"
+                )
+                var greetingIndex by rememberSaveable { mutableStateOf(0) }
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        kotlinx.coroutines.delay(4200L)
+                        greetingIndex = (greetingIndex + 1) % greetings.size
                     }
+                }
+                androidx.compose.animation.AnimatedContent(
+                    targetState = greetings[greetingIndex],
+                    transitionSpec = { fadeIn() togetherWith fadeOut() },
+                    label = "airi_greeting"
+                ) { greeting ->
+                    Text(
+                        text = greeting,
+                        color = AiriTheme.onBackground.copy(alpha = 0.92f),
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 22.sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 30.sp
+                    )
                 }
                 Spacer(Modifier.height(22.dp))
                 val greetingName = profileDisplayName.trim().take(48)
@@ -2689,7 +2661,9 @@ fun AiriChatInputBar(
     val context          = LocalContext.current
     var showAttachPopup by remember { mutableStateOf(false) }
     val attachSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val text = draftText
+    var text by rememberSaveable { mutableStateOf("") }
+    val draftPrefs = remember { context.getSharedPreferences("airi_drafts", android.content.Context.MODE_PRIVATE) }
+    LaunchedEffect(Unit) { if (text.isBlank()) text = draftPrefs.getString("current", "").orEmpty() }
     var isExpanded by remember { mutableStateOf(false) }
     val isInferenceReady = modelState.isModelReady || modelState.isCloudReady
     val isInteractionLocked = isGenerating || isDispatchingAttachment
@@ -3021,7 +2995,8 @@ fun AiriChatInputBar(
                     value = text,
                     onValueChange = { newValue ->
                         if (text.isEmpty() && newValue.isNotEmpty()) onUserStartedTyping()
-                        onDraftTextChanged(newValue)
+                        text = newValue
+                        draftPrefs.edit().putString("current", newValue).apply()
                         val query = newValue.trimStart()
                         when {
                             query.startsWith("/skill:") || query.startsWith("@knowledge:") -> {
@@ -3112,8 +3087,7 @@ fun AiriChatInputBar(
                         .clickable(enabled = isInferenceReady || isInteractionLocked) {
                             when {
                                 isGenerating -> onCancel()
-                                isDispatchingAttachment -> Unit
-                                showSend && canSend -> onSend(text) { onDraftTextChanged("") }
+                                showSend && canSend -> { onSend(text); text = ""; draftPrefs.edit().remove("current").apply() }
                                 !showSend -> onVoiceChatClick()
                             }
                         },

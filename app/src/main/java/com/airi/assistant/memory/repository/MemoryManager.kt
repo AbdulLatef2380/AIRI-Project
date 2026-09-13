@@ -306,6 +306,10 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         sessionDao.setSessionPinned(sessionId, isPinned)
     }
 
+    suspend fun setSessionArchived(sessionId: String, isArchived: Boolean) {
+        sessionDao.setSessionArchived(sessionId, isArchived)
+    }
+
     suspend fun getConversationContext(sessionId: String, limit: Int = 10): String {
         val messages = dao.getRecentMessages(sessionId, limit).reversed()
         return messages.joinToString("\n") { "${it.role}: ${it.content}" }

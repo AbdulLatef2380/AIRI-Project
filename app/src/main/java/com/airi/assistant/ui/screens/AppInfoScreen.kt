@@ -179,8 +179,8 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                 TermsSection("9. Changes") {
                     "These terms may be updated. Continued use after changes constitutes acceptance."
                 }
-                TermsSection("10. Contact") {
-                    "Questions or concerns? Reach us at: xwenbrr@gmail.com"
+            TermsSection("10. Contact") {
+                    "Questions or concerns? Use the private support form in the app."
                 }
             }
             AboutCard(icon = Icons.Outlined.Code, title = "Open-Source Acknowledgements") {
@@ -214,9 +214,9 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
             SettingsSurface {
                 SettingsCategoryHeader(icon = Icons.Outlined.BugReport, title = "Support")
                 Spacer(Modifier.height(8.dp))
-                SettingsActionRow(
+            SettingsActionRow(
                     label    = "Report a Problem",
-                    sublabel = "Send feedback or bug report by email"
+                    sublabel = "Send feedback or bug report privately"
                 ) {
                     val deviceInfo = "Device: ${Build.MANUFACTURER} ${Build.MODEL}\n" +
                                      "Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n" +

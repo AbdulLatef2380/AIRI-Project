@@ -35,9 +35,9 @@ import java.util.Locale
 fun HistoryScreen(viewModel: ChatViewModel, onBack: () -> Unit, onSessionSelected: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val sessions by viewModel.sessions.collectAsState()
-    var deleteTarget by remember { mutableStateOf<ChatSessionSummary?>(null) }
+    var sessionToDelete by remember { mutableStateOf<ChatSessionSummary?>(null) }
     var renameTarget by remember { mutableStateOf<ChatSessionSummary?>(null) }
-    var renameText by remember { mutableStateOf("") }
+    var renameDraft by remember { mutableStateOf("") }
 
     Scaffold(
         containerColor = AiriTheme.background,
@@ -68,9 +68,9 @@ fun HistoryScreen(viewModel: ChatViewModel, onBack: () -> Unit, onSessionSelecte
                         HistorySessionItem(
                             session = session,
                             onSelect = { viewModel.loadSession(session.id); onSessionSelected() },
-                            onDelete = { deleteTarget = session },
-                            onRename = { renameText = session.title; renameTarget = session },
-                            onPin = { viewModel.setSessionPinned(session.id, session.isPinned.not()) },
+                            onDelete = { sessionToDelete = session },
+                            onRename = { renameDraft = session.title; renameTarget = session },
+                            onPin = { viewModel.setSessionPinned(session.id, !session.isPinned) },
                             onArchive = { viewModel.archiveSession(session.id) },
                             onShare = { shareSession(context, session) }
                         )
@@ -80,21 +80,21 @@ fun HistoryScreen(viewModel: ChatViewModel, onBack: () -> Unit, onSessionSelecte
         }
     }
 
-    deleteTarget?.let { session ->
+    sessionToDelete?.let { session ->
         AlertDialog(
-            onDismissRequest = { deleteTarget = null }, containerColor = AiriTheme.surface,
+            onDismissRequest = { sessionToDelete = null }, containerColor = AiriTheme.surface,
             title = { Text("حذف المحادثة؟", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
             text = { Text("سيتم حذف المحادثة ورسائلها نهائياً.", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
-            confirmButton = { TextButton(onClick = { viewModel.deleteSession(session.id); deleteTarget = null }) { Text("حذف", color = SemanticError) } },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.cancel)) } }
+            confirmButton = { TextButton(onClick = { viewModel.deleteSession(session.id); sessionToDelete = null }) { Text("حذف", color = SemanticError) } },
+            dismissButton = { TextButton(onClick = { sessionToDelete = null }) { Text(stringResource(R.string.cancel)) } }
         )
     }
     renameTarget?.let { session ->
         AlertDialog(
             onDismissRequest = { renameTarget = null }, containerColor = AiriTheme.surface,
             title = { Text("تغيير اسم المحادثة", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
-            text = { OutlinedTextField(value = renameText, onValueChange = { renameText = it.take(80) }, singleLine = true, label = { Text("الاسم الجديد") }, modifier = Modifier.fillMaxWidth()) },
-            confirmButton = { TextButton(onClick = { viewModel.renameSession(session.id, renameText); renameTarget = null }) { Text("حفظ") } },
+            text = { OutlinedTextField(value = renameDraft, onValueChange = { renameDraft = it.take(80) }, singleLine = true, label = { Text(stringResource(R.string.rename_chat_hint)) }, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = { TextButton(onClick = { viewModel.renameSession(session.id, renameDraft); renameTarget = null }) { Text(stringResource(R.string.rename_chat)) } },
             dismissButton = { TextButton(onClick = { renameTarget = null }) { Text(stringResource(R.string.cancel)) } }
         )
     }
@@ -119,7 +119,7 @@ private fun HistorySessionItem(session: ChatSessionSummary, onSelect: () -> Unit
                 ActionIcon(Icons.Outlined.Archive, "أرشفة", AiriTheme.onSurfaceVariant, onArchive)
                 ActionIcon(Icons.Outlined.Share, "مشاركة", AiriTheme.onSurfaceVariant, onShare)
                 ActionIcon(Icons.Outlined.Edit, "تسمية", AiriTheme.onSurfaceVariant, onRename)
-                ActionIcon(if (session.isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin, "تثبيت", CosmicAccent, onPin)
+                ActionIcon(if (session.isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin, stringResource(R.string.pin_chat), CosmicAccent, onPin)
                 Text("إجراءات المحادثة", color = AiriTheme.onSurfaceVariant.copy(.55f), fontSize = 11.sp, modifier = Modifier.padding(end = 8.dp))
             }
         }

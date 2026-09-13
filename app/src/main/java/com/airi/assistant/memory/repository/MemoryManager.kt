@@ -295,7 +295,9 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
     }
 
     suspend fun getAllSessions(): List<ChatSessionSummary> {
-        return sessionDao.getAllSessions()
+        val archived = appContext.getSharedPreferences("airi_archived_sessions", Context.MODE_PRIVATE)
+            .getStringSet("ids", emptySet()).orEmpty()
+        return sessionDao.getAllSessions().filterNot { it.id in archived }
     }
 
     suspend fun renameSession(sessionId: String, title: String) {
@@ -307,7 +309,10 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
     }
 
     suspend fun setSessionArchived(sessionId: String, isArchived: Boolean) {
-        sessionDao.setSessionArchived(sessionId, isArchived)
+        val prefs = appContext.getSharedPreferences("airi_archived_sessions", Context.MODE_PRIVATE)
+        val ids = prefs.getStringSet("ids", emptySet()).orEmpty().toMutableSet()
+        if (isArchived) ids += sessionId else ids -= sessionId
+        prefs.edit().putStringSet("ids", ids).apply()
     }
 
     suspend fun getConversationContext(sessionId: String, limit: Int = 10): String {

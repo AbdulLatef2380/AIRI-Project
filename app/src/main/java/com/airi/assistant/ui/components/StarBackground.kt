@@ -12,8 +12,7 @@ import kotlinx.coroutines.isActive
 import kotlin.random.Random
 
 /**
- * Animated star background with purple atmospheric glow.
- * Matches the reference design: deep dark with top-center violet radial glow.
+ * Subtle star background with a neutral graphite atmosphere.
  */
 
 private data class Star(
@@ -62,15 +61,14 @@ fun StarBackground() {
         val interaction = frameTime
 
         // ── Base background: deep dark ─────────────────────────────────────
-        drawRect(color = Color(0xFF080B14))
+        drawRect(color = Color(0xFF080808))
 
-        // ── Atmospheric purple radial glow (top-center) ───────────────────
-        // This creates the signature purple mist seen in the reference designs
+        // ── Neutral graphite radial light (top-center) ─────────────────────
         drawRect(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    Color(0xFF2D1B69).copy(alpha = 0.55f),
-                    Color(0xFF1A0F4A).copy(alpha = 0.30f),
+                    Color(0xFF26313D).copy(alpha = 0.30f),
+                    Color(0xFF171D24).copy(alpha = 0.20f),
                     Color.Transparent
                 ),
                 center = Offset(w * 0.5f, 0f),

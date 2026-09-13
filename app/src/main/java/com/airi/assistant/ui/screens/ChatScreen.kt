@@ -1817,41 +1817,33 @@ private fun AiriHistoryPanel(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(sessions) { session ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(AIRIShapes.sm)
-                                .clickable { viewModel.loadSession(session.id); onSessionSelected() }
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                    items(sessions, key = { it.id }) { session ->
+                        var showActions by remember(session.id) { mutableStateOf(false) }
+                        Column(
+                            modifier = Modifier.fillMaxWidth().clip(AIRIShapes.md)
+                                .background(if (showActions) AiriTheme.surfaceVariant else Color.Transparent)
+                                .clickable { showActions = !showActions }
+                                .padding(horizontal = 14.dp, vertical = 12.dp)
                         ) {
-                            Text(
-                                java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                                    .format(java.util.Date(session.updatedAt)),
-                                color = AiriTheme.onBackground.copy(alpha = 0.40f),
-                                fontSize = 11.sp
-                            )
-                            Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-                                Text(
-                                    session.title.ifBlank { stringResource(R.string.session_untitled) },
-                                    color = AiriTheme.onBackground,
-                                    fontSize = 14.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    session.lastMessage.orEmpty().ifBlank { "..." },
-                                    color = AiriTheme.onBackground.copy(alpha = 0.45f),
-                                    fontSize = 12.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(34.dp).clip(AIRIShapes.sm).background(CosmicAccent.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                                    Icon(if (session.isPinned) Icons.Filled.PushPin else Icons.Outlined.ChatBubbleOutline, null, tint = CosmicAccent, modifier = Modifier.size(17.dp))
+                                }
+                                Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f)) {
+                                    Text(session.title.ifBlank { stringResource(R.string.session_untitled) }, color = AiriTheme.onBackground, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
+                                    Text(session.lastMessage.orEmpty().ifBlank { stringResource(R.string.history_no_messages) }, color = AiriTheme.onSurfaceVariant.copy(alpha = 0.58f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                Text(java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(session.updatedAt)), color = AiriTheme.onSurfaceVariant.copy(alpha = 0.5f), fontSize = 10.sp)
+                            }
+                            if (showActions) {
+                                Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.End) {
+                                    TextButton(onClick = { viewModel.setSessionPinned(session.id, !session.isPinned); showActions = false }) { Text(if (session.isPinned) stringResource(R.string.unpin_chat) else stringResource(R.string.pin_chat), color = CosmicAccent, fontSize = 11.sp) }
+                                    TextButton(onClick = { viewModel.archiveSession(session.id); showActions = false }) { Text(stringResource(R.string.archive_chat), color = AiriTheme.onSurfaceVariant, fontSize = 11.sp) }
+                                    TextButton(onClick = { viewModel.loadSession(session.id); onSessionSelected() }) { Text(stringResource(R.string.open_chat), color = AiriTheme.onSurface, fontSize = 11.sp) }
+                                }
                             }
                         }
-                        Divider(color = AiriTheme.outline)
+                        Divider(color = AiriTheme.outline.copy(alpha = 0.45f))
                     }
                 }
             }
@@ -1938,27 +1930,17 @@ fun ChatMessageList(
                     "أهلاً بك. ما الجديد الذي تريد إنجازه؟",
                     "أنا هنا لمساعدتك — من أين نبدأ؟"
                 )
-                var greetingIndex by rememberSaveable { mutableStateOf(0) }
-                LaunchedEffect(Unit) {
-                    while (true) {
-                        kotlinx.coroutines.delay(4200L)
-                        greetingIndex = (greetingIndex + 1) % greetings.size
-                    }
-                }
-                androidx.compose.animation.AnimatedContent(
-                    targetState = greetings[greetingIndex],
-                    transitionSpec = { fadeIn() togetherWith fadeOut() },
-                    label = "airi_greeting"
-                ) { greeting ->
-                    Text(
-                        text = greeting,
-                        color = AiriTheme.onBackground.copy(alpha = 0.92f),
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 22.sp,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 30.sp
-                    )
-                }
+                // The greeting is selected once when this screen enters composition;
+                // it never changes on a timer or while the user is reading it.
+                val greeting = remember { greetings.first() }
+                Text(
+                    text = greeting,
+                    color = AiriTheme.onBackground.copy(alpha = 0.92f),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 22.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 30.sp
+                )
                 Spacer(Modifier.height(22.dp))
                 val greetingName = profileDisplayName.trim().take(48)
                 Text(
@@ -3305,6 +3287,13 @@ fun AiriChatInputBar(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
+                AttachListRow(Icons.Outlined.Description, stringResource(R.string.attach_recent_files)) { showAttachPopup = false; onPickFile() }
+                AttachListRow(Icons.Outlined.EventNote, stringResource(R.string.attach_recent_tasks)) { showAttachPopup = false; onNavigate(AiriRoute.AGENT_TASKS) }
+                AttachListRow(Icons.Outlined.StarBorder, stringResource(R.string.attach_skills)) { showAttachPopup = false; onNavigate(AiriRoute.SKILL_MANAGER) }
+                AttachListRow(Icons.Outlined.Assignment, stringResource(R.string.attach_plan)) { showAttachPopup = false; onNavigate(AiriRoute.PLANNING_DASHBOARD) }
+                AttachListRow(Icons.Outlined.Slideshow, stringResource(R.string.attach_slides)) { showAttachPopup = false; onDraftTextChanged(context.getString(R.string.attach_slides) + ": ") }
+                AttachListRow(Icons.Outlined.Language, stringResource(R.string.attach_website)) { showAttachPopup = false; onDraftTextChanged(context.getString(R.string.attach_website) + ": ") }
+                AttachListRow(Icons.Outlined.PhoneAndroid, stringResource(R.string.attach_app)) { showAttachPopup = false; onDraftTextChanged(context.getString(R.string.attach_app) + ": ") }
                 AttachListRow(
                     icon = Icons.Outlined.Storage,
                     label = stringResource(R.string.attach_spreadsheet)

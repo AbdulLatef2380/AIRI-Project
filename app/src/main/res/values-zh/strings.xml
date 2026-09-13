@@ -274,7 +274,7 @@
     <string name="continue_with_google">使用 Google 继续</string>
     <string name="continue_with_github">使用 GitHub 继续</string>
     <string name="report_a_problem">报告问题</string>
-    <string name="report_a_problem_sublabel">通过电子邮件发送反馈或错误报告</string>
+    <string name="report_a_problem_sublabel">在 AIRI 内描述问题</string>
     <string name="report_email_subject">AIRI 错误报告 — v1.0.0-alpha</string>
     <string name="report_email_body">请描述问题：\n\n\n\n--- 设备信息 ---\n</string>
     <string name="upgrade_to_premium">升级到 Premium</string>
@@ -1537,4 +1537,21 @@
     <string name="settings_logout">退出登录</string>
     <string name="settings_logout_confirm_title">退出登录？</string>
     <string name="settings_logout_confirm_body">再次登录后才能使用你的账户。</string>
+    <!-- Report and composer shortcuts -->
+    <string name="report_problem_title">报告问题</string>
+    <string name="report_problem_subtitle">请描述发生的情况。我们会审核报告以改进 AIRI。</string>
+    <string name="report_problem_field_label">发生了什么？</string>
+    <string name="report_problem_hint">告诉我们你正在做什么以及出现了什么问题…</string>
+    <string name="report_send">发送报告</string>
+    <string name="report_sent_title">感谢你的报告</string>
+    <string name="report_sent_message">报告已保存并等待审核，这将帮助我们改进 AIRI。</string>
+    <string name="attach_recent_files">最近文件</string>
+    <string name="attach_recent_tasks">最近任务</string>
+    <string name="attach_skills">技能</string>
+    <string name="attach_plan">创建计划</string>
+    <string name="attach_slides">创建演示文稿</string>
+    <string name="attach_website">创建网站</string>
+    <string name="attach_app">开发应用</string>
+    <string name="archive_chat">归档</string>
+    <string name="history_no_messages">暂无消息</string>
 </resources>

@@ -246,7 +246,7 @@
     <string name="profile_remove_photo">إزالة الصورة</string>
     <string name="profile_title">الملف الشخصي</string>
     <string name="report_a_problem">الإبلاغ عن مشكلة</string>
-    <string name="report_a_problem_sublabel">أرسل ملاحظة أو بلاغ عن خطأ عبر البريد الإلكتروني</string>
+    <string name="report_a_problem_sublabel">اكتب وصف المشكلة داخل AIRI</string>
     <string name="report_email_subject">تقرير خطأ AIRI — v1.0.0-alpha</string>
     <string name="report_email_body">يرجى وصف المشكلة:\n\n\n\n--- معلومات الجهاز ---\n</string>
     <string name="upgrade_to_premium">الترقية إلى Premium</string>
@@ -1768,4 +1768,21 @@
     <string name="settings_logout">تسجيل الخروج</string>
     <string name="settings_logout_confirm_title">تسجيل الخروج؟</string>
     <string name="settings_logout_confirm_body">ستحتاج إلى تسجيل الدخول مرة أخرى للوصول إلى حسابك.</string>
+    <!-- Report and composer shortcuts -->
+    <string name="report_problem_title">الإبلاغ عن مشكلة</string>
+    <string name="report_problem_subtitle">صف ما حدث. ستتم مراجعة بلاغك للمساعدة في تحسين AIRI.</string>
+    <string name="report_problem_field_label">ماذا حدث؟</string>
+    <string name="report_problem_hint">أخبرنا بما كنت تفعله وما الخطأ الذي ظهر…</string>
+    <string name="report_send">إرسال البلاغ</string>
+    <string name="report_sent_title">شكراً على بلاغك</string>
+    <string name="report_sent_message">تم حفظ البلاغ للمراجعة، وسيساعدنا على تحسين AIRI.</string>
+    <string name="attach_recent_files">الملفات الأخيرة</string>
+    <string name="attach_recent_tasks">المهام الأخيرة</string>
+    <string name="attach_skills">المهارات</string>
+    <string name="attach_plan">إنشاء خطة</string>
+    <string name="attach_slides">إنشاء عرض تقديمي</string>
+    <string name="attach_website">إنشاء موقع إلكتروني</string>
+    <string name="attach_app">تطوير تطبيق</string>
+    <string name="archive_chat">أرشفة</string>
+    <string name="history_no_messages">لا توجد رسائل بعد</string>
 </resources>

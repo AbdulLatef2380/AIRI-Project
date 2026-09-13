@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * Persists the user's chosen theme mode across process restarts.
  *
  * Four modes are supported:
- *  - [ThemeMode.DARK]   — always dark (default, matches original app behaviour)
+     *  - [ThemeMode.DARK]   — dark graphite surfaces
  *  - [ThemeMode.LIGHT]  — always light
  *  - [ThemeMode.SYSTEM] — follows the OS dark/light setting
  *  - [ThemeMode.AMOLED] — pure black background for OLED power saving ()
@@ -33,9 +33,9 @@ class ThemePreferences(context: Context) {
         }
 
     private fun readFromDisk(): ThemeMode =
-        prefs.getString(KEY_THEME_MODE, ThemeMode.DARK.name)
+        prefs.getString(KEY_THEME_MODE, ThemeMode.AMOLED.name)
             ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
-            ?: ThemeMode.DARK
+            ?: ThemeMode.AMOLED
 
     companion object {
         private const val PREFS_FILE      = "airi_theme_prefs"

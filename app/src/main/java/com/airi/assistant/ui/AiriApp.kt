@@ -71,6 +71,7 @@ import com.airi.assistant.ui.screens.OnboardingScreen
 import com.airi.assistant.ui.screens.PaywallScreen
 import com.airi.assistant.ui.screens.PrivacyDataSettingsScreen
 import com.airi.assistant.ui.screens.ProfileScreen
+import com.airi.assistant.ui.screens.ReportProblemScreen
 import com.airi.assistant.ui.screens.ReferralScreen
 import com.airi.assistant.ui.screens.SettingsScreen
 import com.airi.assistant.ui.screens.SkillBuilderScreen
@@ -162,6 +163,7 @@ object AiriRoute {
     const val GIT_REPOSITORY       = "screen_git_repository"
     const val SECURITY_SCANNER     = "screen_security_scanner"
     const val SECRET_MANAGER       = "screen_secret_manager"
+    const val REPORT_PROBLEM       = "screen_report_problem"
 }
 
 // Routes where the bottom nav bar should appear
@@ -406,6 +408,10 @@ fun AiriApp() {
 
                     composable(AiriRoute.VOICE_PERSONALIZATION) {
                         VoicePersonalizationScreen(onBack = { navController.popBackStack() })
+                    }
+
+                    composable(AiriRoute.REPORT_PROBLEM) {
+                        ReportProblemScreen(onBack = { navController.popBackStack() })
                     }
 
                     composable(AiriRoute.CREDITS) {

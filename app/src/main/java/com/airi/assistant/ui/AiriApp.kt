@@ -80,6 +80,8 @@ import com.airi.assistant.ui.screens.SkillManagerScreen
 import com.airi.assistant.ui.screens.TemplatesScreen
 import com.airi.assistant.ui.screens.AppInfoScreen
 import com.airi.assistant.ui.screens.CreditsScreen
+import com.airi.assistant.ui.screens.FreePlanScreen
+import com.airi.assistant.ui.screens.ProPlanScreen
 import com.airi.assistant.ui.screens.PermissionsScreen
 import com.airi.assistant.ui.screens.ArtifactPreviewScreen
 import com.airi.assistant.ui.screens.UpdateScreen
@@ -137,6 +139,8 @@ object AiriRoute {
     const val AGENT_TASKS            = "screen_agent_tasks"
     const val MODEL_LIBRARY          = "screen_model_library"
     const val CREDITS                = "screen_credits"
+    const val FREE_PLAN             = "screen_free_plan"
+    const val PRO_PLAN              = "screen_pro_plan"
     const val PERMISSIONS_SCREEN     = "screen_permissions"
     const val UPDATE_SCREEN          = "screen_update"
     const val VOICE_PERSONALIZATION  = "screen_voice_personalization"
@@ -416,6 +420,17 @@ fun AiriApp() {
 
                     composable(AiriRoute.CREDITS) {
                         CreditsScreen(onBack = { navController.popBackStack() })
+                    }
+
+                    composable(AiriRoute.FREE_PLAN) {
+                        FreePlanScreen(
+                            onBack = { navController.popBackStack() },
+                            onOpenPro = { navController.navigate(AiriRoute.PRO_PLAN) { launchSingleTop = true } }
+                        )
+                    }
+
+                    composable(AiriRoute.PRO_PLAN) {
+                        ProPlanScreen(onBack = { navController.popBackStack() })
                     }
 
                     composable(AiriRoute.PERMISSIONS_SCREEN) {

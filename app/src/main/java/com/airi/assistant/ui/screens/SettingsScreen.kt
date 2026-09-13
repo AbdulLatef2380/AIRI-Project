@@ -78,6 +78,7 @@ fun SettingsScreen(
     val profileName = profile.displayName
         .ifBlank { authUser?.displayName.orEmpty() }
         .ifBlank { email.substringBefore("@").ifBlank { stringResource(R.string.profile_title) } }
+    val isProPlan = ServiceLocator.subscriptionManager.isPro()
     val profilePhoto = profile.localPhotoPath.takeIf { it.isNotBlank() } ?: authUser?.photoUrl
     val isPremium = remember { viewModel.isPremium() }
     val scope     = rememberCoroutineScope()
@@ -302,8 +303,9 @@ fun SettingsScreen(
                 SettingsNavItem(
                     icon     = Icons.Outlined.Token,
                     iconTint = CosmicAccent,
-                    label    = stringResource(R.string.settings_credits_usage),
-                    onClick  = { onNavigate(AiriRoute.CREDITS) }
+                    label    = stringResource(R.string.settings_plan_and_usage),
+                    trailing = if (isProPlan) stringResource(R.string.plan_pro_badge) else stringResource(R.string.plan_free_badge),
+                    onClick  = { onNavigate(if (isProPlan) AiriRoute.PRO_PLAN else AiriRoute.FREE_PLAN) }
                 )
                 SettingsDivider()
                 SettingsNavItem(

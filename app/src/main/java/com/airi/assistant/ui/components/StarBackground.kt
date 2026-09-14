@@ -55,11 +55,14 @@ fun StarBackground() {
         }
     }
 
+    // Read theme colours in the composable scope; Canvas draw lambdas are not
+    // composable and must only receive already-resolved values.
+    val background = AiriTheme.background
+    val foreground = AiriTheme.onBackground
+
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
-        val background = AiriTheme.background
-        val foreground = AiriTheme.onBackground
         @Suppress("UNUSED_VARIABLE")
         val interaction = frameTime
 

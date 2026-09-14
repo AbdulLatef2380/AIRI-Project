@@ -36,7 +36,7 @@ jobs:
         # Install only the maintained platform-tools here; the build-specific
         # platform, build-tools, NDK, and CMake are installed below.
         packages: "platform-tools"
-        accept-android-sdk-license: true
+        accept-android-sdk-licenses: true
 
     - name: Install NDK & CMake
       run: |

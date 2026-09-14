@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Extension
@@ -19,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -41,19 +43,12 @@ fun WelcomeScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // AIRI identity orb — replaces generic text logo
-        Box(
-            modifier = Modifier.size(68.dp).clip(AIRIShapes.lg)
-                .background(
-                    androidx.compose.ui.graphics.Brush.radialGradient(
-                        listOf(CosmicAccent.copy(alpha = 0.28f), SurfaceRaised)
-                    )
-                )
-                .border(1.dp, CosmicAccent.copy(alpha = 0.35f), AIRIShapes.lg),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("A", color = CosmicAccent, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.5).sp)
-        }
+        // AIRI identity icon — no frame or artificial background.
+        Image(
+            painter = painterResource(R.drawable.ic_launcher_fg),
+            contentDescription = "AIRI",
+            modifier = Modifier.size(68.dp)
+        )
         Spacer(Modifier.height(20.dp))
         Text(
             text = stringResource(R.string.welcome_greeting),

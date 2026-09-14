@@ -26,7 +26,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -49,10 +52,12 @@ fun ReportProblemScreen(onBack: () -> Unit) {
         containerColor = AiriTheme.surface,
         contentColor = AiriTheme.onSurface
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+            Column(
+                modifier = Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+            ) {
             if (sent) {
                 Icon(Icons.Outlined.BugReport, contentDescription = null, tint = CosmicAccent, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
                 Text(stringResource(R.string.report_sent_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
@@ -69,7 +74,9 @@ fun ReportProblemScreen(onBack: () -> Unit) {
                     label = { Text(stringResource(R.string.report_problem_field_label)) },
                     placeholder = { Text(stringResource(R.string.report_problem_hint)) },
                     minLines = 6,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Right),
+                    singleLine = false
                 )
                 Text("${description.length} / 2000", color = AiriTheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
                 Button(
@@ -83,6 +90,7 @@ fun ReportProblemScreen(onBack: () -> Unit) {
                     contentPadding = PaddingValues(vertical = 13.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
                 ) { Text(stringResource(R.string.report_send)) }
+            }
             }
         }
     }

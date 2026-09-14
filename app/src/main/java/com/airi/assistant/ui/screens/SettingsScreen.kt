@@ -424,7 +424,6 @@ fun SettingsScreen(
                     icon     = Icons.Outlined.BugReport,
                     iconTint = SemanticWarn,
                     label    = stringResource(R.string.report_a_problem),
-                    trailing = stringResource(R.string.report_problem_subtitle),
                     onClick  = { onNavigate(AiriRoute.REPORT_PROBLEM) }
                 )
             }

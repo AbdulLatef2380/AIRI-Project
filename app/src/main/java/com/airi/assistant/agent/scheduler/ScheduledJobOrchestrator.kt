@@ -66,7 +66,12 @@ class ScheduledJobOrchestrator(private val context: Context) {
         requiresNet: Boolean = false,
         projectId:   String? = null,
         ownerId:     String = "scheduled",
-        privacyLevel: Int = 1
+        privacyLevel: Int = 1,
+        recurrence: ScheduleRecurrence = ScheduleRecurrence.ONCE,
+        timeOfDay: String? = null,
+        approvalMode: ApprovalMode = ApprovalMode.CONFIRM,
+        connectorId: String? = null,
+        modelId: String? = null
     ): ScheduledJob {
         ScheduledJobInputPolicy.requireValid(agentId, payload, label)
         val safeDelayMs = delayMs.coerceAtLeast(0L)
@@ -81,7 +86,9 @@ class ScheduledJobOrchestrator(private val context: Context) {
             requiresNetwork = requiresNet,
             projectId = projectId,
             ownerId = ownerId,
-            privacyLevel = privacyLevel.coerceIn(0, 2)
+            privacyLevel = privacyLevel.coerceIn(0, 2),
+            recurrence = recurrence, timeOfDay = timeOfDay, approvalMode = approvalMode,
+            connectorId = connectorId, modelId = modelId
         )
 
         val constraints = Constraints.Builder()
@@ -95,6 +102,9 @@ class ScheduledJobOrchestrator(private val context: Context) {
             .putString("project_id", projectId)
             .putString("owner_id", ownerId)
             .putInt("privacy_level", privacyLevel.coerceIn(0, 2))
+            .putString(ScheduledAgentWorker.KEY_CONNECTOR_ID, connectorId)
+            .putString(ScheduledAgentWorker.KEY_MODEL_ID, modelId)
+            .putString(ScheduledAgentWorker.KEY_APPROVAL_MODE, approvalMode.name)
             .build()
         val request = OneTimeWorkRequestBuilder<ScheduledAgentWorker>()
             .setInputData(data)
@@ -125,7 +135,12 @@ class ScheduledJobOrchestrator(private val context: Context) {
         stableJobId:     String? = null,
         projectId:       String? = null,
         ownerId:         String = "scheduled",
-        privacyLevel:    Int = 1
+        privacyLevel:    Int = 1,
+        recurrence: ScheduleRecurrence = ScheduleRecurrence.DAILY,
+        timeOfDay: String? = null,
+        approvalMode: ApprovalMode = ApprovalMode.CONFIRM,
+        connectorId: String? = null,
+        modelId: String? = null
     ): ScheduledJob {
         ScheduledJobInputPolicy.requireValid(agentId, payload, label)
         stableJobId?.let { id ->
@@ -147,7 +162,9 @@ class ScheduledJobOrchestrator(private val context: Context) {
             requiresNetwork = requiresNet,
             projectId = projectId,
             ownerId = ownerId,
-            privacyLevel = privacyLevel.coerceIn(0, 2)
+            privacyLevel = privacyLevel.coerceIn(0, 2),
+            recurrence = recurrence, timeOfDay = timeOfDay, approvalMode = approvalMode,
+            connectorId = connectorId, modelId = modelId
         )
 
         val constraints = Constraints.Builder()
@@ -161,6 +178,9 @@ class ScheduledJobOrchestrator(private val context: Context) {
             .putString("project_id", projectId)
             .putString("owner_id", ownerId)
             .putInt("privacy_level", privacyLevel.coerceIn(0, 2))
+            .putString(ScheduledAgentWorker.KEY_CONNECTOR_ID, connectorId)
+            .putString(ScheduledAgentWorker.KEY_MODEL_ID, modelId)
+            .putString(ScheduledAgentWorker.KEY_APPROVAL_MODE, approvalMode.name)
             .build()
         val request = PeriodicWorkRequestBuilder<ScheduledAgentWorker>(
             safeInterval, TimeUnit.MINUTES
@@ -357,6 +377,11 @@ class ScheduledJobOrchestrator(private val context: Context) {
         put("project_id", job.projectId ?: JSONObject.NULL)
         put("owner_id", job.ownerId)
         put("privacy_level", job.privacyLevel)
+        put("recurrence", job.recurrence.name)
+        put("time_of_day", job.timeOfDay ?: JSONObject.NULL)
+        put("approval_mode", job.approvalMode.name)
+        put("connector_id", job.connectorId ?: JSONObject.NULL)
+        put("model_id", job.modelId ?: JSONObject.NULL)
     }
 
     private fun parseJob(json: JSONObject) = ScheduledJob(
@@ -378,7 +403,12 @@ class ScheduledJobOrchestrator(private val context: Context) {
             .takeUnless { it.isBlank() || it == "null" },
         projectId = json.optString("project_id").takeUnless { it.isBlank() || it == "null" },
         ownerId = json.optString("owner_id", "scheduled").ifBlank { "scheduled" },
-        privacyLevel = json.optInt("privacy_level", 1).coerceIn(0, 2)
+        privacyLevel = json.optInt("privacy_level", 1).coerceIn(0, 2),
+        recurrence = runCatching { ScheduleRecurrence.valueOf(json.optString("recurrence", "ONCE")) }.getOrDefault(ScheduleRecurrence.ONCE),
+        timeOfDay = json.optString("time_of_day").takeUnless { it.isBlank() || it == "null" },
+        approvalMode = runCatching { ApprovalMode.valueOf(json.optString("approval_mode", "CONFIRM")) }.getOrDefault(ApprovalMode.CONFIRM),
+        connectorId = json.optString("connector_id").takeUnless { it.isBlank() || it == "null" },
+        modelId = json.optString("model_id").takeUnless { it.isBlank() || it == "null" }
     )
 }
 
@@ -402,10 +432,16 @@ data class ScheduledJob(
     val manualRunRequestId: String? = null,
     val projectId: String? = null,
     val ownerId: String = "scheduled",
-    val privacyLevel: Int = 1
+    val privacyLevel: Int = 1,
+    val recurrence: ScheduleRecurrence = if (type == ScheduleType.PERIODIC) ScheduleRecurrence.DAILY else ScheduleRecurrence.ONCE,
+    val timeOfDay: String? = null,
+    val approvalMode: ApprovalMode = ApprovalMode.CONFIRM,
+    val connectorId: String? = null,
+    val modelId: String? = null
 )
 
 enum class ScheduleType { ONE_TIME, PERIODIC }
+enum class ScheduleRecurrence { ONCE, DAILY, WEEKLY, MONTHLY }
+enum class ApprovalMode { CONFIRM, SKIP }
 enum class ScheduledJobOutcome { PENDING, RETRYING, COMPLETED, FAILED }
 enum class ManualRunRequestResult { QUEUED, ALREADY_ACTIVE, NOT_FOUND, NOT_ALLOWED }
-

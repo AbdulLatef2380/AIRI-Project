@@ -57,6 +57,9 @@ class ScheduledAgentWorker(
         const val KEY_PROJECT_ID = "project_id"
         const val KEY_OWNER_ID = "owner_id"
         const val KEY_PRIVACY_LEVEL = "privacy_level"
+        const val KEY_CONNECTOR_ID = "connector_id"
+        const val KEY_MODEL_ID = "model_id"
+        const val KEY_APPROVAL_MODE = "approval_mode"
         const val KEY_MANUAL_RUN = "manual_run"
         private fun Throwable.isTransientFailure(): Boolean =
             this is IOException || this is UnknownHostException || this is SocketTimeoutException
@@ -71,6 +74,9 @@ class ScheduledAgentWorker(
         val ownerId = inputData.getString(KEY_OWNER_ID)?.takeIf { it.isNotBlank() } ?: "scheduled"
         val privacyLevel = inputData.getInt(KEY_PRIVACY_LEVEL, SubAgentContext.PRIVACY_BALANCED)
             .coerceIn(SubAgentContext.PRIVACY_MAXIMUM, SubAgentContext.PRIVACY_STANDARD)
+        val connectorId = inputData.getString(KEY_CONNECTOR_ID)?.takeIf { it.isNotBlank() }
+        val modelId = inputData.getString(KEY_MODEL_ID)?.takeIf { it.isNotBlank() }
+        val approvalMode = inputData.getString(KEY_APPROVAL_MODE) ?: "CONFIRM"
         val manualRunRequestId = id.toString().takeIf { inputData.getBoolean(KEY_MANUAL_RUN, false) }
 
         LoggingService.info(TAG, "AIRI SCHEDULED_JOB_STARTED id=$jobId agent=$agentId label=$label")
@@ -150,7 +156,13 @@ class ScheduledAgentWorker(
             userId = ownerId,
             projectId = projectId,
             recentTurns = emptyList(),
-            worldState = mapOf("source" to "scheduled_task", "agent_id" to agentId),
+            worldState = buildMap {
+                put("source", "scheduled_task")
+                put("agent_id", agentId)
+                connectorId?.let { put("connector_id", it) }
+                modelId?.let { put("model_id", it) }
+                put("approval_mode", approvalMode)
+            },
             privacyLevel = privacyLevel,
             allowedTools = emptyList(),
             timeoutMs = 120_000L

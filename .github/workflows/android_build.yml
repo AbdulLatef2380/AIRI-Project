@@ -31,6 +31,12 @@ jobs:
 
     - name: Setup Android SDK + NDK + CMake
       uses: android-actions/setup-android@v3
+      with:
+        # The legacy `tools` SDK package was removed from current repositories.
+        # Install only the maintained platform-tools here; the build-specific
+        # platform, build-tools, NDK, and CMake are installed below.
+        packages: "platform-tools"
+        accept-android-sdk-license: true
 
     - name: Install NDK & CMake
       run: |

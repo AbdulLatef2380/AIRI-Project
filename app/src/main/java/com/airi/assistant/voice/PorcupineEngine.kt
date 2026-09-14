@@ -38,8 +38,8 @@ object PorcupineEngine {
     // Key name used with SecureStorage.saveLlmKey / getLlmKey / clearLlmKey
     private const val SECURE_KEY_NAME = "picovoice"
 
-    private const val PPN_NAME   = "hey_airi"
-    private const val ASSET_PATH = "voice/$PPN_NAME.ppn"
+    private const val PREFERRED_PPN = "ok_airi"
+    private const val LEGACY_PPN    = "hey_airi"
 
     // : Use the ServiceLocator singleton — eliminates the per-instance
     // SecureStorage(context) construction that caused split-brain on Keystore failure.
@@ -122,10 +122,13 @@ object PorcupineEngine {
     /** Returns (extracted file, human label) or null. */
     private fun locatePpn(context: Context): Pair<File, String>? {
         val app = context.applicationContext
-        // 1) res/raw/hey_airi.ppn (preferred)
-        val rawId = app.resources.getIdentifier(PPN_NAME, "raw", app.packageName)
-        if (rawId != 0) {
-            val outFile = File(app.filesDir, "voice/$PPN_NAME.ppn")
+        // 1) Prefer a keyword model trained for “Ok Airi”; retain legacy support.
+        val rawName = listOf(PREFERRED_PPN, LEGACY_PPN).firstOrNull {
+            app.resources.getIdentifier(it, "raw", app.packageName) != 0
+        }
+        if (rawName != null) {
+            val rawId = app.resources.getIdentifier(rawName, "raw", app.packageName)
+            val outFile = File(app.filesDir, "voice/$rawName.ppn")
             try {
                 if (!outFile.exists() || outFile.length() == 0L) {
                     outFile.parentFile?.mkdirs()
@@ -133,23 +136,25 @@ object PorcupineEngine {
                         outFile.outputStream().use { out -> ins.copyTo(out) }
                     }
                 }
-                return outFile to "res/raw/$PPN_NAME.ppn"
+                return outFile to "res/raw/$rawName.ppn"
             } catch (t: Throwable) {
-                Log.w(TAG, "Failed to materialize res/raw/$PPN_NAME.ppn: ${t.message}")
+                Log.w(TAG, "Failed to materialize res/raw/$rawName.ppn: ${t.message}")
             }
         }
         // 2) assets/voice/hey_airi.ppn
         return try {
             val list = app.assets.list("voice")?.toList().orEmpty()
-            if (!list.contains("$PPN_NAME.ppn")) return null
-            val outFile = File(app.filesDir, "voice/$PPN_NAME.ppn")
+            val assetName = listOf(PREFERRED_PPN, LEGACY_PPN)
+                .firstOrNull { "$it.ppn" in list } ?: return null
+            val assetPath = "voice/$assetName.ppn"
+            val outFile = File(app.filesDir, assetPath)
             if (!outFile.exists() || outFile.length() == 0L) {
                 outFile.parentFile?.mkdirs()
-                app.assets.open(ASSET_PATH).use { ins ->
+                app.assets.open(assetPath).use { ins ->
                     outFile.outputStream().use { out -> ins.copyTo(out) }
                 }
             }
-            outFile to "assets/$ASSET_PATH"
+            outFile to "assets/$assetPath"
         } catch (t: Throwable) {
             Log.d(TAG, "No bundled .ppn found: ${t.message}")
             null

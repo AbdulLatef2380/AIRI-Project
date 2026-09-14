@@ -82,7 +82,7 @@
     <string name="speech_engine">محرك الكلام</string>
     <string name="speech_engine_value">STT النظام</string>
     <string name="wake_word">كلمة التنبيه</string>
-    <string name="wake_word_value">Hey AIRI</string>
+    <string name="wake_word_value">Ok Airi</string>
     <string name="data_controls">التحكم في البيانات</string>
     <string name="export_chats">تصدير المحادثة الحالية</string>
     <string name="download_chat_history">حفظ المحادثة الحالية كملف JSON في Downloads/AIRI/</string>
@@ -480,7 +480,7 @@
     <!-- Voice &amp; wake-word -->
     <string name="voice_and_wakeword">الصوت وكلمة التنبيه</string>
     <string name="voice_settings_title">الصوت وكلمة التنبيه</string>
-    <string name="voice_settings_subtitle">إدارة نماذج التعرف على الكلام دون اتصال وكلمة التنبيه «Hey AIRI».</string>
+    <string name="voice_settings_subtitle">إدارة نماذج التعرف على الكلام دون اتصال وكلمة التنبيه «Ok Airi».</string>
     <string name="no_voice_model_installed">لا يوجد نموذج صوتي مثبَّت. افتح «الصوت وكلمة التنبيه» لتنزيل واحد.</string>
     <string name="voice_model_load_failed">تعذّر تحميل نموذج الكلام المحدَّد.</string>
     <string name="vosk_section_title">نماذج تحويل الكلام إلى نص (Vosk)</string>
@@ -495,10 +495,10 @@
     <string name="vosk_size_mb">حوالي %1$d م.ب</string>
     <string name="vosk_download_failed">فشل التنزيل: %1$s</string>
     <string name="porcupine_section_title">كلمة التنبيه (Porcupine)</string>
-    <string name="porcupine_status_ready">كلمة التنبيه جاهزة («Hey AIRI»).</string>
+    <string name="porcupine_status_ready">كلمة التنبيه جاهزة («Ok Airi»).</string>
     <string name="porcupine_status_missing_key">مفتاح Picovoice AccessKey مفقود. الصقه أدناه أو عيّن PICOVOICE_ACCESS_KEY عند الإنشاء.</string>
-    <string name="porcupine_status_missing_ppn">ملف «hey_airi.ppn» غير مضمَّن. ضعه في res/raw/ أو assets/voice/ وأعد البناء.</string>
-    <string name="porcupine_status_both_missing">كلمة التنبيه معطّلة — المفتاح وملف hey_airi.ppn كلاهما مفقود.</string>
+    <string name="porcupine_status_missing_ppn">ملف «ok_airi.ppn» غير مضمَّن. ضعه في res/raw/ أو assets/voice/ وأعد البناء.</string>
+    <string name="porcupine_status_both_missing">كلمة التنبيه معطّلة — المفتاح وملف ok_airi.ppn كلاهما مفقود.</string>
     <string name="porcupine_access_key_label">مفتاح Picovoice AccessKey</string>
     <string name="porcupine_access_key_save">حفظ</string>
     <string name="porcupine_access_key_clear">مسح</string>

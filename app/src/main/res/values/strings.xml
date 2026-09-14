@@ -81,7 +81,7 @@
     <string name="speech_engine">Speech engine</string>
     <string name="speech_engine_value">System STT</string>
     <string name="wake_word">Wake word</string>
-    <string name="wake_word_value">Hey AIRI</string>
+    <string name="wake_word_value">Ok Airi</string>
     <string name="data_controls">Data Controls</string>
     <string name="export_chats">Export Current Conversation</string>
     <string name="download_chat_history">Save the current conversation as JSON to Downloads/AIRI/</string>
@@ -426,7 +426,7 @@
     <!-- Voice & wake-word (Vosk + Porcupine, fully offline) -->
     <string name="voice_and_wakeword">Voice &amp; Wake Word</string>
     <string name="voice_settings_title">Voice &amp; Wake Word</string>
-    <string name="voice_settings_subtitle">Manage offline speech recognition models and the \"Hey AIRI\" wake word.</string>
+    <string name="voice_settings_subtitle">Manage offline speech recognition models and the \"Ok Airi\" wake word.</string>
     <string name="no_voice_model_installed">No speech model installed. Open Voice &amp; Wake Word to download one.</string>
     <string name="voice_model_load_failed">Could not load the selected speech model.</string>
     <string name="vosk_section_title">Speech-to-text models (Vosk)</string>
@@ -441,10 +441,10 @@
     <string name="vosk_size_mb">~%1$d MB</string>
     <string name="vosk_download_failed">Download failed: %1$s</string>
     <string name="porcupine_section_title">Wake word (Porcupine)</string>
-    <string name="porcupine_status_ready">Wake word ready (\"Hey AIRI\").</string>
+    <string name="porcupine_status_ready">Wake word ready (\"Ok Airi\").</string>
     <string name="porcupine_status_missing_key">Picovoice AccessKey is missing. Paste one below or set PICOVOICE_ACCESS_KEY at build time.</string>
-    <string name="porcupine_status_missing_ppn">No \"hey_airi.ppn\" file bundled. Drop one into res/raw/ or assets/voice/ and rebuild.</string>
-    <string name="porcupine_status_both_missing">Wake word disabled — AccessKey and hey_airi.ppn are both missing.</string>
+    <string name="porcupine_status_missing_ppn">No \"ok_airi.ppn\" file bundled. Drop one into res/raw/ or assets/voice/ and rebuild.</string>
+    <string name="porcupine_status_both_missing">Wake word disabled — AccessKey and ok_airi.ppn are both missing.</string>
     <string name="porcupine_access_key_label">Picovoice AccessKey</string>
     <string name="porcupine_access_key_save">Save</string>
     <string name="porcupine_access_key_clear">Clear</string>
@@ -1378,7 +1378,7 @@
     <string name="welcome_continue_without">Continue without setup</string>
 
     <!-- HotwordService notification -->
-    <string name="hotword_notification_title">AIRI is listening for \"Hey AIRI\"</string>
+    <string name="hotword_notification_title">AIRI is listening for \"Ok Airi\"</string>
     <string name="hotword_notification_text">Tap to open AIRI</string>
 
     <!-- LiveVoiceService notification -->

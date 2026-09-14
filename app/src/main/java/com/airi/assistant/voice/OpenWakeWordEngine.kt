@@ -13,7 +13,8 @@ import java.nio.ByteOrder
 object OpenWakeWordEngine {
 
     private const val TAG           = "AIRI_OWW"
-    private const val ASSET_MODEL   = "voice/hey_airi.tflite"
+    private const val PREFERRED_MODEL = "ok_airi.tflite"
+    private const val LEGACY_MODEL    = "hey_airi.tflite"
     private const val FRAME_SAMPLES = 1280          // 80 ms at 16 kHz
     private const val SAMPLE_RATE   = 16_000
     private const val THRESHOLD     = 0.5f          // detection sensitivity
@@ -35,8 +36,8 @@ object OpenWakeWordEngine {
             else ->
                 Status(
                     ready = false,
-                    reason = "No hey_airi.tflite found in assets/voice/. " +
-                             "See https://github.com/dscripka/openWakeWord to generate one."
+                    reason = "No ok_airi.tflite (or legacy hey_airi.tflite) found in assets/voice/. " +
+                             "Add a model trained for the phrase Ok Airi."
                 )
         }
     }
@@ -64,21 +65,27 @@ object OpenWakeWordEngine {
     // ── internals ────────────────────────────────────────────────────────
 
     private fun modelFile(context: Context): File? {
-        val f = File(context.applicationContext.filesDir, "voice/hey_airi.tflite")
-        return if (f.exists() && f.length() > 0L) f else null
+        val dir = File(context.applicationContext.filesDir, "voice")
+        return listOf(PREFERRED_MODEL, LEGACY_MODEL)
+            .map { File(dir, it) }
+            .firstOrNull { it.exists() && it.length() > 0L }
     }
 
     private fun extractedFromAssets(context: Context): File? {
         val app = context.applicationContext
         val assetFiles = runCatching { app.assets.list("voice") }.getOrNull() ?: return null
-        if ("hey_airi.tflite" !in assetFiles) return null
+        val assetName = when {
+            PREFERRED_MODEL in assetFiles -> PREFERRED_MODEL
+            LEGACY_MODEL in assetFiles -> LEGACY_MODEL
+            else -> return null
+        }
 
-        val dest = File(app.filesDir, "voice/hey_airi.tflite")
+        val dest = File(app.filesDir, "voice/$assetName")
         if (dest.exists() && dest.length() > 0L) return dest // already extracted
 
         return try {
             dest.parentFile?.mkdirs()
-            app.assets.open(ASSET_MODEL).use { ins ->
+            app.assets.open("voice/$assetName").use { ins ->
                 FileOutputStream(dest).use { out -> ins.copyTo(out) }
             }
             Log.i(TAG, "AIRI OWW_EXTRACTED model=${dest.absolutePath} size=${dest.length()}")

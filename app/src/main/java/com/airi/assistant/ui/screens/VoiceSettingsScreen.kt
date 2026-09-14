@@ -1,6 +1,8 @@
 package com.airi.assistant.ui.screens
 
 import android.Manifest
+import android.app.role.RoleManager
+import android.os.Build
 import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,6 +19,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,6 +40,7 @@ import com.airi.assistant.voice.OpenWakeWordEngine
 import com.airi.assistant.voice.PorcupineEngine
 import com.airi.assistant.voice.VoiceCapabilityPolicy
 import com.airi.assistant.voice.VoskModelManager
+import com.airi.assistant.voice.HotwordService
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,6 +66,20 @@ fun VoiceSettingsScreen(
     val owwStatus by remember { mutableStateOf(OpenWakeWordEngine.status(context)) }
     var accessKeyInput  by remember { mutableStateOf("") }
     var showKey         by remember { mutableStateOf(false) }
+    val voicePrefs = remember { context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE) }
+    var okAiriEnabled by remember { mutableStateOf(voicePrefs.getBoolean("ok_airi_enabled", false)) }
+    val microphonePermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted && okAiriEnabled) HotwordService.start(context)
+        else if (!granted) {
+            okAiriEnabled = false
+            voicePrefs.edit().putBoolean("ok_airi_enabled", false).apply()
+        }
+    }
+    val assistantRoleLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { }
 
     val smallEnPreset = VoskModelManager.PRESETS.first()
 
@@ -116,6 +135,59 @@ fun VoiceSettingsScreen(
                     }
                     Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp))
+                }
+            }
+            Surface(
+                shape = AIRIShapes.md,
+                color = AiriTheme.surfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(Icons.Outlined.RecordVoiceOver, contentDescription = null, tint = CosmicAccent)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Ok Airi", color = AiriTheme.onBackground, fontWeight = FontWeight.Bold)
+                        Text(
+                            "تحدث إلى Airi دون لمس الجهاز. يتطلب تفعيل الميكروفون ونموذج كلمة التنبيه.",
+                            color = AiriTheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        )
+                    }
+                    Switch(
+                        checked = okAiriEnabled,
+                        onCheckedChange = { enabled ->
+                            okAiriEnabled = enabled
+                            voicePrefs.edit().putBoolean("ok_airi_enabled", enabled).apply()
+                            if (!enabled) {
+                                HotwordService.stop(context)
+                            } else if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                HotwordService.start(context)
+                            } else {
+                                microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        }
+                    )
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                OutlinedButton(
+                    onClick = {
+                        val roleManager = context.getSystemService(RoleManager::class.java)
+                        if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_ASSISTANT)) {
+                            assistantRoleLauncher.launch(
+                                roleManager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT)
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Outlined.Assistant, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("تعيين AIRI كمساعد الجهاز")
                 }
             }
             VoiceStatusCard(

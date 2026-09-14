@@ -13,6 +13,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Local, project-scoped knowledge index backed by explicit Project File actions.
@@ -46,25 +48,36 @@ class ProjectKnowledgeManager(
     )
 
     data class KnowledgeHit(
-        val citationId: String,
-        val projectId: String,
-        val fileId: String,
-        val sourceName: String,
-        val sourceHash: String,
-        val chunkOrdinal: Int,
-        val content: String,
-        val score: Float,
+        val citationId: String, val projectId: String, val fileId: String, val sourceName: String,
+        val sourceHash: String, val chunkOrdinal: Int, val content: String, val score: Float,
         val retrievalMethod: String = "LEXICAL_LOCAL"
+    )
+
+    data class KnowledgeProfile(
+        val id: String = UUID.randomUUID().toString(), val name: String, val usage: String,
+        val content: String, val active: Boolean = true, val createdAtMs: Long = System.currentTimeMillis()
     )
 
     private val gson = Gson()
     private val chunksById = ConcurrentHashMap<String, KnowledgeChunk>()
     private val indexFile = File(context.filesDir, "knowledge/project-file-index.json")
+    private val profilesFile = File(context.filesDir, "knowledge/profiles.json")
     private val _chunks = MutableStateFlow<List<KnowledgeChunk>>(emptyList())
     val chunks: StateFlow<List<KnowledgeChunk>> = _chunks.asStateFlow()
+    private val _profiles = MutableStateFlow<List<KnowledgeProfile>>(emptyList())
+    val profiles: StateFlow<List<KnowledgeProfile>> = _profiles.asStateFlow()
 
-    init {
-        restore()
+    init { restore(); restoreProfiles() }
+
+    fun createKnowledge(name: String, usage: String, content: String): KnowledgeProfile? {
+        if (name.isBlank() || usage.isBlank() || content.isBlank()) return null
+        val profile = KnowledgeProfile(name = name.trim(), usage = usage.trim(), content = content.trim())
+        persistProfiles((_profiles.value + profile).takeLast(100))
+        return profile
+    }
+
+    fun setKnowledgeActive(id: String, active: Boolean) {
+        persistProfiles(_profiles.value.map { if (it.id == id) it.copy(active = active) else it })
     }
 
     /**
@@ -226,6 +239,25 @@ class ProjectKnowledgeManager(
 
     private fun publish() {
         _chunks.value = chunksById.values.sortedWith(compareBy<KnowledgeChunk> { it.sourceName }.thenBy { it.ordinal })
+    }
+
+    private fun restoreProfiles() {
+        runCatching {
+            if (!profilesFile.exists()) return
+            val array = JSONArray(profilesFile.readText())
+            _profiles.value = (0 until array.length()).map { i ->
+                val o = array.getJSONObject(i)
+                KnowledgeProfile(o.getString("id"), o.getString("name"), o.getString("usage"), o.getString("content"), o.optBoolean("active", true), o.optLong("created_at"))
+            }
+        }.onFailure { Log.w(TAG, "KNOWLEDGE_PROFILES_RESTORE_FAILED", it) }
+    }
+
+    private fun persistProfiles(profiles: List<KnowledgeProfile>) {
+        _profiles.value = profiles
+        profilesFile.parentFile?.mkdirs()
+        val array = JSONArray()
+        profiles.forEach { p -> array.put(JSONObject().apply { put("id", p.id); put("name", p.name); put("usage", p.usage); put("content", p.content); put("active", p.active); put("created_at", p.createdAtMs) }) }
+        runCatching { profilesFile.writeText(array.toString()) }
     }
 
     private companion object {

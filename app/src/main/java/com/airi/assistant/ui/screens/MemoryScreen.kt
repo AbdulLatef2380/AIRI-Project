@@ -28,6 +28,7 @@ import com.airi.assistant.R
 import com.airi.assistant.memory.entity.ChatMessage  // Long id, non-nullable
 import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.viewmodel.ChatViewModel
+import com.airi.assistant.core.ServiceLocator
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.launch
@@ -46,6 +47,9 @@ fun MemoryScreen(
     var editDraft      by remember { mutableStateOf("") }
     var searchQuery    by remember { mutableStateOf("") }
     var showSearch     by remember { mutableStateOf(false) }
+    var showKnowledgeDialog by remember { mutableStateOf(false) }
+    val knowledgeManager = remember { ServiceLocator.projectKnowledgeManager }
+    val knowledgeProfiles by knowledgeManager.profiles.collectAsState()
     val context        = LocalContext.current
     val snackbarHost   = remember { SnackbarHostState() }
     val listState      = rememberLazyListState()
@@ -178,6 +182,12 @@ fun MemoryScreen(
         )
     }
 
+    if (showKnowledgeDialog) {
+        KnowledgeProfilesDialog(knowledgeProfiles, { showKnowledgeDialog = false },
+            { name, usage, content -> knowledgeManager.createKnowledge(name, usage, content) },
+            { id, active -> knowledgeManager.setKnowledgeActive(id, active) })
+    }
+
     Scaffold(
         containerColor = AiriTheme.background,
         snackbarHost   = { SnackbarHost(snackbarHost) },
@@ -203,6 +213,9 @@ fun MemoryScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = { showKnowledgeDialog = true }) {
+                            Icon(Icons.Outlined.MenuBook, "Knowledge", tint = CosmicAccent, modifier = Modifier.size(20.dp))
+                        }
                         IconButton(onClick = { showSearch = !showSearch; if (!showSearch) searchQuery = "" }) {
                             Icon(
                                 if (showSearch) Icons.Outlined.SearchOff else Icons.Outlined.Search,
@@ -476,4 +489,43 @@ private fun SearchBar(
             }
         }
     }
+}
+
+
+@Composable
+private fun KnowledgeProfilesDialog(
+    profiles: List<com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile>,
+    onDismiss: () -> Unit,
+    onCreate: (String, String, String) -> Unit,
+    onToggle: (String, Boolean) -> Unit
+) {
+    var creating by remember { mutableStateOf(profiles.isEmpty()) }
+    var name by remember { mutableStateOf("") }
+    var usage by remember { mutableStateOf("") }
+    var content by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss, containerColor = AiriTheme.surface, shape = AIRIShapes.xl,
+        title = { Text("Knowledge", fontWeight = FontWeight.Bold, color = AiriTheme.onSurface) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (profiles.isNotEmpty()) {
+                    Text("Knowledge selected automatically by AIRI", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
+                    profiles.forEach { profile ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.weight(1f)) { Text(profile.name, fontWeight = FontWeight.SemiBold, color = AiriTheme.onSurface); Text(profile.usage, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant, maxLines = 2) }
+                            Switch(profile.active, { onToggle(profile.id, it) })
+                        }
+                    }
+                }
+                TextButton(onClick = { creating = !creating }, modifier = Modifier.fillMaxWidth()) { Text("+ New knowledge") }
+                if (creating) {
+                    OutlinedTextField(name, { name = it }, label = { Text("Knowledge name") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(usage, { usage = it }, label = { Text("Use when") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(content, { content = it }, label = { Text("Knowledge content") }, minLines = 3, modifier = Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = { Button(enabled = name.isNotBlank() && usage.isNotBlank() && content.isNotBlank(), onClick = { onCreate(name, usage, content); name = ""; usage = ""; content = ""; creating = false }, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
+    )
 }

@@ -38,6 +38,8 @@ import com.airi.assistant.agent.scheduler.ManualRunRequestResult
 import com.airi.assistant.agent.scheduler.ScheduledJob
 import com.airi.assistant.agent.scheduler.ScheduledJobOrchestrator
 import com.airi.assistant.agent.scheduler.ScheduleType
+import com.airi.assistant.agent.scheduler.ScheduleRecurrence
+import com.airi.assistant.agent.scheduler.ApprovalMode
 import com.airi.assistant.agent.scheduler.ScheduledJobOutcome
 import com.airi.assistant.agent.scheduler.ScheduledJobInputPolicy
 import com.airi.assistant.R
@@ -92,6 +94,7 @@ fun AgentTasksScreen(
 
     var selectedTab    by remember { mutableStateOf(0) }
     var showAddDialog  by remember { mutableStateOf(false) }
+    var editingJob by remember { mutableStateOf<ScheduledJob?>(null) }
     var showStopConfirmation by remember { mutableStateOf(false) }
     var focusedExecutionId by remember { mutableStateOf<String?>(null) }
     var runNowCandidate by remember { mutableStateOf<ScheduledJob?>(null) }
@@ -145,7 +148,7 @@ fun AgentTasksScreen(
                     containerColor = AiriTheme.background.copy(alpha = 0.92f)
                 ),
                 navigationIcon = {
-                    IconButton(onClick = { showAddDialog = true }) {
+                    IconButton(onClick = { editingJob = null; showAddDialog = true }) {
                         Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_add_task), tint = CosmicAccent)
                     }
                 },
@@ -232,7 +235,8 @@ fun AgentTasksScreen(
                         focusedExecutionId = taskId
                         selectedTab = 1
                     },
-                    onRunNow = { job -> runNowCandidate = job }
+                    onRunNow = { job -> runNowCandidate = job },
+                    onEdit = { job -> editingJob = job; showAddDialog = true }
                 )
                 1 -> DurableExecutionContent(
                     tasks = durableTasks,
@@ -325,36 +329,39 @@ fun AgentTasksScreen(
 
     if (showAddDialog) {
         AddTaskDialog(
-            onDismiss = { showAddDialog = false },
-            onAdd     = { label, delayMinutes, isPeriodic, requiresNetwork ->
-                if (label.isBlank()) {
+            initial = editingJob,
+            onDismiss = { showAddDialog = false; editingJob = null },
+            onAdd = { label, prompt, recurrence, time, requiresNetwork, approvalMode, connector, model, project ->
+                if (label.isBlank() || prompt.isBlank()) {
                     errorMessage = context.getString(R.string.agent_task_name_required)
                     return@AddTaskDialog
                 }
                 runCatching {
-                    if (isPeriodic) {
+                    editingJob?.let { orchestrator.cancel(it.id) }
+                    val periodic = recurrence != ScheduleRecurrence.ONCE
+                    val interval = when (recurrence) {
+                        ScheduleRecurrence.DAILY -> 24L * 60
+                        ScheduleRecurrence.WEEKLY -> 7L * 24 * 60
+                        ScheduleRecurrence.MONTHLY -> 30L * 24 * 60
+                        ScheduleRecurrence.ONCE -> 1L
+                    }
+                    if (periodic) {
                         orchestrator.schedulePeriodic(
-                            agentId = "productivity",
-                            payload = label,
-                            label = label,
-                            intervalMinutes = delayMinutes,
-                            requiresNet = requiresNetwork
+                            agentId = "productivity", payload = prompt, label = label,
+                            intervalMinutes = interval, requiresNet = requiresNetwork,
+                            recurrence = recurrence, timeOfDay = time, approvalMode = approvalMode,
+                            connectorId = connector, modelId = model, projectId = project
                         )
                     } else {
                         orchestrator.scheduleOnce(
-                            agentId = "productivity",
-                            payload = label,
-                            label = label,
-                            delayMs = delayMinutes * 60_000L,
-                            requiresNet = requiresNetwork
+                            agentId = "productivity", payload = prompt, label = label,
+                            delayMs = 60_000L, requiresNet = requiresNetwork,
+                            recurrence = recurrence, timeOfDay = time, approvalMode = approvalMode,
+                            connectorId = connector, modelId = model, projectId = project
                         )
                     }
-                }.onSuccess {
-                    reload()
-                    showAddDialog = false
-                }.onFailure {
-                    errorMessage = context.getString(R.string.agent_task_schedule_failed, it.message ?: "")
-                }
+                }.onSuccess { reload(); showAddDialog = false; editingJob = null }
+                    .onFailure { errorMessage = context.getString(R.string.agent_task_schedule_failed, it.message ?: "") }
             }
         )
     }
@@ -423,7 +430,8 @@ private fun ScheduledTasksContent(
     jobs: List<ScheduledJob>,
     onCancel: (String) -> Unit,
     onOpenExecution: (String) -> Unit,
-    onRunNow: (ScheduledJob) -> Unit
+    onRunNow: (ScheduledJob) -> Unit,
+    onEdit: (ScheduledJob) -> Unit = {}
 ) {
     if (jobs.isEmpty()) {
         EmptyCenterState(
@@ -442,6 +450,7 @@ private fun ScheduledTasksContent(
                 job = job,
                 onCancel = { onCancel(job.id) },
                 onOpenExecution = onOpenExecution,
+                onEdit = { onEdit(job) },
                 onRunNow = if (job.agentId != ScheduledJobInputPolicy.SYSTEM_AGENT_ID) ({ onRunNow(job) }) else null
             )
         }
@@ -746,7 +755,8 @@ private fun RealTaskItem(
     job: ScheduledJob,
     onCancel: () -> Unit,
     onOpenExecution: (String) -> Unit,
-    onRunNow: (() -> Unit)?
+    onRunNow: (() -> Unit)?,
+    onEdit: () -> Unit = {}
 ) {
     val triggerDate = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
         .format(Date(job.triggerAtMs))
@@ -848,6 +858,9 @@ private fun RealTaskItem(
             }
         }
 
+        IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Outlined.Edit, "Edit", tint = CosmicAccent, modifier = Modifier.size(17.dp))
+        }
         Spacer(Modifier.width(10.dp))
 
         Box(
@@ -870,89 +883,73 @@ private fun RealTaskItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddTaskDialog(
+    initial: ScheduledJob? = null,
     onDismiss: () -> Unit,
-    onAdd: (label: String, delayMinutes: Long, isPeriodic: Boolean, requiresNetwork: Boolean) -> Unit
+    onAdd: (label: String, prompt: String, recurrence: ScheduleRecurrence, time: String,
+            requiresNetwork: Boolean, approvalMode: ApprovalMode, connector: String?, model: String?, project: String?) -> Unit
 ) {
-    var taskName by remember { mutableStateOf("") }
-    var delayInput by remember { mutableStateOf("60") }
-    var isPeriodic by remember { mutableStateOf(false) }
+    var title by remember(initial) { mutableStateOf(initial?.label ?: "") }
+    var prompt by remember(initial) { mutableStateOf(initial?.payload ?: "") }
+    var recurrence by remember(initial) { mutableStateOf(initial?.recurrence ?: ScheduleRecurrence.ONCE) }
+    var time by remember(initial) { mutableStateOf(initial?.timeOfDay ?: "09:00") }
     var requiresNetwork by remember { mutableStateOf(false) }
+    var approval by remember { mutableStateOf(ApprovalMode.CONFIRM) }
+    var connector by remember { mutableStateOf("") }
+    var model by remember { mutableStateOf("") }
+    var project by remember { mutableStateOf("") }
+    var advanced by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor    = AiriTheme.surface,
+        containerColor = AiriTheme.surface,
         titleContentColor = AiriTheme.onSurface,
-        textContentColor  = AiriTheme.onSurface,
+        textContentColor = AiriTheme.onSurface,
         shape = AIRIShapes.xl,
-        title = {
-            Text(stringResource(R.string.new_task_title), fontWeight = FontWeight.Bold,
-                modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
-        },
+        title = { Text("جدول جديد", fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = taskName,
-                    onValueChange = { taskName = it },
-                    placeholder = { Text(stringResource(R.string.task_name_hint), color = AiriTheme.onBackground.copy(0.35f)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor   = CosmicAccent,
-                        unfocusedBorderColor = AiriTheme.onSurface.copy(0.15f),
-                        focusedTextColor     = AiriTheme.onSurface,
-                        unfocusedTextColor   = AiriTheme.onSurface
-                    ),
-                    textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.End)
-                )
-                OutlinedTextField(
-                    value = delayInput,
-                    onValueChange = { if (it.all { c -> c.isDigit() }) delayInput = it },
-                    label = { Text(stringResource(R.string.delay_minutes_label), fontSize = 12.sp, color = AiriTheme.onBackground.copy(0.55f)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor   = CosmicAccent,
-                        unfocusedBorderColor = AiriTheme.onSurface.copy(0.15f),
-                        focusedTextColor     = AiriTheme.onSurface,
-                        unfocusedTextColor   = AiriTheme.onSurface,
-                        focusedLabelColor    = CosmicAccent
-                    ),
-                    textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.End)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(stringResource(R.string.agent_task_repeat), color = AiriTheme.onSurface, fontSize = 13.sp)
-                    Switch(checked = isPeriodic, onCheckedChange = { isPeriodic = it })
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("العنوان") },
+                    placeholder = { Text("مثال: ملخص الأخبار الصباحي") }, modifier = Modifier.fillMaxWidth(), minLines = 1)
+                OutlinedTextField(value = prompt, onValueChange = { prompt = it }, label = { Text("الموجه") },
+                    placeholder = { Text("اكتب ما تريد من AIRI تنفيذه") }, modifier = Modifier.fillMaxWidth(), minLines = 3, maxLines = 5)
+                Text("الجدولة", fontWeight = FontWeight.SemiBold, color = AiriTheme.onSurface)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    listOf(ScheduleRecurrence.ONCE to "بلا تكرار", ScheduleRecurrence.DAILY to "يومياً", ScheduleRecurrence.WEEKLY to "أسبوعياً", ScheduleRecurrence.MONTHLY to "شهرياً").forEach { (value, label) ->
+                        FilterChip(selected = recurrence == value, onClick = { recurrence = value }, label = { Text(label, fontSize = 11.sp) })
+                    }
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(stringResource(R.string.agent_task_requires_network), color = AiriTheme.onSurface, fontSize = 13.sp)
+                if (recurrence != ScheduleRecurrence.ONCE) {
+                    OutlinedTextField(value = time, onValueChange = { if (it.length <= 5) time = it }, label = { Text("الوقت (24 ساعة)") },
+                        placeholder = { Text("09:00") }, modifier = Modifier.fillMaxWidth())
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Text("طلبات الموافقة", color = AiriTheme.onSurface)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (approval == ApprovalMode.CONFIRM) "تأكيد" else "تخطي", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
+                        Switch(checked = approval == ApprovalMode.CONFIRM, onCheckedChange = { approval = if (it) ApprovalMode.CONFIRM else ApprovalMode.SKIP })
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Text("يتطلب اتصالاً بالإنترنت", color = AiriTheme.onSurface)
                     Switch(checked = requiresNetwork, onCheckedChange = { requiresNetwork = it })
                 }
-                Text(
-                    stringResource(if (isPeriodic) R.string.agent_task_periodic_note else R.string.agent_task_delay_note),
-                    color = AiriTheme.onBackground.copy(0.3f), fontSize = 11.sp, lineHeight = 15.sp
-                )
+                TextButton(onClick = { advanced = !advanced }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (advanced) "إخفاء الإعدادات المتقدمة" else "الإعدادات المتقدمة")
+                }
+                if (advanced) {
+                    OutlinedTextField(value = connector, onValueChange = { connector = it }, label = { Text("الموصل (اختياري)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = model, onValueChange = { model = it }, label = { Text("النموذج (اختياري)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = project, onValueChange = { project = it }, label = { Text("المشروع المخصص (اختياري)") }, modifier = Modifier.fillMaxWidth())
+                    Text("تُحفظ هذه الاختيارات مع المهمة وتُمرر إلى سياق Agent عند التشغيل.", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                }
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    val minimumDelay = if (isPeriodic) 15L else 1L
-                    val delay = delayInput.toLongOrNull()?.coerceAtLeast(minimumDelay) ?: minimumDelay
-                    onAdd(taskName.trim(), delay, isPeriodic, requiresNetwork)
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = AiriTheme.onBackground),
-                shape  = AIRIShapes.md,
-                enabled = taskName.isNotBlank()
-            ) { Text(stringResource(R.string.schedule_button)) }
+            Button(enabled = title.isNotBlank() && prompt.isNotBlank(), onClick = {
+                onAdd(title.trim(), prompt.trim(), recurrence, time.trim(), requiresNetwork, approval,
+                    connector.trim().takeIf { it.isNotBlank() }, model.trim().takeIf { it.isNotBlank() }, project.trim().takeIf { it.isNotBlank() })
+            }, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent), shape = AIRIShapes.md) { Text("حفظ الجدول") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = AiriTheme.onBackground.copy(0.6f)) }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant) } }
     )
 }

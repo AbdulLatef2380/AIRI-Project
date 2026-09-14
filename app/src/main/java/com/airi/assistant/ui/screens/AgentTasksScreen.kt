@@ -3,6 +3,7 @@ package com.airi.assistant.ui.screens
 import com.airi.assistant.ui.theme.*
 
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -125,10 +126,15 @@ fun AgentTasksScreen(
         ServiceLocator.calendarCreateRuntime.reconcileApproval(approvalId)
     }
 
-    // Keep completed and failed persisted jobs visible as execution evidence.
-    // A user refreshes explicitly rather than the screen polling WorkManager.
+    // Keep the screen connected to persisted metadata and WorkManager outcomes.
+    // The loop is cancelled automatically when this screen leaves composition.
     LaunchedEffect(selectedTab) {
-        if (selectedTab == 0) reload()
+        if (selectedTab == 0) {
+            while (true) {
+                reload()
+                delay(2_500L)
+            }
+        }
     }
 
     Scaffold(
@@ -165,7 +171,7 @@ fun AgentTasksScreen(
                         Icon(
                             Icons.Outlined.Cancel,
                             contentDescription = stringResource(R.string.active_work_stop_title),
-                            tint = Color(0xFFFF6B6B)
+                            tint = SemanticError
                         )
                     }
                     IconButton(onClick = onBack) {
@@ -184,15 +190,15 @@ fun AgentTasksScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0x22FF4444))
+                        .background(SemanticError.copy(alpha = 0.12f))
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Outlined.Warning, null, tint = Color(0xFFFF6B6B), modifier = Modifier.size(16.dp))
-                    Text(msg, color = Color(0xFFFF6B6B), fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Icon(Icons.Outlined.Warning, null, tint = SemanticError, modifier = Modifier.size(16.dp))
+                    Text(msg, color = SemanticError, fontSize = 13.sp, modifier = Modifier.weight(1f))
                     IconButton(onClick = { errorMessage = null }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Outlined.Close, null, tint = Color(0xFFFF6B6B))
+                        Icon(Icons.Outlined.Close, null, tint = SemanticError)
                     }
                 }
             }
@@ -764,9 +770,9 @@ private fun RealTaskItem(
     }
     val statusTint = when (job.lastOutcome) {
         ScheduledJobOutcome.PENDING -> CosmicAccent
-        ScheduledJobOutcome.RETRYING -> Color(0xFFFFB74D)
-        ScheduledJobOutcome.COMPLETED -> Color(0xFF4CAF50)
-        ScheduledJobOutcome.FAILED -> Color(0xFFFF6B6B)
+        ScheduledJobOutcome.RETRYING -> SemanticWarn
+        ScheduledJobOutcome.COMPLETED -> SemanticSuccess
+        ScheduledJobOutcome.FAILED -> SemanticError
     }
 
     Row(
@@ -874,7 +880,7 @@ private fun AddTaskDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor    = Color(0xFF131728),
+        containerColor    = AiriTheme.surface,
         titleContentColor = AiriTheme.onSurface,
         textContentColor  = AiriTheme.onSurface,
         shape = AIRIShapes.xl,

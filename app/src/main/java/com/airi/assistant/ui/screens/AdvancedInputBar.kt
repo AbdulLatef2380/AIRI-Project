@@ -234,7 +234,7 @@ private fun InputActionToolbar(
 private fun PlanModeChip(isActive: Boolean, onClick: () -> Unit) {
     val planDescription = stringResource(if (isActive) R.string.input_plan_active else R.string.input_plan)
     val bg by animateColorAsState(
-        if (isActive) CosmicAccent.copy(0.20f) else Color.White.copy(0.04f), tween(AIRIAnimations.FAST), label = "plan_bg"
+        if (isActive) CosmicAccent.copy(0.20f) else AiriTheme.onSurface.copy(0.04f), tween(AIRIAnimations.FAST), label = "plan_bg"
     )
     val border by animateColorAsState(
         if (isActive) CosmicAccent.copy(0.60f) else DividerColor, tween(AIRIAnimations.FAST), label = "plan_border"
@@ -285,7 +285,7 @@ private fun ActionChip(
     onClick:  () -> Unit
 ) {
     val bg by animateColorAsState(
-        if (isActive) iconTint.copy(0.15f) else Color.White.copy(0.04f), tween(AIRIAnimations.FAST), label = "chip_bg"
+        if (isActive) iconTint.copy(0.15f) else AiriTheme.onSurface.copy(0.04f), tween(AIRIAnimations.FAST), label = "chip_bg"
     )
     Row(
         modifier = Modifier
@@ -322,7 +322,7 @@ private fun QuickToolChip(label: String, onClick: () -> Unit = {}) {
         modifier = Modifier
             .heightIn(min = 48.dp)
             .clip(AIRIShapes.xs)
-            .background(Color.White.copy(0.03f))
+            .background(AiriTheme.onSurface.copy(0.03f))
             .border(0.5.dp, DividerColor, AIRIShapes.xs)
             .semantics {
                 contentDescription = label

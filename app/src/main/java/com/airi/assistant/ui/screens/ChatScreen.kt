@@ -1830,18 +1830,19 @@ private fun AiriHistoryPanel(
                     }
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(sessions, key = { it.id }) { session ->
                         var showActions by remember(session.id) { mutableStateOf(false) }
                         Column(
-                            modifier = Modifier.fillMaxWidth().clip(AIRIShapes.md)
-                                .background(if (showActions) AiriTheme.surfaceVariant else Color.Transparent)
+                            modifier = Modifier.fillMaxWidth().clip(AIRIShapes.lg)
+                                .background(if (showActions) AiriTheme.surfaceVariant else AiriTheme.surfaceVariant.copy(alpha = 0.42f))
+                                .border(1.dp, if (showActions) CosmicAccent.copy(alpha = 0.38f) else AiriTheme.outline.copy(alpha = 0.42f), AIRIShapes.lg)
                                 .clickable { showActions = !showActions }
-                                .padding(horizontal = 14.dp, vertical = 12.dp)
+                                .padding(horizontal = 14.dp, vertical = 13.dp)
                         ) {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(34.dp).clip(AIRIShapes.sm).background(CosmicAccent.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
@@ -1861,7 +1862,6 @@ private fun AiriHistoryPanel(
                                 }
                             }
                         }
-                        Divider(color = AiriTheme.outline.copy(alpha = 0.45f))
                     }
                 }
             }
@@ -2285,16 +2285,11 @@ fun AiBubble(
             verticalAlignment = Alignment.Top
         ) {
             if (!hideAvatar) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(Brush.radialGradient(listOf(CosmicAccent.copy(alpha = 0.22f), CosmicAccent.copy(alpha = 0.06f))))
-                        .border(1.dp, CosmicAccent.copy(alpha = 0.45f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("A", color = CosmicAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                }
+                Image(
+                    painter = painterResource(R.drawable.ic_launcher_fg),
+                    contentDescription = "AIRI",
+                    modifier = Modifier.size(28.dp)
+                )
                 Spacer(Modifier.width(8.dp))
             } else {
                 Spacer(Modifier.width(36.dp))
@@ -2306,8 +2301,8 @@ fun AiBubble(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                            .background(AiBubbleSurface)
-                            .border(1.dp, AiBubbleBorder, RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
+                            .background(AiriTheme.surfaceVariant)
+                            .border(1.dp, AiriTheme.outline, RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
                             .then(responseGesture)
                             .padding(horizontal = 14.dp, vertical = 12.dp)
                     ) {
@@ -2472,34 +2467,17 @@ fun AiStreamingBubble(text: String) {
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.Top
     ) {
-        Box(
-            modifier = Modifier
-                .size(30.dp).clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        listOf(
-                            CosmicAccent.copy(alpha = 0.28f),
-                            SurfaceFloating
-                        )
-                    )
-                )
-                .border(0.5.dp, CosmicAccent.copy(alpha = 0.50f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "A",
-                color = CosmicAccent,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = (-0.5).sp
-            )
-        }
+        Image(
+            painter = painterResource(R.drawable.ic_launcher_fg),
+            contentDescription = "AIRI",
+            modifier = Modifier.size(30.dp)
+        )
         Spacer(Modifier.width(8.dp))
         Column(
             modifier = Modifier.fillMaxWidth()
                 .clip(AIRIShapes.aiBubble)
-                .background(AiBubbleSurface)
-                .border(0.5.dp, AiBubbleBorder, AIRIShapes.aiBubble)
+                .background(AiriTheme.surfaceVariant)
+                .border(0.5.dp, AiriTheme.outline, AIRIShapes.aiBubble)
                 .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             Row(verticalAlignment = Alignment.Bottom) {

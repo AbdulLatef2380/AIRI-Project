@@ -218,8 +218,8 @@ fun ModelSettingsScreen(
                             onClick = { selectedCategory = category },
                             modifier = Modifier.height(36.dp),
                             shape = CircleShape,
-                            color = if (active) Color(0xFF007AFF) else Color(0xFF1C1C1E),
-                            contentColor = AiriTheme.onSurface
+                            color = if (active) CosmicAccent else AiriTheme.surfaceVariant,
+                            contentColor = if (active) AiriTheme.background else AiriTheme.onSurface
                         ) {
                             Box(
                                 modifier = Modifier

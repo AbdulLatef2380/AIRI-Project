@@ -2640,7 +2640,10 @@ fun AiriChatInputBar(
 ) {
     val context          = LocalContext.current
     var showAttachPopup by remember { mutableStateOf(false) }
-    val attachSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // Keep the collapsed state available and allow the user to drag the sheet
+    // between collapsed/expanded states. The content itself remains scrollable
+    // so the full shortcut list is reachable on small screens.
+    val attachSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var text by rememberSaveable { mutableStateOf("") }
     val draftPrefs = remember { context.getSharedPreferences("airi_drafts", android.content.Context.MODE_PRIVATE) }
     LaunchedEffect(Unit) { if (text.isBlank()) text = draftPrefs.getString("current", "").orEmpty() }
@@ -3211,6 +3214,8 @@ fun AiriChatInputBar(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .fillMaxHeight(0.92f)
+                    .verticalScroll(rememberScrollState())
                     .padding(bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {

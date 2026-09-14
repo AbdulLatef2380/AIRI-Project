@@ -302,7 +302,7 @@ fun AiriApp() {
                                 }
                             },
                             onEnterApiKey = {
-                                navController.navigate(AiriRoute.SETTINGS_GENERAL) {
+                                navController.navigate(AiriRoute.SETTINGS_AI_MODELS) {
                                     launchSingleTop = true
                                 }
                             },

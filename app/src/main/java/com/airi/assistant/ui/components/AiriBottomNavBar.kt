@@ -48,7 +48,6 @@ import com.airi.assistant.R
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 import androidx.compose.material3.MaterialTheme
-import com.airi.assistant.ui.theme.NavBarBackground
 import com.airi.assistant.ui.theme.NavIconActive
 import com.airi.assistant.ui.theme.NavIconInactive
 // Fixed invalid import
@@ -92,7 +91,7 @@ fun AiriBottomNavBar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(NavBarBackground)
+                .background(AiriTheme.surface)
         ) {
             Box(
                 modifier = Modifier

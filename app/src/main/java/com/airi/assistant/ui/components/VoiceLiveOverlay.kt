@@ -67,14 +67,7 @@ fun VoiceLiveOverlay(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF0A0D1A).copy(alpha = 0.97f),
-                            Color(0xFF080B14).copy(alpha = 0.99f)
-                        )
-                    )
-                )
+                .background(AiriTheme.surface)
                 .padding(horizontal = 24.dp, vertical = 32.dp),
             contentAlignment = Alignment.Center
         ) {

@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import kotlinx.coroutines.isActive
+import com.airi.assistant.ui.theme.AiriTheme
 import kotlin.random.Random
 
 /**
@@ -57,18 +58,20 @@ fun StarBackground() {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
+        val background = AiriTheme.background
+        val foreground = AiriTheme.onBackground
         @Suppress("UNUSED_VARIABLE")
         val interaction = frameTime
 
         // ── Base background: deep dark ─────────────────────────────────────
-        drawRect(color = Color(0xFF080808))
+        drawRect(color = background)
 
         // ── Neutral graphite radial light (top-center) ─────────────────────
         drawRect(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    Color(0xFF26313D).copy(alpha = 0.30f),
-                    Color(0xFF171D24).copy(alpha = 0.20f),
+                    foreground.copy(alpha = 0.10f),
+                    foreground.copy(alpha = 0.06f),
                     Color.Transparent
                 ),
                 center = Offset(w * 0.5f, 0f),
@@ -81,7 +84,7 @@ fun StarBackground() {
             brush = Brush.verticalGradient(
                 colors = listOf(
                     Color.Transparent,
-                    Color(0xFF050810).copy(alpha = 0.65f)
+                    foreground.copy(alpha = 0.12f)
                 ),
                 startY = h * 0.55f,
                 endY   = h
@@ -91,7 +94,7 @@ fun StarBackground() {
         // ── Stars ─────────────────────────────────────────────────────────
         stars.forEach { star ->
             drawCircle(
-                color  = Color.White.copy(alpha = star.alpha),
+                color  = foreground.copy(alpha = star.alpha * 0.55f),
                 radius = star.size,
                 center = Offset(star.x * w, star.y * h)
             )

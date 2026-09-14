@@ -425,7 +425,7 @@
     <string name="testing_connection">Probando…</string>
     <string name="voice_and_wakeword">Voz y palabra de activación</string>
     <string name="voice_settings_title">Voz y palabra de activación</string>
-    <string name="voice_settings_subtitle">Gestiona modelos de reconocimiento de voz sin conexión y la palabra de activación "Hey AIRI".</string>
+    <string name="voice_settings_subtitle">Gestiona modelos de reconocimiento de voz sin conexión y la palabra de activación "Ok Airi".</string>
     <string name="no_voice_model_installed">No hay modelo de voz instalado. Abre «Voz y palabra de activación» para descargar uno.</string>
     <string name="voice_model_load_failed">No se pudo cargar el modelo de voz seleccionado.</string>
     <string name="vosk_section_title">Modelos de voz a texto (Vosk)</string>
@@ -440,10 +440,10 @@
     <string name="vosk_size_mb">~%1$d MB</string>
     <string name="vosk_download_failed">Descarga fallida: %1$s</string>
     <string name="porcupine_section_title">Palabra de activación (Porcupine)</string>
-    <string name="porcupine_status_ready">Palabra de activación lista ("Hey AIRI").</string>
+    <string name="porcupine_status_ready">Palabra de activación lista ("Ok Airi").</string>
     <string name="porcupine_status_missing_key">Falta Picovoice AccessKey. Pégala abajo o establece PICOVOICE_ACCESS_KEY al compilar.</string>
-    <string name="porcupine_status_missing_ppn">No hay archivo "hey_airi.ppn" incluido. Colócalo en res/raw/ o assets/voice/ y recompila.</string>
-    <string name="porcupine_status_both_missing">Palabra de activación desactivada — faltan AccessKey y hey_airi.ppn.</string>
+    <string name="porcupine_status_missing_ppn">No hay archivo "ok_airi.ppn" incluido. Colócalo en res/raw/ o assets/voice/ y recompila.</string>
+    <string name="porcupine_status_both_missing">Palabra de activación desactivada — faltan AccessKey y ok_airi.ppn.</string>
     <string name="porcupine_access_key_label">Clave de acceso de Picovoice</string>
     <string name="porcupine_access_key_save">Guardar</string>
     <string name="porcupine_access_key_clear">Borrar</string>
@@ -995,7 +995,7 @@
     <string name="git_repo_retry">Reintentar</string>
     <string name="git_repo_title">Repositorios</string>
     <string name="hotword_notification_text">Toca para abrir AIRI</string>
-    <string name="hotword_notification_title">AIRI está escuchando «Hey AIRI»</string>
+    <string name="hotword_notification_title">AIRI está escuchando «Ok Airi»</string>
     <string name="marketplace_import_button">Importar habilidad</string>
     <string name="marketplace_import_error_label">Error al importar</string>
     <string name="marketplace_import_formats_title">Formatos de URL compatibles:</string>

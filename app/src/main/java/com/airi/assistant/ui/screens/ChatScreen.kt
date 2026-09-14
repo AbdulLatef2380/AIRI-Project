@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.media.projection.MediaProjectionManager
 import androidx.compose.runtime.DisposableEffect
 import com.airi.assistant.voice.VoskEngine
 import com.airi.assistant.voice.VoskModelManager
@@ -295,6 +296,7 @@ fun ChatScreen(
     var voiceChatInput      by remember { mutableStateOf("") }
     var partialVoiceInput   by remember { mutableStateOf("") }
     var voiceState          by remember { mutableStateOf(VoiceSessionState.IDLE) }
+    var showWakeActionSheet by remember { mutableStateOf(false) }
 
     // /C04: AgentPlanViewModel for ModalBottomSheet control
     val agentPlanViewModel: com.airi.assistant.ui.plan.AgentPlanViewModel =
@@ -397,13 +399,35 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(wakeCounter) {
-        if (wakeCounter > 0 &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&
-            VoskModelManager.isReady(context) &&
-            voiceState == VoiceSessionState.IDLE) {
-            startInAppStt(autoSend = true)
+    val screenCaptureLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            scope.launch { snackbarHost.showSnackbar("تم السماح بمشاركة الشاشة مع Airi لهذه الجلسة") }
         }
+    }
+
+    LaunchedEffect(wakeCounter) {
+        if (wakeCounter > 0) showWakeActionSheet = true
+    }
+
+    if (showWakeActionSheet) {
+        WakeActionSheet(
+            onDismiss = { showWakeActionSheet = false },
+            onChat = {
+                showWakeActionSheet = false
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    startInAppStt(autoSend = true)
+                } else {
+                    voiceChatPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            },
+            onShareScreen = {
+                showWakeActionSheet = false
+                val manager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                screenCaptureLauncher.launch(manager.createScreenCaptureIntent())
+            }
+        )
     }
 
     val voiceStateRef = remember { mutableStateOf(VoiceSessionState.IDLE) }
@@ -3337,6 +3361,55 @@ fun AiriChatInputBar(
                 }
             }
         }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WakeActionSheet(
+    onDismiss: () -> Unit,
+    onChat: () -> Unit,
+    onShareScreen: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = AiriTheme.surface,
+        contentColor = AiriTheme.onSurface,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "مرحباً، أنا Airi",
+                style = MaterialTheme.typography.headlineSmall,
+                color = AiriTheme.onSurface,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.End
+            )
+            Text(
+                text = "كيف تريدين أن أساعدك؟",
+                color = AiriTheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.End
+            )
+            Button(
+                onClick = onChat,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = AiriTheme.background)
+            ) {
+                Icon(Icons.Outlined.Mic, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("الدردشة مع Airi")
+            }
+            OutlinedButton(onClick = onShareScreen, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.ScreenShare, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("مشاركة الشاشة مع Airi")
+            }
+            Spacer(Modifier.height(20.dp))
         }
     }
 }

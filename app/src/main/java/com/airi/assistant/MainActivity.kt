@@ -1,10 +1,12 @@
 package com.airi.assistant
 
+import android.Manifest
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
@@ -43,8 +45,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         ReferralManager.captureReferralIntent(intent)
-        if (intent?.action == HotwordService.ACTION_WAKE_WORD_TRIGGERED) {
+        if (intent?.action == HotwordService.ACTION_WAKE_WORD_TRIGGERED ||
+            intent?.action == Intent.ACTION_ASSIST ||
+            intent?.action == Intent.ACTION_VOICE_COMMAND) {
             WakeWordDispatcher.fireTriggered()
+        }
+        // Resume the opt-in wake-word listener after process recreation. The
+        // service still validates the microphone permission and model locally.
+        if (getSharedPreferences("airi_voice", Context.MODE_PRIVATE)
+                .getBoolean("ok_airi_enabled", false) &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED) {
+            HotwordService.start(this)
         }
 
         // , Start SystemHealthCoordinator so thermal + battery signals are
@@ -115,7 +127,9 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         ReferralManager.captureReferralIntent(intent)
-        if (intent.action == HotwordService.ACTION_WAKE_WORD_TRIGGERED) {
+        if (intent.action == HotwordService.ACTION_WAKE_WORD_TRIGGERED ||
+            intent.action == Intent.ACTION_ASSIST ||
+            intent.action == Intent.ACTION_VOICE_COMMAND) {
             WakeWordDispatcher.fireTriggered()
         }
         dispatchOAuthCallback(intent)

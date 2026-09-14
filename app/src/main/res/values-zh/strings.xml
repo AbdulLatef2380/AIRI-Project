@@ -425,7 +425,7 @@
     <string name="testing_connection">正在测试…</string>
     <string name="voice_and_wakeword">语音与唤醒词</string>
     <string name="voice_settings_title">语音与唤醒词</string>
-    <string name="voice_settings_subtitle">管理离线语音识别模型和"Hey AIRI"唤醒词。</string>
+    <string name="voice_settings_subtitle">管理离线语音识别模型和"Ok Airi"唤醒词。</string>
     <string name="no_voice_model_installed">未安装语音模型。打开"语音与唤醒词"下载一个。</string>
     <string name="voice_model_load_failed">无法加载所选语音模型。</string>
     <string name="vosk_section_title">语音转文字模型（Vosk）</string>
@@ -440,10 +440,10 @@
     <string name="vosk_size_mb">约 %1$d MB</string>
     <string name="vosk_download_failed">下载失败：%1$s</string>
     <string name="porcupine_section_title">唤醒词（Porcupine）</string>
-    <string name="porcupine_status_ready">唤醒词就绪（"Hey AIRI"）。</string>
+    <string name="porcupine_status_ready">唤醒词就绪（"Ok Airi"）。</string>
     <string name="porcupine_status_missing_key">Picovoice AccessKey 缺失。请在下方粘贴或在构建时设置 PICOVOICE_ACCESS_KEY。</string>
-    <string name="porcupine_status_missing_ppn">未捆绑"hey_airi.ppn"文件。请将其放入 res/raw/ 或 assets/voice/ 并重新构建。</string>
-    <string name="porcupine_status_both_missing">唤醒词已禁用 — AccessKey 和 hey_airi.ppn 均缺失。</string>
+    <string name="porcupine_status_missing_ppn">未捆绑"ok_airi.ppn"文件。请将其放入 res/raw/ 或 assets/voice/ 并重新构建。</string>
+    <string name="porcupine_status_both_missing">唤醒词已禁用 — AccessKey 和 ok_airi.ppn 均缺失。</string>
     <string name="porcupine_access_key_label">Picovoice 访问密钥</string>
     <string name="porcupine_access_key_save">保存</string>
     <string name="porcupine_access_key_clear">清除</string>
@@ -995,7 +995,7 @@
     <string name="git_repo_retry">重试</string>
     <string name="git_repo_title">存储库</string>
     <string name="hotword_notification_text">点击打开 AIRI</string>
-    <string name="hotword_notification_title">AIRI 正在监听“Hey AIRI”</string>
+    <string name="hotword_notification_title">AIRI 正在监听“Ok Airi”</string>
     <string name="marketplace_import_button">导入技能</string>
     <string name="marketplace_import_error_label">导入失败</string>
     <string name="marketplace_import_formats_title">支持的 URL 格式：</string>

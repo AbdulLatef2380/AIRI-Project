@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,6 +70,10 @@ private fun iconForId(id: String): ImageVector = when {
     id.contains("mcp")       -> Icons.Outlined.Extension
     id.contains("github")    -> Icons.Outlined.Code
     id.contains("telegram")  -> Icons.Outlined.Send
+    id.contains("google")    -> Icons.Outlined.Event
+    id.contains("zapier")    -> Icons.Outlined.AutoAwesome
+    id.contains("ifttt")     -> Icons.Outlined.Bolt
+    id.contains("n8n")       -> Icons.Outlined.AccountTree
     id.contains("notion")    -> Icons.Outlined.Description
     else                     -> Icons.Outlined.Hub
 }
@@ -82,8 +87,15 @@ fun ConnectorsScreen(
 ) {
     val allItems     by viewModel.items.collectAsState()
     val selectedTab  by viewModel.selectedTab.collectAsState()
+    var searchQuery by rememberSaveable { mutableStateOf("") }
 
-    val visibleItems   = allItems.filter { it.meta.type == selectedTab }
+    val visibleItems = allItems.filter { row ->
+        row.meta.type == selectedTab &&
+            (searchQuery.isBlank() ||
+                row.meta.name.contains(searchQuery, ignoreCase = true) ||
+                row.meta.description.contains(searchQuery, ignoreCase = true) ||
+                row.meta.tags.any { it.contains(searchQuery, ignoreCase = true) })
+    }
     val connectedCount = allItems.count { it.state.connected && it.state.healthy }
 
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -141,14 +153,82 @@ fun ConnectorsScreen(
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    shape = AIRIShapes.lg,
+                    color = AiriTheme.surface,
+                    tonalElevation = 3.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(AIRIShapes.md)
+                                .background(CosmicAccent.copy(alpha = 0.16f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Outlined.Hub, null, tint = CosmicAccent, modifier = Modifier.size(25.dp))
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.connectors_title),
+                                color = AiriTheme.onBackground,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = stringResource(R.string.connectors_connected_count, connectedCount),
+                                color = SemanticSuccess,
+                                fontSize = 12.sp
+                            )
+                        }
+                        Text(
+                            text = allItems.size.toString(),
+                            color = CosmicAccent,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.terminal_close_search_cd))
+                            }
+                        }
+                    },
+                    placeholder = { Text(stringResource(R.string.connectors_search_hint)) },
+                    shape = AIRIShapes.pill,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Search),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = CosmicAccent,
+                        unfocusedBorderColor = AiriTheme.outline,
+                        focusedLeadingIconColor = CosmicAccent,
+                        unfocusedLeadingIconColor = AiriTheme.onSurfaceVariant
+                    )
+                )
             ScrollableTabRow(
                 selectedTabIndex = TABS.indexOfFirst { it.type == selectedTab }.coerceAtLeast(0),
-                containerColor   = CosmicBlack,
+                containerColor   = AiriTheme.background,
                 contentColor     = CosmicAccent,
                 edgePadding      = 12.dp,
                 divider          = { Divider(color = AiriTheme.outline) }
@@ -187,8 +267,8 @@ fun ConnectorsScreen(
                                             ),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text(
-                                            "$tabCount",
+                            Text(
+                                tabCount.toString(),
                                             fontSize = 9.sp,
                                             color = if (isSelected) CosmicAccent else AiriTheme.onSurface.copy(0.45f),
                                             fontWeight = FontWeight.Bold
@@ -361,12 +441,30 @@ private fun ConnectorCard(
                     Spacer(Modifier.height(10.dp))
                     Divider(color = AiriTheme.outline.copy(alpha = 0.07f))
                     Spacer(Modifier.height(10.dp))
-                    Text(
-                        row.meta.description,
+                        Text(
+                            row.meta.description,
                         color    = AiriTheme.onBackground.copy(0.55f),
                         fontSize = 13.sp,
-                        lineHeight = 18.sp
-                    )
+                            lineHeight = 18.sp
+                        )
+                    if (row.meta.tags.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            row.meta.tags.take(3).forEach { tag ->
+                                Surface(
+                                    shape = AIRIShapes.pill,
+                                    color = AiriTheme.onSurface.copy(alpha = 0.07f)
+                                ) {
+                                    Text(
+                                        tag,
+                                        color = AiriTheme.onSurfaceVariant,
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                     if (needsAttention && row.meta.id == "google") {
                         Spacer(Modifier.height(8.dp))
                         TextButton(onClick = { onManageAuthorization(row.meta.id) }) {

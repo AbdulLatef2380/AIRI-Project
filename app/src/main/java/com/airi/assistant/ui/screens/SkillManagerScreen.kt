@@ -72,6 +72,8 @@ fun SkillManagerScreen(
     var importSource   by remember { mutableStateOf<ImportSource?>(null) }
     var errorMessage   by remember { mutableStateOf<String?>(null) }
     var isImporting    by remember { mutableStateOf(false) }
+    var searchQuery    by rememberSaveable { mutableStateOf("") }
+    var selectedFilter by rememberSaveable { mutableStateOf(0) }
     val connectorAvailability by skillRegistry.connectorAvailability.collectAsState()
 
     fun reload() {
@@ -80,6 +82,17 @@ fun SkillManagerScreen(
     }
     LaunchedEffect(connectorAvailability) {
         reload()
+    }
+    val filteredOfficialSkills = officialSkills.filter { info ->
+        val matchesSearch = searchQuery.isBlank() ||
+            info.name.contains(searchQuery, ignoreCase = true) ||
+            info.description.contains(searchQuery, ignoreCase = true)
+        val matchesFilter = when (selectedFilter) {
+            1 -> info.isConnected
+            2 -> !info.isConnected
+            else -> true
+        }
+        matchesSearch && matchesFilter
     }
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -267,6 +280,54 @@ fun SkillManagerScreen(
                     }
                 )
             }
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) IconButton(onClick = { searchQuery = "" }) {
+                        Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.terminal_close_search_cd))
+                    }
+                },
+                placeholder = { Text(stringResource(R.string.skill_search_hint)) },
+                shape = AIRIShapes.pill,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = CosmicAccent,
+                    unfocusedBorderColor = AiriTheme.outline,
+                    focusedLeadingIconColor = CosmicAccent
+                )
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(
+                    R.string.skill_filter_all,
+                    R.string.skill_filter_connected,
+                    R.string.skill_filter_external
+                ).forEachIndexed { index, labelRes ->
+                    FilterChip(
+                        selected = selectedFilter == index,
+                        onClick = { selectedFilter = index },
+                        label = { Text(stringResource(labelRes), fontSize = 12.sp) },
+                        leadingIcon = if (selectedFilter == index) {
+                            { Icon(Icons.Outlined.Check, null, modifier = Modifier.size(14.dp)) }
+                        } else null,
+                        shape = AIRIShapes.pill,
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = CosmicAccent.copy(alpha = 0.18f),
+                            selectedLabelColor = CosmicAccent,
+                            selectedLeadingIconColor = CosmicAccent
+                        )
+                    )
+                }
+            }
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -276,7 +337,7 @@ fun SkillManagerScreen(
             ) {
                 item(key = "official_header") {
                     Text(
-                        "Official Skills",
+                        stringResource(R.string.skill_official_section),
                         color      = AiriTheme.onBackground.copy(0.45f),
                         fontSize   = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -284,7 +345,7 @@ fun SkillManagerScreen(
                     )
                 }
 
-                items(officialSkills, key = { "official_${it.name}" }) { info ->
+                items(filteredOfficialSkills, key = { "official_${it.name}" }) { info ->
                     OfficialSkillCard(
                         info     = info,
                         onToggle = { enabled ->
@@ -303,7 +364,7 @@ fun SkillManagerScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            "My Custom Skills",
+                            stringResource(R.string.skill_custom_section),
                             color      = AiriTheme.onBackground.copy(0.45f),
                             fontSize   = 11.sp,
                             fontWeight = FontWeight.Bold

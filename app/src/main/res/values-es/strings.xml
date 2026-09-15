@@ -1603,6 +1603,4 @@
     <string name="plan_billing_frozen">Suscripciones y anuncios están preparados para una versión futura y desactivados por ahora.</string>
     <string name="settings_plan_and_usage">Plan y uso</string>
     <string name="plan_pro_badge">PRO</string>
-    <string name="default_assistant_title">Asistente predeterminado</string>
-    <string name="default_assistant_description">Establece AIRI como asistente digital predeterminado en los ajustes de Android.</string>
 </resources>

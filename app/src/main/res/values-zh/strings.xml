@@ -1603,6 +1603,4 @@
     <string name="plan_billing_frozen">订阅和广告已为未来版本准备，目前在配置支付和广告提供商前保持关闭。</string>
     <string name="settings_plan_and_usage">方案与用量</string>
     <string name="plan_pro_badge">PRO</string>
-    <string name="default_assistant_title">默认助手</string>
-    <string name="default_assistant_description">在 Android 系统设置中将 AIRI 设置为默认数字助手。</string>
 </resources>

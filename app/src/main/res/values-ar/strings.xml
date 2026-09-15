@@ -1291,6 +1291,9 @@
     <string name="skill_filter_connected">جاهزة</string>
     <string name="skill_filter_external">تحتاج موصلًا</string>
     <string name="skill_official_section">المهارات الرسمية</string>
+    <string name="skill_type_local">محلية</string>
+    <string name="skill_type_cloud">سحابية</string>
+    <string name="skill_permissions">الصلاحيات: %1$s</string>
     <string name="skill_custom_section">مهاراتي المخصصة</string>
     <string name="skill_name_website_reader">قارئ المواقع</string>
 

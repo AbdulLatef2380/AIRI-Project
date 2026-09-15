@@ -1063,6 +1063,9 @@
     <string name="skill_filter_connected">Listas</string>
     <string name="skill_filter_external">Necesita conector</string>
     <string name="skill_official_section">Habilidades oficiales</string>
+    <string name="skill_type_local">LOCAL</string>
+    <string name="skill_type_cloud">NUBE</string>
+    <string name="skill_permissions">Permisos: %1$s</string>
     <string name="skill_custom_section">Mis habilidades personalizadas</string>
     <string name="skill_name_website_reader">Lector de sitios web</string>
     <string name="skill_wizard_add_parameter">Agregar parámetro</string>

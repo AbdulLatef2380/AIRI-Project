@@ -1063,6 +1063,9 @@
     <string name="skill_filter_connected">已就绪</string>
     <string name="skill_filter_external">需要连接器</string>
     <string name="skill_official_section">官方技能</string>
+    <string name="skill_type_local">本地</string>
+    <string name="skill_type_cloud">云端</string>
+    <string name="skill_permissions">所需权限：%1$s</string>
     <string name="skill_custom_section">我的自定义技能</string>
     <string name="skill_name_website_reader">网站阅读器</string>
     <string name="skill_wizard_add_parameter">添加参数</string>

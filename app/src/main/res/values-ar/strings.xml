@@ -1286,6 +1286,12 @@
     <string name="skill_name_task_planner">مخطط المهام</string>
     <string name="skill_name_translator">المترجم</string>
     <string name="skill_name_web_search">بحث الويب</string>
+    <string name="skill_search_hint">ابحث عن مهارة…</string>
+    <string name="skill_filter_all">الكل</string>
+    <string name="skill_filter_connected">جاهزة</string>
+    <string name="skill_filter_external">تحتاج موصلًا</string>
+    <string name="skill_official_section">المهارات الرسمية</string>
+    <string name="skill_custom_section">مهاراتي المخصصة</string>
     <string name="skill_name_website_reader">قارئ المواقع</string>
 
     <!-- Skill Creation Wizard -->
@@ -1385,6 +1391,7 @@
     <string name="connectors_tab_device">الجهاز</string>
     <string name="connectors_tab_system">النظام</string>
     <string name="connectors_title">الموصلات</string>
+    <string name="connectors_search_hint">ابحث عن الموصلات والخدمات…</string>
 
     <!-- customization -->
     <string name="customization_display_mode">وضع العرض</string>

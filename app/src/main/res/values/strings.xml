@@ -1244,6 +1244,12 @@
     <string name="skill_name_memory_manager">Memory Manager</string>
     <string name="skill_name_document_reader">Document Reader</string>
     <string name="skill_name_file_manager">File Manager</string>
+    <string name="skill_search_hint">Search skills…</string>
+    <string name="skill_filter_all">All</string>
+    <string name="skill_filter_connected">Ready</string>
+    <string name="skill_filter_external">Needs connector</string>
+    <string name="skill_official_section">Official skills</string>
+    <string name="skill_custom_section">My custom skills</string>
 
     <!-- Skill permission access levels -->
     <string name="skill_memory_access_none">No Memory Access</string>
@@ -1465,6 +1471,7 @@
     <string name="connectors_tab_device">Device</string>
     <string name="connectors_tab_system">System</string>
     <string name="connectors_title">Connectors</string>
+    <string name="connectors_search_hint">Search connectors and services…</string>
 
     <!-- customization -->
     <string name="customization_display_mode">Display mode</string>

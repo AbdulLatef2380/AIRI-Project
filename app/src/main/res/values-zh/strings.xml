@@ -1058,6 +1058,12 @@
     <string name="skill_name_task_planner">任务规划器</string>
     <string name="skill_name_translator">翻译器</string>
     <string name="skill_name_web_search">网页搜索</string>
+    <string name="skill_search_hint">搜索技能…</string>
+    <string name="skill_filter_all">全部</string>
+    <string name="skill_filter_connected">已就绪</string>
+    <string name="skill_filter_external">需要连接器</string>
+    <string name="skill_official_section">官方技能</string>
+    <string name="skill_custom_section">我的自定义技能</string>
     <string name="skill_name_website_reader">网站阅读器</string>
     <string name="skill_wizard_add_parameter">添加参数</string>
     <string name="skill_wizard_add_tool">添加工具</string>
@@ -1155,6 +1161,7 @@
     <string name="connectors_tab_device">Device</string>
     <string name="connectors_tab_system">System</string>
     <string name="connectors_title">Connectors</string>
+    <string name="connectors_search_hint">搜索连接器和服务…</string>
     <string name="customization_display_mode">显示模式</string>
     <string name="debug_rerun_diagnostics">重新运行诊断</string>
     <string name="err_image_analyze_failed">图像分析失败</string>

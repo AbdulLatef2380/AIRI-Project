@@ -17,13 +17,17 @@ object PricingConfig {
     const val PRO_DAILY_MESSAGES = Int.MAX_VALUE
     const val PRO_DAILY_AGENT_EXECUTIONS = Int.MAX_VALUE
     const val PRO_DAILY_SKILL_USES = Int.MAX_VALUE
-    const val PRO_MONTHLY_PRICE_USD = 4.90
-    const val PRO_ANNUAL_PRICE_USD = 19.90
+    // Public price display only. Billing remains disabled until the Play
+    // products, backend verification, and store configuration are complete.
+    const val PRO_MONTHLY_PRICE_USD = 7.99
+    const val PRO_ANNUAL_PRICE_USD = 39.99
 
     // Future integrations: remain false until the user configures providers.
     const val BILLING_ENABLED = false
+    // AIRI is privacy-first and local-first; advertising is not part of the
+    // product plan, including for FREE users.
     const val ADS_ENABLED = false
-    const val SHOW_LAUNCH_AD_ONCE = true
+    const val SHOW_LAUNCH_AD_ONCE = false
 
     val PRO_FEATURES: Set<String> = setOf(
         "background_agent", "autonomous_agent", "unlimited_chat",
@@ -41,8 +45,9 @@ object PricingConfig {
 }
 
 object AdPolicy {
+    /** Always false: AIRI deliberately has no advertising product surface. */
     fun shouldShowLaunchAd(hasShownThisLaunch: Boolean): Boolean =
-        PricingConfig.ADS_ENABLED && PricingConfig.SHOW_LAUNCH_AD_ONCE && !hasShownThisLaunch
+        false
 }
 
 enum class PlanActionState { FROZEN_UNTIL_BILLING_CONFIGURED, AVAILABLE }

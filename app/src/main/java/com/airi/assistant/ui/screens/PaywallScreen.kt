@@ -58,6 +58,7 @@ fun PaywallScreen(
     val productDetails by billingManager.productDetails.collectAsState()
 
     var isRestoring by remember { mutableStateOf(false) }
+    var annualSelected by remember { mutableStateOf(false) }
     val triggerReason      = PaywallTriggerEngine.lastTriggerReason
     val subscriptionManager = ServiceLocator.subscriptionManager
     val usagePercent       = remember { PaywallTriggerEngine.getUsagePercent(subscriptionManager) }
@@ -222,6 +223,25 @@ fun PaywallScreen(
                         lineHeight = 20.sp
                     )
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { annualSelected = false },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (!annualSelected) accentColor.copy(alpha = .12f) else Color.Transparent
+                        )
+                    ) { Text(stringResource(R.string.plan_monthly)) }
+                    OutlinedButton(
+                        onClick = { annualSelected = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (annualSelected) accentColor.copy(alpha = .12f) else Color.Transparent
+                        )
+                    ) { Text(stringResource(R.string.plan_annual)) }
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -237,7 +257,7 @@ fun PaywallScreen(
                     ) {
                         Column {
                             Text(
-                                text       = "Monthly",
+                                text       = stringResource(if (annualSelected) R.string.plan_annual else R.string.plan_monthly),
                                 fontSize   = 12.sp,
                                 color      = AiriTheme.onBackground.copy(alpha = 0.55f),
                                 fontWeight = FontWeight.Medium,
@@ -245,13 +265,13 @@ fun PaywallScreen(
                             )
                             Row(verticalAlignment = Alignment.Bottom) {
                                 Text(
-                                    text       = "$4.99",
+                                    text       = if (annualSelected) "$39.99" else "$7.99",
                                     fontSize   = 36.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color      = AiriTheme.onBackground
                                 )
                                 Text(
-                                    text     = "/month",
+                                    text     = if (annualSelected) "/year" else "/month",
                                     fontSize = 14.sp,
                                     color    = AiriTheme.onBackground.copy(alpha = 0.5f),
                                     modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
@@ -321,7 +341,7 @@ fun PaywallScreen(
                         AnalyticsService.upgradeClick()
                         AnalyticsService.paywallClicked(triggerReason.source)
                         if (activity != null) {
-                            billingManager.launchPurchaseFlow(activity)
+                            billingManager.launchPurchaseFlow(activity, annual = annualSelected)
                         } else {
                             scope.launch {
                                 snackbarHost.showSnackbar("Unable to open billing from this screen.")
@@ -410,7 +430,11 @@ fun PaywallScreen(
                     )
                 }
                 Text(
-                    text = "Subscription renews automatically at \$4.99/month. Cancel anytime in Google Play. " +
+                    text = if (annualSelected)
+                        "Subscription renews automatically at \$39.99/year. Cancel anytime in Google Play. " +
+                            "Payment is charged to your Google account at confirmation of purchase."
+                    else
+                        "Subscription renews automatically at \$7.99/month. Cancel anytime in Google Play. " +
                            "Payment is charged to your Google account at confirmation of purchase.",
                     fontSize  = 10.sp,
                     color     = AiriTheme.outline.copy(alpha = 0.28f),

@@ -35,8 +35,8 @@ class BillingManager(
     private val _billingState = MutableStateFlow<BillingState>(BillingState.Idle)
     val billingState: StateFlow<BillingState> = _billingState
 
-    private val _productDetails = MutableStateFlow<ProductDetails?>(null)
-    val productDetails: StateFlow<ProductDetails?> = _productDetails
+    private val _productDetails = MutableStateFlow<List<ProductDetails>>(emptyList())
+    val productDetails: StateFlow<List<ProductDetails>> = _productDetails
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -99,9 +99,9 @@ class BillingManager(
 
         val result = billingClient.queryProductDetails(params)
         if (result.billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-            val details = result.productDetailsList?.firstOrNull()
+            val details = result.productDetailsList.orEmpty()
             _productDetails.value = details
-            Log.d(TAG, "Product details loaded: ${details?.name}")
+            Log.d(TAG, "Product details loaded: ${details.map { it.productId }}")
         } else {
             Log.w(TAG, "queryProductDetails failed: ${result.billingResult.debugMessage}")
         }
@@ -109,14 +109,15 @@ class BillingManager(
 
     // ── Launch purchase flow ──────────────────────────────────────────────────
 
-    fun launchPurchaseFlow(activity: Activity) {
+    fun launchPurchaseFlow(activity: Activity, annual: Boolean = false) {
         if (!PricingConfig.BILLING_ENABLED) {
             _billingState.value = BillingState.Error("Subscriptions are prepared for a future release.")
             return
         }
-        val details = _productDetails.value
+        val productId = if (annual) PRODUCT_PRO_ANNUAL else PRODUCT_PREMIUM_MONTHLY
+        val details = _productDetails.value.firstOrNull { it.productId == productId }
         if (details == null) {
-            _billingState.value = BillingState.Error("Product not available. Check your connection.")
+            _billingState.value = BillingState.Error("Selected subscription is not available. Check your connection.")
             return
         }
 
@@ -168,6 +169,11 @@ class BillingManager(
     // ── Process & acknowledge purchase ────────────────────────────────────────
 
     private fun processPurchase(purchase: Purchase) {
+        if (purchase.products.none { it == PRODUCT_PREMIUM_MONTHLY || it == PRODUCT_PRO_ANNUAL }) {
+            Log.w(TAG, "Ignoring purchase with unknown product ids: ${purchase.products}")
+            _billingState.value = BillingState.Error("Unsupported subscription product.")
+            return
+        }
         when (purchase.purchaseState) {
             Purchase.PurchaseState.PURCHASED -> {
                 if (!purchase.isAcknowledged) {
@@ -223,7 +229,7 @@ class BillingManager(
 
         val result = billingClient.queryPurchasesAsync(params)
         val activePurchase = result.purchasesList.firstOrNull { purchase ->
-            purchase.products.contains(PRODUCT_PREMIUM_MONTHLY) &&
+            purchase.products.any { it == PRODUCT_PREMIUM_MONTHLY || it == PRODUCT_PRO_ANNUAL } &&
             purchase.purchaseState == Purchase.PurchaseState.PURCHASED
         }
 

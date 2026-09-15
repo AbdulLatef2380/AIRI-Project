@@ -180,7 +180,7 @@ fun LanguageSelector(
 fun DefaultAssistantSection(activity: Activity?) {
     if (activity == null) return
     SettingsSurface {
-        SettingsCategoryHeader(icon = Icons.Outlined.Assistant, title = stringResource(R.string.default_assistant_title))
+        SettingsCategoryHeader(icon = Icons.Outlined.Assistant, title = stringResource(R.string.default_assistant))
         Spacer(Modifier.height(8.dp))
         Text(
             text     = stringResource(R.string.default_assistant_description),

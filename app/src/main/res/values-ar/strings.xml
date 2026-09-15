@@ -1819,7 +1819,7 @@
     <string name="plan_free_skills">المهارات الأساسية</string>
     <string name="plan_free_skills_desc">استخدم المهارات الأساسية المتاحة ضمن حدود Free.</string>
     <string name="plan_free_ads">الإعلانات المستقبلية</string>
-    <string name="plan_free_ads_desc">خيار إعلان فتح التطبيق جاهز لكنه معطل حالياً حتى إعداد مزود الإعلانات.</string>
+    <string name="plan_free_ads_desc">لا يحتوي AIRI على مساحات إعلانية؛ الخصوصية وجودة المنتج أولاً.</string>
     <string name="plan_free_reminder">يمكنك الاستمرار في الخطة المجانية. ستضاف تذكيرات الترقية عند تفعيل النظام التجاري.</string>
     <string name="plan_upgrade_pro">عرض خطة Pro</string>
     <string name="plan_continue_free">الاستمرار مجاناً</string>

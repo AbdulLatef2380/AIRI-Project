@@ -1920,7 +1920,7 @@
     <string name="plan_free_skills">Basic skills</string>
     <string name="plan_free_skills_desc">Use the available basic skills within Free limits.</string>
     <string name="plan_free_ads">Future advertising</string>
-    <string name="plan_free_ads_desc">The launch ad option is prepared but currently disabled until the ad provider is configured.</string>
+    <string name="plan_free_ads_desc">AIRI has no advertising surfaces. Privacy and product quality come first.</string>
     <string name="plan_free_reminder">You can continue using the Free plan. Upgrade reminders will be added when the commercial system is enabled.</string>
     <string name="plan_upgrade_pro">View Pro plan</string>
     <string name="plan_continue_free">Continue with Free</string>

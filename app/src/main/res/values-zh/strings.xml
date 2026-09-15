@@ -1588,7 +1588,7 @@
     <string name="plan_free_skills">基础技能</string>
     <string name="plan_free_skills_desc">在 Free 限制内使用可用的基础技能。</string>
     <string name="plan_free_ads">未来广告</string>
-    <string name="plan_free_ads_desc">启动广告选项已准备，但在配置广告提供商前保持关闭。</string>
+    <string name="plan_free_ads_desc">AIRI 不包含广告位；隐私和产品质量优先。</string>
     <string name="plan_free_reminder">你可以继续使用 Free。商业系统启用后将加入升级提醒。</string>
     <string name="plan_upgrade_pro">查看 Pro 方案</string>
     <string name="plan_continue_free">继续使用 Free</string>

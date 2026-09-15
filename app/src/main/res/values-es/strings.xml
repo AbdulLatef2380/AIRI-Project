@@ -1588,7 +1588,7 @@
     <string name="plan_free_skills">Habilidades básicas</string>
     <string name="plan_free_skills_desc">Usa las habilidades básicas disponibles dentro de los límites Free.</string>
     <string name="plan_free_ads">Publicidad futura</string>
-    <string name="plan_free_ads_desc">La opción de anuncio al abrir está preparada pero desactivada hasta configurar el proveedor.</string>
+    <string name="plan_free_ads_desc">AIRI no tiene espacios publicitarios; la privacidad y la calidad son prioritarias.</string>
     <string name="plan_free_reminder">Puedes continuar con Free. Los recordatorios aparecerán al activar el sistema comercial.</string>
     <string name="plan_upgrade_pro">Ver plan Pro</string>
     <string name="plan_continue_free">Continuar con Free</string>

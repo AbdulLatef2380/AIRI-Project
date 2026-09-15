@@ -295,15 +295,17 @@ class VoiceManager(
             Log.w(TAG, "TTS not ready — speak() skipped")
             return
         }
+        val speakableText = com.airi.assistant.voice.SpeechTextPreprocessor.prepare(text)
+        if (speakableText.isBlank()) return
         requestAudioFocus()
         ttsGeneration.incrementAndGet()
         val utteranceId = "airi_${System.currentTimeMillis()}"
         lastQueuedUtteranceId.set(utteranceId)
         // QUEUE_FLUSH clears any stale streaming chunks before speaking.
-        tts!!.speak(text.trim(), TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+        tts!!.speak(speakableText, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
         com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "SPEAKING")
         com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "SPEAKING") }
-        Log.i(TAG, "AIRI TTS_SPEAK chars=${text.length} utteranceId=$utteranceId")
+        Log.i(TAG, "AIRI TTS_SPEAK chars=${speakableText.length} utteranceId=$utteranceId")
         startVad()
     }
 
@@ -339,7 +341,7 @@ class VoiceManager(
                 }
             }
             if (idx < 0) break
-            val sentence = s.substring(0, idx + 1).trim()
+            val sentence = com.airi.assistant.voice.SpeechTextPreprocessor.prepare(s.substring(0, idx + 1))
             s.delete(0, idx + 1)
             if (sentence.isNotEmpty()) {
                 val utteranceId = "airi_stream_${System.currentTimeMillis()}_$flushed"
@@ -369,7 +371,7 @@ class VoiceManager(
      */
     fun ttsStreamFlush() {
         if (!ttsReady || tts == null || !ttsStreamActive) return
-        val tail = ttsStreamBuffer.toString().trim()
+        val tail = com.airi.assistant.voice.SpeechTextPreprocessor.prepare(ttsStreamBuffer.toString())
         ttsStreamBuffer.setLength(0)
         ttsStreamActive = false  // mark streaming complete BEFORE queueing sentinel
 

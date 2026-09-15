@@ -1919,8 +1919,6 @@
     <string name="plan_free_agent_desc">Unavailable in Free; upgrade to Pro to run autonomous tasks.</string>
     <string name="plan_free_skills">Basic skills</string>
     <string name="plan_free_skills_desc">Use the available basic skills within Free limits.</string>
-    <string name="plan_free_ads">Future advertising</string>
-    <string name="plan_free_ads_desc">AIRI has no advertising surfaces. Privacy and product quality come first.</string>
     <string name="plan_free_reminder">You can continue using the Free plan. Upgrade reminders will be added when the commercial system is enabled.</string>
     <string name="plan_upgrade_pro">View Pro plan</string>
     <string name="plan_continue_free">Continue with Free</string>
@@ -1934,12 +1932,10 @@
     <string name="plan_pro_agent_desc">Run autonomous, background and scheduled tasks with the required permissions.</string>
     <string name="plan_pro_all_features">All Pro features</string>
     <string name="plan_pro_all_features_desc">Priority models, connectors, advanced skills, API and voice capabilities.</string>
-    <string name="plan_pro_no_ads">No advertisements</string>
-    <string name="plan_pro_no_ads_desc">A Pro subscription is designed to be ad-free.</string>
     <string name="plan_monthly">Monthly</string>
     <string name="plan_annual">Annual</string>
     <string name="plan_subscribe_pro">Subscribe to Pro</string>
-    <string name="plan_billing_frozen">Subscriptions and ads are prepared for a future release and are currently disabled until billing/ad providers are configured.</string>
+    <string name="plan_billing_frozen">Subscriptions are prepared for a future release and are currently disabled until the payment provider and verification flow are ready.</string>
     <string name="settings_plan_and_usage">Plan and usage</string>
     <string name="plan_pro_badge">PRO</string>
     <string name="prompt_builder_shortcut">Prompt builder</string>

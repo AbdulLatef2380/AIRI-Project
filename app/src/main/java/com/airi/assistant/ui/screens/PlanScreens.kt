@@ -33,7 +33,6 @@ fun FreePlanScreen(onBack: () -> Unit, onOpenPro: () -> Unit) {
             PlanItem(Icons.Outlined.Chat, stringResource(R.string.plan_free_chat), stringResource(R.string.plan_free_chat_desc), true)
             PlanItem(Icons.Outlined.AutoAwesome, stringResource(R.string.plan_free_agent), stringResource(R.string.plan_free_agent_desc), false)
             PlanItem(Icons.Outlined.Extension, stringResource(R.string.plan_free_skills), stringResource(R.string.plan_free_skills_desc), true)
-            PlanItem(Icons.Outlined.Campaign, stringResource(R.string.plan_free_ads), stringResource(R.string.plan_free_ads_desc), false)
         }
         Text(stringResource(R.string.plan_free_reminder), color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
         Button(onClick = onOpenPro, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)) {
@@ -57,7 +56,6 @@ fun ProPlanScreen(onBack: () -> Unit) {
             PlanItem(Icons.Outlined.AllInclusive, stringResource(R.string.plan_pro_unlimited), stringResource(R.string.plan_pro_unlimited_desc), true)
             PlanItem(Icons.Outlined.AutoAwesome, stringResource(R.string.plan_pro_agent), stringResource(R.string.plan_pro_agent_desc), true)
             PlanItem(Icons.Outlined.Extension, stringResource(R.string.plan_pro_all_features), stringResource(R.string.plan_pro_all_features_desc), true)
-            PlanItem(Icons.Outlined.Block, stringResource(R.string.plan_pro_no_ads), stringResource(R.string.plan_pro_no_ads_desc), true)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             PriceCard(Modifier.weight(1f), stringResource(R.string.plan_monthly), "${PricingConfig.PRO_MONTHLY_PRICE_USD}")

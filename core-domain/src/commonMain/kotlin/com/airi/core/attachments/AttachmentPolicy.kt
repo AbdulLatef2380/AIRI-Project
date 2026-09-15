@@ -4,7 +4,9 @@ object AttachmentPolicy {
     const val MAX_ATTACHMENTS_PER_MESSAGE = 6
     const val MAX_ATTACHMENT_BYTES = 25L * 1024L * 1024L
     const val MAX_TEXT_ATTACHMENT_BYTES = 512L * 1024L
-    const val MAX_TEXT_CONTENT_CHARS = 24_000
+    // Keep the complete accepted text file available to chunking/budget logic;
+    // the old value silently discarded most long attachments.
+    const val MAX_TEXT_CONTENT_CHARS = 512_000
 
     enum class ContentType {
         IMAGE,

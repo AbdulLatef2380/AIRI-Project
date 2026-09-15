@@ -1587,8 +1587,6 @@
     <string name="plan_free_agent_desc">Free 不可用；升级 Pro 后才能运行自主任务。</string>
     <string name="plan_free_skills">基础技能</string>
     <string name="plan_free_skills_desc">在 Free 限制内使用可用的基础技能。</string>
-    <string name="plan_free_ads">未来广告</string>
-    <string name="plan_free_ads_desc">AIRI 不包含广告位；隐私和产品质量优先。</string>
     <string name="plan_free_reminder">你可以继续使用 Free。商业系统启用后将加入升级提醒。</string>
     <string name="plan_upgrade_pro">查看 Pro 方案</string>
     <string name="plan_continue_free">继续使用 Free</string>
@@ -1602,12 +1600,10 @@
     <string name="plan_pro_agent_desc">运行自主、后台和计划任务。</string>
     <string name="plan_pro_all_features">全部 Pro 功能</string>
     <string name="plan_pro_all_features_desc">优先模型、连接器、高级技能、API 和语音功能。</string>
-    <string name="plan_pro_no_ads">无广告</string>
-    <string name="plan_pro_no_ads_desc">Pro 方案设计为无广告。</string>
     <string name="plan_monthly">每月</string>
     <string name="plan_annual">每年</string>
     <string name="plan_subscribe_pro">订阅 Pro</string>
-    <string name="plan_billing_frozen">订阅和广告已为未来版本准备，目前在配置支付和广告提供商前保持关闭。</string>
+    <string name="plan_billing_frozen">订阅已为未来版本准备好，在支付提供方和验证流程就绪前保持关闭。</string>
     <string name="settings_plan_and_usage">方案与用量</string>
     <string name="plan_pro_badge">PRO</string>
     <string name="prompt_builder_shortcut">提示词工作室</string>

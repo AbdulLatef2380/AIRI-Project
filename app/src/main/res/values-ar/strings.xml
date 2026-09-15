@@ -1818,8 +1818,6 @@
     <string name="plan_free_agent_desc">غير متاح في Free؛ اشترك في Pro لتشغيل المهام المستقلة.</string>
     <string name="plan_free_skills">المهارات الأساسية</string>
     <string name="plan_free_skills_desc">استخدم المهارات الأساسية المتاحة ضمن حدود Free.</string>
-    <string name="plan_free_ads">الإعلانات المستقبلية</string>
-    <string name="plan_free_ads_desc">لا يحتوي AIRI على مساحات إعلانية؛ الخصوصية وجودة المنتج أولاً.</string>
     <string name="plan_free_reminder">يمكنك الاستمرار في الخطة المجانية. ستضاف تذكيرات الترقية عند تفعيل النظام التجاري.</string>
     <string name="plan_upgrade_pro">عرض خطة Pro</string>
     <string name="plan_continue_free">الاستمرار مجاناً</string>
@@ -1833,12 +1831,10 @@
     <string name="plan_pro_agent_desc">شغّل المهام المستقلة والخلفية والمجدولة بالصلاحيات المطلوبة.</string>
     <string name="plan_pro_all_features">كل ميزات Pro</string>
     <string name="plan_pro_all_features_desc">نماذج أولوية وموصلات ومهارات متقدمة وAPI وقدرات صوتية.</string>
-    <string name="plan_pro_no_ads">بدون إعلانات</string>
-    <string name="plan_pro_no_ads_desc">صُمم اشتراك Pro ليكون بلا إعلانات.</string>
     <string name="plan_monthly">شهري</string>
     <string name="plan_annual">سنوي</string>
     <string name="plan_subscribe_pro">الاشتراك في Pro</string>
-    <string name="plan_billing_frozen">الاشتراكات والإعلانات مجهزة لإصدار مستقبلي ومعطلة حالياً حتى إعداد مزودي الدفع والإعلانات.</string>
+    <string name="plan_billing_frozen">الاشتراكات مجهزة لإصدار مستقبلي ومعطلة حالياً حتى جاهزية مزود الدفع ومسار التحقق.</string>
     <string name="settings_plan_and_usage">الخطة والاستخدام</string>
     <string name="plan_pro_badge">Pro</string>
     <string name="prompt_builder_shortcut">منشئ البرومبت</string>

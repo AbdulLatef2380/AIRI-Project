@@ -146,7 +146,7 @@ fun ProfileScreen(
                         shape         = AIRIShapes.md,
                         colors        = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor   = CosmicAccent,
-                            unfocusedBorderColor = DividerColor,
+                            unfocusedBorderColor = AiriTheme.colorScheme.outlineVariant,
                             focusedTextColor     = AiriTheme.onBackground,
                             unfocusedTextColor   = AiriTheme.onBackground
                         ),
@@ -196,13 +196,13 @@ fun ProfileScreen(
                     enabled = !isSavingName,
                     colors  = ButtonDefaults.buttonColors(
                         containerColor = CosmicAccent,
-                        contentColor   = Color.White
+                        contentColor   = AiriTheme.colorScheme.onPrimary
                     ),
                     shape = AIRIShapes.md
                 ) {
                     if (isSavingName) {
                         CircularProgressIndicator(
-                            color       = Color.White,
+                            color       = AiriTheme.colorScheme.onPrimary,
                             modifier    = Modifier.size(16.dp),
                             strokeWidth = 2.dp
                         )
@@ -287,7 +287,7 @@ fun ProfileScreen(
                 ) {
                     if (isDeleting) {
                         CircularProgressIndicator(
-                            color       = Color.White,
+                            color       = AiriTheme.colorScheme.onError,
                             modifier    = Modifier.size(16.dp),
                             strokeWidth = 2.dp
                         )
@@ -353,7 +353,7 @@ fun ProfileScreen(
                     .clip(CircleShape)
                     .background(
                         Brush.radialGradient(
-                            listOf(CosmicAccent.copy(0.30f), SurfaceRaised)
+                            listOf(CosmicAccent.copy(0.30f), AiriTheme.surfaceVariant)
                         )
                     )
                     .border(1.5.dp, CosmicAccent.copy(0.45f), CircleShape)
@@ -408,8 +408,8 @@ fun ProfileScreen(
             // ── Account info card ─────────────────────────────────────────────
             Surface(
                 shape  = AIRIShapes.lg,
-                color  = SurfaceRaised,
-                border = BorderStroke(0.5.dp, DividerColor),
+                color  = AiriTheme.surfaceVariant,
+                border = BorderStroke(0.5.dp, AiriTheme.colorScheme.outlineVariant),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column {
@@ -429,7 +429,7 @@ fun ProfileScreen(
                     )
 
                     HorizontalDivider(
-                        color     = DividerColor,
+                        color     = AiriTheme.colorScheme.outlineVariant,
                         thickness = 0.5.dp,
                         modifier  = Modifier.padding(horizontal = 16.dp)
                     )
@@ -443,7 +443,7 @@ fun ProfileScreen(
                     )
 
                     HorizontalDivider(
-                        color     = DividerColor,
+                        color     = AiriTheme.colorScheme.outlineVariant,
                         thickness = 0.5.dp,
                         modifier  = Modifier.padding(horizontal = 16.dp)
                     )
@@ -469,8 +469,8 @@ fun ProfileScreen(
                     }
                 },
                 shape    = AIRIShapes.lg,
-                color    = SurfaceRaised,
-                border   = BorderStroke(0.5.dp, DividerColor),
+                color    = AiriTheme.surfaceVariant,
+                border   = BorderStroke(0.5.dp, AiriTheme.colorScheme.outlineVariant),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Box(

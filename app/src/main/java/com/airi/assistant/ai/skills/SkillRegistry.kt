@@ -270,8 +270,14 @@ class SkillRegistry(private val context: Context) {
         val version:      String       = "1.0.0",
         val dependencies: List<String> = emptyList(),
         val author:       String       = "builtin",
-        val id:           String       = name
+        val id:           String       = name,
+        /** Whether execution stays on-device or requires a remote service. */
+        val executionKind: ExecutionKind = ExecutionKind.LOCAL,
+        /** Human-readable Android/service permissions shown before enabling. */
+        val requiredPermissions: List<String> = emptyList()
     )
+
+    enum class ExecutionKind { LOCAL, CLOUD }
 
     // ── Version registry (persisted in SharedPreferences) ─────────────────────
 
@@ -487,21 +493,21 @@ class SkillRegistry(private val context: Context) {
 
     fun getAllSkillInfos(): List<SkillInfo> = buildList {
         // ── Always-available official skills ─────────────────────────────────
-        add(SkillInfo("web_search",      "Search the web for current information",           isConnected = true,  isEnabled = isSkillEnabled("web_search"),      version = "1.1.0", author = "AIRI Official"))
-        add(SkillInfo("website_reader",  "Fetch and read content from web pages",            isConnected = true,  isEnabled = isSkillEnabled("website_reader"),  version = "1.0.0", author = "AIRI Official"))
-        add(SkillInfo("research_agent",  "Deep research using multiple web sources",         isConnected = true,  isEnabled = isSkillEnabled("research_agent"),  version = "1.0.0", author = "AIRI Official"))
-        add(SkillInfo("translator",      "Translate text between any languages",             isConnected = true,  isEnabled = isSkillEnabled("translator"),      version = "1.0.0", author = "AIRI Official"))
-        add(SkillInfo("code_assistant",  "Write, explain, review, and debug code",          isConnected = true,  isEnabled = isSkillEnabled("code_assistant"),  version = "1.0.0", author = "AIRI Official"))
-        add(SkillInfo("task_planner",    "Break down goals into step-by-step plans",        isConnected = true,  isEnabled = isSkillEnabled("task_planner"),    version = "1.0.0", author = "AIRI Official"))
-        add(SkillInfo("memory_manager",  "Search and save to AIRI's persistent memory",     isConnected = true,  isEnabled = isSkillEnabled("memory_manager"),  version = "1.0.0", author = "AIRI Official"))
-        add(SkillInfo("document_reader", "Read text documents stored on device",            isConnected = true,  isEnabled = isSkillEnabled("document_reader"), version = "1.0.0", author = "AIRI Official"))
-        add(SkillInfo("file_manager",    "List and search files in device storage",         isConnected = true,  isEnabled = isSkillEnabled("file_manager"),    version = "1.0.0", author = "AIRI Official"))
+        add(SkillInfo("web_search",      "Search the web for current information",           true, isSkillEnabled("web_search"), version = "1.1.0", author = "AIRI Official", executionKind = ExecutionKind.CLOUD))
+        add(SkillInfo("website_reader",  "Fetch and read content from web pages",             true, isSkillEnabled("website_reader"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD))
+        add(SkillInfo("research_agent",  "Deep research using multiple web sources",         true, isSkillEnabled("research_agent"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD))
+        add(SkillInfo("translator",      "Translate text between any languages",             true, isSkillEnabled("translator"), author = "AIRI Official", executionKind = ExecutionKind.LOCAL))
+        add(SkillInfo("code_assistant",  "Write, explain, review, and debug code",           true, isSkillEnabled("code_assistant"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD))
+        add(SkillInfo("task_planner",    "Break down goals into step-by-step plans",         true, isSkillEnabled("task_planner"), author = "AIRI Official", executionKind = ExecutionKind.LOCAL))
+        add(SkillInfo("memory_manager",  "Search and save to AIRI's persistent memory",      true, isSkillEnabled("memory_manager"), author = "AIRI Official", executionKind = ExecutionKind.LOCAL, requiredPermissions = listOf("AIRI memory")))
+        add(SkillInfo("document_reader", "Read text documents stored on device",             true, isSkillEnabled("document_reader"), author = "AIRI Official", executionKind = ExecutionKind.LOCAL, requiredPermissions = listOf("Files selected by you")))
+        add(SkillInfo("file_manager",    "List and search files in device storage",         true, isSkillEnabled("file_manager"), author = "AIRI Official", executionKind = ExecutionKind.LOCAL, requiredPermissions = listOf("Files selected by you")))
         // ── Connector-backed skills ───────────────────────────────────────────
-        add(SkillInfo("github_guardian",    "Check GitHub repositories and profile",        isConnected = secureStorage.isGithubConnected(),   isEnabled = isSkillEnabled("github_guardian"),    author = "AIRI Official"))
-        add(SkillInfo("telegram_messenger", "Send messages via Telegram bot",               isConnected = secureStorage.isTelegramConnected(), isEnabled = isSkillEnabled("telegram_messenger"), author = "AIRI Official"))
-        add(SkillInfo("gmail_assistant",    "Read and summarize Gmail emails",              isConnected = secureStorage.isGoogleConnected(),   isEnabled = isSkillEnabled("gmail_assistant"),    author = "AIRI Official"))
-        add(SkillInfo("drive_search",       "Search files in Google Drive",                 isConnected = secureStorage.isGoogleConnected(),   isEnabled = isSkillEnabled("drive_search"),       author = "AIRI Official"))
-        add(SkillInfo("calendar_events",    "Get upcoming Google Calendar events",          isConnected = secureStorage.isGoogleConnected(),   isEnabled = isSkillEnabled("calendar_events"),    author = "AIRI Official"))
+        add(SkillInfo("github_guardian", "Check GitHub repositories and profile", secureStorage.isGithubConnected(), isSkillEnabled("github_guardian"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD, requiredPermissions = listOf("GitHub account authorization")))
+        add(SkillInfo("telegram_messenger", "Send messages via Telegram bot", secureStorage.isTelegramConnected(), isSkillEnabled("telegram_messenger"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD, requiredPermissions = listOf("Telegram bot authorization")))
+        add(SkillInfo("gmail_assistant", "Read and summarize Gmail emails", secureStorage.isGoogleConnected(), isSkillEnabled("gmail_assistant"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD, requiredPermissions = listOf("Google account authorization")))
+        add(SkillInfo("drive_search", "Search files in Google Drive", secureStorage.isGoogleConnected(), isSkillEnabled("drive_search"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD, requiredPermissions = listOf("Google account authorization")))
+        add(SkillInfo("calendar_events", "Get upcoming Google Calendar events", secureStorage.isGoogleConnected(), isSkillEnabled("calendar_events"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD, requiredPermissions = listOf("Google Calendar access")))
         // ── Custom / user-installed skills ────────────────────────────────────
         addAll(customSkillRepository.getAllSkills().map { skill ->
             SkillInfo(

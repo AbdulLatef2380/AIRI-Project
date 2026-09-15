@@ -499,6 +499,32 @@ private fun OfficialSkillCard(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = AIRIShapes.pill,
+                    color = if (info.executionKind == SkillRegistry.ExecutionKind.LOCAL)
+                        SemanticSuccess.copy(alpha = 0.12f) else CosmicAccent.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        stringResource(
+                            if (info.executionKind == SkillRegistry.ExecutionKind.LOCAL)
+                                R.string.skill_type_local else R.string.skill_type_cloud
+                        ),
+                        color = if (info.executionKind == SkillRegistry.ExecutionKind.LOCAL) SemanticSuccess else CosmicAccent,
+                        fontSize = 9.sp,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+                if (info.requiredPermissions.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.skill_permissions, info.requiredPermissions.joinToString(", ")),
+                        color = AiriTheme.onSurfaceVariant,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
             if (info.author.isNotBlank()) {
                 Text(
                     "v${info.version} · ${info.author}",

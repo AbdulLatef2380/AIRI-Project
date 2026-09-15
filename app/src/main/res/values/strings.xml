@@ -1249,6 +1249,9 @@
     <string name="skill_filter_connected">Ready</string>
     <string name="skill_filter_external">Needs connector</string>
     <string name="skill_official_section">Official skills</string>
+    <string name="skill_type_local">LOCAL</string>
+    <string name="skill_type_cloud">CLOUD</string>
+    <string name="skill_permissions">Permissions: %1$s</string>
     <string name="skill_custom_section">My custom skills</string>
 
     <!-- Skill permission access levels -->

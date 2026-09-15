@@ -37,9 +37,6 @@ import com.airi.assistant.connector.ConnectorType
 import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
-import com.airi.assistant.ui.theme.CosmicBlack
-import com.airi.assistant.ui.theme.SurfaceCard
-import com.airi.assistant.ui.theme.SurfaceRaised
 import com.airi.assistant.ui.theme.SemanticSuccess
 import com.airi.assistant.ui.theme.SemanticError
 import androidx.compose.material3.MaterialTheme
@@ -427,7 +424,7 @@ private fun ConnectorCard(
                         checkedThumbColor       = AiriTheme.onSurface,
                         checkedTrackColor       = SemanticSuccess,
                         uncheckedThumbColor     = AiriTheme.onSurface.copy(0.6f),
-                        uncheckedTrackColor     = SurfaceRaised
+                        uncheckedTrackColor     = AiriTheme.surfaceVariant
                     )
                 )
             }

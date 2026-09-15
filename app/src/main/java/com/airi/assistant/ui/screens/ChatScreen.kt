@@ -849,6 +849,7 @@ fun ChatScreen(
                     onPickVideo   = { videoPicker.launch("video/*") },
                     onPickText    = { textPicker.launch("text/*") },
                     onPickFile    = { filePicker.launch("*/*") },
+                    onOpenPromptBuilder = { onNavigate(AiriRoute.PROMPT_BUILDER) },
                     onTakePhoto   = {
                         when {
                             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED ->
@@ -3314,6 +3315,7 @@ fun AiriChatInputBar(
                 AttachListRow(Icons.Outlined.Description, stringResource(R.string.attach_recent_files)) { showAttachPopup = false; onPickFile() }
                 AttachListRow(Icons.Outlined.EventNote, stringResource(R.string.attach_recent_tasks)) { showAttachPopup = false; onNavigate(AiriRoute.AGENT_TASKS) }
                 AttachListRow(Icons.Outlined.StarBorder, stringResource(R.string.attach_skills)) { showAttachPopup = false; onNavigate(AiriRoute.SKILL_MANAGER) }
+                AttachListRow(Icons.Outlined.EditNote, stringResource(R.string.prompt_builder_shortcut)) { showAttachPopup = false; onNavigate(AiriRoute.PROMPT_BUILDER) }
                 AttachListRow(Icons.Outlined.Assignment, stringResource(R.string.attach_plan)) { showAttachPopup = false; onNavigate(AiriRoute.PLANNING_DASHBOARD) }
                 AttachListRow(Icons.Outlined.Slideshow, stringResource(R.string.attach_slides)) { showAttachPopup = false; onDraftTextChanged(context.getString(R.string.attach_slides) + ": ") }
                 AttachListRow(Icons.Outlined.Language, stringResource(R.string.attach_website)) { showAttachPopup = false; onDraftTextChanged(context.getString(R.string.attach_website) + ": ") }

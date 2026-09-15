@@ -85,6 +85,7 @@ fun AdvancedChatInputBar(
     onUserStartedTyping:    () -> Unit              = {},
     onOpenToolPicker:       () -> Unit              = {},
     onOpenSkillPicker:      () -> Unit              = {},
+    onOpenPromptBuilder:    () -> Unit              = {},
     isPlanModeActive:       Boolean                 = false,
     onPlanModeToggle:       () -> Unit              = {},
     activeToolCount:        Int                     = 0,
@@ -112,7 +113,8 @@ fun AdvancedChatInputBar(
                 isPlanModeActive  = isPlanModeActive,
                 onPlanModeToggle  = onPlanModeToggle,
                 onOpenToolPicker  = onOpenToolPicker,
-                onOpenSkillPicker = onOpenSkillPicker,
+            onOpenSkillPicker = onOpenSkillPicker,
+            onOpenPromptBuilder = onOpenPromptBuilder,
                 activeToolCount   = activeToolCount,
                 activeSkillCount  = activeSkillCount,
                 isGenerating      = isGenerating,
@@ -167,6 +169,7 @@ private fun InputActionToolbar(
     onPlanModeToggle:  () -> Unit,
     onOpenToolPicker:  () -> Unit,
     onOpenSkillPicker: () -> Unit,
+    onOpenPromptBuilder: () -> Unit = {},
     activeToolCount:   Int,
     activeSkillCount:  Int,
     isGenerating:      Boolean,
@@ -203,6 +206,14 @@ private fun InputActionToolbar(
             iconTint   = Color(0xFFEC4899),
             isActive   = activeSkillCount > 0,
             onClick    = onOpenSkillPicker
+        )
+
+        ActionChip(
+            label      = stringResource(R.string.prompt_builder_shortcut),
+            icon       = Icons.Outlined.EditNote,
+            iconTint   = CosmicAccent,
+            isActive   = false,
+            onClick    = onOpenPromptBuilder
         )
 
         QuickToolChip(label = stringResource(R.string.input_web), onClick = onWebClick)

@@ -169,7 +169,7 @@
     <string name="accessibility_dialog_message">El servicio de accesibilidad de AIRI le permite entender e interactuar con otras apps en tu dispositivo, habilitando capacidades completas de agente de IA.</string>
     <string name="accessibility_dialog_steps">Para habilitar: ve a Ajustes → Accesibilidad → Servicios instalados → AIRI → activar.</string>
     <string name="open_settings">Abrir ajustes</string>
-    <string name="later">Later</string>
+    <string name="later">Más tarde</string>
     <string name="speech_recognition_unavailable">El reconocimiento de voz no está disponible en este dispositivo</string>
     <string name="settings_agent_tasks">Tareas programadas</string>
     <string name="settings_knowledge">Conocimiento</string>
@@ -1603,4 +1603,6 @@
     <string name="plan_billing_frozen">Suscripciones y anuncios están preparados para una versión futura y desactivados por ahora.</string>
     <string name="settings_plan_and_usage">Plan y uso</string>
     <string name="plan_pro_badge">PRO</string>
+    <string name="default_assistant_title">Asistente predeterminado</string>
+    <string name="default_assistant_description">Establece AIRI como asistente digital predeterminado en los ajustes de Android.</string>
 </resources>

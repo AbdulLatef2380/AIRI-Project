@@ -84,8 +84,10 @@ object AIRISurfaces {
     val card      = SurfaceCard
 
     // Glass overlays
-    val glass: Color @Composable get() = AiriTheme.surfaceVariant.copy(alpha = 0.4f)
-    val glassBorder: Color @Composable get() = AiriTheme.surfaceVariant.copy(alpha = 0.4f)
+    // Resolve translucent surfaces from the active Material scheme.  Using the
+    // old dark-palette constants here made cards and borders disappear in light mode.
+    val glass: Color @Composable get() = AiriTheme.surfaceVariant.copy(alpha = if (AiriTheme.background.luminance() > 0.5f) 0.92f else 0.4f)
+    val glassBorder: Color @Composable get() = AiriTheme.outline.copy(alpha = if (AiriTheme.background.luminance() > 0.5f) 0.5f else 0.4f)
     val glassPurple  = GlassPurple
     val glassBorderP = GlassPurpleBorder
 

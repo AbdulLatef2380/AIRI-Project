@@ -26,10 +26,11 @@ import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.system.LanguageOption
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.CosmicAccent
-import com.airi.assistant.ui.theme.SurfaceRaised
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.AIRIShapes
 import com.airi.assistant.ui.viewmodel.ChatViewModel
+import com.airi.assistant.R
+import androidx.compose.ui.res.stringResource
 
 fun Context.findActivity(): Activity? {
     var ctx = this
@@ -119,7 +120,7 @@ fun SettingsActionRow(
             Text(
                 text     = label,
                 fontSize = 14.sp,
-                color    = if (destructive) Color(0xFFFF6B6B) else AiriTheme.onSurface
+                    color    = if (destructive) AiriTheme.error else AiriTheme.onSurface
             )
             if (sublabel.isNotEmpty()) {
                 Text(sublabel, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
@@ -179,10 +180,10 @@ fun LanguageSelector(
 fun DefaultAssistantSection(activity: Activity?) {
     if (activity == null) return
     SettingsSurface {
-        SettingsCategoryHeader(icon = Icons.Outlined.Assistant, title = "Default Assistant")
+        SettingsCategoryHeader(icon = Icons.Outlined.Assistant, title = stringResource(R.string.default_assistant_title))
         Spacer(Modifier.height(8.dp))
         Text(
-            text     = "Set AIRI as the default digital assistant in Android system settings.",
+            text     = stringResource(R.string.default_assistant_description),
             fontSize = 12.sp,
             color    = AiriTheme.onBackground.copy(alpha = 0.6f)
         )

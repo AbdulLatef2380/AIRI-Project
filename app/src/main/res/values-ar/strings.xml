@@ -1834,4 +1834,6 @@
     <string name="plan_billing_frozen">الاشتراكات والإعلانات مجهزة لإصدار مستقبلي ومعطلة حالياً حتى إعداد مزودي الدفع والإعلانات.</string>
     <string name="settings_plan_and_usage">الخطة والاستخدام</string>
     <string name="plan_pro_badge">Pro</string>
+    <string name="default_assistant_title">المساعد الافتراضي</string>
+    <string name="default_assistant_description">عيّن AIRI كمساعدك الرقمي الافتراضي من إعدادات نظام أندرويد.</string>
 </resources>

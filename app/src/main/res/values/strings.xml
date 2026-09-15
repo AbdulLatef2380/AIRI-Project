@@ -1136,6 +1136,7 @@
     <string name="library_artifact_tool_model">Tool: %1$s · Model: %2$s</string>
     <string name="library_artifact_integrity">Integrity hash: %1$s</string>
     <string name="library_toggle_favorite">Toggle favorite</string>
+    <string name="library_remove_favorite">Remove from favorites</string>
     <string name="library_index_file">Add to knowledge</string>
     <string name="library_file_state">Extraction: %1$s · Knowledge index: %2$s</string>
     <string name="library_deleted_files">Recently deleted files</string>

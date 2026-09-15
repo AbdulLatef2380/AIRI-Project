@@ -1087,6 +1087,7 @@
     <string name="library_artifact_tool_model">الأداة: %1$s · النموذج: %2$s</string>
     <string name="library_artifact_integrity">بصمة السلامة: %1$s</string>
     <string name="library_toggle_favorite">تبديل المفضلة</string>
+    <string name="library_remove_favorite">إزالة من المفضلة</string>
     <string name="library_index_file">إضافة إلى المعرفة</string>
     <string name="library_file_state">الاستخراج: %1$s · فهرس المعرفة: %2$s</string>
     <string name="library_deleted_files">الملفات المحذوفة مؤخراً</string>

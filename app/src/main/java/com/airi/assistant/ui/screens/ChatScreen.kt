@@ -196,6 +196,7 @@ fun ChatScreen(
     val pendingSummary        by viewModel.pendingSummary.collectAsState()
     val currentSessionId      by viewModel.currentSessionId.collectAsState()
     val sessions              by viewModel.sessions.collectAsState()
+    val favoriteSessionIds    by viewModel.favoriteSessionIds.collectAsState()
     val composerDrafts        by viewModel.composerDrafts.collectAsState()
     val currentComposerDraft = composerDrafts[currentSessionId]
     val currentSession = sessions.firstOrNull { it.id == currentSessionId }
@@ -303,7 +304,6 @@ fun ChatScreen(
         androidx.lifecycle.viewmodel.compose.viewModel()
     val isPanelVisible by agentPlanViewModel.isVisible.collectAsState()
     val showPanel      by agentPlanViewModel.showPanel.collectAsState()
-    val planSheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(voiceState) {
         viewModel.updateVoiceState(voiceState.name)
@@ -716,6 +716,7 @@ fun ChatScreen(
                 showMenu               = showMenu,
                 dailyCreditsRemaining  = dailyCreditsRemaining,
                 onHistoryOpen     = { showHistoryPanel = true },
+                onExit            = { onNavigate(AiriRoute.HISTORY) },
                 onModelPickerOpen = { showModelPicker = true },
                 onToggleDropdown  = { showMenu = !showMenu },
                 onDismissDropdown = { showMenu = false },
@@ -728,6 +729,9 @@ fun ChatScreen(
                 sessionActions = sessionActions,
                 isCurrentSessionPinned = currentSession?.isPinned == true,
                 onSetSessionPinned = { isPinned -> viewModel.setCurrentSessionPinned(isPinned) },
+                isCurrentSessionFavorite = currentSessionId in favoriteSessionIds,
+                onSetSessionFavorite = { favorite -> viewModel.setSessionFavorite(currentSessionId, favorite) },
+                onArchiveSession = { viewModel.archiveSession(currentSessionId) },
                 onRenameChat      = { title -> viewModel.renameCurrentSession(title) },
                 onNewChat         = { viewModel.clearMessages() },
                 planLabel          = if (isProPlan) "Pro" else "Free",
@@ -737,6 +741,16 @@ fun ChatScreen(
         },
             bottomBar = {
                 Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
+                    // Keep the live plan in the same bottom-bar column as the
+                    // composer. This prevents a modal sheet from covering the
+                    // task context and keeps steps/traces synchronized with the
+                    // actual ExecutionStatusBus-owned AgentPlanViewModel.
+                    if (isPanelVisible && (showPanel || isPlanModeActive)) {
+                        com.airi.assistant.ui.plan.AgentPlanOverlay(
+                            modifier = Modifier.fillMaxWidth(),
+                            planViewModel = agentPlanViewModel
+                        )
+                    }
                     TaskInfoTrigger(
                         isWorking = agentState.isWorking,
                         isTaskConversation = isTaskConversation,
@@ -1269,21 +1283,6 @@ fun ChatScreen(
         )
     }
 
-    // /C04: Agent Plan ModalBottomSheet — non-blocking; chat stays readable during execution.
-    // Only shown for complex tasks (≥3 steps) OR when plan mode is explicitly active.
-    if (isPanelVisible && (showPanel || isPlanModeActive)) {
-        androidx.compose.material3.ModalBottomSheet(
-            onDismissRequest = { agentPlanViewModel.collapse() },
-            sheetState       = planSheetState,
-            dragHandle       = { androidx.compose.material3.BottomSheetDefaults.DragHandle() },
-            containerColor   = AiriTheme.surface
-        ) {
-            com.airi.assistant.ui.plan.AgentPlanContent(
-                viewModel = agentPlanViewModel,
-                modifier  = Modifier.fillMaxWidth().navigationBarsPadding()
-            )
-        }
-    }
 }
 // Chat top bar — credits badge | model pill | history | overflow
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1363,6 +1362,7 @@ private fun AiriChatTopBar(
     dailyCreditsRemaining: Int = 200,
     planLabel: String = "Free",
     onHistoryOpen: () -> Unit,
+    onExit: () -> Unit,
     onModelPickerOpen: () -> Unit,
     onToggleDropdown: () -> Unit,
     onDismissDropdown: () -> Unit,
@@ -1375,6 +1375,9 @@ private fun AiriChatTopBar(
     sessionActions: ChatSessionActionAvailability,
     isCurrentSessionPinned: Boolean,
     onSetSessionPinned: (Boolean) -> Unit,
+    isCurrentSessionFavorite: Boolean,
+    onSetSessionFavorite: (Boolean) -> Unit,
+    onArchiveSession: () -> Unit,
     onRenameChat: (String) -> Unit,
     onNewChat: () -> Unit,
     onPointsClick: () -> Unit = {},
@@ -1389,6 +1392,9 @@ private fun AiriChatTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(start = 8.dp)
             ) {
+                IconButton(onClick = onExit) {
+                    Icon(Icons.Outlined.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground.copy(alpha = 0.72f))
+                }
                 // Plan badge — tapping opens the matching Free/Pro screen.
                 Box(
                     modifier = Modifier
@@ -1523,6 +1529,21 @@ private fun AiriChatTopBar(
                             leadingIcon = { Icon(Icons.Outlined.Memory, contentDescription = null, tint = CosmicAccent) },
                             onClick = onSwitchModel
                         )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.project_home_add_file), color = AiriTheme.onBackground) },
+                            leadingIcon = { Icon(Icons.Outlined.CreateNewFolder, contentDescription = null, tint = CosmicAccent) },
+                            onClick = { onDismissDropdown(); onNavigate(AiriRoute.WORKSPACE) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.library_project_files), color = AiriTheme.onBackground) },
+                            leadingIcon = { Icon(Icons.Outlined.FolderOpen, contentDescription = null, tint = CosmicAccent) },
+                            onClick = { onDismissDropdown(); onNavigate(AiriRoute.WORKSPACE) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.attach_recent_tasks), color = AiriTheme.onBackground) },
+                            leadingIcon = { Icon(Icons.Outlined.Schedule, contentDescription = null, tint = CosmicAccent) },
+                            onClick = { onDismissDropdown(); onNavigate(AiriRoute.AGENT_TASKS) }
+                        )
                         if (sessionActions.canShareOrExport || sessionActions.canPinOrRename) {
                             Divider(color = AiriTheme.outline.copy(alpha = 0.35f))
                         }
@@ -1561,6 +1582,16 @@ private fun AiriChatTopBar(
                                     showRenameDialog = true
                                     onDismissDropdown()
                                 },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (isCurrentSessionFavorite) stringResource(R.string.library_remove_favorite) else stringResource(R.string.library_toggle_favorite), color = AiriTheme.onBackground) },
+                                leadingIcon = { Icon(if (isCurrentSessionFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder, contentDescription = null, tint = CosmicAccent) },
+                                onClick = { onSetSessionFavorite(!isCurrentSessionFavorite); onDismissDropdown() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.archive_chat), color = AiriTheme.onBackground) },
+                                leadingIcon = { Icon(Icons.Outlined.Archive, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
+                                onClick = { onDismissDropdown(); onArchiveSession() }
                             )
                         }
                         if (sessionActions.canShareOrExport) {
@@ -2631,9 +2662,8 @@ fun AiriChatInputBar(
 ) {
     val context          = LocalContext.current
     var showAttachPopup by remember { mutableStateOf(false) }
-    // Keep the collapsed state available and allow the user to drag the sheet
-    // between collapsed/expanded states. The content itself remains scrollable
-    // so the full shortcut list is reachable on small screens.
+    // Keep collapsed and expanded states available; the content remains
+    // scrollable so every attachment shortcut is reachable on small screens.
     val attachSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var text by rememberSaveable { mutableStateOf("") }
     val draftPrefs = remember { context.getSharedPreferences("airi_drafts", android.content.Context.MODE_PRIVATE) }
@@ -3185,8 +3215,10 @@ fun AiriChatInputBar(
         ModalBottomSheet(
             onDismissRequest = { showAttachPopup = false },
             sheetState = attachSheetState,
-            containerColor = AiriTheme.surfaceVariant,
-            contentColor = AiriTheme.onBackground,
+            containerColor = AiriTheme.surface,
+            contentColor = AiriTheme.onSurface,
+            tonalElevation = 8.dp,
+            scrimColor = Color.Black.copy(alpha = if (AiriTheme.onBackground == Color.White) 0.62f else 0.28f),
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
             dragHandle = {
                 Box(
@@ -3202,17 +3234,28 @@ fun AiriChatInputBar(
                 }
             }
         ) {
+            // Material3 animates the sheet itself; this animates its content as it appears.
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn(animationSpec = tween(220)) +
+                    slideInVertically(
+                        initialOffsetY = { fullHeight -> fullHeight / 12 },
+                        animationSpec = tween(260, easing = FastOutSlowInEasing)
+                    ),
+                exit = fadeOut(animationSpec = tween(120)) +
+                    shrinkVertically(animationSpec = tween(160))
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight(0.92f)
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(0.dp)
-            ) {
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                ) {
                 Text(
                     text = stringResource(R.string.attach_section_media),
-                    color = AiriTheme.onBackground.copy(0.45f),
+                    color = AiriTheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
@@ -3261,7 +3304,7 @@ fun AiriChatInputBar(
                 Spacer(Modifier.height(12.dp))
                 Text(
                     text = stringResource(R.string.attach_section_actions),
-                    color = AiriTheme.onBackground.copy(0.45f),
+                    color = AiriTheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
@@ -3316,6 +3359,7 @@ fun AiriChatInputBar(
                     onPickImage()
                 }
             }
+        }
         }
     }
 }
@@ -3379,8 +3423,8 @@ private fun AttachCard(
     Column(
         modifier = modifier
             .clip(AIRIShapes.md)
-            .background(CosmicAccent.copy(0.12f))
-            .border(1.dp, CosmicAccent.copy(0.35f), AIRIShapes.md)
+            .background(AiriTheme.surfaceVariant)
+            .border(1.dp, AiriTheme.outline.copy(alpha = 0.9f), AIRIShapes.md)
             .clickable { onClick() }
             .padding(vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -3389,7 +3433,7 @@ private fun AttachCard(
         Icon(icon, contentDescription = label, tint = CosmicAccent, modifier = Modifier.size(26.dp))
         Text(
             text = label,
-            color = AiriTheme.onBackground.copy(0.85f),
+            color = AiriTheme.onSurface,
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
@@ -3416,15 +3460,15 @@ private fun AttachListRow(
             modifier = Modifier
                 .size(40.dp)
                 .clip(AIRIShapes.md)
-                .background(CosmicAccent.copy(0.12f))
-                .border(1.dp, CosmicAccent.copy(0.28f), AIRIShapes.md),
+                .background(AiriTheme.surfaceVariant)
+                .border(1.dp, AiriTheme.outline.copy(alpha = 0.9f), AIRIShapes.md),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = label, tint = CosmicAccent, modifier = Modifier.size(20.dp))
         }
         Text(
             text = label,
-            color = AiriTheme.onBackground.copy(0.85f),
+            color = AiriTheme.onSurface,
             fontSize = 14.sp,
             fontWeight = FontWeight.Normal
         )

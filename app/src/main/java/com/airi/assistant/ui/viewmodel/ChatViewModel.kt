@@ -727,6 +727,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _sessions = MutableStateFlow<List<ChatSessionSummary>>(emptyList())
     val sessions: StateFlow<List<ChatSessionSummary>> = _sessions.asStateFlow()
+    /** User-level favourites are kept separately from Room session schema so
+     * this feature remains backward compatible with existing databases. */
+    private val _favoriteSessionIds = MutableStateFlow(
+        preferences.getStringSet("favorite_session_ids", emptySet()).orEmpty()
+    )
+    val favoriteSessionIds: StateFlow<Set<String>> = _favoriteSessionIds.asStateFlow()
 
     // : Real-time network connectivity state — drives offline banner in ChatScreen.
     // ConnectivityMonitor.observe() auto-unregisters when viewModelScope is cancelled.
@@ -1413,6 +1419,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setCurrentSessionPinned(isPinned: Boolean) {
         setSessionPinned(_currentSessionId.value, isPinned)
+    }
+
+    fun setSessionFavorite(sessionId: String, favorite: Boolean) {
+        if (sessionId.isBlank()) return
+        val updated = _favoriteSessionIds.value.toMutableSet().apply {
+            if (favorite) add(sessionId) else remove(sessionId)
+        }.toSet()
+        _favoriteSessionIds.value = updated
+        preferences.edit().putStringSet("favorite_session_ids", updated).apply()
+    }
+
+    fun toggleCurrentSessionFavorite() {
+        val id = _currentSessionId.value
+        setSessionFavorite(id, id !in _favoriteSessionIds.value)
     }
 
     fun archiveSession(sessionId: String) {

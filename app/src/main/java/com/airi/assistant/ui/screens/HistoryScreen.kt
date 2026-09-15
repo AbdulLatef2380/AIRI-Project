@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,11 +33,12 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HistoryScreen(viewModel: ChatViewModel, onBack: () -> Unit, onSessionSelected: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val sessions by viewModel.sessions.collectAsState()
+    val favoriteSessionIds by viewModel.favoriteSessionIds.collectAsState()
     var sessionToDelete by remember { mutableStateOf<ChatSessionSummary?>(null) }
     var renameTarget by remember { mutableStateOf<ChatSessionSummary?>(null) }
     var renameDraft by remember { mutableStateOf("") }
@@ -72,6 +75,8 @@ fun HistoryScreen(viewModel: ChatViewModel, onBack: () -> Unit, onSessionSelecte
                             onDelete = { sessionToDelete = session },
                             onRename = { renameDraft = session.title; renameTarget = session },
                             onPin = { viewModel.setSessionPinned(session.id, !session.isPinned) },
+                            isFavorite = session.id in favoriteSessionIds,
+                            onFavorite = { viewModel.setSessionFavorite(session.id, session.id !in favoriteSessionIds) },
                             onArchive = { viewModel.archiveSession(session.id) },
                             onShare = { shareSession(context, session) }
                         )
@@ -102,10 +107,11 @@ fun HistoryScreen(viewModel: ChatViewModel, onBack: () -> Unit, onSessionSelecte
 }
 
 @Composable
-private fun HistorySessionItem(session: ChatSessionSummary, onSelect: () -> Unit, onDelete: () -> Unit, onRename: () -> Unit, onPin: () -> Unit, onArchive: () -> Unit, onShare: () -> Unit) {
+@OptIn(ExperimentalFoundationApi::class)
+private fun HistorySessionItem(session: ChatSessionSummary, onSelect: () -> Unit, onDelete: () -> Unit, onRename: () -> Unit, onPin: () -> Unit, isFavorite: Boolean, onFavorite: () -> Unit, onArchive: () -> Unit, onShare: () -> Unit) {
     val time = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     var actions by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().clip(AIRIShapes.md).background(if (actions) AiriTheme.surfaceVariant else AiriTheme.surface).clickable { actions = !actions }.padding(14.dp)) {
+    Column(Modifier.fillMaxWidth().clip(AIRIShapes.md).background(if (actions) AiriTheme.surfaceVariant else AiriTheme.surface).combinedClickable(onClick = onSelect, onLongClick = { actions = !actions }).padding(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (session.isPinned) Icon(Icons.Filled.PushPin, "مثبتة", tint = CosmicAccent, modifier = Modifier.size(15.dp))
             Text(time.format(Date(session.updatedAt)), color = AiriTheme.onSurfaceVariant.copy(.55f), fontSize = 11.sp)
@@ -118,6 +124,7 @@ private fun HistorySessionItem(session: ChatSessionSummary, onSelect: () -> Unit
             Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 ActionIcon(Icons.Outlined.DeleteOutline, "حذف", SemanticError, onDelete)
                 ActionIcon(Icons.Outlined.Archive, "أرشفة", AiriTheme.onSurfaceVariant, onArchive)
+                ActionIcon(if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder, "مفضلة", CosmicAccent, onFavorite)
                 ActionIcon(Icons.Outlined.Share, "مشاركة", AiriTheme.onSurfaceVariant, onShare)
                 ActionIcon(Icons.Outlined.Edit, "تسمية", AiriTheme.onSurfaceVariant, onRename)
                 ActionIcon(if (session.isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin, stringResource(R.string.pin_chat), CosmicAccent, onPin)

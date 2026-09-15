@@ -169,7 +169,7 @@
     <string name="accessibility_dialog_message">AIRI 辅助功能服务可让其理解并与设备上的其他应用交互，从而实现完整的 AI 代理功能。</string>
     <string name="accessibility_dialog_steps">要启用：前往 设置 → 辅助功能 → 已安装的服务 → AIRI → 将其切换为 开。</string>
     <string name="open_settings">打开设置</string>
-    <string name="later">Later</string>
+    <string name="later">稍后</string>
     <string name="speech_recognition_unavailable">此设备不支持语音识别</string>
     <string name="settings_agent_tasks">计划任务</string>
     <string name="settings_knowledge">知识库</string>
@@ -1603,4 +1603,6 @@
     <string name="plan_billing_frozen">订阅和广告已为未来版本准备，目前在配置支付和广告提供商前保持关闭。</string>
     <string name="settings_plan_and_usage">方案与用量</string>
     <string name="plan_pro_badge">PRO</string>
+    <string name="default_assistant_title">默认助手</string>
+    <string name="default_assistant_description">在 Android 系统设置中将 AIRI 设置为默认数字助手。</string>
 </resources>

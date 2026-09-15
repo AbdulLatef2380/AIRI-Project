@@ -1935,4 +1935,6 @@
     <string name="plan_billing_frozen">Subscriptions and ads are prepared for a future release and are currently disabled until billing/ad providers are configured.</string>
     <string name="settings_plan_and_usage">Plan and usage</string>
     <string name="plan_pro_badge">PRO</string>
+    <string name="default_assistant_title">Default Assistant</string>
+    <string name="default_assistant_description">Set AIRI as the default digital assistant in Android system settings.</string>
 </resources>

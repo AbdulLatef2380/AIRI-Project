@@ -1519,18 +1519,6 @@ private fun AiriChatTopBar(
                         modifier = Modifier.background(AiriTheme.surfaceVariant)
                     ) {
                         DropdownMenuItem(
-                            text  = { Text(stringResource(R.string.generation_settings), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.Tune, contentDescription = null, tint = CosmicAccent) },
-                            onClick = onGenSettings
-                        )
-                        AgentMode.values().forEach { mode ->
-                            DropdownMenuItem(
-                                text = { Text(mode.label, color = if (mode == agentMode) CosmicAccent else AiriTheme.onBackground) },
-                                leadingIcon = { Icon(Icons.Outlined.Psychology, contentDescription = null, tint = CosmicAccent) },
-                                onClick = { onModeSelected(mode); onDismissDropdown() }
-                            )
-                        }
-                        DropdownMenuItem(
                             text  = { Text(stringResource(R.string.switch_model), color = AiriTheme.onBackground) },
                             leadingIcon = { Icon(Icons.Outlined.Memory, contentDescription = null, tint = CosmicAccent) },
                             onClick = onSwitchModel
@@ -2537,21 +2525,17 @@ private fun AttachmentChip(
     val subtitle = listOfNotNull(typeLabel, attachment.displaySize).joinToString(" • ")
     Row(
         modifier = Modifier
-            .widthIn(min = 164.dp, max = 250.dp)
+            .size(72.dp)
             .shadow(3.dp, AIRIShapes.lg, ambientColor = accent.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.24f))
             .clip(AIRIShapes.lg)
-            .background(
-                Brush.horizontalGradient(
-                    listOf(AiriTheme.surfaceVariant.copy(alpha = 0.96f), AiriTheme.surface.copy(alpha = 0.96f))
-                )
-            )
+            .background(AiriTheme.surfaceVariant.copy(alpha = 0.96f))
             .border(1.dp, accent.copy(alpha = 0.30f), AIRIShapes.lg)
-            .padding(horizontal = 9.dp, vertical = 8.dp),
+            .padding(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(42.dp)
+                .size(56.dp)
                 .clip(AIRIShapes.md)
                 .background(accent.copy(alpha = 0.16f))
                 .border(1.dp, accent.copy(alpha = 0.22f), AIRIShapes.md),
@@ -2574,24 +2558,6 @@ private fun AttachmentChip(
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
                 )
             }
-        }
-        Spacer(Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                attachment.safeDisplayName,
-                color = AiriTheme.onBackground,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                subtitle,
-                color = AiriTheme.onBackground.copy(0.58f),
-                fontSize = 10.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
         }
         IconButton(
             onClick = onRemove,

@@ -162,7 +162,7 @@ class RemoteModelExecutor {
             }
 
             val messages = buildMessagesJson(systemPrompt, prompt)
-            val body = "{\"messages\":$messages,\"max_tokens\":$maxTokens,\"temperature\":$temperature,\"stream\":false}"
+            val body = "{\"model\":${jsonString(model.name)},\"messages\":$messages,\"max_tokens\":$maxTokens,\"temperature\":$temperature,\"stream\":false}"
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
             val code = conn.responseCode
@@ -203,7 +203,7 @@ class RemoteModelExecutor {
             }
 
             val messages = buildMessagesJson(systemPrompt, prompt)
-            val body = "{\"messages\":$messages,\"max_tokens\":$maxTokens,\"temperature\":$temperature,\"stream\":true}"
+            val body = "{\"model\":${jsonString(model.name)},\"messages\":$messages,\"max_tokens\":$maxTokens,\"temperature\":$temperature,\"stream\":true}"
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
             val code = conn.responseCode

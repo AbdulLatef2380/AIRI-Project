@@ -1942,4 +1942,27 @@
     <string name="plan_billing_frozen">Subscriptions and ads are prepared for a future release and are currently disabled until billing/ad providers are configured.</string>
     <string name="settings_plan_and_usage">Plan and usage</string>
     <string name="plan_pro_badge">PRO</string>
+    <string name="prompt_builder_shortcut">Prompt builder</string>
+    <string name="prompt_builder_title">Prompt Studio</string>
+    <string name="prompt_builder_subtitle">Build, compare, refine, and save powerful prompts</string>
+    <string name="prompt_builder_goal">What do you want to achieve?</string>
+    <string name="prompt_builder_goal_hint">Describe the goal, context, and desired result…</string>
+    <string name="prompt_builder_audience">Audience or user</string>
+    <string name="prompt_builder_constraints">Constraints and preferences</string>
+    <string name="prompt_builder_skills">Skills to use</string>
+    <string name="prompt_builder_connectors">Connectors and sources</string>
+    <string name="prompt_builder_generate">Generate two prompts</string>
+    <string name="prompt_builder_compare">Compare candidates</string>
+    <string name="prompt_use">Use prompt</string>
+    <string name="prompt_agent_review">Ask agent to improve</string>
+    <string name="prompt_save">Save</string>
+    <string name="prompt_share">Share</string>
+    <string name="prompt_pin">Pin</string>
+    <string name="prompt_edit">Edit prompt</string>
+    <string name="prompt_report">Report</string>
+    <string name="prompt_saved">Prompt saved</string>
+    <string name="prompt_report_title">Report a problem or suggestion</string>
+    <string name="prompt_report_hint">Tell us what happened or what should improve…</string>
+    <string name="prompt_send_report">Send report</string>
+    <string name="prompt_report_sent">Thanks. Your report was recorded.</string>
 </resources>

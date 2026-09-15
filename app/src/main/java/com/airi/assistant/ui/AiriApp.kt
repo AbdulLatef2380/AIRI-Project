@@ -94,6 +94,7 @@ import com.airi.assistant.ui.screens.PlanningDashboardScreen
 import com.airi.assistant.ui.screens.GitRepositoryScreen
 import com.airi.assistant.ui.screens.SecurityScannerScreen
 import com.airi.assistant.ui.screens.SecretManagerScreen
+import com.airi.assistant.ui.screens.PromptBuilderScreen
 import com.airi.assistant.ui.plan.AgentPlanViewModel
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.AgentViewModel
@@ -110,6 +111,7 @@ object AiriRoute {
     const val MEMORY             = "screen_memory"
     const val INTEGRATIONS       = "screen_integrations"
     const val CONNECTORS         = "screen_connectors"
+    const val PROMPT_BUILDER     = "screen_prompt_builder"
     const val PROFILE            = "screen_profile"
     const val AGENT_CONTROL      = "screen_agent_control"
     const val AGENT_LOGS         = "screen_agent_logs"
@@ -587,6 +589,20 @@ fun AiriApp() {
                                 navController.navigate(AiriRoute.INTEGRATIONS) {
                                     launchSingleTop = true
                                 }
+                            }
+                        )
+                    }
+
+                    composable(AiriRoute.PROMPT_BUILDER) {
+                        PromptBuilderScreen(
+                            onBack = { navController.popBackStack() },
+                            onUsePrompt = { prompt ->
+                                navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }
+                                chatViewModel.sendMessage(prompt)
+                            },
+                            onDelegateToAgent = { request ->
+                                navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }
+                                chatViewModel.sendMessage(request)
                             }
                         )
                     }

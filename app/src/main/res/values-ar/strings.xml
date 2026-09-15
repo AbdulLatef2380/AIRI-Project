@@ -1841,4 +1841,27 @@
     <string name="plan_billing_frozen">الاشتراكات والإعلانات مجهزة لإصدار مستقبلي ومعطلة حالياً حتى إعداد مزودي الدفع والإعلانات.</string>
     <string name="settings_plan_and_usage">الخطة والاستخدام</string>
     <string name="plan_pro_badge">Pro</string>
+    <string name="prompt_builder_shortcut">منشئ البرومبت</string>
+    <string name="prompt_builder_title">استوديو البرومبت</string>
+    <string name="prompt_builder_subtitle">أنشئ وقارن وحسّن واحفظ برومبتات قوية</string>
+    <string name="prompt_builder_goal">ما الذي تريد إنجازه؟</string>
+    <string name="prompt_builder_goal_hint">اكتب الهدف والسياق والنتيجة المطلوبة…</string>
+    <string name="prompt_builder_audience">الجمهور أو المستخدم</string>
+    <string name="prompt_builder_constraints">القيود والتفضيلات</string>
+    <string name="prompt_builder_skills">المهارات المستخدمة</string>
+    <string name="prompt_builder_connectors">الموصلات والمصادر</string>
+    <string name="prompt_builder_generate">إنشاء برومبتين</string>
+    <string name="prompt_builder_compare">مقارنة المرشحين</string>
+    <string name="prompt_use">استخدام البرومبت</string>
+    <string name="prompt_agent_review">اطلب تحسينه من الوكيل</string>
+    <string name="prompt_save">حفظ</string>
+    <string name="prompt_share">مشاركة</string>
+    <string name="prompt_pin">تثبيت</string>
+    <string name="prompt_edit">تحرير البرومبت</string>
+    <string name="prompt_report">إبلاغ</string>
+    <string name="prompt_saved">تم حفظ البرومبت</string>
+    <string name="prompt_report_title">الإبلاغ عن مشكلة أو اقتراح</string>
+    <string name="prompt_report_hint">اكتب ما حدث أو ما الذي يمكن تحسينه…</string>
+    <string name="prompt_send_report">إرسال البلاغ</string>
+    <string name="prompt_report_sent">شكرًا. تم تسجيل البلاغ.</string>
 </resources>

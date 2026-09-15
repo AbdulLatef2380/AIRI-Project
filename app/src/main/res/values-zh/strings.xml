@@ -1610,4 +1610,27 @@
     <string name="plan_billing_frozen">订阅和广告已为未来版本准备，目前在配置支付和广告提供商前保持关闭。</string>
     <string name="settings_plan_and_usage">方案与用量</string>
     <string name="plan_pro_badge">PRO</string>
+    <string name="prompt_builder_shortcut">提示词工作室</string>
+    <string name="prompt_builder_title">提示词工作室</string>
+    <string name="prompt_builder_subtitle">创建、比较、优化并保存提示词</string>
+    <string name="prompt_builder_goal">你想完成什么？</string>
+    <string name="prompt_builder_goal_hint">描述目标、上下文和期望结果…</string>
+    <string name="prompt_builder_audience">受众或用户</string>
+    <string name="prompt_builder_constraints">限制与偏好</string>
+    <string name="prompt_builder_skills">使用的技能</string>
+    <string name="prompt_builder_connectors">连接器和来源</string>
+    <string name="prompt_builder_generate">生成两个提示词</string>
+    <string name="prompt_builder_compare">比较候选项</string>
+    <string name="prompt_use">使用提示词</string>
+    <string name="prompt_agent_review">让代理优化</string>
+    <string name="prompt_save">保存</string>
+    <string name="prompt_share">分享</string>
+    <string name="prompt_pin">固定</string>
+    <string name="prompt_edit">编辑提示词</string>
+    <string name="prompt_report">报告</string>
+    <string name="prompt_saved">提示词已保存</string>
+    <string name="prompt_report_title">报告问题或建议</string>
+    <string name="prompt_report_hint">描述问题或改进建议…</string>
+    <string name="prompt_send_report">发送报告</string>
+    <string name="prompt_report_sent">谢谢，报告已记录。</string>
 </resources>

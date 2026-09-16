@@ -13,24 +13,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class AgentPlanViewModel(application: Application) : AndroidViewModel(application) {
-
     private val tracker = TaskExecutionTracker()
 
     val steps: StateFlow<List<PlanStepModel>> = tracker.steps
-    val isVisible: StateFlow<Boolean>          = tracker.isVisible
+    val isVisible: StateFlow<Boolean> = tracker.isVisible
 
     private val _isPanelExpanded = MutableStateFlow(true)
     val isPanelExpanded: StateFlow<Boolean> = _isPanelExpanded.asStateFlow()
-
     private val _currentStage = MutableStateFlow(ExecutionStage.IDLE)
     val currentStage: StateFlow<ExecutionStage> = _currentStage.asStateFlow()
-
     private val _goalDescription = MutableStateFlow("")
     val goalDescription: StateFlow<String> = _goalDescription.asStateFlow()
 
@@ -41,8 +37,6 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
 
     val traceFilter: StateFlow<ExecutionTraceFilter> = _traceFilter.asStateFlow()
     val traceAutoScroll: StateFlow<Boolean> = _traceAutoScroll.asStateFlow()
-
-    /** Chronological entries for the active execution only, filtered by UI selection. */
     val traceEntries: StateFlow<List<ExecutionTraceEvent>> = combine(
         ExecutionStatusBus.trace,
         _executionId,
@@ -52,15 +46,15 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
         else ExecutionTracePresentation.visibleEntries(events, executionId, filter)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    /**
-     * Show the bottom sheet as soon as either graph steps or an owned trace entry
-     * is available. Direct tool loops can have no predeclared graph nodes.
-     */
-    val showPanel: StateFlow<Boolean> = combine(steps, traceEntries) { planSteps, trace ->
-        planSteps.isNotEmpty() || trace.isNotEmpty()
+    /** Only expose the panel for a real multi-step execution; Plan Mode can still force it from ChatScreen. */
+    val showPanel: StateFlow<Boolean> = combine(steps, ExecutionStatusBus.status) { planSteps, state ->
+        PlanPanelVisibilityPolicy.shouldShow(
+            stage = state.executionStage,
+            nodesTotal = state.nodesTotal,
+            stepCount = planSteps.size
+        )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    /** Entries appended while the user has paused automatic following. */
     val unreadTraceCount: StateFlow<Int> = combine(
         ExecutionStatusBus.trace,
         _executionId,
@@ -86,7 +80,6 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
                 _traceAutoScroll.value = true
             }
             if (state.activeGoalDescription.isNotBlank()) _goalDescription.value = state.activeGoalDescription
-            // : Auto-collapse panel when execution finishes (COMPLETED/FAILED/IDLE)
             if (state.executionStage == ExecutionStage.COMPLETED ||
                 state.executionStage == ExecutionStage.FAILED ||
                 state.executionStage == ExecutionStage.CANCELLED ||
@@ -94,12 +87,8 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
                 viewModelScope.launch {
                     delay(4_000)
                     val cur = ExecutionStatusBus.status.value.executionStage
-                    if (cur == ExecutionStage.COMPLETED ||
-                        cur == ExecutionStage.FAILED ||
-                        cur == ExecutionStage.CANCELLED ||
-                        cur == ExecutionStage.IDLE) {
-                        tracker.clear()
-                    }
+                    if (cur == ExecutionStage.COMPLETED || cur == ExecutionStage.FAILED ||
+                        cur == ExecutionStage.CANCELLED || cur == ExecutionStage.IDLE) tracker.clear()
                 }
             }
         }.launchIn(viewModelScope)
@@ -110,10 +99,7 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
     fun setTraceFilter(filter: ExecutionTraceFilter) { _traceFilter.value = filter }
     fun pauseTraceAutoScroll() { _traceAutoScroll.value = false }
     fun followTraceLatest() { _traceAutoScroll.value = true }
-    fun markTraceObserved(sequence: Long) {
-        if (sequence > _observedTraceSequence.value) _observedTraceSequence.value = sequence
-    }
+    fun markTraceObserved(sequence: Long) { if (sequence > _observedTraceSequence.value) _observedTraceSequence.value = sequence }
     fun dismissPanel() { tracker.clear() }
-    /** : Called by ModalBottomSheet onDismissRequest. */
     fun collapse() { tracker.clear() }
 }

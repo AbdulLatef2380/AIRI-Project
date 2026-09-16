@@ -1,6 +1,8 @@
 package com.airi.assistant.ui.screens
 
 import android.content.Context
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -72,6 +74,13 @@ fun ProfileScreen(
     val fbUser            = authService.currentUser()
     val scope             = rememberCoroutineScope()
     val snackbar          = remember { SnackbarHostState() }
+
+    fun copyAccountValue(label: String, value: String) {
+        if (value.isBlank()) return
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
+        scope.launch { snackbar.showSnackbar("$label copied") }
+    }
 
     // ── Derived account data ─────────────────────────────────────────────────
     // Email and UID come only from Firebase Auth — never a stale local copy.
@@ -439,7 +448,8 @@ fun ProfileScreen(
                         label     = stringResource(R.string.profile_email_label),
                         value     = email.ifBlank { "—" },
                         isEditable = false,
-                        maxLines  = 1
+                        maxLines  = 1,
+                        onClick   = { copyAccountValue("Email", email) }
                     )
 
                     HorizontalDivider(
@@ -453,7 +463,8 @@ fun ProfileScreen(
                         label     = stringResource(R.string.profile_user_id_label),
                         value     = uid.ifBlank { "—" },
                         isEditable = false,
-                        maxLines  = 1
+                        maxLines  = 1,
+                        onClick   = { copyAccountValue("User ID", uid) }
                     )
                 }
             }
@@ -536,7 +547,7 @@ private fun AccountInfoRow(
     maxLines:   Int = Int.MAX_VALUE,
     onClick:    (() -> Unit)? = null
 ) {
-    val modifier = if (isEditable && onClick != null) {
+    val modifier = if (onClick != null && value.isNotBlank() && value != "—") {
         Modifier.clickable(onClick = onClick)
     } else {
         Modifier
@@ -578,6 +589,13 @@ private fun AccountInfoRow(
                     contentDescription  = null,
                     tint                = AiriTheme.onSurfaceVariant.copy(0.45f),
                     modifier            = Modifier.size(16.dp)
+                )
+            } else if (value.isNotBlank() && value != "—") {
+                Icon(
+                    imageVector = Icons.Outlined.ContentCopy,
+                    contentDescription = "Copy $label",
+                    tint = AiriTheme.onSurfaceVariant.copy(0.45f),
+                    modifier = Modifier.size(15.dp)
                 )
             }
         }

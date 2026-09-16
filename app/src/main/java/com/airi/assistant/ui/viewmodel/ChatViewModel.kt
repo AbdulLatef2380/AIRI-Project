@@ -1969,8 +1969,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 if (isCurrentGeneration(generationId) && !_isCancelled.get()) {
-                    Log.e("AIRI_LOOP", "AgentLoop failed type=${e.javaClass.simpleName}")
-                    val errMsg = appContext.getString(R.string.err_generation_failed)
+                    Log.e("AIRI_LOOP", "AgentLoop failed type=${e.javaClass.simpleName} message=${e.message}", e)
+                    // Keep the stable localized heading, but include the sanitized
+                    // backend reason so provider/model failures are diagnosable
+                    // instead of appearing as an indistinguishable retry loop.
+                    val detail = e.message?.trim()?.take(240).orEmpty()
+                    val errMsg = appContext.getString(R.string.err_generation_failed) +
+                        detail.takeIf { it.isNotBlank() }?.let { "\n$it" }.orEmpty()
                     val errRec = memoryManager.recordChatMessage(
                         sessionId = sessionId,
                         role = "assistant",

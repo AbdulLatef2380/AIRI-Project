@@ -119,9 +119,10 @@ class LocalLlamaBackend(
         val requestedModelId = request.requestedModelId
         val loadedModelId = ModelManager.getCurrent()?.id.orEmpty()
         if (requestedModelId.isNotBlank() && requestedModelId != loadedModelId) {
-            Log.w(TAG, "model binding rejected requested=$requestedModelId loaded=$loadedModelId")
-            onError("LocalLlamaBackend: selected model is no longer loaded")
-            return
+            // The native loaded model is authoritative. A stale selection can
+            // survive a model switch or process recreation; rejecting here made
+            // an otherwise healthy local model look unavailable to the agent.
+            Log.w(TAG, "stale model binding requested=$requestedModelId loaded=$loadedModelId; using loaded model")
         }
         val startMs  = System.currentTimeMillis()
         val fullText = StringBuilder()
@@ -130,30 +131,38 @@ class LocalLlamaBackend(
         // back to this suspend caller without blocking any thread.
         val events = Channel<LlamaEvent>(Channel.UNLIMITED)
 
-        llamaManager.generateStream(
-            prompt         = request.prompt,
-            systemPrompt   = request.systemPrompt,
-            maxTokens      = request.maxTokens,
-            temperature    = request.temperature,
-            repeatPenalty  = 1.1f,
-            timeoutMs      = 120_000L,
-            onToken        = { token ->
-                fullText.append(token)
-                events.trySend(LlamaEvent.Token(token))
-            },
-            onComplete     = { _ ->
-                events.trySend(LlamaEvent.Complete(fullText.toString(), System.currentTimeMillis() - startMs))
-                events.close()
-            },
-            onError        = { error ->
-                Log.w(TAG, "generateStream error: $error")
-                events.trySend(LlamaEvent.Error(error))
-                events.close()
-            },
-            onStallWarning = {
-                Log.w(TAG, "generateStream: stall warning")
-            }
-        )
+        try {
+            llamaManager.generateStream(
+                prompt         = request.prompt,
+                systemPrompt   = request.systemPrompt,
+                maxTokens      = request.maxTokens,
+                temperature    = request.temperature,
+                repeatPenalty  = 1.1f,
+                timeoutMs      = 120_000L,
+                onToken        = { token ->
+                    fullText.append(token)
+                    events.trySend(LlamaEvent.Token(token))
+                },
+                onComplete     = { _ ->
+                    events.trySend(LlamaEvent.Complete(fullText.toString(), System.currentTimeMillis() - startMs))
+                    events.close()
+                },
+                onError        = { error ->
+                    Log.w(TAG, "generateStream error: $error")
+                    events.trySend(LlamaEvent.Error(error))
+                    events.close()
+                },
+                onStallWarning = {
+                    Log.w(TAG, "generateStream: stall warning")
+                }
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            Log.e(TAG, "generateStream invocation failed", t)
+            events.trySend(LlamaEvent.Error(t.message ?: "Local inference failed"))
+            events.close()
+        }
 
         // Drain events on the caller's coroutine dispatcher — no thread is blocked.
         for (event in events) {
@@ -200,48 +209,54 @@ class LocalLlamaBackend(
         val requestedModelId = request.requestedModelId
         val loadedModelId = ModelManager.getCurrent()?.id.orEmpty()
         if (requestedModelId.isNotBlank() && requestedModelId != loadedModelId) {
-            Log.w(TAG, "model binding rejected requested=$requestedModelId loaded=$loadedModelId")
-            return ExecutionResult.Failure(
-                error = "Selected model is no longer loaded",
-                origin = ExecOrigin.LOCAL,
-                retryable = false,
-                code = "model_changed"
-            )
+            Log.w(TAG, "stale model binding requested=$requestedModelId loaded=$loadedModelId; using loaded model")
         }
 
         val startMs  = System.currentTimeMillis()
         val fullText = StringBuilder()
         val deferred = CompletableDeferred<ExecutionResult>()
 
-        llamaManager.generateStream(
-            prompt         = request.prompt,
-            systemPrompt   = request.systemPrompt,
-            maxTokens      = request.maxTokens,
-            temperature    = request.temperature,
-            repeatPenalty  = 1.1f,
-            timeoutMs      = 90_000L,
-            onToken        = { token -> fullText.append(token) },
-            onComplete     = { _ ->
-                val latencyMs = System.currentTimeMillis() - startMs
-                deferred.complete(ExecutionResult.Success(
-                    fullText   = fullText.toString(),
-                    origin     = ExecOrigin.LOCAL,
-                    latencyMs  = latencyMs,
-                    tokenCount = fullText.count { it == ' ' } + 1,
-                    provider   = "llama.cpp"
-                ))
-            },
-            onError        = { error ->
-                deferred.complete(ExecutionResult.Failure(
-                    error  = error,
-                    origin = ExecOrigin.LOCAL,
-                    code   = "local_error"
-                ))
-            },
-            onStallWarning = {
-                Log.w(TAG, "generate: stall warning")
-            }
-        )
+        try {
+            llamaManager.generateStream(
+                prompt         = request.prompt,
+                systemPrompt   = request.systemPrompt,
+                maxTokens      = request.maxTokens,
+                temperature    = request.temperature,
+                repeatPenalty  = 1.1f,
+                timeoutMs      = 90_000L,
+                onToken        = { token -> fullText.append(token) },
+                onComplete     = { _ ->
+                    val latencyMs = System.currentTimeMillis() - startMs
+                    deferred.complete(ExecutionResult.Success(
+                        fullText   = fullText.toString(),
+                        origin     = ExecOrigin.LOCAL,
+                        latencyMs  = latencyMs,
+                        tokenCount = fullText.count { it == ' ' } + 1,
+                        provider   = "llama.cpp"
+                    ))
+                },
+                onError        = { error ->
+                    deferred.complete(ExecutionResult.Failure(
+                        error  = error,
+                        origin = ExecOrigin.LOCAL,
+                        code   = "local_error"
+                    ))
+                },
+                onStallWarning = {
+                    Log.w(TAG, "generate: stall warning")
+                }
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            Log.e(TAG, "generate invocation failed", t)
+            deferred.complete(ExecutionResult.Failure(
+                error = t.message ?: "Local inference failed",
+                origin = ExecOrigin.LOCAL,
+                retryable = false,
+                code = "local_invocation_error"
+            ))
+        }
 
         // Await the result in suspend context — this is the correct place to call
         // suspend functions. tokenAccountant.recordLocal is a suspend fun (uses Mutex)

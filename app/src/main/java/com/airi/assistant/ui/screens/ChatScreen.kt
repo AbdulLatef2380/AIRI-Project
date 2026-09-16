@@ -1400,11 +1400,8 @@ private fun AiriChatTopBar(
         navigationIcon = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = 8.dp)
+                modifier = Modifier.padding(start = 12.dp)
             ) {
-                IconButton(onClick = onExit) {
-                    Icon(Icons.Outlined.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground.copy(alpha = 0.72f))
-                }
                 // Plan badge — tapping opens the matching Free/Pro screen.
                 Box(
                     modifier = Modifier
@@ -1793,6 +1790,7 @@ private fun AiriHistoryPanel(
     onNewChat: () -> Unit
 ) {
     val sessions by viewModel.sessions.collectAsState()
+    val favoriteSessionIds by viewModel.favoriteSessionIds.collectAsState()
 
     ModalDrawerSheet(
         drawerContainerColor = AiriTheme.surface,
@@ -1888,14 +1886,49 @@ private fun AiriHistoryPanel(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(sessions, key = { it.id }) { session ->
+                    ) {
+                        items(sessions, key = { it.id }) { session ->
                         var showActions by remember(session.id) { mutableStateOf(false) }
+                        var showRename by remember(session.id) { mutableStateOf(false) }
+                        var renameDraft by remember(session.id) { mutableStateOf(session.title) }
+                        if (showRename) {
+                            AlertDialog(
+                                onDismissRequest = { showRename = false },
+                                title = { Text(stringResource(R.string.rename_chat_title)) },
+                                text = {
+                                    OutlinedTextField(
+                                        value = renameDraft,
+                                        onValueChange = { renameDraft = it.take(80) },
+                                        label = { Text(stringResource(R.string.rename_chat_hint)) },
+                                        singleLine = true
+                                    )
+                                },
+                                confirmButton = {
+                                    TextButton(
+                                        enabled = renameDraft.trim().isNotBlank(),
+                                        onClick = {
+                                            viewModel.renameSession(session.id, renameDraft)
+                                            showRename = false
+                                            showActions = false
+                                        }
+                                    ) { Text(stringResource(R.string.save)) }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showRename = false }) { Text(stringResource(R.string.cancel)) }
+                                }
+                            )
+                        }
                         Column(
                             modifier = Modifier.fillMaxWidth().clip(AIRIShapes.lg)
                                 .background(if (showActions) AiriTheme.surfaceVariant else AiriTheme.surfaceVariant.copy(alpha = 0.42f))
                                 .border(1.dp, if (showActions) CosmicAccent.copy(alpha = 0.38f) else AiriTheme.outline.copy(alpha = 0.42f), AIRIShapes.lg)
-                                .clickable { showActions = !showActions }
+                                .combinedClickable(
+                                    onClick = {
+                                        viewModel.loadSession(session.id)
+                                        onSessionSelected()
+                                    },
+                                    onLongClick = { showActions = true }
+                                )
                                 .padding(horizontal = 14.dp, vertical = 13.dp)
                         ) {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1911,8 +1944,10 @@ private fun AiriHistoryPanel(
                             if (showActions) {
                                 Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.End) {
                                     TextButton(onClick = { viewModel.setSessionPinned(session.id, !session.isPinned); showActions = false }) { Text(if (session.isPinned) stringResource(R.string.unpin_chat) else stringResource(R.string.pin_chat), color = CosmicAccent, fontSize = 11.sp) }
+                                    TextButton(onClick = { viewModel.setSessionFavorite(session.id, session.id !in favoriteSessionIds); showActions = false }) { Text(if (session.id in favoriteSessionIds) stringResource(R.string.library_remove_favorite) else stringResource(R.string.library_toggle_favorite), color = CosmicAccent, fontSize = 11.sp) }
+                                    TextButton(onClick = { renameDraft = session.title; showRename = true }) { Text(stringResource(R.string.rename_chat), color = AiriTheme.onSurface, fontSize = 11.sp) }
                                     TextButton(onClick = { viewModel.archiveSession(session.id); showActions = false }) { Text(stringResource(R.string.archive_chat), color = AiriTheme.onSurfaceVariant, fontSize = 11.sp) }
-                                    TextButton(onClick = { viewModel.loadSession(session.id); onSessionSelected() }) { Text(stringResource(R.string.open_chat), color = AiriTheme.onSurface, fontSize = 11.sp) }
+                                    TextButton(onClick = { viewModel.deleteSession(session.id); showActions = false }) { Text(stringResource(R.string.delete), color = SemanticError, fontSize = 11.sp) }
                                 }
                             }
                         }
@@ -3173,7 +3208,10 @@ fun AiriChatInputBar(
                 }
 
                 // Mic button
-                AnimatedVisibility(visible = !isTyping && !isGenerating, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
+                // Keep the microphone available while composing text or attachments.
+                // Live voice chat is represented by the main action button only when
+                // the composer is empty; typing changes that button to Send.
+                AnimatedVisibility(visible = !isGenerating, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
                     Box(
                         modifier = Modifier.size(36.dp).clip(CircleShape)
                             .semantics {
@@ -3197,7 +3235,7 @@ fun AiriChatInputBar(
                 }
 
                 // Connector badge — tapping opens the real Connectors screen
-                if (!isTyping && !isGenerating) {
+                if (!isGenerating) {
                     Box(
                         modifier = Modifier
                             .clip(AIRIShapes.xl)

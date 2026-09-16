@@ -1632,4 +1632,23 @@
     <string name="prompt_report_hint">Describe el problema o una mejora…</string>
     <string name="prompt_send_report">Enviar</string>
     <string name="prompt_report_sent">Gracias. Se registró el informe.</string>
+
+    <string name="about_acknowledgements">Reconocimientos de código abierto</string>
+    <string name="about_acknowledgements_intro">AIRI está construido con proyectos de código abierto como llama.cpp, Vosk, Silero VAD, Jetpack Compose, Firebase, Coil y OkHttp.</string>
+    <string name="about_device">Dispositivo</string>
+    <string name="about_privacy_full">AIRI está diseñado priorizando la privacidad. La inferencia local permanece en tu dispositivo de forma predeterminada. Las solicitudes en la nube solo se envían después de configurar un proveedor y conceder permiso. Las claves API se guardan en almacenamiento local cifrado. El historial de chat permanece en este dispositivo salvo que uses explícitamente un proveedor en la nube.</string>
+    <string name="about_terms">Términos de uso</string>
+    <string name="about_terms_full">Al usar AIRI aceptas estos términos. AIRI es un asistente de IA local y no ofrece asesoramiento médico, legal ni financiero. Las respuestas de IA pueden ser inexactas; verifica la información importante. Eres responsable de tus indicaciones y del uso de los resultados. No uses AIRI con fines dañinos, ilegales, engañosos o críticos para la seguridad. Los proveedores en la nube procesan los mensajes según sus propias políticas de privacidad. Los archivos de modelos están sujetos a las licencias de terceros. AIRI se proporciona tal cual, sin garantía de disponibilidad o exactitud.</string>
+    <string name="library_remove_favorite">Quitar de favoritos</string>
+    <string name="models_available_download">Disponible para descargar</string>
+    <string name="models_cloud_intelligence">Inteligencia en la nube</string>
+    <string name="models_context">Contexto</string>
+    <string name="models_free_providers">Proveedores gratuitos</string>
+    <string name="models_offline_ai">IA sin conexión</string>
+    <string name="models_quant">Cuantización</string>
+    <string name="models_ram">RAM</string>
+    <string name="models_ready_to_use">Listo para usar</string>
+    <string name="models_search_research">Búsqueda e investigación</string>
+    <string name="models_size">Tamaño</string>
+    <string name="models_smart_routing">Modelos de enrutamiento inteligente</string>
 </resources>

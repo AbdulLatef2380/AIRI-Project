@@ -98,13 +98,13 @@ fun AgentTasksScreen(
     var showStopConfirmation by remember { mutableStateOf(false) }
     var focusedExecutionId by remember { mutableStateOf<String?>(null) }
     var runNowCandidate by remember { mutableStateOf<ScheduledJob?>(null) }
-    var jobs           by remember { mutableStateOf(orchestrator.listJobs()) }
+    var jobs           by remember { mutableStateOf(orchestrator.listUserJobs()) }
     var errorMessage   by remember { mutableStateOf<String?>(null) }
     var calendarReviewCandidate by remember {
         mutableStateOf<Pair<String, Pair<ApprovalGrantScope, com.airi.assistant.agent.calendar.CalendarCreateRuntime.PrivateReview>>?>(null)
     }
 
-    fun reload() { jobs = orchestrator.listJobs() }
+    fun reload() { jobs = orchestrator.listUserJobs() }
 
     fun approveAndResume(approvalId: String, approvalScope: ApprovalGrantScope) {
         if (!permissionGovernance.approveAction(approvalId, approvalScope)) {

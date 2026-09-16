@@ -973,6 +973,7 @@ fun ChatScreen(
                 streamingText = streamingText,
                 isGenerating  = agentState.isWorking,
                 isModelReady  = modelState.isModelReady,
+                isCloudReady  = modelState.isCloudReady,
                 onOpenModels  = { onNavigate(AiriRoute.MODELS) },
                 onShareAiResponse = { response -> shareAiResponse(context, response) },
                 onSpeak = { text ->
@@ -1921,6 +1922,7 @@ fun ChatMessageList(
     streamingText: String,
     isGenerating: Boolean,
     isModelReady: Boolean = false,
+    isCloudReady: Boolean = false,
     onOpenModels: () -> Unit = {},
     onShareAiResponse: (String) -> Unit = {},
     onSpeak: (String) -> Unit = {},
@@ -2025,7 +2027,7 @@ fun ChatMessageList(
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
                 )
-                if (!isModelReady && !modelState.isCloudReady) {
+                if (!isModelReady && !isCloudReady) {
                     Spacer(Modifier.height(24.dp))
                     Button(
                         onClick = onOpenModels,

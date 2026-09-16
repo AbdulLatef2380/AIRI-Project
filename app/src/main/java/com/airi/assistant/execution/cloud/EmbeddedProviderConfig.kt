@@ -236,8 +236,10 @@ object EmbeddedProviderConfig {
 
     fun saveKey(context: Context, config: ProviderConfig, key: String) {
         if (config.keyPrefsKey.isBlank()) return
+        val normalized = key.trim()
+        if (normalized.isBlank()) return
         val store = com.airi.assistant.execution.security.SecureApiKeyStore(context)
-        store.saveCustomEndpointKey(keyStorageId(config), key)
+        store.saveCustomEndpointKey(keyStorageId(config), normalized)
         clearLegacyKey(context, config)
     }
 

@@ -99,6 +99,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.CloudProvider
+import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.HybridOrchestrator
@@ -1516,6 +1517,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         input: String,
         allowLongTextConversion: Boolean,
         expectedSessionId: String? = null,
+        visionParts: List<com.airi.assistant.execution.ExecutionRequest.ImagePart> = emptyList(),
     ): Boolean {
         if (expectedSessionId != null &&
             (expectedSessionId.isBlank() || _currentSessionId.value != expectedSessionId)
@@ -1829,6 +1831,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     tools        = activeTools,
                     queryType    = queryType,
                     modelId      = selectedModelIdAtDispatch,
+                    visionParts  = visionParts,
                     onToken      = token@{ tok ->
                         if (!isCurrentGeneration(generationId) || _isCancelled.get()) return@token
                         tokenCount += tok.length / 4 + 1
@@ -2679,8 +2682,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val visionReady = _modelState.value.capabilities.vision &&
+        val localVisionReady = _modelState.value.capabilities.vision &&
             runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
+        val cloudVisionReady = _modelState.value.isCloudReady &&
+            _modelState.value.activeCloudProvider in setOf(
+                CloudProvider.GEMINI,
+                CloudProvider.OPENAI,
+                CloudProvider.OPENROUTER,
+                CloudProvider.CUSTOM
+            )
+        val visionReady = localVisionReady || cloudVisionReady
         val preflightFailure = AttachmentDispatchPolicy.preflight(
             modelLoading = _modelState.value.isModelLoading,
             generationInProgress = _agentState.value.isWorking,
@@ -2799,7 +2810,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val fullText = if (attachmentContext.isBlank()) trimmed
                            else if (trimmed.isBlank()) attachmentContext
                            else "$trimmed\n\n$attachmentContext"
-            sendMessageWithImage(fullText, primaryImage.uri, primaryImage.bitmap)
+            if (cloudVisionReady && !localVisionReady) {
+                val imagePart = withContext(Dispatchers.IO) { visionImagePart(primaryImage) }
+                if (imagePart == null || !sendMessageInternal(
+                        input = fullText,
+                        allowLongTextConversion = false,
+                        expectedSessionId = sessionAtDispatch,
+                        visionParts = listOf(imagePart)
+                    )) {
+                    if (pendingAttachmentSessionId == sessionAtDispatch) {
+                        pendingAttachmentSessionId = null
+                        pendingAttachmentJsonForNextSend = null
+                    }
+                }
+            } else {
+                sendMessageWithImage(fullText, primaryImage.uri, primaryImage.bitmap)
+            }
         } else {
             val attachmentContext = listOf(
                 persistedAttachments.joinToString(separator = "\n") { it.toTextMarker() },
@@ -2869,6 +2895,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         return context.toString().trim()
+    }
+
+    private fun visionImagePart(attachment: ChatAttachment): ExecutionRequest.ImagePart? {
+        val path = attachment.persistedPath ?: return null
+        val file = File(path)
+        if (!file.exists() || file.length() <= 0L || file.length() > 12L * 1024L * 1024L) return null
+        val bytes = runCatching { file.readBytes() }.getOrNull() ?: return null
+        return ExecutionRequest.ImagePart(
+            mimeType = attachment.mimeType?.takeIf { it.startsWith("image/") } ?: "image/jpeg",
+            base64Data = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+        )
     }
 
     fun sendMessageWithImage(input: String, imageUri: Uri?, capturedBitmap: Bitmap?) {

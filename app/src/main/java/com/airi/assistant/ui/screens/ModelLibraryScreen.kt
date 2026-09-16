@@ -316,7 +316,7 @@ private fun BraveKeyEntryDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor   = AiriTheme.surface,
-        title = { Text("${provider.displayName} API Key", color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
+        title = { Text(stringResource(R.string.api_key_field_label), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.brave_key_dialog_body),

@@ -44,6 +44,9 @@ class GeminiAdapter(
                 retryable = false
             )
 
+        // API keys may contain characters that must be URL encoded.  Passing the
+        // raw value breaks otherwise valid keys and is reported by Gemini as a
+        // generic request/response failure.
         val encodedKey = URLEncoder.encode(apiKey, Charsets.UTF_8.name())
         val url  = "$BASE_URL/models/$model:streamGenerateContent?alt=sse&key=$encodedKey"
         val body = buildRequestBody(request)
@@ -133,7 +136,15 @@ class GeminiAdapter(
         if (!first) append(",")
         append("{\"role\":\"user\",\"parts\":[{\"text\":")
         append(jsonString(req.prompt))
-        append("}]},")
+        append("}")
+        req.imageParts.forEach { image ->
+            append(",{\"inline_data\":{\"mime_type\":")
+            append(jsonString(image.mimeType.ifBlank { "image/jpeg" }))
+            append(",\"data\":")
+            append(jsonString(image.base64Data))
+            append("}}")
+        }
+        append("]},")
         append("\"generationConfig\":{\"maxOutputTokens\":${req.maxTokens},\"temperature\":${req.temperature}}")
         append("}")
     }

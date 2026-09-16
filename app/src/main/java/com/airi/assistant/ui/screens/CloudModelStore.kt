@@ -107,7 +107,7 @@ fun CloudModelStoreSection(
 
         Spacer(Modifier.height(8.dp))
         Text(
-            "Free Providers",
+            stringResource(R.string.cloud_models_title),
             color = AiriTheme.onSurfaceVariant,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
@@ -513,7 +513,7 @@ private fun ApiKeyEntryDialog(
                         Icon(Icons.Outlined.OpenInNew, contentDescription = null,
                             modifier = Modifier.size(13.dp), tint = CosmicAccent.copy(alpha = 0.7f))
                         Spacer(Modifier.width(4.dp))
-                        Text("Get free key at ${config.signupUrl.removePrefix("https://").take(30)}",
+                        Text("${stringResource(R.string.cloud_get_free_key)}: ${config.signupUrl.removePrefix("https://").take(30)}",
                             color = CosmicAccent.copy(alpha = 0.7f), fontSize = 11.sp)
                     }
                 }
@@ -576,7 +576,7 @@ private fun AddRemoteModelInlineContent(
         OutlinedTextField(
             value = serverUrl, onValueChange = { serverUrl = it },
             label = { Text(stringResource(R.string.server_url), color = AiriTheme.onSurfaceVariant) },
-            placeholder = { Text("http://192.168.x.x:8080/v1", color = AiriTheme.outline) },
+            placeholder = { Text(stringResource(R.string.server_url), color = AiriTheme.outline) },
             singleLine = true, modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = CosmicAccent,

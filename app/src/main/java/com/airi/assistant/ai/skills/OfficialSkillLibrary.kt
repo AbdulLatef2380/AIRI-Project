@@ -4,6 +4,7 @@ import android.content.Context
 import com.airi.assistant.ai.skills.impl.CalendarEventsSkill
 import com.airi.assistant.ai.skills.impl.CodeAssistantSkill
 import com.airi.assistant.ai.skills.impl.DocumentReaderSkill
+import com.airi.assistant.ai.skills.impl.DriveSearchSkill
 import com.airi.assistant.ai.skills.impl.FileManagerSkill
 import com.airi.assistant.ai.skills.impl.GithubGuardianSkill
 import com.airi.assistant.ai.skills.impl.GmailAssistantSkill
@@ -295,6 +296,28 @@ object OfficialSkillLibrary {
             ),
             tier    = Tier.CONNECTOR,
             factory = ::GmailAssistantSkill
+        ),
+        OfficialEntry(
+            manifest = SkillManifest(
+                id           = "drive_search",
+                name         = "Google Drive Search",
+                description  = "Search and retrieve files from the connected Google Drive account",
+                version      = "1.0.0",
+                author       = "AIRI Official",
+                category     = "DATA",
+                isOfficial   = true,
+                iconEmoji    = "",
+                memoryAccess = SkillMemoryAccess.NONE,
+                modelAccess  = SkillModelAccess.NONE,
+                dependencies = listOf("connector:google"),
+                tags         = listOf("drive", "google", "files", "documents", "data"),
+                tools        = listOf(
+                    SkillManifest.ToolDef("drive_search_file", "Search Google Drive files by name or keywords",
+                        mapOf("query" to SkillManifest.ParamDef("string", "File name or search keywords")))
+                )
+            ),
+            tier    = Tier.CONNECTOR,
+            factory = ::DriveSearchSkill
         ),
 
         OfficialEntry(

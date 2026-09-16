@@ -77,6 +77,7 @@ import com.airi.assistant.ui.screens.SettingsScreen
 import com.airi.assistant.ui.screens.SkillBuilderScreen
 import com.airi.assistant.ui.screens.SkillCreationWizardScreen
 import com.airi.assistant.ui.screens.SkillManagerScreen
+import com.airi.assistant.ui.screens.SkillDetailsScreen
 import com.airi.assistant.ui.screens.TemplatesScreen
 import com.airi.assistant.ui.screens.AppInfoScreen
 import com.airi.assistant.ui.screens.CreditsScreen
@@ -121,6 +122,7 @@ object AiriRoute {
     const val PAYWALL            = "screen_paywall"
     const val REFERRALS          = "screen_referrals"
     const val SKILL_MANAGER      = "screen_skill_manager"
+    const val SKILL_DETAILS      = "screen_skill_details"
     const val SKILL_BUILDER      = "screen_skill_builder"
     const val TEMPLATES          = "screen_templates"   // : was unreachable
     const val APP_INFO           = "screen_app_info"    // : was unreachable
@@ -717,7 +719,18 @@ fun AiriApp() {
                         SkillManagerScreen(
                             onBack    = { navController.popBackStack() },
                             onCreate  = { navController.navigate(AiriRoute.skillBuilder()) },
-                            onEdit    = { skillId -> navController.navigate(AiriRoute.skillBuilder(skillId)) }
+                            onEdit    = { skillId -> navController.navigate(AiriRoute.skillBuilder(skillId)) },
+                            onOpenOfficial = { skillId -> navController.navigate("${AiriRoute.SKILL_DETAILS}/$skillId") }
+                        )
+                    }
+
+                    composable(
+                        route = "${AiriRoute.SKILL_DETAILS}/{skillId}",
+                        arguments = listOf(navArgument("skillId") { type = NavType.StringType })
+                    ) { entry ->
+                        SkillDetailsScreen(
+                            skillId = entry.arguments?.getString("skillId").orEmpty(),
+                            onBack = { navController.popBackStack() }
                         )
                     }
 

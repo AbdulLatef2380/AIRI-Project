@@ -237,6 +237,14 @@ fun SettingsScreen(
                 )
                 SettingsDivider()
                 SettingsNavItem(
+                    icon     = Icons.Outlined.Memory,
+                    iconTint = CosmicAccent,
+                    label    = "Resource customization",
+                    trailing = "Storage · RAM · CPU",
+                    onClick  = { onNavigate(AiriRoute.SETTINGS_RESOURCES) }
+                )
+                SettingsDivider()
+                SettingsNavItem(
                     icon     = Icons.Outlined.Star,
                     iconTint = AiriTheme.onSurfaceVariant,
                     label    = stringResource(R.string.settings_skills),
@@ -334,7 +342,7 @@ fun SettingsScreen(
             }
             // Internal tooling is visible only in development builds. Release
             // routing independently fails closed for direct deep links.
-            if (ReleaseScopePolicy.internalSurfacesEnabled) {
+            if (ReleaseScopePolicy.userFacingToolsEnabled) {
                 SettingsGroup {
                 SettingsNavItem(
                     icon     = Icons.Outlined.Terminal,

@@ -90,12 +90,28 @@ class GeminiAdapter(
                     if (!raw.startsWith("data:")) continue
                     val payload = raw.removePrefix("data:").trim()
                     if (payload.isBlank() || payload == "[DONE]") continue
+                    if (payload.contains("\"error\"")) {
+                        return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                            error = "Gemini stream error",
+                            errorType = CloudErrorType.SERVER_ERROR,
+                            retryable = payload.contains("503") || payload.contains("overload"),
+                            httpCode = 200
+                        )
+                    }
                     val token = extractToken(payload)
                     if (token.isNotEmpty()) { fullText.append(token); onToken(token) }
                     extractUsage(payload)?.let { (p, c) -> promptTokens = p; completeTokens = c }
                 }
             }
 
+            if (fullText.isBlank()) {
+                return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                    error = "Provider returned no text",
+                    errorType = CloudErrorType.UNKNOWN,
+                    retryable = false,
+                    httpCode = 200
+                )
+            }
             onUsage(promptTokens, completeTokens)
             val latency = System.currentTimeMillis() - startMs
             Log.i(TAG, "complete: ${fullText.length} chars ${promptTokens}p+${completeTokens}c ${latency}ms")
@@ -104,7 +120,7 @@ class GeminiAdapter(
                 promptTokens = promptTokens, completionTokens = completeTokens
             )
         } catch (e: kotlinx.coroutines.CancellationException) {
-            CloudProviderAdapter.AdapterResult.Failure("Cancelled", CloudErrorType.CANCELLED, false, -3)
+            throw e
         } catch (e: java.net.SocketTimeoutException) {
             val m = CloudErrorMapper.map(-1, e.message ?: "timeout")
             CloudProviderAdapter.AdapterResult.Failure(m.message, m.type, m.retryable, -1)

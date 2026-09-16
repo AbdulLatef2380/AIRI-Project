@@ -1632,4 +1632,23 @@
     <string name="prompt_report_hint">描述问题或改进建议…</string>
     <string name="prompt_send_report">发送报告</string>
     <string name="prompt_report_sent">谢谢，报告已记录。</string>
+
+    <string name="about_acknowledgements">开源致谢</string>
+    <string name="about_acknowledgements_intro">AIRI 基于 llama.cpp、Vosk、Silero VAD、Jetpack Compose、Firebase、Coil 和 OkHttp 等开源项目构建。</string>
+    <string name="about_device">设备</string>
+    <string name="about_privacy_full">AIRI 以隐私为先。默认情况下，本地推理保留在设备上。只有在配置提供商并授予权限后，云请求才会发送。API 密钥存储在加密的本地存储中。聊天记录保留在此设备上，除非你明确使用云提供商。</string>
+    <string name="about_terms">使用条款</string>
+    <string name="about_terms_full">使用 AIRI 即表示你接受这些条款。AIRI 是本地优先的 AI 助手，不提供医疗、法律或财务建议。AI 回复可能不准确，请核实重要信息。你需对提示词及结果的使用负责。不得将 AIRI 用于有害、违法、欺骗性或安全关键用途。云服务商将根据其隐私政策处理消息。模型文件仍受第三方许可证约束。AIRI 按现状提供，不保证持续可用或准确无误。</string>
+    <string name="library_remove_favorite">从收藏中移除</string>
+    <string name="models_available_download">可下载</string>
+    <string name="models_cloud_intelligence">云端智能</string>
+    <string name="models_context">上下文</string>
+    <string name="models_free_providers">免费提供商</string>
+    <string name="models_offline_ai">离线 AI</string>
+    <string name="models_quant">量化</string>
+    <string name="models_ram">内存</string>
+    <string name="models_ready_to_use">可直接使用</string>
+    <string name="models_search_research">搜索与研究</string>
+    <string name="models_size">大小</string>
+    <string name="models_smart_routing">智能路由模型</string>
 </resources>

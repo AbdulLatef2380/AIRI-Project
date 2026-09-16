@@ -3438,6 +3438,44 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Export every non-archived session without credentials, tokens, or API keys. */
+    fun exportAllSessionsJson(uri: Uri, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val success = withContext(Dispatchers.IO) {
+                runCatching {
+                    val sessions = memoryManager.getAllSessions()
+                    val gson = Gson()
+                    val payload = buildString {
+                        append("{\"format\":\"airi_full_export_v1\",\"exportedAt\":")
+                        append(System.currentTimeMillis()).append(",\"sessions\":[")
+                        sessions.forEachIndexed { index, session ->
+                            if (index > 0) append(',')
+                            append("{\"id\":").append(gson.toJson(session.id))
+                            append(",\"title\":").append(gson.toJson(session.title))
+                            append(",\"messages\":[")
+                            memoryManager.loadSession(session.id).forEachIndexed { messageIndex, message ->
+                                if (messageIndex > 0) append(',')
+                                append("{\"role\":").append(gson.toJson(message.role))
+                                append(",\"content\":").append(gson.toJson(message.content))
+                                append(",\"timestamp\":").append(message.timestamp).append('}')
+                            }
+                            append("]}")
+                        }
+                        append("]}")
+                    }
+                    appContext.contentResolver.openOutputStream(uri, "wt")?.use {
+                        it.write(payload.toByteArray(Charsets.UTF_8))
+                    } ?: error("Destination unavailable")
+                    true
+                }.getOrElse {
+                    Log.e("AIRI_STORAGE", "FULL_EXPORT_FAILED", it)
+                    false
+                }
+            }
+            onResult(success)
+        }
+    }
+
     fun activateDownloadedModel() {
         val file = downloadManager.getModelFile()
         if (!file.exists()) {

@@ -1864,4 +1864,7 @@
     <string name="prompt_report_hint">اكتب ما حدث أو ما الذي يمكن تحسينه…</string>
     <string name="prompt_send_report">إرسال البلاغ</string>
     <string name="prompt_report_sent">شكرًا. تم تسجيل البلاغ.</string>
+    <string name="about_terms">شروط الاستخدام</string>
+    <string name="about_acknowledgements">شكر وتقدير المصادر المفتوحة</string>
+    <string name="about_device">الجهاز</string>
 </resources>

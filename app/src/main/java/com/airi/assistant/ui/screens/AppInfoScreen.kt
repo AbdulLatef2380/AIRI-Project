@@ -112,17 +112,17 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                     }
                 }
             }
-            AboutCard(icon = Icons.Outlined.Info, title = "App Details") {
-                AboutRow("Package",   "com.airi.assistant")
-                AboutRow("Version",   "1.0")
-                AboutRow("Engine",    "llama.cpp via JNI (local, on-device)")
-                AboutRow("Interface", "Kotlin · Jetpack Compose")
-                AboutRow("Database",  "Room (local SQLite)")
-                AboutRow("Auth",      "Firebase Authentication")
-                AboutRow("Runtime",   "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-                AboutRow("Device",    "${Build.MANUFACTURER} ${Build.MODEL}")
+            AboutCard(icon = Icons.Outlined.Info, title = stringResource(R.string.app_info)) {
+                AboutRow(stringResource(R.string.name),   "com.airi.assistant")
+                AboutRow(stringResource(R.string.version),   "1.0")
+                AboutRow(stringResource(R.string.engine),    "llama.cpp via JNI (local, on-device)")
+                AboutRow(stringResource(R.string.ui), "Kotlin · Jetpack Compose")
+                AboutRow(stringResource(R.string.database),  "Room (local SQLite)")
+                AboutRow(stringResource(R.string.auth),      "Firebase Authentication")
+                AboutRow(stringResource(R.string.about_runtime_title),   "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+                AboutRow(stringResource(R.string.about_device),    "${Build.MANUFACTURER} ${Build.MODEL}")
             }
-            AboutCard(icon = Icons.Outlined.Shield, title = "Privacy") {
+            AboutCard(icon = Icons.Outlined.Shield, title = stringResource(R.string.about_privacy_title)) {
                 Text(
                     "AIRI is designed with privacy first. All AI inference runs locally on your " +
                     "device by default — no conversation data is sent anywhere without your " +
@@ -137,7 +137,7 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                     lineHeight = 20.sp
                 )
             }
-            AboutCard(icon = Icons.Outlined.Gavel, title = "Terms of Use") {
+            AboutCard(icon = Icons.Outlined.Gavel, title = stringResource(R.string.about_terms)) {
                 TermsSection("1. Acceptance") {
                     "By using AIRI you agree to these terms. If you do not agree, please uninstall the app."
                 }
@@ -183,7 +183,7 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                     "Questions or concerns? Use the private support form in the app."
                 }
             }
-            AboutCard(icon = Icons.Outlined.Code, title = "Open-Source Acknowledgements") {
+            AboutCard(icon = Icons.Outlined.Code, title = stringResource(R.string.about_acknowledgements)) {
                 Text(
                     "AIRI is built on the shoulders of open-source giants:",
                     color    = AiriTheme.onBackground.copy(alpha = 0.55f),

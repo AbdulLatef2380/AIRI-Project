@@ -115,6 +115,7 @@ Do not mix tool_call JSON with prose in the same message.
         tools:          List<ToolSchema>,
         queryType:     QueryType              = QueryType.UNKNOWN,
         modelId:        String                 = "",
+        visionParts:    List<com.airi.assistant.execution.ExecutionRequest.ImagePart> = emptyList(),
         onToken:        suspend (String) -> Unit,
         onStepComplete: suspend (StepEvent) -> String? = { null },
         executionContextFactory: AgentLoopExecutionContextFactory? = null
@@ -130,7 +131,7 @@ Do not mix tool_call JSON with prose in the same message.
 
         // If no tools provided, single-pass inference
         if (tools.isEmpty()) {
-            val response = callLLM(input, systemPrompt, history, tools, queryType, modelId, onToken)
+            val response = callLLM(input, systemPrompt, history, tools, queryType, modelId, visionParts, onToken)
             return LoopResult(response, 1, emptyList())
         }
 
@@ -157,7 +158,8 @@ Do not mix tool_call JSON with prose in the same message.
                     history      = history,
                     tools        = tools,
                     queryType    = queryType,
-                    modelId       = modelId,
+                    modelId = modelId,
+                    visionParts = visionParts,
                     onToken       = { tok ->
                         tokenBuffer.append(tok)
                         onToken(tok)
@@ -189,7 +191,8 @@ Do not mix tool_call JSON with prose in the same message.
                             history      = retryHistory,
                             tools        = tools,
                             queryType      = queryType,
-                            modelId        = modelId,
+                            modelId = modelId,
+                            visionParts = visionParts,
                             onToken        = {}   // don't stream retry to UI
                         )
                     } catch (e: Exception) {
@@ -377,7 +380,7 @@ Do not mix tool_call JSON with prose in the same message.
             // Exhausted step budget — ask LLM to summarise what it has
             Log.w(TAG, "AgentLoop exhausted $MAX_STEPS steps — asking LLM to summarise")
             history.add(ConversationTurn.User("You have reached your step limit. Summarise what you have done and what the final answer is."))
-            val summary = callLLM("", fullSystemPrompt, history, emptyList(), queryType, modelId, onToken)
+            val summary = callLLM("", fullSystemPrompt, history, emptyList(), queryType, modelId, visionParts, onToken)
             ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
             return LoopResult(summary, stepsUsed, toolsInvoked)
 
@@ -407,6 +410,7 @@ Do not mix tool_call JSON with prose in the same message.
         tools:        List<ToolSchema>,
         queryType:      QueryType = QueryType.UNKNOWN,
         modelId:        String = "",
+        visionParts:   List<com.airi.assistant.execution.ExecutionRequest.ImagePart> = emptyList(),
         onToken:       suspend (String) -> Unit
     ): String {
         // Build the full prompt from history
@@ -451,6 +455,8 @@ Do not mix tool_call JSON with prose in the same message.
                 estimatedPromptTokens = estimatedTokens,
                 sessionTag            = "agent_loop",
                 requestedModelId      = modelId,
+                requiresVision        = visionParts.isNotEmpty(),
+                imageParts            = visionParts,
 
                 conversationHistory   = history.mapNotNull { turn ->
                     when (turn) {

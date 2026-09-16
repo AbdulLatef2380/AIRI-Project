@@ -1965,4 +1965,7 @@
     <string name="prompt_report_hint">Tell us what happened or what should improve…</string>
     <string name="prompt_send_report">Send report</string>
     <string name="prompt_report_sent">Thanks. Your report was recorded.</string>
+    <string name="about_terms">Terms of Use</string>
+    <string name="about_acknowledgements">Open-Source Acknowledgements</string>
+    <string name="about_device">Device</string>
 </resources>

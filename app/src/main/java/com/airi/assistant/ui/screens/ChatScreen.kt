@@ -832,6 +832,7 @@ fun ChatScreen(
                     voiceInput    = voiceInput,
                     voicePartial  = partialVoiceInput,
                     smartReplies  = smartReplies,
+                    hasUserSentMessage = messages.any { it.isUser },
                     onSend        = { text, onAccepted ->
                         val toSend = pendingAttachments
                         if (toSend.isNotEmpty()) {
@@ -2024,7 +2025,7 @@ fun ChatMessageList(
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
                 )
-                if (!isModelReady) {
+                if (!isModelReady && !modelState.isCloudReady) {
                     Spacer(Modifier.height(24.dp))
                     Button(
                         onClick = onOpenModels,
@@ -2992,6 +2993,22 @@ fun AiriChatInputBar(
                     }
                 }
             }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                val expansionDescription = stringResource(
+                    if (isExpanded) R.string.cd_collapse_input else R.string.cd_expand_input
+                )
+                IconButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                        expansionDescription,
+                        tint = AiriTheme.onBackground.copy(0.45f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
             Box(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
@@ -3069,9 +3086,6 @@ fun AiriChatInputBar(
                 val attachmentDescription = stringResource(R.string.cd_add_attachment)
                 val voiceInputDescription = stringResource(R.string.cd_start_voice_input)
                 val connectorsDescription = stringResource(R.string.cd_open_connectors)
-                val expansionDescription = stringResource(
-                    if (isExpanded) R.string.cd_collapse_input else R.string.cd_expand_input
-                )
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -3195,18 +3209,6 @@ fun AiriChatInputBar(
 
                 Spacer(Modifier.weight(1f))
 
-                // Expand / collapse toggle
-                IconButton(
-                    onClick = { isExpanded = !isExpanded },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                        expansionDescription,
-                        tint = AiriTheme.onBackground.copy(0.45f),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
             }
         }
 

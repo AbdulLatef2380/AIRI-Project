@@ -194,7 +194,20 @@ open class OpenAIAdapter(
             needsComma = true
         }
         if (needsComma) append(",")
-        append("{\"role\":\"user\",\"content\":${jsonString(req.prompt)}}")
+        append("{\"role\":\"user\",\"content\":")
+        if (req.imageParts.isEmpty()) {
+            append(jsonString(req.prompt))
+        } else {
+            append("[")
+            append("{\"type\":\"text\",\"text\":${jsonString(req.prompt)}}")
+            req.imageParts.forEach { image ->
+                append(",{\"type\":\"image_url\",\"image_url\":{\"url\":")
+                append(jsonString("data:${image.mimeType.ifBlank { "image/jpeg" }};base64,${image.base64Data}"))
+                append("}}")
+            }
+            append("]")
+        }
+        append("}")
         append("],")
         append("\"max_tokens\":${req.maxTokens},")
         append("\"temperature\":${req.temperature},")

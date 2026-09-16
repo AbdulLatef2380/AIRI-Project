@@ -28,9 +28,12 @@ data class ExecutionRequest(
     val sessionTag:               String     = "",
     /** Stable model identity captured when the execution was admitted. */
     val requestedModelId:         String     = "",
-    val conversationHistory:      List<ConversationTurn> = emptyList()
+    val conversationHistory:      List<ConversationTurn> = emptyList(),
+    /** Inline image parts for providers that support vision (base64, no file paths). */
+    val imageParts:               List<ImagePart> = emptyList()
 ) {
     data class ConversationTurn(val role: String, val content: String)
+    data class ImagePart(val mimeType: String, val base64Data: String)
 
     val estimatedTotalTokens: Int get() = estimatedPromptTokens + maxTokens
 

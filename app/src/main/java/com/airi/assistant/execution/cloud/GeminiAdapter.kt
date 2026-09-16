@@ -136,7 +136,15 @@ class GeminiAdapter(
         if (!first) append(",")
         append("{\"role\":\"user\",\"parts\":[{\"text\":")
         append(jsonString(req.prompt))
-        append("}]},")
+        append("}")
+        req.imageParts.forEach { image ->
+            append(",{\"inline_data\":{\"mime_type\":")
+            append(jsonString(image.mimeType.ifBlank { "image/jpeg" }))
+            append(",\"data\":")
+            append(jsonString(image.base64Data))
+            append("}}")
+        }
+        append("]},")
         append("\"generationConfig\":{\"maxOutputTokens\":${req.maxTokens},\"temperature\":${req.temperature}}")
         append("}")
     }

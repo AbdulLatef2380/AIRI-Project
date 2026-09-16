@@ -246,7 +246,7 @@ class HybridOrchestrator(
                     }
                 },
                 onComplete = { fullText, latencyMs ->
-                    if (generationGate.accepts(genId) && !completionDelivered) {
+                    if (generationGate.accepts(genId) && !completionDelivered && fullText.isNotBlank()) {
                         completionDelivered = true
                         backendSucceeded = true
                         updateDiagnostics { copy(

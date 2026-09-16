@@ -58,7 +58,8 @@ private enum class ImportSource { STORAGE, GITHUB, AI }
 fun SkillManagerScreen(
     onBack:   () -> Unit,
     onCreate: () -> Unit,
-    onEdit:   (String) -> Unit
+    onEdit:   (String) -> Unit,
+    onOpenOfficial: (String) -> Unit = {}
 ) {
     val context       = LocalContext.current
     val repository    = remember { CustomSkillRepository(context) }
@@ -75,6 +76,7 @@ fun SkillManagerScreen(
     var isImporting    by remember { mutableStateOf(false) }
     var searchQuery    by rememberSaveable { mutableStateOf("") }
     var selectedFilter by rememberSaveable { mutableStateOf(0) }
+    var selectedCategory by rememberSaveable { mutableStateOf("ALL") }
     val connectorAvailability by skillRegistry.connectorAvailability.collectAsState()
 
     fun reload() {
@@ -93,7 +95,15 @@ fun SkillManagerScreen(
             2 -> !info.isConnected
             else -> true
         }
-        matchesSearch && matchesFilter
+        val category = OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.name }
+            ?.manifest?.category ?: "OTHER"
+        val matchesCategory = selectedCategory == "ALL" || category == selectedCategory
+        matchesSearch && matchesFilter && matchesCategory
+    }
+    val categories = remember(officialSkills) {
+        listOf("ALL") + officialSkills.mapNotNull { info ->
+            OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.name }?.manifest?.category
+        }.distinct().sorted()
     }
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -329,6 +339,25 @@ fun SkillManagerScreen(
                     )
                 }
             }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                categories.forEach { category ->
+                    FilterChip(
+                        selected = selectedCategory == category,
+                        onClick = { selectedCategory = category },
+                        label = { Text(category.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 11.sp) },
+                        shape = AIRIShapes.pill,
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = CosmicAccent.copy(alpha = 0.18f),
+                            selectedLabelColor = CosmicAccent
+                        )
+                    )
+                }
+            }
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -349,6 +378,7 @@ fun SkillManagerScreen(
                 items(filteredOfficialSkills, key = { "official_${it.name}" }) { info ->
                     OfficialSkillCard(
                         info     = info,
+                        onClick  = { onOpenOfficial(info.name) },
                         onToggle = { enabled ->
                             skillRegistry.setSkillEnabled(info.name, enabled)
                             reload()
@@ -430,6 +460,7 @@ private fun AddOption(icon: ImageVector, label: String, onClick: () -> Unit) {
 @Composable
 private fun OfficialSkillCard(
     info:     SkillRegistry.SkillInfo,
+    onClick:  () -> Unit,
     onToggle: (Boolean) -> Unit
 ) {
     val entry = remember(info.name) { OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.name } }
@@ -442,6 +473,7 @@ private fun OfficialSkillCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(AIRIShapes.md)
+            .clickable(onClick = onClick)
             .background(AiriTheme.surface)
             .border(1.dp, AiriTheme.onSurface.copy(if (needsConnector) 0.04f else 0.07f), AIRIShapes.md)
             .padding(horizontal = 14.dp, vertical = 12.dp),

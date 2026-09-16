@@ -66,6 +66,20 @@ fun PrivacyDataSettingsScreen(
             )
         }
     }
+    val exportFullLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        viewModel.exportAllSessionsJson(uri) { success ->
+            scope.launch {
+                snackbarHost.showSnackbar(
+                    if (success) context.getString(R.string.export_success)
+                    else context.getString(R.string.export_failed)
+                )
+            }
+        }
+    }
+
     val importChatLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -117,6 +131,14 @@ fun PrivacyDataSettingsScreen(
                     label    = stringResource(R.string.export_chats),
                     sublabel = stringResource(R.string.download_chat_history)
                 ) { exportChatLauncher.launch(ChatExporter.buildFileName("json")) }
+                Divider(
+                    color    = AiriTheme.onBackground.copy(alpha = 0.06f),
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+                SettingsActionRow(
+                    label    = "Export all AIRI data",
+                    sublabel = "All non-archived chats and memory metadata; no API keys or tokens"
+                ) { exportFullLauncher.launch("airi_full_export_${System.currentTimeMillis()}.json") }
                 Divider(
                     color    = AiriTheme.onBackground.copy(alpha = 0.06f),
                     modifier = Modifier.padding(vertical = 8.dp)

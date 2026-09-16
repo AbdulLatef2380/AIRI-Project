@@ -19,6 +19,10 @@ import kotlinx.coroutines.launch
 
 class AgentPlanViewModel(application: Application) : AndroidViewModel(application) {
     private val tracker = TaskExecutionTracker()
+    private val snapshotStore = PlanSnapshotStore(application)
+    private val _planContext = MutableStateFlow(PlanContext())
+    val planContext: StateFlow<PlanContext> = _planContext.asStateFlow()
+    private val _restoredPlan = MutableStateFlow(false)
 
     val steps: StateFlow<List<PlanStepModel>> = tracker.steps
     val isVisible: StateFlow<Boolean> = tracker.isVisible
@@ -47,11 +51,9 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Only expose the panel for a real multi-step execution; Plan Mode can still force it from ChatScreen. */
-    val showPanel: StateFlow<Boolean> = combine(steps, ExecutionStatusBus.status) { planSteps, state ->
-        PlanPanelVisibilityPolicy.shouldShow(
-            stage = state.executionStage,
-            nodesTotal = state.nodesTotal,
-            stepCount = planSteps.size
+    val showPanel: StateFlow<Boolean> = combine(steps, ExecutionStatusBus.status, _restoredPlan) { planSteps, state, restored ->
+        restored && planSteps.isNotEmpty() || PlanPanelVisibilityPolicy.shouldShow(
+            stage = state.executionStage, nodesTotal = state.nodesTotal, stepCount = planSteps.size
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
@@ -71,10 +73,21 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     init {
+        snapshotStore.load()?.takeIf { PlanSnapshotPolicy.canRestore(it) && !PlanSnapshotPolicy.containsSecretMaterial(it) }?.let { saved ->
+            tracker.restore(saved.steps, saved.executionId)
+            _executionId.value = saved.executionId
+            _goalDescription.value = saved.goal
+            _currentStage.value = runCatching { ExecutionStage.valueOf(saved.stage) }.getOrDefault(ExecutionStage.IDLE)
+            _planContext.value = PlanContext(saved.sessionId, saved.projectId, saved.memoryQuery, saved.skillIds, saved.connectorIds)
+            _restoredPlan.value = true
+        }
         tracker.start(viewModelScope)
+        steps.onEach { currentSteps ->
+            if (currentSteps.isNotEmpty()) persistSnapshot(currentSteps)
+        }.launchIn(viewModelScope)
         ExecutionStatusBus.status.onEach { state ->
             _currentStage.value = state.executionStage
-            if (state.executionId != _executionId.value) {
+            if (state.executionId.isNotBlank() && state.executionId != _executionId.value) {
                 _executionId.value = state.executionId
                 _observedTraceSequence.value = 0L
                 _traceAutoScroll.value = true
@@ -83,12 +96,16 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
             if (state.executionStage == ExecutionStage.COMPLETED ||
                 state.executionStage == ExecutionStage.FAILED ||
                 state.executionStage == ExecutionStage.CANCELLED ||
-                state.executionStage == ExecutionStage.IDLE) {
+                (state.executionStage == ExecutionStage.IDLE && !_restoredPlan.value)) {
                 viewModelScope.launch {
                     delay(4_000)
                     val cur = ExecutionStatusBus.status.value.executionStage
                     if (cur == ExecutionStage.COMPLETED || cur == ExecutionStage.FAILED ||
-                        cur == ExecutionStage.CANCELLED || cur == ExecutionStage.IDLE) tracker.clear()
+                        cur == ExecutionStage.CANCELLED || cur == ExecutionStage.IDLE) {
+                        tracker.clear()
+                        _restoredPlan.value = false
+                        snapshotStore.clear()
+                    }
                 }
             }
         }.launchIn(viewModelScope)
@@ -100,6 +117,33 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
     fun pauseTraceAutoScroll() { _traceAutoScroll.value = false }
     fun followTraceLatest() { _traceAutoScroll.value = true }
     fun markTraceObserved(sequence: Long) { if (sequence > _observedTraceSequence.value) _observedTraceSequence.value = sequence }
-    fun dismissPanel() { tracker.clear() }
-    fun collapse() { tracker.clear() }
+    fun setContext(context: PlanContext) {
+        val previous = _planContext.value
+        _planContext.value = context.copy(
+            projectId = context.projectId.ifBlank { previous.projectId },
+            memoryQuery = context.memoryQuery.ifBlank { previous.memoryQuery },
+            skillIds = context.skillIds.ifEmpty { previous.skillIds },
+            connectorIds = context.connectorIds.ifEmpty { previous.connectorIds },
+        )
+        persistSnapshot(steps.value)
+    }
+    fun dismissPanel() { tracker.clear(); _restoredPlan.value = false; snapshotStore.clear() }
+    fun collapse() { tracker.clear(); _restoredPlan.value = false; snapshotStore.clear() }
+
+    private fun persistSnapshot(currentSteps: List<PlanStepModel>) {
+        if (currentSteps.isEmpty()) return
+        val context = _planContext.value
+        val snapshot = PlanSnapshot(
+            executionId = _executionId.value,
+            goal = _goalDescription.value,
+            stage = _currentStage.value.name,
+            sessionId = context.sessionId,
+            projectId = context.projectId,
+            memoryQuery = context.memoryQuery.ifBlank { _goalDescription.value },
+            skillIds = context.skillIds,
+            connectorIds = context.connectorIds,
+            steps = currentSteps
+        )
+        if (!PlanSnapshotPolicy.containsSecretMaterial(snapshot)) snapshotStore.save(snapshot)
+    }
 }

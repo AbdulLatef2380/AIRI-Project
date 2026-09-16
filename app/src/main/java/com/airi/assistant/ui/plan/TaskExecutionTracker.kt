@@ -104,6 +104,17 @@ class TaskExecutionTracker {
         publish()
     }
 
+    fun snapshot(): List<PlanStepModel> = stepOrder.mapNotNull { stepRegistry[it] }
+
+    fun restore(restoredSteps: List<PlanStepModel>, executionId: String?) {
+        stepRegistry.clear()
+        stepOrder.clear()
+        restoredSteps.forEach(::upsert)
+        activeExecutionId = executionId?.takeIf { it.isNotBlank() }
+        _isVisible.value = restoredSteps.isNotEmpty()
+        publish()
+    }
+
     private fun hasAdmittedPlan(state: AgentState): Boolean =
         state.executionId.isNotBlank() && state.activeGoalDescription.isNotBlank()
 

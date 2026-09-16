@@ -22,8 +22,5 @@ object ReleaseScopePolicy {
     val internalSurfacesEnabled: Boolean
         get() = allowsInternalSurfaces(isDebugBuild = BuildConfig.DEBUG)
 
-    /** User-facing local tools are safe to expose in release builds. */
-    const val userFacingToolsEnabled: Boolean = true
-
     fun allowsInternalSurfaces(isDebugBuild: Boolean): Boolean = isDebugBuild
 }

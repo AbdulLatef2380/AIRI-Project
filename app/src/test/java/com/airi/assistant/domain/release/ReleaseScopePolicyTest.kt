@@ -21,8 +21,4 @@ class ReleaseScopePolicyTest {
         assertFalse(ReleaseScopePolicy.allowsInternalSurfaces(isDebugBuild = false))
     }
 
-    @Test
-    fun userFacingToolsRemainAvailableInRelease() {
-        assertTrue(ReleaseScopePolicy.userFacingToolsEnabled)
-    }
 }

@@ -772,7 +772,7 @@ fun AiriApp() {
                         }
                     }
                     composable(AiriRoute.SANDBOX_WORKSPACE) {
-                        UserSurfaceRoute(onBack = { navController.popBackStack() }) {
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
                             com.airi.assistant.ui.screens.SandboxWorkspaceScreen(
                                 onBack = { navController.popBackStack() }
                             )
@@ -789,7 +789,7 @@ fun AiriApp() {
                         )
                     }
                     composable(AiriRoute.TERMINAL) {
-                        UserSurfaceRoute(onBack = { navController.popBackStack() }) {
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
                             com.airi.assistant.ui.screens.TerminalScreen(
                                 onBack = { navController.popBackStack() }
                             )
@@ -841,7 +841,7 @@ fun AiriApp() {
 
                     // ── Secret Manager ──────────────────────────────
                     composable(AiriRoute.SECRET_MANAGER) {
-                        UserSurfaceRoute(onBack = { navController.popBackStack() }) {
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
                             SecretManagerScreen(
                                 onBack = { navController.popBackStack() }
                             )
@@ -902,18 +902,6 @@ private fun InternalSurfaceRoute(
     content: @Composable () -> Unit,
 ) {
     if (ReleaseScopePolicy.internalSurfacesEnabled) {
-        content()
-    } else {
-        FeatureFreezeUnavailableScreen(onBack = onBack)
-    }
-}
-
-@Composable
-private fun UserSurfaceRoute(
-    onBack: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    if (ReleaseScopePolicy.userFacingToolsEnabled) {
         content()
     } else {
         FeatureFreezeUnavailableScreen(onBack = onBack)

@@ -302,6 +302,14 @@ fun ChatScreen(
     // /C04: AgentPlanViewModel for ModalBottomSheet control
     val agentPlanViewModel: com.airi.assistant.ui.plan.AgentPlanViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel()
+    LaunchedEffect(currentSessionId) {
+        agentPlanViewModel.setContext(
+            com.airi.assistant.ui.plan.PlanContext(
+                sessionId = currentSessionId,
+                projectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
+            )
+        )
+    }
     val isPanelVisible by agentPlanViewModel.isVisible.collectAsState()
     val showPanel      by agentPlanViewModel.showPanel.collectAsState()
 

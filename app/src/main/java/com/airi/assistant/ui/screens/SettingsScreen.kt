@@ -342,7 +342,7 @@ fun SettingsScreen(
             }
             // Internal tooling is visible only in development builds. Release
             // routing independently fails closed for direct deep links.
-            if (ReleaseScopePolicy.userFacingToolsEnabled) {
+            if (ReleaseScopePolicy.internalSurfacesEnabled) {
                 SettingsGroup {
                 SettingsNavItem(
                     icon     = Icons.Outlined.Terminal,

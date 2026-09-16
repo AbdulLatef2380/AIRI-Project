@@ -1968,4 +1968,18 @@
     <string name="about_terms">Terms of Use</string>
     <string name="about_acknowledgements">Open-Source Acknowledgements</string>
     <string name="about_device">Device</string>
+    <string name="models_offline_ai">Offline AI</string>
+    <string name="models_cloud_intelligence">Cloud Intelligence</string>
+    <string name="models_search_research">Search &amp; Research</string>
+    <string name="models_smart_routing">Smart Routing Models</string>
+    <string name="models_free_providers">Free Providers</string>
+    <string name="models_ready_to_use">Ready to Use</string>
+    <string name="models_available_download">Available to Download</string>
+    <string name="models_ram">RAM</string>
+    <string name="models_context">Context</string>
+    <string name="models_size">Size</string>
+    <string name="models_quant">Quant</string>
+    <string name="about_privacy_full">AIRI is designed with privacy first. Local inference stays on your device by default. Cloud requests are sent only after you configure a provider and grant permission. API keys are stored in encrypted local storage. Chat history remains on this device unless you explicitly use a cloud provider.</string>
+    <string name="about_terms_full">By using AIRI you accept these terms. AIRI is a local-first AI assistant and is not a medical, legal, or financial advisor. AI responses may be inaccurate; verify important information. You are responsible for your prompts and use of the results. Do not use AIRI for harmful, illegal, deceptive, or safety-critical purposes. Cloud providers process messages under their own privacy policies. Model files remain subject to their third-party licenses. AIRI is provided as-is without a guarantee of uptime or accuracy.</string>
+    <string name="about_acknowledgements_intro">AIRI is built on open-source projects including llama.cpp, Vosk, Silero VAD, Jetpack Compose, Firebase, Coil, and OkHttp.</string>
 </resources>

@@ -1867,4 +1867,18 @@
     <string name="about_terms">شروط الاستخدام</string>
     <string name="about_acknowledgements">شكر وتقدير المصادر المفتوحة</string>
     <string name="about_device">الجهاز</string>
+    <string name="models_offline_ai">الذكاء الاصطناعي المحلي</string>
+    <string name="models_cloud_intelligence">الذكاء الاصطناعي السحابي</string>
+    <string name="models_search_research">البحث والاستقصاء</string>
+    <string name="models_smart_routing">نماذج التوجيه الذكي</string>
+    <string name="models_free_providers">المزودون المجانيون</string>
+    <string name="models_ready_to_use">جاهز للاستخدام</string>
+    <string name="models_available_download">متاح للتنزيل</string>
+    <string name="models_ram">الذاكرة</string>
+    <string name="models_context">السياق</string>
+    <string name="models_size">الحجم</string>
+    <string name="models_quant">التكميم</string>
+    <string name="about_privacy_full">صُمم AIRI مع إعطاء الخصوصية الأولوية. يبقى الاستدلال المحلي على جهازك افتراضياً. لا تُرسل الطلبات السحابية إلا بعد إعداد مزود ومنح الإذن. تُخزّن مفاتيح API في مساحة تخزين محلية مشفرة. تبقى المحادثات على هذا الجهاز ما لم تختر استخدام مزود سحابي صراحةً.</string>
+    <string name="about_terms_full">باستخدام AIRI فإنك توافق على هذه الشروط. AIRI مساعد ذكاء اصطناعي محلي أولاً وليس مستشاراً طبياً أو قانونياً أو مالياً. قد تكون إجابات الذكاء الاصطناعي غير دقيقة، فتحقق من المعلومات المهمة. أنت مسؤول عن طلباتك وكيفية استخدام النتائج. لا تستخدم AIRI لأغراض ضارة أو غير قانونية أو مضللة أو حرجة للسلامة. يعالج المزودون السحابيون الرسائل وفق سياسات الخصوصية الخاصة بهم. تخضع ملفات النماذج لتراخيص الجهات الخارجية. يُقدّم AIRI كما هو دون ضمان للدقة أو التوافر.</string>
+    <string name="about_acknowledgements_intro">بُني AIRI اعتماداً على مشاريع مفتوحة المصدر، منها llama.cpp وVosk وSilero VAD وJetpack Compose وFirebase وCoil وOkHttp.</string>
 </resources>

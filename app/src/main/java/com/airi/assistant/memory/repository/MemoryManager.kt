@@ -3,6 +3,7 @@ package com.airi.assistant.memory.repository
 import android.content.Context
 import androidx.room.withTransaction
 import com.airi.assistant.ai.prompt.MemoryExtractor
+import com.airi.assistant.agent.memory.AgentMemoryDecision
 import com.airi.core.memory.MemoryAdmissionPolicy
 import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.memory.dao.ChatSessionSummary
@@ -188,7 +189,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         // Durable facts require an explicit memory request and then pass a
         // second allow-list. Identity, location, employer and credentials are
         // intentionally excluded from automatic long-term storage.
-        if (decision.shouldExtractFacts) {
+        if (decision.shouldExtractFacts && AgentMemoryDecision.shouldExtractFacts(role, content)) {
             val writeScope = applicationScope ?: scope
             writeScope.launch {
                 runCatching {

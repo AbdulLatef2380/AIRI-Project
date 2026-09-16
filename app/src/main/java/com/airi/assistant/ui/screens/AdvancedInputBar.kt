@@ -103,10 +103,11 @@ fun AdvancedChatInputBar(
 ) {
     // Track focus state to collapse toolbar when idle
     var hasFocus by remember { mutableStateOf(false) }
+    var toolbarDismissed by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         AnimatedVisibility(
-            visible = !hasUserSentMessage && (hasFocus || isGenerating || isPlanModeActive),
+            visible = !hasUserSentMessage && !toolbarDismissed && (hasFocus || isGenerating || isPlanModeActive),
             enter   = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
             exit    = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
         ) {
@@ -122,7 +123,8 @@ fun AdvancedChatInputBar(
                 onWebClick        = onWebClick,
                 onCodeClick       = onCodeClick,
                 onTakePhoto       = onTakePhoto,
-                onPickFile        = onPickFile
+                onPickFile        = onPickFile,
+                onDismiss         = { toolbarDismissed = true }
             )
         }
         AiriChatInputBar(
@@ -178,16 +180,18 @@ private fun InputActionToolbar(
     onCodeClick:       () -> Unit,
     // Attachment shortcuts
     onTakePhoto:       () -> Unit = {},
-    onPickFile:        () -> Unit = {}
+    onPickFile:        () -> Unit = {},
+    onDismiss:         () -> Unit = {}
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment     = Alignment.CenterVertically
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        Row(
+            modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
         // Plan Mode toggle
         PlanModeChip(isActive = isPlanModeActive, onClick = onPlanModeToggle)
 
@@ -239,6 +243,10 @@ private fun InputActionToolbar(
             isActive = false,
             onClick = onPickFile
         )
+        }
+        IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+            Icon(Icons.Outlined.Close, stringResource(R.string.cancel), tint = AiriTheme.onSurfaceVariant)
+        }
     }
 }
 

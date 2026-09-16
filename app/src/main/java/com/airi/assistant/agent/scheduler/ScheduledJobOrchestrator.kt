@@ -278,6 +278,11 @@ class ScheduledJobOrchestrator(private val context: Context) {
         }.getOrDefault(emptyList())
     }
 
+    /** Jobs created by the user; internal maintenance jobs never belong in the UI. */
+    fun listUserJobs(): List<ScheduledJob> = listJobs().filter {
+        it.agentId != ScheduledJobInputPolicy.SYSTEM_AGENT_ID && it.ownerId != "system"
+    }
+
     /** Persist the terminal result of an attempted job run for the task UI. */
     fun recordRunResult(
         jobId: String,

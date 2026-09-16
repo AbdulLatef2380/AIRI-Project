@@ -244,7 +244,7 @@ fun ModelSettingsScreen(
             }
             item {
                 RefModelGroupAccordion(
-                    title = "Ready to Use",
+                    title = stringResource(R.string.models_ready_to_use),
                     count = filteredDownloaded.size,
                     isExpanded = readyExpanded,
                     hasActiveModel = filteredDownloaded.any {
@@ -284,7 +284,7 @@ fun ModelSettingsScreen(
             }
             item {
                 RefModelGroupAccordion(
-                    title = "Available to Download",
+                    title = stringResource(R.string.models_available_download),
                     count = filteredCatalog.size,
                     isExpanded = availableExpanded,
                     hasActiveModel = false,
@@ -805,12 +805,12 @@ fun RefDownloadedModelCard(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         RefDetailCard(
-                            label = "RAM",
+                            label = stringResource(R.string.models_ram),
                             value = "${model.ramRequiredMb.takeIf { it > 0 } ?: "—"} MB",
                             modifier = Modifier.weight(1f)
                         )
                         RefDetailCard(
-                            label = "Context",
+                            label = stringResource(R.string.models_context),
                             value = if (model.contextSize > 0) model.contextSize.contextLabel() else "—",
                             modifier = Modifier.weight(1f)
                         )
@@ -820,12 +820,12 @@ fun RefDownloadedModelCard(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         RefDetailCard(
-                            label = "Size",
+                            label = stringResource(R.string.models_size),
                             value = model.size.toReadableSize(),
                             modifier = Modifier.weight(1f)
                         )
                         RefDetailCard(
-                            label = "Quant",
+                            label = stringResource(R.string.models_quant),
                             value = model.quantization.ifBlank { model.type.label },
                             modifier = Modifier.weight(1f)
                         )
@@ -1096,13 +1096,13 @@ fun RefCatalogModelCard(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         RefDetailCard(
-                            label = "RAM",
+                            label = stringResource(R.string.models_ram),
                             value = "${entry.ramRequiredMb} MB",
                             modifier = Modifier.weight(1f),
                             warn = unsupportedByRam
                         )
                         RefDetailCard(
-                            label = "Context",
+                            label = stringResource(R.string.models_context),
                             value = entry.contextSize.contextLabel(),
                             modifier = Modifier.weight(1f)
                         )
@@ -1112,12 +1112,12 @@ fun RefCatalogModelCard(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         RefDetailCard(
-                            label = "Size",
+                            label = stringResource(R.string.models_size),
                             value = entry.sizeBytes.toReadableSize(),
                             modifier = Modifier.weight(1f)
                         )
                         RefDetailCard(
-                            label = "Quant",
+                            label = stringResource(R.string.models_quant),
                             value = entry.quantization,
                             modifier = Modifier.weight(1f)
                         )
@@ -2352,7 +2352,7 @@ private fun AddRemoteModelContent(
             value         = serverUrl,
             onValueChange = { serverUrl = it; testStatus = null },
             label         = { Text(stringResource(R.string.server_url)) },
-            placeholder   = { Text("http://your-server:8080") },
+            placeholder   = { Text(stringResource(R.string.server_url)) },
             singleLine    = true,
             modifier      = Modifier.fillMaxWidth()
         )

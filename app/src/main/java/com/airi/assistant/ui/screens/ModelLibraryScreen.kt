@@ -138,7 +138,7 @@ fun ModelLibraryScreen(
             item {
                 SectionHeader(
                     icon  = Icons.Outlined.PhoneAndroid,
-                    title = "Offline AI",
+                    title = stringResource(R.string.models_offline_ai),
                     badge = if (modelState.isModelReady) "ACTIVE" else null,
                     badgeColor = CosmicAccent
                 )
@@ -151,7 +151,7 @@ fun ModelLibraryScreen(
                 Spacer(Modifier.height(4.dp))
                 SectionHeader(
                     icon  = Icons.Outlined.Cloud,
-                    title = "Cloud Intelligence",
+                    title = stringResource(R.string.models_cloud_intelligence),
                     badge = if (modelState.isCloudReady) "ACTIVE" else null,
                     badgeColor = Color(0xFF00BFA5)
                 )
@@ -192,7 +192,7 @@ fun ModelLibraryScreen(
                 Spacer(Modifier.height(4.dp))
                 SectionHeader(
                     icon  = Icons.Outlined.Search,
-                    title = "Search & Research",
+                    title = stringResource(R.string.models_search_research),
                     badge = if (SecureApiKeyStore(context).hasKey(CloudProvider.BRAVE)) "ACTIVE" else null,
                     badgeColor = Color(0xFFFF6D00)
                 )
@@ -208,7 +208,7 @@ fun ModelLibraryScreen(
                 Spacer(Modifier.height(4.dp))
                 SectionHeader(
                     icon  = Icons.Outlined.AutoAwesome,
-                    title = "Smart Routing Models",
+                    title = stringResource(R.string.models_smart_routing),
                     badge = "AUTO",
                     badgeColor = CosmicAccent
                 )

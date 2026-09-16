@@ -99,8 +99,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.CloudProvider
-import com.airi.assistant.execution.ExecutionRequest
-import com.airi.assistant.execution.ExecutionMode
+ import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.HybridOrchestrator
 import com.airi.assistant.execution.PrivacyLevel
@@ -2409,14 +2408,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // LOCAL_SERVER providers which need no credential.
             if (remote.apiKey.isNotBlank()) {
                 val keyStore = com.airi.assistant.execution.security.SecureApiKeyStore(appContext)
-                when (config.provider) {
-                    CloudProvider.GEMINI ->
-                        keyStore.saveKey(CloudProvider.GEMINI,     remote.apiKey)
-                    CloudProvider.OPENROUTER ->
-                        keyStore.saveKey(CloudProvider.OPENROUTER, remote.apiKey)
-                    CloudProvider.CUSTOM ->
-                        keyStore.saveKey(CloudProvider.CUSTOM,     remote.apiKey)
-                    else -> { /* OPENAI, ANTHROPIC, KIMI, BRAVE manage keys via their own UI flows */ }
+                // Every catalog provider must use the same secure credential
+                // source as its adapter. Previously only Gemini/OpenRouter/
+                // CUSTOM were bridged, so keys entered in the model store for
+                // OpenAI, Anthropic, or Kimi appeared saved but were invisible
+                // to CloudAdapterFactory on the first request.
+                if (config.provider != CloudProvider.BRAVE) {
+                    keyStore.saveKey(config.provider, remote.apiKey.trim())
                 }
                 Log.i("AIRI_CLOUD", "activateBuiltinProvider: bridged ${config.provider.name} key to SecureApiKeyStore")
             }
@@ -2684,13 +2682,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         val localVisionReady = _modelState.value.capabilities.vision &&
             runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
+        val cloudProvider = _modelState.value.activeCloudProvider
         val cloudVisionReady = _modelState.value.isCloudReady &&
-            _modelState.value.activeCloudProvider in setOf(
-                CloudProvider.GEMINI,
-                CloudProvider.OPENAI,
-                CloudProvider.OPENROUTER,
-                CloudProvider.CUSTOM
-            )
+            cloudProvider != null && supportsVisionModel(cloudProvider, _modelState.value.cloudModelName)
         val visionReady = localVisionReady || cloudVisionReady
         val preflightFailure = AttachmentDispatchPolicy.preflight(
             modelLoading = _modelState.value.isModelLoading,
@@ -2879,22 +2873,35 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 mimeType = attachment.normalizedMimeType.ifBlank { "text/plain" },
                 maxChunkChars = 2_000
             )
-            val selected = com.airi.core.attachments.TextChunkSelector.select(
-                query = query,
-                chunks = chunks,
-                tokenBudget = (remainingChars / 4).coerceAtLeast(1),
-                estimateTokens = com.airi.assistant.ai.prompt.budget.PromptBudgetLedger::estimateTokens
-            )
-            selected.forEach { selectedChunk ->
+            // A file attachment is an explicit user request for its content.
+            // Do not use relevance selection here: it silently dropped chunks
+            // from long files and made the model receive only a partial file.
+            chunks.forEach { chunk ->
+                if (remainingChars <= 0) return@forEach
                 context.append("BEGIN UNTRUSTED TEXT ATTACHMENT: ")
                     .append(attachment.safeDisplayName)
-                    .append(" [").append(selectedChunk.chunk.chunkId).append("]\n")
-                    .append(selectedChunk.chunk.text)
+                    .append(" [").append(chunk.chunkId).append("]\n")
+                    .append(chunk.text)
                     .append("\nEND UNTRUSTED TEXT ATTACHMENT\n\n")
-                remainingChars -= selectedChunk.chunk.text.length
+                remainingChars -= chunk.text.length
             }
         }
         return context.toString().trim()
+    }
+
+    private fun supportsVisionModel(provider: CloudProvider, modelName: String): Boolean {
+        val model = modelName.lowercase().substringAfterLast('/').trim()
+        return when (provider) {
+            CloudProvider.GEMINI -> model.startsWith("gemini-")
+            CloudProvider.OPENAI -> model.contains("gpt-4o") || model.contains("gpt-4.1") ||
+                model.contains("gpt-4.5") || model.contains("o1") || model.contains("o3") || model.contains("o4")
+            CloudProvider.OPENROUTER -> model.contains("gemini") || model.contains("gpt-4") ||
+                model.contains("claude-3") || model.contains("qwen-vl") || model.contains("llava") ||
+                model.contains("vision")
+            CloudProvider.CUSTOM -> model.contains("vision") || model.contains("-vl") ||
+                model.contains("llava") || model.contains("qwen2.5-vl")
+            else -> false
+        }
     }
 
     private fun visionImagePart(attachment: ChatAttachment): ExecutionRequest.ImagePart? {

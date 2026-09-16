@@ -124,7 +124,7 @@ private fun HistorySessionItem(session: ChatSessionSummary, onSelect: () -> Unit
             Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 ActionIcon(Icons.Outlined.DeleteOutline, "حذف", SemanticError, onDelete)
                 ActionIcon(Icons.Outlined.Archive, "أرشفة", AiriTheme.onSurfaceVariant, onArchive)
-                ActionIcon(if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder, "مفضلة", CosmicAccent, onFavorite)
+                ActionIcon(Icons.Outlined.FavoriteBorder, if (isFavorite) "مفضلة" else "إضافة إلى المفضلة", CosmicAccent, onFavorite)
                 ActionIcon(Icons.Outlined.Share, "مشاركة", AiriTheme.onSurfaceVariant, onShare)
                 ActionIcon(Icons.Outlined.Edit, "تسمية", AiriTheme.onSurfaceVariant, onRename)
                 ActionIcon(if (session.isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin, stringResource(R.string.pin_chat), CosmicAccent, onPin)

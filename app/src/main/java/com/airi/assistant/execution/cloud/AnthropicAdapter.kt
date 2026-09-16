@@ -135,6 +135,14 @@ class AnthropicAdapter(
             }
 
             val latency = System.currentTimeMillis() - startMs
+            if (fullText.isBlank()) {
+                return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                    error = "Provider returned no text",
+                    errorType = CloudErrorType.UNKNOWN,
+                    retryable = false,
+                    httpCode = 200
+                )
+            }
             onUsage(promptTokens, completeTokens)
             Log.i(TAG, "Complete: ${fullText.length} chars ${promptTokens}p+${completeTokens}c ${latency}ms")
 
@@ -147,10 +155,7 @@ class AnthropicAdapter(
 
         } catch (e: kotlinx.coroutines.CancellationException) {
             Log.i(TAG, "Cancelled after ${fullText.length} chars")
-            CloudProviderAdapter.AdapterResult.Failure(
-                error = "Cancelled", errorType = CloudErrorType.CANCELLED,
-                retryable = false, httpCode = -3
-            )
+            throw e
         } catch (e: java.net.SocketTimeoutException) {
             val mapped = CloudErrorMapper.map(-1, e.message ?: "timeout")
             CloudProviderAdapter.AdapterResult.Failure(

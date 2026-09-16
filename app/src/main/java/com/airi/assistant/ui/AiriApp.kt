@@ -94,6 +94,7 @@ import com.airi.assistant.ui.screens.PlanningDashboardScreen
 import com.airi.assistant.ui.screens.GitRepositoryScreen
 import com.airi.assistant.ui.screens.SecurityScannerScreen
 import com.airi.assistant.ui.screens.SecretManagerScreen
+import com.airi.assistant.ui.screens.ResourceSettingsScreen
 import com.airi.assistant.ui.screens.PromptBuilderScreen
 import com.airi.assistant.ui.plan.AgentPlanViewModel
 import com.airi.assistant.ui.theme.AiriTheme
@@ -137,6 +138,7 @@ object AiriRoute {
     const val SETTINGS_AI_MODELS     = "screen_settings_ai_models"
     const val SETTINGS_CUSTOMIZATION = "screen_settings_customization"
     const val SETTINGS_PRIVACY       = "screen_settings_privacy"
+    const val SETTINGS_RESOURCES     = "screen_settings_resources"
     const val SETTINGS_ABOUT         = "screen_settings_about"
     const val AGENT_TASKS            = "screen_agent_tasks"
     const val MODEL_LIBRARY          = "screen_model_library"
@@ -566,6 +568,10 @@ fun AiriApp() {
                         )
                     }
 
+                    composable(AiriRoute.SETTINGS_RESOURCES) {
+                        ResourceSettingsScreen(onBack = { navController.popBackStack() })
+                    }
+
                     composable(AiriRoute.SETTINGS_ABOUT) {
                         AboutScreen(
                             onBack     = { navController.popBackStack() },
@@ -766,7 +772,7 @@ fun AiriApp() {
                         }
                     }
                     composable(AiriRoute.SANDBOX_WORKSPACE) {
-                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                        UserSurfaceRoute(onBack = { navController.popBackStack() }) {
                             com.airi.assistant.ui.screens.SandboxWorkspaceScreen(
                                 onBack = { navController.popBackStack() }
                             )
@@ -783,7 +789,7 @@ fun AiriApp() {
                         )
                     }
                     composable(AiriRoute.TERMINAL) {
-                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                        UserSurfaceRoute(onBack = { navController.popBackStack() }) {
                             com.airi.assistant.ui.screens.TerminalScreen(
                                 onBack = { navController.popBackStack() }
                             )
@@ -835,7 +841,7 @@ fun AiriApp() {
 
                     // ── Secret Manager ──────────────────────────────
                     composable(AiriRoute.SECRET_MANAGER) {
-                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                        UserSurfaceRoute(onBack = { navController.popBackStack() }) {
                             SecretManagerScreen(
                                 onBack = { navController.popBackStack() }
                             )
@@ -896,6 +902,18 @@ private fun InternalSurfaceRoute(
     content: @Composable () -> Unit,
 ) {
     if (ReleaseScopePolicy.internalSurfacesEnabled) {
+        content()
+    } else {
+        FeatureFreezeUnavailableScreen(onBack = onBack)
+    }
+}
+
+@Composable
+private fun UserSurfaceRoute(
+    onBack: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    if (ReleaseScopePolicy.userFacingToolsEnabled) {
         content()
     } else {
         FeatureFreezeUnavailableScreen(onBack = onBack)

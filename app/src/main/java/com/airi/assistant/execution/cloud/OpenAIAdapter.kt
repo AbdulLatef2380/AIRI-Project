@@ -76,6 +76,7 @@ open class OpenAIAdapter(
         var promptTokens   = 0
         var completeTokens = 0
         val startMs        = System.currentTimeMillis()
+        var streamError: CloudProviderAdapter.AdapterResult.Failure? = null
 
         try {
             conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
@@ -114,6 +115,17 @@ open class OpenAIAdapter(
                     val payload = raw.removePrefix("data:").trim()
                     if (payload == "[DONE]" || payload.isBlank()) continue
 
+                    if (payload.contains("\"error\"")) {
+                        val message = extractErrorMessage(payload)
+                        streamError = CloudProviderAdapter.AdapterResult.Failure(
+                            error = "Provider stream error: $message",
+                            errorType = CloudErrorType.SERVER_ERROR,
+                            retryable = message.containsAny("overload", "tempor", "try again"),
+                            httpCode = 200
+                        )
+                        break
+                    }
+
                     // Token delta
                     val token = extractDeltaContent(payload)
                     if (token.isNotEmpty()) {
@@ -129,6 +141,16 @@ open class OpenAIAdapter(
                 }
             }
 
+            streamError?.let { return@withContext it }
+            if (fullText.isBlank()) {
+                return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                    error = "Provider returned no text",
+                    errorType = CloudErrorType.UNKNOWN,
+                    retryable = false,
+                    httpCode = 200
+                )
+            }
+
             val latency = System.currentTimeMillis() - startMs
             onUsage(promptTokens, completeTokens)
             Log.i(TAG, "[$providerId] complete: ${fullText.length} chars ${promptTokens}p+${completeTokens}c ${latency}ms")
@@ -142,12 +164,7 @@ open class OpenAIAdapter(
 
         } catch (e: kotlinx.coroutines.CancellationException) {
             Log.i(TAG, "[$providerId] stream cancelled after ${fullText.length} chars")
-            CloudProviderAdapter.AdapterResult.Failure(
-                error     = "Cancelled",
-                errorType = CloudErrorType.CANCELLED,
-                retryable = false,
-                httpCode  = -3
-            )
+            throw e
         } catch (e: java.net.SocketTimeoutException) {
             val mapped = CloudErrorMapper.map(-1, e.message ?: "timeout")
             CloudProviderAdapter.AdapterResult.Failure(
@@ -276,6 +293,20 @@ open class OpenAIAdapter(
         }
         return -1
     }
+
+    private fun extractErrorMessage(json: String): String {
+        val marker = json.indexOf("\"message\"")
+        if (marker < 0) return "unknown provider error"
+        val colon = json.indexOf(':', marker)
+        if (colon < 0) return "unknown provider error"
+        val value = json.substring(colon + 1).trimStart()
+        if (!value.startsWith("\"")) return value.take(180)
+        val end = findStringEnd(value, 1)
+        return if (end > 1) value.substring(1, end) else "unknown provider error"
+    }
+
+    private fun String.containsAny(vararg needles: String): Boolean =
+        needles.any { contains(it, ignoreCase = true) }
 
     private fun jsonString(s: String): String =
         "\"${s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r")}\""

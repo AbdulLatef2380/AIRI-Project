@@ -5,6 +5,8 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
+import androidx.work.Constraints
+import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -57,7 +59,8 @@ class ModelDownloadWorker(
         val expectedSha = inputData.getString(KEY_EXPECTED_SHA256) // optional
         val expectedSize = inputData.getLong(KEY_EXPECTED_SIZE, -1L)
 
-        val modelsDir = File(applicationContext.getExternalFilesDir(null), "models").apply { mkdirs() }
+        val modelsRoot = applicationContext.getExternalFilesDir(null) ?: applicationContext.filesDir
+        val modelsDir = File(modelsRoot, "models").apply { mkdirs() }
         val finalFile = File(modelsDir, fileName)
         val partFile  = File(modelsDir, "$fileName.part")
         val resumeFrom = if (partFile.exists()) partFile.length() else 0L
@@ -178,9 +181,13 @@ class ModelDownloadWorker(
                         sinceLastReport = 0L
                     }
                 }
-                if (expectedSize > 0 && totalWritten < expectedSize) {
+                if (expectedSize > 0L && totalWritten < expectedSize) {
                     Log.w("AIRI_DOWNLOAD",
                         "short read: $totalWritten/$expectedSize for ${partFile.name}")
+                    return false
+                }
+                if (expectedSize > 0L && totalWritten > expectedSize) {
+                    Log.w("AIRI_DOWNLOAD", "oversized read: $totalWritten/$expectedSize for ${partFile.name}")
                     return false
                 }
                 return true
@@ -242,6 +249,7 @@ class ModelDownloadWorker(
                 KEY_EXPECTED_SHA256  to expectedSha256
             )
             val req = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .setInputData(data)
                 .build()
             val name = uniqueWorkName(fileName)

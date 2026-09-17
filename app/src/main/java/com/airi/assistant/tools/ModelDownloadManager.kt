@@ -9,8 +9,7 @@ class ModelDownloadManager(private val context: Context) {
     private val defaultModelName = "qwen2.5-1.5b-q4_k_m.gguf"
 
     fun getModelsDir(): File {
-        val baseDir = context.getExternalFilesDir(null)
-            ?: throw IllegalStateException("External files dir not available")
+        val baseDir = context.getExternalFilesDir(null) ?: context.filesDir
         val modelsDir = File(baseDir, "models")
         if (!modelsDir.exists()) modelsDir.mkdirs()
         return modelsDir

@@ -74,6 +74,9 @@ import com.airi.assistant.ai.skills.SkillToolBridge
 import com.airi.assistant.tools.FileUtils
 import com.airi.assistant.tools.ModelDownloadManager
 import com.airi.assistant.tools.ModelDownloadService
+import com.airi.assistant.tools.ModelDownloadWorker
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.google.gson.Gson
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -95,6 +98,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import com.airi.assistant.execution.ExecOrigin
@@ -3491,14 +3495,43 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         modelController.loadModel(model)
     }
 
+    private var activeCatalogDownloadFileName: String? = null
+
     fun downloadCatalogModel(entry: CatalogEntry) {
-        val intent = Intent(appContext, ModelDownloadService::class.java).apply {
-            putExtra(ModelDownloadService.EXTRA_DOWNLOAD_URL, entry.downloadUrl)
-            putExtra(ModelDownloadService.EXTRA_FILENAME, entry.fileName)
-            putExtra(ModelDownloadService.EXTRA_EXPECTED_SIZE_BYTES, entry.sizeBytes)
+        activeCatalogDownloadFileName = entry.fileName
+        val workName = ModelDownloadWorker.enqueue(
+            context = appContext,
+            url = entry.downloadUrl,
+            fileName = entry.fileName,
+            expectedSize = entry.sizeBytes
+        )
+        viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                val info = WorkManager.getInstance(appContext)
+                    .getWorkInfosForUniqueWork(workName).get().firstOrNull()
+                when (info?.state) {
+                    WorkInfo.State.SUCCEEDED -> {
+                        val path = info.outputData.getString(ModelDownloadWorker.KEY_RESULT_PATH)
+                        if (!path.isNullOrBlank()) registerCompletedCatalogDownload(entry, path)
+                        break
+                    }
+                    WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> break
+                    else -> delay(500)
+                }
+            }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) appContext.startForegroundService(intent)
-        else appContext.startService(intent)
+    }
+
+    private suspend fun registerCompletedCatalogDownload(entry: CatalogEntry, path: String) {
+        val file = File(path)
+        if (!file.exists() || (entry.sizeBytes > 0L && file.length() != entry.sizeBytes)) return
+        val model = modelController.createModelFromFile(file, ModelSource.DOWNLOADED, "chat", entry)
+        ModelRegistry.addModel(model)
+        persistRegistry()
+        withContext(Dispatchers.Main) {
+            refreshModelList()
+            _modelState.update { it.copy(downloadedModelAvailable = true, downloadedModelPath = path) }
+        }
     }
 
     /**
@@ -3509,7 +3542,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * while a download is in progress (see ModelSettingsScreen).
      */
     fun cancelCatalogDownload() {
-        ModelDownloadService.cancel(appContext)
+        activeCatalogDownloadFileName?.let { ModelDownloadWorker.cancel(appContext, it) }
         Log.i("AIRI_MODEL_DOWNLOAD", "USER_CANCEL_REQUESTED")
     }
 
@@ -3536,9 +3569,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun startDefaultModelDownload() {
-        val intent = Intent(appContext, ModelDownloadService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) appContext.startForegroundService(intent)
-        else appContext.startService(intent)
+        val entry = ModelCatalog.entries.firstOrNull { it.fileName == "qwen2.5-1.5b-q4_k_m.gguf" }
+        if (entry != null) downloadCatalogModel(entry)
         refreshDownloadedModelState()
     }
 

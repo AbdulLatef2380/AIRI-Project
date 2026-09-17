@@ -78,6 +78,7 @@ import com.airi.assistant.ui.screens.SkillBuilderScreen
 import com.airi.assistant.ui.screens.SkillCreationWizardScreen
 import com.airi.assistant.ui.screens.SkillManagerScreen
 import com.airi.assistant.ui.screens.SkillDetailsScreen
+import com.airi.assistant.ui.screens.ConnectorDetailsScreen
 import com.airi.assistant.ui.screens.TemplatesScreen
 import com.airi.assistant.ui.screens.AppInfoScreen
 import com.airi.assistant.ui.screens.CreditsScreen
@@ -113,6 +114,7 @@ object AiriRoute {
     const val MEMORY             = "screen_memory"
     const val INTEGRATIONS       = "screen_integrations"
     const val CONNECTORS         = "screen_connectors"
+    const val CONNECTOR_DETAILS  = "screen_connector_details"
     const val PROMPT_BUILDER     = "screen_prompt_builder"
     const val PROFILE            = "screen_profile"
     const val AGENT_CONTROL      = "screen_agent_control"
@@ -597,6 +599,22 @@ fun AiriApp() {
                                 navController.navigate(AiriRoute.INTEGRATIONS) {
                                     launchSingleTop = true
                                 }
+                            },
+                            onOpenDetails = { connectorId ->
+                                navController.navigate("${AiriRoute.CONNECTOR_DETAILS}/$connectorId")
+                            }
+                        )
+                    }
+
+                    composable(
+                        route = "${AiriRoute.CONNECTOR_DETAILS}/{connectorId}",
+                        arguments = listOf(navArgument("connectorId") { type = NavType.StringType })
+                    ) { entry ->
+                        ConnectorDetailsScreen(
+                            connectorId = entry.arguments?.getString("connectorId").orEmpty(),
+                            onBack = { navController.popBackStack() },
+                            onManageAuthorization = { connectorId ->
+                                navController.navigate(AiriRoute.INTEGRATIONS) { launchSingleTop = true }
                             }
                         )
                     }

@@ -81,14 +81,20 @@ private fun iconForId(id: String): ImageVector = when {
 fun ConnectorsScreen(
     viewModel: ConnectorsViewModel = viewModel(),
     onBack: () -> Unit,
-    onManageAuthorization: (String) -> Unit = {}
+    onManageAuthorization: (String) -> Unit = {},
+    onOpenDetails: (String) -> Unit = {}
 ) {
     val allItems     by viewModel.items.collectAsState()
     val selectedTab  by viewModel.selectedTab.collectAsState()
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    var selectedCategory by rememberSaveable { mutableStateOf("ALL") }
+    val categories = remember(allItems) {
+        listOf("ALL") + allItems.map { it.meta.presentation().category }.distinct().sorted()
+    }
 
     val visibleItems = allItems.filter { row ->
         row.meta.type == selectedTab &&
+            (selectedCategory == "ALL" || row.meta.presentation().category == selectedCategory) &&
             (searchQuery.isBlank() ||
                 row.meta.name.contains(searchQuery, ignoreCase = true) ||
                 row.meta.description.contains(searchQuery, ignoreCase = true) ||
@@ -278,6 +284,21 @@ fun ConnectorsScreen(
                     )
                 }
             }
+            ScrollableTabRow(
+                selectedTabIndex = categories.indexOf(selectedCategory).coerceAtLeast(0),
+                containerColor = AiriTheme.background,
+                contentColor = CosmicAccent,
+                edgePadding = 12.dp,
+                divider = {}
+            ) {
+                categories.forEach { category ->
+                    Tab(
+                        selected = selectedCategory == category,
+                        onClick = { selectedCategory = category },
+                        text = { Text(category, fontSize = 11.sp) }
+                    )
+                }
+            }
             if (visibleItems.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -324,7 +345,8 @@ fun ConnectorsScreen(
                                 }
                             },
                             onDisconnect = { viewModel.disconnect(row.meta.id) },
-                            onManageAuthorization = onManageAuthorization
+                            onManageAuthorization = onManageAuthorization,
+                            onOpenDetails = { onOpenDetails(row.meta.id) }
                         )
                     }
                 }
@@ -338,7 +360,8 @@ private fun ConnectorCard(
     row: ConnectorsViewModel.ConnectorRow,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
-    onManageAuthorization: (String) -> Unit
+    onManageAuthorization: (String) -> Unit,
+    onOpenDetails: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     val isConnected = row.state.connected
@@ -365,7 +388,7 @@ private fun ConnectorCard(
                 color = if (isReady) SemanticSuccess.copy(0.25f) else if (needsAttention) statusColor.copy(0.30f) else AiriTheme.onSurface.copy(0.07f),
                 shape = AIRIShapes.md
             )
-            .clickable { expanded = !expanded }
+            .clickable(onClick = onOpenDetails)
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
             Row(

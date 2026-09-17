@@ -1,5 +1,7 @@
 package com.airi.assistant.ui.screens
 
+import android.app.ActivityManager
+import android.os.Build
 import android.os.StatFs
 
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -185,7 +187,7 @@ fun LibraryScreen(onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 DeviceStorageSummary(
-                    dataDir = context.filesDir,
+                    context = context,
                     refreshKey = Triple(allProjectFiles, allArtifacts, allTasks)
                 )
                 OutlinedTextField(
@@ -732,22 +734,41 @@ private fun LibraryArtifactRow(artifact: ArtifactManager.Artifact) {
 private data class DeviceStorageUsage(
     val appBytes: Long,
     val availableBytes: Long,
-    val totalBytes: Long
+    val totalBytes: Long,
+    val availableRamBytes: Long,
+    val totalRamBytes: Long,
+    val deviceName: String
 )
 
 @Composable
-private fun DeviceStorageSummary(dataDir: java.io.File, refreshKey: Any) {
-    var usage by remember(dataDir) { mutableStateOf<DeviceStorageUsage?>(null) }
-    LaunchedEffect(dataDir, refreshKey) {
+private fun DeviceStorageSummary(context: android.content.Context, refreshKey: Any) {
+    var usage by remember(context) { mutableStateOf<DeviceStorageUsage?>(null) }
+    LaunchedEffect(context, refreshKey) {
+        while (true) {
         usage = withContext(Dispatchers.IO) {
-            val stat = StatFs(dataDir.absolutePath)
+            val roots = listOfNotNull(
+                context.filesDir,
+                context.noBackupFilesDir,
+                context.cacheDir,
+                context.externalCacheDir,
+                context.getExternalFilesDir(null)
+            ).distinctBy { it.absolutePath }
+            val stat = StatFs(context.filesDir.absolutePath)
+            val memory = context.getSystemService(ActivityManager::class.java)
+            val info = ActivityManager.MemoryInfo()
+            memory?.getMemoryInfo(info)
             DeviceStorageUsage(
-                appBytes = dataDir.walkTopDown()
-                    .filter { it.isFile }
-                    .sumOf { file -> file.length().coerceAtLeast(0L) },
+                appBytes = roots.sumOf { root ->
+                    root.walkTopDown().filter { it.isFile }.sumOf { file -> file.length().coerceAtLeast(0L) }
+                },
                 availableBytes = stat.availableBytes.coerceAtLeast(0L),
-                totalBytes = stat.totalBytes.coerceAtLeast(0L)
+                totalBytes = stat.totalBytes.coerceAtLeast(0L),
+                availableRamBytes = info?.availMem?.coerceAtLeast(0L) ?: 0L,
+                totalRamBytes = info?.totalMem?.coerceAtLeast(0L) ?: 0L,
+                deviceName = "${Build.MANUFACTURER.replaceFirstChar { it.uppercase() }} ${Build.MODEL}".trim()
             )
+        }
+            kotlinx.coroutines.delay(5_000L)
         }
     }
     val current = usage
@@ -761,8 +782,9 @@ private fun DeviceStorageSummary(dataDir: java.io.File, refreshKey: Any) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.library_device_storage), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(current?.deviceName ?: "—", color = AiriTheme.onBackground, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     stringResource(
                         R.string.library_airi_data,
@@ -772,15 +794,10 @@ private fun DeviceStorageSummary(dataDir: java.io.File, refreshKey: Any) {
                     fontSize = 11.sp
                 )
             }
-            Text(
-                stringResource(
-                    R.string.library_free_total,
-                    current?.availableBytes?.let(::formatStorageBytes) ?: "—",
-                    current?.totalBytes?.let(::formatStorageBytes) ?: "—"
-                ),
-                color = CosmicAccent,
-                fontSize = 11.sp
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(stringResource(R.string.library_free_total, current?.availableBytes?.let(::formatStorageBytes) ?: "—", current?.totalBytes?.let(::formatStorageBytes) ?: "—"), color = CosmicAccent, fontSize = 11.sp)
+                Text(stringResource(R.string.library_ram_total_available, current?.totalRamBytes?.let(::formatStorageBytes) ?: "—", current?.availableRamBytes?.let(::formatStorageBytes) ?: "—"), color = AiriTheme.onSurfaceVariant, fontSize = 10.sp)
+            }
         }
     }
 }

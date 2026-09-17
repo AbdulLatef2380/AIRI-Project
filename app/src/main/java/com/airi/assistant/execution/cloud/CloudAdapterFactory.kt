@@ -74,7 +74,7 @@ object CloudAdapterFactory {
                 val geminiModel = EmbeddedProviderConfig.getActiveProvider(context)
                     ?.takeIf { it.provider == CloudProvider.GEMINI }
                     ?.defaultModel
-                    ?: "gemini-2.0-flash"
+                    ?: "gemini-3.8-flash"
                 Log.d(TAG, "GEMINI: model=$geminiModel (from EmbeddedProviderConfig)")
                 GeminiAdapter(keyStore, geminiModel)
             }

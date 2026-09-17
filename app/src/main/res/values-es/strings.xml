@@ -1128,6 +1128,7 @@
     <string name="library_file_count">%1$d archivos</string>
     <string name="library_airi_data">Datos de AIRI %1$s</string>
     <string name="library_free_total">%1$s libres / %2$s total</string>
+    <string name="library_ram_total_available">RAM %1$s total / %2$s disponible</string>
     <string name="library_empty_title">Aún no hay archivos guardados</string>
     <string name="library_empty_subtitle">Los archivos importados y los artefactos generados aparecerán aquí.</string>
     <string name="library_delete">Eliminar</string>

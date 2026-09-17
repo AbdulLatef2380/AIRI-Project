@@ -3166,7 +3166,6 @@ fun AiriChatInputBar(
                         )
                     }
                 }
-                }
                 // End-side action group: connector and the primary send/live/stop action.
                 Row(
                     modifier = Modifier.semantics { contentDescription = "Composer actions" },

@@ -105,6 +105,9 @@ fun SkillManagerScreen(
             OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.name }?.manifest?.category
         }.distinct().sorted()
     }
+    LaunchedEffect(categories) {
+        if (selectedCategory !in categories) selectedCategory = "ALL"
+    }
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->

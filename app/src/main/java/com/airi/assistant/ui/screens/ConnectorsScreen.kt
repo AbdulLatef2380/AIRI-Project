@@ -91,6 +91,9 @@ fun ConnectorsScreen(
     val categories = remember(allItems) {
         listOf("ALL") + allItems.map { it.meta.presentation().category }.distinct().sorted()
     }
+    LaunchedEffect(categories) {
+        if (selectedCategory !in categories) selectedCategory = "ALL"
+    }
 
     val visibleItems = allItems.filter { row ->
         row.meta.type == selectedTab &&

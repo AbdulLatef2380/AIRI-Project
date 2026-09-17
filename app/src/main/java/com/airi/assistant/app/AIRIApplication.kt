@@ -22,6 +22,7 @@ import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.sync.CloudSyncWorker
 import com.airi.assistant.agent.learning.reinforcement.ReinforcementMemory
 import com.airi.assistant.runtime.recovery.RuntimeRecoveryEngine
+import com.airi.assistant.resources.ResourceMonitorWorker
 import com.airi.assistant.system.LanguageManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +43,9 @@ class AIRIApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // Keep resource alerts alive when the settings screen is not open.
+        ResourceMonitorWorker.schedule(applicationContext)
 
         LoggingService.info(TAG, "━━━ AIRI Starting ━━━")
 

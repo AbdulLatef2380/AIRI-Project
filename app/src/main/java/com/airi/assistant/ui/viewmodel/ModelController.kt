@@ -249,11 +249,8 @@ internal class ModelController(
 
     internal fun syncDownloadedModelAvailability() {
         val modelsDir = runCatching { downloadManager.getModelsDir() }.getOrNull() ?: return
-        modelsDir.listFiles()
-            ?.filter { it.isFile && it.name.endsWith(".part", ignoreCase = true) }
-            ?.forEach { partial ->
-                if (partial.delete()) Log.i(PROOF_TAG, "REMOVED_INTERRUPTED_IMPORT ${partial.name}")
-            }
+        // Keep .part files for resumable downloads. They are intentionally excluded
+        // from discovery because only completed .gguf files are considered below.
         val ggufFiles = modelsDir.listFiles()
             ?.filter { it.isFile && it.name.lowercase().endsWith(".gguf") && it.length() > 50_000_000L }
             ?: return

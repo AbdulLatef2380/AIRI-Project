@@ -65,7 +65,7 @@ fun ResourceSettingsScreen(onBack: () -> Unit) {
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Choose how much AIRI may use. Storage is a real private-app budget; RAM and CPU are runtime guidance limits.", fontSize = 14.sp)
+            Text("Set warning targets for AIRI data and runtime pressure. Android does not let an app reserve storage, RAM, or CPU; these values guide AIRI and trigger early warnings.", fontSize = 14.sp)
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -82,13 +82,13 @@ fun ResourceSettingsScreen(onBack: () -> Unit) {
                             Button(onClick = { storageBudget = gb; manager.setStorageBudgetGb(gb); refresh() }) { Text("${gb}GB") }
                         }
                     }
-                    Text("Models and saved data use this budget. Keep free space for updates and recovery.", fontSize = 12.sp)
+                    Text("AIRI measures its own data here, including downloaded models and saved files. The value is a warning target, not an operating-system quota.", fontSize = 12.sp)
                 }
             }
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("RAM guidance: ${ramBudget} MB")
+                    Text("RAM warning target: ${ramBudget} MB")
                         Icon(Icons.Outlined.Memory, contentDescription = null)
                     }
                     Text("Device total: ${snapshot.totalRamBytes.asResourceSize()} · available: ${snapshot.availableRamBytes.asResourceSize()}")
@@ -101,8 +101,8 @@ fun ResourceSettingsScreen(onBack: () -> Unit) {
             }
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("CPU guidance: $cpuBudget%")
-                    Text("${snapshot.cpuCores} available processor cores. AIRI will use this value when choosing inference settings.", fontSize = 12.sp)
+                    Text("CPU warning target: $cpuBudget%")
+                    Text("${snapshot.cpuCores} available processor cores. This value is guidance for AIRI runtime choices; Android still controls scheduling.", fontSize = 12.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(25, 50, 75, 100).forEach { percent ->
                             Button(onClick = { cpuBudget = percent; manager.setCpuBudgetPercent(percent); refresh() }) { Text("$percent%") }

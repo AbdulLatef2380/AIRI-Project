@@ -615,6 +615,14 @@ fun AiriApp() {
                             onBack = { navController.popBackStack() },
                             onManageAuthorization = { connectorId ->
                                 navController.navigate(AiriRoute.INTEGRATIONS) { launchSingleTop = true }
+                            },
+                            onTry = { prompt ->
+                                chatViewModel.prefillInput(prompt)
+                                navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }
+                            },
+                            onExplain = { prompt ->
+                                chatViewModel.prefillInput(prompt)
+                                navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }
                             }
                         )
                     }
@@ -748,7 +756,15 @@ fun AiriApp() {
                     ) { entry ->
                         SkillDetailsScreen(
                             skillId = entry.arguments?.getString("skillId").orEmpty(),
-                            onBack = { navController.popBackStack() }
+                            onBack = { navController.popBackStack() },
+                            onTry = { prompt ->
+                                chatViewModel.prefillInput(prompt)
+                                navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }
+                            },
+                            onExplain = { prompt ->
+                                chatViewModel.prefillInput(prompt)
+                                navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }
+                            }
                         )
                     }
 

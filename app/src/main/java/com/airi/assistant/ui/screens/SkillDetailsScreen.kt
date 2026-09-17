@@ -44,7 +44,12 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SkillDetailsScreen(skillId: String, onBack: () -> Unit) {
+fun SkillDetailsScreen(
+    skillId: String,
+    onBack: () -> Unit,
+    onTry: (String) -> Unit = {},
+    onExplain: (String) -> Unit = {}
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val registry = remember { SkillRegistry(context) }
     val entry = remember(skillId) { OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == skillId } }
@@ -122,7 +127,7 @@ fun SkillDetailsScreen(skillId: String, onBack: () -> Unit) {
                     Text(if (enabled) "Enabled" else "Enable")
                 }
                 OutlinedButton(
-                    onClick = { scope.launch { snackbar.showSnackbar("Ask AIRI to use ${manifest.name} in a new message") } },
+                    onClick = { onTry("/skill:${manifest.id} ") },
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Outlined.PlayArrow, contentDescription = null)
@@ -131,7 +136,7 @@ fun SkillDetailsScreen(skillId: String, onBack: () -> Unit) {
                 }
             }
             OutlinedButton(
-                onClick = { scope.launch { snackbar.showSnackbar("Explanation requested for ${manifest.name}") } },
+                onClick = { onExplain("Explain the ${manifest.name} skill, its requirements, permissions, and a safe example of using it in this project.") },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Outlined.HelpOutline, contentDescription = null)

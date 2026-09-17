@@ -233,7 +233,8 @@ class CloudBackend(
                     retryable = false, code = "network_blocked"
                 )
                 NetworkGuard.Decision.Allow -> {
-                    val provider = prefs.preferredProvider
+                    val provider = prefs.preferredProvider.takeUnless { it == CloudProvider.BRAVE }
+                        ?: CloudProvider.GEMINI
                     val adapter = CloudAdapterFactory.create(provider, context, request)
                     if (!adapter.isAvailable) {
                         return@withContext ExecutionResult.Failure(

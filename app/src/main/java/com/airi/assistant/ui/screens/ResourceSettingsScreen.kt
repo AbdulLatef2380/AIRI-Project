@@ -1,5 +1,7 @@
 package com.airi.assistant.ui.screens
 
+import android.app.ActivityManager
+import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,6 +40,9 @@ import com.airi.assistant.resources.asResourceSize
 fun ResourceSettingsScreen(onBack: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val manager = remember { ResourceBudgetManager(context.applicationContext) }
+    val memoryManager = remember { context.getSystemService(ActivityManager::class.java) }
+    val memoryInfo = remember { ActivityManager.MemoryInfo().also { memoryManager?.getMemoryInfo(it) } }
+    val deviceName = remember { "${Build.MANUFACTURER.replaceFirstChar { it.uppercase() }} ${Build.MODEL}".trim() }
     var snapshot by remember { mutableStateOf(manager.snapshot()) }
     var storageBudget by remember { mutableStateOf(manager.storageBudgetGb()) }
     var ramBudget by remember { mutableStateOf(manager.ramBudgetMb()) }
@@ -65,6 +70,7 @@ fun ResourceSettingsScreen(onBack: () -> Unit) {
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Text(deviceName, fontSize = 18.sp)
             Text("Set warning targets for AIRI data and runtime pressure. Android does not let an app reserve storage, RAM, or CPU; these values guide AIRI and trigger early warnings.", fontSize = 14.sp)
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -93,8 +99,9 @@ fun ResourceSettingsScreen(onBack: () -> Unit) {
                     }
                     Text("Device total: ${snapshot.totalRamBytes.asResourceSize()} · available: ${snapshot.availableRamBytes.asResourceSize()}")
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(1024, 2048, 4096, 8192).forEach { mb ->
-                            Button(onClick = { ramBudget = mb; manager.setRamBudgetMb(mb); refresh() }) { Text("${mb / 1024}GB") }
+                        listOf(1024L, 2048L, 4096L, (memoryInfo.totalMem / (1024L * 1024L)).coerceAtLeast(1024L))
+                            .distinct().sorted().forEach { mb ->
+                            Button(onClick = { ramBudget = mb.toInt(); manager.setRamBudgetMb(mb.toInt()); refresh() }) { Text("${mb / 1024}GB") }
                         }
                     }
                 }

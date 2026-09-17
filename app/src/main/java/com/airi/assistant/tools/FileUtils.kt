@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.os.StatFs
 import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
@@ -34,10 +35,16 @@ object FileUtils {
             if (!exists() && !mkdirs()) throw IOException("Cannot create internal models directory")
         }
         val destFile = File(modelsDir, safeName)
+        val tempFile = File(modelsDir, ".$safeName.part")
         val expectedSize = querySize(context, uri)
+        val requiredBytes = (expectedSize.takeIf { it > 0 } ?: MIN_MODEL_BYTES) + 32L * 1024L * 1024L
+        if (StatFs(modelsDir.absolutePath).availableBytes < requiredBytes) {
+            throw IOException("Not enough free device storage for this model")
+        }
         var copiedBytes = 0L
+        tempFile.delete()
         resolver.openInputStream(uri)?.use { input ->
-            FileOutputStream(destFile, false).use { output ->
+            FileOutputStream(tempFile, false).use { output ->
                 val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                 while (true) {
                     val read = input.read(buffer)
@@ -50,12 +57,20 @@ object FileUtils {
         } ?: throw IOException("Cannot open selected model URI for reading")
 
         if (expectedSize > 0 && copiedBytes != expectedSize) {
-            destFile.delete()
+            tempFile.delete()
             throw IOException("Model copy incomplete expected=$expectedSize copied=$copiedBytes")
         }
-        if (!destFile.exists() || destFile.length() < MIN_MODEL_BYTES) {
-            destFile.delete()
-            throw IOException("Model file invalid or incomplete size=${destFile.length()}")
+        if (!tempFile.exists() || tempFile.length() < MIN_MODEL_BYTES) {
+            tempFile.delete()
+            throw IOException("Model file invalid or incomplete size=${tempFile.length()}")
+        }
+        if (destFile.exists() && !destFile.delete()) {
+            tempFile.delete()
+            throw IOException("Cannot replace existing model file")
+        }
+        if (!tempFile.renameTo(destFile)) {
+            tempFile.delete()
+            throw IOException("Cannot finalize model import")
         }
         Log.i(TAG, "IMPORT_COPY_SUCCESS uri=$uri dest=${destFile.absolutePath} expected=$expectedSize copied=$copiedBytes")
         return ModelImportCopyResult(destFile, expectedSize, copiedBytes)

@@ -1789,8 +1789,11 @@ private fun AiriHistoryPanel(
     onSessionSelected: () -> Unit,
     onNewChat: () -> Unit
 ) {
+    val context = LocalContext.current
     val sessions by viewModel.sessions.collectAsState()
     val favoriteSessionIds by viewModel.favoriteSessionIds.collectAsState()
+    var renameTarget by remember { mutableStateOf<com.airi.assistant.memory.dao.ChatSessionSummary?>(null) }
+    var renameDraft by remember { mutableStateOf("") }
 
     ModalDrawerSheet(
         drawerContainerColor = AiriTheme.surface,
@@ -1895,19 +1898,43 @@ private fun AiriHistoryPanel(
                                     onSessionSelected()
                                 },
                                 onDelete = { viewModel.deleteSession(session.id) },
-                                onRename = { },
+                                onRename = { renameDraft = session.title; renameTarget = session },
                                 onPin = { viewModel.setSessionPinned(session.id, !session.isPinned) },
                                 isFavorite = session.id in favoriteSessionIds,
                                 onFavorite = { viewModel.setSessionFavorite(session.id, session.id !in favoriteSessionIds) },
                                 onArchive = { viewModel.archiveSession(session.id) },
-                                onShare = { }
+                                onShare = { shareSession(context, session) }
                             )
                     }
                 }
             }
         }
     }
-
+    renameTarget?.let { session ->
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            containerColor = AiriTheme.surface,
+            title = { Text(stringResource(R.string.rename_chat), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
+            text = {
+                OutlinedTextField(
+                    value = renameDraft,
+                    onValueChange = { renameDraft = it.take(80) },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.rename_chat_hint)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.renameSession(session.id, renameDraft)
+                    renameTarget = null
+                }) { Text(stringResource(R.string.rename_chat)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameTarget = null }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
 }
 // Message list
 @Composable
@@ -3084,11 +3111,6 @@ fun AiriChatInputBar(
                 val attachmentDescription = stringResource(R.string.cd_add_attachment)
                 val voiceInputDescription = stringResource(R.string.cd_start_voice_input)
                 val connectorsDescription = stringResource(R.string.cd_open_connectors)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 // Attach is always available, including while composing.
                 Box(
@@ -3211,7 +3233,6 @@ fun AiriChatInputBar(
                         }
                     }
                 }
-                    }
             }
         }
 

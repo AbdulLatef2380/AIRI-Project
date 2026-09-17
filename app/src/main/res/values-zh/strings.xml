@@ -1128,6 +1128,7 @@
     <string name="library_file_count">%1$d 个文件</string>
     <string name="library_airi_data">AIRI 数据 %1$s</string>
     <string name="library_free_total">可用 %1$s / 总计 %2$s</string>
+    <string name="library_ram_total_available">内存总计 %1$s / 可用 %2$s</string>
     <string name="library_empty_title">暂无保存的文件</string>
     <string name="library_empty_subtitle">导入的文件和生成的内容将显示在这里。</string>
     <string name="library_delete">删除</string>

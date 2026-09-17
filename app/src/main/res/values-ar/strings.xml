@@ -515,6 +515,13 @@
     <string name="nav_chat">دردشة</string>
     <string name="nav_new">جديد</string>
     <string name="nav_library">المكتبة</string>
+    <string name="library_device_storage">تخزين الجهاز</string>
+    <string name="library_file_count">%1$d ملفات</string>
+    <string name="library_airi_data">بيانات AIRI %1$s</string>
+    <string name="library_free_total">%1$s متاح / %2$s الإجمالي</string>
+    <string name="library_empty_title">لا توجد ملفات محفوظة بعد</string>
+    <string name="library_empty_subtitle">ستظهر هنا الملفات المستوردة والنتائج المُنشأة.</string>
+    <string name="library_delete">حذف</string>
     <string name="nav_schedule">مجدول</string>
     <string name="nav_settings">إعدادات</string>
     <string name="nav_skills">مهارات</string>

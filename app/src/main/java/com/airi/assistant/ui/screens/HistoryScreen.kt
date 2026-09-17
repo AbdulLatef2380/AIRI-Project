@@ -108,7 +108,7 @@ fun HistoryScreen(viewModel: ChatViewModel, onBack: () -> Unit, onSessionSelecte
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-private fun HistorySessionItem(session: ChatSessionSummary, onSelect: () -> Unit, onDelete: () -> Unit, onRename: () -> Unit, onPin: () -> Unit, isFavorite: Boolean, onFavorite: () -> Unit, onArchive: () -> Unit, onShare: () -> Unit) {
+internal fun HistorySessionItem(session: ChatSessionSummary, onSelect: () -> Unit, onDelete: () -> Unit, onRename: () -> Unit, onPin: () -> Unit, isFavorite: Boolean, onFavorite: () -> Unit, onArchive: () -> Unit, onShare: () -> Unit) {
     val time = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     var actions by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().clip(AIRIShapes.md).background(if (actions) AiriTheme.surfaceVariant else AiriTheme.surface).combinedClickable(onClick = onSelect, onLongClick = { actions = !actions }).padding(14.dp)) {

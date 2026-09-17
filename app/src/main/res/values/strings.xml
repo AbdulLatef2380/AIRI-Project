@@ -462,6 +462,13 @@
     <string name="nav_chat">Chat</string>
     <string name="nav_new">New</string>
     <string name="nav_library">Library</string>
+    <string name="library_device_storage">Device storage</string>
+    <string name="library_file_count">%1$d files</string>
+    <string name="library_airi_data">AIRI data %1$s</string>
+    <string name="library_free_total">%1$s free / %2$s total</string>
+    <string name="library_empty_title">No saved files yet</string>
+    <string name="library_empty_subtitle">Imported files and generated artifacts will appear here.</string>
+    <string name="library_delete">Delete</string>
     <!-- Bottom navigation labels -->
     <!-- Agent tasks route alias -->
     <string name="agent_tasks">Tasks</string>

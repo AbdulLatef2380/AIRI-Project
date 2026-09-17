@@ -1888,90 +1888,20 @@ private fun AiriHistoryPanel(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(sessions, key = { it.id }) { session ->
-                        var showActions by remember(session.id) { mutableStateOf(false) }
-                        var showRename by remember(session.id) { mutableStateOf(false) }
-                        var renameDraft by remember(session.id) { mutableStateOf(session.title) }
-                        if (showRename) {
-                            AlertDialog(
-                                onDismissRequest = { showRename = false },
-                                title = { Text(stringResource(R.string.rename_chat_title)) },
-                                text = {
-                                    OutlinedTextField(
-                                        value = renameDraft,
-                                        onValueChange = { renameDraft = it.take(80) },
-                                        label = { Text(stringResource(R.string.rename_chat_hint)) },
-                                        singleLine = true
-                                    )
+                            HistorySessionItem(
+                                session = session,
+                                onSelect = {
+                                    viewModel.loadSession(session.id)
+                                    onSessionSelected()
                                 },
-                                confirmButton = {
-                                    TextButton(
-                                        enabled = renameDraft.trim().isNotBlank(),
-                                        onClick = {
-                                            viewModel.renameSession(session.id, renameDraft)
-                                            showRename = false
-                                            showActions = false
-                                        }
-                                    ) { Text(stringResource(R.string.save)) }
-                                },
-                                dismissButton = {
-                                    TextButton(onClick = { showRename = false }) { Text(stringResource(R.string.cancel)) }
-                                }
+                                onDelete = { viewModel.deleteSession(session.id) },
+                                onRename = { },
+                                onPin = { viewModel.setSessionPinned(session.id, !session.isPinned) },
+                                isFavorite = session.id in favoriteSessionIds,
+                                onFavorite = { viewModel.setSessionFavorite(session.id, session.id !in favoriteSessionIds) },
+                                onArchive = { viewModel.archiveSession(session.id) },
+                                onShare = { }
                             )
-                        }
-                        Box(
-                            modifier = Modifier.fillMaxWidth().clip(AIRIShapes.lg)
-                                .background(AiriTheme.surfaceVariant.copy(alpha = 0.42f))
-                                .border(1.dp, AiriTheme.outline.copy(alpha = 0.42f), AIRIShapes.lg)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth()
-                                    .combinedClickable(
-                                        onClick = {
-                                            viewModel.loadSession(session.id)
-                                            onSessionSelected()
-                                        },
-                                        onLongClick = { showActions = true }
-                                    )
-                                    .padding(horizontal = 14.dp, vertical = 13.dp)
-                            ) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(34.dp).clip(AIRIShapes.sm).background(CosmicAccent.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-                                    Icon(if (session.isPinned) Icons.Filled.PushPin else Icons.Outlined.ChatBubbleOutline, null, tint = CosmicAccent, modifier = Modifier.size(17.dp))
-                                }
-                                Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f)) {
-                                    Text(session.title.ifBlank { stringResource(R.string.session_untitled) }, color = AiriTheme.onBackground, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
-                                    Text(session.lastMessage.orEmpty().ifBlank { stringResource(R.string.history_no_messages) }, color = AiriTheme.onSurfaceVariant.copy(alpha = 0.58f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
-                                Text(java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(session.updatedAt)), color = AiriTheme.onSurfaceVariant.copy(alpha = 0.5f), fontSize = 10.sp)
-                            }
-                            }
-                            DropdownMenu(
-                                expanded = showActions,
-                                onDismissRequest = { showActions = false },
-                                modifier = Modifier.background(AiriTheme.surfaceVariant)
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text(if (session.isPinned) stringResource(R.string.unpin_chat) else stringResource(R.string.pin_chat)) },
-                                    onClick = { viewModel.setSessionPinned(session.id, !session.isPinned); showActions = false }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(if (session.id in favoriteSessionIds) stringResource(R.string.library_remove_favorite) else stringResource(R.string.library_toggle_favorite)) },
-                                    onClick = { viewModel.setSessionFavorite(session.id, session.id !in favoriteSessionIds); showActions = false }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.rename_chat)) },
-                                    onClick = { renameDraft = session.title; showActions = false; showRename = true }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.archive_chat)) },
-                                    onClick = { viewModel.archiveSession(session.id); showActions = false }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.delete), color = SemanticError) },
-                                    onClick = { viewModel.deleteSession(session.id); showActions = false }
-                                )
-                            }
-                        }
                     }
                 }
             }

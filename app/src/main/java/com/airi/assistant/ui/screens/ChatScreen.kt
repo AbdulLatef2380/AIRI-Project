@@ -2662,9 +2662,10 @@ fun AiriChatInputBar(
     // Keep collapsed and expanded states available; the content remains
     // scrollable so every attachment shortcut is reachable on small screens.
     val attachSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-    var text by rememberSaveable { mutableStateOf("") }
-    val draftPrefs = remember { context.getSharedPreferences("airi_drafts", android.content.Context.MODE_PRIVATE) }
-    LaunchedEffect(Unit) { if (text.isBlank()) text = draftPrefs.getString("current", "").orEmpty() }
+    var text by rememberSaveable { mutableStateOf(draftText) }
+    LaunchedEffect(draftText) {
+        if (text != draftText) text = draftText
+    }
     var isExpanded by remember { mutableStateOf(false) }
     val isInferenceReady = modelState.isModelReady || modelState.isCloudReady
     val isInteractionLocked = isGenerating || isDispatchingAttachment
@@ -3013,7 +3014,7 @@ fun AiriChatInputBar(
                     onValueChange = { newValue ->
                         if (text.isEmpty() && newValue.isNotEmpty()) onUserStartedTyping()
                         text = newValue
-                        draftPrefs.edit().putString("current", newValue).apply()
+                        onDraftTextChanged(newValue)
                         val query = newValue.trimStart()
                         when {
                             query.startsWith("/skill:") || query.startsWith("@knowledge:") -> {
@@ -3083,7 +3084,83 @@ fun AiriChatInputBar(
                 val attachmentDescription = stringResource(R.string.cd_add_attachment)
                 val voiceInputDescription = stringResource(R.string.cd_start_voice_input)
                 val connectorsDescription = stringResource(R.string.cd_open_connectors)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                // Attach is always available, including while composing.
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .shadow(4.dp, CircleShape, ambientColor = CosmicAccent.copy(alpha = 0.28f), spotColor = CosmicAccent.copy(alpha = 0.24f))
+                        .clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(CosmicAccent.copy(alpha = 0.24f), SurfaceFloating)))
+                        .border(1.dp, CosmicAccent.copy(alpha = 0.42f), CircleShape)
+                        .semantics {
+                            contentDescription = attachmentDescription
+                            role = Role.Button
+                        }
+                        .clickable(enabled = !isInteractionLocked) { showAttachPopup = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        attachmentDescription,
+                        tint = AiriTheme.onBackground.copy(if (!isInteractionLocked) 0.7f else 0.3f),
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                // Mic remains available while composing.
+                // Keep the microphone available while composing text or attachments.
+                // Live voice chat is represented by the main action button only when
+                // the composer is empty; typing changes that button to Send.
+                AnimatedVisibility(visible = !isGenerating, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
+                    Box(
+                        modifier = Modifier.size(36.dp).clip(CircleShape)
+                            .semantics {
+                                contentDescription = voiceInputDescription
+                                role = Role.Button
+                            }
+                            .clickable(enabled = isInferenceReady) { onMicClick() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (voiceState != VoiceSessionState.IDLE) {
+                            Box(modifier = Modifier.size((28 * micPulse.value).dp).clip(CircleShape).background(CosmicAccent.copy(0.18f)))
+                        }
+                        Icon(Icons.Outlined.Mic, voiceInputDescription,
+                            tint = when (voiceState) {
+                                VoiceSessionState.IDLE -> if (isInferenceReady) Color.White.copy(0.70f) else Color.White.copy(0.30f)
+                                else -> CosmicAccent
+                            },
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                // Connector badge — tapping opens the real Connectors screen.
+                if (!isGenerating) {
+                    Box(
+                        modifier = Modifier
+                            .clip(AIRIShapes.xl)
+                            .background(AiriTheme.surfaceVariant)
+                            .border(1.dp, Color.White.copy(0.12f), AIRIShapes.xl)
+                            .semantics {
+                                contentDescription = connectorsDescription
+                                role = Role.Button
+                            }
+                            .clickable { onNavigate(AiriRoute.CONNECTORS) }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Outlined.Hub, null, tint = CosmicAccent, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Outlined.ChevronRight, null, tint = AiriTheme.onBackground.copy(0.45f), modifier = Modifier.size(12.dp))
+                        }
+                    }
+                }
+                }
                 Box(
                     modifier = Modifier.size(40.dp).graphicsLayer { scaleX = mainScale; scaleY = mainScale }
                         .shadow(if (isInferenceReady) 12.dp else 0.dp, CircleShape, ambientColor = CosmicAccent.copy(0.5f), spotColor = CosmicAccent.copy(0.6f))
@@ -3098,7 +3175,12 @@ fun AiriChatInputBar(
                         .clickable(enabled = isInferenceReady || isInteractionLocked) {
                             when {
                                 isGenerating -> onCancel()
-                                showSend && canSend -> { onSend(text) {}; text = ""; draftPrefs.edit().remove("current").apply() }
+                                showSend && canSend -> {
+                                    onSend(text) {
+                                        text = ""
+                                        onDraftTextChanged("")
+                                    }
+                                }
                                 !showSend -> onVoiceChatClick()
                             }
                         },
@@ -3129,78 +3211,7 @@ fun AiriChatInputBar(
                         }
                     }
                 }
-
-                // Attach is always available, including while composing.
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .shadow(4.dp, CircleShape, ambientColor = CosmicAccent.copy(alpha = 0.28f), spotColor = CosmicAccent.copy(alpha = 0.24f))
-                        .clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(CosmicAccent.copy(alpha = 0.24f), SurfaceFloating)))
-                        .border(1.dp, CosmicAccent.copy(alpha = 0.42f), CircleShape)
-                        .semantics {
-                            contentDescription = attachmentDescription
-                            role = Role.Button
-                        }
-                        .clickable(enabled = !isInteractionLocked) { showAttachPopup = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Add,
-                        attachmentDescription,
-                        tint = AiriTheme.onBackground.copy(if (!isInteractionLocked) 0.7f else 0.3f),
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-
-                // Mic remains available while composing.
-                // Keep the microphone available while composing text or attachments.
-                // Live voice chat is represented by the main action button only when
-                // the composer is empty; typing changes that button to Send.
-                AnimatedVisibility(visible = !isGenerating, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
-                    Box(
-                        modifier = Modifier.size(36.dp).clip(CircleShape)
-                            .semantics {
-                                contentDescription = voiceInputDescription
-                                role = Role.Button
-                            }
-                            .clickable(enabled = isInferenceReady) { onMicClick() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (voiceState != VoiceSessionState.IDLE) {
-                            Box(modifier = Modifier.size((28 * micPulse.value).dp).clip(CircleShape).background(CosmicAccent.copy(0.18f)))
-                        }
-                        Icon(Icons.Outlined.Mic, voiceInputDescription,
-                            tint = when (voiceState) {
-                                VoiceSessionState.IDLE -> if (isInferenceReady) Color.White.copy(0.70f) else Color.White.copy(0.30f)
-                                else -> CosmicAccent
-                            },
-                            modifier = Modifier.size(20.dp)
-                        )
                     }
-                }
-
-                // Connector badge — tapping opens the real Connectors screen.
-                if (!isGenerating) {
-                    Box(
-                        modifier = Modifier
-                            .clip(AIRIShapes.xl)
-                            .background(AiriTheme.surfaceVariant)
-                            .border(1.dp, Color.White.copy(0.12f), AIRIShapes.xl)
-                            .semantics {
-                                contentDescription = connectorsDescription
-                                role = Role.Button
-                            }
-                            .clickable { onNavigate(AiriRoute.CONNECTORS) }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Outlined.Hub, null, tint = CosmicAccent, modifier = Modifier.size(14.dp))
-                            Icon(Icons.Outlined.ChevronRight, null, tint = AiriTheme.onBackground.copy(0.45f), modifier = Modifier.size(12.dp))
-                        }
-                    }
-                }
-                }
             }
         }
 

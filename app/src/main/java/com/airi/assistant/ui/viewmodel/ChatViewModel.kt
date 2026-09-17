@@ -3519,7 +3519,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _modelState.update { it.copy(loadError = "${entry.fileName} not found — please download it first", loadErrorType = LoadErrorType.FILE_NOT_FOUND) }
             return
         }
-        if (file.length() < (entry.sizeBytes * 0.97).toLong()) {
+        if (entry.sizeBytes > 0 && file.length() != entry.sizeBytes) {
             val reason = "Downloaded model incomplete expected=${entry.sizeBytes} actual=${file.length()}"
             Log.e("AIRI_MODEL_DOWNLOAD", "FAILED reason=$reason")
             com.airi.assistant.domain.verification.VerificationTracker.recordCheck("DOWNLOAD", false, reason)

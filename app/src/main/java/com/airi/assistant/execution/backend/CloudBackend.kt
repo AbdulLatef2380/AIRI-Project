@@ -79,7 +79,9 @@ class CloudBackend(
         get() {
             val guard = NetworkGuard.evaluate(prefs)
             if (guard is NetworkGuard.Decision.Block) return false
-            val adapter = CloudAdapterFactory.create(prefs.preferredProvider, context)
+            val provider = prefs.preferredProvider.takeUnless { it == CloudProvider.BRAVE }
+                ?: CloudProvider.GEMINI
+            val adapter = CloudAdapterFactory.create(provider, context)
             return adapter.isAvailable
         }
 
@@ -97,7 +99,8 @@ class CloudBackend(
 
         // ── Build provider priority list for this request ─────────────────────
         // Primary provider first, then available fallback providers in priority order.
-        val primary = prefs.preferredProvider
+        val primary = prefs.preferredProvider.takeUnless { it == CloudProvider.BRAVE }
+            ?: CloudProvider.GEMINI
         val providerQueue = buildList {
             add(primary)
             FAILOVER_PRIORITY.filter { it != primary }.forEach { fallback ->

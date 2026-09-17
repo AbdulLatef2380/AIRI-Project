@@ -318,7 +318,7 @@ private fun CloudProviderSelector(
     current:    CloudProvider,
     onSelected: (CloudProvider) -> Unit
 ) {
-    val providers = CloudProvider.entries
+    val providers = CloudProvider.entries.filter { it != CloudProvider.BRAVE }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp)

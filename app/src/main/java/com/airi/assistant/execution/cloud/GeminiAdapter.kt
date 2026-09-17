@@ -25,7 +25,7 @@ import java.net.URLEncoder
  */
 class GeminiAdapter(
     private val keyStore: SecureApiKeyStore,
-    private val model:    String = "gemini-2.0-flash"
+    private val model:    String = "gemini-3.8-flash"
 ) : CloudProviderAdapter {
 
     override val providerId: String = "gemini"

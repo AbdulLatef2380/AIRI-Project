@@ -1,6 +1,7 @@
 package com.airi.assistant.tools
 
 import android.content.Context
+import com.airi.assistant.ai.ModelCatalog
 import java.io.File
 
 class ModelDownloadManager(private val context: Context) {
@@ -21,12 +22,14 @@ class ModelDownloadManager(private val context: Context) {
 
     fun isModelDownloaded(): Boolean {
         val file = getModelFile()
-        return file.exists() && file.length() > 100L * 1024 * 1024
+        val expected = ModelCatalog.entries.firstOrNull { it.fileName == file.name }?.sizeBytes ?: 0L
+        return file.exists() && (expected <= 0L || file.length() == expected)
     }
 
     fun isFileDownloaded(fileName: String): Boolean {
         val file = File(getModelsDir(), fileName)
-        return file.exists() && file.length() > 50L * 1024 * 1024
+        val expected = ModelCatalog.entries.firstOrNull { it.fileName == fileName }?.sizeBytes ?: 0L
+        return file.exists() && (expected <= 0L || file.length() == expected)
     }
 
     /**

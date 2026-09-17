@@ -124,14 +124,14 @@ object EmbeddedProviderConfig {
             badgeColor   = 0xFF4DB6AC
         ),
 
-        // ── FREE: Google Gemini 2.0 Flash Lite ────────────────────────────
+        // ── FREE: Google Gemini 3.5 Flash Lite ────────────────────────────
         ProviderConfig(
             id           = "gemini_flash_lite",
             provider     = CloudProvider.GEMINI,
-            displayLabel = "Gemini 2.0 Flash Lite",
+            displayLabel = "Gemini 3.5 Flash Lite",
             description  = "Google's fastest model. Very generous free quota. Free API key.",
             tier         = ProviderTier.FREE_SIGNUP,
-            defaultModel = "gemini-2.0-flash-lite",
+            defaultModel = "gemini-3.5-flash-lite",
             baseUrl      = "https://generativelanguage.googleapis.com",
             signupUrl    = "https://aistudio.google.com/app/apikey",
             keyPrefsKey  = KEY_GEMINI_KEY,
@@ -140,14 +140,14 @@ object EmbeddedProviderConfig {
             badgeColor   = 0xFF4285F4
         ),
 
-        // ── FREE: Google Gemini 2.0 Flash ─────────────────────────────────
+        // ── FREE: Google Gemini 3.8 Flash ─────────────────────────────────
         ProviderConfig(
             id           = "gemini_flash",
             provider     = CloudProvider.GEMINI,
-            displayLabel = "Gemini 2.0 Flash",
+            displayLabel = "Gemini 3.8 Flash",
             description  = "Google Gemini flagship flash model. Excellent reasoning + vision.",
             tier         = ProviderTier.FREE_SIGNUP,
-            defaultModel = "gemini-2.0-flash",
+            defaultModel = "gemini-3.8-flash",
             baseUrl      = "https://generativelanguage.googleapis.com",
             signupUrl    = "https://aistudio.google.com/app/apikey",
             keyPrefsKey  = KEY_GEMINI_KEY,
@@ -239,20 +239,26 @@ object EmbeddedProviderConfig {
         val normalized = key.trim()
         if (normalized.isBlank()) return
         val store = com.airi.assistant.execution.security.SecureApiKeyStore(context)
-        store.saveCustomEndpointKey(keyStorageId(config), normalized)
+        store.saveKey(config.provider, normalized)
+        store.clearCustomEndpointKey(keyStorageId(config))
         clearLegacyKey(context, config)
     }
 
     fun getKey(context: Context, config: ProviderConfig): String? {
         if (config.keyPrefsKey.isBlank()) return null
         val store = com.airi.assistant.execution.security.SecureApiKeyStore(context)
-        store.getCustomEndpointKey(keyStorageId(config))?.let { return it }
+        store.getKey(config.provider)?.let { return it }
+        store.getCustomEndpointKey(keyStorageId(config))?.let {
+            store.saveKey(config.provider, it)
+            store.clearCustomEndpointKey(keyStorageId(config))
+            return it
+        }
 
         val legacy = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(config.keyPrefsKey, null)
             ?.takeIf { it.isNotBlank() }
             ?: return null
-        store.saveCustomEndpointKey(keyStorageId(config), legacy)
+            store.saveKey(config.provider, legacy)
         clearLegacyKey(context, config)
         return legacy
     }

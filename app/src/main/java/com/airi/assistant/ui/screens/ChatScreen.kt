@@ -41,6 +41,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -3111,7 +3112,12 @@ fun AiriChatInputBar(
                 val attachmentDescription = stringResource(R.string.cd_add_attachment)
                 val voiceInputDescription = stringResource(R.string.cd_start_voice_input)
                 val connectorsDescription = stringResource(R.string.cd_open_connectors)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                // Start-side utility group: attachment and microphone.
+                Row(
+                    modifier = Modifier.semantics { contentDescription = "Composer utilities" },
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                 // Attach is always available, including while composing.
                 Box(
                     modifier = Modifier
@@ -3160,8 +3166,13 @@ fun AiriChatInputBar(
                         )
                     }
                 }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                }
+                // End-side action group: connector and the primary send/live/stop action.
+                Row(
+                    modifier = Modifier.semantics { contentDescription = "Composer actions" },
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                 // Connector badge — tapping opens the real Connectors screen.
                 if (!isGenerating) {
                     Box(
@@ -3178,7 +3189,7 @@ fun AiriChatInputBar(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Icon(Icons.Outlined.Hub, null, tint = CosmicAccent, modifier = Modifier.size(14.dp))
-                            Icon(Icons.Outlined.ChevronRight, null, tint = AiriTheme.onBackground.copy(0.45f), modifier = Modifier.size(12.dp))
+                            Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = AiriTheme.onBackground.copy(0.45f), modifier = Modifier.size(12.dp))
                         }
                     }
                 }
@@ -3232,6 +3243,7 @@ fun AiriChatInputBar(
                             else -> Icon(Icons.Default.GraphicEq, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
                         }
                     }
+                }
                 }
             }
         }

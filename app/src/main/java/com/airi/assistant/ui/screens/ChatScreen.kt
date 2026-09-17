@@ -1918,19 +1918,22 @@ private fun AiriHistoryPanel(
                                 }
                             )
                         }
-                        Column(
+                        Box(
                             modifier = Modifier.fillMaxWidth().clip(AIRIShapes.lg)
-                                .background(if (showActions) AiriTheme.surfaceVariant else AiriTheme.surfaceVariant.copy(alpha = 0.42f))
-                                .border(1.dp, if (showActions) CosmicAccent.copy(alpha = 0.38f) else AiriTheme.outline.copy(alpha = 0.42f), AIRIShapes.lg)
-                                .combinedClickable(
-                                    onClick = {
-                                        viewModel.loadSession(session.id)
-                                        onSessionSelected()
-                                    },
-                                    onLongClick = { showActions = true }
-                                )
-                                .padding(horizontal = 14.dp, vertical = 13.dp)
+                                .background(AiriTheme.surfaceVariant.copy(alpha = 0.42f))
+                                .border(1.dp, AiriTheme.outline.copy(alpha = 0.42f), AIRIShapes.lg)
                         ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = {
+                                            viewModel.loadSession(session.id)
+                                            onSessionSelected()
+                                        },
+                                        onLongClick = { showActions = true }
+                                    )
+                                    .padding(horizontal = 14.dp, vertical = 13.dp)
+                            ) {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(34.dp).clip(AIRIShapes.sm).background(CosmicAccent.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
                                     Icon(if (session.isPinned) Icons.Filled.PushPin else Icons.Outlined.ChatBubbleOutline, null, tint = CosmicAccent, modifier = Modifier.size(17.dp))
@@ -1941,14 +1944,32 @@ private fun AiriHistoryPanel(
                                 }
                                 Text(java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(session.updatedAt)), color = AiriTheme.onSurfaceVariant.copy(alpha = 0.5f), fontSize = 10.sp)
                             }
-                            if (showActions) {
-                                Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.End) {
-                                    TextButton(onClick = { viewModel.setSessionPinned(session.id, !session.isPinned); showActions = false }) { Text(if (session.isPinned) stringResource(R.string.unpin_chat) else stringResource(R.string.pin_chat), color = CosmicAccent, fontSize = 11.sp) }
-                                    TextButton(onClick = { viewModel.setSessionFavorite(session.id, session.id !in favoriteSessionIds); showActions = false }) { Text(if (session.id in favoriteSessionIds) stringResource(R.string.library_remove_favorite) else stringResource(R.string.library_toggle_favorite), color = CosmicAccent, fontSize = 11.sp) }
-                                    TextButton(onClick = { renameDraft = session.title; showRename = true }) { Text(stringResource(R.string.rename_chat), color = AiriTheme.onSurface, fontSize = 11.sp) }
-                                    TextButton(onClick = { viewModel.archiveSession(session.id); showActions = false }) { Text(stringResource(R.string.archive_chat), color = AiriTheme.onSurfaceVariant, fontSize = 11.sp) }
-                                    TextButton(onClick = { viewModel.deleteSession(session.id); showActions = false }) { Text(stringResource(R.string.delete), color = SemanticError, fontSize = 11.sp) }
-                                }
+                            }
+                            DropdownMenu(
+                                expanded = showActions,
+                                onDismissRequest = { showActions = false },
+                                modifier = Modifier.background(AiriTheme.surfaceVariant)
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(if (session.isPinned) stringResource(R.string.unpin_chat) else stringResource(R.string.pin_chat)) },
+                                    onClick = { viewModel.setSessionPinned(session.id, !session.isPinned); showActions = false }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (session.id in favoriteSessionIds) stringResource(R.string.library_remove_favorite) else stringResource(R.string.library_toggle_favorite)) },
+                                    onClick = { viewModel.setSessionFavorite(session.id, session.id !in favoriteSessionIds); showActions = false }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.rename_chat)) },
+                                    onClick = { renameDraft = session.title; showActions = false; showRename = true }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.archive_chat)) },
+                                    onClick = { viewModel.archiveSession(session.id); showActions = false }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.delete), color = SemanticError) },
+                                    onClick = { viewModel.deleteSession(session.id); showActions = false }
+                                )
                             }
                         }
                     }
@@ -3118,6 +3139,7 @@ fun AiriChatInputBar(
             }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 8.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Send / LiveChat / Stop circle button
@@ -3131,10 +3153,9 @@ fun AiriChatInputBar(
                 val attachmentDescription = stringResource(R.string.cd_add_attachment)
                 val voiceInputDescription = stringResource(R.string.cd_start_voice_input)
                 val connectorsDescription = stringResource(R.string.cd_open_connectors)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .graphicsLayer { scaleX = mainScale; scaleY = mainScale }
+                    modifier = Modifier.size(40.dp).graphicsLayer { scaleX = mainScale; scaleY = mainScale }
                         .shadow(if (isInferenceReady) 12.dp else 0.dp, CircleShape, ambientColor = CosmicAccent.copy(0.5f), spotColor = CosmicAccent.copy(0.6f))
                         .clip(CircleShape)
                         .background(when {
@@ -3143,10 +3164,7 @@ fun AiriChatInputBar(
                             isInferenceReady || showSend -> CosmicAccent
                             else -> CosmicAccent.copy(0.30f)
                         })
-                        .semantics {
-                            contentDescription = mainActionDescription
-                            role = Role.Button
-                        }
+                        .semantics { contentDescription = mainActionDescription; role = Role.Button }
                         .clickable(enabled = isInferenceReady || isInteractionLocked) {
                             when {
                                 isGenerating -> onCancel()
@@ -3182,9 +3200,7 @@ fun AiriChatInputBar(
                     }
                 }
 
-                Spacer(Modifier.width(6.dp))
-
-                // Attach + button
+                // Attach is always available, including while composing.
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -3207,7 +3223,7 @@ fun AiriChatInputBar(
                     )
                 }
 
-                // Mic button
+                // Mic remains available while composing.
                 // Keep the microphone available while composing text or attachments.
                 // Live voice chat is represented by the main action button only when
                 // the composer is empty; typing changes that button to Send.
@@ -3234,7 +3250,7 @@ fun AiriChatInputBar(
                     }
                 }
 
-                // Connector badge — tapping opens the real Connectors screen
+                // Connector badge — tapping opens the real Connectors screen.
                 if (!isGenerating) {
                     Box(
                         modifier = Modifier
@@ -3254,9 +3270,7 @@ fun AiriChatInputBar(
                         }
                     }
                 }
-
-                Spacer(Modifier.weight(1f))
-
+                }
             }
         }
 

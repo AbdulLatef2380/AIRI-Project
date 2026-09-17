@@ -11,45 +11,36 @@ data class ConnectorPresentation(
     val capabilities: List<String>
 )
 
-/** User-facing explanations only; credentials and raw tokens never enter this catalog. */
+/**
+ * Presentation adapter: it only explains metadata declared by the connector contract.
+ * It never invents provider-specific permissions, actions, or capabilities.
+ */
 fun ConnectorMeta.presentation(): ConnectorPresentation {
-    val idLower = id.lowercase()
-    return when {
-        idLower.contains("github") -> ConnectorPresentation(
-            category = "Development", version = "Managed", projectAccess = "Repository metadata and approved project actions",
-            modelDependency = "Optional active model for natural-language requests",
-            capabilities = listOf("Read repositories and issues", "Inspect project activity", "Support coding and repository workflows")
-        )
-        idLower.contains("google") || idLower.contains("gmail") || idLower.contains("drive") || idLower.contains("calendar") -> ConnectorPresentation(
-            category = "Productivity", version = "Managed", projectAccess = "Only the Google resources authorized by the user",
-            modelDependency = "Optional; the connector can execute structured actions",
-            capabilities = listOf("Work with mail, files, or calendar data", "Support research and project organization", "Respect the connected account permissions")
-        )
-        idLower.contains("telegram") || idLower.contains("discord") || idLower.contains("slack") -> ConnectorPresentation(
-            category = "Communication", version = "Managed", projectAccess = "Approved messages and notifications only",
-            modelDependency = "Optional active model for drafting or routing",
-            capabilities = listOf("Send approved notifications", "Connect project events to communication", "Keep external side effects policy-gated")
-        )
-        idLower.contains("mcp") -> ConnectorPresentation(
-            category = "Extensions", version = "Managed", projectAccess = "Tools exposed by the configured MCP server",
-            modelDependency = "Usually required for natural-language tool selection",
-            capabilities = listOf("Expose external tools to AIRI", "Extend the agent without changing the core app", "Require explicit server configuration and permissions")
-        )
-        type == ConnectorType.LOCAL || type == ConnectorType.SYSTEM -> ConnectorPresentation(
-            category = "Device & Local", version = "Built-in", projectAccess = "Only the device surface and permissions granted by the user",
-            modelDependency = "Not required for direct actions",
-            capabilities = listOf("Use local files or device capabilities", "Support offline workflows", "Respect Android runtime permissions")
-        )
-        type == ConnectorType.API -> ConnectorPresentation(
-            category = "AI & APIs", version = "Managed", projectAccess = "The configured endpoint and approved request scope",
-            modelDependency = "This connector is itself an API/model surface",
-            capabilities = listOf("Send structured API requests", "Provide cloud model or service responses", "Use retries and error reporting from the connector layer")
-        )
-        else -> ConnectorPresentation(
-            category = type.name.lowercase().replaceFirstChar { it.uppercase() }, version = "Managed",
-            projectAccess = "Only the capabilities declared by this connector",
-            modelDependency = "Depends on the selected workflow",
-            capabilities = listOf(description)
-        )
+    val category = when (type) {
+        ConnectorType.API -> "AI & APIs"
+        ConnectorType.APP -> "Apps & Services"
+        ConnectorType.LOCAL -> "Device & Local"
+        ConnectorType.MCP -> "Extensions"
+        ConnectorType.SYSTEM -> "System"
     }
+    val projectAccess = when (type) {
+        ConnectorType.LOCAL, ConnectorType.SYSTEM -> "The device surface and Android permissions granted by the user"
+        ConnectorType.MCP -> "The tools exposed by the configured MCP server"
+        else -> "The endpoint and resources authorized by the user"
+    }
+    val modelDependency = when (type) {
+        ConnectorType.API -> "This connector provides an API or model surface"
+        else -> "The connector does not declare a model requirement in its public metadata"
+    }
+    val capabilities = buildList {
+        add(description)
+        if (tags.isNotEmpty()) add("Declared tags: ${tags.joinToString()}")
+    }
+    return ConnectorPresentation(
+        category = category,
+        version = "Contract-managed",
+        projectAccess = projectAccess,
+        modelDependency = modelDependency,
+        capabilities = capabilities
+    )
 }

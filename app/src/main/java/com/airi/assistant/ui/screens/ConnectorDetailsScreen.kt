@@ -58,6 +58,8 @@ fun ConnectorDetailsScreen(
     connectorId: String,
     onBack: () -> Unit,
     onManageAuthorization: (String) -> Unit,
+    onTry: (String) -> Unit = {},
+    onExplain: (String) -> Unit = {},
     viewModel: ConnectorsViewModel = viewModel()
 ) {
     val row = viewModel.items.collectAsState().value.firstOrNull { it.meta.id == connectorId }
@@ -134,7 +136,7 @@ fun ConnectorDetailsScreen(
                 OutlinedButton(
                     onClick = {
                         viewModel.connect(connectorId)
-                        scope.launch { snackbar.showSnackbar("Connection check requested") }
+                        onTry("Test the ${row.meta.name} connector with a safe read-only operation and report the result.")
                     },
                     modifier = Modifier.weight(1f)
                 ) {
@@ -152,7 +154,7 @@ fun ConnectorDetailsScreen(
                 }
             }
             OutlinedButton(
-                onClick = { scope.launch { snackbar.showSnackbar("Explanation requested for ${row.meta.name}") } },
+                onClick = { onExplain("Explain the ${row.meta.name} connector, its permissions, project use cases, and safe limitations.") },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Outlined.HelpOutline, contentDescription = null)

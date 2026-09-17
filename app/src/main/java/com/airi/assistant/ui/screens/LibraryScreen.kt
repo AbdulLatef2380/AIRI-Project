@@ -1,5 +1,7 @@
 package com.airi.assistant.ui.screens
 
+import android.os.StatFs
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -47,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,6 +70,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
     val workspaceRuntime = ServiceLocator.workspaceRuntime
     val artifactManager = ServiceLocator.artifactManager
     val projectFileManager = ServiceLocator.projectFileManager
@@ -177,6 +181,7 @@ fun LibraryScreen(onBack: () -> Unit) {
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                DeviceStorageSummary(context.filesDir)
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -716,6 +721,41 @@ private fun LibraryArtifactRow(artifact: ArtifactManager.Artifact) {
             }
         }
     }
+}
+
+@Composable
+private fun DeviceStorageSummary(dataDir: java.io.File) {
+    val usedBytes = remember(dataDir) {
+        dataDir.walkTopDown().filter(java.io.File::isFile).sumOf { it.length() }
+    }
+    val stat = remember(dataDir) { StatFs(dataDir.absolutePath) }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = AIRIShapes.md,
+        color = AiriTheme.surfaceVariant.copy(alpha = 0.55f)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(stringResource(R.string.library_device_storage), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(stringResource(R.string.library_airi_data, formatStorageBytes(usedBytes)), color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
+            }
+            Text(
+                stringResource(R.string.library_free_total, formatStorageBytes(stat.availableBytes), formatStorageBytes(stat.totalBytes)),
+                color = CosmicAccent,
+                fontSize = 11.sp
+            )
+        }
+    }
+}
+
+private fun formatStorageBytes(bytes: Long): String = when {
+    bytes < 1024L * 1024L -> "%.1f KB".format(bytes / 1024f)
+    bytes < 1024L * 1024L * 1024L -> "%.1f MB".format(bytes / (1024f * 1024f))
+    else -> "%.1f GB".format(bytes / (1024f * 1024f * 1024f))
 }
 
 @Composable

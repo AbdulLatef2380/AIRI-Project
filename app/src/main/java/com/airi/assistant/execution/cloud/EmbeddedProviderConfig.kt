@@ -258,7 +258,7 @@ object EmbeddedProviderConfig {
             .getString(config.keyPrefsKey, null)
             ?.takeIf { it.isNotBlank() }
             ?: return null
-            store.saveKey(config.provider, legacy)
+        store.saveKey(config.provider, legacy)
         clearLegacyKey(context, config)
         return legacy
     }

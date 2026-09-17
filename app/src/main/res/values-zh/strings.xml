@@ -1124,6 +1124,13 @@
     <string name="profile_remove_photo">移除照片</string>
     <string name="profile_title">Profile</string>
     <string name="nav_library">Library</string>
+    <string name="library_device_storage">设备存储</string>
+    <string name="library_file_count">%1$d 个文件</string>
+    <string name="library_airi_data">AIRI 数据 %1$s</string>
+    <string name="library_free_total">可用 %1$s / 总计 %2$s</string>
+    <string name="library_empty_title">暂无保存的文件</string>
+    <string name="library_empty_subtitle">导入的文件和生成的内容将显示在这里。</string>
+    <string name="library_delete">删除</string>
     <string name="char_limit_warning">警告：您正接近字符限制。</string>
     <string name="char_limit_reached_title">文本过长</string>
     <string name="char_limit_reached_desc">文本已变得非常长，可能导致错误。是否将其转换为文件？</string>

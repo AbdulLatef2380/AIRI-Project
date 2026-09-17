@@ -1124,6 +1124,13 @@
     <string name="profile_remove_photo">Eliminar foto</string>
     <string name="profile_title">Profile</string>
     <string name="nav_library">Library</string>
+    <string name="library_device_storage">Almacenamiento del dispositivo</string>
+    <string name="library_file_count">%1$d archivos</string>
+    <string name="library_airi_data">Datos de AIRI %1$s</string>
+    <string name="library_free_total">%1$s libres / %2$s total</string>
+    <string name="library_empty_title">Aún no hay archivos guardados</string>
+    <string name="library_empty_subtitle">Los archivos importados y los artefactos generados aparecerán aquí.</string>
+    <string name="library_delete">Eliminar</string>
     <string name="char_limit_warning">Advertencia: Te estás acercando al límite de caracteres.</string>
     <string name="char_limit_reached_title">Texto demasiado largo</string>
     <string name="char_limit_reached_desc">El texto se ha vuelto muy largo y puede provocar errores. ¿Deseas convertirlo en un archivo?</string>

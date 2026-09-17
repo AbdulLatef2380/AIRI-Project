@@ -139,7 +139,7 @@ private fun ActionIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, la
     IconButton(onClick = onClick, modifier = Modifier.size(34.dp)) { Icon(icon, label, tint = tint, modifier = Modifier.size(18.dp)) }
 }
 
-private fun shareSession(context: Context, session: ChatSessionSummary) {
+internal fun shareSession(context: Context, session: ChatSessionSummary) {
     val intent = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, "${session.title}\n\n${session.lastMessage.orEmpty()}") }
     context.startActivity(Intent.createChooser(intent, "مشاركة المحادثة"))
 }

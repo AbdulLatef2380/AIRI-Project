@@ -66,6 +66,8 @@ import com.airi.assistant.agent.durable.DurableTask
 import com.airi.assistant.workspace.ProjectFileEditRuntime
 import com.airi.assistant.workspace.ProjectFileManager
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -181,7 +183,10 @@ fun LibraryScreen(onBack: () -> Unit) {
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                DeviceStorageSummary(context.filesDir)
+                DeviceStorageSummary(
+                    dataDir = context.filesDir,
+                    refreshKey = Triple(allProjectFiles, allArtifacts, allTasks)
+                )
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -724,11 +729,28 @@ private fun LibraryArtifactRow(artifact: ArtifactManager.Artifact) {
 }
 
 @Composable
-private fun DeviceStorageSummary(dataDir: java.io.File) {
-    val usedBytes = remember(dataDir) {
-        dataDir.walkTopDown().filter(java.io.File::isFile).sumOf { it.length() }
+private data class DeviceStorageUsage(
+    val appBytes: Long,
+    val availableBytes: Long,
+    val totalBytes: Long
+)
+
+@Composable
+private fun DeviceStorageSummary(dataDir: java.io.File, refreshKey: Any) {
+    var usage by remember(dataDir) { mutableStateOf<DeviceStorageUsage?>(null) }
+    LaunchedEffect(dataDir, refreshKey) {
+        usage = withContext(Dispatchers.IO) {
+            val stat = StatFs(dataDir.absolutePath)
+            DeviceStorageUsage(
+                appBytes = dataDir.walkTopDown()
+                    .filter { it.isFile }
+                    .sumOf { file -> file.length().coerceAtLeast(0L) },
+                availableBytes = stat.availableBytes.coerceAtLeast(0L),
+                totalBytes = stat.totalBytes.coerceAtLeast(0L)
+            )
+        }
     }
-    val stat = remember(dataDir) { StatFs(dataDir.absolutePath) }
+    val current = usage
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = AIRIShapes.md,
@@ -741,10 +763,21 @@ private fun DeviceStorageSummary(dataDir: java.io.File) {
         ) {
             Column {
                 Text(stringResource(R.string.library_device_storage), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                Text(stringResource(R.string.library_airi_data, formatStorageBytes(usedBytes)), color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
+                Text(
+                    stringResource(
+                        R.string.library_airi_data,
+                        current?.appBytes?.let(::formatStorageBytes) ?: "—"
+                    ),
+                    color = AiriTheme.onSurfaceVariant,
+                    fontSize = 11.sp
+                )
             }
             Text(
-                stringResource(R.string.library_free_total, formatStorageBytes(stat.availableBytes), formatStorageBytes(stat.totalBytes)),
+                stringResource(
+                    R.string.library_free_total,
+                    current?.availableBytes?.let(::formatStorageBytes) ?: "—",
+                    current?.totalBytes?.let(::formatStorageBytes) ?: "—"
+                ),
                 color = CosmicAccent,
                 fontSize = 11.sp
             )

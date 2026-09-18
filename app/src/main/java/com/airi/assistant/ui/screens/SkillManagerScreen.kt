@@ -253,6 +253,7 @@ fun SkillManagerScreen(
             }
         }
     }
+}
 @Composable
 private fun AddOption(icon: ImageVector, label: String, onClick: () -> Unit) {
     DropdownMenuItem(

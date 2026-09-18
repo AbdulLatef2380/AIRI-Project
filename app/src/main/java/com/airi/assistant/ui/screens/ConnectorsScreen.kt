@@ -388,7 +388,7 @@ private fun ConnectorCard(
             .background(AiriTheme.surface)
             .border(
                 width = 1.dp,
-                color = if (isReady) SemanticSuccess.copy(0.25f) else if (needsAttention) statusColor.copy(0.30f) else AiriTheme.onSurface.copy(0.07f),
+                color = if (isReady) SemanticSuccess.copy(0.42f) else if (needsAttention) statusColor.copy(0.45f) else AiriTheme.outline,
                 shape = AIRIShapes.md
             )
             .clickable(onClick = onOpenDetails)
@@ -463,7 +463,7 @@ private fun ConnectorCard(
             ) {
                 Column {
                     Spacer(Modifier.height(10.dp))
-                    Divider(color = AiriTheme.outline.copy(alpha = 0.07f))
+                    Divider(color = AiriTheme.outline.copy(alpha = 0.5f))
                     Spacer(Modifier.height(10.dp))
                         Text(
                             row.meta.description,

@@ -289,8 +289,8 @@ private fun BraveSearchApiCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.brave_search_title), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                 Text(
-                    if (hasBraveKey) "Enabled — real web results + page content"
-                    else "Not configured — using DDG fallback (~30% coverage)",
+                    if (hasBraveKey) stringResource(R.string.brave_enabled)
+                    else stringResource(R.string.brave_fallback),
                     fontSize = 11.sp,
                     color    = if (hasBraveKey) Color(0xFF30D158) else AiriTheme.onSurface.copy(alpha = 0.5f),
                     lineHeight = 14.sp
@@ -299,7 +299,7 @@ private fun BraveSearchApiCard(
                     color = AiriTheme.outline)
             }
             TextButton(onClick = onEnterKey) {
-                Text(if (hasBraveKey) "Update" else "Add Key", color = CosmicAccent, fontSize = 12.sp)
+                Text(stringResource(if (hasBraveKey) R.string.model_update else R.string.model_add_key), color = CosmicAccent, fontSize = 12.sp)
             }
         }
     }
@@ -716,7 +716,7 @@ private fun ApiKeyEntryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor   = SurfaceCard,
+        containerColor   = AiriTheme.surface,
         shape            = AIRIShapes.md,
         title = {
             Text(stringResource(R.string.connect_label, config.displayLabel), color = AiriTheme.onBackground,

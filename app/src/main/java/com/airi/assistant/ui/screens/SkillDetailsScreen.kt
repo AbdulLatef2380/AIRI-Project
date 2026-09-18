@@ -86,20 +86,20 @@ fun SkillDetailsScreen(
             Text(manifest.iconEmoji.ifBlank { "✦" }, fontSize = 48.sp)
             Text(manifest.name, fontSize = 24.sp, color = AiriTheme.onSurface)
             Text(manifest.description, fontSize = 15.sp, color = AiriTheme.onSurfaceVariant)
-            Text("Category: ${manifest.category} · v${manifest.version}", fontSize = 12.sp, color = CosmicAccent)
+            Text(stringResource(R.string.skill_details_category_label, manifest.category, manifest.version), fontSize = 12.sp, color = CosmicAccent)
 
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("How this skill works", fontSize = 17.sp)
-                    Text("AIRI can select this skill when your request matches its capabilities. It remains governed by permissions, connector availability, memory access, and the execution policy.", color = AiriTheme.onSurfaceVariant)
-                    Text("Memory access: ${manifest.memoryAccess} · Model access: ${manifest.modelAccess}", fontSize = 12.sp)
+                    Text(stringResource(R.string.skill_how_works), fontSize = 17.sp)
+                    Text(stringResource(R.string.skill_details_explanation), color = AiriTheme.onSurfaceVariant)
+                    Text(stringResource(R.string.skill_details_memory, manifest.memoryAccess, manifest.modelAccess), fontSize = 12.sp)
                     if (manifest.dependencies.isNotEmpty()) {
-                        Text("Requirements: ${manifest.dependencies.joinToString()}", fontSize = 12.sp)
+                        Text(stringResource(R.string.skill_details_requirements, manifest.dependencies.joinToString()), fontSize = 12.sp)
                     }
                 }
             }
 
-            Text("Capabilities", fontSize = 17.sp)
+            Text(stringResource(R.string.skill_capabilities), fontSize = 17.sp)
             manifest.tools.forEach { tool ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -113,18 +113,18 @@ fun SkillDetailsScreen(
                 Button(
                     onClick = {
                         if (!available) {
-                            scope.launch { snackbar.showSnackbar("Connect the required service before enabling this skill") }
+                            scope.launch { snackbar.showSnackbar(context.getString(R.string.skill_connect_required)) }
                         } else {
                             enabled = !enabled
                             registry.setSkillEnabled(skillId, enabled)
-                            scope.launch { snackbar.showSnackbar(if (enabled) "Skill enabled" else "Skill disabled") }
+                            scope.launch { snackbar.showSnackbar(context.getString(if (enabled) R.string.skill_enabled else R.string.skill_enable)) }
                         }
                     },
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Outlined.CheckCircle, contentDescription = null)
                     Spacer(Modifier.padding(3.dp))
-                    Text(if (enabled) "Enabled" else "Enable")
+                    Text(stringResource(if (enabled) R.string.skill_enabled else R.string.skill_enable))
                 }
                 OutlinedButton(
                     onClick = { onTry("/skill:${manifest.id} ") },
@@ -132,7 +132,7 @@ fun SkillDetailsScreen(
                 ) {
                     Icon(Icons.Outlined.PlayArrow, contentDescription = null)
                     Spacer(Modifier.padding(3.dp))
-                    Text("Try")
+                    Text(stringResource(R.string.skill_try))
                 }
             }
             OutlinedButton(
@@ -141,7 +141,7 @@ fun SkillDetailsScreen(
             ) {
                 Icon(Icons.Outlined.HelpOutline, contentDescription = null)
                 Spacer(Modifier.padding(3.dp))
-                Text("Request an explanation")
+                Text(stringResource(R.string.skill_explain))
             }
         }
     }

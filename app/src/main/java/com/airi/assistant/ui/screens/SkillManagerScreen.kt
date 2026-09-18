@@ -289,7 +289,7 @@ fun SkillManagerScreen(
                             reload()
                             importSource = null
                         } else {
-                            errorMessage = "The skill name, description, or endpoint is not valid."
+                            errorMessage = context.getString(R.string.skill_invalid_manifest)
                         }
                     }
                 )
@@ -507,7 +507,7 @@ private fun OfficialSkillCard(
                         color = AiriTheme.outline
                     ) {
                         Text(
-                            "Connector required",
+                            stringResource(R.string.skill_connector_required),
                             color    = AiriTheme.onBackground.copy(0.35f),
                             fontSize = 9.sp,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -519,7 +519,7 @@ private fun OfficialSkillCard(
                         color = CosmicAccent.copy(alpha = 0.14f)
                     ) {
                         Text(
-                            "OFFICIAL",
+                            stringResource(R.string.skill_official_badge),
                             color    = CosmicAccent,
                             fontSize = 9.sp,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)

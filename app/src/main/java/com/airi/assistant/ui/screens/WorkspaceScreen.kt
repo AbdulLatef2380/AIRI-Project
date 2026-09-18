@@ -110,7 +110,7 @@ fun WorkspaceScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .clip(AIRIShapes.sm)
-                                .background(if (isActive) CosmicAccent.copy(0.18f) else SurfaceRaised)
+                                .background(if (isActive) CosmicAccent.copy(0.18f) else AiriTheme.surfaceVariant)
                                 .border(0.5.dp, if (isActive) CosmicAccent.copy(0.4f) else AiriTheme.outline, AIRIShapes.sm)
                                 .clickable { workspaceRuntime.setActive(session.sessionId) }
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
@@ -322,7 +322,7 @@ private fun ArtifactCard(
 ) {
     Surface(
         shape    = AIRIShapes.md,
-        color    = if (isSelected) CosmicAccent.copy(0.08f) else SurfaceRaised,
+        color    = if (isSelected) CosmicAccent.copy(0.08f) else AiriTheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.clickable(onClick = onClick).padding(14.dp),

@@ -2923,7 +2923,7 @@ fun AiriChatInputBar(
                 .padding(horizontal = 10.dp, vertical = 6.dp)
                 .clip(AIRIShapes.xl)
                 .background(AiriTheme.surface.copy(alpha = 0.97f))
-                .border(0.5.dp, Color.White.copy(alpha = 0.08f), AIRIShapes.xl)
+                .border(0.5.dp, AiriTheme.outline.copy(alpha = 0.6f), AIRIShapes.xl)
         ) {
             if (attachments.isNotEmpty()) {
                 LazyRow(
@@ -3120,7 +3120,7 @@ fun AiriChatInputBar(
                                 .size(40.dp)
                                 .shadow(4.dp, CircleShape, ambientColor = CosmicAccent.copy(alpha = 0.28f), spotColor = CosmicAccent.copy(alpha = 0.24f))
                                 .clip(CircleShape)
-                                .background(Brush.linearGradient(listOf(CosmicAccent.copy(alpha = 0.24f), SurfaceFloating)))
+                                .background(Brush.linearGradient(listOf(CosmicAccent.copy(alpha = 0.24f), AiriTheme.surface)))
                                 .border(1.dp, CosmicAccent.copy(alpha = 0.42f), CircleShape)
                                 .semantics {
                                     contentDescription = attachmentDescription
@@ -3171,7 +3171,7 @@ fun AiriChatInputBar(
                                 modifier = Modifier
                                     .clip(AIRIShapes.xl)
                                     .background(AiriTheme.surfaceVariant)
-                                    .border(1.dp, Color.White.copy(0.12f), AIRIShapes.xl)
+                                    .border(1.dp, AiriTheme.outline, AIRIShapes.xl)
                                     .semantics {
                                         contentDescription = connectorsDescription
                                         role = Role.Button
@@ -3684,7 +3684,7 @@ private fun GenerationSettingsDialog(viewModel: ChatViewModel, onDismiss: () -> 
                         value = systemPrompt, onValueChange = { viewModel.setSystemPrompt(it) },
                         placeholder = { Text(stringResource(R.string.leave_empty_default), color = AiriTheme.onBackground.copy(0.3f), fontSize = 12.sp) },
                         minLines = 2, maxLines = 4,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = Color.White.copy(0.15f), focusedTextColor = Color.White, unfocusedTextColor = AiriTheme.onBackground)
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = AiriTheme.outline, focusedTextColor = AiriTheme.onSurface, unfocusedTextColor = AiriTheme.onBackground)
                     )
                 }
             }
@@ -3745,7 +3745,7 @@ private fun ScrollToBottomFab(visible: Boolean, onClick: () -> Unit, modifier: M
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.KeyboardArrowDown, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
         }
     }
 }

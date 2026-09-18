@@ -152,7 +152,7 @@ fun SkillCreationWizardScreen(onBack: () -> Unit) {
         step = 3
     }
 
-    val stepTitles = listOf("Identity", "Tools", "Permissions", "Preview & Export")
+    val stepTitles = listOf(stringResource(R.string.skill_step_identity), stringResource(R.string.skill_step_tools), stringResource(R.string.skill_step_permissions), stringResource(R.string.skill_step_preview_export))
 
     Scaffold(
         containerColor = AiriTheme.background,
@@ -181,7 +181,7 @@ fun SkillCreationWizardScreen(onBack: () -> Unit) {
                                 if (step == 2) goToPreview() else step++
                             }
                         ) {
-                            Text(if (step == 2) "Preview" else "Next", color = CosmicAccent, fontWeight = FontWeight.Bold)
+                            Text(stringResource(if (step == 2) R.string.skill_preview else R.string.skill_next), color = CosmicAccent, fontWeight = FontWeight.Bold)
                             Icon(Icons.Default.ArrowForward, null, Modifier.size(16.dp), tint = CosmicAccent)
                         }
                     }
@@ -233,7 +233,7 @@ fun SkillCreationWizardScreen(onBack: () -> Unit) {
                         onCopy        = {
                             val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             cm.setPrimaryClip(ClipData.newPlainText("skill.json", generatedJson))
-                            scope.launch { snackHost.showSnackbar("Copied to clipboard") }
+                            scope.launch { snackHost.showSnackbar(context.getString(R.string.skill_copied)) }
                         },
                         onShare       = {
                             val intent = Intent(Intent.ACTION_SEND).apply {
@@ -241,7 +241,7 @@ fun SkillCreationWizardScreen(onBack: () -> Unit) {
                                 putExtra(Intent.EXTRA_SUBJECT, "skill.json — ${name.trim()}")
                                 putExtra(Intent.EXTRA_TEXT, generatedJson)
                             }
-                            context.startActivity(Intent.createChooser(intent, "Share skill.json"))
+                            context.startActivity(Intent.createChooser(intent, context.getString(R.string.skill_share_manifest)))
                         },
                         onEdit        = { step = 0 }
                     )
@@ -270,44 +270,44 @@ private fun IdentityStep(
         modifier = Modifier.fillMaxSize()
     ) {
         item {
-            WizardSectionLabel("Basic Information")
+            WizardSectionLabel(stringResource(R.string.skill_basic_information))
             Spacer(Modifier.height(8.dp))
-            WizardField(name, onNameChange, "Skill Name *", "e.g. Web Search")
+            WizardField(name, onNameChange, stringResource(R.string.skill_name_required), stringResource(R.string.skill_search_hint))
         }
         item {
             WizardField(
-                skillId, onSkillIdChange, "Skill ID",
-                "machine_readable_id (auto-generated from name if blank)"
+                skillId, onSkillIdChange, stringResource(R.string.skill_id),
+                stringResource(R.string.skill_id_hint)
             )
         }
         item {
             WizardField(
-                description, onDescriptionChange, "Description *",
-                "What does this skill do? (≥10 chars)", minLines = 3
+                description, onDescriptionChange, stringResource(R.string.skill_description_required),
+                stringResource(R.string.skill_description_hint), minLines = 3
             )
         }
 
         item {
-            WizardSectionLabel("Icon")
+            WizardSectionLabel(stringResource(R.string.skill_icon))
             Spacer(Modifier.height(8.dp))
             EmojiPicker(selected = iconEmoji, onSelect = onIconChange)
         }
 
         item {
-            WizardSectionLabel("Category")
+            WizardSectionLabel(stringResource(R.string.skill_category))
             Spacer(Modifier.height(8.dp))
             CategorySelector(selected = category, onSelect = onCategoryChange)
         }
 
         item {
-            WizardSectionLabel("Publishing Metadata")
+            WizardSectionLabel(stringResource(R.string.skill_publishing_metadata))
             Spacer(Modifier.height(8.dp))
             WizardField(author, onAuthorChange, stringResource(R.string.skill_wizard_author_label), stringResource(R.string.skill_wizard_author_placeholder))
         }
-        item { WizardField(version, onVersionChange, "Version *", "1.0.0 — must be semver") }
-        item { WizardField(license, onLicenseChange, "License", "MIT, Apache-2.0, etc.") }
-        item { WizardField(repositoryUrl, onRepoUrlChange, "Repository URL", "https://github.com/you/skill-repo") }
-        item { WizardField(tags, onTagsChange, "Tags", "comma-separated: search, web, news") }
+        item { WizardField(version, onVersionChange, stringResource(R.string.skill_version_required), stringResource(R.string.skill_version_hint)) }
+        item { WizardField(license, onLicenseChange, stringResource(R.string.skill_license), stringResource(R.string.skill_license_hint)) }
+        item { WizardField(repositoryUrl, onRepoUrlChange, stringResource(R.string.skill_repository_url), "https://github.com/you/skill-repo") }
+        item { WizardField(tags, onTagsChange, stringResource(R.string.skill_tags), stringResource(R.string.skill_tags_hint)) }
 
         item {
             Button(
@@ -337,7 +337,7 @@ private fun ToolsStep(
         modifier = Modifier.fillMaxSize()
     ) {
         item {
-            WizardSectionLabel("Tool Definitions")
+            WizardSectionLabel(stringResource(R.string.skill_tool_definitions))
             Spacer(Modifier.height(4.dp))
             Text(
                 "Define the tools the agent loop can call. Each tool maps to one action your skill performs.",
@@ -512,7 +512,7 @@ private fun PermissionsStep(
         modifier = Modifier.fillMaxSize()
     ) {
         item {
-            WizardSectionLabel("Memory Access")
+            WizardSectionLabel(stringResource(R.string.skill_memory_access))
             Spacer(Modifier.height(4.dp))
             Text(
                 "Controls whether this skill can read or write to AIRI's persistent memory.",
@@ -536,7 +536,7 @@ private fun PermissionsStep(
         }
 
         item {
-            WizardSectionLabel("Model Access")
+            WizardSectionLabel(stringResource(R.string.skill_model_access))
             Spacer(Modifier.height(4.dp))
             Text(
                 "Controls whether this skill can call the active LLM for additional inference.",
@@ -559,7 +559,7 @@ private fun PermissionsStep(
         }
 
         item {
-            WizardSectionLabel("Dependencies")
+            WizardSectionLabel(stringResource(R.string.skill_dependencies))
             Spacer(Modifier.height(8.dp))
             WizardField(
                 dependencies, onDepsChange,

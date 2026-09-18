@@ -32,6 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 import com.airi.assistant.resources.ResourceBudgetManager
 import com.airi.assistant.resources.asResourceSize
 
@@ -57,7 +59,7 @@ fun ResourceSettingsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Resource customization") },
+                title = { Text(stringResource(R.string.resource_customization_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
@@ -71,11 +73,11 @@ fun ResourceSettingsScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(deviceName, fontSize = 18.sp)
-            Text("Set warning targets for AIRI data and runtime pressure. Android does not let an app reserve storage, RAM, or CPU; these values guide AIRI and trigger early warnings.", fontSize = 14.sp)
+            Text(stringResource(R.string.resource_warning_targets_desc), fontSize = 14.sp)
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Storage")
+                        Text(stringResource(R.string.resource_storage))
                         Icon(Icons.Outlined.Storage, contentDescription = null)
                     }
                     Text("${snapshot.storageUsedBytes.asResourceSize()} used of ${snapshot.storageBudgetBytes.asResourceSize()} (${snapshot.storagePercent}%)")
@@ -88,16 +90,16 @@ fun ResourceSettingsScreen(onBack: () -> Unit) {
                             Button(onClick = { storageBudget = gb; manager.setStorageBudgetGb(gb); refresh() }) { Text("${gb}GB") }
                         }
                     }
-                    Text("AIRI measures its own data here, including downloaded models and saved files. The value is a warning target, not an operating-system quota.", fontSize = 12.sp)
+                    Text(stringResource(R.string.resource_data_desc), fontSize = 12.sp)
                 }
             }
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("RAM warning target: ${ramBudget} MB")
+                    Text(stringResource(R.string.resource_ram_target, ramBudget))
                         Icon(Icons.Outlined.Memory, contentDescription = null)
                     }
-                    Text("Device total: ${snapshot.totalRamBytes.asResourceSize()} · available: ${snapshot.availableRamBytes.asResourceSize()}")
+                    Text(stringResource(R.string.resource_device_total, snapshot.totalRamBytes.asResourceSize(), snapshot.availableRamBytes.asResourceSize()))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(1024L, 2048L, 4096L, (memoryInfo.totalMem / (1024L * 1024L)).coerceAtLeast(1024L))
                             .distinct().sorted().forEach { mb ->
@@ -108,7 +110,7 @@ fun ResourceSettingsScreen(onBack: () -> Unit) {
             }
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("CPU warning target: $cpuBudget%")
+                    Text(stringResource(R.string.resource_cpu_target, cpuBudget))
                     Text("${snapshot.cpuCores} available processor cores. This value is guidance for AIRI runtime choices; Android still controls scheduling.", fontSize = 12.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(25, 50, 75, 100).forEach { percent ->
@@ -118,10 +120,10 @@ fun ResourceSettingsScreen(onBack: () -> Unit) {
                 }
             }
             if (snapshot.storageWarning || snapshot.ramWarning) {
-                Text("Warning: resources are nearly exhausted. Delete unused models/data or increase the budget before continuing.")
+                Text(stringResource(R.string.resource_nearly_exhausted))
             }
             Spacer(Modifier.height(4.dp))
-            Text("The Android operating system controls actual RAM and CPU scheduling. These settings are applied as safe AIRI runtime limits, not as a reservation of system resources.", fontSize = 12.sp)
+            Text(stringResource(R.string.resource_runtime_limits), fontSize = 12.sp)
         }
     }
 }

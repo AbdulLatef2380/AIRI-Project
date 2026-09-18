@@ -68,7 +68,7 @@ fun MemoryScreen(
     if (showConfirm) {
         AlertDialog(
             onDismissRequest = { showConfirm = false },
-            containerColor   = SurfaceFloating,
+            containerColor   = AiriTheme.surface,
             shape            = AIRIShapes.xl,
             icon             = { Icon(Icons.Outlined.DeleteSweep, null, tint = SemanticError, modifier = Modifier.size(28.dp)) },
             title = { Text(stringResource(R.string.memory_clear_confirm_title), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold) },
@@ -102,7 +102,7 @@ fun MemoryScreen(
     deleteCandidate?.let { candidate ->
         AlertDialog(
             onDismissRequest = { deleteCandidate = null },
-            containerColor = SurfaceFloating,
+            containerColor = AiriTheme.surface,
             shape = AIRIShapes.xl,
             icon = { Icon(Icons.Outlined.Delete, null, tint = SemanticError, modifier = Modifier.size(28.dp)) },
             title = { Text(stringResource(R.string.memory_delete_title), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold) },
@@ -135,7 +135,7 @@ fun MemoryScreen(
     editCandidate?.let { candidate ->
         AlertDialog(
             onDismissRequest = { editCandidate = null },
-            containerColor = SurfaceFloating,
+            containerColor = AiriTheme.surface,
             shape = AIRIShapes.xl,
             icon = { Icon(Icons.Outlined.Edit, null, tint = CosmicAccent, modifier = Modifier.size(28.dp)) },
             title = { Text(stringResource(R.string.memory_edit_title), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold) },
@@ -344,7 +344,7 @@ private fun MemoryEntryCard(
 
     Surface(
         shape  = AIRIShapes.md,
-        color  = SurfaceRaised,
+        color  = AiriTheme.surfaceVariant,
         border = BorderStroke(0.5.dp, DividerColor),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -457,7 +457,7 @@ private fun SearchBar(
 ) {
     Surface(
         shape  = AIRIShapes.md,
-        color  = SurfaceRaised,
+        color  = AiriTheme.surfaceVariant,
         border = BorderStroke(0.5.dp, if (query.isNotBlank()) CosmicAccent.copy(0.35f) else DividerColor),
         modifier = modifier
     ) {

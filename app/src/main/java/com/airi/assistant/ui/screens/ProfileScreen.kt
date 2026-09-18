@@ -130,7 +130,7 @@ fun ProfileScreen(
     if (showEditName) {
         AlertDialog(
             onDismissRequest = { showEditName = false },
-            containerColor   = SurfaceFloating,
+            containerColor   = AiriTheme.surface,
             shape            = AIRIShapes.xl,
             title = {
                 Text(
@@ -232,7 +232,7 @@ fun ProfileScreen(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { if (!isDeleting) showDeleteConfirm = false },
-            containerColor   = SurfaceFloating,
+            containerColor   = AiriTheme.surface,
             shape            = AIRIShapes.xl,
             icon = {
                 Icon(

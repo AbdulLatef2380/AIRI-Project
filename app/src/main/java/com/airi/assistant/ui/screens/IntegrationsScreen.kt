@@ -264,16 +264,15 @@ private fun IntegrationCard(
     onDisconnect: () -> Unit
 ) {
     val ready = item.isReady
-    val cardAlpha = if (ready) 0.10f else 0.04f
     val borderColor = if (ready) Color(0xFF4ADE80).copy(alpha = 0.35f)
     else AiriTheme.outline
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .border(0.5.dp, borderColor, AIRIShapes.xl),
+            .border(1.dp, borderColor, AIRIShapes.xl),
         shape = AIRIShapes.xl,
-        color = AiriTheme.onBackground.copy(alpha = cardAlpha),
+        color = if (ready) AiriTheme.surfaceVariant else AiriTheme.surface,
         contentColor = AiriTheme.onSurface,
         tonalElevation = 0.dp
     ) {
@@ -337,7 +336,7 @@ private fun IntegrationCard(
             ) {
                 Column {
                     Spacer(Modifier.height(10.dp))
-                    Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
+                    Divider(color = AiriTheme.outline.copy(alpha = 0.45f))
                     Spacer(Modifier.height(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(

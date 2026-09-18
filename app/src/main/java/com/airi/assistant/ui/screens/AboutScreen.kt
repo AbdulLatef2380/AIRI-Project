@@ -67,7 +67,7 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
                     .clip(AIRIShapes.xl)
                     .background(
                         Brush.radialGradient(
-                            listOf(CosmicAccent.copy(0.28f), SurfaceRaised)
+                            listOf(CosmicAccent.copy(0.28f), AiriTheme.surfaceVariant)
                         )
                     )
                     .border(1.dp, CosmicAccent.copy(0.35f), AIRIShapes.xl),
@@ -165,7 +165,7 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
 private fun VersionChip(label: String, value: String) {
     Surface(
         shape  = AIRIShapes.xl,
-        color  = SurfaceRaised,
+        color  = AiriTheme.surfaceVariant,
         border = BorderStroke(0.5.dp, DividerColor)
     ) {
         Row(
@@ -183,7 +183,7 @@ private fun VersionChip(label: String, value: String) {
 private fun AboutInfoCard(icon: ImageVector, title: String, body: String) {
     Surface(
         shape    = AIRIShapes.md,
-        color    = SurfaceRaised,
+        color    = AiriTheme.surfaceVariant,
         border   = BorderStroke(0.5.dp, DividerColor),
         modifier = Modifier.fillMaxWidth()
     ) {

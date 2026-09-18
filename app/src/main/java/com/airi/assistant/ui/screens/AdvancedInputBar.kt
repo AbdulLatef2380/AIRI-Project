@@ -225,7 +225,7 @@ private fun InputActionToolbar(
         QuickToolChip(label = stringResource(R.string.input_code), onClick = onCodeClick)
 
         // Divider
-        Box(modifier = Modifier.width(1.dp).height(20.dp).background(DividerColor))
+        Box(modifier = Modifier.width(1.dp).height(20.dp).background(AiriTheme.outline))
 
         // Attachment shortcuts
         ActionChip(
@@ -257,7 +257,7 @@ private fun PlanModeChip(isActive: Boolean, onClick: () -> Unit) {
         if (isActive) CosmicAccent.copy(0.20f) else AiriTheme.onSurface.copy(0.04f), tween(AIRIAnimations.FAST), label = "plan_bg"
     )
     val border by animateColorAsState(
-        if (isActive) CosmicAccent.copy(0.60f) else DividerColor, tween(AIRIAnimations.FAST), label = "plan_border"
+        if (isActive) CosmicAccent.copy(0.60f) else AiriTheme.outline, tween(AIRIAnimations.FAST), label = "plan_border"
     )
     Row(
         modifier = Modifier
@@ -314,7 +314,7 @@ private fun ActionChip(
             .background(bg)
             .border(
                 1.dp,
-                if (isActive) iconTint.copy(0.50f) else DividerColor,
+                if (isActive) iconTint.copy(0.50f) else AiriTheme.outline,
                 AIRIShapes.xs
             )
             .semantics {
@@ -343,7 +343,7 @@ private fun QuickToolChip(label: String, onClick: () -> Unit = {}) {
             .heightIn(min = 48.dp)
             .clip(AIRIShapes.xs)
             .background(AiriTheme.onSurface.copy(0.03f))
-            .border(0.5.dp, DividerColor, AIRIShapes.xs)
+            .border(0.5.dp, AiriTheme.outline, AIRIShapes.xs)
             .semantics {
                 contentDescription = label
                 role = Role.Button

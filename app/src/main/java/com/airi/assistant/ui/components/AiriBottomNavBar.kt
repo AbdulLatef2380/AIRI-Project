@@ -51,7 +51,7 @@ import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.theme.NavIconActive
 import com.airi.assistant.ui.theme.NavIconInactive
 // Fixed invalid import
-import com.airi.assistant.ui.theme.SurfaceRaised
+import com.airi.assistant.ui.theme.AiriTheme.surfaceVariant
 
 enum class AiriNavTab {
     SKILLS,

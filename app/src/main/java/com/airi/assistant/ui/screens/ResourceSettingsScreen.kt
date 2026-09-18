@@ -80,7 +80,7 @@ fun ResourceSettingsScreen(onBack: () -> Unit) {
                         Text(stringResource(R.string.resource_storage))
                         Icon(Icons.Outlined.Storage, contentDescription = null)
                     }
-                    Text("${snapshot.storageUsedBytes.asResourceSize()} used of ${snapshot.storageBudgetBytes.asResourceSize()} (${snapshot.storagePercent}%)")
+                    Text(stringResource(R.string.resource_storage_used, snapshot.storageUsedBytes.asResourceSize(), snapshot.storageBudgetBytes.asResourceSize(), snapshot.storagePercent))
                     LinearProgressIndicator(
                         progress = { (snapshot.storagePercent / 100f).coerceIn(0f, 1f) },
                         modifier = Modifier.fillMaxWidth()
@@ -111,7 +111,7 @@ fun ResourceSettingsScreen(onBack: () -> Unit) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.resource_cpu_target, cpuBudget))
-                    Text("${snapshot.cpuCores} available processor cores. This value is guidance for AIRI runtime choices; Android still controls scheduling.", fontSize = 12.sp)
+                    Text(stringResource(R.string.resource_processor_cores_text, snapshot.cpuCores), fontSize = 12.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(25, 50, 75, 100).forEach { percent ->
                             Button(onClick = { cpuBudget = percent; manager.setCpuBudgetPercent(percent); refresh() }) { Text("$percent%") }

@@ -28,18 +28,27 @@ class ThemePreferences(context: Context) {
     var mode: ThemeMode
         get() = _themeMode.value
         set(value) {
-            prefs.edit().putString(KEY_THEME_MODE, value.name).apply()
+            prefs.edit()
+                .putString(KEY_THEME_MODE, value.name)
+                .putBoolean(KEY_THEME_MODE_EXPLICIT, true)
+                .apply()
             _themeMode.value = value
         }
 
-    private fun readFromDisk(): ThemeMode =
-        prefs.getString(KEY_THEME_MODE, ThemeMode.AMOLED.name)
-            ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
-            ?: ThemeMode.AMOLED
+    private fun readFromDisk(): ThemeMode {
+        val raw = prefs.getString(KEY_THEME_MODE, null)
+        val explicit = prefs.getBoolean(KEY_THEME_MODE_EXPLICIT, false)
+        // AMOLED was the historical implicit default. Treat that legacy value as
+        // SYSTEM unless the user explicitly selected AMOLED, so old installs do
+        // not remain visually stuck in the dark palette after the theme fix.
+        if (raw == ThemeMode.AMOLED.name && !explicit) return ThemeMode.SYSTEM
+        return raw?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM
+    }
 
     companion object {
         private const val PREFS_FILE      = "airi_theme_prefs"
         private const val KEY_THEME_MODE  = "theme_mode"
+        private const val KEY_THEME_MODE_EXPLICIT = "theme_mode_explicit"
 
         /** App-wide singleton so Compose collectors share the same StateFlow. */
         @Volatile private var instance: ThemePreferences? = null
